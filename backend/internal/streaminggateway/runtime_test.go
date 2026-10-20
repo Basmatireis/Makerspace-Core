@@ -126,7 +126,11 @@ func TestConfigurationIsRetainedWhileCoreIsUnreachable(t *testing.T) {
 	if _, ok := g.Snapshot().Streams["cam-a"]; !ok || g2r.restarts != 1 {
 		t.Fatalf("snapshot %v restarts %d", g.Snapshot().Streams, g2r.restarts)
 	}
-	for _, failure := range []error{errors.New("dial tcp: connection refused"), &CoreError{Status: 503, Code: "unavailable"}, &CoreError{Status: 500, Code: "internal"}} {
+	for _, failure := range []error{
+		errors.New("dial tcp: connection refused"),
+		&CoreError{Status: 503, Code: "unavailable"},
+		&CoreError{Status: 500, Code: "internal"},
+	} {
 		core.set(Configuration{}, failure)
 		if err = g.Sync(ctx, Identity{CredentialSecret: "x"}); err == nil {
 			t.Fatal("sync should report the failure")

@@ -50,7 +50,11 @@ func (s *Service) SessionForSensitiveOperation(
 		principal.Assurance = authorization.Assurance(session.BaseAssurance)
 	}
 	if requireRecent &&
-		(expired || !principal.HasFreshAssurance(authorization.AssuranceNormal, SensitiveAuthenticationAge, time.Now())) {
+		(expired || !principal.HasFreshAssurance(
+			authorization.AssuranceNormal,
+			SensitiveAuthenticationAge,
+			time.Now(),
+		)) {
 		return principal, reauthenticationRequired()
 	}
 	return authorization.LoadPermissionsFrom(ctx, tx, principal)
@@ -71,7 +75,15 @@ func (s *Service) GrantRecentAuthentication(
 	if !proof.HasFreshAssurance(authorization.AssuranceNormal, SensitiveAuthenticationAge, time.Now()) {
 		return reauthenticationRequired()
 	}
-	if err := authdb.New(tx).GrantRecentAuthentication(ctx, authdb.GrantRecentAuthenticationParams{ID: principal.SessionID, Assurance: string(assurance), AuthenticatedAt: authenticatedAt, ExpiresAt: pgtype.Timestamptz{Time: authenticatedAt.Add(SensitiveAuthenticationAge), Valid: true}}); err != nil {
+	if err := authdb.New(tx).GrantRecentAuthentication(
+		ctx,
+		authdb.GrantRecentAuthenticationParams{
+			ID:              principal.SessionID,
+			Assurance:       string(assurance),
+			AuthenticatedAt: authenticatedAt,
+			ExpiresAt:       pgtype.Timestamptz{Time: authenticatedAt.Add(SensitiveAuthenticationAge), Valid: true},
+		},
+	); err != nil {
 		return err
 	}
 	return audit.Write(
@@ -117,7 +129,14 @@ func (s *Service) ReauthenticatePassword(
 	if err != nil || credential.ResetRequired || !valid {
 		return principal, apperror.New(422, "current_password_invalid", "Current password is invalid")
 	}
-	if err := s.GrantRecentAuthentication(ctx, tx, principal, authorization.AssuranceNormal, time.Now().UTC(), requestID); err != nil {
+	if err := s.GrantRecentAuthentication(
+		ctx,
+		tx,
+		principal,
+		authorization.AssuranceNormal,
+		time.Now().UTC(),
+		requestID,
+	); err != nil {
 		return principal, err
 	}
 	fresh, err := s.SessionForSensitiveOperation(ctx, tx, principal, true)

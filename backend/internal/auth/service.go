@@ -261,11 +261,24 @@ func (s *Service) Logout(ctx context.Context, principal authorization.Principal,
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := authdb.New(tx).RevokeSession(ctx, authdb.RevokeSessionParams{ID: principal.SessionID, Reason: ptr("logout")}); err != nil {
+	if err := authdb.New(tx).RevokeSession(
+		ctx,
+		authdb.RevokeSessionParams{ID: principal.SessionID, Reason: ptr("logout")},
+	); err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "auth.logout", ResourceType: "session", ResourceID: &principal.SessionID, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "auth.logout",
+			ResourceType:   "session",
+			ResourceID:     &principal.SessionID,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -310,10 +323,16 @@ func (s *Service) ChangePassword(
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
 		return Session{}, apperror.New(422, "current_password_invalid", "Current password is invalid")
 	}
-	if err := queries.UpsertPasswordCredential(ctx, authdb.UpsertPasswordCredentialParams{AuthIdentityID: credential.AuthIdentityID, PasswordHash: newHash}); err != nil {
+	if err := queries.UpsertPasswordCredential(
+		ctx,
+		authdb.UpsertPasswordCredentialParams{AuthIdentityID: credential.AuthIdentityID, PasswordHash: newHash},
+	); err != nil {
 		return Session{}, err
 	}
-	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_changed")}); err != nil {
+	if err := queries.RevokeSessionsForAccount(
+		ctx,
+		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_changed")},
+	); err != nil {
 		return Session{}, err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
@@ -324,7 +343,17 @@ func (s *Service) ChangePassword(
 		return Session{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_changed", ResourceType: "account", ResourceID: &actor, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "account.password_changed",
+			ResourceType:   "account",
+			ResourceID:     &actor,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -365,14 +394,28 @@ func (s *Service) RemovePassword(
 	if err := queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_removed")}); err != nil {
+	if err := queries.RevokeSessionsForAccount(
+		ctx,
+		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_removed")},
+	); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_removed", ResourceType: "account", ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"passwordIdentity"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "account.password_removed",
+			ResourceType:   "account",
+			ResourceID:     &actor,
+			RequestID:      requestID,
+			ChangedFields:  []string{"passwordIdentity"},
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -412,19 +455,34 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword
 	if err != nil {
 		return err
 	}
-	if err := queries.UpsertPasswordCredential(ctx, authdb.UpsertPasswordCredentialParams{AuthIdentityID: reset.AuthIdentityID, PasswordHash: newHash}); err != nil {
+	if err := queries.UpsertPasswordCredential(
+		ctx,
+		authdb.UpsertPasswordCredentialParams{AuthIdentityID: reset.AuthIdentityID, PasswordHash: newHash},
+	); err != nil {
 		return err
 	}
 	if err := queries.DeletePasswordResetToken(ctx, reset.ID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: reset.AccountID, Reason: ptr("password_reset_redeemed")}); err != nil {
+	if err := queries.RevokeSessionsForAccount(
+		ctx,
+		authdb.RevokeSessionsForAccountParams{AccountID: reset.AccountID, Reason: ptr("password_reset_redeemed")},
+	); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, reset.AccountID); err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "account.password_reset_completed", ResourceType: "account", ResourceID: &accountID, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:       "account.password_reset_completed",
+			ResourceType: "account",
+			ResourceID:   &accountID,
+			RequestID:    requestID,
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -454,7 +512,9 @@ func (s *Service) createSession(
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
 		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, ManagedDeviceID: policy.ManagedDeviceID,
 		SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
-		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination,
+		IdleTimeoutSeconds: int32(
+			policy.IdleTimeout / time.Second,
+		), PostSessionDestination: policy.PostSessionDestination,
 	}); err != nil {
 		return Session{}, err
 	}
@@ -516,13 +576,20 @@ func (s *Service) CreateOIDCSession(
 	id := uuid.Must(uuid.NewV7())
 	if _, err := queries.CreateOIDCSession(ctx, authdb.CreateOIDCSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
-		CsrfDigest: csrfDigest, Assurance: string(assurance), AuthenticatedAt: authenticatedAt, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+		CsrfDigest: csrfDigest, Assurance: string(
+			assurance,
+		), AuthenticatedAt: authenticatedAt, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
 		ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
-		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination,
+		IdleTimeoutSeconds: int32(
+			policy.IdleTimeout / time.Second,
+		), PostSessionDestination: policy.PostSessionDestination,
 	}); err != nil {
 		return Session{}, err
 	}
-	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{AuthIdentityID: identityID, AccountID: accountID}); err != nil {
+	if err := queries.MarkAuthenticationSucceeded(
+		ctx,
+		authdb.MarkAuthenticationSucceededParams{AuthIdentityID: identityID, AccountID: accountID},
+	); err != nil {
 		return Session{}, err
 	}
 	return Session{

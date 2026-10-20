@@ -55,7 +55,13 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
-	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
+	if err := lockPasswordChallengeTarget(
+		ctx,
+		queries,
+		target.AccountID,
+		target.AuthIdentityID,
+		normalized,
+	); err != nil {
 		if apperror.IsCode(err, "challenge_invalid") {
 			return nil
 		}
@@ -69,7 +75,16 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 	if err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "account.password_reset_requested", ResourceType: "account", ResourceID: &target.AccountID, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:       "account.password_reset_requested",
+			ResourceType: "account",
+			ResourceID:   &target.AccountID,
+			RequestID:    requestID,
+		},
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -117,7 +132,13 @@ func (s *Service) CompletePasswordResetCode(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
-	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
+	if err := lockPasswordChallengeTarget(
+		ctx,
+		queries,
+		target.AccountID,
+		target.AuthIdentityID,
+		normalized,
+	); err != nil {
 		return err
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
@@ -146,19 +167,35 @@ func (s *Service) CompletePasswordResetCode(
 	if challenge.AuthIdentityID == nil || *challenge.AuthIdentityID != target.AuthIdentityID {
 		return invalidChallenge()
 	}
-	if err := queries.UpsertPasswordCredential(ctx, authdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: newHash}); err != nil {
+	if err := queries.UpsertPasswordCredential(
+		ctx,
+		authdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: newHash},
+	); err != nil {
 		return err
 	}
 	if err := queries.UseAuthChallenge(ctx, challenge.ID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("password_reset")}); err != nil {
+	if err := queries.RevokeSessionsForAccount(
+		ctx,
+		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("password_reset")},
+	); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, target.AccountID); err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "account.password_reset_completed", ResourceType: "account", ResourceID: &target.AccountID, RequestID: requestID, ChangedFields: []string{"password"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "account.password_reset_completed",
+			ResourceType:  "account",
+			ResourceID:    &target.AccountID,
+			RequestID:     requestID,
+			ChangedFields: []string{"password"},
+		},
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -212,7 +249,13 @@ func (s *Service) CompleteInvitation(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
-	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
+	if err := lockPasswordChallengeTarget(
+		ctx,
+		queries,
+		target.AccountID,
+		target.AuthIdentityID,
+		normalized,
+	); err != nil {
 		return err
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
@@ -241,7 +284,10 @@ func (s *Service) CompleteInvitation(
 	if challenge.AuthIdentityID == nil || *challenge.AuthIdentityID != target.AuthIdentityID {
 		return invalidChallenge()
 	}
-	if err := queries.UpsertPasswordCredential(ctx, authdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: newHash}); err != nil {
+	if err := queries.UpsertPasswordCredential(
+		ctx,
+		authdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: newHash},
+	); err != nil {
 		return err
 	}
 	if err := queries.VerifyPasswordIdentity(ctx, target.AuthIdentityID); err != nil {
@@ -256,10 +302,23 @@ func (s *Service) CompleteInvitation(
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, target.AccountID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("invitation_completed")}); err != nil {
+	if err := queries.RevokeSessionsForAccount(
+		ctx,
+		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("invitation_completed")},
+	); err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "account.invitation_completed", ResourceType: "account", ResourceID: &target.AccountID, RequestID: requestID, ChangedFields: []string{"password", "emailVerification", "status"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "account.invitation_completed",
+			ResourceType:  "account",
+			ResourceID:    &target.AccountID,
+			RequestID:     requestID,
+			ChangedFields: []string{"password", "emailVerification", "status"},
+		},
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -326,14 +385,29 @@ func (s *Service) RequestOwnEmailVerification(
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "email_verification", AccountID: principal.AccountID,
-		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest("email_verification", principal.AccountID, code),
+		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest(
+			"email_verification",
+			principal.AccountID,
+			code,
+		),
 		DeliveryAddress: target.DeliveryAddress, CreatedByAccountID: &principal.AccountID, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.email_verification_requested", ResourceType: "account", ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"emailVerification"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "account.email_verification_requested",
+			ResourceType:   "account",
+			ResourceID:     &actor,
+			RequestID:      requestID,
+			ChangedFields:  []string{"emailVerification"},
+		},
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -377,7 +451,13 @@ func (s *Service) CompleteEmailVerification(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
-	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
+	if err := lockPasswordChallengeTarget(
+		ctx,
+		queries,
+		target.AccountID,
+		target.AuthIdentityID,
+		normalized,
+	); err != nil {
 		return err
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
@@ -415,7 +495,17 @@ func (s *Service) CompleteEmailVerification(
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, target.AccountID); err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "account.email_verified", ResourceType: "account", ResourceID: &target.AccountID, RequestID: requestID, ChangedFields: []string{"emailVerification"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "account.email_verified",
+			ResourceType:  "account",
+			ResourceID:    &target.AccountID,
+			RequestID:     requestID,
+			ChangedFields: []string{"emailVerification"},
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -472,7 +562,10 @@ func (s *Service) consumeChallengeLimit(ctx context.Context, action, value strin
 	_, _ = mac.Write([]byte{0})
 	_, _ = io.WriteString(mac, value)
 	allowed, err := authdb.New(s.pool).
-		ConsumeAuthRateLimit(ctx, authdb.ConsumeAuthRateLimitParams{Action: action, KeyDigest: mac.Sum(nil), MaxAttempts: maximum})
+		ConsumeAuthRateLimit(
+			ctx,
+			authdb.ConsumeAuthRateLimitParams{Action: action, KeyDigest: mac.Sum(nil), MaxAttempts: maximum},
+		)
 	return err == nil && allowed != nil && *allowed, err
 }
 
@@ -485,7 +578,10 @@ func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, del
 		failureCode = &code
 	}
 	_ = authdb.New(s.pool).
-		SetAuthChallengeDelivery(ctx, authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+		SetAuthChallengeDelivery(
+			ctx,
+			authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: status, DeliveryFailureCode: failureCode},
+		)
 }
 
 func invalidChallenge() error {

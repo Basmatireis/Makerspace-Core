@@ -33,7 +33,16 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		adminLogin    = "types-admin@example.test"
 		adminPassword = "Types admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Runs", LastName: "Admin", ContactEmail: "types-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(
+		ctx,
+		admin.BootstrapInput{
+			FirstName:    "Runs",
+			LastName:     "Admin",
+			ContactEmail: "types-contact@example.test",
+			LoginEmail:   adminLogin,
+			Password:     adminPassword,
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)

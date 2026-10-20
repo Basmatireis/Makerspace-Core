@@ -37,7 +37,12 @@ func (s *Store) BambuStateFor(
 		return bambuPersistedState{}, false, errors.New("unsupported Bambu adapter kind")
 	}
 	var encrypted []byte
-	err := s.db.QueryRowContext(ctx, `SELECT encrypted_value FROM adapter_state WHERE assignment_id=? AND adapter_kind=?`, assignmentID.String(), adapterKind).
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT encrypted_value FROM adapter_state WHERE assignment_id=? AND adapter_kind=?`,
+		assignmentID.String(),
+		adapterKind,
+	).
 		Scan(&encrypted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return bambuPersistedState{}, false, nil
@@ -140,7 +145,11 @@ func (s *Store) EnqueueBambuStateFor(
 	}
 	sequence := int64(1)
 	if len(observations) > 0 {
-		err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, assignmentID.String()).
+		err = tx.QueryRowContext(
+			ctx,
+			`SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`,
+			assignmentID.String(),
+		).
 			Scan(&sequence)
 		if errors.Is(err, sql.ErrNoRows) {
 			_, err = tx.ExecContext(
@@ -150,7 +159,12 @@ func (s *Store) EnqueueBambuStateFor(
 				sequence+int64(len(observations)),
 			)
 		} else if err == nil {
-			_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+int64(len(observations)), assignmentID.String())
+			_, err = tx.ExecContext(
+				ctx,
+				`UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`,
+				sequence+int64(len(observations)),
+				assignmentID.String(),
+			)
 		}
 		if err != nil {
 			return err
@@ -233,7 +247,10 @@ func (s *Store) StageArtifact(
 		expiresAt = time.Now().UTC().Add(24 * time.Hour)
 	}
 	var count, bytes int64
-	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer+`)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending'),coalesce(sum(size_bytes),0) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&count, &bytes); err != nil {
+	if err := s.db.QueryRowContext(
+		ctx,
+		`SELECT (SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer+`)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending'),coalesce(sum(size_bytes),0) FROM artifact_transfers WHERE `+queuedArtifactTransfer,
+	).Scan(&count, &bytes); err != nil {
 		return ArtifactTransfer{}, err
 	}
 	if count >= maxArtifactTransfers || bytes >= maxArtifactBytes {
@@ -359,7 +376,9 @@ func (s *Store) PendingArtifactTransfers(ctx context.Context, limit int) ([]Arti
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT id,assignment_id,run_id,configuration_version,remote_path,file_name,staged_path,size_bytes,sha256,attempt_count,expires_at FROM artifact_transfers
-		WHERE state='pending' AND next_attempt_at<=? AND expires_at>? AND NOT EXISTS (SELECT 1 FROM artifact_upload_receipts r WHERE r.transfer_id=artifact_transfers.id)
+		WHERE state='pending' AND next_attempt_at<=? AND expires_at>? AND NOT EXISTS (
+			SELECT 1 FROM artifact_upload_receipts r WHERE r.transfer_id=artifact_transfers.id,
+		)
 		ORDER BY created_at LIMIT ?`,
 		time.Now().UTC().Format(time.RFC3339Nano),
 		time.Now().UTC().Format(time.RFC3339Nano),
@@ -373,7 +392,19 @@ func (s *Store) PendingArtifactTransfers(ctx context.Context, limit int) ([]Arti
 	for rows.Next() {
 		var item ArtifactTransfer
 		var id, assignmentID, runID, expires string
-		if err = rows.Scan(&id, &assignmentID, &runID, &item.ConfigurationVersion, &item.RemotePath, &item.FileName, &item.StagedPath, &item.SizeBytes, &item.SHA256, &item.AttemptCount, &expires); err != nil {
+		if err = rows.Scan(
+			&id,
+			&assignmentID,
+			&runID,
+			&item.ConfigurationVersion,
+			&item.RemotePath,
+			&item.FileName,
+			&item.StagedPath,
+			&item.SizeBytes,
+			&item.SHA256,
+			&item.AttemptCount,
+			&expires,
+		); err != nil {
 			return nil, err
 		}
 		if item.ID, err = uuid.Parse(id); err != nil {
@@ -398,7 +429,11 @@ func (s *Store) MarkArtifactTransferFailure(ctx context.Context, id uuid.UUID, r
 		reason = reason[:80]
 	}
 	var attempt int
-	if err := s.db.QueryRowContext(ctx, `SELECT attempt_count FROM artifact_transfers WHERE id=? AND state='pending'`, id.String()).Scan(&attempt); err != nil {
+	if err := s.db.QueryRowContext(
+		ctx,
+		`SELECT attempt_count FROM artifact_transfers WHERE id=? AND state='pending'`,
+		id.String(),
+	).Scan(&attempt); err != nil {
 		return err
 	}
 	delay := 5 * time.Second * time.Duration(1<<min(attempt, 6))
@@ -427,7 +462,12 @@ const queuedArtifactTransfer = `NOT (state='quarantined' AND reason_code='` + ar
 // permanently and deletes its staged file. The row stays for diagnosis.
 func (s *Store) QuarantineRejectedArtifactTransfer(ctx context.Context, id uuid.UUID) error {
 	var path string
-	if err := s.db.QueryRowContext(ctx, `UPDATE artifact_transfers SET state='quarantined',reason_code=? WHERE id=? AND state='pending' RETURNING staged_path`, artifactRejectedReason, id.String()).Scan(&path); err != nil {
+	if err := s.db.QueryRowContext(
+		ctx,
+		`UPDATE artifact_transfers SET state='quarantined',reason_code=? WHERE id=? AND state='pending' RETURNING staged_path`,
+		artifactRejectedReason,
+		id.String(),
+	).Scan(&path); err != nil {
 		return err
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -452,21 +492,40 @@ func (s *Store) CompleteArtifactTransfer(ctx context.Context, id uuid.UUID) erro
 	}
 	defer tx.Rollback()
 	var path, assignmentID, runID, hash string
-	if err = tx.QueryRowContext(ctx, `SELECT staged_path,assignment_id,run_id,sha256 FROM artifact_transfers WHERE id=?`, id.String()).Scan(&path, &assignmentID, &runID, &hash); err != nil {
+	if err = tx.QueryRowContext(
+		ctx,
+		`SELECT staged_path,assignment_id,run_id,sha256 FROM artifact_transfers WHERE id=?`,
+		id.String(),
+	).Scan(&path, &assignmentID, &runID, &hash); err != nil {
 		return err
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err = tx.ExecContext(ctx, `INSERT INTO artifact_upload_receipts(transfer_id,acknowledged_at) VALUES(?,?) ON CONFLICT(transfer_id) DO NOTHING`, id.String(), now); err != nil {
+	if _, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO artifact_upload_receipts(transfer_id,acknowledged_at) VALUES(?,?) ON CONFLICT(transfer_id) DO NOTHING`,
+		id.String(),
+		now,
+	); err != nil {
 		return err
 	}
 	var bambuStateExists int
-	bambuErr := tx.QueryRowContext(ctx, `SELECT 1 FROM adapter_state WHERE assignment_id=? AND adapter_kind IN ('bambu_h2d','bambu_x1c')`, assignmentID).
+	bambuErr := tx.QueryRowContext(
+		ctx,
+		`SELECT 1 FROM adapter_state WHERE assignment_id=? AND adapter_kind IN ('bambu_h2d','bambu_x1c')`,
+		assignmentID,
+	).
 		Scan(&bambuStateExists)
 	if bambuErr != nil && !errors.Is(bambuErr, sql.ErrNoRows) {
 		return bambuErr
 	}
 	var reportExists int
-	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`, assignmentID, runID, hash).
+	err = tx.QueryRowContext(
+		ctx,
+		`SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`,
+		assignmentID,
+		runID,
+		hash,
+	).
 		Scan(&reportExists)
 	if errors.Is(err, sql.ErrNoRows) && bambuErr == nil {
 		return tx.Commit()

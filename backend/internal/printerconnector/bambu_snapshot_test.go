@@ -30,7 +30,14 @@ const h2dStatus = `{"print":{
   "ctc":{"info":{"temp":34}}},
 "ams":{"tray_now":"1","tray_exist_bits":"10003","ams":[
   {"id":"0","humidity":"2","humidity_raw":"32","temp":"32.4","tray":[
-    {"id":"0","tray_type":"PETG","tray_sub_brands":"PETG HF","tray_color":"FFF144FF","remain":55,"tag_uid":"0123456789ABCDEF"},
+    {
+	"id":"0",
+	"tray_type":"PETG",
+	"tray_sub_brands":"PETG HF",
+	"tray_color":"FFF144FF",
+	"remain":55,
+	"tag_uid":"0123456789ABCDEF",
+},
     {"id":"1","tray_type":"PLA","tray_sub_brands":"","tray_color":"D32F2FFF","remain":-1,"tag_uid":"0000000000000000"},
     {"id":"2","tray_type":"","tray_color":"00000000","remain":0,"tag_uid":"0000000000000000"},
     {"id":"3","tray_type":"","tray_color":"00000000","remain":0,"tag_uid":"0000000000000000"}]},
@@ -69,7 +76,9 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		*job.RemainingMinutes != 37 {
 		t.Fatalf("job = %+v", job)
 	}
-	if len(snapshot.Temperatures.Extruders) != 2 || *snapshot.Temperatures.Extruders[0].CurrentC != 219 || *snapshot.Temperatures.Extruders[0].TargetC != 220 ||
+	if len(
+		snapshot.Temperatures.Extruders,
+	) != 2 || *snapshot.Temperatures.Extruders[0].CurrentC != 219 || *snapshot.Temperatures.Extruders[0].TargetC != 220 ||
 		*snapshot.Temperatures.Extruders[1].CurrentC != 31 ||
 		*snapshot.Temperatures.BedC != 59.6 ||
 		*snapshot.Temperatures.BedTargetC != 60 ||
@@ -138,7 +147,15 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"192.168", "AA:BB", "00MREAL123", "rtsp", "0123456789ABCDEF", "tray_uuid", "3232235826"} {
+	for _, forbidden := range []string{
+		"192.168",
+		"AA:BB",
+		"00MREAL123",
+		"rtsp",
+		"0123456789ABCDEF",
+		"tray_uuid",
+		"3232235826",
+	} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("snapshot leaks %q: %s", forbidden, encoded)
 		}
@@ -175,7 +192,16 @@ func TestBuildBambuLiveSnapshotFromX1CDocument(t *testing.T) {
 func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
-	for gcode, want := range map[string]string{"IDLE": "idle", "PREPARE": "preparing", "RUNNING": "printing", "PAUSE": "paused", "FINISH": "finished", "FAILED": "failed", "SLICING": "unknown", "": "unknown"} {
+	for gcode, want := range map[string]string{
+		"IDLE":    "idle",
+		"PREPARE": "preparing",
+		"RUNNING": "printing",
+		"PAUSE":   "paused",
+		"FINISH":  "finished",
+		"FAILED":  "failed",
+		"SLICING": "unknown",
+		"":        "unknown",
+	} {
 		snapshot := buildBambuLiveSnapshot(
 			map[string]any{"print": map[string]any{"gcode_state": gcode}},
 			map[string]time.Time{},
@@ -201,7 +227,17 @@ func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &generic); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"state", "job", "temperatures", "nozzles", "units", "activeTray", "errors", "firmwareVersion", "wifiSignalDbm"} {
+	for _, key := range []string{
+		"state",
+		"job",
+		"temperatures",
+		"nozzles",
+		"units",
+		"activeTray",
+		"errors",
+		"firmwareVersion",
+		"wifiSignalDbm",
+	} {
 		if _, ok := generic[key]; !ok {
 			t.Errorf("snapshot key %q must always be present: %s", key, encoded)
 		}

@@ -34,7 +34,11 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	var masterPersonID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, masterAccountID).Scan(&masterPersonID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT person_id FROM accounts WHERE id=$1`,
+		masterAccountID,
+	).Scan(&masterPersonID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{
@@ -43,7 +47,11 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 
 	roleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode,profile_image_required) VALUES ($1,'Visitor','blocking',true)`, roleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO roles (id,name,laborordnung_mode,profile_image_required) VALUES ($1,'Visitor','blocking',true)`,
+		roleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	insertPublishedLabRulesVersion(t, pool, masterAccountID, "2026-visitor")
@@ -228,7 +236,15 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		result.PersonID,
 	)
 
-	if _, err := labRulesService.Confirm(ctx, master, *result.LabRulesRequestID, "physical-archive-visitor-1", nil, nil, nil); err != nil {
+	if _, err := labRulesService.Confirm(
+		ctx,
+		master,
+		*result.LabRulesRequestID,
+		"physical-archive-visitor-1",
+		nil,
+		nil,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	admitted, err := service.Admission(ctx, admissionPrincipal, nil)
@@ -268,7 +284,14 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if invitationCode == "" {
 		t.Fatal("visitor invitation code was not delivered")
 	}
-	if err := authService.CompleteInvitation(ctx, passwordEmail, invitationCode, "Visitor password workshop 94", "visitor-invitation", nil); err != nil {
+	if err := authService.CompleteInvitation(
+		ctx,
+		passwordEmail,
+		invitationCode,
+		"Visitor password workshop 94",
+		"visitor-invitation",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(
@@ -351,7 +374,14 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 			t.Fatal(err)
 		}
 		id := uuid.Must(uuid.NewV7())
-		if _, err := pool.Exec(ctx, `INSERT INTO laborordnung_versions(id,human_revision,pdf_file_id,pdf_sha256) VALUES($1,$2,$3,$4)`, id, revision, stored.ID, stored.SHA256[:]); err != nil {
+		if _, err := pool.Exec(
+			ctx,
+			`INSERT INTO laborordnung_versions(id,human_revision,pdf_file_id,pdf_sha256) VALUES($1,$2,$3,$4)`,
+			id,
+			revision,
+			stored.ID,
+			stored.SHA256[:],
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := labRules.Publish(ctx, master, id, time.Now().Add(-time.Second), nil); err != nil {
@@ -361,7 +391,11 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 	}
 	original := publish("original")
 	roleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Pinned visitor','blocking')`, roleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Pinned visitor','blocking')`,
+		roleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	devices := manageddevices.NewService(pool)
@@ -373,7 +407,18 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{deviceType.ID}, AllowedMethods: []string{"pin"}, ExpectedVersion: 1}, nil); err != nil {
+	if _, err := service.UpdateConfiguration(
+		ctx,
+		master,
+		visitor.ConfigurationInput{
+			Enabled:         true,
+			InitialRoleID:   &roleID,
+			DeviceTypeIDs:   []uuid.UUID{deviceType.ID},
+			AllowedMethods:  []string{"pin"},
+			ExpectedVersion: 1,
+		},
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	issue, err := service.Begin(ctx, manageddevices.DeviceContext{ID: device.Device.ID, DeviceTypeID: deviceType.ID})
@@ -433,7 +478,15 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		*result.LabRulesRequestID,
 		original,
 	)
-	if _, err := labRules.Confirm(ctx, master, *result.LabRulesRequestID, "signed-original", nil, nil, nil); err != nil {
+	if _, err := labRules.Confirm(
+		ctx,
+		master,
+		*result.LabRulesRequestID,
+		"signed-original",
+		nil,
+		nil,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	status, err := labRules.Evaluate(ctx, result.PersonID)

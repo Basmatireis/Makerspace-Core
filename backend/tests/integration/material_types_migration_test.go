@@ -197,7 +197,12 @@ func TestMaterialTypesMigrationMapsCategoriesAndKeepsPricing(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT id FROM material_types WHERE name = 'PLA'`).Scan(&plaType); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO materials (id, name, material_type_id, unit) VALUES ($1, 'Wrong unit', $2, 'ml')`, id(), plaType); err == nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO materials (id, name, material_type_id, unit) VALUES ($1, 'Wrong unit', $2, 'ml')`,
+		id(),
+		plaType,
+	); err == nil {
 		t.Fatal("unit differing from the type unit was accepted")
 	}
 

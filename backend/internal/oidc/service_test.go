@@ -38,7 +38,9 @@ func TestAssuranceForClaimsUsesOnlyExactTrustedACR(t *testing.T) {
 }
 
 func TestJITRequiresVerifiedEmailOrPhone(t *testing.T) {
-	if _, _, _, _, err := jitPersonFields(tokenClaims{Email: "unverified@example.test", Name: "No Contact"}); err == nil {
+	if _, _, _, _, err := jitPersonFields(
+		tokenClaims{Email: "unverified@example.test", Name: "No Contact"},
+	); err == nil {
 		t.Fatal("expected unverified email-only claims to be rejected")
 	}
 	first, last, email, phone, err := jitPersonFields(

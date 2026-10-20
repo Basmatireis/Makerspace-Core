@@ -24,7 +24,12 @@ func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (
 		tokens = append(tokens, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).
-			Encode(map[string]any{"connectorId": uuid.Must(uuid.NewV7()), "credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour)})
+			Encode(
+				map[string]any{
+					"connectorId":         uuid.Must(uuid.NewV7()),
+					"credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour),
+				},
+			)
 	}))
 	t.Cleanup(server.Close)
 	client, err := NewClient(server.URL, true)

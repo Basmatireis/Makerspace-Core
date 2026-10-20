@@ -35,7 +35,13 @@ long bridge_list_readers(uintptr_t context, char *buffer, uint32_t *length) {
 	return status;
 }
 
-long bridge_read_uid(uintptr_t context, const char *reader, uint8_t *uid, uint32_t *uid_length, uint32_t *protocol_out) {
+long bridge_read_uid(
+	uintptr_t context,
+	const char *reader,
+	uint8_t *uid,
+	uint32_t *uid_length,
+	uint32_t *protocol_out,
+) {
 	SCARDHANDLE card;
 	uint32_t protocol = 0;
 	long status = SCardConnect((SCARDCONTEXT)context, reader, SCARD_SHARE_SHARED,
@@ -50,7 +56,9 @@ long bridge_read_uid(uintptr_t context, const char *reader, uint8_t *uid, uint32
 	status = SCardTransmit(card, &send_pci, command, sizeof(command), NULL, response, &response_length);
 	SCardDisconnect(card, SCARD_LEAVE_CARD);
 	if (status != SCARD_S_SUCCESS) return -102;
-	if (response_length < 3 || response[response_length - 2] != 0x90 || response[response_length - 1] != 0x00) return -100;
+	if (
+		response_length < 3 || response[response_length - 2] != 0x90 || response[response_length - 1] != 0x00,
+	) return -100;
 	response_length -= 2;
 	if (response_length > *uid_length) return -101;
 	for (uint32_t i = 0; i < response_length; i++) uid[i] = response[i];
@@ -120,7 +128,9 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 				Capability{ID: "nfc", Available: false, State: "error", Detail: "Unable to enumerate PC/SC readers"},
 			)
 		} else if len(readers) == 0 {
-			source.setCapability(Capability{ID: "nfc", Available: false, State: "disconnected", Detail: "No PC/SC reader connected"})
+			source.setCapability(
+				Capability{ID: "nfc", Available: false, State: "disconnected", Detail: "No PC/SC reader connected"},
+			)
 		} else {
 			source.setCapability(Capability{ID: "nfc", Available: true, State: "ready"})
 		}

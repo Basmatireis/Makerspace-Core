@@ -140,7 +140,10 @@ func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
 }
 
 func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
-	if err := sink.Commit(ctx, Observation{Kind: "connectivity", Payload: json.RawMessage(`{"state":"online"}`)}); err != nil {
+	if err := sink.Commit(
+		ctx,
+		Observation{Kind: "connectivity", Payload: json.RawMessage(`{"state":"online"}`)},
+	); err != nil {
 		return err
 	}
 	live, _ := sink.(LiveStatusSink)
@@ -151,7 +154,10 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 	}
 	report("idle", nil)
 	if a.scenario == "idle" {
-		if err := sink.Commit(ctx, Observation{Kind: "operational_state", Payload: json.RawMessage(`{"state":"idle"}`)}); err != nil {
+		if err := sink.Commit(
+			ctx,
+			Observation{Kind: "operational_state", Payload: json.RawMessage(`{"state":"idle"}`)},
+		); err != nil {
 			return err
 		}
 		<-ctx.Done()
@@ -191,7 +197,16 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 						"fileName":         fileName,
 					},
 				)
-				if err := sink.Commit(ctx, Observation{Kind: "progress", Payload: payload, RunID: &runID, HistoryComplete: true, ExternalPrintID: &job}); err != nil {
+				if err := sink.Commit(
+					ctx,
+					Observation{
+						Kind:            "progress",
+						Payload:         payload,
+						RunID:           &runID,
+						HistoryComplete: true,
+						ExternalPrintID: &job,
+					},
+				); err != nil {
 					return err
 				}
 				continue
@@ -206,10 +221,29 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 				report("failed", nil)
 			}
 			payload, _ := json.Marshal(map[string]any{"outcome": outcome})
-			if err := sink.Commit(ctx, Observation{Kind: "terminal_outcome", Payload: payload, RunID: &runID, HistoryComplete: true, ExternalPrintID: &job}); err != nil {
+			if err := sink.Commit(
+				ctx,
+				Observation{
+					Kind:            "terminal_outcome",
+					Payload:         payload,
+					RunID:           &runID,
+					HistoryComplete: true,
+					ExternalPrintID: &job,
+				},
+			); err != nil {
 				return err
 			}
-			if err := sink.Commit(ctx, Observation{Kind: "consumption_report", Payload: json.RawMessage(`{"quantityGrams":"12.5","quantityBasis":"estimated"}`), RunID: &runID, HistoryComplete: true, ExternalPrintID: &job, ReportRevision: &revision}); err != nil {
+			if err := sink.Commit(
+				ctx,
+				Observation{
+					Kind:            "consumption_report",
+					Payload:         json.RawMessage(`{"quantityGrams":"12.5","quantityBasis":"estimated"}`),
+					RunID:           &runID,
+					HistoryComplete: true,
+					ExternalPrintID: &job,
+					ReportRevision:  &revision,
+				},
+			); err != nil {
 				return err
 			}
 			<-ctx.Done()

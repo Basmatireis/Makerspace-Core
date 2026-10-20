@@ -176,7 +176,19 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 	}
 
 	// Migrated spools keep working; the archived one holds an open fill but takes no movements.
-	if _, err = service.ConsumeFilamentSpool(ctx, master, retired, mat.InventoryVersion, old.Version, "1", occurred, false, nil, nil, nil); !apperror.IsCode(
+	if _, err = service.ConsumeFilamentSpool(
+		ctx,
+		master,
+		retired,
+		mat.InventoryVersion,
+		old.Version,
+		"1",
+		occurred,
+		false,
+		nil,
+		nil,
+		nil,
+	); !apperror.IsCode(
 		err,
 		"spool_not_consumable",
 	) {

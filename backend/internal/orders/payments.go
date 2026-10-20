@@ -217,7 +217,10 @@ func (s *Service) reverseReceipt(
 		}
 		if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
 			if r.State != "draft" {
-				return conflict("invoice_amount_frozen", "The wiRef request "+r.Reference+" states what was already paid; return or cancel it first")
+				return conflict(
+					"invoice_amount_frozen",
+					"The wiRef request "+r.Reference+" states what was already paid; return or cancel it first",
+				)
 			}
 		} else if !errors.Is(e, pgx.ErrNoRows) {
 			return e
@@ -275,7 +278,12 @@ func (s *Service) RecordPayment(
 	input RecordOrderPayment,
 	requestID *uuid.UUID,
 ) (Order, error) {
-	if err := require(p, authorization.OrdersRead, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
+	if err := require(
+		p,
+		authorization.OrdersRead,
+		authorization.PaymentsRead,
+		authorization.PaymentsRecord,
+	); err != nil {
 		return Order{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -324,7 +332,12 @@ func (s *Service) ReversePayment(
 	input ReversePaymentCommand,
 	requestID *uuid.UUID,
 ) (Order, error) {
-	if err := require(p, authorization.OrdersRead, authorization.PaymentsRead, authorization.PaymentsReverse); err != nil {
+	if err := require(
+		p,
+		authorization.OrdersRead,
+		authorization.PaymentsRead,
+		authorization.PaymentsReverse,
+	); err != nil {
 		return Order{}, err
 	}
 	if input.Reversal.PaymentID != id {

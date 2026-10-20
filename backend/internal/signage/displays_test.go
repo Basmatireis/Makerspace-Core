@@ -55,8 +55,12 @@ func str(value string) *string { return &value }
 
 func validTimeWindow() RuleInput {
 	return RuleInput{
-		Enabled: true, ConditionKind: "time_window", Weekdays: []int{3, 1, 1}, TimeFrom: str("22:00"), TimeTo: str("06:00"),
-		TargetKind: "scene", TargetID: uuid.Must(uuid.NewV7()), MinSeconds: 20, MultiMode: "split", AlternateSeconds: 10,
+		Enabled: true, ConditionKind: "time_window", Weekdays: []int{3, 1, 1}, TimeFrom: str("22:00"), TimeTo: str(
+			"06:00",
+		),
+		TargetKind: "scene", TargetID: uuid.Must(
+			uuid.NewV7(),
+		), MinSeconds: 20, MultiMode: "split", AlternateSeconds: 10,
 	}
 }
 
@@ -256,7 +260,10 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		TargetID:      orphan.ID,
 	}
 	manifest, err := assembleManifest(displayDraft{
-		Orientation: "landscape", Resolution: Resolution{Width: 1920, Height: 1080}, DefaultPlaylistID: playlist.ID, Rules: []Rule{enabled, disabled},
+		Orientation: "landscape", Resolution: Resolution{
+			Width:  1920,
+			Height: 1080,
+		}, DefaultPlaylistID: playlist.ID, Rules: []Rule{enabled, disabled},
 	}, content)
 	if err != nil {
 		t.Fatal(err)

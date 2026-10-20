@@ -61,8 +61,14 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 		zones[key] = compact.Bytes()
 	}
 	return Scene{
-		ID: row.ID, Name: row.Name, Orientation: row.Orientation, LayoutID: row.LayoutID, BackgroundColor: row.BackgroundColor,
-		BackgroundAssetID: row.BackgroundAssetID, BackgroundFit: row.BackgroundFit, BackgroundDim: int(row.BackgroundDim), Theme: row.Theme,
+		ID:                row.ID,
+		Name:              row.Name,
+		Orientation:       row.Orientation,
+		LayoutID:          row.LayoutID,
+		BackgroundColor:   row.BackgroundColor,
+		BackgroundAssetID: row.BackgroundAssetID, BackgroundFit: row.BackgroundFit, BackgroundDim: int(
+			row.BackgroundDim,
+		), Theme: row.Theme,
 		Zones: zones, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 	}, nil
 }
@@ -225,13 +231,28 @@ func (s *Service) CreateScene(
 	}
 	id := uuid.Must(uuid.NewV7())
 	row, err := q.CreateSignageScene(ctx, signagedb.CreateSignageSceneParams{
-		ID: id, Name: checked.name, Orientation: input.Orientation, LayoutID: input.LayoutID, BackgroundColor: input.BackgroundColor,
-		BackgroundAssetID: input.BackgroundAssetID, BackgroundFit: input.BackgroundFit, BackgroundDim: int32(input.BackgroundDim), Theme: input.Theme, Zones: string(encoded),
+		ID:                id,
+		Name:              checked.name,
+		Orientation:       input.Orientation,
+		LayoutID:          input.LayoutID,
+		BackgroundColor:   input.BackgroundColor,
+		BackgroundAssetID: input.BackgroundAssetID, BackgroundFit: input.BackgroundFit, BackgroundDim: int32(
+			input.BackgroundDim,
+		), Theme: input.Theme, Zones: string(encoded),
 	})
 	if err != nil {
 		return Scene{}, databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_scene.created", "signage_scene", id, requestID, []string{"name", "orientation", "layoutId", "background", "theme", "zones"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_scene.created",
+		"signage_scene",
+		id,
+		requestID,
+		[]string{"name", "orientation", "layoutId", "background", "theme", "zones"},
+	); err != nil {
 		return Scene{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -311,8 +332,13 @@ func (s *Service) UpdateScene(
 		return Scene{}, err
 	}
 	row, err := q.UpdateSignageScene(ctx, signagedb.UpdateSignageSceneParams{
-		Name: checked.name, Orientation: input.Orientation, LayoutID: input.LayoutID, BackgroundColor: input.BackgroundColor,
-		BackgroundAssetID: input.BackgroundAssetID, BackgroundFit: input.BackgroundFit, BackgroundDim: int32(input.BackgroundDim), Theme: input.Theme,
+		Name:              checked.name,
+		Orientation:       input.Orientation,
+		LayoutID:          input.LayoutID,
+		BackgroundColor:   input.BackgroundColor,
+		BackgroundAssetID: input.BackgroundAssetID, BackgroundFit: input.BackgroundFit, BackgroundDim: int32(
+			input.BackgroundDim,
+		), Theme: input.Theme,
 		Zones: string(encoded), ID: id, ExpectedVersion: expected,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -321,7 +347,16 @@ func (s *Service) UpdateScene(
 	if err != nil {
 		return Scene{}, databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_scene.updated", "signage_scene", id, requestID, changed); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_scene.updated",
+		"signage_scene",
+		id,
+		requestID,
+		changed,
+	); err != nil {
 		return Scene{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -378,7 +413,10 @@ func (s *Service) DeleteScene(
 	if len(references) > 0 {
 		return inUse("Scene", references)
 	}
-	if _, err := q.DeleteSignageScene(ctx, signagedb.DeleteSignageSceneParams{ID: id, ExpectedVersion: expected}); errors.Is(
+	if _, err := q.DeleteSignageScene(
+		ctx,
+		signagedb.DeleteSignageSceneParams{ID: id, ExpectedVersion: expected},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {

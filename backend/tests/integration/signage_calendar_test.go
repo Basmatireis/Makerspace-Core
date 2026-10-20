@@ -78,7 +78,14 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	version := period.Version
 	for _, offset := range []int{9, 3, 5, 7, 4, 8, 6} { // created out of order on purpose
 		start, end := slot(offset)
-		if schedule, err = openDays.CreateOpenDay(ctx, admin, period.ID, version, opendays.ScheduleInput{StartsAt: start, EndsAt: end, Requirements: requirements}, nil); err != nil {
+		if schedule, err = openDays.CreateOpenDay(
+			ctx,
+			admin,
+			period.ID,
+			version,
+			opendays.ScheduleInput{StartsAt: start, EndsAt: end, Requirements: requirements},
+			nil,
+		); err != nil {
 			t.Fatalf("open day +%d: %v", offset, err)
 		}
 		version = schedule.Period.Version
@@ -108,7 +115,13 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		start := time.Now().UTC().Add(time.Duration(hoursFromNow) * time.Hour).Truncate(time.Minute)
-		if _, err = eventService.CreateSession(ctx, admin, event.ID, events.SessionInput{StartsAt: start, EndsAt: start.Add(2 * time.Hour), IsPublic: true, Status: "scheduled"}, nil); err != nil {
+		if _, err = eventService.CreateSession(
+			ctx,
+			admin,
+			event.ID,
+			events.SessionInput{StartsAt: start, EndsAt: start.Add(2 * time.Hour), IsPublic: true, Status: "scheduled"},
+			nil,
+		); err != nil {
 			t.Fatal(err)
 		}
 		planning, err := eventService.Transition(ctx, admin, event.ID, event.Version, "planning", nil)
@@ -116,7 +129,19 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 		if publish {
-			if planning, err = eventService.Update(ctx, admin, event.ID, events.EventInput{Name: name, OwnerPersonID: &owner, PublicTitle: &title, PublicLocation: &location, ExpectedVersion: planning.Version}, nil); err != nil {
+			if planning, err = eventService.Update(
+				ctx,
+				admin,
+				event.ID,
+				events.EventInput{
+					Name:            name,
+					OwnerPersonID:   &owner,
+					PublicTitle:     &title,
+					PublicLocation:  &location,
+					ExpectedVersion: planning.Version,
+				},
+				nil,
+			); err != nil {
 				t.Fatal(err)
 			}
 			if _, err = eventService.SetPublished(ctx, admin, event.ID, planning.Version, true, nil); err != nil {

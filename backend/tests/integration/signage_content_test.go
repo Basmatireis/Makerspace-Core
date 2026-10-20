@@ -37,15 +37,30 @@ func signageActor(
 	account := seedAccount(t, pool, "signage-"+suffix, false)
 	if len(permissions) > 0 {
 		roleID := uuid.Must(uuid.NewV7())
-		if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, $2)`, roleID, "Signage "+suffix); err != nil {
+		if _, err := pool.Exec(
+			ctx,
+			`INSERT INTO roles (id, name) VALUES ($1, $2)`,
+			roleID,
+			"Signage "+suffix,
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, permission := range permissions {
-			if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`, roleID, permission); err != nil {
+			if _, err := pool.Exec(
+				ctx,
+				`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`,
+				roleID,
+				permission,
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, account.personID, roleID); err != nil {
+		if _, err := pool.Exec(
+			ctx,
+			`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+			account.personID,
+			roleID,
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -123,10 +138,21 @@ func (f signageFixture) uploadImage(t *testing.T, name string) signage.Asset {
 func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 	t.Helper()
 	typeID, machineID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := f.pool.Exec(testContext(t), `INSERT INTO machine_types (id, name) VALUES ($1, $2)`, typeID, name+" type"); err != nil {
+	if _, err := f.pool.Exec(
+		testContext(t),
+		`INSERT INTO machine_types (id, name) VALUES ($1, $2)`,
+		typeID,
+		name+" type",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(testContext(t), `INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, $3)`, machineID, typeID, name); err != nil {
+	if _, err := f.pool.Exec(
+		testContext(t),
+		`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, $3)`,
+		machineID,
+		typeID,
+		name,
+	); err != nil {
 		t.Fatal(err)
 	}
 	return machineID
@@ -137,10 +163,21 @@ func (f signageFixture) display(t *testing.T, name string, playlistID uuid.UUID)
 	t.Helper()
 	ctx := testContext(t)
 	typeID, deviceID, displayID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := f.pool.Exec(ctx, `INSERT INTO device_types (id, name) VALUES ($1, $2)`, typeID, name+" type"); err != nil {
+	if _, err := f.pool.Exec(
+		ctx,
+		`INSERT INTO device_types (id, name) VALUES ($1, $2)`,
+		typeID,
+		name+" type",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(ctx, `INSERT INTO managed_devices (id, name, device_type_id, token_digest) VALUES ($1, $2, $3, decode(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'hex'))`, deviceID, name, typeID); err != nil {
+	if _, err := f.pool.Exec(
+		ctx,
+		`INSERT INTO managed_devices (id, name, device_type_id, token_digest) VALUES ($1, $2, $3, decode(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'hex'))`,
+		deviceID,
+		name,
+		typeID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, default_playlist_id)
@@ -160,7 +197,13 @@ func emptyZonesJSON(ids ...string) map[string]json.RawMessage {
 
 func sceneInput(name string, layout string) signage.SceneInput {
 	return signage.SceneInput{
-		Name: name, Orientation: "landscape", LayoutID: layout, BackgroundColor: "#101820", BackgroundFit: "cover", BackgroundDim: 20, Theme: "dark",
+		Name:            name,
+		Orientation:     "landscape",
+		LayoutID:        layout,
+		BackgroundColor: "#101820",
+		BackgroundFit:   "cover",
+		BackgroundDim:   20,
+		Theme:           "dark",
 	}
 }
 
@@ -619,22 +662,43 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	zero := 0
 	negative := -3
 	for name, input := range map[string]signage.UploadInput{
-		"zero video width":        {Name: "v.mp4", ContentType: "video/mp4", Width: &zero, Height: &height, Body: bytes.NewReader(signageMP4(64))},
-		"negative video duration": {Name: "v.mp4", ContentType: "video/mp4", DurationMs: &negative, Body: bytes.NewReader(signageMP4(64))},
-		"width without height":    {Name: "v.mp4", ContentType: "video/mp4", Width: &width, Body: bytes.NewReader(signageMP4(64))},
-		"not an mp4":              {Name: "v.mp4", ContentType: "video/mp4", Body: bytes.NewReader(imageBytes)},
-		"jpeg as png":             {Name: "p.png", ContentType: "image/png", Body: bytes.NewReader(imageBytes)},
-		"garbage image":           {Name: "p.jpg", ContentType: "image/jpeg", Body: strings.NewReader("not an image")},
-		"unsupported type":        {Name: "p.gif", ContentType: "image/gif", Body: bytes.NewReader(imageBytes)},
-		"empty":                   {Name: "p.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(nil)},
-		"blank name":              {Name: "  ", ContentType: "image/jpeg", Body: bytes.NewReader(imageBytes)},
+		"zero video width": {
+			Name:        "v.mp4",
+			ContentType: "video/mp4",
+			Width:       &zero,
+			Height:      &height,
+			Body:        bytes.NewReader(signageMP4(64)),
+		},
+		"negative video duration": {
+			Name:        "v.mp4",
+			ContentType: "video/mp4",
+			DurationMs:  &negative,
+			Body:        bytes.NewReader(signageMP4(64)),
+		},
+		"width without height": {
+			Name:        "v.mp4",
+			ContentType: "video/mp4",
+			Width:       &width,
+			Body:        bytes.NewReader(signageMP4(64)),
+		},
+		"not an mp4":       {Name: "v.mp4", ContentType: "video/mp4", Body: bytes.NewReader(imageBytes)},
+		"jpeg as png":      {Name: "p.png", ContentType: "image/png", Body: bytes.NewReader(imageBytes)},
+		"garbage image":    {Name: "p.jpg", ContentType: "image/jpeg", Body: strings.NewReader("not an image")},
+		"unsupported type": {Name: "p.gif", ContentType: "image/gif", Body: bytes.NewReader(imageBytes)},
+		"empty":            {Name: "p.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(nil)},
+		"blank name":       {Name: "  ", ContentType: "image/jpeg", Body: bytes.NewReader(imageBytes)},
 	} {
 		if _, err := f.service.UploadAsset(ctx, f.admin, input, nil); !apperror.IsCode(err, "validation_failed") {
 			t.Errorf("%s: error = %v, want validation_failed", name, err)
 		}
 	}
 	oversize := bytes.NewReader(make([]byte, signage.MaxImageBytes+1))
-	if _, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "huge.png", ContentType: "image/png", Body: oversize}, nil); !apperror.IsCode(
+	if _, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{Name: "huge.png", ContentType: "image/png", Body: oversize},
+		nil,
+	); !apperror.IsCode(
 		err,
 		"signage_asset_too_large",
 	) {
@@ -705,7 +769,10 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	// Audit rows carry field names only, never the original file name.
 	var fields []string
 	var metadata string
-	if err := f.pool.QueryRow(ctx, `SELECT changed_fields, metadata::text FROM audit_events WHERE action='signage_asset.created' ORDER BY occurred_at LIMIT 1`).Scan(&fields, &metadata); err != nil {
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT changed_fields, metadata::text FROM audit_events WHERE action='signage_asset.created' ORDER BY occurred_at LIMIT 1`,
+	).Scan(&fields, &metadata); err != nil {
 		t.Fatal(err)
 	}
 	if metadata != "{}" || strings.Contains(strings.Join(fields, ","), "Poster") {
@@ -919,14 +986,21 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	}
 	for _, action := range []string{"signage_scene.created", "signage_scene.updated", "signage_scene.deleted"} {
 		var count int
-		if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action=$1`, action).Scan(&count); err != nil ||
+		if err := f.pool.QueryRow(
+			ctx,
+			`SELECT count(*) FROM audit_events WHERE action=$1`,
+			action,
+		).Scan(&count); err != nil ||
 			count == 0 {
 			t.Fatalf("no audit row for %s (%v)", action, err)
 		}
 	}
 	var fields []string
 	var metadata string
-	if err := f.pool.QueryRow(ctx, `SELECT changed_fields, metadata::text FROM audit_events WHERE action='signage_scene.updated' ORDER BY occurred_at LIMIT 1`).Scan(&fields, &metadata); err != nil {
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT changed_fields, metadata::text FROM audit_events WHERE action='signage_scene.updated' ORDER BY occurred_at LIMIT 1`,
+	).Scan(&fields, &metadata); err != nil {
 		t.Fatal(err)
 	}
 	if metadata != "{}" || strings.Contains(strings.Join(fields, ","), "Lobby") {
@@ -978,7 +1052,14 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 		reordered.Items[2].Seconds != 3 {
 		t.Fatalf("reordered = %#v", reordered)
 	}
-	if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: "Stale"}, nil); !apperror.IsCode(
+	if _, err := f.service.UpdatePlaylist(
+		ctx,
+		f.admin,
+		playlist.ID,
+		playlist.Version,
+		signage.PlaylistInput{Name: "Stale"},
+		nil,
+	); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
@@ -988,7 +1069,10 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 	// A failing replacement leaves name, version and items untouched.
 	missing := uuid.Must(uuid.NewV7())
 	for name, items := range map[string][]signage.PlaylistItem{
-		"missing scene":  {{SceneID: three.ID, Seconds: 10, Transition: "cut"}, {SceneID: missing, Seconds: 10, Transition: "cut"}},
+		"missing scene": {
+			{SceneID: three.ID, Seconds: 10, Transition: "cut"},
+			{SceneID: missing, Seconds: 10, Transition: "cut"},
+		},
 		"seconds low":    {{SceneID: three.ID, Seconds: 2, Transition: "cut"}},
 		"seconds high":   {{SceneID: three.ID, Seconds: 3601, Transition: "cut"}},
 		"bad transition": {{SceneID: three.ID, Seconds: 10, Transition: "wipe"}},
@@ -999,7 +1083,14 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 				items[index] = signage.PlaylistItem{SceneID: three.ID, Seconds: 10, Transition: "cut"}
 			}
 		}
-		if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, reordered.Version, signage.PlaylistInput{Name: "Broken", Items: items}, nil); !apperror.IsCode(
+		if _, err := f.service.UpdatePlaylist(
+			ctx,
+			f.admin,
+			playlist.ID,
+			reordered.Version,
+			signage.PlaylistInput{Name: "Broken", Items: items},
+			nil,
+		); !apperror.IsCode(
 			err,
 			"validation_failed",
 		) {
@@ -1010,7 +1101,15 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 	if err != nil || unchanged.Version != 2 || unchanged.Name != "Morning loop" || len(unchanged.Items) != 3 {
 		t.Fatalf("failed replacement changed the playlist: %#v, %v", unchanged, err)
 	}
-	if _, err := f.service.CreatePlaylist(ctx, f.admin, signage.PlaylistInput{Name: "Orphan", Items: []signage.PlaylistItem{{SceneID: missing, Seconds: 10, Transition: "cut"}}}, nil); !apperror.IsCode(
+	if _, err := f.service.CreatePlaylist(
+		ctx,
+		f.admin,
+		signage.PlaylistInput{
+			Name:  "Orphan",
+			Items: []signage.PlaylistItem{{SceneID: missing, Seconds: 10, Transition: "cut"}},
+		},
+		nil,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -1058,7 +1157,10 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	otherDisplay := f.display(t, "Workshop", playlist.ID)
 
 	input := signage.TemplateInput{
-		Name: "Machine down", Tone: "warning", Title: "{machine} out of order", Body: "Back {back_on}. Room {room}. {display} at {location}. {ends}",
+		Name:  "Machine down",
+		Tone:  "warning",
+		Title: "{machine} out of order",
+		Body:  "Back {back_on}. Room {room}. {display} at {location}. {ends}",
 		Fields: []signage.TemplateField{
 			{Key: "machine", Label: "Machine", Type: "machine", Required: true},
 			{Key: "back_on", Label: "Back on", Type: "datetime"},
@@ -1115,14 +1217,22 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 		AllDisplays: true,
 	}
 	cases := map[string]func(*signage.AnnouncementInput){
-		"required missing":  func(i *signage.AnnouncementInput) { i.Values = map[string]string{"back_on": "2026-10-23T09:00"} },
+		"required missing": func(i *signage.AnnouncementInput) {
+			i.Values = map[string]string{
+				"back_on": "2026-10-23T09:00",
+			}
+		},
 		"unknown key":       func(i *signage.AnnouncementInput) { i.Values["colour"] = "red" },
 		"bad datetime":      func(i *signage.AnnouncementInput) { i.Values["back_on"] = "tomorrow" },
 		"bad choice":        func(i *signage.AnnouncementInput) { i.Values["room"] = "Attic" },
 		"machine not an id": func(i *signage.AnnouncementInput) { i.Values["machine"] = "laser" },
-		"machine missing":   func(i *signage.AnnouncementInput) { i.Values["machine"] = uuid.Must(uuid.NewV7()).String() },
-		"all and selected":  func(i *signage.AnnouncementInput) { i.DisplayIDs = []uuid.UUID{display} },
-		"no target":         func(i *signage.AnnouncementInput) { i.AllDisplays = false },
+		"machine missing": func(
+			i *signage.AnnouncementInput,
+		) {
+			i.Values["machine"] = uuid.Must(uuid.NewV7()).String()
+		},
+		"all and selected": func(i *signage.AnnouncementInput) { i.DisplayIDs = []uuid.UUID{display} },
+		"no target":        func(i *signage.AnnouncementInput) { i.AllDisplays = false },
 		"display missing": func(i *signage.AnnouncementInput) {
 			i.AllDisplays = false
 			i.DisplayIDs = []uuid.UUID{uuid.Must(uuid.NewV7())}
@@ -1169,7 +1279,11 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	// Scheduled announcement for selected displays.
 	startsAt, endsAt := time.Now().Add(time.Hour), time.Now().Add(3*time.Hour)
 	scheduled, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{
-		TemplateID: template.ID, Values: map[string]string{"machine": machine.String()}, DisplayIDs: []uuid.UUID{otherDisplay, display, display}, StartsAt: &startsAt, EndsAt: &endsAt,
+		TemplateID: template.ID, Values: map[string]string{"machine": machine.String()}, DisplayIDs: []uuid.UUID{
+			otherDisplay,
+			display,
+			display,
+		}, StartsAt: &startsAt, EndsAt: &endsAt,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1183,10 +1297,21 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	// Ended announcements are hidden, and removed 30 days after they ended.
 	ended, recent := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	for id, endedAgo := range map[uuid.UUID]string{ended: "31 days", recent: "2 hours"} {
-		if _, err := f.pool.Exec(ctx, `INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at) VALUES ($1, $2, true, now() - interval '40 days', now() - $3::interval)`, id, template.ID, endedAgo); err != nil {
+		if _, err := f.pool.Exec(
+			ctx,
+			`INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at) VALUES ($1, $2, true, now() - interval '40 days', now() - $3::interval)`,
+			id,
+			template.ID,
+			endedAgo,
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.pool.Exec(ctx, `INSERT INTO signage_announcement_values (announcement_id, key, value) VALUES ($1, 'machine', $2)`, id, machine.String()); err != nil {
+		if _, err := f.pool.Exec(
+			ctx,
+			`INSERT INTO signage_announcement_values (announcement_id, key, value) VALUES ($1, 'machine', $2)`,
+			id,
+			machine.String(),
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1210,7 +1335,18 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	if _, err := f.service.GetAnnouncement(ctx, f.admin, recent); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("ended announcement visible: %v", err)
 	}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, recent, 1, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true, StartsAt: &startsAt}, nil); !apperror.IsCode(
+	if _, err := f.service.UpdateAnnouncement(
+		ctx,
+		f.admin,
+		recent,
+		1,
+		signage.AnnouncementInput{
+			Values:      map[string]string{"machine": machine.String()},
+			AllDisplays: true,
+			StartsAt:    &startsAt,
+		},
+		nil,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -1231,7 +1367,14 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	) {
 		t.Fatalf("stale announcement edit: %v", err)
 	}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, scheduled.Version, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true}, nil); !apperror.IsCode(
+	if _, err := f.service.UpdateAnnouncement(
+		ctx,
+		f.admin,
+		scheduled.ID,
+		scheduled.Version,
+		signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true},
+		nil,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -1338,7 +1481,20 @@ func TestSignageTemplateUpdateDropsValuesOfRemovedFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, signage.TemplateInput{Name: "Notice", Tone: "info", Title: "{a}", Body: "", Fields: []signage.TemplateField{{Key: "a", Label: "A", Type: "text"}}}, nil); err != nil {
+	if _, err := f.service.UpdateTemplate(
+		ctx,
+		f.admin,
+		template.ID,
+		template.Version,
+		signage.TemplateInput{
+			Name:   "Notice",
+			Tone:   "info",
+			Title:  "{a}",
+			Body:   "",
+			Fields: []signage.TemplateField{{Key: "a", Label: "A", Type: "text"}},
+		},
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(
@@ -1358,7 +1514,10 @@ func TestSignageTemplateUpdateDropsValuesOfRemovedFields(t *testing.T) {
 func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
-	if _, err := f.pool.Exec(ctx, `CREATE FUNCTION reject_signage_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action LIKE 'signage_%' THEN RAISE EXCEPTION 'forced signage audit failure'; END IF; RETURN NEW; END; $$`); err != nil {
+	if _, err := f.pool.Exec(
+		ctx,
+		`CREATE FUNCTION reject_signage_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action LIKE 'signage_%' THEN RAISE EXCEPTION 'forced signage audit failure'; END IF; RETURN NEW; END; $$`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	scene := f.scene(t, "Existing")
@@ -1388,7 +1547,10 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	asset := f.uploadImage(t, "kept.jpg")
-	if _, err := f.pool.Exec(ctx, `CREATE TRIGGER reject_signage_audit_insert BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_signage_audit()`); err != nil {
+	if _, err := f.pool.Exec(
+		ctx,
+		`CREATE TRIGGER reject_signage_audit_insert BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_signage_audit()`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	startsAt := time.Now()
@@ -1396,28 +1558,74 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	if _, err := f.service.CreateScene(ctx, f.admin, sceneInput("Never", "full"), nil); err == nil {
 		t.Fatal("scene committed without audit")
 	}
-	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, sceneInput("Renamed", "full"), nil); err == nil {
+	if _, err := f.service.UpdateScene(
+		ctx,
+		f.admin,
+		scene.ID,
+		scene.Version,
+		sceneInput("Renamed", "full"),
+		nil,
+	); err == nil {
 		t.Fatal("scene update committed without audit")
 	}
 	if err := f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil); err == nil {
 		t.Fatal("scene delete committed without audit")
 	}
-	if _, err := f.service.CreatePlaylist(ctx, f.admin, signage.PlaylistInput{Name: "Never", Items: []signage.PlaylistItem{{SceneID: scene.ID, Seconds: 10, Transition: "cut"}}}, nil); err == nil {
+	if _, err := f.service.CreatePlaylist(
+		ctx,
+		f.admin,
+		signage.PlaylistInput{
+			Name:  "Never",
+			Items: []signage.PlaylistItem{{SceneID: scene.ID, Seconds: 10, Transition: "cut"}},
+		},
+		nil,
+	); err == nil {
 		t.Fatal("playlist committed without audit")
 	}
-	if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: "Renamed"}, nil); err == nil {
+	if _, err := f.service.UpdatePlaylist(
+		ctx,
+		f.admin,
+		playlist.ID,
+		playlist.Version,
+		signage.PlaylistInput{Name: "Renamed"},
+		nil,
+	); err == nil {
 		t.Fatal("playlist update committed without audit")
 	}
-	if _, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "Never", Tone: "info", Title: "T"}, nil); err == nil {
+	if _, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{Name: "Never", Tone: "info", Title: "T"},
+		nil,
+	); err == nil {
 		t.Fatal("template committed without audit")
 	}
-	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, signage.TemplateInput{Name: "Renamed", Tone: "info", Title: "T"}, nil); err == nil {
+	if _, err := f.service.UpdateTemplate(
+		ctx,
+		f.admin,
+		template.ID,
+		template.Version,
+		signage.TemplateInput{Name: "Renamed", Tone: "info", Title: "T"},
+		nil,
+	); err == nil {
 		t.Fatal("template update committed without audit")
 	}
-	if _, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"who": "lost"}, AllDisplays: true}, nil); err == nil {
+	if _, err := f.service.StartAnnouncement(
+		ctx,
+		f.admin,
+		signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"who": "lost"}, AllDisplays: true},
+		nil,
+	); err == nil {
 		t.Fatal("announcement committed without audit")
 	}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, announcement.ID, announcement.Version, signage.AnnouncementInput{Values: map[string]string{"who": "changed"}, AllDisplays: true, StartsAt: &startsAt}, nil); err == nil {
+	if _, err := f.service.UpdateAnnouncement(
+		ctx,
+		f.admin,
+		announcement.ID,
+		announcement.Version,
+		signage.AnnouncementInput{Values: map[string]string{"who": "changed"}, AllDisplays: true, StartsAt: &startsAt},
+		nil,
+	); err == nil {
 		t.Fatal("announcement update committed without audit")
 	}
 	if err := f.service.StopAnnouncement(ctx, f.admin, announcement.ID, announcement.Version, nil); err == nil {
@@ -1429,7 +1637,12 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	if err := f.service.DeleteAsset(ctx, f.admin, asset.ID, nil); err == nil {
 		t.Fatal("asset delete committed without audit")
 	}
-	if _, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "never.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 8, 8))}, nil); err == nil {
+	if _, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{Name: "never.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 8, 8))},
+		nil,
+	); err == nil {
 		t.Fatal("asset upload committed without audit")
 	}
 
@@ -1466,11 +1679,23 @@ func TestSignageAnnouncementAuditContainsFieldNamesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"who": "SECRET-MESSAGE-TEXT"}, AllDisplays: true}, nil); err != nil {
+	if _, err := f.service.StartAnnouncement(
+		ctx,
+		f.admin,
+		signage.AnnouncementInput{
+			TemplateID:  template.ID,
+			Values:      map[string]string{"who": "SECRET-MESSAGE-TEXT"},
+			AllDisplays: true,
+		},
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	var count int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE (changed_fields::text || metadata::text) LIKE '%SECRET-MESSAGE-TEXT%'`).Scan(&count); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE (changed_fields::text || metadata::text) LIKE '%SECRET-MESSAGE-TEXT%'`,
+	).Scan(&count); err != nil ||
 		count != 0 {
 		t.Fatalf("announcement value reached the audit log (%d, %v)", count, err)
 	}
@@ -1627,7 +1852,13 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 
 	// Scenes through the union-typed zones schema.
 	scene := map[string]any{
-		"name": "Welcome", "orientation": "landscape", "layoutId": "split", "backgroundColor": "#102030", "backgroundFit": "cover", "backgroundDim": 10, "theme": "dark",
+		"name":            "Welcome",
+		"orientation":     "landscape",
+		"layoutId":        "split",
+		"backgroundColor": "#102030",
+		"backgroundFit":   "cover",
+		"backgroundDim":   10,
+		"theme":           "dark",
 		"zones": map[string]any{
 			"left":  map[string]any{"type": "image", "mediaId": assetID, "fit": "cover"},
 			"right": map[string]any{"type": "qr", "url": "https://makerspace.example/join", "caption": "Join"},

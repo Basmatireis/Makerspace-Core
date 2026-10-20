@@ -115,7 +115,18 @@ func (s *Service) CreateVersion(
 	if err != nil {
 		return Version{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "laborordnung.version.created", ResourceType: "laborordnung_version", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"humanRevision", "pdfFileId"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "laborordnung.version.created",
+			ResourceType:   "laborordnung_version",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"humanRevision", "pdfFileId"},
+		},
+	); err != nil {
 		return Version{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -159,7 +170,13 @@ func (s *Service) Publish(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	row, err := laborordnungdb.New(tx).
-		PublishVersion(ctx, laborordnungdb.PublishVersionParams{ID: id, EffectiveAt: pgtype.Timestamptz{Time: effectiveAt.UTC(), Valid: true}})
+		PublishVersion(
+			ctx,
+			laborordnungdb.PublishVersionParams{
+				ID:          id,
+				EffectiveAt: pgtype.Timestamptz{Time: effectiveAt.UTC(), Valid: true},
+			},
+		)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Version{}, apperror.New(409, "laborordnung_not_draft", "Only an existing draft can be published")
 	}
@@ -167,7 +184,18 @@ func (s *Service) Publish(
 		return Version{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "laborordnung.version.published", ResourceType: "laborordnung_version", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"status", "effectiveAt"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "laborordnung.version.published",
+			ResourceType:   "laborordnung_version",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"status", "effectiveAt"},
+		},
+	); err != nil {
 		return Version{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -334,7 +362,17 @@ func (s *Service) RequestOwnConfirmation(
 		return Request{}, false, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "laborordnung.request.created", ResourceType: "laborordnung_request", ResourceID: &created.ID, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "laborordnung.request.created",
+			ResourceType:   "laborordnung_request",
+			ResourceID:     &created.ID,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return Request{}, false, err
 	}
 	result, err := s.hydrateRequest(ctx, queries, created)
@@ -425,7 +463,18 @@ func (s *Service) Confirm(
 	if err != nil {
 		return Request{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "laborordnung.request.confirmed", ResourceType: "laborordnung_request", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"status", "physicalDocumentReference", "signedDate", "archiveNote"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "laborordnung.request.confirmed",
+			ResourceType:   "laborordnung_request",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"status", "physicalDocumentReference", "signedDate", "archiveNote"},
+		},
+	); err != nil {
 		return Request{}, err
 	}
 	result, err := s.hydrateRequest(ctx, queries, row)

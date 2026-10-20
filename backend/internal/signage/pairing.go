@@ -134,7 +134,10 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 	if previousPollSecret != "" {
 		// A request that staff already claimed stays collectable by the cookie that started it
 		// until its delivery window ends; restarting must not destroy (or orphan) it.
-		if previous, err := q.GetSignagePairingRequestForPoll(ctx, security.DigestToken(previousPollSecret)); err == nil &&
+		if previous, err := q.GetSignagePairingRequestForPoll(
+			ctx,
+			security.DigestToken(previousPollSecret),
+		); err == nil &&
 			previous.ClaimedDisplayID != nil {
 			return PairingStart{}, apperror.New(
 				409,
@@ -160,7 +163,9 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 	}
 	expires := now.Add(PairingTTL)
 	if err := q.CreateSignagePairingRequest(ctx, signagedb.CreateSignagePairingRequestParams{
-		ID: uuid.Must(uuid.NewV7()), CodeDigest: pairingCodeDigest(code), PollSecretDigest: secretDigest, CreatedAt: now, ExpiresAt: expires,
+		ID: uuid.Must(
+			uuid.NewV7(),
+		), CodeDigest: pairingCodeDigest(code), PollSecretDigest: secretDigest, CreatedAt: now, ExpiresAt: expires,
 	}); err != nil {
 		return PairingStart{}, err
 	}
@@ -290,9 +295,15 @@ func (s *Service) PairDisplay(
 	}
 	displayID := uuid.Must(uuid.NewV7())
 	if _, err := q.CreateSignageDisplay(ctx, signagedb.CreateSignageDisplayParams{
-		ID: displayID, ManagedDeviceID: deviceID, Name: checked.Name, Location: checked.Location, Orientation: checked.Orientation,
+		ID:              displayID,
+		ManagedDeviceID: deviceID,
+		Name:            checked.Name,
+		Location:        checked.Location,
+		Orientation:     checked.Orientation,
 		ResolutionWidth: int32(checked.Resolution.Width), ResolutionHeight: int32(checked.Resolution.Height),
-		VisibleFromOutside: checked.VisibleFromOutside, AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
+		VisibleFromOutside: checked.VisibleFromOutside,
+		AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside,
+		DefaultPlaylistID:  checked.DefaultPlaylistID,
 	}); err != nil {
 		return Display{}, databaseError(err)
 	}

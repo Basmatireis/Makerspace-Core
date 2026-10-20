@@ -130,7 +130,18 @@ func TestSignagePairingHardening(t *testing.T) {
 
 	// A garbage cookie never reaches the database or the rate limiter.
 	for i := 0; i < 80; i++ {
-		if poll := e.expect(e.do(e.newPlayer(), "", http.MethodGet, "/public/signage/pairing", nil, "Cookie", signagePairingCookie+"=not-a-token"), http.StatusOK); poll["status"] != "expired" {
+		if poll := e.expect(
+			e.do(
+				e.newPlayer(),
+				"",
+				http.MethodGet,
+				"/public/signage/pairing",
+				nil,
+				"Cookie",
+				signagePairingCookie+"=not-a-token",
+			),
+			http.StatusOK,
+		); poll["status"] != "expired" {
 			t.Fatalf("poll = %v", poll)
 		}
 	}
@@ -150,7 +161,10 @@ func TestSignagePairingHardening(t *testing.T) {
 		http.StatusConflict,
 		"pairing_claimed",
 	)
-	if poll := e.expect(e.do(player, "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK); poll["status"] != "paired" {
+	if poll := e.expect(
+		e.do(player, "", http.MethodGet, "/public/signage/pairing", nil),
+		http.StatusOK,
+	); poll["status"] != "paired" {
 		t.Fatalf("claimed request was lost by a restart: %v", poll)
 	}
 
@@ -224,7 +238,11 @@ func TestSignagePublishSerializationFailureIsStaleWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = writer.Rollback(ctx) }()
-	if _, err := writer.Exec(ctx, `UPDATE signage_displays SET name = 'Renamed', version = version + 1 WHERE id = $1`, displayID); err != nil {
+	if _, err := writer.Exec(
+		ctx,
+		`UPDATE signage_displays SET name = 'Renamed', version = version + 1 WHERE id = $1`,
+		displayID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	result := make(chan error, 1)

@@ -274,7 +274,14 @@ func (s *Service) Upload(
 		)
 	}
 	check, err := db.New(s.pool).
-		CheckConnectorArtifactUploadTarget(ctx, db.CheckConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID})
+		CheckConnectorArtifactUploadTarget(
+			ctx,
+			db.CheckConnectorArtifactUploadTargetParams{
+				AssignmentID: assignmentID,
+				ConnectorID:  connectorID,
+				RunID:        runID,
+			},
+		)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UploadResult{}, apperror.NotFound
 	}
@@ -491,7 +498,20 @@ func (s *Service) persistUpload(
 			v := int32(filament.Extruders[0])
 			extruder = &v
 		}
-		if err = q.InsertArtifactFilament(ctx, db.InsertArtifactFilamentParams{ArtifactID: artifactID, FilamentKey: filament.ID, FilamentType: optionalString(filament.Type), Color: optionalString(filament.Color), Extruder: extruder, PlannedWeightG: floatNumeric(filament.WeightGrams), PlannedLengthMm: floatNumeric(filament.LengthMM), DensityGCm3: floatNumeric(filament.DensityGCM3), DiameterMm: floatNumeric(filament.DiameterMM)}); err != nil {
+		if err = q.InsertArtifactFilament(
+			ctx,
+			db.InsertArtifactFilamentParams{
+				ArtifactID:      artifactID,
+				FilamentKey:     filament.ID,
+				FilamentType:    optionalString(filament.Type),
+				Color:           optionalString(filament.Color),
+				Extruder:        extruder,
+				PlannedWeightG:  floatNumeric(filament.WeightGrams),
+				PlannedLengthMm: floatNumeric(filament.LengthMM),
+				DensityGCm3:     floatNumeric(filament.DensityGCM3),
+				DiameterMm:      floatNumeric(filament.DiameterMM),
+			},
+		); err != nil {
 			return UploadResult{}, err
 		}
 	}
@@ -554,10 +574,31 @@ func (s *Service) persistUpload(
 			primary = &v
 		}
 	}
-	if err = q.SetArtifactPrimaryPreview(ctx, db.SetArtifactPrimaryPreviewParams{PrimaryPreviewID: primary, ID: artifactID}); err != nil {
+	if err = q.SetArtifactPrimaryPreview(
+		ctx,
+		db.SetArtifactPrimaryPreviewParams{PrimaryPreviewID: primary, ID: artifactID},
+	); err != nil {
 		return UploadResult{}, err
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "print_artifact.created", ResourceType: "print_artifact", ResourceID: &artifactID, RequestID: requestID, Source: "system", ChangedFields: []string{"file", "metadata", "previews", "filaments"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "runId": runID.String(), "artifactId": artifactID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "system",
+			Action:        "print_artifact.created",
+			ResourceType:  "print_artifact",
+			ResourceID:    &artifactID,
+			RequestID:     requestID,
+			Source:        "system",
+			ChangedFields: []string{"file", "metadata", "previews", "filaments"},
+			Metadata: map[string]any{
+				"connectorId":  connectorID.String(),
+				"assignmentId": assignmentID.String(),
+				"runId":        runID.String(),
+				"artifactId":   artifactID.String(),
+			},
+		},
+	); err != nil {
 		return UploadResult{}, err
 	}
 	result, err := s.attachArtifact(ctx, tx, q, target, artifactID, connectorID, assignmentID, runID, requestID)
@@ -645,10 +686,31 @@ func (s *Service) attachArtifact(
 	if target.ArtifactID != nil && *target.ArtifactID != artifactID {
 		return UploadResult{}, conflict("artifact_mismatch", "Run already references a different artifact")
 	}
-	if _, err := q.AttachArtifactToRun(ctx, db.AttachArtifactToRunParams{ArtifactID: &artifactID, RunID: runID}); err != nil {
+	if _, err := q.AttachArtifactToRun(
+		ctx,
+		db.AttachArtifactToRunParams{ArtifactID: &artifactID, RunID: runID},
+	); err != nil {
 		return UploadResult{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "machine_run.artifact_attached", ResourceType: "machine_run", ResourceID: &runID, RequestID: requestID, Source: "system", ChangedFields: []string{"artifactId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "runId": runID.String(), "artifactId": artifactID.String()}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "system",
+			Action:        "machine_run.artifact_attached",
+			ResourceType:  "machine_run",
+			ResourceID:    &runID,
+			RequestID:     requestID,
+			Source:        "system",
+			ChangedFields: []string{"artifactId"},
+			Metadata: map[string]any{
+				"connectorId":  connectorID.String(),
+				"assignmentId": assignmentID.String(),
+				"runId":        runID.String(),
+				"artifactId":   artifactID.String(),
+			},
+		},
+	); err != nil {
 		return UploadResult{}, err
 	}
 	result := UploadResult{RunID: runID}
@@ -790,16 +852,44 @@ func (s *Service) CreatePlannedJob(
 		return machinelogbook.MachineJob{}, err
 	}
 	snapshotID := uuid.Must(uuid.NewV7())
-	if _, err = q.CreatePricingSnapshot(ctx, db.CreatePricingSnapshotParams{ID: snapshotID, MachineJobID: jobID, Revision: revision, PricingGroupID: &groupID, PricingGroupName: groupName, CapturedByAccountID: &principal.AccountID}); err != nil {
+	if _, err = q.CreatePricingSnapshot(
+		ctx,
+		db.CreatePricingSnapshotParams{
+			ID:                  snapshotID,
+			MachineJobID:        jobID,
+			Revision:            revision,
+			PricingGroupID:      &groupID,
+			PricingGroupName:    groupName,
+			CapturedByAccountID: &principal.AccountID,
+		},
+	); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	if err = q.InsertPricingSnapshotRules(ctx, db.InsertPricingSnapshotRulesParams{SnapshotID: snapshotID, PricingGroupID: groupID}); err != nil {
+	if err = q.InsertPricingSnapshotRules(
+		ctx,
+		db.InsertPricingSnapshotRulesParams{SnapshotID: snapshotID, PricingGroupID: groupID},
+	); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	if _, err = q.ActivatePricingSnapshot(ctx, db.ActivatePricingSnapshotParams{SnapshotID: &snapshotID, ID: job.ID}); err != nil {
+	if _, err = q.ActivatePricingSnapshot(
+		ctx,
+		db.ActivatePricingSnapshotParams{SnapshotID: &snapshotID, ID: job.ID},
+	); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &principal.AccountID, Action: "machine_job.created_from_artifact", ResourceType: "machine_job", ResourceID: &jobID, RequestID: requestID, ChangedFields: []string{"machineId", "customer", "operatorPersonId", "artifactId", "pricingSnapshot"}, Metadata: map[string]any{"jobId": jobID.String(), "artifactId": artifactID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &principal.AccountID,
+			Action:         "machine_job.created_from_artifact",
+			ResourceType:   "machine_job",
+			ResourceID:     &jobID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"machineId", "customer", "operatorPersonId", "artifactId", "pricingSnapshot"},
+			Metadata:       map[string]any{"jobId": jobID.String(), "artifactId": artifactID.String()},
+		},
+	); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

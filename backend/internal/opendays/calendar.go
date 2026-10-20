@@ -251,12 +251,26 @@ func (s *Service) CreateAcademicBreak(
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
 	row, err := opendaysdb.New(tx).
-		CreateAcademicBreak(ctx, opendaysdb.CreateAcademicBreakParams{ID: id, Name: name, StartsOn: pgDate(start), EndsOn: pgDate(end)})
+		CreateAcademicBreak(
+			ctx,
+			opendaysdb.CreateAcademicBreakParams{ID: id, Name: name, StartsOn: pgDate(start), EndsOn: pgDate(end)},
+		)
 	if err != nil {
 		return AcademicBreak{}, databaseError(err)
 	}
 	actor := p.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "open_day_academic_break.created", ResourceType: "open_day_academic_break", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "startsOn", "endsOn"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "open_day_academic_break.created",
+			ResourceType:   "open_day_academic_break",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"name", "startsOn", "endsOn"},
+		},
+	); err != nil {
 		return AcademicBreak{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -313,7 +327,16 @@ func (s *Service) UpdateAcademicBreak(
 	if err != nil {
 		return AcademicBreak{}, databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, p, "open_day_academic_break.updated", "open_day_academic_break", id, requestID, []string{"name", "startsOn", "endsOn"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		p,
+		"open_day_academic_break.updated",
+		"open_day_academic_break",
+		id,
+		requestID,
+		[]string{"name", "startsOn", "endsOn"},
+	); err != nil {
 		return AcademicBreak{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -351,10 +374,22 @@ func (s *Service) DeleteAcademicBreak(
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeleteAcademicBreak(ctx, opendaysdb.DeleteAcademicBreakParams{ID: id, ExpectedVersion: expected}); err != nil {
+	if _, err := q.DeleteAcademicBreak(
+		ctx,
+		opendaysdb.DeleteAcademicBreakParams{ID: id, ExpectedVersion: expected},
+	); err != nil {
 		return databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, p, "open_day_academic_break.deleted", "open_day_academic_break", id, requestID, nil); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		p,
+		"open_day_academic_break.deleted",
+		"open_day_academic_break",
+		id,
+		requestID,
+		nil,
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

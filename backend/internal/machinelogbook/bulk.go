@@ -241,7 +241,17 @@ func (s *Service) BulkDelete(
 		}
 	}
 	for _, entry := range jobs {
-		if err = s.deleteJobRows(ctx, tx, q, p, entry.job, entry.runs, input.DeleteRecordedRuns, input.ReverseConsumption, requestID); err != nil {
+		if err = s.deleteJobRows(
+			ctx,
+			tx,
+			q,
+			p,
+			entry.job,
+			entry.runs,
+			input.DeleteRecordedRuns,
+			input.ReverseConsumption,
+			requestID,
+		); err != nil {
 			return err
 		}
 	}
@@ -495,7 +505,10 @@ func (s *Service) BulkCreateJobsFromRuns(
 		if err != nil {
 			return nil, err
 		}
-		if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: run.MachineID}); err != nil {
+		if _, err = q.AssignRunToJob(
+			ctx,
+			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: run.MachineID},
+		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, conflict("run_already_assigned", "The run already belongs to a job")
 			}
@@ -504,7 +517,16 @@ func (s *Service) BulkCreateJobsFromRuns(
 		if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial"); err != nil {
 			return nil, err
 		}
-		if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", job.ID, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"}); err != nil {
+		if err = writeAudit(
+			ctx,
+			tx,
+			p,
+			"machine_job.created",
+			"machine_job",
+			job.ID,
+			requestID,
+			[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"},
+		); err != nil {
 			return nil, err
 		}
 		if err = auditRunAssigned(ctx, tx, p, run, job.ID, requestID); err != nil {
@@ -586,7 +608,10 @@ func (s *Service) BulkCombineRuns(
 		return MachineJob{}, err
 	}
 	for _, run := range runs {
-		if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID}); err != nil {
+		if _, err = q.AssignRunToJob(
+			ctx,
+			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID},
+		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
 			}
@@ -596,7 +621,16 @@ func (s *Service) BulkCombineRuns(
 	if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial"); err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", job.ID, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"machine_job.created",
+		"machine_job",
+		job.ID,
+		requestID,
+		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"},
+	); err != nil {
 		return MachineJob{}, err
 	}
 	for _, run := range runs {
@@ -694,7 +728,10 @@ func (s *Service) BulkAttachRuns(
 		fields = append(fields, replaced...)
 	}
 	for _, run := range runs {
-		if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID}); err != nil {
+		if _, err = q.AssignRunToJob(
+			ctx,
+			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID},
+		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
 			}
@@ -704,7 +741,16 @@ func (s *Service) BulkAttachRuns(
 	if _, err = s.settleJob(ctx, q, job.ID); err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.run_attached", "machine_job", job.ID, requestID, dedupe(fields)); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"machine_job.run_attached",
+		"machine_job",
+		job.ID,
+		requestID,
+		dedupe(fields),
+	); err != nil {
 		return MachineJob{}, err
 	}
 	for _, run := range runs {

@@ -35,7 +35,12 @@ func (sms *recordingSMS) SendSMS(_ context.Context, recipient, text string) erro
 func TestTransactionalMessagesUseConfiguredApplicationName(t *testing.T) {
 	mail := &recordingMail{}
 	service := NewService(mail, fixedName("Open Workshop Portal"))
-	if err := service.SendPasswordReset(context.Background(), "member@example.test", "ABC23456", time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)); err != nil {
+	if err := service.SendPasswordReset(
+		context.Background(),
+		"member@example.test",
+		"ABC23456",
+		time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(mail.message.Subject, "Open Workshop Portal") ||
@@ -53,7 +58,12 @@ func TestTransactionalMessagesUseConfiguredApplicationName(t *testing.T) {
 func TestSecurityNoticeReplacesLegacyMessageName(t *testing.T) {
 	mail := &recordingMail{}
 	service := NewService(mail, fixedName("Open Workshop Portal"))
-	if err := service.SendSecurityNotice(context.Background(), "member@example.test", "Makerspace PIN configured", "Your Makerspace PIN changed."); err != nil {
+	if err := service.SendSecurityNotice(
+		context.Background(),
+		"member@example.test",
+		"Makerspace PIN configured",
+		"Your Makerspace PIN changed.",
+	); err != nil {
 		t.Fatal(err)
 	}
 	if mail.message.Subject != "Open Workshop Portal PIN configured" ||
@@ -66,7 +76,10 @@ func TestGenericSMSProviderAbstraction(t *testing.T) {
 	mail := &recordingMail{}
 	sms := &recordingSMS{}
 	service := NewService(mail).WithSMSProvider(sms)
-	if err := service.Send(context.Background(), Notification{Channel: ChannelSMS, Recipient: "+4312345", Text: "Workshop update"}); err != nil {
+	if err := service.Send(
+		context.Background(),
+		Notification{Channel: ChannelSMS, Recipient: "+4312345", Text: "Workshop update"},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if sms.recipient != "+4312345" || sms.text != "Workshop update" {
@@ -81,13 +94,22 @@ func TestSurveyInvitationUsesPublicLinkAndPrivacyCopy(t *testing.T) {
 	mail := &recordingMail{}
 	service := NewService(mail, fixedName("Open Workshop Portal"))
 	expiresAt := time.Date(2026, 10, 20, 18, 0, 0, 0, time.UTC)
-	if err := service.SendSurveyInvitation(context.Background(), "visitor@example.test", "Visit feedback", "opaque-token", expiresAt); err != nil {
+	if err := service.SendSurveyInvitation(
+		context.Background(),
+		"visitor@example.test",
+		"Visit feedback",
+		"opaque-token",
+		expiresAt,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if mail.message.To != "visitor@example.test" || mail.message.Subject != "Open Workshop Portal: Visit feedback" {
 		t.Fatalf("unexpected survey message metadata: %#v", mail.message)
 	}
-	for _, expected := range []string{"https://portal.example.test/survey/opaque-token", "stored separately from this delivery record"} {
+	for _, expected := range []string{
+		"https://portal.example.test/survey/opaque-token",
+		"stored separately from this delivery record",
+	} {
 		if !strings.Contains(mail.message.Text, expected) {
 			t.Fatalf("survey message missing %q: %#v", expected, mail.message)
 		}

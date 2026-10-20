@@ -39,7 +39,10 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	ctx := testContext(t)
 
 	var masterCount int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM roles WHERE system_key = 'master'`).Scan(&masterCount); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM roles WHERE system_key = 'master'`,
+	).Scan(&masterCount); err != nil {
 		t.Fatal(err)
 	}
 	if masterCount != 1 {
@@ -68,16 +71,38 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'cascade-role')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.self')`, roleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.self')`,
+		roleID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, account.personID, roleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		account.personID,
+		roleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
+		INSERT INTO sessions (
+			id,
+			account_id,
+			auth_identity_id,
+			token_digest,
+			csrf_digest,
+			auth_method,
+			idle_expires_at,
+			absolute_expires_at,
+		)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
-		uuid.Must(uuid.NewV7()), account.accountID, account.identity, bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)); err != nil {
+		uuid.Must(uuid.NewV7()),
+		account.accountID,
+		account.identity,
+		bytes.Repeat([]byte{1}, 32),
+		bytes.Repeat([]byte{2}, 32)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -106,7 +131,11 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 
 	var actorID, resourceID *uuid.UUID
 	var actorType string
-	if err := pool.QueryRow(ctx, `SELECT actor_type, actor_account_id, resource_id FROM audit_events WHERE id = $1`, auditID).Scan(&actorType, &actorID, &resourceID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT actor_type, actor_account_id, resource_id FROM audit_events WHERE id = $1`,
+		auditID,
+	).Scan(&actorType, &actorID, &resourceID); err != nil {
 		t.Fatal(err)
 	}
 	if actorType != "user" || actorID != nil || resourceID == nil || *resourceID != account.accountID {
@@ -119,7 +148,12 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	}
 
 	remaining := seedAccount(t, pool, "role-cascade", false)
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, remaining.personID, roleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		remaining.personID,
+		roleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM roles WHERE id = $1`, roleID); err != nil {
@@ -330,13 +364,26 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	ctx := testContext(t)
 	actorAccount := seedAccount(t, pool, "delete-race-actor", false)
 	deleteRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'person-deleter')`, deleteRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO roles (id, name) VALUES ($1, 'person-deleter')`,
+		deleteRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.delete')`, deleteRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.delete')`,
+		deleteRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, actorAccount.personID, deleteRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		actorAccount.personID,
+		deleteRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
@@ -351,7 +398,11 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	}
 
 	targetPersonID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Race', 'Target', 'delete-race-target@example.test')`, targetPersonID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Race', 'Target', 'delete-race-target@example.test')`,
+		targetPersonID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	creationTx, err := pool.Begin(ctx)
@@ -364,7 +415,10 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetAccountID := uuid.Must(uuid.NewV7())
-	if _, err := creationQueries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: targetAccountID, PersonID: targetPersonID, Status: "disabled"}); err != nil {
+	if _, err := creationQueries.CreateAccount(
+		ctx,
+		accountsdb.CreateAccountParams{ID: targetAccountID, PersonID: targetPersonID, Status: "disabled"},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := creationQueries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{
@@ -597,8 +651,18 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	roleID := uuid.Must(uuid.NewV7())
 	pricingGroupID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Member','accountless-role@example.test');
-		INSERT INTO roles(id,name,profile_image_required,laborordnung_mode) VALUES($2,'Accountless policy',true,'warning');
+		INSERT INTO people(id,first_name,last_name,email) VALUES(
+			$1,
+			'Accountless',
+			'Member',
+			'accountless-role@example.test',
+		);
+		INSERT INTO roles(
+			id,
+			name,
+			profile_image_required,
+			laborordnung_mode,
+		) VALUES($2,'Accountless policy',true,'warning');
 		INSERT INTO pricing_groups(id,name) VALUES($3,'Independent pricing');
 		INSERT INTO role_pricing_groups(role_id,pricing_group_id,priority,updated_by_account_id) VALUES($2,$3,1,$4)`, personID, roleID, pricingGroupID, actor.accountID); err != nil {
 		t.Fatal(err)
@@ -656,7 +720,12 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if err != nil || page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != personID {
 		t.Fatalf("accountless role filter = %#v, %v", page, err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM person_roles WHERE person_id=$1 AND role_id=$2`, reader.personID, readerRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`DELETE FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		reader.personID,
+		readerRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	reloadedReader, err := authorization.LoadPermissionsFrom(
@@ -724,7 +793,11 @@ func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	deviceTypeID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO device_types (id, name) VALUES ($1, 'Evaluation terminal')`, deviceTypeID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO device_types (id, name) VALUES ($1, 'Evaluation terminal')`,
+		deviceTypeID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	roleService := roles.NewService(pool)
@@ -775,13 +848,21 @@ func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
 		role.Version,
 		[]authorization.Permission{authorization.PeopleReadAll, authorization.PeopleReadSelf},
 	)
-	if _, err := roleService.EvaluatePermissions(ctx, authorization.Principal{}, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal}); !apperror.IsCode(
+	if _, err := roleService.EvaluatePermissions(
+		ctx,
+		authorization.Principal{},
+		authorization.EvaluationContext{Assurance: authorization.AssuranceNormal},
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
 		t.Fatalf("unauthorized evaluation error = %v, want permission_denied", err)
 	}
-	if _, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.Assurance("invalid")}); !apperror.IsCode(
+	if _, err := roleService.EvaluatePermissions(
+		ctx,
+		master,
+		authorization.EvaluationContext{Assurance: authorization.Assurance("invalid")},
+	); !apperror.IsCode(
 		err,
 		"invalid_request",
 	) {
@@ -886,10 +967,20 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 	accountID := uuid.Must(uuid.NewV7())
 	identityID := uuid.Must(uuid.NewV7())
 	email := suffix + "@example.test"
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Test', 'Person', $2)`, personID, email); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Test', 'Person', $2)`,
+		personID,
+		email,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -897,12 +988,19 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 		VALUES ($1, $2, 'password', $3, $3)`, identityID, accountID, email); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO password_credentials (auth_identity_id, password_hash) VALUES ($1, 'integration-test-hash')`, identityID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO password_credentials (auth_identity_id, password_hash) VALUES ($1, 'integration-test-hash')`,
+		identityID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if master {
 		var personRolesAvailable bool
-		if err := pool.QueryRow(ctx, `SELECT to_regclass('person_roles') IS NOT NULL`).Scan(&personRolesAvailable); err != nil {
+		if err := pool.QueryRow(
+			ctx,
+			`SELECT to_regclass('person_roles') IS NOT NULL`,
+		).Scan(&personRolesAvailable); err != nil {
 			t.Fatal(err)
 		}
 		var insertErr error
@@ -914,7 +1012,12 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 				masterRoleID,
 			)
 		} else {
-			_, insertErr = pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, accountID, masterRoleID)
+			_, insertErr = pool.Exec(
+				ctx,
+				`INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`,
+				accountID,
+				masterRoleID,
+			)
 		}
 		if insertErr != nil {
 			t.Fatal(insertErr)
@@ -937,7 +1040,11 @@ func assertCount(t *testing.T, pool *pgxpool.Pool, query string, want int, args 
 func assertAccountVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID, want int64) {
 	t.Helper()
 	var got int64
-	if err := pool.QueryRow(testContext(t), `SELECT version FROM accounts WHERE id = $1`, accountID).Scan(&got); err != nil {
+	if err := pool.QueryRow(
+		testContext(t),
+		`SELECT version FROM accounts WHERE id = $1`,
+		accountID,
+	).Scan(&got); err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
@@ -948,7 +1055,11 @@ func assertAccountVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID,
 func assertPersonVersion(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID, want int64) {
 	t.Helper()
 	var got int64
-	if err := pool.QueryRow(testContext(t), `SELECT version FROM people WHERE id = $1`, personID).Scan(&got); err != nil {
+	if err := pool.QueryRow(
+		testContext(t),
+		`SELECT version FROM people WHERE id = $1`,
+		personID,
+	).Scan(&got); err != nil {
 		t.Fatal(err)
 	}
 	if got != want {

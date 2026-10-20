@@ -51,8 +51,22 @@ func (response cookieNoContentResponse) write(w http.ResponseWriter) error {
 		if maxAge < 1 {
 			maxAge = 1
 		}
-		response.setCookie(w, response.config.SessionCookieName, response.session.Token, true, response.session.AbsoluteExpiry, maxAge)
-		response.setCookie(w, response.config.CSRFCookieName, response.session.CSRFToken, false, response.session.AbsoluteExpiry, maxAge)
+		response.setCookie(
+			w,
+			response.config.SessionCookieName,
+			response.session.Token,
+			true,
+			response.session.AbsoluteExpiry,
+			maxAge,
+		)
+		response.setCookie(
+			w,
+			response.config.CSRFCookieName,
+			response.session.CSRFToken,
+			false,
+			response.session.AbsoluteExpiry,
+			maxAge,
+		)
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil

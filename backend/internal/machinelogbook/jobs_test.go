@@ -50,10 +50,20 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	accountID := uuid.Must(uuid.NewV7())
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
 	f.p = authorization.Principal{AccountID: accountID, PersonID: f.person, Master: true}
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Job', 'Tester', $2)`, f.person, "jobs-"+suffix+"@example.test"); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Job', 'Tester', $2)`,
+		f.person,
+		"jobs-"+suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, f.person); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		f.person,
+	); err != nil {
 		t.Fatal(err)
 	}
 	var machineIDs, typeIDs []uuid.UUID
@@ -269,7 +279,12 @@ func TestJobStatusAndOutcomeGuard(t *testing.T) {
 	f := newLiveJobFixture(t)
 	ctx := t.Context()
 
-	if _, err := f.s.CreateManualJob(ctx, f.p, f.input(-time.Hour, 3*time.Hour, "successful"), &f.request); !apperror.IsCode(
+	if _, err := f.s.CreateManualJob(
+		ctx,
+		f.p,
+		f.input(-time.Hour, 3*time.Hour, "successful"),
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"outcome_before_run_end",
 	) {
@@ -307,13 +322,32 @@ func TestJobStatusAndOutcomeGuard(t *testing.T) {
 		)
 	}
 	run := running.Runs[0]
-	if _, err = f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(
+	if _, err = f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{Outcome: outcomePtr("successful")},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"outcome_before_run_end",
 	) {
 		t.Fatalf("outcome of a running run: %v", err)
 	}
-	if _, err = f.s.UpdateJobFacts(ctx, f.p, running.ID, running.Version, JobUpdate{MachineID: f.machine.ID, Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person, OutcomeOverride: outcomePtr("failed")}, &f.request); !apperror.IsCode(
+	if _, err = f.s.UpdateJobFacts(
+		ctx,
+		f.p,
+		running.ID,
+		running.Version,
+		JobUpdate{
+			MachineID:        f.machine.ID,
+			Customer:         PartyReference{Kind: "person", ID: f.person},
+			OperatorPersonID: f.person,
+			OutcomeOverride:  outcomePtr("failed"),
+		},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"outcome_before_run_end",
 	) {
@@ -361,7 +395,13 @@ func TestCancelManualRun(t *testing.T) {
 	}
 	run := job.Runs[0]
 
-	if _, err := f.s.CancelRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, &f.request); !apperror.IsCode(
+	if _, err := f.s.CancelRun(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		run.ID,
+		run.Version,
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -398,7 +438,12 @@ func TestCancelManualRun(t *testing.T) {
 		)
 	}
 	var audited int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine_run.cancelled' AND resource_id = $1 AND request_id = $2`, run.ID, f.request).Scan(&audited); err != nil ||
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'machine_run.cancelled' AND resource_id = $1 AND request_id = $2`,
+		run.ID,
+		f.request,
+	).Scan(&audited); err != nil ||
 		audited != 1 {
 		t.Fatalf("cancel audit rows = %d err=%v", audited, err)
 	}
@@ -507,19 +552,40 @@ func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 	if cleared.Outcome != "partial_failure" || cleared.OutcomeOverridden {
 		t.Fatalf("cleared override: %s overridden=%v", cleared.Outcome, cleared.OutcomeOverridden)
 	}
-	if _, err = f.s.AddManualRun(t.Context(), authorization.Principal{AccountID: f.p.AccountID}, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now}, &f.request); !apperror.IsCode(
+	if _, err = f.s.AddManualRun(
+		t.Context(),
+		authorization.Principal{AccountID: f.p.AccountID},
+		job.ID,
+		job.Version,
+		ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
 		t.Fatalf("add run without edit: %v", err)
 	}
-	if _, err = f.s.AddManualRun(t.Context(), f.p, job.ID, job.Version+1, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now}, &f.request); !apperror.IsCode(
+	if _, err = f.s.AddManualRun(
+		t.Context(),
+		f.p,
+		job.ID,
+		job.Version+1,
+		ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
 		t.Fatalf("stale add run: %v", err)
 	}
-	if _, err = f.s.AddManualRun(t.Context(), f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now, EndsAt: f.now}, &f.request); !apperror.IsCode(
+	if _, err = f.s.AddManualRun(
+		t.Context(),
+		f.p,
+		job.ID,
+		job.Version,
+		ManualRunInput{StartsAt: f.now, EndsAt: f.now},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -530,7 +596,11 @@ func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 func (f *jobFixture) quantity(t *testing.T, materialID uuid.UUID) string {
 	t.Helper()
 	var sum string
-	if err := f.pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta), 0)::text FROM inventory_transactions WHERE material_id = $1`, materialID).Scan(&sum); err != nil {
+	if err := f.pool.QueryRow(
+		t.Context(),
+		`SELECT COALESCE(sum(quantity_delta), 0)::text FROM inventory_transactions WHERE material_id = $1`,
+		materialID,
+	).Scan(&sum); err != nil {
 		t.Fatal(err)
 	}
 	value, err := decimal.NewFromString(sum)
@@ -546,26 +616,54 @@ func TestUpdateRunTimesAndPermissions(t *testing.T) {
 	job := f.create(t, f.input(-3*time.Hour, time.Hour, "successful"))
 	run := job.Runs[0]
 	start, end := f.now.Add(-4*time.Hour), f.now.Add(-time.Hour)
-	if _, err := f.s.UpdateRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, RunUpdate{StartsAt: &start, EndsAt: &end, Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateRun(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		run.ID,
+		run.Version,
+		RunUpdate{StartsAt: &start, EndsAt: &end, Outcome: outcomePtr("successful")},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
 		t.Fatalf("update without edit: %v", err)
 	}
-	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version+1, RunUpdate{Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version+1,
+		RunUpdate{Outcome: outcomePtr("successful")},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
 		t.Fatalf("stale update: %v", err)
 	}
 	future := f.now.Add(time.Hour)
-	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{EndsAt: &future, Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{EndsAt: &future, Outcome: outcomePtr("successful")},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"outcome_before_run_end",
 	) {
 		t.Fatalf("future end with outcome: %v", err)
 	}
-	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{StartsAt: &end, EndsAt: &start}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{StartsAt: &end, EndsAt: &start},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -596,7 +694,12 @@ func TestUpdateRunTimesAndPermissions(t *testing.T) {
 		t.Fatalf("updated run: %+v job=%+v", result.Run, result.Job)
 	}
 	var fields []string
-	if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = 'machine_run.updated' AND resource_id = $1 AND request_id = $2`, run.ID, f.request).Scan(&fields); err != nil ||
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT changed_fields FROM audit_events WHERE action = 'machine_run.updated' AND resource_id = $1 AND request_id = $2`,
+		run.ID,
+		f.request,
+	).Scan(&fields); err != nil ||
 		strings.Join(fields, ",") != "outcome,startsAt,endsAt" {
 		t.Fatalf("update audit fields = %v err=%v", fields, err)
 	}
@@ -609,7 +712,14 @@ func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
 	job := f.create(t, input)
 	run := job.Runs[0]
-	if _, err := f.s.ReplaceRunUsages(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, nil, &f.request); !apperror.IsCode(
+	if _, err := f.s.ReplaceRunUsages(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		run.ID,
+		run.Version,
+		nil,
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -639,7 +749,14 @@ func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 	if got := f.quantity(t, f.material.ID); got != decimalMinus("1000", "80") {
 		t.Fatalf("material quantity = %s", got)
 	}
-	if _, err = f.s.ReplaceRunUsages(ctx, f.p, run.ID, result.Run.Version, []UsageInput{{MaterialID: f.material.ID, Quantity: "0"}}, &f.request); !apperror.IsCode(
+	if _, err = f.s.ReplaceRunUsages(
+		ctx,
+		f.p,
+		run.ID,
+		result.Run.Version,
+		[]UsageInput{{MaterialID: f.material.ID, Quantity: "0"}},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -680,30 +797,65 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 		}
 	}
 	var stored string
-	if err := f.pool.QueryRow(ctx, `SELECT effective_price::text FROM machine_jobs WHERE id = $1`, job.ID).Scan(&stored); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT effective_price::text FROM machine_jobs WHERE id = $1`,
+		job.ID,
+	).Scan(&stored); err != nil ||
 		stored != "3.31" {
 		t.Fatalf("stored effective price = %q err=%v", stored, err)
 	}
 
 	for _, invalid := range []struct{ kind, value, reason string }{
-		{"fixed", "-1", "r"}, {"discount_percent", "0", "r"}, {"discount_percent", "100.01", "r"}, {"discount_amount", "0", "r"},
+		{"fixed", "-1", "r"}, {"discount_percent", "0", "r"}, {
+			"discount_percent",
+			"100.01",
+			"r",
+		}, {"discount_amount", "0", "r"},
 		{"multiplier", "0", "r"}, {"multiplier", "100.01", "r"}, {"bogus", "1", "r"}, {"fixed", "abc", "r"},
 		{"fixed", "1", "   "}, {"fixed", "1", strings.Repeat("x", 501)},
 	} {
-		if _, err := f.s.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version, invalid.kind, invalid.value, invalid.reason, &f.request); !apperror.IsCode(
+		if _, err := f.s.SetJobPriceAdjustment(
+			ctx,
+			f.p,
+			job.ID,
+			job.Version,
+			invalid.kind,
+			invalid.value,
+			invalid.reason,
+			&f.request,
+		); !apperror.IsCode(
 			err,
 			"validation_failed",
 		) {
 			t.Fatalf("%+v accepted: %v", invalid, err)
 		}
 	}
-	if _, err := f.s.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version+1, "fixed", "1", "r", &f.request); !apperror.IsCode(
+	if _, err := f.s.SetJobPriceAdjustment(
+		ctx,
+		f.p,
+		job.ID,
+		job.Version+1,
+		"fixed",
+		"1",
+		"r",
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
 		t.Fatalf("stale adjustment: %v", err)
 	}
-	if _, err := f.s.SetJobPriceAdjustment(ctx, authorization.Principal{AccountID: f.p.AccountID}, job.ID, job.Version, "fixed", "1", "r", &f.request); !apperror.IsCode(
+	if _, err := f.s.SetJobPriceAdjustment(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		job.ID,
+		job.Version,
+		"fixed",
+		"1",
+		"r",
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -719,7 +871,13 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 	}
 	for _, action := range []string{"machine_job.price_adjusted", "machine_job.price_adjustment_cleared"} {
 		var fields []string
-		if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = $1 AND resource_id = $2 AND request_id = $3 LIMIT 1`, action, job.ID, f.request).Scan(&fields); err != nil ||
+		if err = f.pool.QueryRow(
+			ctx,
+			`SELECT changed_fields FROM audit_events WHERE action = $1 AND resource_id = $2 AND request_id = $3 LIMIT 1`,
+			action,
+			job.ID,
+			f.request,
+		).Scan(&fields); err != nil ||
 			len(fields) != 2 ||
 			fields[0] != "priceAdjustment" ||
 			fields[1] != "effectivePrice" {
@@ -819,7 +977,11 @@ func TestRelativeAdjustmentWithIncompletePricingHasNoEffectivePrice(t *testing.T
 	if job.CalculatedPrice != nil || job.EffectivePrice != nil || job.PricingStatus != "incomplete" {
 		t.Fatalf("incomplete job: %+v", job)
 	}
-	for _, kind := range []struct{ kind, value string }{{"discount_percent", "10"}, {"discount_amount", "1"}, {"multiplier", "2"}} {
+	for _, kind := range []struct{ kind, value string }{
+		{"discount_percent", "10"},
+		{"discount_amount", "1"},
+		{"multiplier", "2"},
+	} {
 		job = f.adjust(t, job, kind.kind, kind.value)
 		if job.EffectivePrice != nil {
 			t.Fatalf("%s produced %s without a calculated price", kind.kind, price(job.EffectivePrice))
@@ -855,7 +1017,19 @@ func TestJobTitleRoundTrip(t *testing.T) {
 		t.Fatalf("blank title stored as %q", *job.Title)
 	}
 	tooLong := strings.Repeat("x", 201)
-	if _, err = f.s.UpdateJobFacts(t.Context(), f.p, job.ID, job.Version, JobUpdate{MachineID: f.machine.ID, Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person, Title: &tooLong}, &f.request); !apperror.IsCode(
+	if _, err = f.s.UpdateJobFacts(
+		t.Context(),
+		f.p,
+		job.ID,
+		job.Version,
+		JobUpdate{
+			MachineID:        f.machine.ID,
+			Customer:         PartyReference{Kind: "person", ID: f.person},
+			OperatorPersonID: f.person,
+			Title:            &tooLong,
+		},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -866,7 +1040,12 @@ func TestJobTitleRoundTrip(t *testing.T) {
 		t.Fatalf("long title on create: %v", err)
 	}
 	var fields []string
-	if err = f.pool.QueryRow(t.Context(), `SELECT changed_fields FROM audit_events WHERE action = 'machine_job.updated' AND resource_id = $1 AND request_id = $2 LIMIT 1`, job.ID, f.request).Scan(&fields); err != nil ||
+	if err = f.pool.QueryRow(
+		t.Context(),
+		`SELECT changed_fields FROM audit_events WHERE action = 'machine_job.updated' AND resource_id = $1 AND request_id = $2 LIMIT 1`,
+		job.ID,
+		f.request,
+	).Scan(&fields); err != nil ||
 		!strings.Contains(strings.Join(fields, ","), "title") {
 		t.Fatalf("update audit fields = %v err=%v", fields, err)
 	}

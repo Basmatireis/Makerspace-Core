@@ -45,7 +45,12 @@ func TestSignageDisplayPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, target := range []string{displayID, other["id"].(string)} {
-		if _, err := svc.StartAnnouncement(ctx, admin, signage.AnnouncementInput{TemplateID: template.ID, DisplayIDs: []uuid.UUID{uuid.MustParse(target)}}, nil); err != nil {
+		if _, err := svc.StartAnnouncement(
+			ctx,
+			admin,
+			signage.AnnouncementInput{TemplateID: template.ID, DisplayIDs: []uuid.UUID{uuid.MustParse(target)}},
+			nil,
+		); err != nil {
 			t.Fatal(err)
 		}
 	}

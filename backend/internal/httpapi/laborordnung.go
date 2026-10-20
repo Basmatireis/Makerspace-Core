@@ -204,7 +204,9 @@ func laborordnungStatusDTO(status laborordnung.Status) openapi.LaborordnungStatu
 	if status.LatestConfirmedVersion == nil {
 		result.LatestConfirmedVersion = nullable.NewNullNullable[openapi.LaborordnungVersion]()
 	} else {
-		result.LatestConfirmedVersion = nullable.NewNullableWithValue(laborordnungVersionDTO(*status.LatestConfirmedVersion))
+		result.LatestConfirmedVersion = nullable.NewNullableWithValue(
+			laborordnungVersionDTO(*status.LatestConfirmedVersion),
+		)
 	}
 	result.RequestId = nullablePointer(status.RequestID, func(value openapi.UUIDv7) openapi.UUIDv7 { return value })
 	return result

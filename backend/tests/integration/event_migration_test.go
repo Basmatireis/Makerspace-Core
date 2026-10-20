@@ -41,7 +41,12 @@ func TestEventMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, up); err != nil {
 		t.Fatalf("second up: %v", err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO events(id,name,public_id) VALUES($1,'Guarded event',$2)`, uuid.Must(uuid.NewV7()), strings.Repeat("A", 43)); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO events(id,name,public_id) VALUES($1,'Guarded event',$2)`,
+		uuid.Must(uuid.NewV7()),
+		strings.Repeat("A", 43),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, down); err == nil ||
@@ -83,13 +88,30 @@ func TestEventBannerMigrationUpDownUpAndGuardedDown(t *testing.T) {
 		t.Fatalf("second up: %v", err)
 	}
 	eventID, fileID, eventFileID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(ctx, `INSERT INTO events(id,name,public_id) VALUES($1,'Banner event',$2)`, eventID, strings.Repeat("B", 43)); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO events(id,name,public_id) VALUES($1,'Banner event',$2)`,
+		eventID,
+		strings.Repeat("B", 43),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO files(id,storage_key,original_filename,content_type,size_bytes,sha256) VALUES($1,$2,'banner.png','image/png',8,$3)`, fileID, "event-banner-test", make([]byte, 32)); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO files(id,storage_key,original_filename,content_type,size_bytes,sha256) VALUES($1,$2,'banner.png','image/png',8,$3)`,
+		fileID,
+		"event-banner-test",
+		make([]byte, 32),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO event_files(id,event_id,file_id,visibility,is_banner) VALUES($1,$2,$3,'public',true)`, eventFileID, eventID, fileID); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO event_files(id,event_id,file_id,visibility,is_banner) VALUES($1,$2,$3,'public',true)`,
+		eventFileID,
+		eventID,
+		fileID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, down); err == nil ||

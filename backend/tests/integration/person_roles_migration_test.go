@@ -45,7 +45,12 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 	}
 	var gotActor *uuid.UUID
 	var gotAssignedAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT assigned_by_account_id,assigned_at FROM person_roles WHERE person_id=$1 AND role_id=$2`, target.personID, roleID).Scan(&gotActor, &gotAssignedAt); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT assigned_by_account_id,assigned_at FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		target.personID,
+		roleID,
+	).Scan(&gotActor, &gotAssignedAt); err != nil {
 		t.Fatal(err)
 	}
 	if gotActor == nil || *gotActor != actor.accountID || !gotAssignedAt.Equal(assignedAt) {
@@ -56,7 +61,12 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 
 	accountlessID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Migration','Accountless','migration-accountless@example.test');
+		INSERT INTO people(id,first_name,last_name,email) VALUES(
+			$1,
+			'Migration',
+			'Accountless',
+			'migration-accountless@example.test',
+		);
 		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, accountlessID, roleID); err != nil {
 		t.Fatal(err)
 	}

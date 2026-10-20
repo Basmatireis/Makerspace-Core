@@ -104,10 +104,19 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f := &fixture{pool: pool, person: newID(), organization: newID(), request: newID()}
 	account := newID()
-	if _, e = pool.Exec(ctx, "INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Financial','Operator','finance@example.test')", f.person); e != nil {
+	if _, e = pool.Exec(
+		ctx,
+		"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Financial','Operator','finance@example.test')",
+		f.person,
+	); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = pool.Exec(ctx, "INSERT INTO accounts(id,person_id,status) VALUES($1,$2,'enabled')", account, f.person); e != nil {
+	if _, e = pool.Exec(
+		ctx,
+		"INSERT INTO accounts(id,person_id,status) VALUES($1,$2,'enabled')",
+		account,
+		f.person,
+	); e != nil {
 		t.Fatal(e)
 	}
 	f.p = authorization.Principal{AccountID: account, PersonID: f.person, Master: true}
@@ -139,7 +148,17 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	f.group = group.ID
-	if _, e = f.jobs.CreatePricingRule(ctx, f.p, group.ID, "machine_runtime", &typ.ID, nil, nil, "10", &f.request); e != nil {
+	if _, e = f.jobs.CreatePricingRule(
+		ctx,
+		f.p,
+		group.ID,
+		"machine_runtime",
+		&typ.ID,
+		nil,
+		nil,
+		"10",
+		&f.request,
+	); e != nil {
 		t.Fatal(e)
 	}
 	return f
@@ -196,7 +215,13 @@ func TestOrderPaymentsReplacementAndImmutability(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"}, &f.request); !apperror.IsCode(
+	if _, e = f.s.Update(
+		ctx,
+		f.p,
+		o.ID,
+		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"},
+		&f.request,
+	); !apperror.IsCode(
 		e,
 		"order_not_draft",
 	) {
@@ -396,7 +421,10 @@ func TestConcurrentReceiptsAndAuditRollback(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.pool.Exec(ctx, "CREATE FUNCTION reject_finance_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='order.created' THEN RAISE EXCEPTION 'test audit failure'; END IF;RETURN NEW;END $$;CREATE TRIGGER reject_finance_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_finance_audit()"); e != nil {
+	if _, e = f.pool.Exec(
+		ctx,
+		"CREATE FUNCTION reject_finance_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='order.created' THEN RAISE EXCEPTION 'test audit failure'; END IF;RETURN NEW;END $$;CREATE TRIGGER reject_finance_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_finance_audit()",
+	); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = f.s.Create(ctx, f.p, OrderDraftInput{FulfillmentMode: "immediate"}, &f.request); e == nil {
@@ -454,7 +482,20 @@ func TestJobSnapshotsAndClaims(t *testing.T) {
 		t.Fatal(e)
 	}
 	other := f.draft(t, true, "1")
-	if _, e = f.s.ChangeItem(ctx, f.p, other.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: other.Version}, "add", &f.request); !apperror.IsCode(
+	if _, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		other.ID,
+		uuid.Nil,
+		OrderItemInput{
+			Kind:               "machine_job",
+			MachineJobID:       job.ID,
+			ExpectedJobVersion: job.Version,
+			ExpectedVersion:    other.Version,
+		},
+		"add",
+		&f.request,
+	); !apperror.IsCode(
 		e,
 		"job_already_ordered",
 	) {

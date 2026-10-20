@@ -366,7 +366,13 @@ func (s *Server) DeleteFilamentSpoolIdentifier(
 	if e != nil {
 		return nil, e
 	}
-	if e = s.machineLogbook.DeleteFilamentSpoolIdentifier(ctx, p, r.SpoolId, r.IdentifierId, requestIDPointer(ctx)); e != nil {
+	if e = s.machineLogbook.DeleteFilamentSpoolIdentifier(
+		ctx,
+		p,
+		r.SpoolId,
+		r.IdentifierId,
+		requestIDPointer(ctx),
+	); e != nil {
 		return nil, e
 	}
 	return openapi.DeleteFilamentSpoolIdentifier204Response{}, nil

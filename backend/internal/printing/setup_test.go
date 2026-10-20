@@ -34,10 +34,20 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	f.suffix = strings.ReplaceAll(personID.String(), "-", "")[:12]
 	f.principal = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Setup', 'Operator', $2)`, personID, "setup-"+f.suffix+"@example.test"); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Setup', 'Operator', $2)`,
+		personID,
+		"setup-"+f.suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := f.jobs.CreateMachineType(
@@ -182,7 +192,12 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 		t.Fatalf("created slots = %+v", created.Slots)
 	}
 	var audits int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'printer_profile.setup_saved' AND resource_id = $1 AND actor_account_id = $2`, f.machineID, f.principal.AccountID).Scan(&audits); err != nil ||
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'printer_profile.setup_saved' AND resource_id = $1 AND actor_account_id = $2`,
+		f.machineID,
+		f.principal.AccountID,
+	).Scan(&audits); err != nil ||
 		audits != 1 {
 		t.Fatalf("audit rows = %d err=%v", audits, err)
 	}
@@ -220,7 +235,9 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 		t.Fatalf("unexpected unit version %d", units[1].Version)
 	}
 	slots := slotsOf(edited, first.ID)
-	if len(slots) != 2 || slots[0].ID != firstSlots[1].ID || slots[0].Position != 0 || slots[0].Status != "unavailable" ||
+	if len(
+		slots,
+	) != 2 || slots[0].ID != firstSlots[1].ID || slots[0].Position != 0 || slots[0].Status != "unavailable" ||
 		slots[0].ExternalIdentifier == nil || *slots[0].ExternalIdentifier != "0" ||
 		slots[1].ID != firstSlots[0].ID ||
 		*slots[1].ExternalIdentifier != "1" {
@@ -230,7 +247,11 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 	if untouched.Version != secondSlots[0].Version {
 		t.Fatalf("an unchanged slot must keep its version: %d -> %d", secondSlots[0].Version, untouched.Version)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'printer_profile.setup_saved' AND resource_id = $1`, f.machineID).Scan(&audits); err != nil ||
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'printer_profile.setup_saved' AND resource_id = $1`,
+		f.machineID,
+	).Scan(&audits); err != nil ||
 		audits != 2 {
 		t.Fatalf("audit rows after edit = %d err=%v", audits, err)
 	}
@@ -313,7 +334,13 @@ func TestSaveSetupRejectsStaleAndUnknownReferences(t *testing.T) {
 	if _, err := f.save(created.Version, input); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("a slot cannot move to another unit: %v", err)
 	}
-	if _, err := f.service.SaveSetup(t.Context(), f.principal, uuid.Must(uuid.NewV7()), h2dSetup(), nil); !apperror.IsCode(
+	if _, err := f.service.SaveSetup(
+		t.Context(),
+		f.principal,
+		uuid.Must(uuid.NewV7()),
+		h2dSetup(),
+		nil,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -420,14 +447,29 @@ func TestSaveSetupBumpsTheConnectorConfigurationWhenEnabledChanges(t *testing.T)
 	ctx := t.Context()
 	created := f.mustSave(0, h2dSetup())
 	connectorID, assignmentID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, $2, 'active')`, connectorID, "Setup connector "+f.suffix); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, $2, 'active')`,
+		connectorID,
+		"Setup connector "+f.suffix,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, settings) VALUES ($1, $2, $3, 'simulator', '{}')`, assignmentID, connectorID, f.machineID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, settings) VALUES ($1, $2, $3, 'simulator', '{}')`,
+		assignmentID,
+		connectorID,
+		f.machineID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	revision := func() (value int64) {
-		if err := pool.QueryRow(ctx, `SELECT configuration_revision FROM printer_connectors WHERE id = $1`, connectorID).Scan(&value); err != nil {
+		if err := pool.QueryRow(
+			ctx,
+			`SELECT configuration_revision FROM printer_connectors WHERE id = $1`,
+			connectorID,
+		).Scan(&value); err != nil {
 			t.Fatal(err)
 		}
 		return value

@@ -126,7 +126,10 @@ func TestParseZonesRejectsInvalidInput(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if name == "trailing data" {
 				// A zone map entry is decoded by encoding/json; trailing data is exercised on the widget itself.
-				if _, _, err := ValidateWidget("left", json.RawMessage(`{"type":"empty"} {"type":"empty"}`)); err == nil {
+				if _, _, err := ValidateWidget(
+					"left",
+					json.RawMessage(`{"type":"empty"} {"type":"empty"}`),
+				); err == nil {
 					t.Fatal("trailing data accepted")
 				}
 				return
@@ -383,7 +386,10 @@ func TestParseZonesCameraMachineList(t *testing.T) {
 			t.Fatalf("%s accepted", name)
 		}
 	}
-	if _, _, err := ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("auto", "null", list(manyIDs(20)...)))); err != nil {
+	if _, _, err := ParseZones(
+		mustLayout(t, "full"),
+		zonesFrom(t, camera("auto", "null", list(manyIDs(20)...))),
+	); err != nil {
 		t.Fatalf("20 machines rejected: %v", err)
 	}
 }
@@ -416,7 +422,9 @@ func TestManifestCameraMachineIDs(t *testing.T) {
 	if ids, all = ManifestCameraMachineIDs(manifestWith(auto(""))); !all || len(ids) != 0 {
 		t.Fatalf("unrestricted auto = %v all=%v", ids, all)
 	}
-	if ids, all = ManifestCameraMachineIDs(manifestWith(`{"type":"status","machineIds":["` + a.String() + `"]}`)); all ||
+	if ids, all = ManifestCameraMachineIDs(
+		manifestWith(`{"type":"status","machineIds":["` + a.String() + `"]}`),
+	); all ||
 		len(ids) != 0 {
 		t.Fatalf("status widget gives cameras: %v %v", ids, all)
 	}

@@ -31,10 +31,31 @@ func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.jobs.AddPurchase(t.Context(), f.p, m.ID, m.InventoryVersion, "1000", "20", time.Now(), nil, nil, nil); e != nil {
+	if _, e = f.jobs.AddPurchase(
+		t.Context(),
+		f.p,
+		m.ID,
+		m.InventoryVersion,
+		"1000",
+		"20",
+		time.Now(),
+		nil,
+		nil,
+		nil,
+	); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.jobs.CreatePricingRule(t.Context(), f.p, f.group, "material", nil, &materialType.ID, nil, "0.1", nil); e != nil {
+	if _, e = f.jobs.CreatePricingRule(
+		t.Context(),
+		f.p,
+		f.group,
+		"material",
+		nil,
+		&materialType.ID,
+		nil,
+		"0.1",
+		nil,
+	); e != nil {
 		t.Fatal(e)
 	}
 	return m.ID
@@ -158,7 +179,20 @@ func TestRunningJobCannotBeOrderedOrFinalized(t *testing.T) {
 		t.Fatalf("job is not running: %v %+v", e, running.Status)
 	}
 	o := f.draft(t, true, "1")
-	if _, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: running.ID, ExpectedJobVersion: running.Version, ExpectedVersion: o.Version}, "add", nil); !apperror.IsCode(
+	if _, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		o.ID,
+		uuid.Nil,
+		OrderItemInput{
+			Kind:               "machine_job",
+			MachineJobID:       running.ID,
+			ExpectedJobVersion: running.Version,
+			ExpectedVersion:    o.Version,
+		},
+		"add",
+		nil,
+	); !apperror.IsCode(
 		e,
 		"job_running",
 	) {

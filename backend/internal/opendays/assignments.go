@@ -121,7 +121,10 @@ func (s *Service) assign(
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
-	if err := writeAuditWithMetadata(ctx, tx, p, action, "open_day_assignment", id, requestID, []string{"requirementId", "personId"}, map[string]any{
+	if err := writeAuditWithMetadata(ctx, tx, p, action, "open_day_assignment", id, requestID, []string{
+		"requirementId",
+		"personId",
+	}, map[string]any{
 		"personId": personID.String(), "openDayId": openDayID.String(),
 	}); err != nil {
 		return Assignment{}, err

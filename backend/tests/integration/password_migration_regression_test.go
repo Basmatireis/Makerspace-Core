@@ -35,19 +35,45 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Existing', 'Master', $2)`, personID, email); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Existing', 'Master', $2)`,
+		personID,
+		email,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized) VALUES ($1, $2, 'email_password', $3, lower($3))`, identityID, accountID, email); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized) VALUES ($1, $2, 'email_password', $3, lower($3))`,
+		identityID,
+		accountID,
+		email,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO password_credentials (auth_identity_id, password_hash) VALUES ($1, $2)`, identityID, hash); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO password_credentials (auth_identity_id, password_hash) VALUES ($1, $2)`,
+		identityID,
+		hash,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, accountID, masterRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`,
+		accountID,
+		masterRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	preMigrationToken, preMigrationDigest, err := security.NewOpaqueToken()
@@ -56,7 +82,16 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	}
 	preMigrationSessionID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
+		INSERT INTO sessions (
+			id,
+			account_id,
+			auth_identity_id,
+			token_digest,
+			csrf_digest,
+			auth_method,
+			idle_expires_at,
+			absolute_expires_at,
+		)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
 		preMigrationSessionID, accountID, identityID, preMigrationDigest, bytes.Repeat([]byte{7}, 32)); err != nil {
 		t.Fatal(err)
@@ -65,7 +100,16 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	// Reproduce the exact broken persisted schema before the forward repair.
 	applyMigrationFiles(t, pool, migrations[3:11])
 	_, err = pool.Exec(ctx, `
-		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
+		INSERT INTO sessions (
+			id,
+			account_id,
+			auth_identity_id,
+			token_digest,
+			csrf_digest,
+			auth_method,
+			idle_expires_at,
+			absolute_expires_at,
+		)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
 		uuid.Must(uuid.NewV7()), accountID, identityID, bytes.Repeat([]byte{9}, 32), bytes.Repeat([]byte{8}, 32))
 	var pgErr *pgconn.PgError
@@ -93,7 +137,10 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	}
 	if gotPersonID != personID || gotAccountID != accountID || gotStatus != "enabled" || gotIdentityID != identityID ||
 		gotKind != "password" || gotIdentifierDisplay != email || gotIdentifierNormalized != strings.ToLower(email) ||
-		gotVerifiedAt.IsZero() || gotDisabledAt != nil || gotHash != hash || !security.VerifyPassword(gotHash, password) {
+		gotVerifiedAt.IsZero() || gotDisabledAt != nil || gotHash != hash || !security.VerifyPassword(
+		gotHash,
+		password,
+	) {
 		t.Fatalf(
 			"migrated identity changed: person=%s account=%s identity=%s kind=%q hashPreserved=%v",
 			gotPersonID,
@@ -151,7 +198,11 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	}
 	var method, baseAssurance, currentAssurance string
 	var authenticatedAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT auth_method, base_assurance, current_assurance, authenticated_at FROM sessions WHERE id = $1`, session.ID).Scan(&method, &baseAssurance, &currentAssurance, &authenticatedAt); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT auth_method, base_assurance, current_assurance, authenticated_at FROM sessions WHERE id = $1`,
+		session.ID,
+	).Scan(&method, &baseAssurance, &currentAssurance, &authenticatedAt); err != nil {
 		t.Fatal(err)
 	}
 	if method != "password" || baseAssurance != "normal" || currentAssurance != "normal" || authenticatedAt.IsZero() {
@@ -172,10 +223,19 @@ func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
 	applyMigrationFiles(t, pool, migrations[:19])
 
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Historical', 'Actor', 'historical@example.test')`, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Historical', 'Actor', 'historical@example.test')`,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	userEvent, adminEvent, systemEvent, unknownEvent := uuid.Must(
@@ -197,7 +257,12 @@ func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
 	}
 
 	applyMigrationFiles(t, pool, migrations[19:])
-	for id, want := range map[uuid.UUID]string{userEvent: "user", adminEvent: "system", systemEvent: "system", unknownEvent: "unknown"} {
+	for id, want := range map[uuid.UUID]string{
+		userEvent:    "user",
+		adminEvent:   "system",
+		systemEvent:  "system",
+		unknownEvent: "unknown",
+	} {
 		var got string
 		if err := pool.QueryRow(ctx, `SELECT actor_type FROM audit_events WHERE id=$1`, id).Scan(&got); err != nil {
 			t.Fatal(err)
@@ -214,15 +279,32 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	oldPassword := "old master password 2026"
 	newPassword := "new master password 2026"
 	accountID, err := admin.NewService(pool).
-		BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "CLI", LastName: "Master", ContactEmail: "cli-master@example.test", LoginEmail: "cli-login@example.test", Password: oldPassword})
+		BootstrapMaster(
+			ctx,
+			admin.BootstrapInput{
+				FirstName:    "CLI",
+				LastName:     "Master",
+				ContactEmail: "cli-master@example.test",
+				LoginEmail:   "cli-login@example.test",
+				Password:     oldPassword,
+			},
+		)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var personID, passwordIdentityID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id = $1`, accountID).Scan(&personID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT person_id FROM accounts WHERE id = $1`,
+		accountID,
+	).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT id FROM auth_identities WHERE account_id = $1 AND kind = 'password'`, accountID).Scan(&passwordIdentityID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT id FROM auth_identities WHERE account_id = $1 AND kind = 'password'`,
+		accountID,
+	).Scan(&passwordIdentityID); err != nil {
 		t.Fatal(err)
 	}
 	pinIdentityID := uuid.Must(uuid.NewV7())
@@ -230,17 +312,38 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at) VALUES ($1,$2,'pin','CliMaster','climaster',now())`, pinIdentityID, accountID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at) VALUES ($1,$2,'pin','CliMaster','climaster',now())`,
+		pinIdentityID,
+		accountID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES ($1,$2)`, pinIdentityID, pinHash); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES ($1,$2)`,
+		pinIdentityID,
+		pinHash,
+	); err != nil {
 		t.Fatal(err)
 	}
 	providerID, oidcIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret) VALUES ($1,'cli-test','CLI Test','https://issuer.example.test','client',$2)`, providerID, []byte("opaque-test-ciphertext")); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret) VALUES ($1,'cli-test','CLI Test','https://issuer.example.test','client',$2)`,
+		providerID,
+		[]byte("opaque-test-ciphertext"),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES ($1,$2,'oidc',$3,'https://issuer.example.test','subject-1',now())`, oidcIdentityID, accountID, providerID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO auth_identities (id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES ($1,$2,'oidc',$3,'https://issuer.example.test','subject-1',now())`,
+		oidcIdentityID,
+		accountID,
+		providerID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	authService, err := auth.NewService(pool, integrationConfig(t))
@@ -251,10 +354,23 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO password_reset_tokens (id,account_id,token_digest,expires_at) VALUES ($1,$2,$3,now()+interval '1 hour')`, uuid.Must(uuid.NewV7()), accountID, bytes.Repeat([]byte{3}, 32)); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO password_reset_tokens (id,account_id,token_digest,expires_at) VALUES ($1,$2,$3,now()+interval '1 hour')`,
+		uuid.Must(uuid.NewV7()),
+		accountID,
+		bytes.Repeat([]byte{3}, 32),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO auth_challenges (id,kind,account_id,auth_identity_id,code_digest,delivery_address,expires_at) VALUES ($1,'password_reset',$2,$3,$4,'cli-login@example.test',now()+interval '1 hour')`, uuid.Must(uuid.NewV7()), accountID, passwordIdentityID, bytes.Repeat([]byte{4}, 32)); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO auth_challenges (id,kind,account_id,auth_identity_id,code_digest,delivery_address,expires_at) VALUES ($1,'password_reset',$2,$3,$4,'cli-login@example.test',now()+interval '1 hour')`,
+		uuid.Must(uuid.NewV7()),
+		accountID,
+		passwordIdentityID,
+		bytes.Repeat([]byte{4}, 32),
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -267,7 +383,11 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	}
 	var gotPersonID uuid.UUID
 	var status string
-	if err := pool.QueryRow(ctx, `SELECT person_id,status FROM accounts WHERE id=$1`, accountID).Scan(&gotPersonID, &status); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT person_id,status FROM accounts WHERE id=$1`,
+		accountID,
+	).Scan(&gotPersonID, &status); err != nil {
 		t.Fatal(err)
 	}
 	if gotPersonID != personID || status != "enabled" {
@@ -307,7 +427,13 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 		1,
 		accountID,
 	)
-	if _, err := authService.Login(ctx, "cli-login@example.test", oldPassword, "old-after-reset", nil); !apperror.IsCode(
+	if _, err := authService.Login(
+		ctx,
+		"cli-login@example.test",
+		oldPassword,
+		"old-after-reset",
+		nil,
+	); !apperror.IsCode(
 		err,
 		"invalid_credentials",
 	) {
@@ -316,7 +442,11 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if _, err := authService.Login(ctx, "cli-login@example.test", newPassword, "new-after-reset", nil); err != nil {
 		t.Fatalf("new password login: %v", err)
 	}
-	if _, err := admin.NewService(pool).RecoverMaster(ctx, "cli-login@example.test", "another valid password 2026"); err == nil ||
+	if _, err := admin.NewService(pool).RecoverMaster(
+		ctx,
+		"cli-login@example.test",
+		"another valid password 2026",
+	); err == nil ||
 		!strings.Contains(err.Error(), "enabled master") {
 		t.Fatalf("recover-master after CLI reset error = %v, want enabled-master refusal", err)
 	}
@@ -326,26 +456,49 @@ func TestAdministrativeResetPasswordRefusesPINAndContactOnlyMatches(t *testing.T
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	personID, accountID, pinIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,email) VALUES ($1,'PIN','Only','pin-contact@example.test')`, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id,first_name,last_name,email) VALUES ($1,'PIN','Only','pin-contact@example.test')`,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id,account_id,kind,identifier_display,identifier_normalized,verified_at) VALUES ($1,$2,'pin','PinOnly','pinonly',now())`, pinIdentityID, accountID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO auth_identities (id,account_id,kind,identifier_display,identifier_normalized,verified_at) VALUES ($1,$2,'pin','PinOnly','pinonly',now())`,
+		pinIdentityID,
+		accountID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	pinHash, err := security.HashPIN([]byte("integration-test-pin-pepper-key-32"), "123456")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO pin_credentials (auth_identity_id,pin_hash) VALUES ($1,$2)`, pinIdentityID, pinHash); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO pin_credentials (auth_identity_id,pin_hash) VALUES ($1,$2)`,
+		pinIdentityID,
+		pinHash,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := admin.NewService(pool).ResetPassword(ctx, "PINONLY", "created local password 2026"); err == nil {
 		t.Fatal("reset-password matched a PIN identifier")
 	}
-	if _, err := admin.NewService(pool).ResetPassword(ctx, "pin-contact@example.test", "created local password 2026"); err == nil {
+	if _, err := admin.NewService(pool).ResetPassword(
+		ctx,
+		"pin-contact@example.test",
+		"created local password 2026",
+	); err == nil {
 		t.Fatal("reset-password matched a Person contact email")
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, personID)

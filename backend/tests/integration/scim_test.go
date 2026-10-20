@@ -42,16 +42,27 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 			}
 			user, err := service.CreateUser(ctx, connector, scim.UserInput{
 				UserName: "external-master", ExternalID: testStringPointer("master-subject"), Active: true,
-				GivenName: "External", FamilyName: "Master", Emails: []scim.MultiValue{{Value: "external-master@example.test"}},
+				GivenName: "External", FamilyName: "Master", Emails: []scim.MultiValue{
+					{Value: "external-master@example.test"},
+				},
 			}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			var accountID, personID uuid.UUID
-			if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&accountID, &personID); err != nil {
+			if err := pool.QueryRow(
+				ctx,
+				`SELECT account_id,person_id FROM scim_users WHERE id=$1`,
+				user.ID,
+			).Scan(&accountID, &personID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, personID, masterRoleID); err != nil {
+			if _, err := pool.Exec(
+				ctx,
+				`INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`,
+				personID,
+				masterRoleID,
+			); err != nil {
 				t.Fatal(err)
 			}
 			deprovision := func() error {
@@ -116,10 +127,19 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	var sourceID, sourcePersonID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&sourceID, &sourcePersonID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT account_id,person_id FROM scim_users WHERE id=$1`,
+		user.ID,
+	).Scan(&sourceID, &sourcePersonID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, sourcePersonID, masterRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`,
+		sourcePersonID,
+		masterRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='disabled' WHERE id=$1`, target.accountID); err != nil {
@@ -179,7 +199,11 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 		t.Fatal("connector token was not returned once")
 	}
 	var digest []byte
-	if err := pool.QueryRow(ctx, `SELECT token_digest FROM scim_connector_tokens WHERE connector_id=$1`, issue.Connector.ID).Scan(&digest); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT token_digest FROM scim_connector_tokens WHERE connector_id=$1`,
+		issue.Connector.ID,
+	).Scan(&digest); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(digest, []byte(issue.BearerToken)) {
@@ -200,7 +224,11 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 	var accountID, personID uuid.UUID
 	var source, status string
 	var firstAuthenticated bool
-	if err := pool.QueryRow(ctx, `SELECT su.account_id,su.person_id,a.provisioning_source,a.status,a.first_authenticated_at IS NOT NULL FROM scim_users su JOIN accounts a ON a.id=su.account_id WHERE su.id=$1`, user.ID).Scan(&accountID, &personID, &source, &status, &firstAuthenticated); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT su.account_id,su.person_id,a.provisioning_source,a.status,a.first_authenticated_at IS NOT NULL FROM scim_users su JOIN accounts a ON a.id=su.account_id WHERE su.id=$1`,
+		user.ID,
+	).Scan(&accountID, &personID, &source, &status, &firstAuthenticated); err != nil {
 		t.Fatal(err)
 	}
 	if source != "scim" || status != "enabled" || firstAuthenticated {
@@ -274,16 +302,26 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	}
 	user, err := service.CreateUser(ctx, connector, scim.UserInput{
 		UserName: "duplicate.member", ExternalID: testStringPointer("stable-subject"), Active: true,
-		GivenName: "Provisioned", FamilyName: "Duplicate", PhoneNumbers: []scim.MultiValue{{Value: "+431234", Primary: true}},
+		GivenName: "Provisioned", FamilyName: "Duplicate", PhoneNumbers: []scim.MultiValue{
+			{Value: "+431234", Primary: true},
+		},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var sourceAccountID, sourcePersonID, targetPersonID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&sourceAccountID, &sourcePersonID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT account_id,person_id FROM scim_users WHERE id=$1`,
+		user.ID,
+	).Scan(&sourceAccountID, &sourcePersonID); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, targetAccountID).Scan(&targetPersonID); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT person_id FROM accounts WHERE id=$1`,
+		targetAccountID,
+	).Scan(&targetPersonID); err != nil {
 		t.Fatal(err)
 	}
 	openDayID, sourceRequirementID, targetRequirementID := insertConflictingSCIMAssignments(
@@ -303,7 +341,12 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceAccountID)
 	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id=$1`, 2, openDayID)
-	if _, err := pool.Exec(ctx, `DELETE FROM open_day_assignments WHERE person_id=$1 AND requirement_id=$2`, targetPersonID, targetRequirementID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`DELETE FROM open_day_assignments WHERE person_id=$1 AND requirement_id=$2`,
+		targetPersonID,
+		targetRequirementID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	report, err = service.Reconcile(ctx, principal, sourceAccountID, targetAccountID, nil)
@@ -338,7 +381,11 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 		sourceRequirementID,
 	)
 	var firstName, lastName string
-	if err := pool.QueryRow(ctx, `SELECT first_name,last_name FROM people WHERE id=$1`, targetPersonID).Scan(&firstName, &lastName); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT first_name,last_name FROM people WHERE id=$1`,
+		targetPersonID,
+	).Scan(&firstName, &lastName); err != nil {
 		t.Fatal(err)
 	}
 	if firstName != "Established" || lastName != "Member" {
@@ -349,7 +396,14 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 func insertSCIMOIDCProvider(t *testing.T, pool *pgxpool.Pool, issuer string) uuid.UUID {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(testContext(t), `INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,$2,'SCIM OIDC',$3,'client',$4,true)`, id, "scim-"+id.String()[:8], issuer, []byte{1}); err != nil {
+	if _, err := pool.Exec(
+		testContext(t),
+		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,$2,'SCIM OIDC',$3,'client',$4,true)`,
+		id,
+		"scim-"+id.String()[:8],
+		issuer,
+		[]byte{1},
+	); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -364,16 +418,41 @@ func insertConflictingSCIMAssignments(
 	ctx := testContext(t)
 	periodID, openDayID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	sourceRequirementID, targetRequirementID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO open_day_periods (id,name,starts_on,ends_on) VALUES ($1,'SCIM period',current_date,current_date)`, periodID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO open_day_periods (id,name,starts_on,ends_on) VALUES ($1,'SCIM period',current_date,current_date)`,
+		periodID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO open_days (id,period_id,starts_at,ends_at) VALUES ($1,$2,now()+interval '1 day',now()+interval '1 day 2 hours')`, openDayID, periodID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO open_days (id,period_id,starts_at,ends_at) VALUES ($1,$2,now()+interval '1 day',now()+interval '1 day 2 hours')`,
+		openDayID,
+		periodID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO open_day_staff_requirements (id,open_day_id,kind,required_count) VALUES ($1,$3,'supervisor',1),($2,$3,'trainee',1)`, sourceRequirementID, targetRequirementID, openDayID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO open_day_staff_requirements (id,open_day_id,kind,required_count) VALUES ($1,$3,'supervisor',1),($2,$3,'trainee',1)`,
+		sourceRequirementID,
+		targetRequirementID,
+		openDayID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO open_day_assignments (id,open_day_id,requirement_id,person_id) VALUES ($1,$3,$4,$6),($2,$3,$5,$7)`, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), openDayID, sourceRequirementID, targetRequirementID, sourcePersonID, targetPersonID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO open_day_assignments (id,open_day_id,requirement_id,person_id) VALUES ($1,$3,$4,$6),($2,$3,$5,$7)`,
+		uuid.Must(uuid.NewV7()),
+		uuid.Must(uuid.NewV7()),
+		openDayID,
+		sourceRequirementID,
+		targetRequirementID,
+		sourcePersonID,
+		targetPersonID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	return openDayID, sourceRequirementID, targetRequirementID
@@ -420,7 +499,11 @@ func TestPersonDeletionExplainsSCIMProvisioning(t *testing.T) {
 	}
 	var personID uuid.UUID
 	var version int64
-	if err := pool.QueryRow(ctx, `SELECT p.id, p.version FROM scim_users su JOIN people p ON p.id=su.person_id WHERE su.id=$1`, user.ID).Scan(&personID, &version); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT p.id, p.version FROM scim_users su JOIN people p ON p.id=su.person_id WHERE su.id=$1`,
+		user.ID,
+	).Scan(&personID, &version); err != nil {
 		t.Fatal(err)
 	}
 

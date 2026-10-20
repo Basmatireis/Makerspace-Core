@@ -39,12 +39,33 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).
-			Encode(map[string]any{"issuer": providerURL, "authorization_endpoint": providerURL + "/authorize", "token_endpoint": providerURL + "/token", "jwks_uri": providerURL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+			Encode(
+				map[string]any{
+					"issuer":                                providerURL,
+					"authorization_endpoint":                providerURL + "/authorize",
+					"token_endpoint":                        providerURL + "/token",
+					"jwks_uri":                              providerURL + "/keys",
+					"id_token_signing_alg_values_supported": []string{"RS256"},
+				},
+			)
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).
-			Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "review", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
+			Encode(
+				map[string]any{
+					"keys": []any{
+						map[string]any{
+							"kty": "RSA",
+							"kid": "review",
+							"alg": "RS256",
+							"use": "sig",
+							"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
+							"e":   "AQAB",
+						},
+					},
+				},
+			)
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -84,7 +105,13 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 		ctx,
 		authorization.Principal{AccountID: operator.accountID, Master: true},
 		oidc.ProviderInput{
-			Slug: "review-provider", DisplayName: "Local review provider", Issuer: providerURL, ClientID: "review-client", ClientSecret: &secret, Enabled: true, JITEnabled: true,
+			Slug:                 "review-provider",
+			DisplayName:          "Local review provider",
+			Issuer:               providerURL,
+			ClientID:             "review-client",
+			ClientSecret:         &secret,
+			Enabled:              true,
+			JITEnabled:           true,
 			ACRAssuranceMappings: map[string]authorization.Assurance{"trusted-mfa": authorization.AssuranceStrongMFA},
 		},
 		nil,
@@ -92,7 +119,15 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"wrong_browser", "wrong_state", "expired_flow", "wrong_nonce", "wrong_issuer", "expired_token", "valid"} {
+	for _, scenario := range []string{
+		"wrong_browser",
+		"wrong_state",
+		"expired_flow",
+		"wrong_nonce",
+		"wrong_issuer",
+		"expired_token",
+		"valid",
+	} {
 		t.Run(scenario, func(t *testing.T) {
 			flow, err := service.StartLogin(ctx, "review-provider")
 			if err != nil {
@@ -126,7 +161,11 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			case "wrong_state":
 				state = "wrong-state"
 			case "expired_flow":
-				if _, err := pool.Exec(ctx, `UPDATE oidc_flows SET created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' WHERE state_digest=$1`, security.DigestToken(state)); err != nil {
+				if _, err := pool.Exec(
+					ctx,
+					`UPDATE oidc_flows SET created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' WHERE state_digest=$1`,
+					security.DigestToken(state),
+				); err != nil {
 					t.Fatal(err)
 				}
 			case "wrong_nonce":
@@ -180,7 +219,11 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			}
 			var accountID uuid.UUID
 			var assurance string
-			if err := pool.QueryRow(ctx, `SELECT account_id,current_assurance FROM sessions WHERE id=$1`, completion.Session.ID).Scan(&accountID, &assurance); err != nil {
+			if err := pool.QueryRow(
+				ctx,
+				`SELECT account_id,current_assurance FROM sessions WHERE id=$1`,
+				completion.Session.ID,
+			).Scan(&accountID, &assurance); err != nil {
 				t.Fatal(err)
 			}
 			if accountID == operator.accountID || assurance != "strong_mfa" {
@@ -193,7 +236,14 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 				0,
 				accountID,
 			)
-			if _, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil); err == nil {
+			if _, err := service.Complete(
+				ctx,
+				state,
+				"local-code",
+				browser,
+				authorization.Principal{},
+				nil,
+			); err == nil {
 				t.Fatal("OIDC callback replay accepted")
 			}
 		})

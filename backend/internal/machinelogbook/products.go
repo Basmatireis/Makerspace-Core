@@ -171,10 +171,31 @@ func (s *Service) CreateFilamentProduct(
 		return FilamentProduct{}, noRows(err)
 	}
 	id := newID()
-	if _, err = q.CreateFilamentProduct(ctx, machinelogbookdb.CreateFilamentProductParams{ID: id, Manufacturer: v.manufacturer, Name: v.name, MaterialID: in.MaterialID, NetWeightG: v.netWeight, DefaultPrice: v.defaultPrice, Packaging: v.packaging, Notes: v.notes}); err != nil {
+	if _, err = q.CreateFilamentProduct(
+		ctx,
+		machinelogbookdb.CreateFilamentProductParams{
+			ID:           id,
+			Manufacturer: v.manufacturer,
+			Name:         v.name,
+			MaterialID:   in.MaterialID,
+			NetWeightG:   v.netWeight,
+			DefaultPrice: v.defaultPrice,
+			Packaging:    v.packaging,
+			Notes:        v.notes,
+		},
+	); err != nil {
 		return FilamentProduct{}, productConflict(err)
 	}
-	if err = writeAudit(ctx, tx, p, "filament_product.created", "filament_product", id, requestID, []string{"manufacturer", "name", "materialId", "netWeightG", "defaultPrice", "packaging", "notes"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"filament_product.created",
+		"filament_product",
+		id,
+		requestID,
+		[]string{"manufacturer", "name", "materialId", "netWeightG", "defaultPrice", "packaging", "notes"},
+	); err != nil {
 		return FilamentProduct{}, err
 	}
 	row, err := q.GetFilamentProduct(ctx, id)
@@ -222,13 +243,36 @@ func (s *Service) UpdateFilamentProduct(
 	if _, err = q.GetMaterial(ctx, in.MaterialID); err != nil {
 		return FilamentProduct{}, noRows(err)
 	}
-	if _, err = q.UpdateFilamentProduct(ctx, machinelogbookdb.UpdateFilamentProductParams{Manufacturer: v.manufacturer, Name: v.name, MaterialID: in.MaterialID, NetWeightG: v.netWeight, DefaultPrice: v.defaultPrice, Packaging: v.packaging, Notes: v.notes, Active: in.Active, ID: id, ExpectedVersion: in.ExpectedVersion}); err != nil {
+	if _, err = q.UpdateFilamentProduct(
+		ctx,
+		machinelogbookdb.UpdateFilamentProductParams{
+			Manufacturer:    v.manufacturer,
+			Name:            v.name,
+			MaterialID:      in.MaterialID,
+			NetWeightG:      v.netWeight,
+			DefaultPrice:    v.defaultPrice,
+			Packaging:       v.packaging,
+			Notes:           v.notes,
+			Active:          in.Active,
+			ID:              id,
+			ExpectedVersion: in.ExpectedVersion,
+		},
+	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return FilamentProduct{}, apperror.StaleWrite
 		}
 		return FilamentProduct{}, productConflict(err)
 	}
-	if err = writeAudit(ctx, tx, p, "filament_product.updated", "filament_product", id, requestID, []string{"manufacturer", "name", "materialId", "netWeightG", "defaultPrice", "packaging", "notes", "active"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"filament_product.updated",
+		"filament_product",
+		id,
+		requestID,
+		[]string{"manufacturer", "name", "materialId", "netWeightG", "defaultPrice", "packaging", "notes", "active"},
+	); err != nil {
 		return FilamentProduct{}, err
 	}
 	row, err := q.GetFilamentProduct(ctx, id)

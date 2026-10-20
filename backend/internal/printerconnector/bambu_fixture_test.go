@@ -26,7 +26,16 @@ func TestSanitizeBambuMQTTFixtureRedactsAndPreservesRelationships(t *testing.T) 
 		t.Fatal("sanitization is not deterministic")
 	}
 	text := output.String()
-	for _, sensitive := range []string{"real-task-77", "Customer Prototype", "00MREAL123", "192.168.1.42", "AABBCCDDEEFF", "018f5c62", "super-secret", "2026-09-20"} {
+	for _, sensitive := range []string{
+		"real-task-77",
+		"Customer Prototype",
+		"00MREAL123",
+		"192.168.1.42",
+		"AABBCCDDEEFF",
+		"018f5c62",
+		"super-secret",
+		"2026-09-20",
+	} {
 		if strings.Contains(text, sensitive) {
 			t.Fatalf("sanitized fixture contains %q: %s", sensitive, text)
 		}
@@ -62,7 +71,14 @@ func TestSanitizeBambuMQTTFixtureRedactsAndPreservesRelationships(t *testing.T) 
 func TestSanitizeBambuMQTTFixtureRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	for _, input := range []string{"", "\n\n", "[]", "not-json", `{"payload":"not an object"}`, `{"payload":"{\"print\":{}} trailing"}`} {
+	for _, input := range []string{
+		"",
+		"\n\n",
+		"[]",
+		"not-json",
+		`{"payload":"not an object"}`,
+		`{"payload":"{\"print\":{}} trailing"}`,
+	} {
 		var output bytes.Buffer
 		if err := SanitizeBambuMQTTFixture(strings.NewReader(input), &output); err == nil {
 			t.Fatalf("accepted invalid input %q", input)

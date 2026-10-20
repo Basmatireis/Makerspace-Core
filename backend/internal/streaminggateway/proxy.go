@@ -170,7 +170,16 @@ func NewProxy(
 			// credential-bearing header stay behind.
 			r.Out.URL.RawQuery = url.Values{"src": {src}}.Encode()
 			r.Out.Host = target.Host
-			for _, header := range []string{"Authorization", "Cookie", "Origin", "Referer", "Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
+			for _, header := range []string{
+				"Authorization",
+				"Cookie",
+				"Origin",
+				"Referer",
+				"Forwarded",
+				"X-Forwarded-For",
+				"X-Forwarded-Host",
+				"X-Forwarded-Proto",
+			} {
 				r.Out.Header.Del(header)
 			}
 			// go2rtc's API is protected by credentials only the gateway knows.
@@ -180,7 +189,13 @@ func NewProxy(
 		},
 		ModifyResponse: func(response *http.Response) error {
 			// go2rtc's own CORS answer (if any) is replaced by the gateway's origin policy.
-			for _, header := range []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers", "Access-Control-Allow-Credentials", "Access-Control-Expose-Headers"} {
+			for _, header := range []string{
+				"Access-Control-Allow-Origin",
+				"Access-Control-Allow-Methods",
+				"Access-Control-Allow-Headers",
+				"Access-Control-Allow-Credentials",
+				"Access-Control-Expose-Headers",
+			} {
 				response.Header.Del(header)
 			}
 			response.Header.Set("Cache-Control", "no-store")

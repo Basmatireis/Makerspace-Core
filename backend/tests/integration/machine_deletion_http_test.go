@@ -38,7 +38,16 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 		adminLogin    = "del-admin@example.test"
 		adminPassword = "Del admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Del", LastName: "Admin", ContactEmail: "del-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(
+		ctx,
+		admin.BootstrapInput{
+			FirstName:    "Del",
+			LastName:     "Admin",
+			ContactEmail: "del-contact@example.test",
+			LoginEmail:   adminLogin,
+			Password:     adminPassword,
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -167,7 +176,11 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	}
 
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
+		adminLogin,
+	).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -185,7 +198,17 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "10", nil); err != nil {
+	if _, err = logbook.CreatePricingRule(
+		ctx,
+		master,
+		group.ID,
+		"machine_runtime",
+		&machineType.ID,
+		nil,
+		nil,
+		"10",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-8 * time.Hour).Truncate(time.Second)
@@ -217,7 +240,20 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = orderService.ChangeItem(ctx, master, order.ID, uuid.Nil, orders.OrderItemInput{Kind: "machine_job", MachineJobID: ordered.ID, ExpectedJobVersion: ordered.Version, ExpectedVersion: order.Version}, "add", nil); err != nil {
+	if _, err = orderService.ChangeItem(
+		ctx,
+		master,
+		order.ID,
+		uuid.Nil,
+		orders.OrderItemInput{
+			Kind:               "machine_job",
+			MachineJobID:       ordered.ID,
+			ExpectedJobVersion: ordered.Version,
+			ExpectedVersion:    order.Version,
+		},
+		"add",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -418,13 +454,27 @@ func insertRecordedRun(t *testing.T, pool *pgxpool.Pool, machineID uuid.UUID) re
 	t.Helper()
 	ctx := testContext(t)
 	connectorID, assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, 'Delete test connector', 'active')`, connectorID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, 'Delete test connector', 'active')`,
+		connectorID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO printer_profiles (machine_id) VALUES ($1) ON CONFLICT DO NOTHING`, machineID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO printer_profiles (machine_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+		machineID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`, assignmentID, connectorID, machineID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`,
+		assignmentID,
+		connectorID,
+		machineID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	seen := time.Now().UTC().Add(-3 * time.Hour)

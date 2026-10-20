@@ -123,8 +123,17 @@ func (g *gatewayEnv) runReenrollment(
 		t.Fatalf("audit %s = %d", spec.action, got)
 	}
 	var leaked int
-	for _, secret := range []string{first["enrollmentSecret"].(string), second["enrollmentSecret"].(string), newSecret, firstSecret} {
-		if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`, secret).Scan(&leaked); err != nil ||
+	for _, secret := range []string{
+		first["enrollmentSecret"].(string),
+		second["enrollmentSecret"].(string),
+		newSecret,
+		firstSecret,
+	} {
+		if err := g.pool.QueryRow(
+			ctx,
+			`SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`,
+			secret,
+		).Scan(&leaked); err != nil ||
 			leaked != 0 {
 			t.Fatalf("secret in %d audit rows (%v)", leaked, err)
 		}
@@ -140,7 +149,10 @@ func (g *gatewayEnv) runReenrollment(
 	g.expect(response, http.StatusOK)
 	g.expectCode(g.gw(newSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
 	g.expect(g.gw(disabledSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
-	if got := g.expect(g.as(manage, http.MethodGet, spec.adminPath, nil), http.StatusOK); got["lifecycle"] != "disabled" {
+	if got := g.expect(
+		g.as(manage, http.MethodGet, spec.adminPath, nil),
+		http.StatusOK,
+	); got["lifecycle"] != "disabled" {
 		t.Fatalf("lifecycle = %v", got["lifecycle"])
 	}
 
@@ -179,7 +191,9 @@ func TestStreamingGatewayReenrollment(t *testing.T) {
 		http.StatusCreated,
 	)
 	g.runReenrollment(t, reenrollment{
-		adminPath: "/streaming-gateways/" + id, enrollPath: "/streaming-gateway/enroll", configPath: "/streaming-gateway/configuration",
+		adminPath:    "/streaming-gateways/" + id,
+		enrollPath:   "/streaming-gateway/enroll",
+		configPath:   "/streaming-gateway/configuration",
 		revisionSQL:  `SELECT configuration_revision FROM streaming_gateways WHERE id = $1`,
 		childrenSQL:  `SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1`,
 		credentialsQ: `SELECT count(*), COALESCE(max(id::text), '') FROM streaming_gateway_credentials WHERE gateway_id = $1 AND state <> 'revoked'`,
@@ -198,7 +212,11 @@ func TestPrinterConnectorReenrollment(t *testing.T) {
 	)
 	machine := g.bambu("Reenroll connector printer", "bambu_h2d", "192.168.1.61", "77778888")
 	var connectorID string
-	if err := g.pool.QueryRow(testContext(t), `SELECT connector_id::text FROM printer_connector_assignments WHERE machine_id = $1`, machine).Scan(&connectorID); err != nil {
+	if err := g.pool.QueryRow(
+		testContext(t),
+		`SELECT connector_id::text FROM printer_connector_assignments WHERE machine_id = $1`,
+		machine,
+	).Scan(&connectorID); err != nil {
 		t.Fatal(err)
 	}
 	path := "/printer-connectors/" + connectorID

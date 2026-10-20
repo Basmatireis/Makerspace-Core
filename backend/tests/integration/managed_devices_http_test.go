@@ -208,7 +208,10 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		t.Fatal(err)
 	}
 	var policyID uuid.UUID
-	if err = pool.QueryRow(ctx, `SELECT id FROM session_policies WHERE name='Entrance terminal'`).Scan(&policyID); err != nil {
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT id FROM session_policies WHERE name='Entrance terminal'`,
+	).Scan(&policyID); err != nil {
 		t.Fatal(err)
 	}
 	visitor, err := service.CreateConfigured(
@@ -233,17 +236,27 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		deviceType.ID,
 		nil,
 		manageddevices.DeviceSettings{
-			SessionPolicyID: &policyID, AllowedApplicationModes: []string{"staff_ui"}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+			SessionPolicyID: &policyID, AllowedApplicationModes: []string{
+				"staff_ui",
+			}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
 		},
 		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `UPDATE managed_devices SET allowed_app_modes=ARRAY['maintenance']::text[] WHERE id=$1`, staff.Device.ID); err == nil {
+	if _, err = pool.Exec(
+		ctx,
+		`UPDATE managed_devices SET allowed_app_modes=ARRAY['maintenance']::text[] WHERE id=$1`,
+		staff.Device.ID,
+	); err == nil {
 		t.Fatal("database accepted an unsupported application mode")
 	}
-	if _, err = pool.Exec(ctx, `UPDATE managed_devices SET terminal_enabled=true, allowed_app_modes=ARRAY['staff_ui']::text[] WHERE id=$1`, staff.Device.ID); err == nil {
+	if _, err = pool.Exec(
+		ctx,
+		`UPDATE managed_devices SET terminal_enabled=true, allowed_app_modes=ARRAY['staff_ui']::text[] WHERE id=$1`,
+		staff.Device.ID,
+	); err == nil {
 		t.Fatal("database accepted a terminal without visitor_terminal mode")
 	}
 	origin := "http://makerspace.example.test"
@@ -287,12 +300,20 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		t.Fatalf("unexpected hardware context: %#v", hardware)
 	}
 	var reportDeviceID uuid.UUID
-	if err = pool.QueryRow(ctx, `SELECT managed_device_id FROM managed_device_hardware_reports WHERE managed_device_id=$1`, visitor.Device.ID).Scan(&reportDeviceID); err != nil ||
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT managed_device_id FROM managed_device_hardware_reports WHERE managed_device_id=$1`,
+		visitor.Device.ID,
+	).Scan(&reportDeviceID); err != nil ||
 		reportDeviceID != visitor.Device.ID {
 		t.Fatalf("hardware report identity=%s err=%v", reportDeviceID, err)
 	}
 	var auditCount int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='managed_device.hardware_reported'`, visitor.Device.ID).Scan(&auditCount); err != nil ||
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='managed_device.hardware_reported'`,
+		visitor.Device.ID,
+	).Scan(&auditCount); err != nil ||
 		auditCount != 1 {
 		t.Fatalf("hardware audit count=%d err=%v", auditCount, err)
 	}
@@ -320,7 +341,9 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		"",
 		staff.Token,
 		map[string]any{
-			"deviceId": visitor.Device.ID, "platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc"},
+			"deviceId": visitor.Device.ID, "platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{
+				"nfc",
+			},
 		},
 	)
 	assertStatus(t, response, http.StatusBadRequest)
@@ -386,7 +409,17 @@ func insertTestSession(
 		managedDeviceID = &managedDevice[0]
 	}
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at, managed_device_id)
+		INSERT INTO sessions(
+			id,
+			account_id,
+			auth_identity_id,
+			token_digest,
+			csrf_digest,
+			auth_method,
+			idle_expires_at,
+			absolute_expires_at,
+			managed_device_id,
+		)
 		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours', $6)`,
 		uuid.Must(uuid.NewV7()), account.accountID, account.identity, sessionDigest, csrfDigest, managedDeviceID,
 	); err != nil {

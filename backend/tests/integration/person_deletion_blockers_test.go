@@ -45,11 +45,20 @@ func TestPersonDeletionReportsEveryBlocker(t *testing.T) {
 	}
 	var personID uuid.UUID
 	var version int64
-	if err := pool.QueryRow(ctx, `SELECT p.id, p.version FROM scim_users su JOIN people p ON p.id=su.person_id WHERE su.id=$1`, user.ID).Scan(&personID, &version); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT p.id, p.version FROM scim_users su JOIN people p ON p.id=su.person_id WHERE su.id=$1`,
+		user.ID,
+	).Scan(&personID, &version); err != nil {
 		t.Fatal(err)
 	}
 	// The SCIM-provisioned person becomes the only enabled master.
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, personID, masterRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		personID,
+		masterRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 

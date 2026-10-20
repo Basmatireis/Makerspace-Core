@@ -359,7 +359,14 @@ func (s *Server) DeleteEventSession(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.DeleteSession(ctx, p, r.EventId, r.EventSessionId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.DeleteSession(
+		ctx,
+		p,
+		r.EventId,
+		r.EventSessionId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteEventSession204Response{}, nil
@@ -453,7 +460,14 @@ func (s *Server) DeleteEventTaskList(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.DeleteTaskList(ctx, p, r.EventId, r.EventTaskListId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.DeleteTaskList(
+		ctx,
+		p,
+		r.EventId,
+		r.EventTaskListId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteEventTaskList204Response{}, nil
@@ -536,7 +550,14 @@ func (s *Server) DeleteEventTask(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.DeleteTask(ctx, p, r.EventId, r.EventTaskId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.DeleteTask(
+		ctx,
+		p,
+		r.EventId,
+		r.EventTaskId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteEventTask204Response{}, nil
@@ -620,7 +641,14 @@ func (s *Server) DeleteEventShift(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.DeleteShift(ctx, p, r.EventId, r.EventShiftId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.DeleteShift(
+		ctx,
+		p,
+		r.EventId,
+		r.EventShiftId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteEventShift204Response{}, nil
@@ -718,7 +746,15 @@ func (s *Server) DeleteEventShiftRequirement(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.DeleteRequirement(ctx, p, r.EventId, r.EventShiftId, r.EventRequirementId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.DeleteRequirement(
+		ctx,
+		p,
+		r.EventId,
+		r.EventShiftId,
+		r.EventRequirementId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteEventShiftRequirement204Response{}, nil
@@ -988,7 +1024,14 @@ func (s *Server) RemoveEventFile(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.events.RemoveFile(ctx, p, r.EventId, r.EventFileId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.events.RemoveFile(
+		ctx,
+		p,
+		r.EventId,
+		r.EventFileId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.RemoveEventFile204Response{}, nil

@@ -32,7 +32,10 @@ func TestPINThrottleBacksOffAndForgetsQuietSources(t *testing.T) {
 	}
 
 	// Simulate a key that reached the maximum back-off and then stayed quiet.
-	if _, err := pool.Exec(ctx, `UPDATE pin_login_throttles SET failure_count=20, blocked_until=now() - interval '1 second', updated_at=now() - interval '16 minutes'`); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`UPDATE pin_login_throttles SET failure_count=20, blocked_until=now() - interval '1 second', updated_at=now() - interval '16 minutes'`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := authService.LoginWithPIN(ctx, "nobody.here", "123456", "203.0.113.40", nil); !apperror.IsCode(

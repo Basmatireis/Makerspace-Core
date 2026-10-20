@@ -92,12 +92,20 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := provider.Send(ctx, Message{To: "member@example.test", Subject: "Security notice", Text: "Your password changed."}); err != nil {
+	if err := provider.Send(
+		ctx,
+		Message{To: "member@example.test", Subject: "Security notice", Text: "Your password changed."},
+	); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case message := <-delivered:
-		for _, fragment := range []string{"From: \"Makerspace\" <makerspace@example.test>", "To: <member@example.test>", "Subject: Security notice", "Your password changed."} {
+		for _, fragment := range []string{
+			"From: \"Makerspace\" <makerspace@example.test>",
+			"To: <member@example.test>",
+			"Subject: Security notice",
+			"Your password changed.",
+		} {
 			if !strings.Contains(message, fragment) {
 				t.Fatalf(
 					"delivered message did not contain %s; message=%s",
