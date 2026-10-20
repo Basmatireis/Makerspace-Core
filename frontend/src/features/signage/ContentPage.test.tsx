@@ -8,6 +8,8 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { announcementFixture, ids, mockSignage, playlistFixture, sceneFixture, templateFixture } from './testFixtures';
 
+const HEAVY_PAGE_TEST_TIMEOUT = 90_000;
+
 describe('Content page', () => {
   it('shows scene tiles and playlists read-only with signage.read', async () => {
     mockSignage([PermissionId.signageread], { playlists: [playlistFixture({ items: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }, { sceneId: ids.scene, seconds: 40, transition: 'cut' }] })] });
@@ -80,7 +82,8 @@ describe('Content page', () => {
     await waitFor(() => expect(sent).toEqual({ expectedVersion: 4 }));
   });
 
-  it('edits a template: unknown placeholder warning, variable menu and live preview', async () => {
+  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
+  it('edits a template: unknown placeholder warning, variable menu and live preview', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let body: Record<string, unknown> | undefined;
     server.use(http.put('*/api/v1/signage/announcement-templates/:id', async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json(templateFixture({ version: 5 })); }));

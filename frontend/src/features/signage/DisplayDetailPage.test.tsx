@@ -8,6 +8,8 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { announcementFixture, displayFixture, ids, mockSignage, previewFixture, ruleFixture } from './testFixtures';
 
+const HEAVY_PAGE_TEST_TIMEOUT = 90_000;
+
 const route = `/signage/displays/${ids.display}`;
 const pending = [{ kind: 'scene' as const, name: 'Open days poster', change: 'modified' as const }, { kind: 'rule' as const, name: '', change: 'added' as const }];
 
@@ -68,7 +70,8 @@ describe('Display detail', () => {
     expect(await screen.findByText(/Display reports: rule 1/)).toBeInTheDocument();
   });
 
-  it('reorders rules with the display version and refreshes on a stale write', async () => {
+  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
+  it('reorders rules with the display version and refreshes on a stale write', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
     const rules = [ruleFixture(), ruleFixture({ id: ids.rule2, position: 1, conditionKind: 'live_data_unavailable', timeFrom: null, timeTo: null, weekdays: [] })];
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], rules });
     const bodies: unknown[] = [];
@@ -96,7 +99,8 @@ describe('Display detail', () => {
     expect(screen.getByText('Enabled')).toBeInTheDocument();
   });
 
-  it('adds a machine rule with the display version', async () => {
+  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
+  it('adds a machine rule with the display version', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], machines: [{ id: ids.machine, name: 'H2D', kind: 'Printer', hasCamera: false }] });
     let body: unknown;
     server.use(http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => { body = await request.json(); return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 }); }));
