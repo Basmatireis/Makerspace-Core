@@ -64,18 +64,25 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		t.Fatalf("state = %q", snapshot.State)
 	}
 	job := snapshot.Job
-	if job == nil || *job.FileName != "Benchy 0.2mm" || *job.ProgressPercent != 42 || *job.Layer != 80 || *job.TotalLayers != 191 || *job.RemainingMinutes != 37 {
+	if job == nil || *job.FileName != "Benchy 0.2mm" || *job.ProgressPercent != 42 || *job.Layer != 80 ||
+		*job.TotalLayers != 191 ||
+		*job.RemainingMinutes != 37 {
 		t.Fatalf("job = %+v", job)
 	}
 	if len(snapshot.Temperatures.Extruders) != 2 || *snapshot.Temperatures.Extruders[0].CurrentC != 219 || *snapshot.Temperatures.Extruders[0].TargetC != 220 ||
-		*snapshot.Temperatures.Extruders[1].CurrentC != 31 || *snapshot.Temperatures.BedC != 59.6 || *snapshot.Temperatures.BedTargetC != 60 || *snapshot.Temperatures.ChamberC != 34 {
+		*snapshot.Temperatures.Extruders[1].CurrentC != 31 ||
+		*snapshot.Temperatures.BedC != 59.6 ||
+		*snapshot.Temperatures.BedTargetC != 60 ||
+		*snapshot.Temperatures.ChamberC != 34 {
 		t.Fatalf("temperatures = %+v", snapshot.Temperatures)
 	}
-	if len(snapshot.Nozzles) != 2 || *snapshot.Nozzles[0].DiameterMm != 0.4 || *snapshot.Nozzles[1].DiameterMm != 0.6 || *snapshot.Nozzles[1].Type != "HH01" {
+	if len(snapshot.Nozzles) != 2 || *snapshot.Nozzles[0].DiameterMm != 0.4 || *snapshot.Nozzles[1].DiameterMm != 0.6 ||
+		*snapshot.Nozzles[1].Type != "HH01" {
 		t.Fatalf("nozzles = %+v", snapshot.Nozzles)
 	}
 	// Extruder 0 is the right nozzle, extruder 1 the left one (documented assumption).
-	if *snapshot.Nozzles[0].Side != "right" || *snapshot.Nozzles[1].Side != "left" || *snapshot.Temperatures.Extruders[1].Side != "left" {
+	if *snapshot.Nozzles[0].Side != "right" || *snapshot.Nozzles[1].Side != "left" ||
+		*snapshot.Temperatures.Extruders[1].Side != "left" {
 		t.Fatalf("extruder sides = %+v / %+v", snapshot.Nozzles, snapshot.Temperatures.Extruders)
 	}
 	if *snapshot.WifiSignalDbm != -39 || snapshot.FirmwareVersion != nil {
@@ -86,34 +93,44 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		t.Fatalf("units = %+v", snapshot.Units)
 	}
 	ams, ht, external254, external255 := snapshot.Units[0], snapshot.Units[1], snapshot.Units[2], snapshot.Units[3]
-	if ams.ExternalID != "0" || ams.Kind != "ams" || *ams.HumidityPercent != 32 || *ams.TemperatureC != 32.4 || len(ams.Trays) != 4 {
+	if ams.ExternalID != "0" || ams.Kind != "ams" || *ams.HumidityPercent != 32 || *ams.TemperatureC != 32.4 ||
+		len(ams.Trays) != 4 {
 		t.Fatalf("ams = %+v", ams)
 	}
 	if ht.ExternalID != "128" || ht.Kind != "ams_ht" || *ht.HumidityPercent != 20 || len(ht.Trays) != 1 {
 		t.Fatalf("ams ht = %+v", ht)
 	}
 	first := ams.Trays[0]
-	if *first.MaterialType != "PETG" || *first.SubBrand != "PETG HF" || *first.ColorHex != "FFF144" || *first.RemainPercent != 55 || !first.RFID || first.Empty {
+	if *first.MaterialType != "PETG" || *first.SubBrand != "PETG HF" || *first.ColorHex != "FFF144" ||
+		*first.RemainPercent != 55 ||
+		!first.RFID ||
+		first.Empty {
 		t.Fatalf("tray 0 = %+v", first)
 	}
 	second := ams.Trays[1]
-	if *second.MaterialType != "PLA" || second.RemainPercent != nil || second.RFID || second.Empty || second.SubBrand != nil {
+	if *second.MaterialType != "PLA" || second.RemainPercent != nil || second.RFID || second.Empty ||
+		second.SubBrand != nil {
 		t.Fatalf("tray 1 (no RFID, unknown remain) = %+v", second)
 	}
 	if !ams.Trays[2].Empty || !ams.Trays[3].Empty || ams.Trays[2].ColorHex != nil || ams.Trays[2].MaterialType != nil {
 		t.Fatalf("empty trays = %+v", ams.Trays[2:])
 	}
-	if external254.Kind != "external" || external254.ExternalID != "254" || len(external254.Trays) != 1 || external254.Trays[0].ExternalID != "254" || external254.Trays[0].Empty || *external254.Trays[0].MaterialType != "PLA" {
+	if external254.Kind != "external" || external254.ExternalID != "254" || len(external254.Trays) != 1 ||
+		external254.Trays[0].ExternalID != "254" ||
+		external254.Trays[0].Empty ||
+		*external254.Trays[0].MaterialType != "PLA" {
 		t.Fatalf("external 254 = %+v", external254)
 	}
 	if external255.ExternalID != "255" || !external255.Trays[0].Empty {
 		t.Fatalf("external 255 = %+v", external255)
 	}
-	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" || snapshot.ActiveTray.TrayExternalID != "1" {
+	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" ||
+		snapshot.ActiveTray.TrayExternalID != "1" {
 		t.Fatalf("tray_now 1 identifies exactly AMS 0 tray 1: %+v", snapshot.ActiveTray)
 	}
 
-	if len(snapshot.Errors) != 1 || snapshot.Errors[0].SourceFamily != "hms" || snapshot.Errors[0].Code != "196610" || !snapshot.Errors[0].ObservedAt.Equal(now) {
+	if len(snapshot.Errors) != 1 || snapshot.Errors[0].SourceFamily != "hms" || snapshot.Errors[0].Code != "196610" ||
+		!snapshot.Errors[0].ObservedAt.Equal(now) {
 		t.Fatalf("errors = %+v", snapshot.Errors)
 	}
 
@@ -134,15 +151,23 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 func TestBuildBambuLiveSnapshotFromX1CDocument(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
-	document := decodeDocument(t, `{"print":{"gcode_state":"RUNNING","subtask_name":"Two colour part","mc_percent":66,"layer_num":30,"total_layer_num":72,"nozzle_temper":220.5,"nozzle_target_temper":220,"nozzle_diameter":"0.4","nozzle_type":"hardened_steel","chamber_temper":34,"bed_temper":55,"bed_target_temper":55,"ams":{"tray_now":"2","tray_exist_bits":"5","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tray_type":"PLA","tray_color":"FFFFFFFF","tag_uid":"RFID"}]}]}}}`)
+	document := decodeDocument(
+		t,
+		`{"print":{"gcode_state":"RUNNING","subtask_name":"Two colour part","mc_percent":66,"layer_num":30,"total_layer_num":72,"nozzle_temper":220.5,"nozzle_target_temper":220,"nozzle_diameter":"0.4","nozzle_type":"hardened_steel","chamber_temper":34,"bed_temper":55,"bed_target_temper":55,"ams":{"tray_now":"2","tray_exist_bits":"5","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tray_type":"PLA","tray_color":"FFFFFFFF","tag_uid":"RFID"}]}]}}}`,
+	)
 	snapshot := buildBambuLiveSnapshotFor(bambuX1CAdapterKind, document, map[string]time.Time{}, now)
-	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" || snapshot.ActiveTray.TrayExternalID != "2" {
+	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" ||
+		snapshot.ActiveTray.TrayExternalID != "2" {
 		t.Fatalf("active tray = %+v", snapshot.ActiveTray)
 	}
-	if len(snapshot.Temperatures.Extruders) != 1 || snapshot.Temperatures.Extruders[0].ExtruderID != 1 || snapshot.Temperatures.Extruders[0].Side != nil || *snapshot.Temperatures.Extruders[0].CurrentC != 220.5 {
+	if len(snapshot.Temperatures.Extruders) != 1 || snapshot.Temperatures.Extruders[0].ExtruderID != 1 ||
+		snapshot.Temperatures.Extruders[0].Side != nil ||
+		*snapshot.Temperatures.Extruders[0].CurrentC != 220.5 {
 		t.Fatalf("temperatures = %+v", snapshot.Temperatures)
 	}
-	if len(snapshot.Nozzles) != 1 || snapshot.Nozzles[0].ExtruderID != 1 || snapshot.Nozzles[0].Side != nil || *snapshot.Nozzles[0].DiameterMm != 0.4 || *snapshot.Nozzles[0].Type != "hardened_steel" {
+	if len(snapshot.Nozzles) != 1 || snapshot.Nozzles[0].ExtruderID != 1 || snapshot.Nozzles[0].Side != nil ||
+		*snapshot.Nozzles[0].DiameterMm != 0.4 ||
+		*snapshot.Nozzles[0].Type != "hardened_steel" {
 		t.Fatalf("nozzles = %+v", snapshot.Nozzles)
 	}
 }
@@ -151,12 +176,23 @@ func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
 	for gcode, want := range map[string]string{"IDLE": "idle", "PREPARE": "preparing", "RUNNING": "printing", "PAUSE": "paused", "FINISH": "finished", "FAILED": "failed", "SLICING": "unknown", "": "unknown"} {
-		snapshot := buildBambuLiveSnapshot(map[string]any{"print": map[string]any{"gcode_state": gcode}}, map[string]time.Time{}, now)
+		snapshot := buildBambuLiveSnapshot(
+			map[string]any{"print": map[string]any{"gcode_state": gcode}},
+			map[string]time.Time{},
+			now,
+		)
 		if snapshot.State != want {
 			t.Errorf("gcode_state %q -> %q, want %q", gcode, snapshot.State, want)
 		}
 	}
-	idle := buildBambuLiveSnapshot(decodeDocument(t, `{"print":{"gcode_state":"IDLE","subtask_name":"old job","mc_percent":100,"ams":{"tray_now":"255"},"vir_slot":[{"id":"255","tray_type":""}]}}`), map[string]time.Time{}, now)
+	idle := buildBambuLiveSnapshot(
+		decodeDocument(
+			t,
+			`{"print":{"gcode_state":"IDLE","subtask_name":"old job","mc_percent":100,"ams":{"tray_now":"255"},"vir_slot":[{"id":"255","tray_type":""}]}}`,
+		),
+		map[string]time.Time{},
+		now,
+	)
 	if idle.Job != nil || idle.ActiveTray != nil {
 		t.Fatalf("an idle printer has no job and no active tray (tray_now 255 means none): %+v", idle)
 	}
@@ -170,7 +206,8 @@ func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 			t.Errorf("snapshot key %q must always be present: %s", key, encoded)
 		}
 	}
-	if generic["nozzles"] == nil || generic["units"] == nil || generic["errors"] == nil || generic["temperatures"].(map[string]any)["extruders"] == nil {
+	if generic["nozzles"] == nil || generic["units"] == nil || generic["errors"] == nil ||
+		generic["temperatures"].(map[string]any)["extruders"] == nil {
 		t.Fatalf("lists must encode as [] not null: %s", encoded)
 	}
 }
@@ -185,7 +222,11 @@ func TestBuildBambuLiveSnapshotKeepsErrorFirstSeenStable(t *testing.T) {
 	if len(one.Errors) != 1 || one.Errors[0].SourceFamily != "print" || !two.Errors[0].ObservedAt.Equal(first) {
 		t.Fatalf("errors = %+v / %+v", one.Errors, two.Errors)
 	}
-	cleared := buildBambuLiveSnapshot(decodeDocument(t, `{"print":{"gcode_state":"PAUSE","print_error":0}}`), since, first.Add(2*time.Minute))
+	cleared := buildBambuLiveSnapshot(
+		decodeDocument(t, `{"print":{"gcode_state":"PAUSE","print_error":0}}`),
+		since,
+		first.Add(2*time.Minute),
+	)
 	if len(cleared.Errors) != 0 || len(since) != 0 {
 		t.Fatalf("cleared errors = %+v since=%v", cleared.Errors, since)
 	}
@@ -198,13 +239,55 @@ func TestActiveTrayResolvesExternalHoldersAndHTUnits(t *testing.T) {
 		unit, tray     string
 		resolved       bool
 	}{
-		{"external 254", `{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]},"vir_slot":[{"id":"254","tag_uid":"AB12"},{"id":"255"}]}`, "254", "254", true},
-		{"255 means no selected tray while printing", `{"gcode_state":"RUNNING","ams":{"tray_now":"255"},"vir_slot":[{"id":"254"},{"id":"255"}]}`, "", "", false},
-		{"external holder absent from the document", `{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]}}`, "", "", false},
-		{"AMS HT addressed by unit id", `{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"0","tray":[{"id":"0"},{"id":"1"}]},{"id":"128","tray":[{"id":"0"}]}]}}`, "128", "0", true},
-		{"unit id of a multi-tray unit is not a tray", `{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"128","tray":[{"id":"0"},{"id":"1"}]}]}}`, "", "", false},
-		{"explicit unit and tray", `{"gcode_state":"RUNNING","ams":{"tray_now":"128:0","ams":[{"id":"0","tray":[{"id":"0"}]},{"id":"128","tray":[{"id":"0"}]}]}}`, "128", "0", true},
-		{"bare tray repeated across units", `{"gcode_state":"RUNNING","ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0"}]},{"id":"128","tray":[{"id":"0"}]}]}}`, "", "", false},
+		{
+			"external 254",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]},"vir_slot":[{"id":"254","tag_uid":"AB12"},{"id":"255"}]}`,
+			"254",
+			"254",
+			true,
+		},
+		{
+			"255 means no selected tray while printing",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"255"},"vir_slot":[{"id":"254"},{"id":"255"}]}`,
+			"",
+			"",
+			false,
+		},
+		{
+			"external holder absent from the document",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]}}`,
+			"",
+			"",
+			false,
+		},
+		{
+			"AMS HT addressed by unit id",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"0","tray":[{"id":"0"},{"id":"1"}]},{"id":"128","tray":[{"id":"0"}]}]}}`,
+			"128",
+			"0",
+			true,
+		},
+		{
+			"unit id of a multi-tray unit is not a tray",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"128","tray":[{"id":"0"},{"id":"1"}]}]}}`,
+			"",
+			"",
+			false,
+		},
+		{
+			"explicit unit and tray",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"128:0","ams":[{"id":"0","tray":[{"id":"0"}]},{"id":"128","tray":[{"id":"0"}]}]}}`,
+			"128",
+			"0",
+			true,
+		},
+		{
+			"bare tray repeated across units",
+			`{"gcode_state":"RUNNING","ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0"}]},{"id":"128","tray":[{"id":"0"}]}]}}`,
+			"",
+			"",
+			false,
+		},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -216,14 +299,18 @@ func TestActiveTrayResolvesExternalHoldersAndHTUnits(t *testing.T) {
 	}
 	// The snapshot reports it only while a job is active.
 	active := buildBambuLiveSnapshot(decodeDocument(t, cases[0].document), map[string]time.Time{}, time.Now())
-	if active.ActiveTray == nil || active.ActiveTray.UnitExternalID != "254" || active.ActiveTray.TrayExternalID != "254" {
+	if active.ActiveTray == nil || active.ActiveTray.UnitExternalID != "254" ||
+		active.ActiveTray.TrayExternalID != "254" {
 		t.Fatalf("active tray = %+v", active.ActiveTray)
 	}
 }
 
 func TestActiveTrayPrefersH2DExtruderRouting(t *testing.T) {
 	t.Parallel()
-	state := decodeDocument(t, `{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-HT"}]}]},"vir_slot":[{"id":"254"},{"id":"255"}]}`)
+	state := decodeDocument(
+		t,
+		`{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-HT"}]}]},"vir_slot":[{"id":"254"},{"id":"255"}]}`,
+	)
 	unit, tray, tag, ok := bambuActiveSlot(state)
 	if !ok || unit != "128" || tray != "0" || tag != "RFID-HT" {
 		t.Fatalf("H2D extruder route = %q/%q tag=%q ok=%v", unit, tray, tag, ok)
@@ -232,7 +319,10 @@ func TestActiveTrayPrefersH2DExtruderRouting(t *testing.T) {
 
 func TestH2DExtruderRoutingUsesAMSBindingWithRepeatedTrayNumbers(t *testing.T) {
 	t.Parallel()
-	state := decodeDocument(t, `{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":0,"info":2},{"id":1,"snow":0,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"0","info":"10001003","tray":[{"id":"0","tag_uid":"RIGHT"}]},{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"LEFT"}]}]}}`)
+	state := decodeDocument(
+		t,
+		`{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":0,"info":2},{"id":1,"snow":0,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"0","info":"10001003","tray":[{"id":"0","tag_uid":"RIGHT"}]},{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"LEFT"}]}]}}`,
+	)
 	routes := bambuExtruderSlots(state)
 	if len(routes) != 2 || routes[0].extruderID != 0 || routes[0].ref.unitID != "0" || routes[0].ref.trayID != "0" ||
 		routes[1].extruderID != 1 || routes[1].ref.unitID != "128" || routes[1].ref.trayID != "0" {
@@ -246,9 +336,21 @@ func TestH2DExtruderRoutingUsesAMSBindingWithRepeatedTrayNumbers(t *testing.T) {
 
 func TestReducerRetainsEachSpoolUsedByAMaterialChange(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{state: bambuPersistedState{Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{}}, firstSnapshot: true}
+	processor := &bambuProcessor{
+		state: bambuPersistedState{
+			Document:        map[string]any{},
+			Sessions:        map[string]string{},
+			LastSlots:       map[string]string{},
+			EmptySlotCounts: map[string]uint8{},
+			ActiveErrors:    map[string]bool{},
+			RunFacts:        map[string]bambuRunFacts{},
+		},
+		firstSnapshot: true,
+	}
 	at := time.Now().UTC()
-	first := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"55","device":{"extruder":{"state":256,"info":[{"id":1,"snow":0,"info":2}]}},"ams":{"ams":[{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"FIRST"},{"id":"1","tag_uid":"SECOND"}]}]}}}`)
+	first := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"55","device":{"extruder":{"state":256,"info":[{"id":1,"snow":0,"info":2}]}},"ams":{"ams":[{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"FIRST"},{"id":"1","tag_uid":"SECOND"}]}]}}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), first, at); err != nil {
 		t.Fatal(err)
 	}
@@ -257,8 +359,11 @@ func TestReducerRetainsEachSpoolUsedByAMaterialChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, facts := range processor.state.RunFacts {
-		if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].SlotExternalID != "0" || facts.SpoolEvidence[0].TagUID != "FIRST" ||
-			facts.SpoolEvidence[1].SlotExternalID != "1" || facts.SpoolEvidence[1].TagUID != "SECOND" || !facts.HistoryComplete {
+		if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].SlotExternalID != "0" ||
+			facts.SpoolEvidence[0].TagUID != "FIRST" ||
+			facts.SpoolEvidence[1].SlotExternalID != "1" ||
+			facts.SpoolEvidence[1].TagUID != "SECOND" ||
+			!facts.HistoryComplete {
 			t.Fatalf("spool evidence = %+v", facts)
 		}
 	}
@@ -266,8 +371,20 @@ func TestReducerRetainsEachSpoolUsedByAMaterialChange(t *testing.T) {
 
 func TestSlotObservationsCoverExternalHolders(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{state: bambuPersistedState{Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{}}, firstSnapshot: true}
-	payload := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"tray_now":"254"},"vir_slot":[{"id":"254","tag_uid":"RFID-EXT","tray_type":"PLA"}]}}`)
+	processor := &bambuProcessor{
+		state: bambuPersistedState{
+			Document:        map[string]any{},
+			Sessions:        map[string]string{},
+			LastSlots:       map[string]string{},
+			EmptySlotCounts: map[string]uint8{},
+			ActiveErrors:    map[string]bool{},
+			RunFacts:        map[string]bambuRunFacts{},
+		},
+		firstSnapshot: true,
+	}
+	payload := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"tray_now":"254"},"vir_slot":[{"id":"254","tag_uid":"RFID-EXT","tray_type":"PLA"}]}}`,
+	)
 	observations, _, err := processor.apply(context.Background(), payload, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -318,7 +435,9 @@ func TestSimulatorReportsAValidSnapshot(t *testing.T) {
 		t.Fatalf("snapshots = %d", len(sink.snapshots))
 	}
 	var snapshot liveSnapshot
-	if err = json.Unmarshal(sink.snapshots[0], &snapshot); err != nil || snapshot.State != "idle" || len(snapshot.Units) != 2 || snapshot.Units[0].Trays[0].ColorHex == nil {
+	if err = json.Unmarshal(sink.snapshots[0], &snapshot); err != nil || snapshot.State != "idle" ||
+		len(snapshot.Units) != 2 ||
+		snapshot.Units[0].Trays[0].ColorHex == nil {
 		t.Fatalf("snapshot=%s err=%v", sink.snapshots[0], err)
 	}
 }
@@ -404,7 +523,12 @@ func TestRuntimeDeliversLiveStatusWithoutQueueingAndDropsStaleVersions(t *testin
 	status.Store(204)
 	server, client := liveStatusTestServer(t, &puts, &status)
 	defer server.Close()
-	runtime := &Runtime{client: client, live: newLiveStatusHub(), health: map[uuid.UUID]AssignmentHealth{}, logger: discardLogger()}
+	runtime := &Runtime{
+		client: client,
+		live:   newLiveStatusHub(),
+		health: map[uuid.UUID]AssignmentHealth{},
+		logger: discardLogger(),
+	}
 	id := uuid.Must(uuid.NewV7())
 	runtime.live.Report(id, 2, json.RawMessage(`{"state":"idle"}`))
 	runtime.deliverLiveStatus(context.Background(), Identity{CredentialSecret: "secret"})
@@ -428,7 +552,8 @@ func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Disca
 func liveStatusTestServer(t *testing.T, puts, status *atomic.Int32) (*httptest.Server, *Client) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/status") || r.Header.Get("Authorization") != "Bearer secret" {
+		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/status") ||
+			r.Header.Get("Authorization") != "Bearer secret" {
 			http.Error(w, "unexpected request", http.StatusTeapot)
 			return
 		}
@@ -437,7 +562,9 @@ func liveStatusTestServer(t *testing.T, puts, status *atomic.Int32) (*httptest.S
 			ConfigurationVersion int64           `json:"configurationVersion"`
 			Status               json.RawMessage `json:"status"`
 		}
-		if json.NewDecoder(r.Body).Decode(&body) != nil || body.ProtocolVersion != 1 || body.ConfigurationVersion != 2 || len(body.Status) == 0 {
+		if json.NewDecoder(r.Body).Decode(&body) != nil || body.ProtocolVersion != 1 ||
+			body.ConfigurationVersion != 2 ||
+			len(body.Status) == 0 {
 			http.Error(w, "bad body", http.StatusBadRequest)
 			return
 		}

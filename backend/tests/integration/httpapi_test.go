@@ -65,9 +65,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatal("login did not establish both session and CSRF cookies")
 	}
 
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, "wrong-csrf-token", map[string]any{
-		"firstName": "Blocked", "lastName": "Request", "email": "blocked-csrf@example.test",
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/people",
+		origin,
+		"wrong-csrf-token",
+		map[string]any{
+			"firstName": "Blocked", "lastName": "Request", "email": "blocked-csrf@example.test",
+		},
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	var csrfDenied openapi.Error
 	decodeResponse(t, response, &csrfDenied)
@@ -89,10 +97,19 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	var current openapi.CurrentUser
 	decodeResponse(t, response, &current)
 	loginEmail, loginEmailErr := current.Account.LoginEmail.Get()
-	if loginEmailErr != nil || loginEmail != openapi.Email(adminLogin) || len(current.Permissions) != len(authorization.Registry()) {
+	if loginEmailErr != nil || loginEmail != openapi.Email(adminLogin) ||
+		len(current.Permissions) != len(authorization.Registry()) {
 		t.Fatalf("unexpected master identity or permission set: %#v", current)
 	}
-	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal", "", "", nil)
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodGet,
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal",
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusOK)
 	var evaluations openapi.RoleEffectivePermissionEvaluationList
 	decodeResponse(t, response, &evaluations)
@@ -107,17 +124,35 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 			continue
 		}
 		foundMasterEvaluation = true
-		if evaluation.RoleVersion != masterRoleVersion || len(evaluation.PermissionIds) != len(authorization.Registry()) {
+		if evaluation.RoleVersion != masterRoleVersion ||
+			len(evaluation.PermissionIds) != len(authorization.Registry()) {
 			t.Fatalf("unexpected master effective evaluation: %#v", evaluation)
 		}
 	}
 	if !foundMasterEvaluation {
 		t.Fatal("effective permission response omitted the master role")
 	}
-	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=invalid", "", "", nil)
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodGet,
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=invalid",
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusBadRequest)
 	response.Body.Close()
-	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(uuid.NewV7()).String(), "", "", nil)
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodGet,
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(uuid.NewV7()).
+			String(),
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
 
@@ -130,9 +165,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	if !person.MatriculationNumber.IsSpecified() || person.MatriculationNumber.GetOrEmpty() != "M-0042" {
 		t.Fatalf("master response lost matriculation: %#v", person.MatriculationNumber)
 	}
-	response = doJSON(t, adminClient, http.MethodPatch, server.URL+"/api/v1/people/"+person.Id.String(), origin, adminCSRF, map[string]any{
-		"firstName": "Stale", "expectedVersion": person.Version + 1,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPatch,
+		server.URL+"/api/v1/people/"+person.Id.String(),
+		origin,
+		adminCSRF,
+		map[string]any{
+			"firstName": "Stale", "expectedVersion": person.Version + 1,
+		},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	var staleWrite openapi.Error
 	decodeResponse(t, response, &staleWrite)
@@ -140,9 +183,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("unexpected optimistic-concurrency response: %#v", staleWrite)
 	}
 
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{
-		"loginEmail": memberLogin, "expectedVersion": person.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+		origin,
+		adminCSRF,
+		map[string]any{
+			"loginEmail": memberLogin, "expectedVersion": person.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var account openapi.Account
 	decodeResponse(t, response, &account)
@@ -165,9 +216,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		{name: "null login email", accountFields: map[string]any{"loginEmail": nil}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{
-				"firstName": "No", "lastName": "Identity", "email": "independent-contact-" + uuid.NewString() + "@example.test",
-			})
+			response = doJSON(
+				t,
+				adminClient,
+				http.MethodPost,
+				server.URL+"/api/v1/people",
+				origin,
+				adminCSRF,
+				map[string]any{
+					"firstName": "No", "lastName": "Identity", "email": "independent-contact-" + uuid.NewString() + "@example.test",
+				},
+			)
 			assertStatus(t, response, http.StatusCreated)
 			var personWithoutIdentity openapi.Person
 			decodeResponse(t, response, &personWithoutIdentity)
@@ -176,67 +235,158 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 			for key, value := range test.accountFields {
 				requestBody[key] = value
 			}
-			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+personWithoutIdentity.Id.String()+"/account", origin, adminCSRF, requestBody)
+			response = doJSON(
+				t,
+				adminClient,
+				http.MethodPost,
+				server.URL+"/api/v1/people/"+personWithoutIdentity.Id.String()+"/account",
+				origin,
+				adminCSRF,
+				requestBody,
+			)
 			assertStatus(t, response, http.StatusCreated)
 			var accountWithoutIdentity openapi.Account
 			decodeResponse(t, response, &accountWithoutIdentity)
 
-			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled || accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
-				t.Fatalf("identity-free account state = %s/%s", accountWithoutIdentity.Status, accountWithoutIdentity.PasswordStatus)
+			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled ||
+				accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
+				t.Fatalf(
+					"identity-free account state = %s/%s",
+					accountWithoutIdentity.Status,
+					accountWithoutIdentity.PasswordStatus,
+				)
 			}
 			if !accountWithoutIdentity.LoginEmail.IsNull() || len(accountWithoutIdentity.AuthIdentities) != 0 {
-				t.Fatalf("identity-free account unexpectedly has authentication data: loginEmail=%#v identities=%#v", accountWithoutIdentity.LoginEmail, accountWithoutIdentity.AuthIdentities)
+				t.Fatalf(
+					"identity-free account unexpectedly has authentication data: loginEmail=%#v identities=%#v",
+					accountWithoutIdentity.LoginEmail,
+					accountWithoutIdentity.AuthIdentities,
+				)
 			}
-			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id = $1`, 0, accountWithoutIdentity.Id)
+			assertCount(
+				t,
+				pool,
+				`SELECT count(*) FROM auth_identities WHERE account_id = $1`,
+				0,
+				accountWithoutIdentity.Id,
+			)
 
-			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/disable", origin, adminCSRF, map[string]any{
-				"expectedVersion": accountWithoutIdentity.Version,
-			})
+			response = doJSON(
+				t,
+				adminClient,
+				http.MethodPost,
+				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/disable",
+				origin,
+				adminCSRF,
+				map[string]any{
+					"expectedVersion": accountWithoutIdentity.Version,
+				},
+			)
 			assertStatus(t, response, http.StatusOK)
 			decodeResponse(t, response, &accountWithoutIdentity)
-			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled || len(accountWithoutIdentity.AuthIdentities) != 0 {
+			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled ||
+				len(accountWithoutIdentity.AuthIdentities) != 0 {
 				t.Fatalf("disabled identity-free account = %#v", accountWithoutIdentity)
 			}
-			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/enable", origin, adminCSRF, map[string]any{
-				"expectedVersion": accountWithoutIdentity.Version,
-			})
+			response = doJSON(
+				t,
+				adminClient,
+				http.MethodPost,
+				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/enable",
+				origin,
+				adminCSRF,
+				map[string]any{
+					"expectedVersion": accountWithoutIdentity.Version,
+				},
+			)
 			assertStatus(t, response, http.StatusOK)
 			decodeResponse(t, response, &accountWithoutIdentity)
-			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled || len(accountWithoutIdentity.AuthIdentities) != 0 {
+			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled ||
+				len(accountWithoutIdentity.AuthIdentities) != 0 {
 				t.Fatalf("reactivated identity-free account = %#v", accountWithoutIdentity)
 			}
 
 			passwordLogin := "added-password-" + uuid.NewString() + "@example.test"
-			response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/login-email", origin, adminCSRF, map[string]any{
-				"loginEmail": passwordLogin, "expectedVersion": accountWithoutIdentity.Version,
-			})
+			response = doJSON(
+				t,
+				adminClient,
+				http.MethodPut,
+				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/login-email",
+				origin,
+				adminCSRF,
+				map[string]any{
+					"loginEmail": passwordLogin, "expectedVersion": accountWithoutIdentity.Version,
+				},
+			)
 			assertStatus(t, response, http.StatusOK)
 			decodeResponse(t, response, &accountWithoutIdentity)
-			if len(accountWithoutIdentity.AuthIdentities) != 1 || accountWithoutIdentity.AuthIdentities[0].Kind != openapi.AuthIdentitySummaryKindPassword {
-				t.Fatalf("password identity added after identity-free creation = %#v", accountWithoutIdentity.AuthIdentities)
+			if len(accountWithoutIdentity.AuthIdentities) != 1 ||
+				accountWithoutIdentity.AuthIdentities[0].Kind != openapi.AuthIdentitySummaryKindPassword {
+				t.Fatalf(
+					"password identity added after identity-free creation = %#v",
+					accountWithoutIdentity.AuthIdentities,
+				)
 			}
 			identityLogin, identityLoginErr := accountWithoutIdentity.AuthIdentities[0].DisplayIdentifier.Get()
 			if identityLoginErr != nil || identityLogin != passwordLogin {
-				t.Fatalf("password identity added after identity-free creation = %#v", accountWithoutIdentity.AuthIdentities)
+				t.Fatalf(
+					"password identity added after identity-free creation = %#v",
+					accountWithoutIdentity.AuthIdentities,
+				)
 			}
-			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 1, accountWithoutIdentity.Id)
+			assertCount(
+				t,
+				pool,
+				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`,
+				1,
+				accountWithoutIdentity.Id,
+			)
 		})
 	}
 
-	response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{
-		"newPassword": memberPassword, "expectedVersion": account.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPut,
+		server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+		origin,
+		adminCSRF,
+		map[string]any{
+			"newPassword": memberPassword, "expectedVersion": account.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &account)
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{
-		"expectedVersion": account.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+		origin,
+		adminCSRF,
+		map[string]any{
+			"expectedVersion": account.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &account)
 
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{
 		"name": "Member self-service", "description": "May read and update only the linked person",
-		"permissionGrants": []map[string]any{{"permissionId": "people.read.self", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"}, {"permissionId": "people.update.self", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"}},
+		"permissionGrants": []map[string]any{
+			{
+				"permissionId":     "people.read.self",
+				"scope":            "everywhere",
+				"deviceTypeIds":    []string{},
+				"minimumAssurance": "low",
+			},
+			{
+				"permissionId":     "people.update.self",
+				"scope":            "everywhere",
+				"deviceTypeIds":    []string{},
+				"minimumAssurance": "low",
+			},
+		},
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var role openapi.Role
@@ -245,9 +395,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &person)
-	response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
-		"expectedVersion": person.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPut,
+		server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+		origin,
+		adminCSRF,
+		map[string]any{
+			"expectedVersion": person.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &person)
 
@@ -258,7 +416,15 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	memberCSRF := cookieValue(t, memberClient, server.URL, cfg.CSRFCookieName)
-	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal", "", "", nil)
+	response = doJSON(
+		t,
+		memberClient,
+		http.MethodGet,
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal",
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 
@@ -272,9 +438,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("ordinary self-readable contact field was unexpectedly hidden: %s", rawPerson)
 	}
 
-	response = doJSON(t, memberClient, http.MethodPatch, server.URL+"/api/v1/people/"+person.Id.String(), origin, memberCSRF, map[string]any{
-		"lastName": "Hopper-Updated", "expectedVersion": person.Version,
-	})
+	response = doJSON(
+		t,
+		memberClient,
+		http.MethodPatch,
+		server.URL+"/api/v1/people/"+person.Id.String(),
+		origin,
+		memberCSRF,
+		map[string]any{
+			"lastName": "Hopper-Updated", "expectedVersion": person.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	var updated openapi.Person
 	decodeResponse(t, response, &updated)
@@ -290,9 +464,17 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("unexpected cross-person denial: %#v", denied)
 	}
 
-	response = doJSON(t, adminClient, http.MethodDelete, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
-		"expectedVersion": updated.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+		origin,
+		adminCSRF,
+		map[string]any{
+			"expectedVersion": updated.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &person)
 	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
@@ -303,7 +485,8 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusNoContent)
 	assertNoStoreAndRequestID(t, response)
 	response.Body.Close()
-	if hasCookie(memberClient, server.URL, cfg.SessionCookieName) || hasCookie(memberClient, server.URL, cfg.CSRFCookieName) {
+	if hasCookie(memberClient, server.URL, cfg.SessionCookieName) ||
+		hasCookie(memberClient, server.URL, cfg.CSRFCookieName) {
 		t.Fatal("logout did not clear session and CSRF cookies")
 	}
 	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", nil)
@@ -340,17 +523,32 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/accounts/"+account.Id.String(), "", "", nil)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &account)
-	if account.Status != openapi.AccountStatusEnabled || len(account.AuthIdentities) != 0 || !account.LoginEmail.IsNull() {
+	if account.Status != openapi.AccountStatusEnabled || len(account.AuthIdentities) != 0 ||
+		!account.LoginEmail.IsNull() {
 		t.Fatalf("account after password method removal = %#v", account)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM password_credentials WHERE auth_identity_id=$1`, 0, passwordIdentityID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.password_removed'`, 1, account.Id)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.password_removed'`,
+		1,
+		account.Id,
+	)
 	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", nil)
 	assertStatus(t, response, http.StatusUnauthorized)
 	response.Body.Close()
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/disable", origin, adminCSRF, map[string]any{
-		"expectedVersion": account.Version,
-	})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/accounts/"+account.Id.String()+"/disable",
+		origin,
+		adminCSRF,
+		map[string]any{
+			"expectedVersion": account.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &account)
 }
@@ -474,7 +672,15 @@ func TestAnonymousRecoveryResponsesRemainUniform(t *testing.T) {
 	// Repeated requests also exercise both identifier and source rate limits.
 	for attempt := 0; attempt < 12; attempt++ {
 		for _, email := range []string{"recovery-enabled@example.test", "recovery-disabled@example.test", "unknown@example.test"} {
-			response := doJSON(t, server.Client(), http.MethodPost, server.URL+"/api/v1/auth/password-reset/request", cfg.PublicBaseURL.String(), "", map[string]string{"email": email})
+			response := doJSON(
+				t,
+				server.Client(),
+				http.MethodPost,
+				server.URL+"/api/v1/auth/password-reset/request",
+				cfg.PublicBaseURL.String(),
+				"",
+				map[string]string{"email": email},
+			)
 			body, err := io.ReadAll(response.Body)
 			response.Body.Close()
 			if err != nil || response.StatusCode != http.StatusAccepted || len(body) != 0 {

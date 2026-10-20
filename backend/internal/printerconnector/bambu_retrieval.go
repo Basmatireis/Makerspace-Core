@@ -25,9 +25,16 @@ type ArtifactRetrieval struct {
 	ExpiresAt            time.Time
 }
 
-func (s *Store) ScheduleArtifactRetrieval(ctx context.Context, assignmentID, runID uuid.UUID, configurationVersion int64, reportedPath string, expiresAt time.Time) error {
+func (s *Store) ScheduleArtifactRetrieval(
+	ctx context.Context,
+	assignmentID, runID uuid.UUID,
+	configurationVersion int64,
+	reportedPath string,
+	expiresAt time.Time,
+) error {
 	reportedPath = strings.TrimSpace(reportedPath)
-	if assignmentID == uuid.Nil || runID == uuid.Nil || configurationVersion < 1 || reportedPath == "" || len(reportedPath) > 255 {
+	if assignmentID == uuid.Nil || runID == uuid.Nil || configurationVersion < 1 || reportedPath == "" ||
+		len(reportedPath) > 255 {
 		return errors.New("invalid artifact retrieval")
 	}
 	var pending int64
@@ -41,24 +48,44 @@ func (s *Store) ScheduleArtifactRetrieval(ctx context.Context, assignmentID, run
 	if expiresAt.IsZero() {
 		expiresAt = now.Add(24 * time.Hour)
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO artifact_retrievals(assignment_id,run_id,configuration_version,reported_path,next_attempt_at,expires_at,created_at,updated_at)
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO artifact_retrievals(assignment_id,run_id,configuration_version,reported_path,next_attempt_at,expires_at,created_at,updated_at)
 		VALUES(?,?,?,?,?,?,?,?)
 		ON CONFLICT(assignment_id,run_id) DO UPDATE SET
 			configuration_version=excluded.configuration_version,
 			reported_path=CASE WHEN artifact_retrievals.state='pending' THEN excluded.reported_path ELSE artifact_retrievals.reported_path END,
 			expires_at=CASE WHEN artifact_retrievals.state='pending' AND excluded.expires_at>artifact_retrievals.expires_at THEN excluded.expires_at ELSE artifact_retrievals.expires_at END,
-			updated_at=excluded.updated_at`, assignmentID.String(), runID.String(), configurationVersion, reportedPath, now.Format(time.RFC3339Nano), expiresAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+			updated_at=excluded.updated_at`,
+		assignmentID.String(),
+		runID.String(),
+		configurationVersion,
+		reportedPath,
+		now.Format(time.RFC3339Nano),
+		expiresAt.UTC().Format(time.RFC3339Nano),
+		now.Format(time.RFC3339Nano),
+		now.Format(time.RFC3339Nano),
+	)
 	return err
 }
 
 func (s *Store) PendingArtifactRetrieval(ctx context.Context, assignmentID uuid.UUID) (*ArtifactRetrieval, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT assignment_id,run_id,configuration_version,reported_path,candidate_path,candidate_size,attempt_count,expires_at
-		FROM artifact_retrievals WHERE assignment_id=? AND state='pending' AND next_attempt_at<=? AND expires_at>? ORDER BY created_at LIMIT 1`, assignmentID.String(), time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano))
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT assignment_id,run_id,configuration_version,reported_path,candidate_path,candidate_size,attempt_count,expires_at
+		FROM artifact_retrievals WHERE assignment_id=? AND state='pending' AND next_attempt_at<=? AND expires_at>? ORDER BY created_at LIMIT 1`,
+		assignmentID.String(),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		time.Now().UTC().Format(time.RFC3339Nano),
+	)
 	var value ArtifactRetrieval
 	var assignment, run, expires string
 	var candidatePath sql.NullString
 	var candidateSize sql.NullInt64
-	if err := row.Scan(&assignment, &run, &value.ConfigurationVersion, &value.ReportedPath, &candidatePath, &candidateSize, &value.AttemptCount, &expires); errors.Is(err, sql.ErrNoRows) {
+	if err := row.Scan(&assignment, &run, &value.ConfigurationVersion, &value.ReportedPath, &candidatePath, &candidateSize, &value.AttemptCount, &expires); errors.Is(
+		err,
+		sql.ErrNoRows,
+	) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -82,13 +109,28 @@ func (s *Store) PendingArtifactRetrieval(ctx context.Context, assignmentID uuid.
 	return &value, nil
 }
 
-func (s *Store) ObserveArtifactCandidate(ctx context.Context, retrieval ArtifactRetrieval, candidate ArtifactCandidate) (bool, error) {
-	stable := candidate.Size > 0 && retrieval.CandidatePath != nil && retrieval.CandidateSize != nil && *retrieval.CandidatePath == candidate.RemotePath && *retrieval.CandidateSize == candidate.Size
+func (s *Store) ObserveArtifactCandidate(
+	ctx context.Context,
+	retrieval ArtifactRetrieval,
+	candidate ArtifactCandidate,
+) (bool, error) {
+	stable := candidate.Size > 0 && retrieval.CandidatePath != nil && retrieval.CandidateSize != nil &&
+		*retrieval.CandidatePath == candidate.RemotePath &&
+		*retrieval.CandidateSize == candidate.Size
 	next := time.Now().UTC()
 	if !stable {
 		next = next.Add(5 * time.Second)
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET candidate_path=?,candidate_size=?,next_attempt_at=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`, candidate.RemotePath, candidate.Size, next.Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), retrieval.AssignmentID.String(), retrieval.RunID.String())
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET candidate_path=?,candidate_size=?,next_attempt_at=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`,
+		candidate.RemotePath,
+		candidate.Size,
+		next.Format(time.RFC3339Nano),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		retrieval.AssignmentID.String(),
+		retrieval.RunID.String(),
+	)
 	return stable, err
 }
 
@@ -100,12 +142,26 @@ func (s *Store) MarkArtifactRetrievalFailure(ctx context.Context, retrieval Arti
 	if delay > 5*time.Minute {
 		delay = 5 * time.Minute
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET attempt_count=attempt_count+1,next_attempt_at=?,reason_code=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`, time.Now().UTC().Add(delay).Format(time.RFC3339Nano), reason, time.Now().UTC().Format(time.RFC3339Nano), retrieval.AssignmentID.String(), retrieval.RunID.String())
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET attempt_count=attempt_count+1,next_attempt_at=?,reason_code=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`,
+		time.Now().UTC().Add(delay).Format(time.RFC3339Nano),
+		reason,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		retrieval.AssignmentID.String(),
+		retrieval.RunID.String(),
+	)
 	return err
 }
 
 func (s *Store) MarkArtifactRetrievalStaged(ctx context.Context, retrieval ArtifactRetrieval) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET state='staged',reason_code=NULL,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`, time.Now().UTC().Format(time.RFC3339Nano), retrieval.AssignmentID.String(), retrieval.RunID.String())
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET state='staged',reason_code=NULL,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		retrieval.AssignmentID.String(),
+		retrieval.RunID.String(),
+	)
 	return err
 }
 
@@ -113,17 +169,34 @@ func (s *Store) RetryPendingArtifactRetrievalsNow(ctx context.Context, assignmen
 	if assignmentID == uuid.Nil {
 		return errors.New("artifact retrieval assignment is required")
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=?,updated_at=? WHERE assignment_id=? AND state='pending'`, time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), assignmentID.String())
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET next_attempt_at=?,updated_at=? WHERE assignment_id=? AND state='pending'`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		assignmentID.String(),
+	)
 	return err
 }
 
 func (s *Store) QuarantineExpiredArtifactRetrievals(ctx context.Context, assignmentID uuid.UUID) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET state='quarantined',reason_code='artifact_retry_expired',updated_at=? WHERE assignment_id=? AND state='pending' AND expires_at<=?`, time.Now().UTC().Format(time.RFC3339Nano), assignmentID.String(), time.Now().UTC().Format(time.RFC3339Nano))
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET state='quarantined',reason_code='artifact_retry_expired',updated_at=? WHERE assignment_id=? AND state='pending' AND expires_at<=?`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		assignmentID.String(),
+		time.Now().UTC().Format(time.RFC3339Nano),
+	)
 	return err
 }
 
 func (s *Store) QuarantineInvalidArtifactRetrievals(ctx context.Context, assignmentID uuid.UUID) (bool, error) {
-	result, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET state='quarantined',reason_code='artifact_candidate_not_archive',updated_at=? WHERE assignment_id=? AND state='pending' AND lower(trim(reported_path)) NOT LIKE '%.3mf'`, time.Now().UTC().Format(time.RFC3339Nano), assignmentID.String())
+	result, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET state='quarantined',reason_code='artifact_candidate_not_archive',updated_at=? WHERE assignment_id=? AND state='pending' AND lower(trim(reported_path)) NOT LIKE '%.3mf'`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		assignmentID.String(),
+	)
 	if err != nil {
 		return false, err
 	}
@@ -135,7 +208,14 @@ func (s *Store) QuarantineArtifactRetrieval(ctx context.Context, retrieval Artif
 	if len(reason) > 80 {
 		reason = reason[:80]
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_retrievals SET state='quarantined',reason_code=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`, reason, time.Now().UTC().Format(time.RFC3339Nano), retrieval.AssignmentID.String(), retrieval.RunID.String())
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET state='quarantined',reason_code=?,updated_at=? WHERE assignment_id=? AND run_id=? AND state='pending'`,
+		reason,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		retrieval.AssignmentID.String(),
+		retrieval.RunID.String(),
+	)
 	return err
 }
 
@@ -263,7 +343,16 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 	if err != nil {
 		return false, a.recordRetrievalFailure(ctx, *retrieval, err)
 	}
-	_, stageErr := a.store.StageArtifact(ctx, retrieval.AssignmentID, retrieval.RunID, retrieval.ConfigurationVersion, candidate.RemotePath, candidate.Name, reader, retrieval.ExpiresAt)
+	_, stageErr := a.store.StageArtifact(
+		ctx,
+		retrieval.AssignmentID,
+		retrieval.RunID,
+		retrieval.ConfigurationVersion,
+		candidate.RemotePath,
+		candidate.Name,
+		reader,
+		retrieval.ExpiresAt,
+	)
 	closeErr := reader.Close()
 	if stageErr != nil {
 		return false, a.recordRetrievalFailure(ctx, *retrieval, stageErr)
@@ -286,7 +375,10 @@ func (a *bambuH2DAdapter) listArtifactDirectory(ctx context.Context, directory s
 	return client.List(ctx, directory)
 }
 
-func listBambuArtifactDirectories(ctx context.Context, list func(context.Context, string) ([]FTPEntry, error)) (map[string][]FTPEntry, error) {
+func listBambuArtifactDirectories(
+	ctx context.Context,
+	list func(context.Context, string) ([]FTPEntry, error),
+) (map[string][]FTPEntry, error) {
 	listings := make(map[string][]FTPEntry, 2)
 	var failures []error
 	// H2D FTPS may expose only its external-storage root. Try that first and

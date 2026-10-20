@@ -42,7 +42,12 @@ type Service struct {
 	surveys  PostVisitSurveyTrigger
 }
 
-func NewService(pool *pgxpool.Pool, verifier CredentialVerifier, labRules LabRules, surveys PostVisitSurveyTrigger) *Service {
+func NewService(
+	pool *pgxpool.Pool,
+	verifier CredentialVerifier,
+	labRules LabRules,
+	surveys PostVisitSurveyTrigger,
+) *Service {
 	return &Service{pool: pool, auth: verifier, labRules: labRules, surveys: surveys}
 }
 
@@ -93,12 +98,19 @@ func assuranceRank(value string) int {
 
 func requireAssurance(actual authorization.Assurance, required string) error {
 	if assuranceRank(string(actual)) < assuranceRank(required) {
-		return apperror.New(403, "attendance_assurance_required", "This attendance action requires a stronger authentication method")
+		return apperror.New(
+			403,
+			"attendance_assurance_required",
+			"This attendance action requires a stronger authentication method",
+		)
 	}
 	return nil
 }
 
-func (s *Service) terminal(ctx context.Context, device manageddevices.DeviceContext) (attendancedb.GetTerminalDeviceRow, error) {
+func (s *Service) terminal(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+) (attendancedb.GetTerminalDeviceRow, error) {
 	row, err := attendancedb.New(s.pool).GetTerminalDevice(ctx, device.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return row, apperror.NotFound
@@ -142,14 +154,25 @@ func (s *Service) PublicPresence(ctx context.Context, device manageddevices.Devi
 	return result, nil
 }
 
-func (s *Service) PasswordCheckIn(ctx context.Context, device manageddevices.DeviceContext, email, password, source string, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) PasswordCheckIn(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, password, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	verified, err := s.auth.VerifyPasswordForAttendance(ctx, email, password, source)
 	if err != nil {
 		return Visit{}, err
 	}
 	return s.checkIn(ctx, device, verified, requestID)
 }
-func (s *Service) PINCheckIn(ctx context.Context, device manageddevices.DeviceContext, login, pin, source string, requestID *uuid.UUID) (Visit, error) {
+
+func (s *Service) PINCheckIn(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	login, pin, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
 	if err != nil {
 		return Visit{}, err
@@ -157,7 +180,12 @@ func (s *Service) PINCheckIn(ctx context.Context, device manageddevices.DeviceCo
 	return s.checkIn(ctx, device, verified, requestID)
 }
 
-func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceContext, verified auth.VerifiedIdentity, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) checkIn(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	verified auth.VerifiedIdentity,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	terminal, err := s.terminal(ctx, device)
 	if err != nil {
 		return Visit{}, err
@@ -173,12 +201,20 @@ func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceConte
 		return Visit{}, apperror.New(409, "lab_rules_unavailable", "Required Lab Rules are not currently available")
 	}
 	if status.ActionRequired {
-		principal := authorization.Principal{AccountID: verified.AccountID, PersonID: verified.PersonID, Assurance: verified.Assurance}
+		principal := authorization.Principal{
+			AccountID: verified.AccountID,
+			PersonID:  verified.PersonID,
+			Assurance: verified.Assurance,
+		}
 		if _, _, err = s.labRules.RequestOwnConfirmation(ctx, principal, requestID); err != nil {
 			return Visit{}, err
 		}
 		if status.Mode == "blocking" {
-			return Visit{}, apperror.New(409, "attendance_admission_required", "Lab Rules confirmation is required before check-in")
+			return Visit{}, apperror.New(
+				409,
+				"attendance_admission_required",
+				"Lab Rules confirmation is required before check-in",
+			)
 		}
 	}
 	decision := "admitted"
@@ -195,7 +231,10 @@ func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceConte
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
-	if _, err = q.LockEnabledAttendanceAccount(ctx, attendancedb.LockEnabledAttendanceAccountParams{AccountID: verified.AccountID, PersonID: verified.PersonID}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.LockEnabledAttendanceAccount(ctx, attendancedb.LockEnabledAttendanceAccountParams{AccountID: verified.AccountID, PersonID: verified.PersonID}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Visit{}, apperror.Unauthenticated
 	} else if err != nil {
 		return Visit{}, err
@@ -211,9 +250,12 @@ func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceConte
 		return Visit{}, err
 	}
 	accountID := verified.AccountID
-	row, err := q.CreateVisit(ctx, attendancedb.CreateVisitParams{ID: uuid.Must(uuid.NewV7()), PersonID: verified.PersonID,
-		CheckInDeviceID: &device.ID, CheckInMethod: verified.Method, CheckInAssurance: string(verified.Assurance),
-		AdmissionDecision: decision, LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID})
+	row, err := q.CreateVisit(
+		ctx,
+		attendancedb.CreateVisitParams{ID: uuid.Must(uuid.NewV7()), PersonID: verified.PersonID,
+			CheckInDeviceID: &device.ID, CheckInMethod: verified.Method, CheckInAssurance: string(verified.Assurance),
+			AdmissionDecision: decision, LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID},
+	)
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
@@ -226,21 +268,38 @@ func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceConte
 	return visitFromCreate(row), nil
 }
 
-func (s *Service) PasswordCheckOut(ctx context.Context, device manageddevices.DeviceContext, email, password, source string, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) PasswordCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, password, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	verified, err := s.auth.VerifyPasswordForAttendance(ctx, email, password, source)
 	if err != nil {
 		return Visit{}, err
 	}
 	return s.verifiedCheckOut(ctx, device, verified, requestID)
 }
-func (s *Service) PINCheckOut(ctx context.Context, device manageddevices.DeviceContext, login, pin, source string, requestID *uuid.UUID) (Visit, error) {
+
+func (s *Service) PINCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	login, pin, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
 	if err != nil {
 		return Visit{}, err
 	}
 	return s.verifiedCheckOut(ctx, device, verified, requestID)
 }
-func (s *Service) verifiedCheckOut(ctx context.Context, device manageddevices.DeviceContext, verified auth.VerifiedIdentity, requestID *uuid.UUID) (Visit, error) {
+
+func (s *Service) verifiedCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	verified auth.VerifiedIdentity,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	terminal, err := s.terminal(ctx, device)
 	if err != nil {
 		return Visit{}, err
@@ -281,7 +340,12 @@ func (s *Service) verifiedCheckOut(ctx context.Context, device manageddevices.De
 	return visitFromCheckout(row), nil
 }
 
-func (s *Service) PublicCheckOut(ctx context.Context, device manageddevices.DeviceContext, visitID uuid.UUID, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) PublicCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	visitID uuid.UUID,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	terminal, err := s.terminal(ctx, device)
 	if err != nil {
 		return Visit{}, err
@@ -301,7 +365,10 @@ func (s *Service) PublicCheckOut(ctx context.Context, device manageddevices.Devi
 		return Visit{}, err
 	}
 	method := "public_tap"
-	row, err := q.CheckOutVisit(ctx, attendancedb.CheckOutVisitParams{VisitID: visitID, CheckOutDeviceID: &device.ID, CheckOutMethod: &method})
+	row, err := q.CheckOutVisit(
+		ctx,
+		attendancedb.CheckOutVisitParams{VisitID: visitID, CheckOutDeviceID: &device.ID, CheckOutMethod: &method},
+	)
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
@@ -319,7 +386,12 @@ func (s *Service) PublicCheckOut(ctx context.Context, device manageddevices.Devi
 	return visitFromCheckout(row), nil
 }
 
-func (s *Service) SupervisedCheckIn(ctx context.Context, principal authorization.Principal, personID uuid.UUID, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) SupervisedCheckIn(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	if !principal.Has(authorization.AttendanceAssist) {
 		return Visit{}, apperror.PermissionDenied
 	}
@@ -337,7 +409,11 @@ func (s *Service) SupervisedCheckIn(ctx context.Context, principal authorization
 			return Visit{}, err
 		}
 		if status.Mode == "blocking" {
-			return Visit{}, apperror.New(409, "attendance_admission_required", "Lab Rules confirmation is required before check-in")
+			return Visit{}, apperror.New(
+				409,
+				"attendance_admission_required",
+				"Lab Rules confirmation is required before check-in",
+			)
 		}
 	}
 	decision := "admitted"
@@ -365,7 +441,18 @@ func (s *Service) SupervisedCheckIn(ctx context.Context, principal authorization
 		return Visit{}, err
 	}
 	accountID := principal.AccountID
-	row, err := q.CreateVisit(ctx, attendancedb.CreateVisitParams{ID: uuid.Must(uuid.NewV7()), PersonID: personID, CheckInMethod: "supervisor", CheckInAssurance: string(principal.Assurance), AdmissionDecision: decision, LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID})
+	row, err := q.CreateVisit(
+		ctx,
+		attendancedb.CreateVisitParams{
+			ID:                    uuid.Must(uuid.NewV7()),
+			PersonID:              personID,
+			CheckInMethod:         "supervisor",
+			CheckInAssurance:      string(principal.Assurance),
+			AdmissionDecision:     decision,
+			LaborordnungVersionID: versionID,
+			CheckedInByAccountID:  &accountID,
+		},
+	)
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
@@ -378,7 +465,12 @@ func (s *Service) SupervisedCheckIn(ctx context.Context, principal authorization
 	return visitFromCreate(row), nil
 }
 
-func (s *Service) SupervisedCheckOut(ctx context.Context, principal authorization.Principal, visitID uuid.UUID, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) SupervisedCheckOut(
+	ctx context.Context,
+	principal authorization.Principal,
+	visitID uuid.UUID,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	if !principal.Has(authorization.AttendanceAssist) {
 		return Visit{}, apperror.PermissionDenied
 	}
@@ -394,7 +486,15 @@ func (s *Service) SupervisedCheckOut(ctx context.Context, principal authorizatio
 		return Visit{}, err
 	}
 	method, assurance, accountID := "supervisor", string(principal.Assurance), principal.AccountID
-	row, err := q.CheckOutVisit(ctx, attendancedb.CheckOutVisitParams{VisitID: visitID, CheckOutMethod: &method, CheckOutAssurance: &assurance, CheckedOutByAccountID: &accountID})
+	row, err := q.CheckOutVisit(
+		ctx,
+		attendancedb.CheckOutVisitParams{
+			VisitID:               visitID,
+			CheckOutMethod:        &method,
+			CheckOutAssurance:     &assurance,
+			CheckedOutByAccountID: &accountID,
+		},
+	)
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
@@ -412,13 +512,22 @@ func (s *Service) SupervisedCheckOut(ctx context.Context, principal authorizatio
 	return visitFromCheckout(row), nil
 }
 
-func (s *Service) Void(ctx context.Context, principal authorization.Principal, visitID uuid.UUID, expectedVersion int64, reason string, requestID *uuid.UUID) (Visit, error) {
+func (s *Service) Void(
+	ctx context.Context,
+	principal authorization.Principal,
+	visitID uuid.UUID,
+	expectedVersion int64,
+	reason string,
+	requestID *uuid.UUID,
+) (Visit, error) {
 	if !principal.Has(authorization.AttendanceCorrect) {
 		return Visit{}, apperror.PermissionDenied
 	}
 	reason = strings.TrimSpace(reason)
 	if expectedVersion < 1 || reason == "" || len([]rune(reason)) > 500 {
-		return Visit{}, validation("expectedVersion must be positive and reason is required with at most 500 characters")
+		return Visit{}, validation(
+			"expectedVersion must be positive and reason is required with at most 500 characters",
+		)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -438,7 +547,10 @@ func (s *Service) Void(ctx context.Context, principal authorization.Principal, v
 	if current.Status == "voided" {
 		return Visit{}, apperror.New(409, "visit_already_voided", "The attendance record is already voided")
 	}
-	row, err := q.VoidVisit(ctx, attendancedb.VoidVisitParams{VisitID: visitID, ExpectedVersion: expectedVersion, CorrectionReason: &reason})
+	row, err := q.VoidVisit(
+		ctx,
+		attendancedb.VoidVisitParams{VisitID: visitID, ExpectedVersion: expectedVersion, CorrectionReason: &reason},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.StaleWrite
 	} else if err != nil {
@@ -459,11 +571,17 @@ func (s *Service) Void(ctx context.Context, principal authorization.Principal, v
 	return visitFromVoid(row), nil
 }
 
-func (s *Service) List(ctx context.Context, principal authorization.Principal, currentlyHere bool, from, to *time.Time) ([]Visit, error) {
+func (s *Service) List(
+	ctx context.Context,
+	principal authorization.Principal,
+	currentlyHere bool,
+	from, to *time.Time,
+) ([]Visit, error) {
 	if !principal.Has(authorization.AttendanceRead) {
 		return nil, apperror.PermissionDenied
 	}
-	rows, err := attendancedb.New(s.pool).ListVisits(ctx, attendancedb.ListVisitsParams{CurrentlyHere: currentlyHere, FromTime: nullableTime(from), ToTime: nullableTime(to)})
+	rows, err := attendancedb.New(s.pool).
+		ListVisits(ctx, attendancedb.ListVisitsParams{CurrentlyHere: currentlyHere, FromTime: nullableTime(from), ToTime: nullableTime(to)})
 	if err != nil {
 		return nil, err
 	}
@@ -474,33 +592,95 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, c
 	return result, nil
 }
 
-func (s *Service) Statistics(ctx context.Context, principal authorization.Principal, from, to time.Time) (Statistics, error) {
+func (s *Service) Statistics(
+	ctx context.Context,
+	principal authorization.Principal,
+	from, to time.Time,
+) (Statistics, error) {
 	if !principal.Has(authorization.AttendanceStatisticsRead) {
 		return Statistics{}, apperror.PermissionDenied
 	}
 	if from.IsZero() || to.IsZero() || !to.After(from) || to.Sub(from) > 90*24*time.Hour {
 		return Statistics{}, validation("from and to must define a period of at most 90 days")
 	}
-	row, err := attendancedb.New(s.pool).AttendanceStatistics(ctx, attendancedb.AttendanceStatisticsParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	row, err := attendancedb.New(s.pool).
+		AttendanceStatistics(ctx, attendancedb.AttendanceStatisticsParams{FromTime: from.UTC(), ToTime: to.UTC()})
 	if err != nil {
 		return Statistics{}, err
 	}
-	return Statistics{From: from.UTC(), To: to.UTC(), VisitorCount: row.VisitorCount, UniqueVisitors: row.UniqueVisitors,
-		VisitorHours: numericString(row.VisitorHours), PeakOccupancy: row.PeakOccupancy, CurrentOccupancy: row.CurrentOccupancy,
-		AverageCompletedVisitMinutes: numericString(row.AverageCompletedVisitMinutes)}, nil
+	return Statistics{
+		From:           from.UTC(),
+		To:             to.UTC(),
+		VisitorCount:   row.VisitorCount,
+		UniqueVisitors: row.UniqueVisitors,
+		VisitorHours: numericString(
+			row.VisitorHours,
+		),
+		PeakOccupancy:                row.PeakOccupancy,
+		CurrentOccupancy:             row.CurrentOccupancy,
+		AverageCompletedVisitMinutes: numericString(row.AverageCompletedVisitMinutes),
+	}, nil
 }
 
 func visitFromCreate(row attendancedb.CreateVisitRow) Visit {
-	return Visit{ID: row.ID, PersonID: row.PersonID, DisplayName: row.FirstName + " " + row.LastName, CheckedInAt: row.CheckedInAt, CheckedOutAt: timePtr(row.CheckedOutAt), Status: row.Status, CheckInMethod: row.CheckInMethod, CheckOutMethod: row.CheckOutMethod, AdmissionDecision: row.AdmissionDecision, CorrectionReason: row.CorrectionReason, Version: row.Version}
+	return Visit{
+		ID:                row.ID,
+		PersonID:          row.PersonID,
+		DisplayName:       row.FirstName + " " + row.LastName,
+		CheckedInAt:       row.CheckedInAt,
+		CheckedOutAt:      timePtr(row.CheckedOutAt),
+		Status:            row.Status,
+		CheckInMethod:     row.CheckInMethod,
+		CheckOutMethod:    row.CheckOutMethod,
+		AdmissionDecision: row.AdmissionDecision,
+		CorrectionReason:  row.CorrectionReason,
+		Version:           row.Version,
+	}
 }
 func visitFromCheckout(row attendancedb.CheckOutVisitRow) Visit {
-	return Visit{ID: row.ID, PersonID: row.PersonID, DisplayName: row.FirstName + " " + row.LastName, CheckedInAt: row.CheckedInAt, CheckedOutAt: timePtr(row.CheckedOutAt), Status: row.Status, CheckInMethod: row.CheckInMethod, CheckOutMethod: row.CheckOutMethod, AdmissionDecision: row.AdmissionDecision, CorrectionReason: row.CorrectionReason, Version: row.Version}
+	return Visit{
+		ID:                row.ID,
+		PersonID:          row.PersonID,
+		DisplayName:       row.FirstName + " " + row.LastName,
+		CheckedInAt:       row.CheckedInAt,
+		CheckedOutAt:      timePtr(row.CheckedOutAt),
+		Status:            row.Status,
+		CheckInMethod:     row.CheckInMethod,
+		CheckOutMethod:    row.CheckOutMethod,
+		AdmissionDecision: row.AdmissionDecision,
+		CorrectionReason:  row.CorrectionReason,
+		Version:           row.Version,
+	}
 }
 func visitFromVoid(row attendancedb.VoidVisitRow) Visit {
-	return Visit{ID: row.ID, PersonID: row.PersonID, DisplayName: row.FirstName + " " + row.LastName, CheckedInAt: row.CheckedInAt, CheckedOutAt: timePtr(row.CheckedOutAt), Status: row.Status, CheckInMethod: row.CheckInMethod, CheckOutMethod: row.CheckOutMethod, AdmissionDecision: row.AdmissionDecision, CorrectionReason: row.CorrectionReason, Version: row.Version}
+	return Visit{
+		ID:                row.ID,
+		PersonID:          row.PersonID,
+		DisplayName:       row.FirstName + " " + row.LastName,
+		CheckedInAt:       row.CheckedInAt,
+		CheckedOutAt:      timePtr(row.CheckedOutAt),
+		Status:            row.Status,
+		CheckInMethod:     row.CheckInMethod,
+		CheckOutMethod:    row.CheckOutMethod,
+		AdmissionDecision: row.AdmissionDecision,
+		CorrectionReason:  row.CorrectionReason,
+		Version:           row.Version,
+	}
 }
 func visitFromList(row attendancedb.ListVisitsRow) Visit {
-	return Visit{ID: row.ID, PersonID: row.PersonID, DisplayName: row.FirstName + " " + row.LastName, CheckedInAt: row.CheckedInAt, CheckedOutAt: timePtr(row.CheckedOutAt), Status: row.Status, CheckInMethod: row.CheckInMethod, CheckOutMethod: row.CheckOutMethod, AdmissionDecision: row.AdmissionDecision, CorrectionReason: row.CorrectionReason, Version: row.Version}
+	return Visit{
+		ID:                row.ID,
+		PersonID:          row.PersonID,
+		DisplayName:       row.FirstName + " " + row.LastName,
+		CheckedInAt:       row.CheckedInAt,
+		CheckedOutAt:      timePtr(row.CheckedOutAt),
+		Status:            row.Status,
+		CheckInMethod:     row.CheckInMethod,
+		CheckOutMethod:    row.CheckOutMethod,
+		AdmissionDecision: row.AdmissionDecision,
+		CorrectionReason:  row.CorrectionReason,
+		Version:           row.Version,
+	}
 }
 func timePtr(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {

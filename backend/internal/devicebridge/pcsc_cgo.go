@@ -94,8 +94,17 @@ func (source *PCSCSource) setCapability(value Capability) {
 func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 	var rawContext C.uintptr_t
 	if C.bridge_establish(&rawContext) != 0 {
-		source.setCapability(Capability{ID: "nfc", Available: false, State: "unavailable", Detail: "PC/SC service is unavailable"})
-		_, _ = broker.Publish(RawEvent{Kind: "capability_state", Source: "pcsc", State: "unavailable", ErrorCode: "pcsc_service_unavailable"})
+		source.setCapability(
+			Capability{ID: "nfc", Available: false, State: "unavailable", Detail: "PC/SC service is unavailable"},
+		)
+		_, _ = broker.Publish(
+			RawEvent{
+				Kind:      "capability_state",
+				Source:    "pcsc",
+				State:     "unavailable",
+				ErrorCode: "pcsc_service_unavailable",
+			},
+		)
 		return
 	}
 	defer C.bridge_release(rawContext)
@@ -107,7 +116,9 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 	for {
 		readers, ok := pcscReaders(rawContext)
 		if !ok {
-			source.setCapability(Capability{ID: "nfc", Available: false, State: "error", Detail: "Unable to enumerate PC/SC readers"})
+			source.setCapability(
+				Capability{ID: "nfc", Available: false, State: "error", Detail: "Unable to enumerate PC/SC readers"},
+			)
 		} else if len(readers) == 0 {
 			source.setCapability(Capability{ID: "nfc", Available: false, State: "disconnected", Detail: "No PC/SC reader connected"})
 		} else {
@@ -118,19 +129,38 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 			id := pcscReaderID(reader)
 			currentReaders[id] = true
 			if !knownReaders[id] {
-				_, _ = broker.Publish(RawEvent{Kind: "reader_state", Source: "pcsc", ReaderID: id, ReaderName: reader, State: "connected"})
+				_, _ = broker.Publish(
+					RawEvent{
+						Kind:       "reader_state",
+						Source:     "pcsc",
+						ReaderID:   id,
+						ReaderName: reader,
+						State:      "connected",
+					},
+				)
 			}
 			uid, protocol, connected, supported := pcscUID(rawContext, reader)
 			if !connected {
 				if present[id] != "" {
-					_, _ = broker.Publish(RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader})
+					_, _ = broker.Publish(
+						RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader},
+					)
 					delete(present, id)
 				}
 				continue
 			}
 			if !supported {
 				if !unsupported[id] {
-					_, _ = broker.Publish(RawEvent{Kind: "capability_state", Source: "pcsc", ReaderID: id, ReaderName: reader, State: "unavailable", ErrorCode: "uid_read_unsupported"})
+					_, _ = broker.Publish(
+						RawEvent{
+							Kind:       "capability_state",
+							Source:     "pcsc",
+							ReaderID:   id,
+							ReaderName: reader,
+							State:      "unavailable",
+							ErrorCode:  "uid_read_unsupported",
+						},
+					)
 					unsupported[id] = true
 				}
 				continue
@@ -138,9 +168,20 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 			delete(unsupported, id)
 			if uid != "" && present[id] != uid {
 				if present[id] != "" {
-					_, _ = broker.Publish(RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader})
+					_, _ = broker.Publish(
+						RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader},
+					)
 				}
-				_, _ = broker.Publish(RawEvent{Kind: "nfc_scan", Source: "pcsc", UID: uid, ReaderID: id, ReaderName: reader, Protocol: protocol})
+				_, _ = broker.Publish(
+					RawEvent{
+						Kind:       "nfc_scan",
+						Source:     "pcsc",
+						UID:        uid,
+						ReaderID:   id,
+						ReaderName: reader,
+						Protocol:   protocol,
+					},
+				)
 				present[id] = uid
 			}
 		}
@@ -149,7 +190,9 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 				if present[id] != "" {
 					_, _ = broker.Publish(RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id})
 				}
-				_, _ = broker.Publish(RawEvent{Kind: "reader_state", Source: "pcsc", ReaderID: id, State: "disconnected"})
+				_, _ = broker.Publish(
+					RawEvent{Kind: "reader_state", Source: "pcsc", ReaderID: id, State: "disconnected"},
+				)
 				delete(present, id)
 				delete(unsupported, id)
 			}

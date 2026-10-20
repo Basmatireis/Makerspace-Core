@@ -67,21 +67,47 @@ func (s *Service) GetConfiguration(ctx context.Context, principal authorization.
 	}
 	return configurationFromRow(row), nil
 }
-func (s *Service) UpdateConfiguration(ctx context.Context, principal authorization.Principal, input ConfigurationInput, requestID *uuid.UUID) (Configuration, error) {
+
+func (s *Service) UpdateConfiguration(
+	ctx context.Context,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.MailManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
-	input.Host, input.Username, input.FromAddress, input.FromName, input.BaseURL = strings.TrimSpace(input.Host), strings.TrimSpace(input.Username), strings.TrimSpace(input.FromAddress), strings.TrimSpace(input.FromName), strings.TrimSpace(input.BaseURL)
+	input.Host, input.Username, input.FromAddress, input.FromName, input.BaseURL = strings.TrimSpace(
+		input.Host,
+	), strings.TrimSpace(
+		input.Username,
+	), strings.TrimSpace(
+		input.FromAddress,
+	), strings.TrimSpace(
+		input.FromName,
+	), strings.TrimSpace(
+		input.BaseURL,
+	)
 	parsedBase, baseErr := url.Parse(input.BaseURL)
 	parsedFrom, fromErr := mail.ParseAddress(input.FromAddress)
-	if input.ExpectedVersion < 1 || input.Port < 1 || input.Port > 65535 || (input.TLSMode != "starttls" && input.TLSMode != "tls" && input.TLSMode != "none") || (input.Enabled && (input.Host == "" || input.FromAddress == "" || input.BaseURL == "" || baseErr != nil || parsedBase.Host == "" || (parsedBase.Scheme != "http" && parsedBase.Scheme != "https") || parsedBase.Path != "" || parsedBase.RawQuery != "" || parsedBase.Fragment != "" || fromErr != nil || parsedFrom.Address != input.FromAddress)) {
+	if input.ExpectedVersion < 1 || input.Port < 1 || input.Port > 65535 ||
+		(input.TLSMode != "starttls" && input.TLSMode != "tls" && input.TLSMode != "none") ||
+		(input.Enabled && (input.Host == "" || input.FromAddress == "" || input.BaseURL == "" || baseErr != nil || parsedBase.Host == "" || (parsedBase.Scheme != "http" && parsedBase.Scheme != "https") || parsedBase.Path != "" || parsedBase.RawQuery != "" || parsedBase.Fragment != "" || fromErr != nil || parsedFrom.Address != input.FromAddress)) {
 		return Configuration{}, invalidConfiguration()
 	}
 	if input.Enabled && s.keyring == nil {
-		return Configuration{}, apperror.New(503, "encryption_unavailable", "Application encryption keys are required before enabling mail")
+		return Configuration{}, apperror.New(
+			503,
+			"encryption_unavailable",
+			"Application encryption keys are required before enabling mail",
+		)
 	}
 	if input.Password != "" && s.keyring == nil {
-		return Configuration{}, apperror.New(503, "encryption_unavailable", "Application encryption keys are required before storing an SMTP password")
+		return Configuration{}, apperror.New(
+			503,
+			"encryption_unavailable",
+			"Application encryption keys are required before storing an SMTP password",
+		)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -104,10 +130,29 @@ func (s *Service) UpdateConfiguration(ctx context.Context, principal authorizati
 		}
 	}
 	if input.Enabled && len(ciphertext) == 0 && input.Username != "" {
-		return Configuration{}, apperror.New(422, "smtp_password_required", "An SMTP password is required when a username is configured")
+		return Configuration{}, apperror.New(
+			422,
+			"smtp_password_required",
+			"An SMTP password is required when a username is configured",
+		)
 	}
 	actor := principal.AccountID
-	row, err := queries.UpdateConfiguration(ctx, maildb.UpdateConfigurationParams{Enabled: input.Enabled, SmtpHost: input.Host, SmtpPort: int32(input.Port), SmtpTlsMode: input.TLSMode, SmtpUsername: input.Username, EncryptedSmtpPassword: ciphertext, FromAddress: input.FromAddress, FromName: input.FromName, BaseUrl: input.BaseURL, UpdatedByAccountID: &actor, ExpectedVersion: input.ExpectedVersion})
+	row, err := queries.UpdateConfiguration(
+		ctx,
+		maildb.UpdateConfigurationParams{
+			Enabled:               input.Enabled,
+			SmtpHost:              input.Host,
+			SmtpPort:              int32(input.Port),
+			SmtpTlsMode:           input.TLSMode,
+			SmtpUsername:          input.Username,
+			EncryptedSmtpPassword: ciphertext,
+			FromAddress:           input.FromAddress,
+			FromName:              input.FromName,
+			BaseUrl:               input.BaseURL,
+			UpdatedByAccountID:    &actor,
+			ExpectedVersion:       input.ExpectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Configuration{}, apperror.StaleWrite
 	}
@@ -141,7 +186,17 @@ func (s *Service) Send(ctx context.Context, message Message) error {
 		}
 		password = string(plain)
 	}
-	provider, err := NewSMTPProvider(SMTPConfig{Host: row.SmtpHost, Port: int(row.SmtpPort), TLSMode: row.SmtpTlsMode, Username: row.SmtpUsername, Password: password, FromAddress: row.FromAddress, FromName: row.FromName})
+	provider, err := NewSMTPProvider(
+		SMTPConfig{
+			Host:        row.SmtpHost,
+			Port:        int(row.SmtpPort),
+			TLSMode:     row.SmtpTlsMode,
+			Username:    row.SmtpUsername,
+			Password:    password,
+			FromAddress: row.FromAddress,
+			FromName:    row.FromName,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -155,7 +210,20 @@ func (s *Service) BaseURL(ctx context.Context) string {
 	return strings.TrimSuffix(row.BaseUrl, "/")
 }
 func configurationFromRow(row maildb.MailConfiguration) Configuration {
-	return Configuration{Enabled: row.Enabled, PasswordConfigured: len(row.EncryptedSmtpPassword) > 0, Provider: row.Provider, Host: row.SmtpHost, Port: int(row.SmtpPort), TLSMode: row.SmtpTlsMode, Username: row.SmtpUsername, FromAddress: row.FromAddress, FromName: row.FromName, BaseURL: row.BaseUrl, Version: row.Version, UpdatedAt: row.UpdatedAt}
+	return Configuration{
+		Enabled:            row.Enabled,
+		PasswordConfigured: len(row.EncryptedSmtpPassword) > 0,
+		Provider:           row.Provider,
+		Host:               row.SmtpHost,
+		Port:               int(row.SmtpPort),
+		TLSMode:            row.SmtpTlsMode,
+		Username:           row.SmtpUsername,
+		FromAddress:        row.FromAddress,
+		FromName:           row.FromName,
+		BaseURL:            row.BaseUrl,
+		Version:            row.Version,
+		UpdatedAt:          row.UpdatedAt,
+	}
 }
 func invalidConfiguration() error {
 	return apperror.New(422, "mail_configuration_invalid", "Mail configuration is invalid")

@@ -38,11 +38,13 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"issuer": providerURL, "authorization_endpoint": providerURL + "/authorize", "token_endpoint": providerURL + "/token", "jwks_uri": providerURL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"issuer": providerURL, "authorization_endpoint": providerURL + "/authorize", "token_endpoint": providerURL + "/token", "jwks_uri": providerURL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "review", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "review", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -53,12 +55,14 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			return
 		}
 		clientID, clientSecret, _ := r.BasicAuth()
-		if clientID != "review-client" || clientSecret != "review-secret" || oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != challenge {
+		if clientID != "review-client" || clientSecret != "review-secret" ||
+			oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != challenge {
 			http.Error(w, "invalid client or PKCE", 400)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "local-only", "token_type": "Bearer", "id_token": token})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"access_token": "local-only", "token_type": "Bearer", "id_token": token})
 	})
 	server := httptest.NewTLSServer(mux)
 	defer server.Close()
@@ -76,10 +80,15 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 		t.Fatal(err)
 	}
 	secret := "review-secret"
-	_, err = service.CreateProvider(ctx, authorization.Principal{AccountID: operator.accountID, Master: true}, oidc.ProviderInput{
-		Slug: "review-provider", DisplayName: "Local review provider", Issuer: providerURL, ClientID: "review-client", ClientSecret: &secret, Enabled: true, JITEnabled: true,
-		ACRAssuranceMappings: map[string]authorization.Assurance{"trusted-mfa": authorization.AssuranceStrongMFA},
-	}, nil)
+	_, err = service.CreateProvider(
+		ctx,
+		authorization.Principal{AccountID: operator.accountID, Master: true},
+		oidc.ProviderInput{
+			Slug: "review-provider", DisplayName: "Local review provider", Issuer: providerURL, ClientID: "review-client", ClientSecret: &secret, Enabled: true, JITEnabled: true,
+			ACRAssuranceMappings: map[string]authorization.Assurance{"trusted-mfa": authorization.AssuranceStrongMFA},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +106,19 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			if params.Get("code_challenge_method") != "S256" || params.Get("nonce") == "" {
 				t.Fatal("missing nonce or S256 challenge")
 			}
-			claims := map[string]any{"iss": providerURL, "sub": "local-subject", "aud": "review-client", "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix(), "nonce": params.Get("nonce"), "acr": "trusted-mfa", "email": "oidc-review@example.test", "email_verified": true, "given_name": "OIDC", "family_name": "Visitor"}
+			claims := map[string]any{
+				"iss":            providerURL,
+				"sub":            "local-subject",
+				"aud":            "review-client",
+				"exp":            time.Now().Add(time.Hour).Unix(),
+				"iat":            time.Now().Unix(),
+				"nonce":          params.Get("nonce"),
+				"acr":            "trusted-mfa",
+				"email":          "oidc-review@example.test",
+				"email_verified": true,
+				"given_name":     "OIDC",
+				"family_name":    "Visitor",
+			}
 			state, browser := params.Get("state"), flow.BrowserToken
 			switch scenario {
 			case "wrong_browser":
@@ -120,14 +141,22 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			unsigned := base64.RawURLEncoding.EncodeToString(encodedHeader) + "." + base64.RawURLEncoding.EncodeToString(encodedClaims)
+			unsigned := base64.RawURLEncoding.EncodeToString(
+				encodedHeader,
+			) + "." + base64.RawURLEncoding.EncodeToString(
+				encodedClaims,
+			)
 			digest := sha256.Sum256([]byte(unsigned))
 			signature, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
 			if err != nil {
 				t.Fatal(err)
 			}
 			mu.Lock()
-			token, challenge = unsigned+"."+base64.RawURLEncoding.EncodeToString(signature), params.Get("code_challenge")
+			token, challenge = unsigned+"."+base64.RawURLEncoding.EncodeToString(
+				signature,
+			), params.Get(
+				"code_challenge",
+			)
 			before := exchanges
 			mu.Unlock()
 			completion, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil)
@@ -157,7 +186,13 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			if accountID == operator.accountID || assurance != "strong_mfa" {
 				t.Fatal("email merged an existing account or trusted assurance was lost")
 			}
-			assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN accounts a ON a.person_id=pr.person_id WHERE a.id=$1`, 0, accountID)
+			assertCount(
+				t,
+				pool,
+				`SELECT count(*) FROM person_roles pr JOIN accounts a ON a.person_id=pr.person_id WHERE a.id=$1`,
+				0,
+				accountID,
+			)
 			if _, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil); err == nil {
 				t.Fatal("OIDC callback replay accepted")
 			}

@@ -37,7 +37,9 @@ func TestBuildSourceURLEscapesTheAccessCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	password, _ := parsed.User.Password()
-	if parsed.Scheme != "rtspx" || parsed.User.Username() != "bblp" || password != "a/b:c@d?e#f g" || parsed.Host != "10.0.0.5:322" || parsed.Path != "/streaming/live/1" {
+	if parsed.Scheme != "rtspx" || parsed.User.Username() != "bblp" || password != "a/b:c@d?e#f g" ||
+		parsed.Host != "10.0.0.5:322" ||
+		parsed.Path != "/streaming/live/1" {
 		t.Fatalf("round trip failed: %s", tricky)
 	}
 }

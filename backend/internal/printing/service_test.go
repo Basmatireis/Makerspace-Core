@@ -24,11 +24,26 @@ func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
 		call func() error
 	}{
 		{"machines.read printer profile", func() error { _, err := s.GetProfile(ctx, p, id); return err }},
-		{"machines.manage printer profile", func() error { _, err := s.ConfigureProfile(ctx, p, id, true, 0, nil); return err }},
-		{"machines.manage input unit", func() error { _, err := s.CreateInputUnit(ctx, p, id, "Direct", 0, nil, nil); return err }},
-		{"machines.manage update input unit", func() error { _, err := s.UpdateInputUnit(ctx, p, id, "Direct", 0, nil, true, 1, nil); return err }},
-		{"machines.manage slot", func() error { _, err := s.CreateSlot(ctx, p, id, "Slot", 0, "available", nil, nil); return err }},
-		{"machines.manage update slot", func() error { _, err := s.UpdateSlot(ctx, p, id, "Slot", 0, "available", nil, 1, nil); return err }},
+		{
+			"machines.manage printer profile",
+			func() error { _, err := s.ConfigureProfile(ctx, p, id, true, 0, nil); return err },
+		},
+		{
+			"machines.manage input unit",
+			func() error { _, err := s.CreateInputUnit(ctx, p, id, "Direct", 0, nil, nil); return err },
+		},
+		{
+			"machines.manage update input unit",
+			func() error { _, err := s.UpdateInputUnit(ctx, p, id, "Direct", 0, nil, true, 1, nil); return err },
+		},
+		{
+			"machines.manage slot",
+			func() error { _, err := s.CreateSlot(ctx, p, id, "Slot", 0, "available", nil, nil); return err },
+		},
+		{
+			"machines.manage update slot",
+			func() error { _, err := s.UpdateSlot(ctx, p, id, "Slot", 0, "available", nil, 1, nil); return err },
+		},
 		{"printer_slots.assign mount", func() error { _, err := s.Mount(ctx, p, id, id, nil); return err }},
 		{"printer_slots.assign unmount", func() error { _, err := s.Unmount(ctx, p, id, nil); return err }},
 	}
@@ -67,24 +82,71 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := jobs.CreateMachine(ctx, p, machineType.ID, "Generic printer "+suffix, "active", nil, false, &requestID)
+	machine, err := jobs.CreateMachine(
+		ctx,
+		p,
+		machineType.ID,
+		"Generic printer "+suffix,
+		"active",
+		nil,
+		false,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	diameter := "1.75"
-	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "g", []string{"fdm_printing", "other"}, &requestID)
+	materialType, err := jobs.CreateMaterialType(
+		ctx,
+		p,
+		"PLA "+suffix,
+		"g",
+		[]string{"fdm_printing", "other"},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	material, err := jobs.CreateMaterial(ctx, p, machinelogbook.MaterialInput{Name: "Test filament " + suffix, MaterialTypeID: materialType.ID, FilamentDiameterMM: &diameter}, &requestID)
+	material, err := jobs.CreateMaterial(
+		ctx,
+		p,
+		machinelogbook.MaterialInput{
+			Name:               "Test filament " + suffix,
+			MaterialTypeID:     materialType.ID,
+			FilamentDiameterMM: &diameter,
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	purchased, err := jobs.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "1000", "20", time.Now().UTC(), nil, nil, &requestID)
+	purchased, err := jobs.AddPurchase(
+		ctx,
+		p,
+		material.ID,
+		material.InventoryVersion,
+		"1000",
+		"20",
+		time.Now().UTC(),
+		nil,
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	spool, err := jobs.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{MaterialID: material.ID, InitialNetWeightG: "500", StockMode: "existing_stock", OccurredAt: time.Now().UTC(), ExpectedInventoryVersion: purchased.Material.InventoryVersion}, &requestID)
+	spool, err := jobs.CreateFilamentSpool(
+		ctx,
+		p,
+		machinelogbook.FilamentSpoolInput{
+			MaterialID:               material.ID,
+			InitialNetWeightG:        "500",
+			StockMode:                "existing_stock",
+			OccurredAt:               time.Now().UTC(),
+			ExpectedInventoryVersion: purchased.Material.InventoryVersion,
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,14 +154,29 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consumed, err := jobs.ConsumeFilamentSpool(ctx, p, spool.ID, allocatedMaterial.InventoryVersion, spool.Version, "10", time.Now().UTC(), false, nil, nil, &requestID)
+	consumed, err := jobs.ConsumeFilamentSpool(
+		ctx,
+		p,
+		spool.ID,
+		allocatedMaterial.InventoryVersion,
+		spool.Version,
+		"10",
+		time.Now().UTC(),
+		false,
+		nil,
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if consumed.Material.Quantity != "990" || consumed.Material.AssignedQuantity != "490" {
 		t.Fatalf("spool consumption did not preserve derived balances: %+v", consumed.Material)
 	}
-	if _, err = jobs.ConsumeFilamentSpool(ctx, p, spool.ID, allocatedMaterial.InventoryVersion, spool.Version, "1", time.Now().UTC(), false, nil, nil, &requestID); !apperror.IsCode(err, "stale_write") {
+	if _, err = jobs.ConsumeFilamentSpool(ctx, p, spool.ID, allocatedMaterial.InventoryVersion, spool.Version, "1", time.Now().UTC(), false, nil, nil, &requestID); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("expected stale spool consumption, got %v", err)
 	}
 	spool, err = jobs.GetFilamentSpool(ctx, p, spool.ID)
@@ -120,15 +197,38 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	unitExternalID := "0"
-	unit, err = service.UpdateInputUnit(ctx, p, unit.ID, "AMS 2 Pro", unit.Position, &unitExternalID, true, unit.Version, &requestID)
+	unit, err = service.UpdateInputUnit(
+		ctx,
+		p,
+		unit.ID,
+		"AMS 2 Pro",
+		unit.Position,
+		&unitExternalID,
+		true,
+		unit.Version,
+		&requestID,
+	)
 	if err != nil || unit.ExternalIdentifier == nil || *unit.ExternalIdentifier != "0" || unit.Name != "AMS 2 Pro" {
 		t.Fatalf("update input unit: unit=%+v err=%v", unit, err)
 	}
-	if _, err = service.UpdateInputUnit(ctx, p, unit.ID, unit.Name, unit.Position, &unitExternalID, true, unit.Version-1, &requestID); !apperror.IsCode(err, "stale_write") {
+	if _, err = service.UpdateInputUnit(ctx, p, unit.ID, unit.Name, unit.Position, &unitExternalID, true, unit.Version-1, &requestID); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("expected stale input-unit update, got %v", err)
 	}
 	slotExternalID := "0"
-	slot, err = service.UpdateSlot(ctx, p, slot.ID, "Slot 1", slot.Position, slot.Status, &slotExternalID, slot.Version, &requestID)
+	slot, err = service.UpdateSlot(
+		ctx,
+		p,
+		slot.ID,
+		"Slot 1",
+		slot.Position,
+		slot.Status,
+		&slotExternalID,
+		slot.Version,
+		&requestID,
+	)
 	if err != nil || slot.ExternalIdentifier == nil || *slot.ExternalIdentifier != "0" {
 		t.Fatalf("update slot: slot=%+v err=%v", slot, err)
 	}
@@ -145,7 +245,18 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	finishedSpool, err := jobs.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{MaterialID: material.ID, InitialNetWeightG: "100", StockMode: "existing_stock", OccurredAt: time.Now().UTC(), ExpectedInventoryVersion: emptyAllocation.InventoryVersion}, &requestID)
+	finishedSpool, err := jobs.CreateFilamentSpool(
+		ctx,
+		p,
+		machinelogbook.FilamentSpoolInput{
+			MaterialID:               material.ID,
+			InitialNetWeightG:        "100",
+			StockMode:                "existing_stock",
+			OccurredAt:               time.Now().UTC(),
+			ExpectedInventoryVersion: emptyAllocation.InventoryVersion,
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +267,10 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.Mount(ctx, p, spareSlot.ID, finishedSpool.ID, &requestID); !apperror.IsCode(err, "spool_unavailable") {
+	if _, err = service.Mount(ctx, p, spareSlot.ID, finishedSpool.ID, &requestID); !apperror.IsCode(
+		err,
+		"spool_unavailable",
+	) {
 		t.Fatalf("expected a finished spool to be refused, got %v", err)
 	}
 

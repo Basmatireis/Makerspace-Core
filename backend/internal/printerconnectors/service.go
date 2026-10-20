@@ -49,7 +49,12 @@ func NewService(pool *pgxpool.Pool, printingService *printing.Service, encryptio
 			return nil, err
 		}
 	}
-	return &Service{pool: pool, printing: printingService, logbook: machinelogbook.NewService(pool), keyring: keyring}, nil
+	return &Service{
+		pool:     pool,
+		printing: printingService,
+		logbook:  machinelogbook.NewService(pool),
+		keyring:  keyring,
+	}, nil
 }
 
 type Connector struct {
@@ -199,7 +204,13 @@ func nullableTime(value pgtype.Timestamptz) *time.Time {
 	return &v
 }
 
-func validateAssignmentContract(kind string, version int, settings json.RawMessage, secrets map[string]string, creating bool) (json.RawMessage, map[string]string, error) {
+func validateAssignmentContract(
+	kind string,
+	version int,
+	settings json.RawMessage,
+	secrets map[string]string,
+	creating bool,
+) (json.RawMessage, map[string]string, error) {
 	if version != 1 {
 		return nil, nil, validation("unsupported adapter schema version")
 	}
@@ -222,7 +233,8 @@ func validateAssignmentContract(kind string, version int, settings json.RawMessa
 		AutoDetectSpools bool   `json:"autoDetectSpools"`
 	}
 	var raw map[string]json.RawMessage
-	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 || len(raw) > 3 {
+	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 ||
+		len(raw) > 3 {
 		return nil, nil, validation(kind + " settings require ipAddress, serialNumber, and optional autoDetectSpools")
 	}
 	for key := range raw {
@@ -288,8 +300,12 @@ func connectorFrom(row db.PrinterConnector) Connector {
 		ConfigurationRevision: row.ConfigurationRevision, AppliedRevision: row.AppliedConfigurationRevision,
 		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: row.HealthState,
 		HealthSummary: row.HealthSummary, PendingEventCount: row.PendingEventCount, QuarantinedEventCount: row.QuarantinedEventCount,
-		LastHeartbeatAt: nullableTime(row.LastHeartbeatAt), EnrolledAt: nullableTime(row.EnrolledAt), DisabledAt: nullableTime(row.DisabledAt),
-		RevokedAt: nullableTime(row.RevokedAt), EventsClearedAt: nullableTime(row.EventsClearedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		LastHeartbeatAt: nullableTime(
+			row.LastHeartbeatAt,
+		), EnrolledAt: nullableTime(row.EnrolledAt), DisabledAt: nullableTime(row.DisabledAt),
+		RevokedAt: nullableTime(
+			row.RevokedAt,
+		), EventsClearedAt: nullableTime(row.EventsClearedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func normalizeName(name string) (string, error) {
@@ -311,7 +327,13 @@ func normalizeLocation(value *string) (*string, error) {
 	return &clean, nil
 }
 
-func (s *Service) Create(ctx context.Context, principal authorization.Principal, name string, location *string, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	location *string,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -398,7 +420,12 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 
 // ClearEvents hides the events received so far from the event lists. Events are
 // never deleted; includeCleared brings them back.
-func (s *Service) ClearEvents(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) ClearEvents(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -414,7 +441,10 @@ func (s *Service) ClearEvents(ctx context.Context, principal authorization.Princ
 		return Connector{}, err
 	}
 	actor := principal.AccountID
-	row, err := q.ClearConnectorEvents(ctx, db.ClearConnectorEventsParams{ID: id, ClearedAt: pgTimestamp(timePtr(time.Now())), ClearedBy: &actor})
+	row, err := q.ClearConnectorEvents(
+		ctx,
+		db.ClearConnectorEventsParams{ID: id, ClearedAt: pgTimestamp(timePtr(time.Now())), ClearedBy: &actor},
+	)
 	if err != nil {
 		return Connector{}, databaseError(err)
 	}
@@ -431,7 +461,16 @@ func (s *Service) ClearEvents(ctx context.Context, principal authorization.Princ
 	return connector, nil
 }
 
-func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, location *string, enabled bool, expected int64, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name string,
+	location *string,
+	enabled bool,
+	expected int64,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -472,7 +511,17 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 		now := time.Now().UTC()
 		disabledAt = &now
 	}
-	row, err := q.UpdateConnector(ctx, db.UpdateConnectorParams{Name: name, LocationLabel: location, Lifecycle: lifecycle, DisabledAt: timestamptz(disabledAt), ID: id, ExpectedVersion: expected})
+	row, err := q.UpdateConnector(
+		ctx,
+		db.UpdateConnectorParams{
+			Name:            name,
+			LocationLabel:   location,
+			Lifecycle:       lifecycle,
+			DisabledAt:      timestamptz(disabledAt),
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Connector{}, apperror.StaleWrite
 	}
@@ -489,7 +538,12 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	return connectorFrom(row), nil
 }
 
-func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (EnrollmentIssue, error) {
+func (s *Service) IssueEnrollment(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) (EnrollmentIssue, error) {
 	if !principal.Has(authorization.PrinterConnectorsCredentialsManage) {
 		return EnrollmentIssue{}, apperror.PermissionDenied
 	}
@@ -530,7 +584,12 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err = tx.Commit(ctx); err != nil {
 		return EnrollmentIssue{}, err
 	}
-	return EnrollmentIssue{Connector: connectorFrom(connector), ID: enrollmentID, Secret: secret, ExpiresAt: expires}, nil
+	return EnrollmentIssue{
+		Connector: connectorFrom(connector),
+		ID:        enrollmentID,
+		Secret:    secret,
+		ExpiresAt: expires,
+	}, nil
 }
 
 func validOpaqueToken(raw string) bool {
@@ -538,7 +597,13 @@ func validOpaqueToken(raw string) bool {
 	return err == nil && len(decoded) == 32
 }
 
-func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentialID uuid.UUID, credentialSecret, softwareVersion string, protocolVersion int) (EnrollmentResult, error) {
+func (s *Service) Enroll(
+	ctx context.Context,
+	enrollmentSecret string,
+	credentialID uuid.UUID,
+	credentialSecret, softwareVersion string,
+	protocolVersion int,
+) (EnrollmentResult, error) {
 	if !validOpaqueToken(enrollmentSecret) || !validOpaqueToken(credentialSecret) {
 		return EnrollmentResult{}, apperror.Unauthenticated
 	}
@@ -565,14 +630,22 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	fingerprintBytes := sha256.Sum256([]byte(credentialSecret))
 	fingerprint := hex.EncodeToString(fingerprintBytes[:])
 	if enrollment.ConsumedAt.Valid {
-		if enrollment.CredentialFingerprint == nil || *enrollment.CredentialFingerprint != fingerprint || enrollment.AcceptedCredentialID == nil || *enrollment.AcceptedCredentialID != credentialID {
-			return EnrollmentResult{}, conflict("enrollment_replay_conflict", "Enrollment was already consumed with different credentials")
+		if enrollment.CredentialFingerprint == nil || *enrollment.CredentialFingerprint != fingerprint ||
+			enrollment.AcceptedCredentialID == nil ||
+			*enrollment.AcceptedCredentialID != credentialID {
+			return EnrollmentResult{}, conflict(
+				"enrollment_replay_conflict",
+				"Enrollment was already consumed with different credentials",
+			)
 		}
 		row, getErr := q.GetConnector(ctx, enrollment.ConnectorID)
 		if getErr != nil {
 			return EnrollmentResult{}, getErr
 		}
-		credential, credentialErr := q.GetConnectorCredential(ctx, db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID})
+		credential, credentialErr := q.GetConnectorCredential(
+			ctx,
+			db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID},
+		)
 		if credentialErr != nil {
 			return EnrollmentResult{}, credentialErr
 		}
@@ -589,7 +662,10 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		return EnrollmentResult{}, err
 	}
 	if current.Lifecycle == "revoked" {
-		return EnrollmentResult{}, conflict("printer_connector_revoked", "Connector cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict(
+			"printer_connector_revoked",
+			"Connector cannot be enrolled in its current state",
+		)
 	}
 	reenroll := current.Lifecycle != "pending"
 	if reenroll {
@@ -613,7 +689,10 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		row, err = q.ActivateConnector(ctx, enrollment.ConnectorID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EnrollmentResult{}, conflict("printer_connector_revoked", "Connector cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict(
+			"printer_connector_revoked",
+			"Connector cannot be enrolled in its current state",
+		)
 	}
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -643,7 +722,13 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*Context, error
 	return &Context{ID: row.ID, CredentialID: row.CredentialID, Name: row.Name, Lifecycle: row.Lifecycle}, nil
 }
 
-func (s *Service) Revoke(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) Revoke(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.PrinterConnectorsCredentialsManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -683,7 +768,13 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 // statuses and discovery data are deleted; recorded runs, printer errors and the events they rest on
 // survive without the connector reference. A daemon still running with the deleted credential is
 // rejected as unauthenticated.
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.PrinterConnectorsManage) {
 		return apperror.PermissionDenied
 	}
@@ -733,7 +824,13 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	return tx.Commit(ctx)
 }
 
-func (s *Service) CreateAssignment(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID, input AssignmentInput, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) CreateAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID uuid.UUID,
+	input AssignmentInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.MachinesManage) {
 		return Assignment{}, apperror.PermissionDenied
 	}
@@ -742,14 +839,23 @@ func (s *Service) CreateAssignment(ctx context.Context, principal authorization.
 		return Assignment{}, validation("adapterKind and supported schema version are required")
 	}
 	var err error
-	input.Settings, input.Secrets, err = validateAssignmentContract(input.AdapterKind, input.AdapterSchemaVersion, input.Settings, input.Secrets, true)
+	input.Settings, input.Secrets, err = validateAssignmentContract(
+		input.AdapterKind,
+		input.AdapterSchemaVersion,
+		input.Settings,
+		input.Secrets,
+		true,
+	)
 	if err != nil {
 		return Assignment{}, err
 	}
 	var encrypted []byte
 	if len(input.Secrets) != 0 {
 		if s.keyring == nil {
-			return Assignment{}, conflict("encryption_not_configured", "Application encryption must be configured before storing printer credentials")
+			return Assignment{}, conflict(
+				"encryption_not_configured",
+				"Application encryption must be configured before storing printer credentials",
+			)
 		}
 		plain, err := json.Marshal(input.Secrets)
 		if err != nil {
@@ -765,7 +871,11 @@ func (s *Service) CreateAssignment(ctx context.Context, principal authorization.
 	return s.createAssignment(ctx, principal, connectorID, uuid.Must(uuid.NewV7()), input, nil, requestID)
 }
 
-func (s *Service) ListAssignments(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID) ([]Assignment, error) {
+func (s *Service) ListAssignments(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID uuid.UUID,
+) ([]Assignment, error) {
 	if !principal.Has(authorization.PrinterConnectorsRead) {
 		return nil, apperror.PermissionDenied
 	}
@@ -780,12 +890,39 @@ func (s *Service) ListAssignments(ctx context.Context, principal authorization.P
 	}
 	result := make([]Assignment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, Assignment{ID: row.ID, ConnectorID: row.ConnectorID, MachineID: row.MachineID, MachineName: row.MachineName, AdapterKind: row.AdapterKind, AdapterSchemaVersion: int(row.AdapterSchemaVersion), Settings: row.Settings, ConfigurationVersion: row.ConfigurationVersion, AppliedVersion: row.AppliedConfigurationVersion, Enabled: row.Enabled, RuntimeState: row.RuntimeState, RuntimeErrorCode: row.RuntimeErrorCode, ActivatedAt: row.ActivatedAt, EndedAt: nullableTime(row.EndedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		result = append(
+			result,
+			Assignment{
+				ID:                   row.ID,
+				ConnectorID:          row.ConnectorID,
+				MachineID:            row.MachineID,
+				MachineName:          row.MachineName,
+				AdapterKind:          row.AdapterKind,
+				AdapterSchemaVersion: int(row.AdapterSchemaVersion),
+				Settings:             row.Settings,
+				ConfigurationVersion: row.ConfigurationVersion,
+				AppliedVersion:       row.AppliedConfigurationVersion,
+				Enabled:              row.Enabled,
+				RuntimeState:         row.RuntimeState,
+				RuntimeErrorCode:     row.RuntimeErrorCode,
+				ActivatedAt:          row.ActivatedAt,
+				EndedAt:              nullableTime(row.EndedAt),
+				Version:              row.Version,
+				CreatedAt:            row.CreatedAt,
+				UpdatedAt:            row.UpdatedAt,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.Principal, connectorID, assignmentID uuid.UUID, input AssignmentUpdate, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) UpdateAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID, assignmentID uuid.UUID,
+	input AssignmentUpdate,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.MachinesManage) {
 		return Assignment{}, apperror.PermissionDenied
 	}
@@ -798,7 +935,13 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 		providedSecrets = *input.Secrets
 	}
 	var contractErr error
-	input.Settings, providedSecrets, contractErr = validateAssignmentContract(input.AdapterKind, input.AdapterSchemaVersion, input.Settings, providedSecrets, false)
+	input.Settings, providedSecrets, contractErr = validateAssignmentContract(
+		input.AdapterKind,
+		input.AdapterSchemaVersion,
+		input.Settings,
+		providedSecrets,
+		false,
+	)
 	if contractErr != nil {
 		return Assignment{}, contractErr
 	}
@@ -808,7 +951,10 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
-	current, err := q.GetAssignmentForUpdate(ctx, db.GetAssignmentForUpdateParams{ID: assignmentID, ConnectorID: connectorID})
+	current, err := q.GetAssignmentForUpdate(
+		ctx,
+		db.GetAssignmentForUpdateParams{ID: assignmentID, ConnectorID: connectorID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.NotFound
 	}
@@ -823,7 +969,10 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 		encrypted = nil
 		if len(providedSecrets) != 0 {
 			if s.keyring == nil {
-				return Assignment{}, conflict("encryption_not_configured", "Application encryption must be configured before storing printer credentials")
+				return Assignment{}, conflict(
+					"encryption_not_configured",
+					"Application encryption must be configured before storing printer credentials",
+				)
 			}
 			plain, marshalErr := json.Marshal(providedSecrets)
 			if marshalErr != nil {
@@ -835,7 +984,20 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 			}
 		}
 	}
-	_, err = q.UpdateAssignment(ctx, db.UpdateAssignmentParams{AdapterKind: input.AdapterKind, AdapterSchemaVersion: int32(input.AdapterSchemaVersion), Settings: input.Settings, EncryptedSecrets: encrypted, Enabled: input.Enabled, EndAssignment: input.End, ID: assignmentID, ConnectorID: connectorID, ExpectedVersion: input.ExpectedVersion})
+	_, err = q.UpdateAssignment(
+		ctx,
+		db.UpdateAssignmentParams{
+			AdapterKind:          input.AdapterKind,
+			AdapterSchemaVersion: int32(input.AdapterSchemaVersion),
+			Settings:             input.Settings,
+			EncryptedSecrets:     encrypted,
+			Enabled:              input.Enabled,
+			EndAssignment:        input.End,
+			ID:                   assignmentID,
+			ConnectorID:          connectorID,
+			ExpectedVersion:      input.ExpectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.StaleWrite
 	}
@@ -856,10 +1018,32 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 	if err = tx.Commit(ctx); err != nil {
 		return Assignment{}, err
 	}
-	return Assignment{ID: row.ID, ConnectorID: row.ConnectorID, MachineID: row.MachineID, MachineName: row.MachineName, AdapterKind: row.AdapterKind, AdapterSchemaVersion: int(row.AdapterSchemaVersion), Settings: row.Settings, ConfigurationVersion: row.ConfigurationVersion, AppliedVersion: row.AppliedConfigurationVersion, Enabled: row.Enabled, RuntimeState: row.RuntimeState, RuntimeErrorCode: row.RuntimeErrorCode, ActivatedAt: row.ActivatedAt, EndedAt: nullableTime(row.EndedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return Assignment{
+		ID:                   row.ID,
+		ConnectorID:          row.ConnectorID,
+		MachineID:            row.MachineID,
+		MachineName:          row.MachineName,
+		AdapterKind:          row.AdapterKind,
+		AdapterSchemaVersion: int(row.AdapterSchemaVersion),
+		Settings:             row.Settings,
+		ConfigurationVersion: row.ConfigurationVersion,
+		AppliedVersion:       row.AppliedConfigurationVersion,
+		Enabled:              row.Enabled,
+		RuntimeState:         row.RuntimeState,
+		RuntimeErrorCode:     row.RuntimeErrorCode,
+		ActivatedAt:          row.ActivatedAt,
+		EndedAt:              nullableTime(row.EndedAt),
+		Version:              row.Version,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}, nil
 }
 
-func (s *Service) ListObservedRuns(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID) ([]ObservedRun, error) {
+func (s *Service) ListObservedRuns(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID uuid.UUID,
+) ([]ObservedRun, error) {
 	if !principal.Has(authorization.PrinterConnectorsRead) {
 		return nil, apperror.PermissionDenied
 	}
@@ -877,12 +1061,31 @@ func (s *Service) ListObservedRuns(ctx context.Context, principal authorization.
 		if row.AssignmentID == nil || row.State == nil || !row.FirstObservedAt.Valid || !row.LastObservedAt.Valid {
 			continue
 		}
-		result = append(result, ObservedRun{ID: row.ID, AssignmentID: *row.AssignmentID, MachineID: row.MachineID, MachineName: row.MachineName, VendorJobID: row.VendorJobID, State: *row.State, HistoryComplete: row.HistoryComplete, FirstObservedAt: row.FirstObservedAt.Time, LastObservedAt: row.LastObservedAt.Time, Version: row.Version})
+		result = append(
+			result,
+			ObservedRun{
+				ID:              row.ID,
+				AssignmentID:    *row.AssignmentID,
+				MachineID:       row.MachineID,
+				MachineName:     row.MachineName,
+				VendorJobID:     row.VendorJobID,
+				State:           *row.State,
+				HistoryComplete: row.HistoryComplete,
+				FirstObservedAt: row.FirstObservedAt.Time,
+				LastObservedAt:  row.LastObservedAt.Time,
+				Version:         row.Version,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) ListEvents(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID, includeCleared bool) ([]ConnectorEvent, error) {
+func (s *Service) ListEvents(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID uuid.UUID,
+	includeCleared bool,
+) ([]ConnectorEvent, error) {
 	if !principal.Has(authorization.PrinterConnectorsRead) {
 		return nil, apperror.PermissionDenied
 	}
@@ -892,7 +1095,10 @@ func (s *Service) ListEvents(ctx context.Context, principal authorization.Princi
 	} else if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListConnectorEvents(ctx, db.ListConnectorEventsParams{ConnectorID: &connectorID, IncludeCleared: includeCleared})
+	rows, err := q.ListConnectorEvents(
+		ctx,
+		db.ListConnectorEventsParams{ConnectorID: &connectorID, IncludeCleared: includeCleared},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -901,12 +1107,30 @@ func (s *Service) ListEvents(ctx context.Context, principal authorization.Princi
 		if row.MachineID == nil || row.ConnectorAssignmentID == nil {
 			return nil, errors.New("connector event is missing assignment metadata")
 		}
-		result = append(result, ConnectorEvent{ID: row.ID, MachineID: *row.MachineID, AssignmentID: *row.ConnectorAssignmentID, Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, ApplicationState: row.ApplicationState, ApplicationReason: row.ApplicationReason, Payload: row.Payload})
+		result = append(
+			result,
+			ConnectorEvent{
+				ID:                row.ID,
+				MachineID:         *row.MachineID,
+				AssignmentID:      *row.ConnectorAssignmentID,
+				Kind:              row.Kind,
+				OccurredAt:        row.OccurredAt,
+				ReceivedAt:        row.ReceivedAt,
+				ApplicationState:  row.ApplicationState,
+				ApplicationReason: row.ApplicationReason,
+				Payload:           row.Payload,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) RotateCredential(ctx context.Context, connector Context, credentialID uuid.UUID, credentialSecret string) (time.Time, error) {
+func (s *Service) RotateCredential(
+	ctx context.Context,
+	connector Context,
+	credentialID uuid.UUID,
+	credentialSecret string,
+) (time.Time, error) {
 	if connector.Lifecycle != "active" || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
 		return time.Time{}, validation("valid connector credentials are required")
 	}
@@ -916,10 +1140,16 @@ func (s *Service) RotateCredential(ctx context.Context, connector Context, crede
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
-	existing, existingErr := q.GetConnectorCredential(ctx, db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: connector.ID})
+	existing, existingErr := q.GetConnectorCredential(
+		ctx,
+		db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: connector.ID},
+	)
 	if existingErr == nil {
 		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || existing.State == "revoked" {
-			return time.Time{}, conflict("credential_rotation_conflict", "Credential identifier was reused with different credentials")
+			return time.Time{}, conflict(
+				"credential_rotation_conflict",
+				"Credential identifier was reused with different credentials",
+			)
 		}
 		if err = tx.Commit(ctx); err != nil {
 			return time.Time{}, err
@@ -948,7 +1178,14 @@ func (s *Service) RotateCredential(ctx context.Context, connector Context, crede
 	return expires, nil
 }
 
-func (s *Service) createAssignment(ctx context.Context, principal authorization.Principal, connectorID, assignmentID uuid.UUID, input AssignmentInput, encrypted []byte, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) createAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	connectorID, assignmentID uuid.UUID,
+	input AssignmentInput,
+	encrypted []byte,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Assignment{}, err
@@ -965,7 +1202,19 @@ func (s *Service) createAssignment(ctx context.Context, principal authorization.
 	if connector.Lifecycle == "revoked" {
 		return Assignment{}, conflict("printer_connector_revoked", "A revoked connector cannot receive printers")
 	}
-	row, err := q.CreateAssignment(ctx, db.CreateAssignmentParams{ID: assignmentID, ConnectorID: connectorID, MachineID: input.MachineID, AdapterKind: input.AdapterKind, AdapterSchemaVersion: int32(input.AdapterSchemaVersion), Settings: input.Settings, EncryptedSecrets: encrypted, Enabled: input.Enabled})
+	row, err := q.CreateAssignment(
+		ctx,
+		db.CreateAssignmentParams{
+			ID:                   assignmentID,
+			ConnectorID:          connectorID,
+			MachineID:            input.MachineID,
+			AdapterKind:          input.AdapterKind,
+			AdapterSchemaVersion: int32(input.AdapterSchemaVersion),
+			Settings:             input.Settings,
+			EncryptedSecrets:     encrypted,
+			Enabled:              input.Enabled,
+		},
+	)
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -979,7 +1228,21 @@ func (s *Service) createAssignment(ctx context.Context, principal authorization.
 	if err = tx.Commit(ctx); err != nil {
 		return Assignment{}, err
 	}
-	return Assignment{ID: row.ID, ConnectorID: row.ConnectorID, MachineID: row.MachineID, AdapterKind: row.AdapterKind, AdapterSchemaVersion: int(row.AdapterSchemaVersion), Settings: row.Settings, ConfigurationVersion: row.ConfigurationVersion, AppliedVersion: row.AppliedConfigurationVersion, Enabled: row.Enabled, ActivatedAt: row.ActivatedAt, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return Assignment{
+		ID:                   row.ID,
+		ConnectorID:          row.ConnectorID,
+		MachineID:            row.MachineID,
+		AdapterKind:          row.AdapterKind,
+		AdapterSchemaVersion: int(row.AdapterSchemaVersion),
+		Settings:             row.Settings,
+		ConfigurationVersion: row.ConfigurationVersion,
+		AppliedVersion:       row.AppliedConfigurationVersion,
+		Enabled:              row.Enabled,
+		ActivatedAt:          row.ActivatedAt,
+		Version:              row.Version,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}, nil
 }
 
 func (s *Service) Configuration(ctx context.Context, connector Context) (Configuration, error) {
@@ -992,13 +1255,21 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 		return Configuration{}, err
 	}
 	if connector.Lifecycle == "disabled" {
-		return Configuration{Revision: row.ConfigurationRevision, ProtocolVersion: 1, Assignments: []RuntimeAssignment{}}, nil
+		return Configuration{
+			Revision:        row.ConfigurationRevision,
+			ProtocolVersion: 1,
+			Assignments:     []RuntimeAssignment{},
+		}, nil
 	}
 	assignments, err := q.ListActiveAssignments(ctx, connector.ID)
 	if err != nil {
 		return Configuration{}, err
 	}
-	result := Configuration{Revision: row.ConfigurationRevision, ProtocolVersion: 1, Assignments: make([]RuntimeAssignment, 0, len(assignments))}
+	result := Configuration{
+		Revision:        row.ConfigurationRevision,
+		ProtocolVersion: 1,
+		Assignments:     make([]RuntimeAssignment, 0, len(assignments)),
+	}
 	for _, a := range assignments {
 		secrets := map[string]string{}
 		if len(a.EncryptedSecrets) != 0 {
@@ -1013,7 +1284,20 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 				return Configuration{}, errors.New("decode printer credentials")
 			}
 		}
-		result.Assignments = append(result.Assignments, RuntimeAssignment{ID: a.ID, MachineID: a.MachineID, MachineName: a.MachineName, AdapterKind: a.AdapterKind, AdapterSchemaVersion: int(a.AdapterSchemaVersion), ConfigurationVersion: a.ConfigurationVersion, Settings: a.Settings, Secrets: secrets, Enabled: a.Enabled && a.PrinterEnabled})
+		result.Assignments = append(
+			result.Assignments,
+			RuntimeAssignment{
+				ID:                   a.ID,
+				MachineID:            a.MachineID,
+				MachineName:          a.MachineName,
+				AdapterKind:          a.AdapterKind,
+				AdapterSchemaVersion: int(a.AdapterSchemaVersion),
+				ConfigurationVersion: a.ConfigurationVersion,
+				Settings:             a.Settings,
+				Secrets:              secrets,
+				Enabled:              a.Enabled && a.PrinterEnabled,
+			},
+		)
 	}
 	return result, nil
 }
@@ -1024,7 +1308,11 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
 	input.HealthState = strings.TrimSpace(input.HealthState)
-	if input.SoftwareVersion == "" || len(input.SoftwareVersion) > 80 || input.ProtocolVersion != 1 || (input.HealthState != "connected" && input.HealthState != "degraded") || input.AppliedConfigurationRevision < 0 || input.PendingEventCount < 0 || input.QuarantinedEventCount < 0 {
+	if input.SoftwareVersion == "" || len(input.SoftwareVersion) > 80 || input.ProtocolVersion != 1 ||
+		(input.HealthState != "connected" && input.HealthState != "degraded") ||
+		input.AppliedConfigurationRevision < 0 ||
+		input.PendingEventCount < 0 ||
+		input.QuarantinedEventCount < 0 {
 		return Connector{}, validation("invalid heartbeat")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -1034,14 +1322,27 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	for _, h := range input.Assignments {
-		if h.AppliedConfigurationVersion < 0 || (h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
+		if h.AppliedConfigurationVersion < 0 ||
+			(h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
 			return Connector{}, validation("invalid assignment health")
 		}
 		if err = q.UpdateAssignmentRuntime(ctx, db.UpdateAssignmentRuntimeParams{AppliedConfigurationVersion: h.AppliedConfigurationVersion, RuntimeState: &h.State, RuntimeErrorCode: h.ErrorCode, ID: h.AssignmentID, ConnectorID: connector.ID}); err != nil {
 			return Connector{}, err
 		}
 	}
-	row, err := q.RecordHeartbeat(ctx, db.RecordHeartbeatParams{SoftwareVersion: &input.SoftwareVersion, ProtocolVersion: int32Pointer(input.ProtocolVersion), AppliedConfigurationRevision: input.AppliedConfigurationRevision, HealthState: &input.HealthState, HealthSummary: input.HealthSummary, PendingEventCount: input.PendingEventCount, QuarantinedEventCount: input.QuarantinedEventCount, ID: connector.ID})
+	row, err := q.RecordHeartbeat(
+		ctx,
+		db.RecordHeartbeatParams{
+			SoftwareVersion:              &input.SoftwareVersion,
+			ProtocolVersion:              int32Pointer(input.ProtocolVersion),
+			AppliedConfigurationRevision: input.AppliedConfigurationRevision,
+			HealthState:                  &input.HealthState,
+			HealthSummary:                input.HealthSummary,
+			PendingEventCount:            input.PendingEventCount,
+			QuarantinedEventCount:        input.QuarantinedEventCount,
+			ID:                           connector.ID,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Connector{}, apperror.New(403, "printer_connector_inactive", "Connector is not active")
 	}
@@ -1082,7 +1383,11 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	rejected := func(code string) EventReceipt {
 		return EventReceipt{EventID: input.EventID, Status: "rejected", ReasonCode: &code}
 	}
-	if input.EventID == uuid.Nil || input.AssignmentID == uuid.Nil || input.ConfigurationVersion < 1 || input.Sequence < 1 || input.OccurredAt.IsZero() || input.OccurredAt.After(time.Now().UTC().Add(5*time.Minute)) || len(input.Payload) > 32768 {
+	if input.EventID == uuid.Nil || input.AssignmentID == uuid.Nil || input.ConfigurationVersion < 1 ||
+		input.Sequence < 1 ||
+		input.OccurredAt.IsZero() ||
+		input.OccurredAt.After(time.Now().UTC().Add(5*time.Minute)) ||
+		len(input.Payload) > 32768 {
 		return rejected("invalid_event")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -1091,7 +1396,8 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	a, err := db.New(tx).GetAssignmentForIngress(ctx, db.GetAssignmentForIngressParams{ID: input.AssignmentID, ConnectorID: connector.ID})
+	a, err := db.New(tx).
+		GetAssignmentForIngress(ctx, db.GetAssignmentForIngressParams{ID: input.AssignmentID, ConnectorID: connector.ID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return rejected("assignment_not_found")
 	}
@@ -1118,12 +1424,23 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		}
 		// Lock the run's job before the run, the order of every job operation.
 		// An unknown run is created below and needs no lock.
-		if _, _, lockErr := machinelogbook.LockRunChain(ctx, tx, *input.RunID); lockErr != nil && !apperror.IsCode(lockErr, "not_found") {
+		if _, _, lockErr := machinelogbook.LockRunChain(ctx, tx, *input.RunID); lockErr != nil &&
+			!apperror.IsCode(lockErr, "not_found") {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 		var runErr error
-		run, runErr = recordObservedRun(ctx, db.New(tx), *input.RunID, a.ID, a.MachineID, input.ExternalPrintID, state, input.HistoryComplete, input.OccurredAt)
+		run, runErr = recordObservedRun(
+			ctx,
+			db.New(tx),
+			*input.RunID,
+			a.ID,
+			a.MachineID,
+			input.ExternalPrintID,
+			state,
+			input.HistoryComplete,
+			input.OccurredAt,
+		)
 		if errors.Is(runErr, pgx.ErrNoRows) {
 			return rejected("observed_run_conflict")
 		}
@@ -1146,9 +1463,29 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			reason = &v
 		}
 	}
-	event, inserted, err := s.printing.IngestConnectorEvent(ctx, tx, printing.ConnectorEventInput{EventID: input.EventID, ConnectorID: connector.ID, AssignmentID: a.ID, MachineID: a.MachineID, RunID: input.RunID, ConfigurationVersion: input.ConfigurationVersion, Sequence: input.Sequence, Kind: input.Kind, OccurredAt: input.OccurredAt, ExternalPrintID: input.ExternalPrintID, Payload: input.Payload, ReportRevision: input.ReportRevision, ApplicationState: applicationState, ApplicationReason: reason})
+	event, inserted, err := s.printing.IngestConnectorEvent(
+		ctx,
+		tx,
+		printing.ConnectorEventInput{
+			EventID:              input.EventID,
+			ConnectorID:          connector.ID,
+			AssignmentID:         a.ID,
+			MachineID:            a.MachineID,
+			RunID:                input.RunID,
+			ConfigurationVersion: input.ConfigurationVersion,
+			Sequence:             input.Sequence,
+			Kind:                 input.Kind,
+			OccurredAt:           input.OccurredAt,
+			ExternalPrintID:      input.ExternalPrintID,
+			Payload:              input.Payload,
+			ReportRevision:       input.ReportRevision,
+			ApplicationState:     applicationState,
+			ApplicationReason:    reason,
+		},
+	)
 	if err != nil {
-		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "printer_event_sequence_conflict") || apperror.IsCode(err, "validation_failed") {
+		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "printer_event_sequence_conflict") ||
+			apperror.IsCode(err, "validation_failed") {
 			return rejected(apperrorCode(err))
 		}
 		code := "temporarily_unavailable"
@@ -1172,7 +1509,9 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 	}
-	if inserted && input.Kind == "slot_observation" && applicationState == "applied" && isBambuLANAdapter(a.AdapterKind) && bambuAutoDetectSpools(a.Settings) {
+	if inserted && input.Kind == "slot_observation" && applicationState == "applied" &&
+		isBambuLANAdapter(a.AdapterKind) &&
+		bambuAutoDetectSpools(a.Settings) {
 		if err = reconcileBambuSlotObservation(ctx, tx, connector.ID, a.ID, a.MachineID, event.ID, input.Payload, input.OccurredAt); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
@@ -1194,7 +1533,14 @@ func isBambuLANAdapter(kind string) bool {
 	return kind == "bambu_h2d" || kind == "bambu_x1c"
 }
 
-func applyPrinterError(ctx context.Context, q *db.Queries, machineID, assignmentID uuid.UUID, runID *uuid.UUID, payload json.RawMessage, observedAt time.Time) error {
+func applyPrinterError(
+	ctx context.Context,
+	q *db.Queries,
+	machineID, assignmentID uuid.UUID,
+	runID *uuid.UUID,
+	payload json.RawMessage,
+	observedAt time.Time,
+) error {
 	var value struct {
 		Transition   string `json:"transition"`
 		SourceFamily string `json:"sourceFamily"`
@@ -1206,13 +1552,36 @@ func applyPrinterError(ctx context.Context, q *db.Queries, machineID, assignment
 	value.Transition = strings.TrimSpace(value.Transition)
 	value.SourceFamily = strings.TrimSpace(value.SourceFamily)
 	value.Code = strings.TrimSpace(value.Code)
-	if (value.Transition != "appeared" && value.Transition != "cleared") || value.SourceFamily == "" || len(value.SourceFamily) > 80 || value.Code == "" || len(value.Code) > 120 {
+	if (value.Transition != "appeared" && value.Transition != "cleared") || value.SourceFamily == "" ||
+		len(value.SourceFamily) > 80 ||
+		value.Code == "" ||
+		len(value.Code) > 120 {
 		return nil
 	}
 	if value.Transition == "cleared" {
-		return q.ResolvePrinterErrorOccurrence(ctx, db.ResolvePrinterErrorOccurrenceParams{AssignmentID: &assignmentID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC()})
+		return q.ResolvePrinterErrorOccurrence(
+			ctx,
+			db.ResolvePrinterErrorOccurrenceParams{
+				AssignmentID: &assignmentID,
+				SourceFamily: value.SourceFamily,
+				OriginalCode: value.Code,
+				ObservedAt:   observedAt.UTC(),
+			},
+		)
 	}
-	return q.UpsertPrinterErrorOccurrence(ctx, db.UpsertPrinterErrorOccurrenceParams{ID: uuid.Must(uuid.NewV7()), MachineID: machineID, AssignmentID: &assignmentID, RunID: runID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC(), Context: json.RawMessage(`{}`)})
+	return q.UpsertPrinterErrorOccurrence(
+		ctx,
+		db.UpsertPrinterErrorOccurrenceParams{
+			ID:           uuid.Must(uuid.NewV7()),
+			MachineID:    machineID,
+			AssignmentID: &assignmentID,
+			RunID:        runID,
+			SourceFamily: value.SourceFamily,
+			OriginalCode: value.Code,
+			ObservedAt:   observedAt.UTC(),
+			Context:      json.RawMessage(`{}`),
+		},
+	)
 }
 
 func recordedRunState(kind string, payload json.RawMessage) (string, error) {

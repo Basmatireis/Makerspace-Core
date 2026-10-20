@@ -26,7 +26,12 @@ import (
 )
 
 // signageActor creates a non-master account whose only permissions are the given ones.
-func signageActor(t *testing.T, pool *pgxpool.Pool, suffix string, permissions ...authorization.Permission) (authorization.Principal, seededAccount) {
+func signageActor(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	suffix string,
+	permissions ...authorization.Permission,
+) (authorization.Principal, seededAccount) {
 	t.Helper()
 	ctx := testContext(t)
 	account := seedAccount(t, pool, "signage-"+suffix, false)
@@ -44,7 +49,11 @@ func signageActor(t *testing.T, pool *pgxpool.Pool, suffix string, permissions .
 			t.Fatal(err)
 		}
 	}
-	principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: account.accountID, PersonID: account.personID})
+	principal, err := authorization.LoadPermissionsFrom(
+		ctx,
+		pool,
+		authorization.Principal{AccountID: account.accountID, PersonID: account.personID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,12 +74,21 @@ func newSignageFixture(t *testing.T) signageFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := signage.NewService(pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"}, files.NewService(pool, store))
+	service, err := signage.NewService(
+		pool,
+		config.Config{MakerspaceTimeZone: "Europe/Vienna"},
+		files.NewService(pool, store),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	account := seedAccount(t, pool, "signage-master", true)
-	return signageFixture{pool: pool, service: service, store: store, admin: authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}}
+	return signageFixture{
+		pool:    pool,
+		service: service,
+		store:   store,
+		admin:   authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true},
+	}
 }
 
 func signageJPEG(t *testing.T, width, height int) []byte {
@@ -90,7 +108,12 @@ func signageMP4(size int) []byte {
 
 func (f signageFixture) uploadImage(t *testing.T, name string) signage.Asset {
 	t.Helper()
-	asset, err := f.service.UploadAsset(testContext(t), f.admin, signage.UploadInput{Name: name, ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 64, 48))}, nil)
+	asset, err := f.service.UploadAsset(
+		testContext(t),
+		f.admin,
+		signage.UploadInput{Name: name, ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 64, 48))},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +179,12 @@ func (f signageFixture) playlist(t *testing.T, name string, scenes ...uuid.UUID)
 	for _, id := range scenes {
 		items = append(items, signage.PlaylistItem{SceneID: id, Seconds: 10, Transition: "cut"})
 	}
-	playlist, err := f.service.CreatePlaylist(testContext(t), f.admin, signage.PlaylistInput{Name: name, Items: items}, nil)
+	playlist, err := f.service.CreatePlaylist(
+		testContext(t),
+		f.admin,
+		signage.PlaylistInput{Name: name, Items: items},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,16 +216,33 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 	reader, _ := signageActor(t, f.pool, "reader", authorization.SignageRead)
 	content, _ := signageActor(t, f.pool, "content", authorization.SignageContentManage)
 	override, _ := signageActor(t, f.pool, "override", authorization.SignageOverride)
-	manager, _ := signageActor(t, f.pool, "manager", authorization.SignageManage, authorization.SignagePublish, authorization.LocalServicesManage)
+	manager, _ := signageActor(
+		t,
+		f.pool,
+		"manager",
+		authorization.SignageManage,
+		authorization.SignagePublish,
+		authorization.LocalServicesManage,
+	)
 
 	asset := f.uploadImage(t, "seed.jpg")
 	scene := f.scene(t, "Seed scene")
 	playlist := f.playlist(t, "Seed playlist", scene.ID)
-	template, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "Seed", Tone: "info", Title: "Hello", Body: ""}, nil)
+	template, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{Name: "Seed", Tone: "info", Title: "Hello", Body: ""},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	announcement, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true}, nil)
+	announcement, err := f.service.StartAnnouncement(
+		ctx,
+		f.admin,
+		signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,123 +254,284 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 		run     func(authorization.Principal) error
 	}
 	upload := func(p authorization.Principal) error {
-		_, err := f.service.UploadAsset(ctx, p, signage.UploadInput{Name: "x.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 8, 8))}, nil)
+		_, err := f.service.UploadAsset(
+			ctx,
+			p,
+			signage.UploadInput{Name: "x.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, 8, 8))},
+			nil,
+		)
 		return err
 	}
 	operations := []operation{
-		{"list layouts", reader, []authorization.Principal{nobody, content, override, manager}, func(p authorization.Principal) error { _, err := f.service.ListLayouts(ctx, p); return err }},
-		{"list assets", reader, []authorization.Principal{nobody, content, override, manager}, func(p authorization.Principal) error { _, err := f.service.ListAssets(ctx, p, nil); return err }},
-		{"get asset", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error { _, err := f.service.GetAsset(ctx, p, asset.ID); return err }},
-		{"open asset bytes", reader, []authorization.Principal{nobody, content, override}, func(p authorization.Principal) error {
-			opened, err := f.service.OpenAsset(ctx, p, asset.ID)
-			if err == nil {
-				opened.Reader.Close()
-			}
-			return err
-		}},
+		{
+			"list layouts",
+			reader,
+			[]authorization.Principal{nobody, content, override, manager},
+			func(p authorization.Principal) error { _, err := f.service.ListLayouts(ctx, p); return err },
+		},
+		{
+			"list assets",
+			reader,
+			[]authorization.Principal{nobody, content, override, manager},
+			func(p authorization.Principal) error { _, err := f.service.ListAssets(ctx, p, nil); return err },
+		},
+		{
+			"get asset",
+			reader,
+			[]authorization.Principal{nobody, content},
+			func(p authorization.Principal) error { _, err := f.service.GetAsset(ctx, p, asset.ID); return err },
+		},
+		{
+			"open asset bytes",
+			reader,
+			[]authorization.Principal{nobody, content, override},
+			func(p authorization.Principal) error {
+				opened, err := f.service.OpenAsset(ctx, p, asset.ID)
+				if err == nil {
+					opened.Reader.Close()
+				}
+				return err
+			},
+		},
 		{"upload asset", content, []authorization.Principal{nobody, reader, override, manager}, upload},
-		{"rename asset", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.RenameAsset(ctx, p, asset.ID, "renamed.jpg", nil)
-			return err
-		}},
-		{"list scenes", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error { _, err := f.service.ListScenes(ctx, p); return err }},
-		{"get scene", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error { _, err := f.service.GetScene(ctx, p, scene.ID); return err }},
-		{"create scene", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.CreateScene(ctx, p, sceneInput("Permission scene", "full"), nil)
-			return err
-		}},
-		{"update scene", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.UpdateScene(ctx, p, scene.ID, 99, sceneInput("Seed scene", "full"), nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"list playlists", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error { _, err := f.service.ListPlaylists(ctx, p); return err }},
+		{
+			"rename asset",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.RenameAsset(ctx, p, asset.ID, "renamed.jpg", nil)
+				return err
+			},
+		},
+		{
+			"list scenes",
+			reader,
+			[]authorization.Principal{nobody, content},
+			func(p authorization.Principal) error { _, err := f.service.ListScenes(ctx, p); return err },
+		},
+		{
+			"get scene",
+			reader,
+			[]authorization.Principal{nobody, content},
+			func(p authorization.Principal) error { _, err := f.service.GetScene(ctx, p, scene.ID); return err },
+		},
+		{
+			"create scene",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.CreateScene(ctx, p, sceneInput("Permission scene", "full"), nil)
+				return err
+			},
+		},
+		{
+			"update scene",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.UpdateScene(ctx, p, scene.ID, 99, sceneInput("Seed scene", "full"), nil)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"list playlists",
+			reader,
+			[]authorization.Principal{nobody, content},
+			func(p authorization.Principal) error { _, err := f.service.ListPlaylists(ctx, p); return err },
+		},
 		{"get playlist", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error {
 			_, err := f.service.GetPlaylist(ctx, p, playlist.ID)
 			return err
 		}},
-		{"create playlist", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.CreatePlaylist(ctx, p, signage.PlaylistInput{Name: "Permission playlist"}, nil)
-			return err
-		}},
-		{"update playlist", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.UpdatePlaylist(ctx, p, playlist.ID, 99, signage.PlaylistInput{Name: "Seed playlist"}, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"list templates", reader, []authorization.Principal{nobody, content, override}, func(p authorization.Principal) error { _, err := f.service.ListTemplates(ctx, p); return err }},
-		{"get template", reader, []authorization.Principal{nobody, content, override}, func(p authorization.Principal) error {
-			_, err := f.service.GetTemplate(ctx, p, template.ID)
-			return err
-		}},
-		{"create template", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.CreateTemplate(ctx, p, signage.TemplateInput{Name: "Permission template", Tone: "info", Title: "T"}, nil)
-			return err
-		}},
-		{"update template", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			_, err := f.service.UpdateTemplate(ctx, p, template.ID, 99, signage.TemplateInput{Name: "Seed", Tone: "info", Title: "Hello"}, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"list announcements", reader, []authorization.Principal{nobody, content, override}, func(p authorization.Principal) error { _, err := f.service.ListAnnouncements(ctx, p); return err }},
-		{"get announcement", reader, []authorization.Principal{nobody, content, override}, func(p authorization.Principal) error {
-			_, err := f.service.GetAnnouncement(ctx, p, announcement.ID)
-			return err
-		}},
-		{"start announcement", override, []authorization.Principal{nobody, reader, content, manager}, func(p authorization.Principal) error {
-			_, err := f.service.StartAnnouncement(ctx, p, signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true}, nil)
-			return err
-		}},
-		{"edit announcement", override, []authorization.Principal{nobody, reader, content, manager}, func(p authorization.Principal) error {
-			startsAt := time.Now()
-			_, err := f.service.UpdateAnnouncement(ctx, p, announcement.ID, 99, signage.AnnouncementInput{AllDisplays: true, StartsAt: &startsAt}, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"stop announcement", override, []authorization.Principal{nobody, reader, content, manager}, func(p authorization.Principal) error {
-			err := f.service.StopAnnouncement(ctx, p, announcement.ID, 99, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"delete scene", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			err := f.service.DeleteScene(ctx, p, scene.ID, 99, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"delete playlist", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			err := f.service.DeletePlaylist(ctx, p, playlist.ID, 99, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"delete template", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			err := f.service.DeleteTemplate(ctx, p, template.ID, 99, nil)
-			if apperror.IsCode(err, "stale_write") {
-				return nil
-			}
-			return err
-		}},
-		{"delete asset", content, []authorization.Principal{nobody, reader, override, manager}, func(p authorization.Principal) error {
-			// The asset is referenced below, so an allowed caller is refused with signage_in_use rather than permission_denied.
-			err := f.service.DeleteAsset(ctx, p, asset.ID, nil)
-			if apperror.IsCode(err, "signage_in_use") {
-				return nil
-			}
-			return err
-		}},
+		{
+			"create playlist",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.CreatePlaylist(ctx, p, signage.PlaylistInput{Name: "Permission playlist"}, nil)
+				return err
+			},
+		},
+		{
+			"update playlist",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.UpdatePlaylist(
+					ctx,
+					p,
+					playlist.ID,
+					99,
+					signage.PlaylistInput{Name: "Seed playlist"},
+					nil,
+				)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"list templates",
+			reader,
+			[]authorization.Principal{nobody, content, override},
+			func(p authorization.Principal) error { _, err := f.service.ListTemplates(ctx, p); return err },
+		},
+		{
+			"get template",
+			reader,
+			[]authorization.Principal{nobody, content, override},
+			func(p authorization.Principal) error {
+				_, err := f.service.GetTemplate(ctx, p, template.ID)
+				return err
+			},
+		},
+		{
+			"create template",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.CreateTemplate(
+					ctx,
+					p,
+					signage.TemplateInput{Name: "Permission template", Tone: "info", Title: "T"},
+					nil,
+				)
+				return err
+			},
+		},
+		{
+			"update template",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.UpdateTemplate(
+					ctx,
+					p,
+					template.ID,
+					99,
+					signage.TemplateInput{Name: "Seed", Tone: "info", Title: "Hello"},
+					nil,
+				)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"list announcements",
+			reader,
+			[]authorization.Principal{nobody, content, override},
+			func(p authorization.Principal) error { _, err := f.service.ListAnnouncements(ctx, p); return err },
+		},
+		{
+			"get announcement",
+			reader,
+			[]authorization.Principal{nobody, content, override},
+			func(p authorization.Principal) error {
+				_, err := f.service.GetAnnouncement(ctx, p, announcement.ID)
+				return err
+			},
+		},
+		{
+			"start announcement",
+			override,
+			[]authorization.Principal{nobody, reader, content, manager},
+			func(p authorization.Principal) error {
+				_, err := f.service.StartAnnouncement(
+					ctx,
+					p,
+					signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true},
+					nil,
+				)
+				return err
+			},
+		},
+		{
+			"edit announcement",
+			override,
+			[]authorization.Principal{nobody, reader, content, manager},
+			func(p authorization.Principal) error {
+				startsAt := time.Now()
+				_, err := f.service.UpdateAnnouncement(
+					ctx,
+					p,
+					announcement.ID,
+					99,
+					signage.AnnouncementInput{AllDisplays: true, StartsAt: &startsAt},
+					nil,
+				)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"stop announcement",
+			override,
+			[]authorization.Principal{nobody, reader, content, manager},
+			func(p authorization.Principal) error {
+				err := f.service.StopAnnouncement(ctx, p, announcement.ID, 99, nil)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"delete scene",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				err := f.service.DeleteScene(ctx, p, scene.ID, 99, nil)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"delete playlist",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				err := f.service.DeletePlaylist(ctx, p, playlist.ID, 99, nil)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"delete template",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				err := f.service.DeleteTemplate(ctx, p, template.ID, 99, nil)
+				if apperror.IsCode(err, "stale_write") {
+					return nil
+				}
+				return err
+			},
+		},
+		{
+			"delete asset",
+			content,
+			[]authorization.Principal{nobody, reader, override, manager},
+			func(p authorization.Principal) error {
+				// The asset is referenced below, so an allowed caller is refused with signage_in_use rather than permission_denied.
+				err := f.service.DeleteAsset(ctx, p, asset.ID, nil)
+				if apperror.IsCode(err, "signage_in_use") {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 	// Reference the asset so the allowed delete does not remove it before other checks.
 	referencing := sceneInput("Uses asset", "full")
@@ -354,11 +560,21 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	ctx := testContext(t)
 
 	imageBytes := signageJPEG(t, 64, 48)
-	asset, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: " Poster.jpg ", ContentType: "image/jpeg", Body: bytes.NewReader(imageBytes)}, nil)
+	asset, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{Name: " Poster.jpg ", ContentType: "image/jpeg", Body: bytes.NewReader(imageBytes)},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if asset.Kind != "image" || asset.Name != "Poster.jpg" || asset.Width == nil || *asset.Width != 64 || *asset.Height != 48 || asset.DurationMs != nil || asset.SizeBytes != int64(len(imageBytes)) || len(asset.SHA256) != 64 || asset.ContentType != "image/jpeg" {
+	if asset.Kind != "image" || asset.Name != "Poster.jpg" || asset.Width == nil || *asset.Width != 64 ||
+		*asset.Height != 48 ||
+		asset.DurationMs != nil ||
+		asset.SizeBytes != int64(len(imageBytes)) ||
+		len(asset.SHA256) != 64 ||
+		asset.ContentType != "image/jpeg" {
 		t.Fatalf("asset = %#v", asset)
 	}
 	opened, err := f.service.OpenAsset(ctx, f.admin, asset.ID)
@@ -372,14 +588,31 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	}
 
 	width, height, duration := 1920, 1080, 90000
-	video, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "Loop.mp4", ContentType: "video/mp4", Width: &width, Height: &height, DurationMs: &duration, Body: bytes.NewReader(signageMP4(3 << 20))}, nil)
+	video, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{
+			Name:        "Loop.mp4",
+			ContentType: "video/mp4",
+			Width:       &width,
+			Height:      &height,
+			DurationMs:  &duration,
+			Body:        bytes.NewReader(signageMP4(3 << 20)),
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if video.Kind != "video" || *video.Width != 1920 || *video.DurationMs != 90000 || video.SizeBytes != 3<<20 {
 		t.Fatalf("video = %#v", video)
 	}
-	bare, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "Bare.mp4", ContentType: "video/mp4", Body: bytes.NewReader(signageMP4(64))}, nil)
+	bare, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{Name: "Bare.mp4", ContentType: "video/mp4", Body: bytes.NewReader(signageMP4(64))},
+		nil,
+	)
 	if err != nil || bare.Width != nil || bare.Height != nil || bare.DurationMs != nil {
 		t.Fatalf("video without dimensions = %#v, %v", bare, err)
 	}
@@ -401,7 +634,10 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 		}
 	}
 	oversize := bytes.NewReader(make([]byte, signage.MaxImageBytes+1))
-	if _, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "huge.png", ContentType: "image/png", Body: oversize}, nil); !apperror.IsCode(err, "signage_asset_too_large") {
+	if _, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "huge.png", ContentType: "image/png", Body: oversize}, nil); !apperror.IsCode(
+		err,
+		"signage_asset_too_large",
+	) {
 		t.Fatalf("oversize image error = %v", err)
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_assets`, 3)
@@ -411,7 +647,10 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	if err != nil || renamed.Name != "Welcome poster" {
 		t.Fatalf("rename = %#v, %v", renamed, err)
 	}
-	if _, err := f.service.RenameAsset(ctx, f.admin, uuid.Must(uuid.NewV7()), "x", nil); !apperror.IsCode(err, "not_found") {
+	if _, err := f.service.RenameAsset(ctx, f.admin, uuid.Must(uuid.NewV7()), "x", nil); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("rename unknown: %v", err)
 	}
 	images, err := f.service.ListAssets(ctx, f.admin, ptr("image"))
@@ -431,7 +670,9 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 		t.Fatal(err)
 	}
 	widgetScene := sceneInput("Widget user", "split")
-	widgetScene.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"video","mediaId":"` + video.ID.String() + `","fit":"cover"}`)}
+	widgetScene.Zones = map[string]json.RawMessage{
+		"left": json.RawMessage(`{"type":"video","mediaId":"` + video.ID.String() + `","fit":"cover"}`),
+	}
 	widgetUser, err := f.service.CreateScene(ctx, f.admin, widgetScene, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -479,20 +720,32 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	f := newSignageFixture(t)
 	ctx := testContext(t)
 	image := f.uploadImage(t, "pic.jpg")
-	video, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "v.mp4", ContentType: "video/mp4", Body: bytes.NewReader(signageMP4(64))}, nil)
+	video, err := f.service.UploadAsset(
+		ctx,
+		f.admin,
+		signage.UploadInput{Name: "v.mp4", ContentType: "video/mp4", Body: bytes.NewReader(signageMP4(64))},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	machine := f.machine(t, "Printer A")
-	template, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "T", Tone: "info", Title: "Hi"}, nil)
+	template, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{Name: "T", Tone: "info", Title: "Hi"},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	input := sceneInput("Lobby", "split")
 	input.Zones = map[string]json.RawMessage{
-		"left":  json.RawMessage(`{"type":"image","mediaId":"` + image.ID.String() + `","fit":"cover"}`),
-		"right": json.RawMessage(`{"type":"status","machineIds":["` + machine.String() + `"],"showProgress":true,"showRemaining":false}`),
+		"left": json.RawMessage(`{"type":"image","mediaId":"` + image.ID.String() + `","fit":"cover"}`),
+		"right": json.RawMessage(
+			`{"type":"status","machineIds":["` + machine.String() + `"],"showProgress":true,"showRemaining":false}`,
+		),
 	}
 	scene, err := f.service.CreateScene(ctx, f.admin, input, nil)
 	if err != nil {
@@ -522,21 +775,41 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		"empty name":            {func(i *signage.SceneInput) { i.Name = " " }},
 		"zone not in layout":    {func(i *signage.SceneInput) { i.Zones = emptyZonesJSON("main") }},
 		"background is a video": {func(i *signage.SceneInput) { i.BackgroundAssetID = &video.ID }},
-		"background missing":    {func(i *signage.SceneInput) { missing := uuid.Must(uuid.NewV7()); i.BackgroundAssetID = &missing }},
+		"background missing": {
+			func(i *signage.SceneInput) { missing := uuid.Must(uuid.NewV7()); i.BackgroundAssetID = &missing },
+		},
 		"image widget uses video": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"image","mediaId":"` + video.ID.String() + `","fit":"cover"}`)}
+			i.Zones = map[string]json.RawMessage{
+				"left": json.RawMessage(`{"type":"image","mediaId":"` + video.ID.String() + `","fit":"cover"}`),
+			}
 		}},
 		"video widget uses image": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"video","mediaId":"` + image.ID.String() + `","fit":"cover"}`)}
+			i.Zones = map[string]json.RawMessage{
+				"left": json.RawMessage(`{"type":"video","mediaId":"` + image.ID.String() + `","fit":"cover"}`),
+			}
 		}},
 		"missing machine": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"status","machineIds":["` + uuid.Must(uuid.NewV7()).String() + `"],"showProgress":true,"showRemaining":true}`)}
+			i.Zones = map[string]json.RawMessage{
+				"left": json.RawMessage(
+					`{"type":"status","machineIds":["` + uuid.Must(uuid.NewV7()).
+						String() +
+						`"],"showProgress":true,"showRemaining":true}`,
+				),
+			}
 		}},
 		"missing template": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"announcement","templateIds":["` + uuid.Must(uuid.NewV7()).String() + `"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`)}
+			i.Zones = map[string]json.RawMessage{
+				"left": json.RawMessage(
+					`{"type":"announcement","templateIds":["` + uuid.Must(uuid.NewV7()).
+						String() +
+						`"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
+				),
+			}
 		}},
 		"http qr": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"qr","url":"http://insecure.example","caption":""}`)}
+			i.Zones = map[string]json.RawMessage{
+				"left": json.RawMessage(`{"type":"qr","url":"http://insecure.example","caption":""}`),
+			}
 		}},
 		"unknown widget field": {func(i *signage.SceneInput) {
 			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"clock","mode":"time","script":"x"}`)}
@@ -548,7 +821,10 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		if _, err := f.service.CreateScene(ctx, f.admin, candidate, nil); !apperror.IsCode(err, "validation_failed") {
 			t.Errorf("create %s: error = %v, want validation_failed", name, err)
 		}
-		if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, candidate, nil); !apperror.IsCode(err, "validation_failed") {
+		if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, candidate, nil); !apperror.IsCode(
+			err,
+			"validation_failed",
+		) {
 			t.Errorf("update %s: error = %v, want validation_failed", name, err)
 		}
 	}
@@ -556,7 +832,11 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 
 	// A widget that filters announcements by template makes the template undeletable.
 	filtered := sceneInput("Announcer", "full")
-	filtered.Zones = map[string]json.RawMessage{"main": json.RawMessage(`{"type":"announcement","templateIds":["` + template.ID.String() + `"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`)}
+	filtered.Zones = map[string]json.RawMessage{
+		"main": json.RawMessage(
+			`{"type":"announcement","templateIds":["` + template.ID.String() + `"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
+		),
+	}
 	announcer, err := f.service.CreateScene(ctx, f.admin, filtered, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -572,19 +852,29 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Version != 2 || updated.Name != "Lobby renamed" || string(updated.Zones["left"]) != string(scene.Zones["left"]) {
+	if updated.Version != 2 || updated.Name != "Lobby renamed" ||
+		string(updated.Zones["left"]) != string(scene.Zones["left"]) {
 		t.Fatalf("update without zones must keep widgets: %#v", updated)
 	}
-	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, renamed, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, renamed, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale update: %v", err)
 	}
 	if err := f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale delete: %v", err)
 	}
-	if _, err := f.service.UpdateScene(ctx, f.admin, uuid.Must(uuid.NewV7()), 1, renamed, nil); !apperror.IsCode(err, "not_found") {
+	if _, err := f.service.UpdateScene(ctx, f.admin, uuid.Must(uuid.NewV7()), 1, renamed, nil); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("unknown scene: %v", err)
 	}
-	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, 0, renamed, nil); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, 0, renamed, nil); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("zero version: %v", err)
 	}
 
@@ -594,7 +884,9 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if remapped.LayoutID != "stack3" || string(remapped.Zones["header"]) != string(updated.Zones["left"]) || string(remapped.Zones["main"]) != string(updated.Zones["right"]) || string(remapped.Zones["footer"]) != `{"type":"empty"}` {
+	if remapped.LayoutID != "stack3" || string(remapped.Zones["header"]) != string(updated.Zones["left"]) ||
+		string(remapped.Zones["main"]) != string(updated.Zones["right"]) ||
+		string(remapped.Zones["footer"]) != `{"type":"empty"}` {
 		t.Fatalf("remapped zones = %v", remapped.Zones)
 	}
 	if _, ok := remapped.Zones["left"]; ok {
@@ -627,7 +919,8 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	}
 	for _, action := range []string{"signage_scene.created", "signage_scene.updated", "signage_scene.deleted"} {
 		var count int
-		if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action=$1`, action).Scan(&count); err != nil || count == 0 {
+		if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action=$1`, action).Scan(&count); err != nil ||
+			count == 0 {
 			t.Fatalf("no audit row for %s (%v)", action, err)
 		}
 	}
@@ -646,26 +939,49 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 	ctx := testContext(t)
 	one, two, three := f.scene(t, "One"), f.scene(t, "Two"), f.scene(t, "Three")
 
-	playlist, err := f.service.CreatePlaylist(ctx, f.admin, signage.PlaylistInput{Name: "Morning", Items: []signage.PlaylistItem{
-		{SceneID: one.ID, Seconds: 10, Transition: "cut"}, {SceneID: two.ID, Seconds: 20, Transition: "fade"},
-	}}, nil)
+	playlist, err := f.service.CreatePlaylist(
+		ctx,
+		f.admin,
+		signage.PlaylistInput{Name: "Morning", Items: []signage.PlaylistItem{
+			{SceneID: one.ID, Seconds: 10, Transition: "cut"}, {SceneID: two.ID, Seconds: 20, Transition: "fade"},
+		}},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if playlist.Version != 1 || len(playlist.Items) != 2 || playlist.Items[1].SceneID != two.ID || playlist.Items[1].Transition != "fade" {
+	if playlist.Version != 1 || len(playlist.Items) != 2 || playlist.Items[1].SceneID != two.ID ||
+		playlist.Items[1].Transition != "fade" {
 		t.Fatalf("playlist = %#v", playlist)
 	}
 	// The same scene may appear twice; order is the item order.
-	reordered, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: "Morning loop", Items: []signage.PlaylistItem{
-		{SceneID: two.ID, Seconds: 5, Transition: "cut"}, {SceneID: one.ID, Seconds: 3600, Transition: "fade"}, {SceneID: two.ID, Seconds: 3, Transition: "cut"},
-	}}, nil)
+	reordered, err := f.service.UpdatePlaylist(
+		ctx,
+		f.admin,
+		playlist.ID,
+		playlist.Version,
+		signage.PlaylistInput{Name: "Morning loop", Items: []signage.PlaylistItem{
+			{
+				SceneID:    two.ID,
+				Seconds:    5,
+				Transition: "cut",
+			}, {SceneID: one.ID, Seconds: 3600, Transition: "fade"}, {SceneID: two.ID, Seconds: 3, Transition: "cut"},
+		}},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reordered.Version != 2 || reordered.Name != "Morning loop" || len(reordered.Items) != 3 || reordered.Items[0].SceneID != two.ID || reordered.Items[1].SceneID != one.ID || reordered.Items[2].Seconds != 3 {
+	if reordered.Version != 2 || reordered.Name != "Morning loop" || len(reordered.Items) != 3 ||
+		reordered.Items[0].SceneID != two.ID ||
+		reordered.Items[1].SceneID != one.ID ||
+		reordered.Items[2].Seconds != 3 {
 		t.Fatalf("reordered = %#v", reordered)
 	}
-	if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: "Stale"}, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: "Stale"}, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale update: %v", err)
 	}
 
@@ -683,7 +999,10 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 				items[index] = signage.PlaylistItem{SceneID: three.ID, Seconds: 10, Transition: "cut"}
 			}
 		}
-		if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, reordered.Version, signage.PlaylistInput{Name: "Broken", Items: items}, nil); !apperror.IsCode(err, "validation_failed") {
+		if _, err := f.service.UpdatePlaylist(ctx, f.admin, playlist.ID, reordered.Version, signage.PlaylistInput{Name: "Broken", Items: items}, nil); !apperror.IsCode(
+			err,
+			"validation_failed",
+		) {
 			t.Errorf("%s: error = %v", name, err)
 		}
 	}
@@ -691,7 +1010,10 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 	if err != nil || unchanged.Version != 2 || unchanged.Name != "Morning loop" || len(unchanged.Items) != 3 {
 		t.Fatalf("failed replacement changed the playlist: %#v, %v", unchanged, err)
 	}
-	if _, err := f.service.CreatePlaylist(ctx, f.admin, signage.PlaylistInput{Name: "Orphan", Items: []signage.PlaylistItem{{SceneID: missing, Seconds: 10, Transition: "cut"}}}, nil); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.service.CreatePlaylist(ctx, f.admin, signage.PlaylistInput{Name: "Orphan", Items: []signage.PlaylistItem{{SceneID: missing, Seconds: 10, Transition: "cut"}}}, nil); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("create with missing scene: %v", err)
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlists`, 1)
@@ -710,7 +1032,10 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectInUse(t, f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version, nil), "display_rule")
-	if err := f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version+1, nil); !apperror.IsCode(err, "stale_write") {
+	if err := f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version+1, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale delete: %v", err)
 	}
 	if _, err := f.pool.Exec(ctx, `DELETE FROM signage_rules`); err != nil {
@@ -764,12 +1089,18 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	// Editing: stale version, unknown placeholder, success.
 	edited := input
 	edited.Name = "Machine out of order"
-	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, 7, edited, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, 7, edited, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale template update: %v", err)
 	}
 	broken := edited
 	broken.Title = "{unknown_thing}"
-	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, broken, nil); !apperror.IsCode(err, "unknown_placeholders") {
+	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, broken, nil); !apperror.IsCode(
+		err,
+		"unknown_placeholders",
+	) {
 		t.Fatalf("unknown placeholder on update: %v", err)
 	}
 	template, err = f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, edited, nil)
@@ -778,7 +1109,11 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	}
 
 	// Starting: validation per type and required.
-	start := signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"machine": machine.String(), "back_on": "2026-10-23T09:00"}, AllDisplays: true}
+	start := signage.AnnouncementInput{
+		TemplateID:  template.ID,
+		Values:      map[string]string{"machine": machine.String(), "back_on": "2026-10-23T09:00"},
+		AllDisplays: true,
+	}
 	cases := map[string]func(*signage.AnnouncementInput){
 		"required missing":  func(i *signage.AnnouncementInput) { i.Values = map[string]string{"back_on": "2026-10-23T09:00"} },
 		"unknown key":       func(i *signage.AnnouncementInput) { i.Values["colour"] = "red" },
@@ -804,7 +1139,10 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 		candidate := start
 		candidate.Values = map[string]string{"machine": machine.String(), "back_on": "2026-10-23T09:00"}
 		change(&candidate)
-		if _, err := f.service.StartAnnouncement(ctx, f.admin, candidate, nil); !apperror.IsCode(err, "validation_failed") {
+		if _, err := f.service.StartAnnouncement(ctx, f.admin, candidate, nil); !apperror.IsCode(
+			err,
+			"validation_failed",
+		) {
 			t.Errorf("%s: error = %v, want validation_failed", name, err)
 		}
 	}
@@ -815,11 +1153,16 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if running.Status != "active" || !running.AllDisplays || len(running.DisplayIDs) != 0 || running.EndsAt != nil || running.Values["room"] != "Wood" || running.Version != 1 {
+	if running.Status != "active" || !running.AllDisplays || len(running.DisplayIDs) != 0 || running.EndsAt != nil ||
+		running.Values["room"] != "Wood" ||
+		running.Version != 1 {
 		t.Fatalf("running = %#v", running)
 	}
 	if running.Rendered.Title != "Laser out of order" || running.Rendered.Tone != "warning" ||
-		!strings.Contains(running.Rendered.Body, "Room Wood.") || !strings.Contains(running.Rendered.Body, "{display} at {location}") || !strings.Contains(running.Rendered.Body, "until further notice") {
+		!strings.Contains(
+			running.Rendered.Body,
+			"Room Wood.",
+		) || !strings.Contains(running.Rendered.Body, "{display} at {location}") || !strings.Contains(running.Rendered.Body, "until further notice") {
 		t.Fatalf("rendered = %#v", running.Rendered)
 	}
 
@@ -831,7 +1174,9 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scheduled.Status != "scheduled" || scheduled.AllDisplays || len(scheduled.DisplayIDs) != 2 || scheduled.EndsAt == nil || strings.Contains(scheduled.Rendered.Body, "until further notice") {
+	if scheduled.Status != "scheduled" || scheduled.AllDisplays || len(scheduled.DisplayIDs) != 2 ||
+		scheduled.EndsAt == nil ||
+		strings.Contains(scheduled.Rendered.Body, "until further notice") {
 		t.Fatalf("scheduled = %#v", scheduled)
 	}
 
@@ -855,34 +1200,67 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcements WHERE id=$1`, 0, ended)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_values WHERE announcement_id=$1`, 0, ended)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcements WHERE id=$1`, 1, recent)
-	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE action='signage_announcement.expired' AND resource_id=$1 AND actor_type='system'`, 1, ended)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM audit_events WHERE action='signage_announcement.expired' AND resource_id=$1 AND actor_type='system'`,
+		1,
+		ended,
+	)
 	if _, err := f.service.GetAnnouncement(ctx, f.admin, recent); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("ended announcement visible: %v", err)
 	}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, recent, 1, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true, StartsAt: &startsAt}, nil); !apperror.IsCode(err, "not_found") {
+	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, recent, 1, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true, StartsAt: &startsAt}, nil); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("ended announcement editable: %v", err)
 	}
 
 	// Editing: stale write, changed targets and values.
 	newEnd := time.Now().Add(5 * time.Hour)
-	edit := signage.AnnouncementInput{Values: map[string]string{"machine": machine.String(), "room": "Metal"}, DisplayIDs: []uuid.UUID{display}, StartsAt: &startsAt, EndsAt: &newEnd}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, 9, edit, nil); !apperror.IsCode(err, "stale_write") {
+	edit := signage.AnnouncementInput{
+		Values:     map[string]string{"machine": machine.String(), "room": "Metal"},
+		DisplayIDs: []uuid.UUID{display},
+		StartsAt:   &startsAt,
+		EndsAt:     &newEnd,
+	}
+	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, 9, edit, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale announcement edit: %v", err)
 	}
-	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, scheduled.Version, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true}, nil); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, scheduled.Version, signage.AnnouncementInput{Values: map[string]string{"machine": machine.String()}, AllDisplays: true}, nil); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("edit without startsAt: %v", err)
 	}
 	editedAnnouncement, err := f.service.UpdateAnnouncement(ctx, f.admin, scheduled.ID, scheduled.Version, edit, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if editedAnnouncement.Version != 2 || len(editedAnnouncement.DisplayIDs) != 1 || editedAnnouncement.DisplayIDs[0] != display || editedAnnouncement.Values["room"] != "Metal" {
+	if editedAnnouncement.Version != 2 || len(editedAnnouncement.DisplayIDs) != 1 ||
+		editedAnnouncement.DisplayIDs[0] != display ||
+		editedAnnouncement.Values["room"] != "Metal" {
 		t.Fatalf("edited = %#v", editedAnnouncement)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_displays WHERE announcement_id=$1`, 1, scheduled.ID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM signage_announcement_displays WHERE announcement_id=$1`,
+		1,
+		scheduled.ID,
+	)
 
 	// Deleting a template is blocked while announcements run, a rule filters it or a widget uses it.
-	expectInUse(t, f.service.DeleteTemplate(ctx, f.admin, template.ID, template.Version, nil), "announcement", "announcement")
+	expectInUse(
+		t,
+		f.service.DeleteTemplate(ctx, f.admin, template.ID, template.Version, nil),
+		"announcement",
+		"announcement",
+	)
 	// Stopping hard-deletes the announcement with its values and targets.
 	if err := f.service.StopAnnouncement(ctx, f.admin, scheduled.ID, 1, nil); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale stop: %v", err)
@@ -893,9 +1271,25 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	if err := f.service.StopAnnouncement(ctx, f.admin, running.ID, running.Version, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_values WHERE announcement_id IN ($1, $2)`, 0, scheduled.ID, running.ID)
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_displays WHERE announcement_id=$1`, 0, scheduled.ID)
-	if err := f.service.StopAnnouncement(ctx, f.admin, running.ID, running.Version, nil); !apperror.IsCode(err, "not_found") {
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM signage_announcement_values WHERE announcement_id IN ($1, $2)`,
+		0,
+		scheduled.ID,
+		running.ID,
+	)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM signage_announcement_displays WHERE announcement_id=$1`,
+		0,
+		scheduled.ID,
+	)
+	if err := f.service.StopAnnouncement(ctx, f.admin, running.ID, running.Version, nil); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("second stop: %v", err)
 	}
 
@@ -920,20 +1314,40 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 func TestSignageTemplateUpdateDropsValuesOfRemovedFields(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
-	template, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "Notice", Tone: "info", Title: "{a}", Body: "{b}", Fields: []signage.TemplateField{
-		{Key: "a", Label: "A", Type: "text"}, {Key: "b", Label: "B", Type: "text"},
-	}}, nil)
+	template, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{Name: "Notice", Tone: "info", Title: "{a}", Body: "{b}", Fields: []signage.TemplateField{
+			{Key: "a", Label: "A", Type: "text"}, {Key: "b", Label: "B", Type: "text"},
+		}},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	announcement, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"a": "one", "b": "two"}, AllDisplays: true}, nil)
+	announcement, err := f.service.StartAnnouncement(
+		ctx,
+		f.admin,
+		signage.AnnouncementInput{
+			TemplateID:  template.ID,
+			Values:      map[string]string{"a": "one", "b": "two"},
+			AllDisplays: true,
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.service.UpdateTemplate(ctx, f.admin, template.ID, template.Version, signage.TemplateInput{Name: "Notice", Tone: "info", Title: "{a}", Body: "", Fields: []signage.TemplateField{{Key: "a", Label: "A", Type: "text"}}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_values WHERE announcement_id=$1`, 1, announcement.ID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM signage_announcement_values WHERE announcement_id=$1`,
+		1,
+		announcement.ID,
+	)
 	read, err := f.service.GetAnnouncement(ctx, f.admin, announcement.ID)
 	if err != nil || read.Values["a"] != "one" || read.Values["b"] != "" || read.Rendered.Title != "one" {
 		t.Fatalf("announcement after template edit = %#v, %v", read, err)
@@ -948,12 +1362,28 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	scene := f.scene(t, "Existing")
-	template, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "T", Tone: "info", Title: "Hi", Body: "", Fields: []signage.TemplateField{{Key: "who", Label: "Who", Type: "text"}}}, nil)
+	template, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{
+			Name:   "T",
+			Tone:   "info",
+			Title:  "Hi",
+			Body:   "",
+			Fields: []signage.TemplateField{{Key: "who", Label: "Who", Type: "text"}},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	playlist := f.playlist(t, "P", scene.ID)
-	announcement, err := f.service.StartAnnouncement(ctx, f.admin, signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"who": "kept"}, AllDisplays: true}, nil)
+	announcement, err := f.service.StartAnnouncement(
+		ctx,
+		f.admin,
+		signage.AnnouncementInput{TemplateID: template.ID, Values: map[string]string{"who": "kept"}, AllDisplays: true},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1022,7 +1452,17 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 func TestSignageAnnouncementAuditContainsFieldNamesOnly(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
-	template, err := f.service.CreateTemplate(ctx, f.admin, signage.TemplateInput{Name: "Notice", Tone: "info", Title: "{who}", Fields: []signage.TemplateField{{Key: "who", Label: "Who", Type: "text"}}}, nil)
+	template, err := f.service.CreateTemplate(
+		ctx,
+		f.admin,
+		signage.TemplateInput{
+			Name:   "Notice",
+			Tone:   "info",
+			Title:  "{who}",
+			Fields: []signage.TemplateField{{Key: "who", Label: "Who", Type: "text"}},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1030,10 +1470,16 @@ func TestSignageAnnouncementAuditContainsFieldNamesOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE (changed_fields::text || metadata::text) LIKE '%SECRET-MESSAGE-TEXT%'`).Scan(&count); err != nil || count != 0 {
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE (changed_fields::text || metadata::text) LIKE '%SECRET-MESSAGE-TEXT%'`).Scan(&count); err != nil ||
+		count != 0 {
 		t.Fatalf("announcement value reached the audit log (%d, %v)", count, err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE action='signage_announcement.started' AND actor_type='user'`, 1)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM audit_events WHERE action='signage_announcement.started' AND actor_type='user'`,
+		1,
+	)
 }
 
 func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
@@ -1043,7 +1489,14 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	cfg.LocalStorageRoot = t.TempDir()
 	cfg.SessionCookieName = "makerspace_session"
 	cfg.CSRFCookieName = "makerspace_csrf"
-	_, editor := signageActor(t, pool, "http-editor", authorization.SignageRead, authorization.SignageContentManage, authorization.SignageOverride)
+	_, editor := signageActor(
+		t,
+		pool,
+		"http-editor",
+		authorization.SignageRead,
+		authorization.SignageContentManage,
+		authorization.SignageOverride,
+	)
 	_, viewer := signageActor(t, pool, "http-viewer", authorization.SignageRead)
 	_, outsider := signageActor(t, pool, "http-outsider", authorization.SignageContentManage)
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
@@ -1119,19 +1572,41 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	response = send(viewerClient, viewerCSRF, http.MethodPost, "/signage/assets", imageBytes, uploadHeaders)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/assets", imageBytes, map[string]string{"X-File-Name": "poster.jpg", "X-File-Content-Type": "application/pdf"})
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodPost,
+		"/signage/assets",
+		imageBytes,
+		map[string]string{"X-File-Name": "poster.jpg", "X-File-Content-Type": "application/pdf"},
+	)
 	assertStatus(t, response, http.StatusBadRequest)
 	response.Body.Close()
 	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/assets", imageBytes, uploadHeaders)
 	assertStatus(t, response, http.StatusCreated)
 	asset := decode(response)
 	assetID := asset["id"].(string)
-	if asset["kind"] != "image" || asset["width"] != float64(40) || asset["height"] != float64(30) || asset["durationMs"] != nil {
+	if asset["kind"] != "image" || asset["width"] != float64(40) || asset["height"] != float64(30) ||
+		asset["durationMs"] != nil {
 		t.Fatalf("asset = %#v", asset)
 	}
-	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/assets", signageMP4(2<<20), map[string]string{"X-File-Name": "clip.mp4", "X-File-Content-Type": "video/mp4", "X-Asset-Width": "1280", "X-Asset-Height": "720", "X-Asset-Duration-Ms": "5000"})
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodPost,
+		"/signage/assets",
+		signageMP4(2<<20),
+		map[string]string{
+			"X-File-Name":         "clip.mp4",
+			"X-File-Content-Type": "video/mp4",
+			"X-Asset-Width":       "1280",
+			"X-Asset-Height":      "720",
+			"X-Asset-Duration-Ms": "5000",
+		},
+	)
 	assertStatus(t, response, http.StatusCreated)
-	if clip := decode(response); clip["kind"] != "video" || clip["width"] != float64(1280) || clip["durationMs"] != float64(5000) {
+	if clip := decode(response); clip["kind"] != "video" || clip["width"] != float64(1280) ||
+		clip["durationMs"] != float64(5000) {
 		t.Fatalf("clip = %#v", clip)
 	}
 
@@ -1139,8 +1614,11 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	response = send(viewerClient, viewerCSRF, http.MethodGet, "/signage/assets/"+assetID+"/content", nil, nil)
 	assertStatus(t, response, http.StatusOK)
 	served := readResponse(t, response)
-	if !bytes.Equal(served, imageBytes) || response.Header.Get("Content-Type") != "image/jpeg" || response.Header.Get("X-Content-Type-Options") != "nosniff" ||
-		!strings.Contains(response.Header.Get("Cache-Control"), "no-store") || !strings.Contains(response.Header.Get("Cache-Control"), "private") || !strings.Contains(response.Header.Get("Content-Security-Policy"), "sandbox") {
+	if !bytes.Equal(served, imageBytes) || response.Header.Get("Content-Type") != "image/jpeg" ||
+		response.Header.Get("X-Content-Type-Options") != "nosniff" ||
+		!strings.Contains(response.Header.Get("Cache-Control"), "no-store") ||
+		!strings.Contains(response.Header.Get("Cache-Control"), "private") ||
+		!strings.Contains(response.Header.Get("Content-Security-Policy"), "sandbox") {
 		t.Fatalf("download headers/bytes wrong: %v", response.Header)
 	}
 	response = send(outsiderClient, outsiderCSRF, http.MethodGet, "/signage/assets/"+assetID+"/content", nil, nil)
@@ -1163,7 +1641,8 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	created := decode(response)
 	sceneID := created["id"].(string)
 	zones := created["zones"].(map[string]any)
-	if created["version"] != float64(1) || zones["left"].(map[string]any)["mediaId"] != assetID || zones["right"].(map[string]any)["url"] != "https://makerspace.example/join" {
+	if created["version"] != float64(1) || zones["left"].(map[string]any)["mediaId"] != assetID ||
+		zones["right"].(map[string]any)["url"] != "https://makerspace.example/join" {
 		t.Fatalf("created scene = %#v", created)
 	}
 	bad := map[string]any{}
@@ -1184,11 +1663,21 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	response.Body.Close()
 
 	// Update without zones changes the layout and remaps by position; stale versions conflict.
-	update := map[string]any{"expectedVersion": 1, "name": "Welcome", "orientation": "landscape", "layoutId": "stack3", "backgroundColor": "#102030", "backgroundFit": "cover", "backgroundDim": 10, "theme": "dark"}
+	update := map[string]any{
+		"expectedVersion": 1,
+		"name":            "Welcome",
+		"orientation":     "landscape",
+		"layoutId":        "stack3",
+		"backgroundColor": "#102030",
+		"backgroundFit":   "cover",
+		"backgroundDim":   10,
+		"theme":           "dark",
+	}
 	response = send(editorClient, editorCSRF, http.MethodPut, "/signage/scenes/"+sceneID, update, nil)
 	assertStatus(t, response, http.StatusOK)
 	moved := decode(response)["zones"].(map[string]any)
-	if moved["header"].(map[string]any)["type"] != "image" || moved["main"].(map[string]any)["type"] != "qr" || moved["footer"].(map[string]any)["type"] != "empty" {
+	if moved["header"].(map[string]any)["type"] != "image" || moved["main"].(map[string]any)["type"] != "qr" ||
+		moved["footer"].(map[string]any)["type"] != "empty" {
 		t.Fatalf("remapped zones = %#v", moved)
 	}
 	response = send(editorClient, editorCSRF, http.MethodPut, "/signage/scenes/"+sceneID, update, nil)
@@ -1203,7 +1692,9 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	conflict := decode(response)
 	details, _ := conflict["details"].(map[string]any)
 	references, _ := details["references"].([]any)
-	if conflict["code"] != "signage_in_use" || len(references) != 1 || references[0].(map[string]any)["id"] != sceneID || references[0].(map[string]any)["kind"] != "scene" {
+	if conflict["code"] != "signage_in_use" || len(references) != 1 ||
+		references[0].(map[string]any)["id"] != sceneID ||
+		references[0].(map[string]any)["kind"] != "scene" {
 		t.Fatalf("in-use body = %#v", conflict)
 	}
 	response = send(outsiderClient, outsiderCSRF, http.MethodGet, "/signage/scenes", nil, nil)
@@ -1211,25 +1702,71 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	response.Body.Close()
 
 	// Playlist, template and announcement round trip over HTTP.
-	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/playlists", map[string]any{"name": "Loop", "items": []any{map[string]any{"sceneId": sceneID, "seconds": 12, "transition": "fade"}}}, nil)
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodPost,
+		"/signage/playlists",
+		map[string]any{
+			"name":  "Loop",
+			"items": []any{map[string]any{"sceneId": sceneID, "seconds": 12, "transition": "fade"}},
+		},
+		nil,
+	)
 	assertStatus(t, response, http.StatusCreated)
 	if playlist := decode(response); len(playlist["items"].([]any)) != 1 {
 		t.Fatalf("playlist = %#v", playlist)
 	}
 	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/announcement-templates", map[string]any{
 		"name": "Closed", "tone": "warning", "title": "Closed until {back_on}", "body": "{ends}",
-		"fields": []any{map[string]any{"key": "back_on", "label": "Back on", "type": "time", "required": true, "defaultValue": "", "helperText": "", "options": []any{}}},
+		"fields": []any{
+			map[string]any{
+				"key":          "back_on",
+				"label":        "Back on",
+				"type":         "time",
+				"required":     true,
+				"defaultValue": "",
+				"helperText":   "",
+				"options":      []any{},
+			},
+		},
 	}, nil)
 	assertStatus(t, response, http.StatusCreated)
 	templateID := decode(response)["id"].(string)
-	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/announcements", map[string]any{"templateId": templateID, "values": map[string]any{"back_on": "14:30"}, "allDisplays": true, "displayIds": []any{}}, nil)
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodPost,
+		"/signage/announcements",
+		map[string]any{
+			"templateId":  templateID,
+			"values":      map[string]any{"back_on": "14:30"},
+			"allDisplays": true,
+			"displayIds":  []any{},
+		},
+		nil,
+	)
 	assertStatus(t, response, http.StatusCreated)
 	announcement := decode(response)
 	rendered := announcement["rendered"].(map[string]any)
-	if announcement["status"] != "active" || rendered["title"] != "Closed until 14:30" || rendered["body"] != "until further notice" || announcement["endsAt"] != nil {
+	if announcement["status"] != "active" || rendered["title"] != "Closed until 14:30" ||
+		rendered["body"] != "until further notice" ||
+		announcement["endsAt"] != nil {
 		t.Fatalf("announcement = %#v", announcement)
 	}
-	response = send(viewerClient, viewerCSRF, http.MethodPost, "/signage/announcements", map[string]any{"templateId": templateID, "values": map[string]any{"back_on": "14:30"}, "allDisplays": true, "displayIds": []any{}}, nil)
+	response = send(
+		viewerClient,
+		viewerCSRF,
+		http.MethodPost,
+		"/signage/announcements",
+		map[string]any{
+			"templateId":  templateID,
+			"values":      map[string]any{"back_on": "14:30"},
+			"allDisplays": true,
+			"displayIds":  []any{},
+		},
+		nil,
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 	response = send(viewerClient, viewerCSRF, http.MethodGet, "/signage/announcements", nil, nil)
@@ -1237,10 +1774,24 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	if items := decode(response)["items"].([]any); len(items) != 1 {
 		t.Fatalf("announcement list = %#v", items)
 	}
-	response = send(editorClient, editorCSRF, http.MethodDelete, "/signage/announcements/"+announcement["id"].(string), map[string]any{"expectedVersion": 1}, nil)
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodDelete,
+		"/signage/announcements/"+announcement["id"].(string),
+		map[string]any{"expectedVersion": 1},
+		nil,
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
-	response = send(editorClient, editorCSRF, http.MethodGet, "/signage/announcements/"+announcement["id"].(string), nil, nil)
+	response = send(
+		editorClient,
+		editorCSRF,
+		http.MethodGet,
+		"/signage/announcements/"+announcement["id"].(string),
+		nil,
+		nil,
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
 }

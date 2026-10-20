@@ -22,7 +22,14 @@ func customerReference(o db.Order) *OrderCustomer {
 	}
 	return nil
 }
-func (s *Service) finalize(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, requestID *uuid.UUID) (db.Order, error) {
+
+func (s *Service) finalize(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	requestID *uuid.UUID,
+) (db.Order, error) {
 	if err := require(p, authorization.OrdersFinalize); err != nil {
 		return o, err
 	}
@@ -103,7 +110,15 @@ func (s *Service) finalize(ctx context.Context, tx pgx.Tx, p authorization.Princ
 	}
 	return q.GetOrder(ctx, o.ID)
 }
-func (s *Service) reverse(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, reason string, requestID *uuid.UUID) error {
+
+func (s *Service) reverse(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	reason string,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.OrdersReverse); err != nil {
 		return err
 	}
@@ -120,14 +135,20 @@ func (s *Service) reverse(ctx context.Context, tx pgx.Tx, p authorization.Princi
 		return e
 	}
 	if e == nil && r.State != "cancelled" {
-		return conflict("external_reconciliation_required", "Cancel or reconcile the active external invoice request first")
+		return conflict(
+			"external_reconciliation_required",
+			"Cancel or reconcile the active external invoice request first",
+		)
 	}
 	balance, err := q.SumAllocations(ctx, &o.ID)
 	if err != nil {
 		return err
 	}
 	if !d(balance).IsZero() {
-		return conflict("payment_reconciliation_required", "Refund/correct payments or transfer them to a replacement first")
+		return conflict(
+			"payment_reconciliation_required",
+			"Refund/correct payments or transfer them to a replacement first",
+		)
 	}
 	n, err := q.NextAdjustmentReference(ctx)
 	if err != nil {
@@ -156,7 +177,15 @@ func (s *Service) reverse(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	}
 	return writeAudit(ctx, tx, p, "order.reversed", "order", o.ID, requestID, "status", "adjustments")
 }
-func (s *Service) Command(ctx context.Context, p authorization.Principal, id uuid.UUID, input OrderCommand, action string, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) Command(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input OrderCommand,
+	action string,
+	requestID *uuid.UUID,
+) (Order, error) {
 	perm := authorization.OrdersFinalize
 	if action == "cancel" || action == "replacements" {
 		perm = authorization.OrdersWrite
@@ -231,14 +260,20 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 			err = q.ReleaseOrderClaims(ctx, id)
 		}
 		if err == nil {
-			err = q.TransitionOrder(ctx, db.TransitionOrderParams{ID: id, Status: "cancelled", TotalAmount: o.TotalAmount})
+			err = q.TransitionOrder(
+				ctx,
+				db.TransitionOrderParams{ID: id, Status: "cancelled", TotalAmount: o.TotalAmount},
+			)
 		}
 		if err == nil {
 			err = writeAudit(ctx, tx, p, "order.cancelled", "order", id, requestID, "status")
 		}
 	case "finalize", "checkout":
 		if o.ReplacesOrderReference != nil {
-			return Order{}, conflict("replacement_commit_required", "Finalize replacements through their original order")
+			return Order{}, conflict(
+				"replacement_commit_required",
+				"Finalize replacements through their original order",
+			)
 		}
 		o, err = s.finalize(ctx, tx, p, o, requestID)
 		if err == nil {
@@ -270,7 +305,14 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 			return Order{}, e
 		}
 		var next db.Order
-		next, err = s.create(ctx, tx, p, OrderDraftInput{Customer: customerReference(o), FulfillmentMode: o.FulfillmentMode}, &o, requestID)
+		next, err = s.create(
+			ctx,
+			tx,
+			p,
+			OrderDraftInput{Customer: customerReference(o), FulfillmentMode: o.FulfillmentMode},
+			&o,
+			requestID,
+		)
 		if err == nil {
 			items, e := q.ListItems(ctx, id)
 			err = e
@@ -281,7 +323,13 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 				if i.RemovedAt.Valid {
 					continue
 				}
-				v := OrderItemInput{Kind: i.Kind, Description: i.Description, Quantity: d(i.Quantity).String(), Unit: i.Unit, UnitPrice: d(i.UnitPrice).String()}
+				v := OrderItemInput{
+					Kind:        i.Kind,
+					Description: i.Description,
+					Quantity:    d(i.Quantity).String(),
+					Unit:        i.Unit,
+					UnitPrice:   d(i.UnitPrice).String(),
+				}
 				if i.SourceMachineJobID != nil {
 					job, e := s.jobs.ChargeSource(ctx, tx, p, *i.SourceMachineJobID)
 					if e != nil {
@@ -333,7 +381,10 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 		paid := decimal.Zero
 		for _, payment := range receipts {
 			if payment.Method == "external" {
-				return Order{}, conflict("external_reconciliation_required", "External payments cannot be carried forward")
+				return Order{}, conflict(
+					"external_reconciliation_required",
+					"External payments cannot be carried forward",
+				)
 			}
 			paid = paid.Add(d(payment.Amount))
 		}
@@ -346,7 +397,10 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 			return Order{}, e
 		}
 		if paid.GreaterThan(newTotal) {
-			return Order{}, conflict("payment_exceeds_outstanding", "Reverse whole receipts explicitly before replacing with a lower total")
+			return Order{}, conflict(
+				"payment_exceeds_outstanding",
+				"Reverse whole receipts explicitly before replacing with a lower total",
+			)
 		}
 		for _, payment := range receipts {
 			if err = s.allocate(ctx, q, p, payment, o, d(payment.Amount).Neg(), input.OperationKey); err != nil {

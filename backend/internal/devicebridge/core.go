@@ -35,7 +35,11 @@ func NewCoreClient(baseURL, token string) (*CoreClient, error) {
 	if len(strings.TrimSpace(token)) != 43 {
 		return nil, errors.New("managed-device token is invalid")
 	}
-	return &CoreClient{baseURL: strings.TrimRight(baseURL, "/"), token: strings.TrimSpace(token), client: &http.Client{Timeout: 15 * time.Second}}, nil
+	return &CoreClient{
+		baseURL: strings.TrimRight(baseURL, "/"),
+		token:   strings.TrimSpace(token),
+		client:  &http.Client{Timeout: 15 * time.Second},
+	}, nil
 }
 
 func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (CoreIdentity, error) {
@@ -45,11 +49,18 @@ func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (Cor
 			available = append(available, capability.ID)
 		}
 	}
-	body, err := json.Marshal(map[string]any{"platform": "desktop", "bridgeVersion": BridgeVersion, "capabilities": available})
+	body, err := json.Marshal(
+		map[string]any{"platform": "desktop", "bridgeVersion": BridgeVersion, "capabilities": available},
+	)
 	if err != nil {
 		return CoreIdentity{}, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.baseURL+"/api/v1/managed-devices/self/hardware", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPut,
+		c.baseURL+"/api/v1/managed-devices/self/hardware",
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		return CoreIdentity{}, err
 	}
@@ -67,7 +78,10 @@ func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (Cor
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-		return CoreIdentity{}, fmt.Errorf("Makerspace Core rejected the device report with status %d", response.StatusCode)
+		return CoreIdentity{}, fmt.Errorf(
+			"Makerspace Core rejected the device report with status %d",
+			response.StatusCode,
+		)
 	}
 	var identity CoreIdentity
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 64<<10))

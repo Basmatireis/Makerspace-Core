@@ -6,7 +6,10 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 )
 
-func (s *Server) GetSupervisorDashboard(ctx context.Context, _ openapi.GetSupervisorDashboardRequestObject) (openapi.GetSupervisorDashboardResponseObject, error) {
+func (s *Server) GetSupervisorDashboard(
+	ctx context.Context,
+	_ openapi.GetSupervisorDashboardRequestObject,
+) (openapi.GetSupervisorDashboardResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -17,7 +20,15 @@ func (s *Server) GetSupervisorDashboard(ctx context.Context, _ openapi.GetSuperv
 	}
 	periods := make([]openapi.SupervisorPeriod, 0, len(dashboard.Periods))
 	for _, period := range dashboard.Periods {
-		periods = append(periods, openapi.SupervisorPeriod{Id: period.ID, Name: period.Name, Status: openapi.SupervisorPeriodStatus(period.Status), SupervisorAssignments: int(period.SupervisorAssignments)})
+		periods = append(
+			periods,
+			openapi.SupervisorPeriod{
+				Id:                    period.ID,
+				Name:                  period.Name,
+				Status:                openapi.SupervisorPeriodStatus(period.Status),
+				SupervisorAssignments: int(period.SupervisorAssignments),
+			},
+		)
 	}
 	rows := make([]openapi.SupervisorRow, 0, len(dashboard.Supervisors))
 	for _, supervisor := range dashboard.Supervisors {
@@ -27,10 +38,24 @@ func (s *Server) GetSupervisorDashboard(ctx context.Context, _ openapi.GetSuperv
 				PeriodId: count.PeriodID, SupervisorCount: int(count.SupervisorCount), TraineeCount: int(count.TraineeCount),
 			})
 		}
-		rows = append(rows, openapi.SupervisorRow{PersonId: supervisor.PersonID, Name: supervisor.Name, HasProfileImage: supervisor.HasProfileImage, LaborordnungState: openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState), AssignmentCounts: counts})
+		rows = append(
+			rows,
+			openapi.SupervisorRow{
+				PersonId:          supervisor.PersonID,
+				Name:              supervisor.Name,
+				HasProfileImage:   supervisor.HasProfileImage,
+				LaborordnungState: openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState),
+				AssignmentCounts:  counts,
+			},
+		)
 	}
 	return openapi.GetSupervisorDashboard200JSONResponse{
 		Periods: periods, Supervisors: rows,
-		Totals: openapi.SupervisorTotals{Supervisors: dashboard.Totals.Supervisors, ProfileImagesComplete: dashboard.Totals.ProfileImagesComplete, LaborordnungCurrent: dashboard.Totals.LaborordnungCurrent, LaborordnungOutdated: dashboard.Totals.LaborordnungOutdated},
+		Totals: openapi.SupervisorTotals{
+			Supervisors:           dashboard.Totals.Supervisors,
+			ProfileImagesComplete: dashboard.Totals.ProfileImagesComplete,
+			LaborordnungCurrent:   dashboard.Totals.LaborordnungCurrent,
+			LaborordnungOutdated:  dashboard.Totals.LaborordnungOutdated,
+		},
 	}, nil
 }

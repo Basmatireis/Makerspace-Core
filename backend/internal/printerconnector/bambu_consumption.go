@@ -16,20 +16,40 @@ import (
 
 const bambuConsumptionRevision int64 = 1
 
-func (s *Store) ExtendArtifactTransferExpiry(ctx context.Context, assignmentID, runID uuid.UUID, expiresAt time.Time) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE artifact_transfers SET expires_at=? WHERE assignment_id=? AND run_id=? AND state='pending' AND expires_at<?`, expiresAt.UTC().Format(time.RFC3339Nano), assignmentID.String(), runID.String(), expiresAt.UTC().Format(time.RFC3339Nano))
+func (s *Store) ExtendArtifactTransferExpiry(
+	ctx context.Context,
+	assignmentID, runID uuid.UUID,
+	expiresAt time.Time,
+) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE artifact_transfers SET expires_at=? WHERE assignment_id=? AND run_id=? AND state='pending' AND expires_at<?`,
+		expiresAt.UTC().Format(time.RFC3339Nano),
+		assignmentID.String(),
+		runID.String(),
+		expiresAt.UTC().Format(time.RFC3339Nano),
+	)
 	return err
 }
 
-func (s *Store) PendingArtifactConsumptions(ctx context.Context, assignmentID uuid.UUID, limit int) ([]ArtifactTransfer, error) {
+func (s *Store) PendingArtifactConsumptions(
+	ctx context.Context,
+	assignmentID uuid.UUID,
+	limit int,
+) ([]ArtifactTransfer, error) {
 	if limit < 1 || limit > maxArtifactTransfers {
 		limit = 20
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT t.id,t.assignment_id,t.run_id,t.configuration_version,t.remote_path,t.file_name,t.staged_path,t.size_bytes,t.sha256,t.attempt_count,t.expires_at
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT t.id,t.assignment_id,t.run_id,t.configuration_version,t.remote_path,t.file_name,t.staged_path,t.size_bytes,t.sha256,t.attempt_count,t.expires_at
 		FROM artifact_transfers t
 		WHERE t.assignment_id=? AND t.state='pending' AND NOT EXISTS (
 			SELECT 1 FROM artifact_consumption_reports c WHERE c.assignment_id=t.assignment_id AND c.run_id=t.run_id AND c.artifact_sha256=t.sha256
-		) ORDER BY t.created_at LIMIT ?`, assignmentID.String(), limit)
+		) ORDER BY t.created_at LIMIT ?`,
+		assignmentID.String(),
+		limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -66,14 +86,20 @@ func scanArtifactTransfers(rows *sql.Rows) ([]ArtifactTransfer, error) {
 // EnqueueArtifactConsumption atomically records the immutable calculation
 // revision and queues its normalized report. The marker remains after delivery
 // so connector restarts cannot report the same calculation twice.
-func (s *Store) EnqueueArtifactConsumption(ctx context.Context, transfer ArtifactTransfer, facts bambuRunFacts, payload json.RawMessage) error {
+func (s *Store) EnqueueArtifactConsumption(
+	ctx context.Context,
+	transfer ArtifactTransfer,
+	facts bambuRunFacts,
+	payload json.RawMessage,
+) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var exists int
-	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`, transfer.AssignmentID.String(), transfer.RunID.String(), transfer.SHA256).Scan(&exists)
+	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`, transfer.AssignmentID.String(), transfer.RunID.String(), transfer.SHA256).
+		Scan(&exists)
 	if err == nil {
 		return nil
 	}
@@ -88,9 +114,14 @@ func (s *Store) EnqueueArtifactConsumption(ctx context.Context, transfer Artifac
 		return errors.New("connector event queue is full; consumption report remains pending")
 	}
 	sequence := int64(1)
-	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, transfer.AssignmentID.String()).Scan(&sequence)
+	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, transfer.AssignmentID.String()).
+		Scan(&sequence)
 	if errors.Is(err, sql.ErrNoRows) {
-		_, err = tx.ExecContext(ctx, `INSERT INTO assignment_sequences(assignment_id,next_sequence) VALUES(?,2)`, transfer.AssignmentID.String())
+		_, err = tx.ExecContext(
+			ctx,
+			`INSERT INTO assignment_sequences(assignment_id,next_sequence) VALUES(?,2)`,
+			transfer.AssignmentID.String(),
+		)
 	} else if err == nil {
 		_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+1, transfer.AssignmentID.String())
 	}
@@ -110,7 +141,8 @@ func (s *Store) EnqueueArtifactConsumption(ctx context.Context, transfer Artifac
 	}
 	removeStaged := false
 	var receiptExists int
-	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_upload_receipts WHERE transfer_id=?`, transfer.ID.String()).Scan(&receiptExists)
+	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_upload_receipts WHERE transfer_id=?`, transfer.ID.String()).
+		Scan(&receiptExists)
 	if err == nil {
 		if _, err = tx.ExecContext(ctx, `DELETE FROM artifact_transfers WHERE id=?`, transfer.ID.String()); err != nil {
 			return err
@@ -159,7 +191,11 @@ func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts
 	return buildBambuConsumptionPayloadFor(bambuH2DAdapterKind, transfer, facts)
 }
 
-func buildBambuConsumptionPayloadFor(adapterKind string, transfer ArtifactTransfer, facts bambuRunFacts) (json.RawMessage, error) {
+func buildBambuConsumptionPayloadFor(
+	adapterKind string,
+	transfer ArtifactTransfer,
+	facts bambuRunFacts,
+) (json.RawMessage, error) {
 	file, err := os.Open(transfer.StagedPath)
 	if err != nil {
 		return nil, fmt.Errorf("open staged artifact for consumption: %w", err)
@@ -173,11 +209,24 @@ func buildBambuConsumptionPayloadFor(adapterKind string, transfer ArtifactTransf
 		return marshalSlicerConsumption(parsed, facts)
 	}
 	if facts.LastLayer == nil && facts.LastProgress == nil {
-		return marshalUnresolvedConsumption("gcode_checkpoint", parser.CalculationVersion, "no reliable printer checkpoint was observed")
+		return marshalUnresolvedConsumption(
+			"gcode_checkpoint",
+			parser.CalculationVersion,
+			"no reliable printer checkpoint was observed",
+		)
 	}
 	filaments := make([]parser.GCodeFilament, 0, len(parsed.Filaments))
 	for _, filament := range parsed.Filaments {
-		filaments = append(filaments, parser.GCodeFilament{ID: filament.ID, DiameterMM: filament.DiameterMM, DensityGCM3: filament.DensityGCM3, FullLengthMM: filament.LengthMM, FullWeightGrams: filament.WeightGrams})
+		filaments = append(
+			filaments,
+			parser.GCodeFilament{
+				ID:              filament.ID,
+				DiameterMM:      filament.DiameterMM,
+				DensityGCM3:     filament.DensityGCM3,
+				FullLengthMM:    filament.LengthMM,
+				FullWeightGrams: filament.WeightGrams,
+			},
+		)
 	}
 	options := parser.GCodeOptions{Filaments: filaments}
 	if adapterKind == bambuX1CAdapterKind {
@@ -195,7 +244,11 @@ func buildBambuConsumptionPayloadFor(adapterKind string, transfer ArtifactTransf
 		return nil, err
 	}
 	if len(estimates) != 1 {
-		return marshalUnresolvedConsumption("gcode_checkpoint", parser.CalculationVersion, "archive does not identify exactly one printable G-code stream")
+		return marshalUnresolvedConsumption(
+			"gcode_checkpoint",
+			parser.CalculationVersion,
+			"archive does not identify exactly one printable G-code stream",
+		)
 	}
 	return marshalGCodeConsumption(parsed, estimates[0].Estimate, facts)
 }
@@ -218,13 +271,21 @@ func marshalSlicerConsumption(parsed parser.Result, facts bambuRunFacts) (json.R
 		items = append(items, item)
 	}
 	if len(items) == 0 {
-		return marshalUnresolvedConsumption("slicer_complete", parser.ParserVersion, "artifact has no defensible per-filament quantity")
+		return marshalUnresolvedConsumption(
+			"slicer_complete",
+			parser.ParserVersion,
+			"artifact has no defensible per-filament quantity",
+		)
 	}
 	applyFilamentEvidence(items, parsed, facts)
 	return json.Marshal(map[string]any{"items": items})
 }
 
-func marshalGCodeConsumption(parsed parser.Result, estimate parser.GCodeEstimate, facts bambuRunFacts) (json.RawMessage, error) {
+func marshalGCodeConsumption(
+	parsed parser.Result,
+	estimate parser.GCodeEstimate,
+	facts bambuRunFacts,
+) (json.RawMessage, error) {
 	items := make([]map[string]any, 0, len(estimate.Filaments))
 	for _, estimated := range estimate.Filaments {
 		filament := parsedFilamentForGCode(parsed.Filaments, estimated.FilamentID)
@@ -250,7 +311,11 @@ func marshalGCodeConsumption(parsed parser.Result, estimate parser.GCodeEstimate
 		items = append(items, item)
 	}
 	if len(items) == 0 {
-		return marshalUnresolvedConsumption(estimate.Method, estimate.CalculationVersion, "no defensible G-code checkpoint quantity")
+		return marshalUnresolvedConsumption(
+			estimate.Method,
+			estimate.CalculationVersion,
+			"no defensible G-code checkpoint quantity",
+		)
 	}
 	applyFilamentEvidence(items, parsed, facts)
 	return json.Marshal(map[string]any{"items": items})
@@ -277,7 +342,10 @@ func applyFilamentEvidence(items []map[string]any, parsed parser.Result, facts b
 			continue
 		}
 		hasExplicitFilamentRoutes = true
-		evidenceByFilament[evidence.SlicerFilamentID] = append(evidenceByFilament[evidence.SlicerFilamentID], indexedEvidence{index: index, value: evidence})
+		evidenceByFilament[evidence.SlicerFilamentID] = append(
+			evidenceByFilament[evidence.SlicerFilamentID],
+			indexedEvidence{index: index, value: evidence},
+		)
 	}
 	for _, item := range items {
 		filamentID, _ := item["slicerFilamentId"].(string)
@@ -300,10 +368,14 @@ func applyFilamentEvidence(items []map[string]any, parsed parser.Result, facts b
 	}
 	evidenceByExtruder := map[int][]indexedEvidence{}
 	for index, evidence := range facts.SpoolEvidence {
-		if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" || evidence.SlotExternalID == "" {
+		if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" ||
+			evidence.SlotExternalID == "" {
 			continue
 		}
-		evidenceByExtruder[evidence.Extruder] = append(evidenceByExtruder[evidence.Extruder], indexedEvidence{index: index, value: evidence})
+		evidenceByExtruder[evidence.Extruder] = append(
+			evidenceByExtruder[evidence.Extruder],
+			indexedEvidence{index: index, value: evidence},
+		)
 	}
 	for extruder, routedItems := range itemsByExtruder {
 		routes := evidenceByExtruder[extruder]
@@ -341,7 +413,8 @@ func applyFilamentEvidence(items []map[string]any, parsed parser.Result, facts b
 		}
 		var unusedEvidence []bambuSpoolEvidence
 		for index, evidence := range facts.SpoolEvidence {
-			if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" || evidence.SlotExternalID == "" {
+			if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" ||
+				evidence.SlotExternalID == "" {
 				continue
 			}
 			unusedEvidence = append(unusedEvidence, evidence)
@@ -385,7 +458,14 @@ func applyLegacySpoolEvidence(item map[string]any, facts bambuRunFacts) {
 	if facts.InputUnitExternalID == "" || facts.SlotExternalID == "" {
 		return
 	}
-	applySpoolEvidence(item, bambuSpoolEvidence{InputUnitExternalID: facts.InputUnitExternalID, SlotExternalID: facts.SlotExternalID, TagUID: facts.TagUID})
+	applySpoolEvidence(
+		item,
+		bambuSpoolEvidence{
+			InputUnitExternalID: facts.InputUnitExternalID,
+			SlotExternalID:      facts.SlotExternalID,
+			TagUID:              facts.TagUID,
+		},
+	)
 }
 
 func applySpoolEvidence(item map[string]any, evidence bambuSpoolEvidence) {
@@ -453,7 +533,19 @@ func baseConsumptionItem(filament parser.Filament, method, version string) map[s
 }
 
 func marshalUnresolvedConsumption(method, version, reason string) (json.RawMessage, error) {
-	return json.Marshal(map[string]any{"items": []map[string]any{{"slicerFilamentId": "unresolved", "method": method, "calculationVersion": version, "quality": "unresolved", "reason": reason}}})
+	return json.Marshal(
+		map[string]any{
+			"items": []map[string]any{
+				{
+					"slicerFilamentId":   "unresolved",
+					"method":             method,
+					"calculationVersion": version,
+					"quality":            "unresolved",
+					"reason":             reason,
+				},
+			},
+		},
+	)
 }
 
 func decimalString(value float64) string {

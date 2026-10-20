@@ -43,7 +43,10 @@ type Snapshot struct {
 
 // NewSnapshot derives the proxy view of a configuration. Malformed keys are skipped.
 func NewSnapshot(configuration Configuration) *Snapshot {
-	snapshot := &Snapshot{Streams: make(map[string]struct{}, len(configuration.Cameras)), RevokedDisplays: make(map[uuid.UUID]struct{}, len(configuration.RevokedDisplayIDs))}
+	snapshot := &Snapshot{
+		Streams:         make(map[string]struct{}, len(configuration.Cameras)),
+		RevokedDisplays: make(map[uuid.UUID]struct{}, len(configuration.RevokedDisplayIDs)),
+	}
 	for _, id := range configuration.RevokedDisplayIDs {
 		snapshot.RevokedDisplays[id] = struct{}{}
 	}
@@ -92,7 +95,8 @@ type UpstreamAuth struct{ Username, Password string }
 // is not a plain scheme://host[:port] origin is returned unchanged.
 func NormalizeOrigin(origin string) string {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.User != nil || parsed.RawQuery != "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.User != nil ||
+		parsed.RawQuery != "" {
 		return origin
 	}
 	scheme, host := strings.ToLower(parsed.Scheme), strings.ToLower(parsed.Hostname())
@@ -139,7 +143,13 @@ func (c *timedConn) Close() error {
 
 // NewProxy builds the proxy. allowedOrigin is the Core origin (scheme://host[:port]) browsers send
 // as Origin; requests from any other origin are refused.
-func NewProxy(snapshot func() *Snapshot, target *url.URL, allowedOrigin string, upstream UpstreamAuth, now func() time.Time) *Proxy {
+func NewProxy(
+	snapshot func() *Snapshot,
+	target *url.URL,
+	allowedOrigin string,
+	upstream UpstreamAuth,
+	now func() time.Time,
+) *Proxy {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
@@ -246,7 +256,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if (isWebRTC && r.Method != http.MethodPost) || (isWebSocket && (r.Method != http.MethodGet || !strings.EqualFold(r.Header.Get("Upgrade"), "websocket"))) {
+	if (isWebRTC && r.Method != http.MethodPost) ||
+		(isWebSocket && (r.Method != http.MethodGet || !strings.EqualFold(r.Header.Get("Upgrade"), "websocket"))) {
 		w.Header().Set("Allow", map[bool]string{true: "POST, OPTIONS", false: "GET"}[isWebRTC])
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

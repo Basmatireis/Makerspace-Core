@@ -58,8 +58,13 @@ func deriveArgon2id(password, salt []byte, iterations, memory uint32, parallelis
 
 func ValidatePassword(password string) error {
 	runes := utf8.RuneCountInString(password)
-	if !utf8.ValidString(password) || runes < minPasswordRunes || runes > maxPasswordRunes || len(password) > maxPasswordBytes {
-		return fmt.Errorf("password must contain between %d and %d valid Unicode characters", minPasswordRunes, maxPasswordRunes)
+	if !utf8.ValidString(password) || runes < minPasswordRunes || runes > maxPasswordRunes ||
+		len(password) > maxPasswordBytes {
+		return fmt.Errorf(
+			"password must contain between %d and %d valid Unicode characters",
+			minPasswordRunes,
+			maxPasswordRunes,
+		)
 	}
 	if _, blocked := commonPasswords[strings.ToLower(password)]; blocked {
 		return errors.New("password is too common")

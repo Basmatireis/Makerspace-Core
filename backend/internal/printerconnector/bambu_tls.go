@@ -42,7 +42,10 @@ func bambuTLSConfig(serial string) (*tls.Config, error) {
 				return fmt.Errorf("verify Bambu printer certificate chain: %w", err)
 			}
 			if state.PeerCertificates[0].Subject.CommonName != serial {
-				return fmt.Errorf("Bambu printer certificate serial mismatch: got %q", state.PeerCertificates[0].Subject.CommonName)
+				return fmt.Errorf(
+					"Bambu printer certificate serial mismatch: got %q",
+					state.PeerCertificates[0].Subject.CommonName,
+				)
 			}
 			return nil
 		},

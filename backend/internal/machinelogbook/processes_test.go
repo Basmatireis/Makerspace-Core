@@ -37,24 +37,77 @@ func newProcessFixture(t *testing.T) *processFixture {
 	var err error
 	f.embroideryType, err = f.s.CreateMachineType(ctx, f.p, "Embroidery "+suffix, ProcessEmbroidery, &f.request)
 	must(err)
-	f.embroidery, err = f.s.CreateMachine(ctx, f.p, f.embroideryType.ID, "Embroidery machine "+suffix, "active", nil, false, &f.request)
+	f.embroidery, err = f.s.CreateMachine(
+		ctx,
+		f.p,
+		f.embroideryType.ID,
+		"Embroidery machine "+suffix,
+		"active",
+		nil,
+		false,
+		&f.request,
+	)
 	must(err)
 	f.uvType, err = f.s.CreateMachineType(ctx, f.p, "UV "+suffix, ProcessUVPrinting, &f.request)
 	must(err)
 	f.uv, err = f.s.CreateMachine(ctx, f.p, f.uvType.ID, "UV machine "+suffix, "active", nil, false, &f.request)
 	must(err)
-	f.stabilizerType, err = f.s.CreateMaterialType(ctx, f.p, "Stabilizer "+suffix, "m", []string{ProcessEmbroidery}, &f.request)
+	f.stabilizerType, err = f.s.CreateMaterialType(
+		ctx,
+		f.p,
+		"Stabilizer "+suffix,
+		"m",
+		[]string{ProcessEmbroidery},
+		&f.request,
+	)
 	must(err)
-	f.stabilizer, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Stabilizer " + suffix, MaterialTypeID: f.stabilizerType.ID}, &f.request)
+	f.stabilizer, err = f.s.CreateMaterial(
+		ctx,
+		f.p,
+		MaterialInput{Name: "Stabilizer " + suffix, MaterialTypeID: f.stabilizerType.ID},
+		&f.request,
+	)
 	must(err)
-	purchase, err := f.s.AddPurchase(ctx, f.p, f.stabilizer.ID, f.stabilizer.InventoryVersion, "100", "50", f.now, nil, nil, &f.request)
+	purchase, err := f.s.AddPurchase(
+		ctx,
+		f.p,
+		f.stabilizer.ID,
+		f.stabilizer.InventoryVersion,
+		"100",
+		"50",
+		f.now,
+		nil,
+		nil,
+		&f.request,
+	)
 	must(err)
 	f.stabilizer = purchase.Material
 	f.inkType, err = f.s.CreateMaterialType(ctx, f.p, "UV ink "+suffix, "ml", []string{ProcessUVPrinting}, &f.request)
 	must(err)
-	f.ink, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "UV ink cyan " + suffix, MaterialTypeID: f.inkType.ID, ColorName: ptr("Cyan"), ColorHex: ptr("#00AEEF")}, &f.request)
+	f.ink, err = f.s.CreateMaterial(
+		ctx,
+		f.p,
+		MaterialInput{
+			Name:           "UV ink cyan " + suffix,
+			MaterialTypeID: f.inkType.ID,
+			ColorName:      ptr("Cyan"),
+			ColorHex:       ptr("#00AEEF"),
+		},
+		&f.request,
+	)
 	must(err)
-	purchase, err = f.s.AddPurchase(ctx, f.p, f.ink.ID, f.ink.InventoryVersion, "100", "90", f.now, nil, nil, &f.request)
+	purchase, err = f.s.AddPurchase(
+		ctx,
+		f.p,
+		f.ink.ID,
+		f.ink.InventoryVersion,
+		"100",
+		"90",
+		f.now,
+		nil,
+		nil,
+		&f.request,
+	)
 	must(err)
 	f.ink = purchase.Material
 
@@ -64,14 +117,44 @@ func newProcessFixture(t *testing.T) *processFixture {
 	must(err)
 	stitches := MeasureStitches
 	for _, group := range []PricingGroup{f.measureGroup, f.bareGroup} {
-		_, err = f.s.CreatePricingRule(ctx, f.p, group.ID, "machine_runtime", &f.embroideryType.ID, nil, nil, "0", &f.request)
+		_, err = f.s.CreatePricingRule(
+			ctx,
+			f.p,
+			group.ID,
+			"machine_runtime",
+			&f.embroideryType.ID,
+			nil,
+			nil,
+			"0",
+			&f.request,
+		)
 		must(err)
 		_, err = f.s.CreatePricingRule(ctx, f.p, group.ID, "material", nil, &f.stabilizerType.ID, nil, "1", &f.request)
 		must(err)
 	}
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.measureGroup.ID, "machine_measure", &f.embroideryType.ID, nil, &stitches, "0.5", &f.request)
+	_, err = f.s.CreatePricingRule(
+		ctx,
+		f.p,
+		f.measureGroup.ID,
+		"machine_measure",
+		&f.embroideryType.ID,
+		nil,
+		&stitches,
+		"0.5",
+		&f.request,
+	)
 	must(err)
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.measureGroup.ID, "machine_runtime", &f.uvType.ID, nil, nil, "0", &f.request)
+	_, err = f.s.CreatePricingRule(
+		ctx,
+		f.p,
+		f.measureGroup.ID,
+		"machine_runtime",
+		&f.uvType.ID,
+		nil,
+		nil,
+		"0",
+		&f.request,
+	)
 	must(err)
 
 	t.Cleanup(func() {
@@ -117,7 +200,12 @@ func (f *processFixture) deleteWork(ctx context.Context) {
 	}
 }
 
-func (f *processFixture) embroideryJob(t *testing.T, group PricingGroup, measures RunMeasures, usages ...UsageInput) MachineJob {
+func (f *processFixture) embroideryJob(
+	t *testing.T,
+	group PricingGroup,
+	measures RunMeasures,
+	usages ...UsageInput,
+) MachineJob {
 	t.Helper()
 	input := f.input(-2*time.Hour, 6*time.Minute, "successful")
 	input.MachineID = f.embroidery.ID
@@ -133,14 +221,23 @@ func TestMachineTypeProcessValidationAndAudit(t *testing.T) {
 	if f.embroideryType.Process != ProcessEmbroidery {
 		t.Fatalf("process = %s", f.embroideryType.Process)
 	}
-	if _, err := f.s.CreateMachineType(ctx, f.p, "Invalid "+f.embroideryType.ID.String(), "milling", &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMachineType(ctx, f.p, "Invalid "+f.embroideryType.ID.String(), "milling", &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown process: %v", err)
 	}
-	if _, err := f.s.CreateMachineType(ctx, f.p, "Empty "+f.embroideryType.ID.String(), "", &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMachineType(ctx, f.p, "Empty "+f.embroideryType.ID.String(), "", &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("empty process: %v", err)
 	}
 	process := "milling"
-	if _, err := f.s.UpdateMachineType(ctx, f.p, f.uvType.ID, f.uvType.Version, nil, nil, &process, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.UpdateMachineType(ctx, f.p, f.uvType.ID, f.uvType.Version, nil, nil, &process, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("update to unknown process: %v", err)
 	}
 	laser := ProcessLaserCutting
@@ -153,7 +250,8 @@ func TestMachineTypeProcessValidationAndAudit(t *testing.T) {
 		t.Fatalf("machine shows type process: %v %+v", err, machine.MachineType)
 	}
 	var audited int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'machine_type.updated' AND resource_id = $2 AND 'process' = ANY(changed_fields)`, f.request, f.uvType.ID).Scan(&audited); err != nil || audited != 1 {
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'machine_type.updated' AND resource_id = $2 AND 'process' = ANY(changed_fields)`, f.request, f.uvType.ID).Scan(&audited); err != nil ||
+		audited != 1 {
 		t.Fatalf("audit of process change: %d %v", audited, err)
 	}
 }
@@ -162,13 +260,26 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
-	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "g", nil, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "g", nil, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("no processes: %v", err)
 	}
-	if _, err := f.s.CreateMaterialType(ctx, f.p, "Bad "+suffix, "g", []string{"milling"}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMaterialType(ctx, f.p, "Bad "+suffix, "g", []string{"milling"}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown process: %v", err)
 	}
-	created, err := f.s.CreateMaterialType(ctx, f.p, "Sticker paper "+suffix, "cm2", []string{ProcessUVPrinting, ProcessEmbroidery, ProcessUVPrinting}, &f.request)
+	created, err := f.s.CreateMaterialType(
+		ctx,
+		f.p,
+		"Sticker paper "+suffix,
+		"cm2",
+		[]string{ProcessUVPrinting, ProcessEmbroidery, ProcessUVPrinting},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +289,37 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 	if created.Unit != "cm2" || strings.Join(created.Processes, ",") != "embroidery,uv_printing" {
 		t.Fatalf("created = %+v", created)
 	}
-	updated, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, created.Version, created.Name, "cm2", nil, true, &f.request)
+	updated, err := f.s.UpdateMaterialType(
+		ctx,
+		f.p,
+		created.ID,
+		created.Version,
+		created.Name,
+		"cm2",
+		nil,
+		true,
+		&f.request,
+	)
 	if err != nil || strings.Join(updated.Processes, ",") != "embroidery,uv_printing" {
 		t.Fatalf("nil processes keep: %v %+v", err, updated)
 	}
-	if _, err = f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "cm2", []string{}, true, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "cm2", []string{}, true, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("empty processes: %v", err)
 	}
-	replaced, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "cm2", []string{ProcessLaserCutting}, true, &f.request)
+	replaced, err := f.s.UpdateMaterialType(
+		ctx,
+		f.p,
+		created.ID,
+		updated.Version,
+		created.Name,
+		"cm2",
+		[]string{ProcessLaserCutting},
+		true,
+		&f.request,
+	)
 	if err != nil || strings.Join(replaced.Processes, ",") != "laser_cutting" {
 		t.Fatalf("replace: %v %+v", err, replaced)
 	}
@@ -207,9 +341,19 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
-	fdmOnly := UsageInput{MaterialID: f.material.ID, Ownership: "makerspace", Quantity: "10", QuantityBasis: "actual"} // fixture PLA: fdm_printing + other
+	fdmOnly := UsageInput{
+		MaterialID:    f.material.ID,
+		Ownership:     "makerspace",
+		Quantity:      "10",
+		QuantityBasis: "actual",
+	} // fixture PLA: fdm_printing + other
 	ink := UsageInput{MaterialID: f.ink.ID, Ownership: "makerspace", Quantity: "1.25", QuantityBasis: "actual"}
-	stabilizer := UsageInput{MaterialID: f.stabilizer.ID, Ownership: "makerspace", Quantity: "0.4", QuantityBasis: "actual"}
+	stabilizer := UsageInput{
+		MaterialID:    f.stabilizer.ID,
+		Ownership:     "makerspace",
+		Quantity:      "0.4",
+		QuantityBasis: "actual",
+	}
 
 	// Creating a job on the embroidery machine with PLA or ink is refused; nothing is stored.
 	for name, usage := range map[string]UsageInput{"fdm material": fdmOnly, "uv ink": ink} {
@@ -217,12 +361,16 @@ func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 		input.MachineID = f.embroidery.ID
 		input.PricingGroupID = &f.measureGroup.ID
 		input.Usages = []UsageInput{usage}
-		if _, err := f.s.CreateManualJob(ctx, f.p, input, &f.request); !apperror.IsCode(err, "material_process_mismatch") {
+		if _, err := f.s.CreateManualJob(ctx, f.p, input, &f.request); !apperror.IsCode(
+			err,
+			"material_process_mismatch",
+		) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
 	var runs int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM machine_runs WHERE machine_id = $1`, f.embroidery.ID).Scan(&runs); err != nil || runs != 0 {
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM machine_runs WHERE machine_id = $1`, f.embroidery.ID).Scan(&runs); err != nil ||
+		runs != 0 {
 		t.Fatalf("runs after refused jobs: %d %v", runs, err)
 	}
 
@@ -231,17 +379,39 @@ func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 		t.Fatalf("matching material was not recorded: %+v", job.Runs[0].Usages)
 	}
 	// Customer material is free text on any machine.
-	external := UsageInput{Ownership: "external", ExternalMaterialName: ptr("Customer cotton thread"), Quantity: "3", QuantityBasis: "actual"}
-	job, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Usages: []UsageInput{external}}, &f.request)
+	external := UsageInput{
+		Ownership:            "external",
+		ExternalMaterialName: ptr("Customer cotton thread"),
+		Quantity:             "3",
+		QuantityBasis:        "actual",
+	}
+	job, err := f.s.AddManualRun(
+		ctx,
+		f.p,
+		job.ID,
+		job.Version,
+		ManualRunInput{
+			StartsAt: f.now.Add(-time.Hour),
+			EndsAt:   f.now.Add(-50 * time.Minute),
+			Usages:   []UsageInput{external},
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatalf("external material: %v", err)
 	}
 	// AddManualRun and ReplaceRunUsages enforce the process as well.
-	if _, err = f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-45 * time.Minute), EndsAt: f.now.Add(-40 * time.Minute), Usages: []UsageInput{ink}}, &f.request); !apperror.IsCode(err, "material_process_mismatch") {
+	if _, err = f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-45 * time.Minute), EndsAt: f.now.Add(-40 * time.Minute), Usages: []UsageInput{ink}}, &f.request); !apperror.IsCode(
+		err,
+		"material_process_mismatch",
+	) {
 		t.Fatalf("add run: %v", err)
 	}
 	run := job.Runs[0]
-	if _, err = f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version, []UsageInput{stabilizer, ink}, &f.request); !apperror.IsCode(err, "material_process_mismatch") {
+	if _, err = f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version, []UsageInput{stabilizer, ink}, &f.request); !apperror.IsCode(
+		err,
+		"material_process_mismatch",
+	) {
 		t.Fatalf("replace usages: %v", err)
 	}
 
@@ -255,11 +425,15 @@ func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("correcting a run that used the material: %v", err)
 	}
-	if len(result.Run.Usages) != 1 || result.Run.Usages[0].MaterialID == nil || *result.Run.Usages[0].MaterialID != f.stabilizer.ID {
+	if len(result.Run.Usages) != 1 || result.Run.Usages[0].MaterialID == nil ||
+		*result.Run.Usages[0].MaterialID != f.stabilizer.ID {
 		t.Fatalf("old material is not shown: %+v", result.Run.Usages)
 	}
 	other := job.Runs[1]
-	if _, err = f.s.ReplaceRunUsages(ctx, f.p, other.ID, other.Version, []UsageInput{stabilizer}, &f.request); !apperror.IsCode(err, "material_process_mismatch") {
+	if _, err = f.s.ReplaceRunUsages(ctx, f.p, other.ID, other.Version, []UsageInput{stabilizer}, &f.request); !apperror.IsCode(
+		err,
+		"material_process_mismatch",
+	) {
 		t.Fatalf("same material on another run after the type changed: %v", err)
 	}
 }
@@ -282,15 +456,32 @@ func TestRunMeasuresAreValidatedAgainstTheProcess(t *testing.T) {
 	if _, err := f.s.CreateManualJob(ctx, f.p, input, &f.request); !apperror.IsCode(err, "run_measure_unsupported") {
 		t.Fatalf("stitches on a non-embroidery machine: %v", err)
 	}
-	if _, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Measures: RunMeasures{"colour_changes": 3}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Measures: RunMeasures{"colour_changes": 3}}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown measure: %v", err)
 	}
-	if _, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Measures: RunMeasures{MeasureStitches: -1}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Measures: RunMeasures{MeasureStitches: -1}}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("negative stitches: %v", err)
 	}
 
 	// A second run adds up on the job; editing replaces a run's measures; clearing removes them.
-	job, err := f.s.AddManualRun(ctx, f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now.Add(-50 * time.Minute), Measures: RunMeasures{MeasureStitches: 600}}, &f.request)
+	job, err := f.s.AddManualRun(
+		ctx,
+		f.p,
+		job.ID,
+		job.Version,
+		ManualRunInput{
+			StartsAt: f.now.Add(-time.Hour),
+			EndsAt:   f.now.Add(-50 * time.Minute),
+			Measures: RunMeasures{MeasureStitches: 600},
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,11 +489,21 @@ func TestRunMeasuresAreValidatedAgainstTheProcess(t *testing.T) {
 		t.Fatalf("job stitches over runs = %d", got)
 	}
 	run := job.Runs[1]
-	result, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 100}}, &f.request)
+	result, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{Measures: RunMeasures{MeasureStitches: 100}},
+		&f.request,
+	)
 	if err != nil || result.Run.Measures[MeasureStitches] != 100 || result.Job.Measures[MeasureStitches] != 12500 {
 		t.Fatalf("update measures: %v %+v", err, result)
 	}
-	if _, err = f.s.UpdateRun(ctx, f.p, run.ID, result.Run.Version, RunUpdate{Measures: RunMeasures{"uv_ink": 1}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.UpdateRun(ctx, f.p, run.ID, result.Run.Version, RunUpdate{Measures: RunMeasures{"uv_ink": 1}}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown measure on update: %v", err)
 	}
 	cleared, err := f.s.UpdateRun(ctx, f.p, run.ID, result.Run.Version, RunUpdate{Measures: RunMeasures{}}, &f.request)
@@ -310,22 +511,39 @@ func TestRunMeasuresAreValidatedAgainstTheProcess(t *testing.T) {
 		t.Fatalf("clear measures: %v %+v", err, cleared)
 	}
 	// Not giving measures leaves them alone.
-	kept, err := f.s.UpdateRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, RunUpdate{Outcome: ptr("successful")}, &f.request)
+	kept, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		job.Runs[0].ID,
+		job.Runs[0].Version,
+		RunUpdate{Outcome: ptr("successful")},
+		&f.request,
+	)
 	if err != nil || kept.Run.Measures[MeasureStitches] != 12400 {
 		t.Fatalf("measures after outcome change: %v %+v", err, kept)
 	}
 	// The same update on a non-embroidery machine is refused.
 	plain := f.create(t, f.input(-3*time.Hour, 6*time.Minute, "successful"))
-	if _, err = f.s.UpdateRun(ctx, f.p, plain.Runs[0].ID, plain.Runs[0].Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 1}}, &f.request); !apperror.IsCode(err, "run_measure_unsupported") {
+	if _, err = f.s.UpdateRun(ctx, f.p, plain.Runs[0].ID, plain.Runs[0].Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 1}}, &f.request); !apperror.IsCode(
+		err,
+		"run_measure_unsupported",
+	) {
 		t.Fatalf("update measures on other machine: %v", err)
 	}
 	// Moving a job with stitches to a machine whose process does not record them is refused.
-	update := JobUpdate{MachineID: f.machine.ID, OperatorPersonID: f.person, Customer: PartyReference{Kind: "person", ID: f.person}}
+	update := JobUpdate{
+		MachineID:        f.machine.ID,
+		OperatorPersonID: f.person,
+		Customer:         PartyReference{Kind: "person", ID: f.person},
+	}
 	latest, err := f.s.GetJob(ctx, f.p, job.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.s.UpdateJobFacts(ctx, f.p, job.ID, latest.Version, update, &f.request); !apperror.IsCode(err, "run_measure_unsupported") {
+	if _, err = f.s.UpdateJobFacts(ctx, f.p, job.ID, latest.Version, update, &f.request); !apperror.IsCode(
+		err,
+		"run_measure_unsupported",
+	) {
 		t.Fatalf("machine change with stitches: %v", err)
 	}
 }
@@ -363,7 +581,12 @@ func TestMeasurePricingIsExactPerBlock(t *testing.T) {
 					rate = &job.PricingSnapshot.Rules[i]
 				}
 			}
-			if rate == nil || rate.Missing || rate.Rate == nil || !sameDecimal(*rate.Rate, "0.5") || rate.BlockSize == nil || *rate.BlockSize != 1000 || rate.Measure == nil || *rate.Measure != MeasureStitches || rate.Unit != "stitch" {
+			if rate == nil || rate.Missing || rate.Rate == nil || !sameDecimal(*rate.Rate, "0.5") ||
+				rate.BlockSize == nil ||
+				*rate.BlockSize != 1000 ||
+				rate.Measure == nil ||
+				*rate.Measure != MeasureStitches ||
+				rate.Unit != "stitch" {
 				t.Fatalf("snapshot rule = %+v", rate)
 			}
 		})
@@ -373,13 +596,25 @@ func TestMeasurePricingIsExactPerBlock(t *testing.T) {
 func TestMeasurePricingFollowsRunChangesAndKeepsItsSnapshot(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
-	job := f.embroideryJob(t, f.measureGroup, RunMeasures{MeasureStitches: 12400}, UsageInput{MaterialID: f.stabilizer.ID, Ownership: "makerspace", Quantity: "0.4", QuantityBasis: "actual"})
+	job := f.embroideryJob(
+		t,
+		f.measureGroup,
+		RunMeasures{MeasureStitches: 12400},
+		UsageInput{MaterialID: f.stabilizer.ID, Ownership: "makerspace", Quantity: "0.4", QuantityBasis: "actual"},
+	)
 	if !priceIs(job.CalculatedPrice, "6.60") { // 6.20 stitches + 0.4 m stabilizer at 1 per m
 		t.Fatalf("price = %s", price(job.CalculatedPrice))
 	}
 	// Editing the stitches reprices from the same snapshot rate.
 	run := job.Runs[0]
-	result, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 20000}}, &f.request)
+	result, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{Measures: RunMeasures{MeasureStitches: 20000}},
+		&f.request,
+	)
 	if err != nil || !priceIs(result.Job.CalculatedPrice, "10.40") {
 		t.Fatalf("after edit: %v %s", err, price(result.Job.CalculatedPrice))
 	}
@@ -392,7 +627,14 @@ func TestMeasurePricingFollowsRunChangesAndKeepsItsSnapshot(t *testing.T) {
 	if _, err = f.s.UpdatePricingRule(ctx, f.p, ruleID, version, "machine_measure", &f.embroideryType.ID, nil, ptr(MeasureStitches), "5", true, &f.request); err != nil {
 		t.Fatal(err)
 	}
-	again, err := f.s.UpdateRun(ctx, f.p, run.ID, result.Run.Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 24000}}, &f.request)
+	again, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		result.Run.Version,
+		RunUpdate{Measures: RunMeasures{MeasureStitches: 24000}},
+		&f.request,
+	)
 	if err != nil || !priceIs(again.Job.CalculatedPrice, "12.40") {
 		t.Fatalf("after rate change: %v %s", err, price(again.Job.CalculatedPrice))
 	}
@@ -428,7 +670,14 @@ func TestMeasurePricingIsIncompleteWithoutARuleAndFreeAtZero(t *testing.T) {
 	}
 	// Entering stitches later makes the job incomplete again; removing them completes it.
 	run := free.Runs[0]
-	result, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 500}}, &f.request)
+	result, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{Measures: RunMeasures{MeasureStitches: 500}},
+		&f.request,
+	)
 	if err != nil || result.Job.PricingStatus != "incomplete" {
 		t.Fatalf("stitches added: %v %s", err, result.Job.PricingStatus)
 	}
@@ -438,7 +687,14 @@ func TestMeasurePricingIsIncompleteWithoutARuleAndFreeAtZero(t *testing.T) {
 	}
 
 	// A zero rate is a price: stitches are free and the job is complete.
-	zeroGroup, err := f.s.CreatePricingGroup(ctx, f.p, "Zero stitches "+f.embroideryType.ID.String(), nil, false, &f.request)
+	zeroGroup, err := f.s.CreatePricingGroup(
+		ctx,
+		f.p,
+		"Zero stitches "+f.embroideryType.ID.String(),
+		nil,
+		false,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +726,16 @@ func TestMeasureAppearingAfterTheSnapshotRecapturesIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lateMachine, err := f.s.CreateMachine(ctx, f.p, lateType.ID, "Late machine "+suffix, "active", nil, false, &f.request)
+	lateMachine, err := f.s.CreateMachine(
+		ctx,
+		f.p,
+		lateType.ID,
+		"Late machine "+suffix,
+		"active",
+		nil,
+		false,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,7 +768,14 @@ func TestMeasureAppearingAfterTheSnapshotRecapturesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := job.Runs[0]
-	result, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Measures: RunMeasures{MeasureStitches: 2000}}, &f.request)
+	result, err := f.s.UpdateRun(
+		ctx,
+		f.p,
+		run.ID,
+		run.Version,
+		RunUpdate{Measures: RunMeasures{MeasureStitches: 2000}},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +792,10 @@ func TestMeasureRulesNeedAMachineTypeWhoseProcessRecordsTheMeasure(t *testing.T)
 	ctx := t.Context()
 	stitches := MeasureStitches
 	// UV printing records no stitches.
-	if _, err := f.s.CreatePricingRule(ctx, f.p, f.bareGroup.ID, "machine_measure", &f.uvType.ID, nil, &stitches, "1", &f.request); !apperror.IsCode(err, "run_measure_unsupported") {
+	if _, err := f.s.CreatePricingRule(ctx, f.p, f.bareGroup.ID, "machine_measure", &f.uvType.ID, nil, &stitches, "1", &f.request); !apperror.IsCode(
+		err,
+		"run_measure_unsupported",
+	) {
 		t.Fatalf("rule for unsupported process: %v", err)
 	}
 	for name, call := range map[string]func() error{
@@ -557,11 +832,22 @@ func TestMeasureRulesNeedAMachineTypeWhoseProcessRecordsTheMeasure(t *testing.T)
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
-	rule, err := f.s.CreatePricingRule(ctx, f.p, f.bareGroup.ID, "machine_measure", &f.embroideryType.ID, nil, &stitches, "0.5", &f.request)
+	rule, err := f.s.CreatePricingRule(
+		ctx,
+		f.p,
+		f.bareGroup.ID,
+		"machine_measure",
+		&f.embroideryType.ID,
+		nil,
+		&stitches,
+		"0.5",
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rule.Measure == nil || *rule.Measure != MeasureStitches || rule.BlockSize == nil || *rule.BlockSize != 1000 || !sameDecimal(rule.Rate, "0.5") {
+	if rule.Measure == nil || *rule.Measure != MeasureStitches || rule.BlockSize == nil || *rule.BlockSize != 1000 ||
+		!sameDecimal(rule.Rate, "0.5") {
 		t.Fatalf("rule = %+v", rule)
 	}
 	if _, err = f.s.CreatePricingRule(ctx, f.p, f.bareGroup.ID, "machine_measure", &f.embroideryType.ID, nil, &stitches, "0.7", &f.request); err == nil {
@@ -589,11 +875,23 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
-	paperType, err := f.s.CreateMaterialType(ctx, f.p, "DTF paper "+suffix, "cm2", []string{ProcessUVPrinting}, &f.request)
+	paperType, err := f.s.CreateMaterialType(
+		ctx,
+		f.p,
+		"DTF paper "+suffix,
+		"cm2",
+		[]string{ProcessUVPrinting},
+		&f.request,
+	)
 	if err != nil || paperType.Unit != "cm2" {
 		t.Fatalf("cm2 type: %v %+v", err, paperType)
 	}
-	paper, err := f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "DTF paper A4 " + suffix, MaterialTypeID: paperType.ID}, &f.request)
+	paper, err := f.s.CreateMaterial(
+		ctx,
+		f.p,
+		MaterialInput{Name: "DTF paper A4 " + suffix, MaterialTypeID: paperType.ID},
+		&f.request,
+	)
 	if err != nil || paper.Unit != "cm2" {
 		t.Fatalf("cm2 material: %v %+v", err, paper)
 	}
@@ -605,7 +903,18 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 		_, _ = f.pool.Exec(cleanup, `DELETE FROM materials WHERE id = $1`, paper.ID)
 		_, _ = f.pool.Exec(cleanup, `DELETE FROM material_types WHERE id = $1`, paperType.ID)
 	})
-	purchase, err := f.s.AddPurchase(ctx, f.p, paper.ID, paper.InventoryVersion, "20000", "60", f.now, nil, nil, &f.request)
+	purchase, err := f.s.AddPurchase(
+		ctx,
+		f.p,
+		paper.ID,
+		paper.InventoryVersion,
+		"20000",
+		"60",
+		f.now,
+		nil,
+		nil,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -613,7 +922,10 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 	if _, err = f.s.CreatePricingRule(ctx, f.p, f.measureGroup.ID, "material", nil, &paperType.ID, nil, "0.004", &f.request); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.s.CreateMaterialType(ctx, f.p, "Bad unit "+suffix, "mm2", []string{"other"}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.CreateMaterialType(ctx, f.p, "Bad unit "+suffix, "mm2", []string{"other"}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown unit: %v", err)
 	}
 	input := f.input(-2*time.Hour, 6*time.Minute, "successful")
@@ -647,13 +959,24 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 
 func TestWorkItemsSummariseConsumptionPerUnit(t *testing.T) {
 	f := newProcessFixture(t)
-	job := f.embroideryJob(t, f.measureGroup, RunMeasures{MeasureStitches: 12400}, UsageInput{MaterialID: f.stabilizer.ID, Ownership: "makerspace", Quantity: "0.4", QuantityBasis: "actual"})
-	items, _, err := f.s.ListWorkItems(t.Context(), f.p, WorkItemFilters{MachineIDs: []uuid.UUID{f.embroidery.ID}, Page: 1, PageSize: 25})
+	job := f.embroideryJob(
+		t,
+		f.measureGroup,
+		RunMeasures{MeasureStitches: 12400},
+		UsageInput{MaterialID: f.stabilizer.ID, Ownership: "makerspace", Quantity: "0.4", QuantityBasis: "actual"},
+	)
+	items, _, err := f.s.ListWorkItems(
+		t.Context(),
+		f.p,
+		WorkItemFilters{MachineIDs: []uuid.UUID{f.embroidery.ID}, Page: 1, PageSize: 25},
+	)
 	if err != nil || len(items) != 1 || items[0].ID != job.ID {
 		t.Fatalf("items = %+v, %v", items, err)
 	}
 	c := items[0].Consumption
-	if c.Measures[MeasureStitches] != 12400 || len(c.Materials) != 1 || c.Materials[0].Unit != "m" || !sameDecimal(c.Materials[0].Quantity, "0.4") || c.Materials[0].MaterialTypeName != f.stabilizerType.Name {
+	if c.Measures[MeasureStitches] != 12400 || len(c.Materials) != 1 || c.Materials[0].Unit != "m" ||
+		!sameDecimal(c.Materials[0].Quantity, "0.4") ||
+		c.Materials[0].MaterialTypeName != f.stabilizerType.Name {
 		t.Fatalf("consumption = %+v", c)
 	}
 }

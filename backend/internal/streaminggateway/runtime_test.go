@@ -73,9 +73,23 @@ func (g *fakeGo2RTC) Streams(context.Context) (map[string]StreamStatus, error) {
 func (g *fakeGo2RTC) Restart(context.Context) error { g.restarts++; return g.restart }
 
 func testConfiguration(revision int64, names ...string) Configuration {
-	configuration := Configuration{Revision: revision, ProtocolVersion: ProtocolVersion, PublicHost: "gw.example.org", Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}}
+	configuration := Configuration{
+		Revision:         revision,
+		ProtocolVersion:  ProtocolVersion,
+		PublicHost:       "gw.example.org",
+		Cameras:          []Camera{},
+		TicketPublicKeys: []TicketKey{},
+	}
 	for _, name := range names {
-		configuration.Cameras = append(configuration.Cameras, Camera{MachineID: uuid.Must(uuid.NewV7()).String(), Name: name, StreamName: "cam-" + name, SourceURL: "rtspx://bblp:12345678@10.0.0.9:322/streaming/live/1"})
+		configuration.Cameras = append(
+			configuration.Cameras,
+			Camera{
+				MachineID:  uuid.Must(uuid.NewV7()).String(),
+				Name:       name,
+				StreamName: "cam-" + name,
+				SourceURL:  "rtspx://bblp:12345678@10.0.0.9:322/streaming/live/1",
+			},
+		)
 	}
 	return configuration
 }
@@ -88,7 +102,12 @@ func newTestGateway(t *testing.T) (*Gateway, *fakeCore, *fakeGo2RTC, Options) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	options := Options{DataDir: filepath.Join(dir, "data"), ConfigFile: filepath.Join(dir, "g2r", "go2rtc.yaml"), Render: DefaultRenderOptions(), AllowedOrigin: testOrigin}
+	options := Options{
+		DataDir:       filepath.Join(dir, "data"),
+		ConfigFile:    filepath.Join(dir, "g2r", "go2rtc.yaml"),
+		Render:        DefaultRenderOptions(),
+		AllowedOrigin: testOrigin,
+	}
 	core, g2r := &fakeCore{}, &fakeGo2RTC{streams: map[string]StreamStatus{}}
 	return New(store, core, g2r, options, slog.New(slog.NewTextHandler(io.Discard, nil))), core, g2r, options
 }
@@ -236,7 +255,9 @@ func TestHeartbeatReportsCameraHealth(t *testing.T) {
 			}
 		}
 	}
-	if health["live"].Health != "live" || health["live"].Viewers != 2 || health["idle"].Health != "idle" || health["gone"].Health != "unavailable" || heartbeat.HealthState != "connected" {
+	if health["live"].Health != "live" || health["live"].Viewers != 2 || health["idle"].Health != "idle" ||
+		health["gone"].Health != "unavailable" ||
+		heartbeat.HealthState != "connected" {
 		t.Fatalf("heartbeat = %+v", heartbeat)
 	}
 	g2r.err = ErrGo2RTCDown
@@ -383,7 +404,12 @@ func TestGo2RTCCredentialsAreGeneratedOnceAndStoredEncrypted(t *testing.T) {
 func TestCredentialRotationPersistsTheNextCredentialAndRetriesWithIt(t *testing.T) {
 	g, core, _, _ := newTestGateway(t)
 	ctx := context.Background()
-	identity := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: "old", Enrolled: true, CredentialExpiresAt: g.now().Add(24 * time.Hour)}
+	identity := Identity{
+		CredentialID:        uuid.Must(uuid.NewV7()),
+		CredentialSecret:    "old",
+		Enrolled:            true,
+		CredentialExpiresAt: g.now().Add(24 * time.Hour),
+	}
 	if err := g.store.SaveIdentity(identity); err != nil {
 		t.Fatal(err)
 	}
@@ -400,10 +426,12 @@ func TestCredentialRotationPersistsTheNextCredentialAndRetriesWithIt(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(core.rotations) != 2 || core.rotations[0] != core.rotations[1] || core.rotations[0] != *saved.NextCredentialID {
+	if len(core.rotations) != 2 || core.rotations[0] != core.rotations[1] ||
+		core.rotations[0] != *saved.NextCredentialID {
 		t.Fatalf("retry must reuse the same credential: %v", core.rotations)
 	}
-	if rotated.CredentialSecret != saved.NextCredentialSecret || rotated.NextCredentialID != nil || g.store.Identity().NextCredentialID != nil {
+	if rotated.CredentialSecret != saved.NextCredentialSecret || rotated.NextCredentialID != nil ||
+		g.store.Identity().NextCredentialID != nil {
 		t.Fatalf("rotation not completed: %+v", rotated)
 	}
 }
@@ -426,7 +454,8 @@ func TestEnrollmentPrefersTheEnvironmentSecretOverTheLegacyFile(t *testing.T) {
 func TestEnrollmentWithoutAnySecretExplainsWhatToDo(t *testing.T) {
 	g, core, _, _ := newTestGateway(t)
 	_, err := g.ensureIdentity(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "STREAM_ENROLLMENT_SECRET") || !strings.Contains(err.Error(), "Local services") {
+	if err == nil || !strings.Contains(err.Error(), "STREAM_ENROLLMENT_SECRET") ||
+		!strings.Contains(err.Error(), "Local services") {
 		t.Fatalf("expected an actionable error, got %v", err)
 	}
 	if len(core.enrollSecrets) != 0 {

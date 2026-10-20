@@ -29,7 +29,11 @@ var allowedEventFileTypes = map[string]struct{}{
 	"application/vnd.oasis.opendocument.text":                                   {}, "application/vnd.oasis.opendocument.spreadsheet": {}, "application/vnd.oasis.opendocument.presentation": {},
 }
 
-func (s *Service) ListFiles(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]EventFile, error) {
+func (s *Service) ListFiles(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]EventFile, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -39,12 +43,37 @@ func (s *Service) ListFiles(ctx context.Context, principal authorization.Princip
 	}
 	result := make([]EventFile, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, EventFile{ID: row.ID, EventID: row.EventID, FileID: row.FileID, Description: row.Description, Visibility: row.Visibility, IsBanner: row.IsBanner, OriginalFilename: row.OriginalFilename, ContentType: row.ContentType, SizeBytes: row.SizeBytes, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		result = append(
+			result,
+			EventFile{
+				ID:               row.ID,
+				EventID:          row.EventID,
+				FileID:           row.FileID,
+				Description:      row.Description,
+				Visibility:       row.Visibility,
+				IsBanner:         row.IsBanner,
+				OriginalFilename: row.OriginalFilename,
+				ContentType:      row.ContentType,
+				SizeBytes:        row.SizeBytes,
+				Version:          int64(row.Version),
+				CreatedAt:        row.CreatedAt,
+				UpdatedAt:        row.UpdatedAt,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) AttachFile(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, filename, contentType, visibility string, isBanner bool, description *string, data []byte, requestID *uuid.UUID) (EventFile, error) {
+func (s *Service) AttachFile(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	filename, contentType, visibility string,
+	isBanner bool,
+	description *string,
+	data []byte,
+	requestID *uuid.UUID,
+) (EventFile, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return EventFile{}, apperror.PermissionDenied
 	}
@@ -96,7 +125,17 @@ func (s *Service) AttachFile(ctx context.Context, principal authorization.Princi
 			return EventFile{}, err
 		}
 	}
-	row, err := q.CreateEventFile(ctx, eventsdb.CreateEventFileParams{ID: id, EventID: eventID, FileID: stored.ID, Description: description, Visibility: visibility, IsBanner: isBanner})
+	row, err := q.CreateEventFile(
+		ctx,
+		eventsdb.CreateEventFileParams{
+			ID:          id,
+			EventID:     eventID,
+			FileID:      stored.ID,
+			Description: description,
+			Visibility:  visibility,
+			IsBanner:    isBanner,
+		},
+	)
 	if err != nil {
 		return EventFile{}, databaseError(err)
 	}
@@ -108,7 +147,20 @@ func (s *Service) AttachFile(ctx context.Context, principal authorization.Princi
 		return EventFile{}, err
 	}
 	attached = true
-	return EventFile{ID: row.ID, EventID: row.EventID, FileID: row.FileID, Description: row.Description, Visibility: row.Visibility, IsBanner: row.IsBanner, OriginalFilename: stored.OriginalFilename, ContentType: stored.ContentType, SizeBytes: stored.Size, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return EventFile{
+		ID:               row.ID,
+		EventID:          row.EventID,
+		FileID:           row.FileID,
+		Description:      row.Description,
+		Visibility:       row.Visibility,
+		IsBanner:         row.IsBanner,
+		OriginalFilename: stored.OriginalFilename,
+		ContentType:      stored.ContentType,
+		SizeBytes:        stored.Size,
+		Version:          int64(row.Version),
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}, nil
 }
 
 func isEventImageType(contentType string) bool {
@@ -160,7 +212,16 @@ func isMachO(value []byte) bool {
 		magic == [4]byte{0xca, 0xfe, 0xba, 0xbe}
 }
 
-func (s *Service) UpdateFile(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, visibility string, isBanner *bool, description *string, requestID *uuid.UUID) (EventFile, error) {
+func (s *Service) UpdateFile(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	visibility string,
+	isBanner *bool,
+	description *string,
+	requestID *uuid.UUID,
+) (EventFile, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return EventFile{}, apperror.PermissionDenied
 	}
@@ -208,7 +269,17 @@ func (s *Service) UpdateFile(ctx context.Context, principal authorization.Princi
 			return EventFile{}, err
 		}
 	}
-	row, err := q.UpdateEventFile(ctx, eventsdb.UpdateEventFileParams{Description: description, Visibility: visibility, IsBanner: nextBanner, ID: id, EventID: eventID, ExpectedVersion: int32(expected)})
+	row, err := q.UpdateEventFile(
+		ctx,
+		eventsdb.UpdateEventFileParams{
+			Description:     description,
+			Visibility:      visibility,
+			IsBanner:        nextBanner,
+			ID:              id,
+			EventID:         eventID,
+			ExpectedVersion: int32(expected),
+		},
+	)
 	if err != nil {
 		return EventFile{}, databaseError(err)
 	}
@@ -219,10 +290,29 @@ func (s *Service) UpdateFile(ctx context.Context, principal authorization.Princi
 	if err = tx.Commit(ctx); err != nil {
 		return EventFile{}, err
 	}
-	return EventFile{ID: row.ID, EventID: row.EventID, FileID: row.FileID, Description: row.Description, Visibility: row.Visibility, IsBanner: row.IsBanner, OriginalFilename: current.OriginalFilename, ContentType: current.ContentType, SizeBytes: current.SizeBytes, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return EventFile{
+		ID:               row.ID,
+		EventID:          row.EventID,
+		FileID:           row.FileID,
+		Description:      row.Description,
+		Visibility:       row.Visibility,
+		IsBanner:         row.IsBanner,
+		OriginalFilename: current.OriginalFilename,
+		ContentType:      current.ContentType,
+		SizeBytes:        current.SizeBytes,
+		Version:          int64(row.Version),
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}, nil
 }
 
-func (s *Service) RemoveFile(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) RemoveFile(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsManage) {
 		return apperror.PermissionDenied
 	}
@@ -251,7 +341,10 @@ func (s *Service) RemoveFile(ctx context.Context, principal authorization.Princi
 	if int64(current.Version) != expected {
 		return apperror.StaleWrite
 	}
-	fileID, err := q.DeleteEventFile(ctx, eventsdb.DeleteEventFileParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)})
+	fileID, err := q.DeleteEventFile(
+		ctx,
+		eventsdb.DeleteEventFileParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)},
+	)
 	if err != nil {
 		return databaseError(err)
 	}
@@ -265,7 +358,11 @@ func (s *Service) RemoveFile(ctx context.Context, principal authorization.Princi
 	return s.files.Delete(ctx, principal, fileID, requestID)
 }
 
-func (s *Service) OpenFile(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID) (EventFile, files.File, io.ReadCloser, error) {
+func (s *Service) OpenFile(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+) (EventFile, files.File, io.ReadCloser, error) {
 	if !canRead(principal) {
 		return EventFile{}, files.File{}, nil, apperror.PermissionDenied
 	}
@@ -277,10 +374,29 @@ func (s *Service) OpenFile(ctx context.Context, principal authorization.Principa
 		return EventFile{}, files.File{}, nil, err
 	}
 	file, reader, err := s.files.Open(ctx, row.FileID)
-	return EventFile{ID: row.ID, EventID: row.EventID, FileID: row.FileID, Description: row.Description, Visibility: row.Visibility, IsBanner: row.IsBanner, OriginalFilename: row.OriginalFilename, ContentType: row.ContentType, SizeBytes: row.SizeBytes, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, file, reader, err
+	return EventFile{
+		ID:               row.ID,
+		EventID:          row.EventID,
+		FileID:           row.FileID,
+		Description:      row.Description,
+		Visibility:       row.Visibility,
+		IsBanner:         row.IsBanner,
+		OriginalFilename: row.OriginalFilename,
+		ContentType:      row.ContentType,
+		SizeBytes:        row.SizeBytes,
+		Version:          int64(row.Version),
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}, file, reader, err
 }
-func (s *Service) OpenPublicFile(ctx context.Context, publicID string, id uuid.UUID) (EventFile, files.File, io.ReadCloser, error) {
-	row, err := eventsdb.New(s.pool).GetPublicEventFile(ctx, eventsdb.GetPublicEventFileParams{ID: id, PublicID: publicID})
+
+func (s *Service) OpenPublicFile(
+	ctx context.Context,
+	publicID string,
+	id uuid.UUID,
+) (EventFile, files.File, io.ReadCloser, error) {
+	row, err := eventsdb.New(s.pool).
+		GetPublicEventFile(ctx, eventsdb.GetPublicEventFileParams{ID: id, PublicID: publicID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EventFile{}, files.File{}, nil, apperror.NotFound
 	}
@@ -288,10 +404,27 @@ func (s *Service) OpenPublicFile(ctx context.Context, publicID string, id uuid.U
 		return EventFile{}, files.File{}, nil, err
 	}
 	file, reader, err := s.files.Open(ctx, row.FileID)
-	return EventFile{ID: row.ID, EventID: uuid.Nil, FileID: uuid.Nil, Description: row.Description, Visibility: "public", IsBanner: row.IsBanner, OriginalFilename: row.OriginalFilename, ContentType: row.ContentType, SizeBytes: row.SizeBytes, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, file, reader, err
+	return EventFile{
+		ID:               row.ID,
+		EventID:          uuid.Nil,
+		FileID:           uuid.Nil,
+		Description:      row.Description,
+		Visibility:       "public",
+		IsBanner:         row.IsBanner,
+		OriginalFilename: row.OriginalFilename,
+		ContentType:      row.ContentType,
+		SizeBytes:        row.SizeBytes,
+		Version:          int64(row.Version),
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}, file, reader, err
 }
 
-func (s *Service) OpenBanner(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) (files.File, io.ReadCloser, error) {
+func (s *Service) OpenBanner(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) (files.File, io.ReadCloser, error) {
 	if !canRead(principal) {
 		return files.File{}, nil, apperror.PermissionDenied
 	}

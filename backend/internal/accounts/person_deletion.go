@@ -13,8 +13,16 @@ import (
 )
 
 var scimDeletionBlockers = map[string]*apperror.Error{
-	"scim_users_person_id_fkey":  apperror.New(409, "person_scim_managed", "This person is provisioned through SCIM. Remove them in the identity provider instead."),
-	"scim_users_account_id_fkey": apperror.New(409, "account_scim_managed", "This account is provisioned through SCIM. Remove it in the identity provider instead."),
+	"scim_users_person_id_fkey": apperror.New(
+		409,
+		"person_scim_managed",
+		"This person is provisioned through SCIM. Remove them in the identity provider instead.",
+	),
+	"scim_users_account_id_fkey": apperror.New(
+		409,
+		"account_scim_managed",
+		"This account is provisioned through SCIM. Remove it in the identity provider instead.",
+	),
 }
 
 // DeletionReferenceBlocker explains a foreign-key violation raised while
@@ -29,7 +37,11 @@ func DeletionReferenceBlocker(err error) *apperror.Error {
 	if blocker, ok := scimDeletionBlockers[postgresError.ConstraintName]; ok {
 		return blocker
 	}
-	return apperror.New(409, "deletion_referenced", "Records in "+postgresError.TableName+" still reference it. Remove or reassign them first.")
+	return apperror.New(
+		409,
+		"deletion_referenced",
+		"Records in "+postgresError.TableName+" still reference it. Remove or reassign them first.",
+	)
 }
 
 // AuthorizePersonDeletion enforces the Account-owned rules that apply when a

@@ -59,11 +59,24 @@ func KeyID(public ed25519.PublicKey) string {
 }
 
 // Sign creates a ticket valid for TTL from now.
-func Sign(private ed25519.PrivateKey, keyID string, displayID, machineID uuid.UUID, streamName string, now time.Time) (string, Claims, error) {
+func Sign(
+	private ed25519.PrivateKey,
+	keyID string,
+	displayID, machineID uuid.UUID,
+	streamName string,
+	now time.Time,
+) (string, Claims, error) {
 	if len(private) != ed25519.PrivateKeySize {
 		return "", Claims{}, errors.New("invalid signing key")
 	}
-	claims := Claims{Version: Version, DisplayID: displayID, MachineID: machineID, StreamName: streamName, Expires: now.Add(TTL).Unix(), KeyID: keyID}
+	claims := Claims{
+		Version:    Version,
+		DisplayID:  displayID,
+		MachineID:  machineID,
+		StreamName: streamName,
+		Expires:    now.Add(TTL).Unix(),
+		KeyID:      keyID,
+	}
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", Claims{}, err
@@ -100,7 +113,8 @@ func Verify(ticket string, keys Keys, now time.Time) (Claims, error) {
 	if err = decoder.Decode(&claims); err != nil || decoder.More() {
 		return Claims{}, ErrMalformed
 	}
-	if claims.Version != Version || claims.StreamName == "" || claims.KeyID == "" || claims.DisplayID == uuid.Nil || claims.MachineID == uuid.Nil {
+	if claims.Version != Version || claims.StreamName == "" || claims.KeyID == "" || claims.DisplayID == uuid.Nil ||
+		claims.MachineID == uuid.Nil {
 		return Claims{}, ErrMalformed
 	}
 	public, ok := keys[claims.KeyID]

@@ -23,7 +23,8 @@ func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokens = append(tokens, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"connectorId": uuid.Must(uuid.NewV7()), "credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour)})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"connectorId": uuid.Must(uuid.NewV7()), "credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour)})
 	}))
 	t.Cleanup(server.Close)
 	client, err := NewClient(server.URL, true)
@@ -71,7 +72,8 @@ func TestEnrollmentFallsBackToTheLegacyFile(t *testing.T) {
 func TestEnrollmentWithoutAnySecretExplainsWhatToDo(t *testing.T) {
 	runtime, tokens := newEnrollmentRuntime(t, Enrollment{}, io.Discard)
 	_, err := runtime.ensureIdentity(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "CONNECTOR_ENROLLMENT_SECRET") || !strings.Contains(err.Error(), "Machines > Connectors") {
+	if err == nil || !strings.Contains(err.Error(), "CONNECTOR_ENROLLMENT_SECRET") ||
+		!strings.Contains(err.Error(), "Machines > Connectors") {
 		t.Fatalf("expected an actionable error, got %v", err)
 	}
 	if len(*tokens) != 0 {

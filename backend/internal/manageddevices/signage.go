@@ -38,7 +38,13 @@ func (d DeviceContext) IsSignagePlayer() bool { return isSignagePlayer(d.Allowed
 // CreateSignagePlayerDeviceTx creates the device of a newly paired display. The device gets a
 // random token digest nobody can present; IssueSignagePlayerTokenTx replaces it when the player
 // collects its credential, so the plaintext token is never stored.
-func CreateSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authorization.Principal, name string, requestID *uuid.UUID) (uuid.UUID, error) {
+func CreateSignagePlayerDeviceTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor authorization.Principal,
+	name string,
+	requestID *uuid.UUID,
+) (uuid.UUID, error) {
 	q := manageddevicesdb.New(tx)
 	if err := q.EnsureManagedDeviceTypeByName(ctx, manageddevicesdb.EnsureManagedDeviceTypeByNameParams{
 		ID: uuid.Must(uuid.NewV7()), Name: signageDeviceTypeName, Description: stringPointer("Managed devices that run a digital-signage player."),
@@ -54,8 +60,12 @@ func CreateSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authoriza
 		return uuid.Nil, err
 	}
 	row, err := q.CreateManagedDevice(ctx, manageddevicesdb.CreateManagedDeviceParams{
-		ID: uuid.Must(uuid.NewV7()), Name: name, DeviceTypeID: deviceType.ID, TokenDigest: security.DigestToken(string(unusable)),
-		AllowedAppModes: []string{SignagePlayerMode}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+		ID: uuid.Must(
+			uuid.NewV7(),
+		), Name: name, DeviceTypeID: deviceType.ID, TokenDigest: security.DigestToken(string(unusable)),
+		AllowedAppModes: []string{
+			SignagePlayerMode,
+		}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
 	})
 	if err != nil {
 		return uuid.Nil, databaseError(err)
@@ -74,7 +84,10 @@ func IssueSignagePlayerTokenTx(ctx context.Context, tx pgx.Tx, deviceID uuid.UUI
 	if err != nil {
 		return "", err
 	}
-	if _, err := manageddevicesdb.New(tx).SetManagedDeviceTokenDigest(ctx, manageddevicesdb.SetManagedDeviceTokenDigestParams{ID: deviceID, TokenDigest: digest}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := manageddevicesdb.New(tx).SetManagedDeviceTokenDigest(ctx, manageddevicesdb.SetManagedDeviceTokenDigestParams{ID: deviceID, TokenDigest: digest}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return "", apperror.NotFound
 	} else if err != nil {
 		return "", err
@@ -83,7 +96,13 @@ func IssueSignagePlayerTokenTx(ctx context.Context, tx pgx.Tx, deviceID uuid.UUI
 }
 
 // RevokeSignagePlayerDeviceTx revokes the device (idempotent) and writes the revocation audit event.
-func RevokeSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authorization.Principal, deviceID uuid.UUID, requestID *uuid.UUID) error {
+func RevokeSignagePlayerDeviceTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor authorization.Principal,
+	deviceID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	q := manageddevicesdb.New(tx)
 	current, err := q.GetManagedDeviceForMutation(ctx, deviceID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -98,11 +117,28 @@ func RevokeSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authoriza
 		return err
 	}
 	accountID := actor.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "managed_device.revoked", ResourceType: "managed_device", ResourceID: &deviceID, RequestID: requestID, ChangedFields: []string{"revokedAt"}})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &accountID,
+			Action:         "managed_device.revoked",
+			ResourceType:   "managed_device",
+			ResourceID:     &deviceID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"revokedAt"},
+		},
+	)
 }
 
 // DeleteSignagePlayerDeviceTx deletes a revoked device after its display row is gone.
-func DeleteSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authorization.Principal, deviceID uuid.UUID, requestID *uuid.UUID) error {
+func DeleteSignagePlayerDeviceTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor authorization.Principal,
+	deviceID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	q := manageddevicesdb.New(tx)
 	current, err := q.GetManagedDeviceForMutation(ctx, deviceID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -114,7 +150,17 @@ func DeleteSignagePlayerDeviceTx(ctx context.Context, tx pgx.Tx, actor authoriza
 		return databaseError(err)
 	}
 	accountID := actor.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "managed_device.deleted", ResourceType: "managed_device", ResourceID: &deviceID, RequestID: requestID})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &accountID,
+			Action:         "managed_device.deleted",
+			ResourceType:   "managed_device",
+			ResourceID:     &deviceID,
+			RequestID:      requestID,
+		},
+	)
 }
 
 func stringPointer(value string) *string { return &value }

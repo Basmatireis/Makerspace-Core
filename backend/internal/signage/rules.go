@@ -158,7 +158,9 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 			return input, validation("a live-data rule takes no condition fields")
 		}
 	default:
-		return input, validation("conditionKind must be time_window, machine_printing, announcement_active or live_data_unavailable")
+		return input, validation(
+			"conditionKind must be time_window, machine_printing, announcement_active or live_data_unavailable",
+		)
 	}
 	return input, nil
 }
@@ -278,7 +280,9 @@ func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) sign
 		ID: ruleID, DisplayID: displayID, Position: int32(position), Enabled: input.Enabled, ConditionKind: input.ConditionKind, Weekdays: weekdays,
 		TimeFrom: input.TimeFrom, TimeTo: input.TimeTo, MachineIds: uuidStrings(input.MachineIDs), MachineMatch: input.MachineMatch,
 		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs), TargetKind: input.TargetKind,
-		MinSeconds: int32(input.MinSeconds), MultiMode: input.MultiMode, AlternateSeconds: int32(input.AlternateSeconds),
+		MinSeconds: int32(
+			input.MinSeconds,
+		), MultiMode: input.MultiMode, AlternateSeconds: int32(input.AlternateSeconds),
 	}
 	target := input.TargetID
 	if input.TargetKind == "scene" {
@@ -290,7 +294,11 @@ func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) sign
 }
 
 // ListRules returns a display's rules in evaluation order.
-func (s *Service) ListRules(ctx context.Context, principal authorization.Principal, displayID uuid.UUID) (RuleList, error) {
+func (s *Service) ListRules(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID uuid.UUID,
+) (RuleList, error) {
 	if err := requireRead(principal); err != nil {
 		return RuleList{}, err
 	}
@@ -316,9 +324,17 @@ func (s *Service) ListRules(ctx context.Context, principal authorization.Princip
 // ruleMutation runs one rule write under the display lock. Rules share the display version:
 // every write must quote the current display version and bumps it, so concurrent edits of the same
 // rule list conflict as a whole (409 stale_write) and a reorder is atomic by construction.
-func (s *Service) ruleMutation(ctx context.Context, principal authorization.Principal, displayID uuid.UUID, expected int64, requestID *uuid.UUID,
-	action, resource string, resourceID func() uuid.UUID, fields []string,
-	apply func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error) (RuleList, error) {
+func (s *Service) ruleMutation(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+	action, resource string,
+	resourceID func() uuid.UUID,
+	fields []string,
+	apply func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error,
+) (RuleList, error) {
 	if !principal.Has(authorization.SignageManage) {
 		return RuleList{}, apperror.PermissionDenied
 	}
@@ -351,7 +367,10 @@ func (s *Service) ruleMutation(ctx context.Context, principal authorization.Prin
 	if err := apply(q, display, loaded[displayID]); err != nil {
 		return RuleList{}, err
 	}
-	version, err := q.BumpSignageDisplayVersion(ctx, signagedb.BumpSignageDisplayVersionParams{ID: displayID, ExpectedVersion: expected})
+	version, err := q.BumpSignageDisplayVersion(
+		ctx,
+		signagedb.BumpSignageDisplayVersionParams{ID: displayID, ExpectedVersion: expected},
+	)
 	if err != nil {
 		return RuleList{}, err
 	}
@@ -379,7 +398,14 @@ func displayRevoked() error {
 var ruleFields = []string{"enabled", "condition", "target", "minSeconds", "multiMode", "alternateSeconds"}
 
 // CreateRule appends a rule to the end of the display's rule list.
-func (s *Service) CreateRule(ctx context.Context, principal authorization.Principal, displayID uuid.UUID, expected int64, input RuleInput, requestID *uuid.UUID) (RuleList, error) {
+func (s *Service) CreateRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
 	if !principal.Has(authorization.SignageManage) {
 		return RuleList{}, apperror.PermissionDenied
 	}
@@ -388,7 +414,16 @@ func (s *Service) CreateRule(ctx context.Context, principal authorization.Princi
 		return RuleList{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	return s.ruleMutation(ctx, principal, displayID, expected, requestID, "signage_rule.created", "signage_rule", func() uuid.UUID { return id }, ruleFields,
+	return s.ruleMutation(
+		ctx,
+		principal,
+		displayID,
+		expected,
+		requestID,
+		"signage_rule.created",
+		"signage_rule",
+		func() uuid.UUID { return id },
+		ruleFields,
 		func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
 			if len(rules) >= maxRulesPerDisplay {
 				return validation("a display has at most %d rules", maxRulesPerDisplay)
@@ -397,7 +432,8 @@ func (s *Service) CreateRule(ctx context.Context, principal authorization.Princi
 				return err
 			}
 			return databaseError(q.InsertSignageRule(ctx, ruleParams(displayID, id, len(rules), checked)))
-		})
+		},
+	)
 }
 
 func findRule(rules []Rule, id uuid.UUID) (Rule, bool) {
@@ -410,7 +446,14 @@ func findRule(rules []Rule, id uuid.UUID) (Rule, bool) {
 }
 
 // UpdateRule replaces all writable fields of a rule.
-func (s *Service) UpdateRule(ctx context.Context, principal authorization.Principal, displayID, ruleID uuid.UUID, expected int64, input RuleInput, requestID *uuid.UUID) (RuleList, error) {
+func (s *Service) UpdateRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID, ruleID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
 	if !principal.Has(authorization.SignageManage) {
 		return RuleList{}, apperror.PermissionDenied
 	}
@@ -418,7 +461,16 @@ func (s *Service) UpdateRule(ctx context.Context, principal authorization.Princi
 	if err != nil {
 		return RuleList{}, err
 	}
-	return s.ruleMutation(ctx, principal, displayID, expected, requestID, "signage_rule.updated", "signage_rule", func() uuid.UUID { return ruleID }, ruleFields,
+	return s.ruleMutation(
+		ctx,
+		principal,
+		displayID,
+		expected,
+		requestID,
+		"signage_rule.updated",
+		"signage_rule",
+		func() uuid.UUID { return ruleID },
+		ruleFields,
 		func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
@@ -434,24 +486,60 @@ func (s *Service) UpdateRule(ctx context.Context, principal authorization.Princi
 				MinSeconds: params.MinSeconds, MultiMode: params.MultiMode, AlternateSeconds: params.AlternateSeconds, ID: ruleID, DisplayID: displayID,
 			})
 			return databaseError(err)
-		})
+		},
+	)
 }
 
 // SetRuleEnabled switches a rule on or off without touching anything else.
-func (s *Service) SetRuleEnabled(ctx context.Context, principal authorization.Principal, displayID, ruleID uuid.UUID, expected int64, enabled bool, requestID *uuid.UUID) (RuleList, error) {
-	return s.ruleMutation(ctx, principal, displayID, expected, requestID, "signage_rule.updated", "signage_rule", func() uuid.UUID { return ruleID }, []string{"enabled"},
+func (s *Service) SetRuleEnabled(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID, ruleID uuid.UUID,
+	expected int64,
+	enabled bool,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.ruleMutation(
+		ctx,
+		principal,
+		displayID,
+		expected,
+		requestID,
+		"signage_rule.updated",
+		"signage_rule",
+		func() uuid.UUID { return ruleID },
+		[]string{"enabled"},
 		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			_, err := q.SetSignageRuleEnabled(ctx, signagedb.SetSignageRuleEnabledParams{Enabled: enabled, ID: ruleID, DisplayID: displayID})
+			_, err := q.SetSignageRuleEnabled(
+				ctx,
+				signagedb.SetSignageRuleEnabledParams{Enabled: enabled, ID: ruleID, DisplayID: displayID},
+			)
 			return err
-		})
+		},
+	)
 }
 
 // DeleteRule removes a rule and closes the gap in the order.
-func (s *Service) DeleteRule(ctx context.Context, principal authorization.Principal, displayID, ruleID uuid.UUID, expected int64, requestID *uuid.UUID) (RuleList, error) {
-	return s.ruleMutation(ctx, principal, displayID, expected, requestID, "signage_rule.deleted", "signage_rule", func() uuid.UUID { return ruleID }, nil,
+func (s *Service) DeleteRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID, ruleID uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.ruleMutation(
+		ctx,
+		principal,
+		displayID,
+		expected,
+		requestID,
+		"signage_rule.deleted",
+		"signage_rule",
+		func() uuid.UUID { return ruleID },
+		nil,
 		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
@@ -470,13 +558,30 @@ func (s *Service) DeleteRule(ctx context.Context, principal authorization.Princi
 				position++
 			}
 			return nil
-		})
+		},
+	)
 }
 
 // ReorderRules sets the complete evaluation order in one transaction. ruleIDs must name every rule
 // of the display exactly once.
-func (s *Service) ReorderRules(ctx context.Context, principal authorization.Principal, displayID uuid.UUID, expected int64, ruleIDs []uuid.UUID, requestID *uuid.UUID) (RuleList, error) {
-	return s.ruleMutation(ctx, principal, displayID, expected, requestID, "signage_display.rules_reordered", "signage_display", func() uuid.UUID { return displayID }, []string{"ruleOrder"},
+func (s *Service) ReorderRules(
+	ctx context.Context,
+	principal authorization.Principal,
+	displayID uuid.UUID,
+	expected int64,
+	ruleIDs []uuid.UUID,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.ruleMutation(
+		ctx,
+		principal,
+		displayID,
+		expected,
+		requestID,
+		"signage_display.rules_reordered",
+		"signage_display",
+		func() uuid.UUID { return displayID },
+		[]string{"ruleOrder"},
 		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
 			if len(ruleIDs) != len(rules) || len(distinct(ruleIDs)) != len(ruleIDs) {
 				return validation("ruleIds must list every rule of the display exactly once")
@@ -492,5 +597,6 @@ func (s *Service) ReorderRules(ctx context.Context, principal authorization.Prin
 				}
 			}
 			return nil
-		})
+		},
+	)
 }

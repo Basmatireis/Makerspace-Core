@@ -32,7 +32,9 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: admin <bootstrap-master|recover-master|reset-password|cleanup|deliver-surveys|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>")
+		return errors.New(
+			"usage: admin <bootstrap-master|recover-master|reset-password|cleanup|deliver-surveys|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>",
+		)
 	}
 	if args[0] == "reset-password" && len(args) != 1 {
 		return errors.New("reset-password accepts no flags, password arguments, environment values, or piped input")
@@ -110,11 +112,22 @@ func run(ctx context.Context, args []string) error {
 		if cfg.EventSignupRetention > 0 {
 			eventSignupBefore = time.Now().UTC().Add(-cfg.EventSignupRetention)
 		}
-		sessions, resets, events, eventAssignments, err := service.Cleanup(ctx, time.Now().UTC(), auditBefore, eventSignupBefore)
+		sessions, resets, events, eventAssignments, err := service.Cleanup(
+			ctx,
+			time.Now().UTC(),
+			auditBefore,
+			eventSignupBefore,
+		)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("deleted sessions=%d reset_tokens=%d audit_events=%d anonymized_event_assignments=%d\n", sessions, resets, events, eventAssignments)
+		fmt.Printf(
+			"deleted sessions=%d reset_tokens=%d audit_events=%d anonymized_event_assignments=%d\n",
+			sessions,
+			resets,
+			events,
+			eventAssignments,
+		)
 		return nil
 	case "deliver-surveys":
 		flags := flag.NewFlagSet("deliver-surveys", flag.ContinueOnError)
@@ -186,7 +199,18 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		destination, err := storage.NewS3(ctx, storage.S3Config{Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, Bucket: cfg.S3Bucket, AccessKeyID: cfg.S3AccessKeyID, SecretAccessKey: cfg.S3SecretAccessKey, UsePathStyle: cfg.S3UsePathStyle, DisableTLS: cfg.S3DisableTLS})
+		destination, err := storage.NewS3(
+			ctx,
+			storage.S3Config{
+				Endpoint:        cfg.S3Endpoint,
+				Region:          cfg.S3Region,
+				Bucket:          cfg.S3Bucket,
+				AccessKeyID:     cfg.S3AccessKeyID,
+				SecretAccessKey: cfg.S3SecretAccessKey,
+				UsePathStyle:    cfg.S3UsePathStyle,
+				DisableTLS:      cfg.S3DisableTLS,
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -226,7 +250,13 @@ func promptBootstrap() (admin.BootstrapInput, error) {
 	if err != nil {
 		return admin.BootstrapInput{}, err
 	}
-	return admin.BootstrapInput{FirstName: first, LastName: last, ContactEmail: contactEmail, LoginEmail: loginEmail, Password: password}, nil
+	return admin.BootstrapInput{
+		FirstName:    first,
+		LastName:     last,
+		ContactEmail: contactEmail,
+		LoginEmail:   loginEmail,
+		Password:     password,
+	}, nil
 }
 
 func promptRecovery() (string, string, error) {

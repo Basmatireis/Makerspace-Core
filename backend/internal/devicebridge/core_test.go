@@ -25,13 +25,19 @@ func TestCoreReportExcludesSimulatedCapabilities(t *testing.T) {
 	}
 	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/api/v1/managed-devices/self/hardware" || r.Header.Get("X-Managed-Device-Token") == "" {
-			t.Errorf("unexpected registration request: path=%s token=%q", r.URL.Path, r.Header.Get("X-Managed-Device-Token"))
+			t.Errorf(
+				"unexpected registration request: path=%s token=%q",
+				r.URL.Path,
+				r.Header.Get("X-Managed-Device-Token"),
+			)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
 			t.Error(err)
 		}
 		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header),
-			Body: io.NopCloser(strings.NewReader(`{"deviceId":"0199d263-cba8-7c06-98ff-244776840e79","deviceName":"Desktop"}`))}, nil
+			Body: io.NopCloser(
+				strings.NewReader(`{"deviceId":"0199d263-cba8-7c06-98ff-244776840e79","deviceName":"Desktop"}`),
+			)}, nil
 	})
 	if _, err = client.Report(context.Background(), []Capability{
 		{ID: "nfc", Available: true, State: "simulated"},

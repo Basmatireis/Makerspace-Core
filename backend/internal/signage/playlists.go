@@ -41,7 +41,14 @@ func playlistFrom(row signagedb.SignagePlaylist, items []PlaylistItem) Playlist 
 	if items == nil {
 		items = []PlaylistItem{}
 	}
-	return Playlist{ID: row.ID, Name: row.Name, Items: items, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC()}
+	return Playlist{
+		ID:        row.ID,
+		Name:      row.Name,
+		Items:     items,
+		Version:   row.Version,
+		CreatedAt: row.CreatedAt.UTC(),
+		UpdatedAt: row.UpdatedAt.UTC(),
+	}
 }
 
 func validatePlaylistInput(ctx context.Context, q *signagedb.Queries, input PlaylistInput) (string, error) {
@@ -91,7 +98,10 @@ func replaceItems(ctx context.Context, q *signagedb.Queries, playlistID uuid.UUI
 func itemsByPlaylist(rows []signagedb.SignagePlaylistItem) map[uuid.UUID][]PlaylistItem {
 	result := map[uuid.UUID][]PlaylistItem{}
 	for _, row := range rows {
-		result[row.PlaylistID] = append(result[row.PlaylistID], PlaylistItem{SceneID: row.SceneID, Seconds: int(row.Seconds), Transition: row.Transition})
+		result[row.PlaylistID] = append(
+			result[row.PlaylistID],
+			PlaylistItem{SceneID: row.SceneID, Seconds: int(row.Seconds), Transition: row.Transition},
+		)
 	}
 	return result
 }
@@ -146,7 +156,12 @@ func (s *Service) getPlaylist(ctx context.Context, q *signagedb.Queries, id uuid
 }
 
 // CreatePlaylist stores a playlist with its items.
-func (s *Service) CreatePlaylist(ctx context.Context, principal authorization.Principal, input PlaylistInput, requestID *uuid.UUID) (Playlist, error) {
+func (s *Service) CreatePlaylist(
+	ctx context.Context,
+	principal authorization.Principal,
+	input PlaylistInput,
+	requestID *uuid.UUID,
+) (Playlist, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Playlist{}, err
 	}
@@ -178,7 +193,14 @@ func (s *Service) CreatePlaylist(ctx context.Context, principal authorization.Pr
 }
 
 // UpdatePlaylist renames a playlist and replaces its items in one transaction.
-func (s *Service) UpdatePlaylist(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, input PlaylistInput, requestID *uuid.UUID) (Playlist, error) {
+func (s *Service) UpdatePlaylist(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input PlaylistInput,
+	requestID *uuid.UUID,
+) (Playlist, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Playlist{}, err
 	}
@@ -205,7 +227,10 @@ func (s *Service) UpdatePlaylist(ctx context.Context, principal authorization.Pr
 	if current.Version != expected {
 		return Playlist{}, apperror.StaleWrite
 	}
-	if _, err := q.UpdateSignagePlaylist(ctx, signagedb.UpdateSignagePlaylistParams{Name: name, ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.UpdateSignagePlaylist(ctx, signagedb.UpdateSignagePlaylistParams{Name: name, ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Playlist{}, apperror.StaleWrite
 	} else if err != nil {
 		return Playlist{}, databaseError(err)
@@ -224,7 +249,13 @@ func (s *Service) UpdatePlaylist(ctx context.Context, principal authorization.Pr
 }
 
 // DeletePlaylist removes a playlist that no display (as default) or rule references.
-func (s *Service) DeletePlaylist(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeletePlaylist(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireContentManage(principal); err != nil {
 		return err
 	}
@@ -265,7 +296,10 @@ func (s *Service) DeletePlaylist(ctx context.Context, principal authorization.Pr
 	if len(references) > 0 {
 		return inUse("Playlist", references)
 	}
-	if _, err := q.DeleteSignagePlaylist(ctx, signagedb.DeleteSignagePlaylistParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.DeleteSignagePlaylist(ctx, signagedb.DeleteSignagePlaylistParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return databaseError(err)

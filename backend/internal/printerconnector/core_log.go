@@ -47,7 +47,15 @@ func safeCode(code string) string {
 func (r *Runtime) logFailure(message string, err error) {
 	var coreErr *CoreError
 	if errors.As(err, &coreErr) {
-		r.logger.Warn(message, "error_type", fmt.Sprintf("%T", err), "status", coreErr.Status, "code", safeCode(coreErr.Code))
+		r.logger.Warn(
+			message,
+			"error_type",
+			fmt.Sprintf("%T", err),
+			"status",
+			coreErr.Status,
+			"code",
+			safeCode(coreErr.Code),
+		)
 	} else {
 		r.logger.Warn(message, "error_type", fmt.Sprintf("%T", err))
 	}
@@ -68,7 +76,9 @@ func (r *Runtime) logCredentialRejected() {
 	}
 	r.mu.Unlock()
 	if due {
-		r.logger.Error("Core rejects this connector's credential (revoked or deleted). Create or pick a connector in Core, put a new CONNECTOR_ENROLLMENT_SECRET into .env and restart.")
+		r.logger.Error(
+			"Core rejects this connector's credential (revoked or deleted). Create or pick a connector in Core, put a new CONNECTOR_ENROLLMENT_SECRET into .env and restart.",
+		)
 	}
 }
 

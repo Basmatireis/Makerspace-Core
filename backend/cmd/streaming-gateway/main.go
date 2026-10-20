@@ -60,7 +60,9 @@ func run() error {
 	render.WebRTCListen = env("GO2RTC_WEBRTC_LISTEN", render.WebRTCListen)
 	render.LogLevel = env("GO2RTC_LOG_LEVEL", render.LogLevel)
 	if !streaminggateway.ValidLogLevel(render.LogLevel) {
-		return errors.New("GO2RTC_LOG_LEVEL must be error or fatal: go2rtc logs stream sources, which contain the printers' access codes, at more verbose levels")
+		return errors.New(
+			"GO2RTC_LOG_LEVEL must be error or fatal: go2rtc logs stream sources, which contain the printers' access codes, at more verbose levels",
+		)
 	}
 	for _, candidate := range strings.Split(os.Getenv("STREAM_WEBRTC_CANDIDATES"), ",") {
 		if candidate = strings.TrimSpace(candidate); candidate != "" {
@@ -68,7 +70,9 @@ func run() error {
 		}
 	}
 	if len(render.WebRTCCandidates) == 0 {
-		return errors.New("STREAM_WEBRTC_CANDIDATES is required: the LAN address of this host as ip:port, for example 192.168.1.20:8555")
+		return errors.New(
+			"STREAM_WEBRTC_CANDIDATES is required: the LAN address of this host as ip:port, for example 192.168.1.20:8555",
+		)
 	}
 	options := streaminggateway.Options{
 		DataDir:            dataDir,

@@ -17,7 +17,11 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	managerAccount := seedAccount(t, pool, "open-days-manager", true)
-	manager := authorization.Principal{AccountID: managerAccount.accountID, PersonID: managerAccount.personID, Master: true}
+	manager := authorization.Principal{
+		AccountID: managerAccount.accountID,
+		PersonID:  managerAccount.personID,
+		Master:    true,
+	}
 	service, err := opendays.NewService(pool, config.Config{
 		MakerspaceTimeZone: "Europe/Vienna", HolidayCountry: "AT",
 		HolidaySubdivision: "AT-6", HolidayLanguage: "de",
@@ -39,10 +43,15 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	startsAt := time.Date(2026, time.October, 7, 14, 0, 0, 0, time.UTC)
 	endsAt := time.Date(2026, time.October, 7, 17, 0, 0, 0, time.UTC)
 	note := "manager-only preparation note"
-	input := opendays.ScheduleInput{StartsAt: startsAt, EndsAt: endsAt, InternalNote: &note, Requirements: []opendays.RequirementInput{
-		{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
-		{Kind: "trainee", RequiredCount: 0, EligibleRoleIDs: []uuid.UUID{}},
-	}}
+	input := opendays.ScheduleInput{
+		StartsAt:     startsAt,
+		EndsAt:       endsAt,
+		InternalNote: &note,
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "trainee", RequiredCount: 0, EligibleRoleIDs: []uuid.UUID{}},
+		},
+	}
 	schedule, err := service.CreateOpenDay(ctx, manager, period.ID, period.Version, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +70,13 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	}, nil)
 	expectAppCode(t, err, "validation_failed")
 
-	_, err = service.SaveSchedule(ctx, manager, period.ID, opendays.ScheduleDelta{ExpectedPeriodVersion: 2, Creates: []opendays.ScheduleInput{input, input}}, nil)
+	_, err = service.SaveSchedule(
+		ctx,
+		manager,
+		period.ID,
+		opendays.ScheduleDelta{ExpectedPeriodVersion: 2, Creates: []opendays.ScheduleInput{input, input}},
+		nil,
+	)
 	expectAppCode(t, err, "duplicate_open_day")
 	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 1, period.ID)
 	var version int64
@@ -107,7 +122,11 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, readerAccount.personID, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
-	reader, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: readerAccount.accountID, PersonID: readerAccount.personID})
+	reader, err := authorization.LoadPermissionsFrom(
+		ctx,
+		pool,
+		authorization.Principal{AccountID: readerAccount.accountID, PersonID: readerAccount.personID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +188,8 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		t.Fatal(err)
 	}
 	calendar := string(ics)
-	if !strings.Contains(calendar, "UID:urn:uuid:"+day.ID.String()) || strings.Contains(calendar, note) || strings.Contains(calendar, "open-days-manager") {
+	if !strings.Contains(calendar, "UID:urn:uuid:"+day.ID.String()) || strings.Contains(calendar, note) ||
+		strings.Contains(calendar, "open-days-manager") {
 		t.Fatalf("unsafe or incomplete calendar:\n%s", calendar)
 	}
 	_, err = service.TransitionPeriod(ctx, manager, period.ID, published.Version, "draft", nil)
@@ -209,14 +229,32 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil || archived.Status != "archived" {
 		t.Fatalf("archive = %#v, err=%v", archived, err)
 	}
-	_, err = service.SaveSchedule(ctx, manager, period.ID, opendays.ScheduleDelta{ExpectedPeriodVersion: archived.Version}, nil)
+	_, err = service.SaveSchedule(
+		ctx,
+		manager,
+		period.ID,
+		opendays.ScheduleDelta{ExpectedPeriodVersion: archived.Version},
+		nil,
+	)
 	expectAppCode(t, err, "period_archived")
 	_, err = service.TransitionPeriod(ctx, manager, period.ID, archived.Version, "published", nil)
 	expectAppCode(t, err, "invalid_period_transition")
 	_, err = service.TransitionPeriod(ctx, manager, period.ID, archived.Version, "staffing", nil)
 	expectAppCode(t, err, "invalid_period_transition")
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.draft'`, 1, period.ID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.staffing'`, 3, period.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.draft'`,
+		1,
+		period.ID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.staffing'`,
+		3,
+		period.ID,
+	)
 }
 
 func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
@@ -225,12 +263,23 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 	managerAccount := seedAccount(t, pool, "open-days-capacity-manager", true)
 	first := seedAccount(t, pool, "open-days-capacity-first", true)
 	second := seedAccount(t, pool, "open-days-capacity-second", true)
-	manager := authorization.Principal{AccountID: managerAccount.accountID, PersonID: managerAccount.personID, Master: true}
+	manager := authorization.Principal{
+		AccountID: managerAccount.accountID,
+		PersonID:  managerAccount.personID,
+		Master:    true,
+	}
 	service, err := opendays.NewService(pool, config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	period, err := service.CreatePeriod(ctx, manager, "Capacity", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC), nil)
+	period, err := service.CreatePeriod(
+		ctx,
+		manager,
+		"Capacity",
+		time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,12 +328,23 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 	ctx := testContext(t)
 	managerAccount := seedAccount(t, pool, "open-days-summary-manager", true)
 	secondSupervisor := seedAccount(t, pool, "open-days-summary-second", true)
-	manager := authorization.Principal{AccountID: managerAccount.accountID, PersonID: managerAccount.personID, Master: true}
+	manager := authorization.Principal{
+		AccountID: managerAccount.accountID,
+		PersonID:  managerAccount.personID,
+		Master:    true,
+	}
 	service, err := opendays.NewService(pool, config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	period, err := service.CreatePeriod(ctx, manager, "Supervisor vacancy summary", time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC), nil)
+	period, err := service.CreatePeriod(
+		ctx,
+		manager,
+		"Supervisor vacancy summary",
+		time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +392,10 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if summary.OpenSupervisorPositions != 3 {
-		t.Fatalf("open supervisor positions = %d, want 3; trainee vacancies must be excluded", summary.OpenSupervisorPositions)
+		t.Fatalf(
+			"open supervisor positions = %d, want 3; trainee vacancies must be excluded",
+			summary.OpenSupervisorPositions,
+		)
 	}
 }
 
@@ -346,13 +409,27 @@ func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	period, err := service.CreatePeriod(ctx, manager, "Draft", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), nil)
+	period, err := service.CreatePeriod(
+		ctx,
+		manager,
+		"Draft",
+		time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = service.GetPeriod(ctx, reader, period.ID)
 	expectAppCode(t, err, "permission_denied")
-	bad := opendays.ScheduleInput{StartsAt: time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, 2, 1, 13, 0, 0, 0, time.UTC), Requirements: []opendays.RequirementInput{{Kind: "supervisor", RequiredCount: 1}, {Kind: "trainee", RequiredCount: 0}}}
+	bad := opendays.ScheduleInput{
+		StartsAt: time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC),
+		EndsAt:   time.Date(2026, 2, 1, 13, 0, 0, 0, time.UTC),
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 1},
+			{Kind: "trainee", RequiredCount: 0},
+		},
+	}
 	_, err = service.CreateOpenDay(ctx, manager, period.ID, period.Version, bad, nil)
 	expectAppCode(t, err, "validation_failed")
 }
@@ -395,7 +472,13 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	}
 	assertCount(t, pool, `SELECT count(*) FROM open_day_periods WHERE id = $1`, 0, period.ID)
 	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 0, period.ID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`, 1, period.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`,
+		1,
+		period.ID,
+	)
 
 	staffed, err := service.CreatePeriod(ctx, manager, "Staffed period", startsOn, endsOn, nil)
 	if err != nil {
@@ -425,7 +508,13 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	assertCount(t, pool, `SELECT count(*) FROM open_day_periods WHERE id = $1`, 0, staffed.ID)
 	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 0, staffed.ID)
 	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 0, schedule.Items[0].ID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`, 1, staffed.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`,
+		1,
+		staffed.ID,
+	)
 }
 
 func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduling(t *testing.T) {
@@ -442,11 +531,25 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 	if err != nil {
 		t.Fatal(err)
 	}
-	period, err := service.CreatePeriod(ctx, manager, "Holiday context", time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC), nil)
+	period, err := service.CreatePeriod(
+		ctx,
+		manager,
+		"Holiday context",
+		time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	academicBreak, err := service.CreateAcademicBreak(ctx, manager, "Christmas break", time.Date(2026, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 6, 0, 0, 0, 0, time.UTC), nil)
+	academicBreak, err := service.CreateAcademicBreak(
+		ctx,
+		manager,
+		"Christmas break",
+		time.Date(2026, 12, 23, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 1, 6, 0, 0, 0, 0, time.UTC),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,7 +576,8 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 			foundNationalDay = entry.Category == "publicHoliday" && entry.Source == "holidayLibrary"
 		}
 		if entry.ID != nil && *entry.ID == academicBreak.ID {
-			foundBreak = entry.Category == "academicBreak" && entry.Source == "manual" && dateKeyForTest(entry.EndsOn) == "2027-01-06"
+			foundBreak = entry.Category == "academicBreak" && entry.Source == "manual" &&
+				dateKeyForTest(entry.EndsOn) == "2027-01-06"
 		}
 	}
 	if !foundNationalDay || !foundBreak {
@@ -506,13 +610,31 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 		{Kind: "trainee", RequiredCount: 0},
 	}
 	schedule, err := service.CreateOpenDay(ctx, manager, period.ID, period.Version, opendays.ScheduleInput{
-		StartsAt: time.Date(2026, 10, 26, 15, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, 10, 26, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
+		StartsAt: time.Date(
+			2026,
+			10,
+			26,
+			15,
+			0,
+			0,
+			0,
+			time.UTC,
+		), EndsAt: time.Date(2026, 10, 26, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
 	}, nil)
 	if err != nil {
 		t.Fatalf("manual Open Day on public holiday: %v", err)
 	}
 	_, err = service.CreateOpenDay(ctx, manager, period.ID, schedule.Period.Version, opendays.ScheduleInput{
-		StartsAt: time.Date(2026, 12, 28, 15, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, 12, 28, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
+		StartsAt: time.Date(
+			2026,
+			12,
+			28,
+			15,
+			0,
+			0,
+			0,
+			time.UTC,
+		), EndsAt: time.Date(2026, 12, 28, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
 	}, nil)
 	if err != nil {
 		t.Fatalf("manual Open Day during academic break: %v", err)

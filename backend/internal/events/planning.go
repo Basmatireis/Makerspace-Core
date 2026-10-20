@@ -12,7 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *Service) ListTaskLists(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]TaskList, error) {
+func (s *Service) ListTaskLists(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]TaskList, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -26,7 +30,14 @@ func (s *Service) ListTaskLists(ctx context.Context, principal authorization.Pri
 	}
 	return result, nil
 }
-func (s *Service) CreateTaskList(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, input TaskListInput, requestID *uuid.UUID) (TaskList, error) {
+
+func (s *Service) CreateTaskList(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	input TaskListInput,
+	requestID *uuid.UUID,
+) (TaskList, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return TaskList{}, apperror.PermissionDenied
 	}
@@ -48,7 +59,16 @@ func (s *Service) CreateTaskList(ctx context.Context, principal authorization.Pr
 		return TaskList{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateEventTaskList(ctx, eventsdb.CreateEventTaskListParams{ID: id, EventID: eventID, Name: name, Description: description, SortOrder: int32(input.SortOrder)})
+	row, err := q.CreateEventTaskList(
+		ctx,
+		eventsdb.CreateEventTaskListParams{
+			ID:          id,
+			EventID:     eventID,
+			Name:        name,
+			Description: description,
+			SortOrder:   int32(input.SortOrder),
+		},
+	)
 	if err != nil {
 		return TaskList{}, databaseError(err)
 	}
@@ -61,7 +81,14 @@ func (s *Service) CreateTaskList(ctx context.Context, principal authorization.Pr
 	}
 	return taskListFromRow(row), nil
 }
-func (s *Service) UpdateTaskList(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, input TaskListInput, requestID *uuid.UUID) (TaskList, error) {
+
+func (s *Service) UpdateTaskList(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	input TaskListInput,
+	requestID *uuid.UUID,
+) (TaskList, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return TaskList{}, apperror.PermissionDenied
 	}
@@ -95,7 +122,17 @@ func (s *Service) UpdateTaskList(ctx context.Context, principal authorization.Pr
 	if int64(current.Version) != input.ExpectedVersion {
 		return TaskList{}, apperror.StaleWrite
 	}
-	row, err := q.UpdateEventTaskList(ctx, eventsdb.UpdateEventTaskListParams{Name: name, Description: description, SortOrder: int32(input.SortOrder), ID: id, EventID: eventID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventTaskList(
+		ctx,
+		eventsdb.UpdateEventTaskListParams{
+			Name:            name,
+			Description:     description,
+			SortOrder:       int32(input.SortOrder),
+			ID:              id,
+			EventID:         eventID,
+			ExpectedVersion: int32(input.ExpectedVersion),
+		},
+	)
 	if err != nil {
 		return TaskList{}, databaseError(err)
 	}
@@ -108,7 +145,14 @@ func (s *Service) UpdateTaskList(ctx context.Context, principal authorization.Pr
 	}
 	return taskListFromRow(row), nil
 }
-func (s *Service) DeleteTaskList(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+
+func (s *Service) DeleteTaskList(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsManage) {
 		return apperror.PermissionDenied
 	}
@@ -158,7 +202,14 @@ func (s *Service) ListTasks(ctx context.Context, principal authorization.Princip
 	}
 	return result, nil
 }
-func (s *Service) CreateTask(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, input TaskInput, requestID *uuid.UUID) (Task, error) {
+
+func (s *Service) CreateTask(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	input TaskInput,
+	requestID *uuid.UUID,
+) (Task, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Task{}, apperror.PermissionDenied
 	}
@@ -184,7 +235,24 @@ func (s *Service) CreateTask(ctx context.Context, principal authorization.Princi
 		actor := principal.AccountID
 		completedBy = &actor
 	}
-	row, err := q.CreateEventTask(ctx, eventsdb.CreateEventTaskParams{ID: id, EventID: eventID, TaskListID: input.TaskListID, Title: input.Title, Description: input.Description, Status: input.Status, Priority: input.Priority, AssigneePersonID: input.AssigneePersonID, DueAt: toPGTime(input.DueAt), CompletedAt: toPGTime(completedAt), CompletedByAccountID: completedBy, SortOrder: int32(input.SortOrder), CreatedByAccountID: &principal.AccountID})
+	row, err := q.CreateEventTask(
+		ctx,
+		eventsdb.CreateEventTaskParams{
+			ID:                   id,
+			EventID:              eventID,
+			TaskListID:           input.TaskListID,
+			Title:                input.Title,
+			Description:          input.Description,
+			Status:               input.Status,
+			Priority:             input.Priority,
+			AssigneePersonID:     input.AssigneePersonID,
+			DueAt:                toPGTime(input.DueAt),
+			CompletedAt:          toPGTime(completedAt),
+			CompletedByAccountID: completedBy,
+			SortOrder:            int32(input.SortOrder),
+			CreatedByAccountID:   &principal.AccountID,
+		},
+	)
 	if err != nil {
 		return Task{}, databaseError(err)
 	}
@@ -201,7 +269,14 @@ func (s *Service) CreateTask(ctx context.Context, principal authorization.Princi
 	}
 	return taskFromRow(row), nil
 }
-func (s *Service) UpdateTask(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, input TaskInput, requestID *uuid.UUID) (Task, error) {
+
+func (s *Service) UpdateTask(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	input TaskInput,
+	requestID *uuid.UUID,
+) (Task, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Task{}, apperror.PermissionDenied
 	}
@@ -245,7 +320,24 @@ func (s *Service) UpdateTask(ctx context.Context, principal authorization.Princi
 		completedBy = nil
 		action = "event_task.reopened"
 	}
-	row, err := q.UpdateEventTask(ctx, eventsdb.UpdateEventTaskParams{TaskListID: input.TaskListID, Title: input.Title, Description: input.Description, Status: input.Status, Priority: input.Priority, AssigneePersonID: input.AssigneePersonID, DueAt: toPGTime(input.DueAt), CompletedAt: toPGTime(completedAt), CompletedByAccountID: completedBy, SortOrder: int32(input.SortOrder), ID: id, EventID: eventID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventTask(
+		ctx,
+		eventsdb.UpdateEventTaskParams{
+			TaskListID:           input.TaskListID,
+			Title:                input.Title,
+			Description:          input.Description,
+			Status:               input.Status,
+			Priority:             input.Priority,
+			AssigneePersonID:     input.AssigneePersonID,
+			DueAt:                toPGTime(input.DueAt),
+			CompletedAt:          toPGTime(completedAt),
+			CompletedByAccountID: completedBy,
+			SortOrder:            int32(input.SortOrder),
+			ID:                   id,
+			EventID:              eventID,
+			ExpectedVersion:      int32(input.ExpectedVersion),
+		},
+	)
 	if err != nil {
 		return Task{}, databaseError(err)
 	}
@@ -258,7 +350,14 @@ func (s *Service) UpdateTask(ctx context.Context, principal authorization.Princi
 	}
 	return taskFromRow(row), nil
 }
-func (s *Service) DeleteTask(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+
+func (s *Service) DeleteTask(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsManage) {
 		return apperror.PermissionDenied
 	}
@@ -323,8 +422,33 @@ func validateTaskInput(input TaskInput) (TaskInput, error) {
 	return input, nil
 }
 func taskListFromRow(row eventsdb.EventTaskList) TaskList {
-	return TaskList{ID: row.ID, EventID: row.EventID, Name: row.Name, Description: row.Description, SortOrder: int(row.SortOrder), Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return TaskList{
+		ID:          row.ID,
+		EventID:     row.EventID,
+		Name:        row.Name,
+		Description: row.Description,
+		SortOrder:   int(row.SortOrder),
+		Version:     int64(row.Version),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
 }
 func taskFromRow(row eventsdb.EventTask) Task {
-	return Task{ID: row.ID, EventID: row.EventID, TaskListID: row.TaskListID, Title: row.Title, Description: row.Description, Status: row.Status, Priority: row.Priority, AssigneePersonID: row.AssigneePersonID, DueAt: pgTime(row.DueAt), CompletedAt: pgTime(row.CompletedAt), CompletedByAccount: row.CompletedByAccountID, SortOrder: int(row.SortOrder), Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Task{
+		ID:                 row.ID,
+		EventID:            row.EventID,
+		TaskListID:         row.TaskListID,
+		Title:              row.Title,
+		Description:        row.Description,
+		Status:             row.Status,
+		Priority:           row.Priority,
+		AssigneePersonID:   row.AssigneePersonID,
+		DueAt:              pgTime(row.DueAt),
+		CompletedAt:        pgTime(row.CompletedAt),
+		CompletedByAccount: row.CompletedByAccountID,
+		SortOrder:          int(row.SortOrder),
+		Version:            int64(row.Version),
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
+	}
 }

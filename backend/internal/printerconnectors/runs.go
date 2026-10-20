@@ -33,7 +33,13 @@ func bambuAutoDetectSpools(settings json.RawMessage) bool {
 // are never displaced or automatically unmounted. A connector assignment may
 // be moved or closed because that history was established by the same class of
 // machine evidence.
-func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, assignmentID, machineID, eventID uuid.UUID, payload json.RawMessage, observedAt time.Time) error {
+func reconcileBambuSlotObservation(
+	ctx context.Context,
+	tx pgx.Tx,
+	connectorID, assignmentID, machineID, eventID uuid.UUID,
+	payload json.RawMessage,
+	observedAt time.Time,
+) error {
 	var value struct {
 		InputUnitExternalID string `json:"inputUnitExternalId"`
 		SlotExternalID      string `json:"slotExternalId"`
@@ -46,7 +52,8 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 	value.InputUnitExternalID = strings.TrimSpace(value.InputUnitExternalID)
 	value.SlotExternalID = strings.TrimSpace(value.SlotExternalID)
 	value.TagUID = strings.TrimSpace(value.TagUID)
-	if value.InputUnitExternalID == "" || value.SlotExternalID == "" || utf8.RuneCountInString(value.TagUID) > 255 || (value.Empty && value.TagUID != "") {
+	if value.InputUnitExternalID == "" || value.SlotExternalID == "" || utf8.RuneCountInString(value.TagUID) > 255 ||
+		(value.Empty && value.TagUID != "") {
 		return nil
 	}
 
@@ -64,7 +71,8 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 		var mountID uuid.UUID
 		var source string
 		var mountedAt time.Time
-		err := tx.QueryRow(ctx, `SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID).Scan(&mountID, &source, &mountedAt)
+		err := tx.QueryRow(ctx, `SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID).
+			Scan(&mountID, &source, &mountedAt)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && source != "connector_reconciled") {
 			return nil
 		}
@@ -81,7 +89,23 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 		if _, err = tx.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`, mountID, unmountedAt); err != nil {
 			return err
 		}
-		return audit.Write(ctx, tx, audit.Event{ActorType: "system", Source: "system", Action: "printer_slot.spool_auto_unmounted", ResourceType: "printer_slot", ResourceID: &slotID, ChangedFields: []string{"assignment", "spoolId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "eventId": eventID.String()}})
+		return audit.Write(
+			ctx,
+			tx,
+			audit.Event{
+				ActorType:     "system",
+				Source:        "system",
+				Action:        "printer_slot.spool_auto_unmounted",
+				ResourceType:  "printer_slot",
+				ResourceID:    &slotID,
+				ChangedFields: []string{"assignment", "spoolId"},
+				Metadata: map[string]any{
+					"connectorId":  connectorID.String(),
+					"assignmentId": assignmentID.String(),
+					"eventId":      eventID.String(),
+				},
+			},
+		)
 	}
 	if value.TagUID == "" {
 		return nil
@@ -117,24 +141,32 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 	}
 	readMount := func(query string, id uuid.UUID) (*openMount, error) {
 		var mount openMount
-		err := tx.QueryRow(ctx, query, id).Scan(&mount.ID, &mount.SlotID, &mount.SpoolID, &mount.Source, &mount.MountedAt)
+		err := tx.QueryRow(ctx, query, id).
+			Scan(&mount.ID, &mount.SlotID, &mount.SpoolID, &mount.Source, &mount.MountedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return &mount, err
 	}
-	slotMount, err := readMount(`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID)
+	slotMount, err := readMount(
+		`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
+		slotID,
+	)
 	if err != nil {
 		return err
 	}
 	if slotMount != nil && slotMount.SpoolID == spoolID {
 		return nil
 	}
-	spoolMount, err := readMount(`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE`, spoolID)
+	spoolMount, err := readMount(
+		`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
+		spoolID,
+	)
 	if err != nil {
 		return err
 	}
-	if (slotMount != nil && slotMount.Source != "connector_reconciled") || (spoolMount != nil && spoolMount.Source != "connector_reconciled") {
+	if (slotMount != nil && slotMount.Source != "connector_reconciled") ||
+		(spoolMount != nil && spoolMount.Source != "connector_reconciled") {
 		return nil
 	}
 
@@ -154,7 +186,12 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 		if mount == nil {
 			return nil
 		}
-		_, err := tx.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`, mount.ID, mountedAt)
+		_, err := tx.Exec(
+			ctx,
+			`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`,
+			mount.ID,
+			mountedAt,
+		)
 		return err
 	}
 	if err = closeMount(slotMount); err != nil {
@@ -168,7 +205,23 @@ func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, 
 	if _, err = tx.Exec(ctx, `INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id) VALUES ($1,$2,$3,$4,'connector_reconciled',$5)`, uuid.Must(uuid.NewV7()), slotID, spoolID, mountedAt, eventID); err != nil {
 		return err
 	}
-	return audit.Write(ctx, tx, audit.Event{ActorType: "system", Source: "system", Action: "printer_slot.spool_auto_mounted", ResourceType: "printer_slot", ResourceID: &slotID, ChangedFields: []string{"assignment", "spoolId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "eventId": eventID.String()}})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "system",
+			Source:        "system",
+			Action:        "printer_slot.spool_auto_mounted",
+			ResourceType:  "printer_slot",
+			ResourceID:    &slotID,
+			ChangedFields: []string{"assignment", "spoolId"},
+			Metadata: map[string]any{
+				"connectorId":  connectorID.String(),
+				"assignmentId": assignmentID.String(),
+				"eventId":      eventID.String(),
+			},
+		},
+	)
 }
 
 func formatRunDisplayID(sequence int64, observedAt time.Time) string {
@@ -182,7 +235,15 @@ var errRunDeleted = errors.New("run deleted")
 // is the only moment a run display ID is allocated, or applies the next
 // observation to the existing run. A run that belongs to another assignment or
 // machine is reported as pgx.ErrNoRows.
-func recordObservedRun(ctx context.Context, q *db.Queries, id, assignmentID, machineID uuid.UUID, vendorJobID *string, state string, historyComplete bool, observedAt time.Time) (db.MachineRun, error) {
+func recordObservedRun(
+	ctx context.Context,
+	q *db.Queries,
+	id, assignmentID, machineID uuid.UUID,
+	vendorJobID *string,
+	state string,
+	historyComplete bool,
+	observedAt time.Time,
+) (db.MachineRun, error) {
 	observedAt = observedAt.UTC()
 	existing, err := q.GetObservedRunForUpdate(ctx, id)
 	if err == nil && existing.DeletedAt.Valid {
@@ -193,7 +254,19 @@ func recordObservedRun(ctx context.Context, q *db.Queries, id, assignmentID, mac
 		if seqErr != nil {
 			return db.MachineRun{}, seqErr
 		}
-		row, insertErr := q.InsertObservedRun(ctx, db.InsertObservedRunParams{ID: id, DisplayID: formatRunDisplayID(sequence, observedAt), AssignmentID: &assignmentID, MachineID: machineID, VendorJobID: vendorJobID, State: &state, HistoryComplete: historyComplete, ObservedAt: pgTimestamp(&observedAt)})
+		row, insertErr := q.InsertObservedRun(
+			ctx,
+			db.InsertObservedRunParams{
+				ID:              id,
+				DisplayID:       formatRunDisplayID(sequence, observedAt),
+				AssignmentID:    &assignmentID,
+				MachineID:       machineID,
+				VendorJobID:     vendorJobID,
+				State:           &state,
+				HistoryComplete: historyComplete,
+				ObservedAt:      pgTimestamp(&observedAt),
+			},
+		)
 		if !errors.Is(insertErr, pgx.ErrNoRows) {
 			return row, insertErr
 		}
@@ -201,7 +274,18 @@ func recordObservedRun(ctx context.Context, q *db.Queries, id, assignmentID, mac
 	} else if err != nil {
 		return db.MachineRun{}, err
 	}
-	return q.UpdateObservedRun(ctx, db.UpdateObservedRunParams{ID: id, AssignmentID: &assignmentID, MachineID: machineID, VendorJobID: vendorJobID, State: state, HistoryComplete: historyComplete, ObservedAt: observedAt})
+	return q.UpdateObservedRun(
+		ctx,
+		db.UpdateObservedRunParams{
+			ID:              id,
+			AssignmentID:    &assignmentID,
+			MachineID:       machineID,
+			VendorJobID:     vendorJobID,
+			State:           state,
+			HistoryComplete: historyComplete,
+			ObservedAt:      observedAt,
+		},
+	)
 }
 
 func timePtr(value time.Time) *time.Time {
@@ -262,7 +346,16 @@ func payloadRemainingSeconds(payload map[string]any) *time.Duration {
 // applyPrintFacts copies what a newly inserted event tells about the run
 // onto its recorded run. Duplicate events never reach it, so replays cannot
 // change the print. run is the state after the observation was recorded.
-func applyPrintFacts(ctx context.Context, q *db.Queries, run db.MachineRun, eventID uuid.UUID, kind string, payload json.RawMessage, occurredAt time.Time, reportRevision *int64) error {
+func applyPrintFacts(
+	ctx context.Context,
+	q *db.Queries,
+	run db.MachineRun,
+	eventID uuid.UUID,
+	kind string,
+	payload json.RawMessage,
+	occurredAt time.Time,
+	reportRevision *int64,
+) error {
 	var values map[string]any
 	if json.Unmarshal(payload, &values) != nil || values == nil {
 		return nil
@@ -309,10 +402,28 @@ func applyPrintFacts(ctx context.Context, q *db.Queries, run db.MachineRun, even
 		clamped := *started
 		ended = &clamped
 	}
-	return q.UpdateObservedRunFacts(ctx, db.UpdateObservedRunFactsParams{ID: run.ID, StartedAt: pgTimestamp(started), EndedAt: pgTimestamp(ended), FileName: fileName, ProgressPercent: percent, EstimatedEndAt: pgTimestamp(estimatedEnd)})
+	return q.UpdateObservedRunFacts(
+		ctx,
+		db.UpdateObservedRunFactsParams{
+			ID:              run.ID,
+			StartedAt:       pgTimestamp(started),
+			EndedAt:         pgTimestamp(ended),
+			FileName:        fileName,
+			ProgressPercent: percent,
+			EstimatedEndAt:  pgTimestamp(estimatedEnd),
+		},
+	)
 }
 
-func applyReportedUsage(ctx context.Context, q *db.Queries, run db.MachineRun, eventID uuid.UUID, values map[string]any, at time.Time, reportRevision *int64) error {
+func applyReportedUsage(
+	ctx context.Context,
+	q *db.Queries,
+	run db.MachineRun,
+	eventID uuid.UUID,
+	values map[string]any,
+	at time.Time,
+	reportRevision *int64,
+) error {
 	if reportRevision == nil {
 		return nil
 	}
@@ -336,11 +447,29 @@ func applyReportedUsage(ctx context.Context, q *db.Queries, run db.MachineRun, e
 	if err = q.InsertReportedUsageItem(ctx, db.InsertReportedUsageItemParams{ID: uuid.Must(uuid.NewV7()), RunID: run.ID, SourcePrinterEventID: eventID, ReportRevision: *reportRevision, LineNumber: 0, EstimatedQuantityG: pgNumeric(quantity), SpoolID: spoolID, Method: "legacy_report", CalculationVersion: "legacy-v1", Quality: "low"}); err != nil {
 		return err
 	}
-	_, err = q.SetObservedRunReport(ctx, db.SetObservedRunReportParams{ID: run.ID, QuantityG: pgtype.Numeric{Int: quantity.Coefficient(), Exp: quantity.Exponent(), Valid: true}, QuantityBasis: &basis, SpoolID: spoolID, EventID: &eventID, ReportRevision: *reportRevision})
+	_, err = q.SetObservedRunReport(
+		ctx,
+		db.SetObservedRunReportParams{
+			ID:             run.ID,
+			QuantityG:      pgtype.Numeric{Int: quantity.Coefficient(), Exp: quantity.Exponent(), Valid: true},
+			QuantityBasis:  &basis,
+			SpoolID:        spoolID,
+			EventID:        &eventID,
+			ReportRevision: *reportRevision,
+		},
+	)
 	return err
 }
 
-func applyReportedUsageItems(ctx context.Context, q *db.Queries, run db.MachineRun, eventID uuid.UUID, rawItems []any, at time.Time, revision int64) error {
+func applyReportedUsageItems(
+	ctx context.Context,
+	q *db.Queries,
+	run db.MachineRun,
+	eventID uuid.UUID,
+	rawItems []any,
+	at time.Time,
+	revision int64,
+) error {
 	if len(rawItems) == 0 || len(rawItems) > 100 {
 		return nil
 	}
@@ -355,7 +484,10 @@ func applyReportedUsageItems(ctx context.Context, q *db.Queries, run db.MachineR
 		method, _ := payloadString(item, "method")
 		calculationVersion, _ := payloadString(item, "calculationVersion")
 		quality, _ := payloadString(item, "quality")
-		if strings.TrimSpace(method) == "" || utf8.RuneCountInString(method) > 80 || strings.TrimSpace(calculationVersion) == "" || utf8.RuneCountInString(calculationVersion) > 80 || (quality != "high" && quality != "medium" && quality != "low" && quality != "unresolved") {
+		if strings.TrimSpace(method) == "" || utf8.RuneCountInString(method) > 80 ||
+			strings.TrimSpace(calculationVersion) == "" ||
+			utf8.RuneCountInString(calculationVersion) > 80 ||
+			(quality != "high" && quality != "medium" && quality != "low" && quality != "unresolved") {
 			continue
 		}
 		estimated, estimatedOK := optionalReportedDecimal(item, "estimatedQuantityGrams")
@@ -370,7 +502,8 @@ func applyReportedUsageItems(ctx context.Context, q *db.Queries, run db.MachineR
 		}
 		materialID := optionalUUID(item, "materialId")
 		var extruder *int32
-		if value, ok := item["extruder"].(float64); ok && value >= 0 && value == math.Trunc(value) && value <= math.MaxInt32 {
+		if value, ok := item["extruder"].(float64); ok && value >= 0 && value == math.Trunc(value) &&
+			value <= math.MaxInt32 {
 			converted := int32(value)
 			extruder = &converted
 		}
@@ -388,7 +521,17 @@ func applyReportedUsageItems(ctx context.Context, q *db.Queries, run db.MachineR
 	}
 	if valid == 1 && onlyQuantity.IsPositive() {
 		basis := "estimated"
-		_, err := q.SetObservedRunReport(ctx, db.SetObservedRunReportParams{ID: run.ID, QuantityG: pgNumeric(onlyQuantity), QuantityBasis: &basis, SpoolID: onlySpool, EventID: &eventID, ReportRevision: revision})
+		_, err := q.SetObservedRunReport(
+			ctx,
+			db.SetObservedRunReportParams{
+				ID:             run.ID,
+				QuantityG:      pgNumeric(onlyQuantity),
+				QuantityBasis:  &basis,
+				SpoolID:        onlySpool,
+				EventID:        &eventID,
+				ReportRevision: revision,
+			},
+		)
 		return err
 	}
 	return nil
@@ -445,12 +588,22 @@ func pgNumericOptional(value *decimal.Decimal) pgtype.Numeric {
 
 // resolveReportedSpool uses only authoritative historical slot assignments and
 // exact historical NFC identifiers. A disagreement or ambiguity is unresolved.
-func resolveReportedSpool(ctx context.Context, q *db.Queries, machineID uuid.UUID, values map[string]any, at time.Time) (*uuid.UUID, error) {
+func resolveReportedSpool(
+	ctx context.Context,
+	q *db.Queries,
+	machineID uuid.UUID,
+	values map[string]any,
+	at time.Time,
+) (*uuid.UUID, error) {
 	var slotSpool, tagSpool *uuid.UUID
 	unit, unitOK := payloadString(values, "inputUnitExternalId")
 	slot, slotOK := payloadString(values, "slotExternalId")
-	if unitOK && slotOK && unit != "" && slot != "" && utf8.RuneCountInString(unit) <= 200 && utf8.RuneCountInString(slot) <= 200 {
-		ids, err := q.ListSlotSpoolsAt(ctx, db.ListSlotSpoolsAtParams{MachineID: machineID, SlotExternalID: &slot, InputUnitExternalID: &unit, At: at})
+	if unitOK && slotOK && unit != "" && slot != "" && utf8.RuneCountInString(unit) <= 200 &&
+		utf8.RuneCountInString(slot) <= 200 {
+		ids, err := q.ListSlotSpoolsAt(
+			ctx,
+			db.ListSlotSpoolsAtParams{MachineID: machineID, SlotExternalID: &slot, InputUnitExternalID: &unit, At: at},
+		)
 		if err != nil {
 			return nil, err
 		}

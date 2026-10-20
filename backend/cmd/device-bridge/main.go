@@ -43,10 +43,25 @@ func run() error {
 		return err
 	}
 	flag.StringVar(&cfg.listen, "listen", "127.0.0.1:17321", "loopback address for the local bridge")
-	flag.StringVar(&cfg.origins, "origins", "http://localhost:5173,http://127.0.0.1:5173", "comma-separated exact web origins allowed to use the bridge")
-	flag.StringVar(&cfg.pairingFile, "pairing-key-file", defaultPairing, "0600 file containing the desktop shell pairing key")
+	flag.StringVar(
+		&cfg.origins,
+		"origins",
+		"http://localhost:5173,http://127.0.0.1:5173",
+		"comma-separated exact web origins allowed to use the bridge",
+	)
+	flag.StringVar(
+		&cfg.pairingFile,
+		"pairing-key-file",
+		defaultPairing,
+		"0600 file containing the desktop shell pairing key",
+	)
 	flag.StringVar(&cfg.coreURL, "core-url", "", "optional Makerspace Core base URL")
-	flag.BoolVar(&cfg.deviceTokenStdin, "device-token-stdin", false, "read the managed-device token once from standard input")
+	flag.BoolVar(
+		&cfg.deviceTokenStdin,
+		"device-token-stdin",
+		false,
+		"read the managed-device token once from standard input",
+	)
 	flag.BoolVar(&cfg.simulator, "simulator", false, "enable development-only NFC simulation")
 	flag.Parse()
 
@@ -64,11 +79,24 @@ func run() error {
 	capabilities := func() []devicebridge.Capability {
 		capability := pcsc.Capability()
 		if cfg.simulator && !capability.Available {
-			capability = devicebridge.Capability{ID: "nfc", Available: true, State: "simulated", Detail: "Development simulator enabled"}
+			capability = devicebridge.Capability{
+				ID:        "nfc",
+				Available: true,
+				State:     "simulated",
+				Detail:    "Development simulator enabled",
+			}
 		}
 		return []devicebridge.Capability{capability}
 	}
-	bridge, err := devicebridge.NewServer(devicebridge.ServerConfig{PairingKey: pairingKey, AllowedOrigins: origins, Simulator: cfg.simulator, Capabilities: capabilities}, broker)
+	bridge, err := devicebridge.NewServer(
+		devicebridge.ServerConfig{
+			PairingKey:     pairingKey,
+			AllowedOrigins: origins,
+			Simulator:      cfg.simulator,
+			Capabilities:   capabilities,
+		},
+		broker,
+	)
 	if err != nil {
 		return err
 	}
@@ -95,7 +123,13 @@ func run() error {
 		go simulatorConsole(ctx, broker)
 	}
 
-	httpServer := &http.Server{Addr: cfg.listen, Handler: bridge.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 35 * time.Second, MaxHeaderBytes: 16 << 10}
+	httpServer := &http.Server{
+		Addr:              cfg.listen,
+		Handler:           bridge.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       35 * time.Second,
+		MaxHeaderBytes:    16 << 10,
+	}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -127,7 +161,12 @@ func readSecret(input io.Reader) (string, error) {
 	return value, nil
 }
 
-func reportToCore(ctx context.Context, client *devicebridge.CoreClient, bridge *devicebridge.Server, capabilities func() []devicebridge.Capability) {
+func reportToCore(
+	ctx context.Context,
+	client *devicebridge.CoreClient,
+	bridge *devicebridge.Server,
+	capabilities func() []devicebridge.Capability,
+) {
 	delay := time.Second
 	for ctx.Err() == nil {
 		identity, err := client.Report(ctx, capabilities())

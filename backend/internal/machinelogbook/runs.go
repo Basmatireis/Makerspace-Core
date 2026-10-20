@@ -134,15 +134,52 @@ func escapeLike(value string) string {
 }
 
 func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
-	return MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, MaterialTypeID: u.MaterialTypeID, MaterialTypeName: u.MaterialTypeName, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected}
+	return MachineJobUsage{
+		ID:                 u.ID,
+		MaterialID:         u.MaterialID,
+		SpoolID:            u.SpoolID,
+		Ownership:          u.Ownership,
+		MaterialName:       u.MaterialName,
+		MaterialTypeID:     u.MaterialTypeID,
+		MaterialTypeName:   u.MaterialTypeName,
+		Unit:               u.Unit,
+		Quantity:           decimalString(u.Quantity),
+		QuantityBasis:      u.QuantityBasis,
+		SpoolDisplayID:     u.SpoolDisplayID,
+		FillNumber:         u.FillNumber,
+		EstimationMethod:   u.EstimationMethod,
+		CalculationVersion: u.CalculationVersion,
+		EstimateQuality:    u.EstimateQuality,
+		ReportRevision:     u.ReportRevision,
+		StaffCorrected:     u.StaffCorrected,
+	}
 }
 
 func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 	started := row.RunStartedAt.UTC()
-	run := MachineRun{ID: row.ID, DisplayID: row.DisplayID, MachineID: row.MachineID, MachineName: row.MachineName, Source: row.Source, State: row.RunState, ConnectorName: row.ConnectorName, FileName: row.FileName,
-		StartedAt: started, Outcome: row.Outcome, UsagesFromMachine: row.UsagesFromMachine, Version: row.Version, Usages: []MachineJobUsage{}, Measures: RunMeasures{}, ReportedUsageItems: []RunReportedUsageItem{}}
+	run := MachineRun{
+		ID:                 row.ID,
+		DisplayID:          row.DisplayID,
+		MachineID:          row.MachineID,
+		MachineName:        row.MachineName,
+		Source:             row.Source,
+		State:              row.RunState,
+		ConnectorName:      row.ConnectorName,
+		FileName:           row.FileName,
+		StartedAt:          started,
+		Outcome:            row.Outcome,
+		UsagesFromMachine:  row.UsagesFromMachine,
+		Version:            row.Version,
+		Usages:             []MachineJobUsage{},
+		Measures:           RunMeasures{},
+		ReportedUsageItems: []RunReportedUsageItem{},
+	}
 	if row.ArtifactID != nil && row.ArtifactParserStatus != nil {
-		run.Artifact = &ArtifactReference{ID: *row.ArtifactID, SHA256: row.ArtifactSha256, ParserStatus: *row.ArtifactParserStatus}
+		run.Artifact = &ArtifactReference{
+			ID:           *row.ArtifactID,
+			SHA256:       row.ArtifactSha256,
+			ParserStatus: *row.ArtifactParserStatus,
+		}
 	}
 	if row.JobID != nil && row.JobDisplayID != nil {
 		run.Job = &RunJobReference{ID: *row.JobID, DisplayID: *row.JobDisplayID, Title: row.JobTitle}
@@ -175,13 +212,24 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 		run.ProgressPercent = &percent
 	}
 	if row.ReportedQuantityG.Valid && row.ReportedQuantityBasis != nil {
-		run.ReportedUsage = &RunReportedUsage{Quantity: decimalString(row.ReportedQuantityG), QuantityBasis: *row.ReportedQuantityBasis, SpoolID: row.ReportedSpoolID, SpoolDisplayID: row.SpoolDisplayID, MaterialID: row.MaterialID, MaterialName: row.MaterialName}
+		run.ReportedUsage = &RunReportedUsage{
+			Quantity:       decimalString(row.ReportedQuantityG),
+			QuantityBasis:  *row.ReportedQuantityBasis,
+			SpoolID:        row.ReportedSpoolID,
+			SpoolDisplayID: row.SpoolDisplayID,
+			MaterialID:     row.MaterialID,
+			MaterialName:   row.MaterialName,
+		}
 	}
 	return run
 }
 
 // queryRuns loads runs with their active usages.
-func (s *Service) queryRuns(ctx context.Context, q *machinelogbookdb.Queries, params machinelogbookdb.ListRunsParams) ([]MachineRun, int64, error) {
+func (s *Service) queryRuns(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	params machinelogbookdb.ListRunsParams,
+) ([]MachineRun, int64, error) {
 	now := s.now().UTC()
 	params.Now = now
 	if params.States == nil {
@@ -247,7 +295,25 @@ func (s *Service) queryRuns(ctx context.Context, q *machinelogbookdb.Queries, pa
 			v := decimalString(n)
 			return &v
 		}
-		byReported[item.RunID] = append(byReported[item.RunID], RunReportedUsageItem{LineNumber: &line, Extruder: extruder, ReportRevision: item.ReportRevision, SlicerFilamentID: item.SlicerFilamentID, InputUnitExternalID: item.InputUnitExternalID, SlotExternalID: item.SlotExternalID, PlannedQuantityGrams: toString(item.PlannedQuantityG), PlannedLengthMillimeters: toString(item.PlannedLengthMm), EstimatedQuantityGrams: toString(item.EstimatedQuantityG), MaterialID: item.MaterialID, SpoolID: item.SpoolID, Method: item.Method, CalculationVersion: item.CalculationVersion, Quality: item.Quality})
+		byReported[item.RunID] = append(
+			byReported[item.RunID],
+			RunReportedUsageItem{
+				LineNumber:               &line,
+				Extruder:                 extruder,
+				ReportRevision:           item.ReportRevision,
+				SlicerFilamentID:         item.SlicerFilamentID,
+				InputUnitExternalID:      item.InputUnitExternalID,
+				SlotExternalID:           item.SlotExternalID,
+				PlannedQuantityGrams:     toString(item.PlannedQuantityG),
+				PlannedLengthMillimeters: toString(item.PlannedLengthMm),
+				EstimatedQuantityGrams:   toString(item.EstimatedQuantityG),
+				MaterialID:               item.MaterialID,
+				SpoolID:                  item.SpoolID,
+				Method:                   item.Method,
+				CalculationVersion:       item.CalculationVersion,
+				Quality:                  item.Quality,
+			},
+		)
 	}
 	for i := range runs {
 		if list := byReported[runs[i].ID]; list != nil {
@@ -259,7 +325,11 @@ func (s *Service) queryRuns(ctx context.Context, q *machinelogbookdb.Queries, pa
 
 // runsForJob returns every run of a job, oldest first, replaced ones included.
 func (s *Service) runsForJob(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID) ([]MachineRun, error) {
-	runs, _, err := s.queryRuns(ctx, q, machinelogbookdb.ListRunsParams{JobID: &jobID, OldestFirst: true, PageLimit: 500})
+	runs, _, err := s.queryRuns(
+		ctx,
+		q,
+		machinelogbookdb.ListRunsParams{JobID: &jobID, OldestFirst: true, PageLimit: 500},
+	)
 	return runs, err
 }
 
@@ -274,7 +344,11 @@ func (s *Service) loadRun(ctx context.Context, q *machinelogbookdb.Queries, id u
 	return runs[0], nil
 }
 
-func (s *Service) ListRuns(ctx context.Context, p authorization.Principal, filters RunFilters) ([]MachineRun, int64, error) {
+func (s *Service) ListRuns(
+	ctx context.Context,
+	p authorization.Principal,
+	filters RunFilters,
+) ([]MachineRun, int64, error) {
 	if err := require(p, authorization.MachineJobsRead); err != nil {
 		return nil, 0, err
 	}
@@ -285,11 +359,25 @@ func (s *Service) ListRuns(ctx context.Context, p authorization.Principal, filte
 	if filters.From != nil && filters.To != nil && !filters.To.After(*filters.From) {
 		return nil, 0, validation("to must be after from")
 	}
-	if !containsAll(runStates, filters.States) || (filters.Source != nil && *filters.Source != "manual" && *filters.Source != "recorded") {
+	if !containsAll(runStates, filters.States) ||
+		(filters.Source != nil && *filters.Source != "manual" && *filters.Source != "recorded") {
 		return nil, 0, validation("unsupported run filter")
 	}
-	return s.queryRuns(ctx, machinelogbookdb.New(s.pool), machinelogbookdb.ListRunsParams{Search: escapeLike(strings.TrimSpace(filters.Search)), MachineID: filters.MachineID, States: filters.States, Source: filters.Source, Assigned: filters.Assigned,
-		FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit})
+	return s.queryRuns(
+		ctx,
+		machinelogbookdb.New(s.pool),
+		machinelogbookdb.ListRunsParams{
+			Search:     escapeLike(strings.TrimSpace(filters.Search)),
+			MachineID:  filters.MachineID,
+			States:     filters.States,
+			Source:     filters.Source,
+			Assigned:   filters.Assigned,
+			FromTime:   pgTime(filters.From),
+			ToTime:     pgTime(filters.To),
+			PageOffset: offset,
+			PageLimit:  limit,
+		},
+	)
 }
 
 func (s *Service) GetRun(ctx context.Context, p authorization.Principal, id uuid.UUID) (RunDetail, error) {
@@ -343,7 +431,17 @@ func runEventFromRow(row machinelogbookdb.ListRunEventsRow) RunEvent {
 // replaceRunUsages reverses the given active usages with compensating
 // inventory transactions, deactivates them and records the new usages with
 // their consumption. The caller holds the locks on the run (and its job).
-func (s *Service) replaceRunUsages(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, runID uuid.UUID, old []machinelogbookdb.MachineRunUsage, parsed []parsedUsage, occurredAt time.Time, requestID *uuid.UUID) error {
+func (s *Service) replaceRunUsages(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	runID uuid.UUID,
+	old []machinelogbookdb.MachineRunUsage,
+	parsed []parsedUsage,
+	occurredAt time.Time,
+	requestID *uuid.UUID,
+) error {
 	materialIDs := map[uuid.UUID]bool{}
 	for _, u := range old {
 		if u.Ownership == "makerspace" && u.MaterialID != nil {
@@ -416,7 +514,11 @@ func (s *Service) replaceRunUsages(ctx context.Context, tx pgx.Tx, q *machinelog
 
 // lockedRun locks a run and, when it belongs to a job, the job. The job is
 // always locked before its runs, the order of every job operation.
-func (s *Service) lockedRun(ctx context.Context, tx pgx.Tx, id uuid.UUID) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, error) {
+func (s *Service) lockedRun(
+	ctx context.Context,
+	tx pgx.Tx,
+	id uuid.UUID,
+) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, error) {
 	run, job, err := LockRunChain(ctx, tx, id)
 	if err != nil {
 		return run, nil, err
@@ -430,7 +532,11 @@ func (s *Service) lockedRun(ctx context.Context, tx pgx.Tx, id uuid.UUID) (machi
 // locked and its job re-checked. If the run moved to another job meanwhile, the
 // locks of the attempt are released and the attempt is repeated once. It
 // returns apperror.NotFound for an unknown run.
-func LockRunChain(ctx context.Context, tx pgx.Tx, id uuid.UUID) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, error) {
+func LockRunChain(
+	ctx context.Context,
+	tx pgx.Tx,
+	id uuid.UUID,
+) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		run, job, ok, err := tryLockRunChain(ctx, tx, id)
 		if err != nil {
@@ -440,10 +546,18 @@ func LockRunChain(ctx context.Context, tx pgx.Tx, id uuid.UUID) (machinelogbookd
 			return run, job, nil
 		}
 	}
-	return machinelogbookdb.MachineRun{}, nil, apperror.New(409, "retry_conflict", "The request conflicted with a concurrent change; try again")
+	return machinelogbookdb.MachineRun{}, nil, apperror.New(
+		409,
+		"retry_conflict",
+		"The request conflicted with a concurrent change; try again",
+	)
 }
 
-func tryLockRunChain(ctx context.Context, tx pgx.Tx, id uuid.UUID) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, bool, error) {
+func tryLockRunChain(
+	ctx context.Context,
+	tx pgx.Tx,
+	id uuid.UUID,
+) (machinelogbookdb.MachineRun, *machinelogbookdb.MachineJob, bool, error) {
 	attempt, err := tx.Begin(ctx) // a savepoint, so a failed attempt releases its row locks
 	if err != nil {
 		return machinelogbookdb.MachineRun{}, nil, false, err
@@ -488,7 +602,16 @@ func manualRunState(run machinelogbookdb.MachineRun, now time.Time) string {
 
 // finishRunChange reprices the run's job, audits the change and returns the
 // updated run with its job.
-func (s *Service) finishRunChange(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, run machinelogbookdb.MachineRun, action string, fields []string, requestID *uuid.UUID) error {
+func (s *Service) finishRunChange(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	run machinelogbookdb.MachineRun,
+	action string,
+	fields []string,
+	requestID *uuid.UUID,
+) error {
 	if err := writeAudit(ctx, tx, p, action, "machine_run", run.ID, requestID, fields); err != nil {
 		return err
 	}
@@ -498,7 +621,16 @@ func (s *Service) finishRunChange(ctx context.Context, tx pgx.Tx, q *machinelogb
 	if _, err := s.settleJob(ctx, q, *run.JobID); err != nil {
 		return err
 	}
-	return writeAudit(ctx, tx, p, "machine_job.repriced", "machine_job", *run.JobID, requestID, []string{"runs", "calculatedPrice", "effectivePrice"})
+	return writeAudit(
+		ctx,
+		tx,
+		p,
+		"machine_job.repriced",
+		"machine_job",
+		*run.JobID,
+		requestID,
+		[]string{"runs", "calculatedPrice", "effectivePrice"},
+	)
 }
 
 func (s *Service) runResult(ctx context.Context, id uuid.UUID) (RunUpdateResult, error) {
@@ -520,7 +652,14 @@ func (s *Service) runResult(ctx context.Context, id uuid.UUID) (RunUpdateResult,
 
 // UpdateRun corrects a run: the outcome of any run and the times of manual
 // runs. An outcome cannot be recorded while the run is running.
-func (s *Service) UpdateRun(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, input RunUpdate, requestID *uuid.UUID) (RunUpdateResult, error) {
+func (s *Service) UpdateRun(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input RunUpdate,
+	requestID *uuid.UUID,
+) (RunUpdateResult, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return RunUpdateResult{}, err
 	}
@@ -579,7 +718,16 @@ func (s *Service) UpdateRun(ctx context.Context, p authorization.Principal, id u
 			}
 			fields = append(fields, "measures")
 		}
-		updated, err = q.UpdateManualRunFacts(ctx, machinelogbookdb.UpdateManualRunFactsParams{StartedAt: pgTime(&startsAt), EndedAt: pgTime(&endsAt), Outcome: outcome, ID: id, ExpectedVersion: expected})
+		updated, err = q.UpdateManualRunFacts(
+			ctx,
+			machinelogbookdb.UpdateManualRunFactsParams{
+				StartedAt:       pgTime(&startsAt),
+				EndedAt:         pgTime(&endsAt),
+				Outcome:         outcome,
+				ID:              id,
+				ExpectedVersion: expected,
+			},
+		)
 	} else {
 		if input.StartsAt != nil || input.EndsAt != nil {
 			return RunUpdateResult{}, apperror.New(422, "run_times_read_only", "The times of a recorded run come from the machine")
@@ -610,7 +758,14 @@ func (s *Service) UpdateRun(ctx context.Context, p authorization.Principal, id u
 // ReplaceRunUsages swaps the run's material usage for the given one with
 // compensating inventory transactions. Usage set by staff replaces what the
 // machine reported.
-func (s *Service) ReplaceRunUsages(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, requestID *uuid.UUID) (RunUpdateResult, error) {
+func (s *Service) ReplaceRunUsages(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	inputs []UsageInput,
+	requestID *uuid.UUID,
+) (RunUpdateResult, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return RunUpdateResult{}, err
 	}
@@ -679,7 +834,13 @@ func (s *Service) ReplaceRunUsages(ctx context.Context, p authorization.Principa
 }
 
 // CancelRun ends a running manual run now and records it as cancelled.
-func (s *Service) CancelRun(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) CancelRun(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
@@ -707,7 +868,10 @@ func (s *Service) CancelRun(ctx context.Context, p authorization.Principal, id u
 	if earliest := run.StartedAt.Time.Add(time.Second); endsAt.Before(earliest) {
 		endsAt = earliest
 	}
-	updated, err := q.CancelManualRun(ctx, machinelogbookdb.CancelManualRunParams{EndedAt: pgTime(&endsAt), ID: id, ExpectedVersion: expected})
+	updated, err := q.CancelManualRun(
+		ctx,
+		machinelogbookdb.CancelManualRunParams{EndedAt: pgTime(&endsAt), ID: id, ExpectedVersion: expected},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineJob{}, apperror.StaleWrite
 	}
@@ -724,7 +888,14 @@ func (s *Service) CancelRun(ctx context.Context, p authorization.Principal, id u
 }
 
 // AddManualRun adds a manual run, for example a reprint, to a job.
-func (s *Service) AddManualRun(ctx context.Context, p authorization.Principal, jobID uuid.UUID, expectedJobVersion int64, input ManualRunInput, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) AddManualRun(
+	ctx context.Context,
+	p authorization.Principal,
+	jobID uuid.UUID,
+	expectedJobVersion int64,
+	input ManualRunInput,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
@@ -772,7 +943,13 @@ func (s *Service) AddManualRun(ctx context.Context, p authorization.Principal, j
 
 // CreateJobFromRun creates a job for an unassigned recorded run; the run may
 // still be running.
-func (s *Service) CreateJobFromRun(ctx context.Context, p authorization.Principal, runID uuid.UUID, input RunJobInput, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) CreateJobFromRun(
+	ctx context.Context,
+	p authorization.Principal,
+	runID uuid.UUID,
+	input RunJobInput,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return MachineJob{}, err
 	}
@@ -808,7 +985,17 @@ func (s *Service) CreateJobFromRun(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return MachineJob{}, err
 	}
-	job, err := s.insertJob(ctx, q, s.now(), run.MachineID, personID, organizationID, input.OperatorPersonID, title, cleanOptional(input.Notes))
+	job, err := s.insertJob(
+		ctx,
+		q,
+		s.now(),
+		run.MachineID,
+		personID,
+		organizationID,
+		input.OperatorPersonID,
+		title,
+		cleanOptional(input.Notes),
+	)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -835,7 +1022,14 @@ func (s *Service) CreateJobFromRun(ctx context.Context, p authorization.Principa
 // With replaceManualRuns the job's manual runs are marked replaced and their
 // material is reversed with compensating transactions, so the recorded run
 // stands in for the manually entered work.
-func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runID, jobID uuid.UUID, replaceManualRuns bool, expectedJobVersion int64, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) AttachRun(
+	ctx context.Context,
+	p authorization.Principal,
+	runID, jobID uuid.UUID,
+	replaceManualRuns bool,
+	expectedJobVersion int64,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
@@ -897,7 +1091,14 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 // replaceManualRuns marks the manual runs of a locked job as replaced and
 // reverses their material with compensating inventory transactions. It
 // returns the audit fields it touched beyond the run list.
-func (s *Service) replaceManualRuns(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, jobID uuid.UUID, requestID *uuid.UUID) ([]string, error) {
+func (s *Service) replaceManualRuns(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	jobID uuid.UUID,
+	requestID *uuid.UUID,
+) ([]string, error) {
 	var fields []string
 	runs, err := q.ListJobRunsForUpdate(ctx, &jobID)
 	if err != nil {
@@ -927,7 +1128,12 @@ func (s *Service) replaceManualRuns(ctx context.Context, tx pgx.Tx, q *machinelo
 // AttachPlannedRunSystem performs the connector-only exact-artifact attach in
 // the caller's transaction. It never replaces a staff assignment and only
 // accepts a job that still has no active runs and references the same artifact.
-func (s *Service) AttachPlannedRunSystem(ctx context.Context, tx pgx.Tx, connectorID, assignmentID, runID, jobID, artifactID uuid.UUID, requestID *uuid.UUID) (bool, error) {
+func (s *Service) AttachPlannedRunSystem(
+	ctx context.Context,
+	tx pgx.Tx,
+	connectorID, assignmentID, runID, jobID, artifactID uuid.UUID,
+	requestID *uuid.UUID,
+) (bool, error) {
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, jobID)
 	if err != nil {
@@ -940,7 +1146,9 @@ func (s *Service) AttachPlannedRunSystem(ctx context.Context, tx pgx.Tx, connect
 	if run.JobID != nil {
 		return false, nil
 	}
-	if job.ArtifactID == nil || run.ArtifactID == nil || *job.ArtifactID != artifactID || *run.ArtifactID != artifactID || job.MachineID != run.MachineID {
+	if job.ArtifactID == nil || run.ArtifactID == nil || *job.ArtifactID != artifactID ||
+		*run.ArtifactID != artifactID ||
+		job.MachineID != run.MachineID {
 		return false, conflict("artifact_mismatch", "Run and planned job artifacts must match exactly")
 	}
 	active, err := q.ListActiveJobRunIDs(ctx, &jobID)
@@ -982,7 +1190,13 @@ func dedupe(values []string) []string {
 // the job gets a manual run with the same start, end (now while the run still
 // runs) and outcome but no material, so the job keeps its times and its
 // material then comes only from its remaining runs.
-func (s *Service) DetachRun(ctx context.Context, p authorization.Principal, runID uuid.UUID, expectedJobVersion int64, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) DetachRun(
+	ctx context.Context,
+	p authorization.Principal,
+	runID uuid.UUID,
+	expectedJobVersion int64,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}

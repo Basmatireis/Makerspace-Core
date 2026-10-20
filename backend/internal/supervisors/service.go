@@ -76,12 +76,29 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 		}
 		periodTotals[count.PeriodID] += count.SupervisorCount
 	}
-	dashboard := Dashboard{Periods: make([]Period, 0, len(periodRows)), Supervisors: make([]Row, 0, len(supervisorRows))}
+	dashboard := Dashboard{
+		Periods:     make([]Period, 0, len(periodRows)),
+		Supervisors: make([]Row, 0, len(supervisorRows)),
+	}
 	for _, period := range periodRows {
-		dashboard.Periods = append(dashboard.Periods, Period{ID: period.ID, Name: period.Name, Status: period.Status, SupervisorAssignments: periodTotals[period.ID]})
+		dashboard.Periods = append(
+			dashboard.Periods,
+			Period{
+				ID:                    period.ID,
+				Name:                  period.Name,
+				Status:                period.Status,
+				SupervisorAssignments: periodTotals[period.ID],
+			},
+		)
 	}
 	for _, supervisor := range supervisorRows {
-		row := Row{PersonID: supervisor.PersonID, Name: supervisor.FirstName + " " + supervisor.LastName, HasProfileImage: supervisor.HasProfileImage, LaborordnungState: supervisor.LaborordnungState, AssignmentCounts: make([]AssignmentCount, 0, len(periodRows))}
+		row := Row{
+			PersonID:          supervisor.PersonID,
+			Name:              supervisor.FirstName + " " + supervisor.LastName,
+			HasProfileImage:   supervisor.HasProfileImage,
+			LaborordnungState: supervisor.LaborordnungState,
+			AssignmentCounts:  make([]AssignmentCount, 0, len(periodRows)),
+		}
 		for _, period := range periodRows {
 			count := byPerson[supervisor.PersonID][period.ID]
 			count.PeriodID = period.ID

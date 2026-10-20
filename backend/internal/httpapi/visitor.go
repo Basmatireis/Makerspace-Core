@@ -14,7 +14,10 @@ import (
 	"github.com/oapi-codegen/nullable"
 )
 
-func (s *Server) GetVisitorEnrollmentConfiguration(ctx context.Context, _ openapi.GetVisitorEnrollmentConfigurationRequestObject) (openapi.GetVisitorEnrollmentConfigurationResponseObject, error) {
+func (s *Server) GetVisitorEnrollmentConfiguration(
+	ctx context.Context,
+	_ openapi.GetVisitorEnrollmentConfigurationRequestObject,
+) (openapi.GetVisitorEnrollmentConfigurationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -26,7 +29,10 @@ func (s *Server) GetVisitorEnrollmentConfiguration(ctx context.Context, _ openap
 	return openapi.GetVisitorEnrollmentConfiguration200JSONResponse(visitorConfigurationDTO(value)), nil
 }
 
-func (s *Server) UpdateVisitorEnrollmentConfiguration(ctx context.Context, request openapi.UpdateVisitorEnrollmentConfigurationRequestObject) (openapi.UpdateVisitorEnrollmentConfigurationResponseObject, error) {
+func (s *Server) UpdateVisitorEnrollmentConfiguration(
+	ctx context.Context,
+	request openapi.UpdateVisitorEnrollmentConfigurationRequestObject,
+) (openapi.UpdateVisitorEnrollmentConfigurationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +59,10 @@ func (s *Server) UpdateVisitorEnrollmentConfiguration(ctx context.Context, reque
 	return openapi.UpdateVisitorEnrollmentConfiguration200JSONResponse(visitorConfigurationDTO(value)), nil
 }
 
-func (s *Server) BeginVisitorEnrollment(ctx context.Context, _ openapi.BeginVisitorEnrollmentRequestObject) (openapi.BeginVisitorEnrollmentResponseObject, error) {
+func (s *Server) BeginVisitorEnrollment(
+	ctx context.Context,
+	_ openapi.BeginVisitorEnrollmentRequestObject,
+) (openapi.BeginVisitorEnrollmentResponseObject, error) {
 	device, ok := ctx.Value(visitorDeviceContextKey).(manageddevices.DeviceContext)
 	if !ok {
 		return nil, invalidRequest("verified ManagedDevice is required")
@@ -65,7 +74,10 @@ func (s *Server) BeginVisitorEnrollment(ctx context.Context, _ openapi.BeginVisi
 	return visitorContextCookieResponse{config: s.config, issue: issue}, nil
 }
 
-func (s *Server) GetVisitorEnrollmentState(ctx context.Context, _ openapi.GetVisitorEnrollmentStateRequestObject) (openapi.GetVisitorEnrollmentStateResponseObject, error) {
+func (s *Server) GetVisitorEnrollmentState(
+	ctx context.Context,
+	_ openapi.GetVisitorEnrollmentStateRequestObject,
+) (openapi.GetVisitorEnrollmentStateResponseObject, error) {
 	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
 	if !ok {
 		return nil, invalidRequest("enrollment context is required")
@@ -87,7 +99,10 @@ func (s *Server) GetVisitorEnrollmentState(ctx context.Context, _ openapi.GetVis
 	return openapi.GetVisitorEnrollmentState200JSONResponse(result), nil
 }
 
-func (s *Server) GetVisitorEnrollmentLabRulesPDF(ctx context.Context, _ openapi.GetVisitorEnrollmentLabRulesPDFRequestObject) (openapi.GetVisitorEnrollmentLabRulesPDFResponseObject, error) {
+func (s *Server) GetVisitorEnrollmentLabRulesPDF(
+	ctx context.Context,
+	_ openapi.GetVisitorEnrollmentLabRulesPDFRequestObject,
+) (openapi.GetVisitorEnrollmentLabRulesPDFResponseObject, error) {
 	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
 	if !ok {
 		return nil, invalidRequest("enrollment context is required")
@@ -99,7 +114,10 @@ func (s *Server) GetVisitorEnrollmentLabRulesPDF(ctx context.Context, _ openapi.
 	return openapi.GetVisitorEnrollmentLabRulesPDF200ApplicationpdfResponse{Body: reader, ContentLength: file.Size}, nil
 }
 
-func (s *Server) SubmitVisitorEnrollment(ctx context.Context, request openapi.SubmitVisitorEnrollmentRequestObject) (openapi.SubmitVisitorEnrollmentResponseObject, error) {
+func (s *Server) SubmitVisitorEnrollment(
+	ctx context.Context,
+	request openapi.SubmitVisitorEnrollmentRequestObject,
+) (openapi.SubmitVisitorEnrollmentResponseObject, error) {
 	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
 	if !ok {
 		return nil, invalidRequest("enrollment context is required")
@@ -125,15 +143,24 @@ func (s *Server) SubmitVisitorEnrollment(ctx context.Context, request openapi.Su
 		PersonId: result.PersonID, AccountId: result.AccountID,
 		AccountStatus: openapi.VisitorEnrollmentResultAccountStatus(result.AccountStatus),
 		Admission:     openapi.VisitorEnrollmentResultAdmission(result.Admission),
-		InvitationDelivery: nullablePointer(result.InvitationDelivery, func(value string) openapi.VisitorEnrollmentResultInvitationDelivery {
-			return openapi.VisitorEnrollmentResultInvitationDelivery(value)
-		}),
-		LabRulesRequestId: nullablePointer(result.LabRulesRequestID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
+		InvitationDelivery: nullablePointer(
+			result.InvitationDelivery,
+			func(value string) openapi.VisitorEnrollmentResultInvitationDelivery {
+				return openapi.VisitorEnrollmentResultInvitationDelivery(value)
+			},
+		),
+		LabRulesRequestId: nullablePointer(
+			result.LabRulesRequestID,
+			func(value uuid.UUID) openapi.UUIDv7 { return value },
+		),
 	}
 	return visitorSubmissionCookieResponse{config: s.config, body: body}, nil
 }
 
-func (s *Server) EvaluateVisitorAdmission(ctx context.Context, _ openapi.EvaluateVisitorAdmissionRequestObject) (openapi.EvaluateVisitorAdmissionResponseObject, error) {
+func (s *Server) EvaluateVisitorAdmission(
+	ctx context.Context,
+	_ openapi.EvaluateVisitorAdmissionRequestObject,
+) (openapi.EvaluateVisitorAdmissionResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -166,8 +193,24 @@ type visitorContextCookieResponse struct {
 
 func (response visitorContextCookieResponse) VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Cache-Control", "no-store")
-	setEnrollmentCookie(w, response.config, response.config.EnrollmentCookieName, response.issue.ContextToken, true, response.issue.ExpiresAt, int(time.Until(response.issue.ExpiresAt).Seconds()))
-	setEnrollmentCookie(w, response.config, response.config.EnrollmentCSRFName, response.issue.CSRFToken, false, response.issue.ExpiresAt, int(time.Until(response.issue.ExpiresAt).Seconds()))
+	setEnrollmentCookie(
+		w,
+		response.config,
+		response.config.EnrollmentCookieName,
+		response.issue.ContextToken,
+		true,
+		response.issue.ExpiresAt,
+		int(time.Until(response.issue.ExpiresAt).Seconds()),
+	)
+	setEnrollmentCookie(
+		w,
+		response.config,
+		response.config.EnrollmentCSRFName,
+		response.issue.CSRFToken,
+		false,
+		response.issue.ExpiresAt,
+		int(time.Until(response.issue.ExpiresAt).Seconds()),
+	)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -187,6 +230,25 @@ func (response visitorSubmissionCookieResponse) VisitSubmitVisitorEnrollmentResp
 	return json.NewEncoder(w).Encode(response.body)
 }
 
-func setEnrollmentCookie(w http.ResponseWriter, cfg config.Config, name, value string, httpOnly bool, expires time.Time, maxAge int) {
-	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", Expires: expires, MaxAge: maxAge, HttpOnly: httpOnly, Secure: cfg.SessionCookieSecure, SameSite: http.SameSiteStrictMode})
+func setEnrollmentCookie(
+	w http.ResponseWriter,
+	cfg config.Config,
+	name, value string,
+	httpOnly bool,
+	expires time.Time,
+	maxAge int,
+) {
+	http.SetCookie(
+		w,
+		&http.Cookie{
+			Name:     name,
+			Value:    value,
+			Path:     "/",
+			Expires:  expires,
+			MaxAge:   maxAge,
+			HttpOnly: httpOnly,
+			Secure:   cfg.SessionCookieSecure,
+			SameSite: http.SameSiteStrictMode,
+		},
+	)
 }

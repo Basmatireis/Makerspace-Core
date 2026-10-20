@@ -114,7 +114,8 @@ M73 P75
 	if err != nil {
 		t.Fatalf("EstimateGCode: %v", err)
 	}
-	if estimate.SelectedLayer == nil || *estimate.SelectedLayer != 1 || estimate.EmbeddedProgress == nil || *estimate.EmbeddedProgress != 50 {
+	if estimate.SelectedLayer == nil || *estimate.SelectedLayer != 1 || estimate.EmbeddedProgress == nil ||
+		*estimate.EmbeddedProgress != 50 {
 		t.Fatalf("selected checkpoint = %+v", estimate)
 	}
 	assertLengths(t, estimate.Filaments[0], 20, 20, 0, 0)
@@ -178,13 +179,19 @@ func TestEstimateGCodeIgnoresBambuSpecialToolCommands(t *testing.T) {
 
 	diameter, density := 1.75, 1.24
 	physicalExtruder := 1
-	estimate, err := EstimateGCode(strings.NewReader("M83\nM620 S2A\nT1000\nG1 E5\nT1100\nG1 E2\nT255\nG1 E1\n"), GCodeOptions{
-		Filaments: []GCodeFilament{{ID: "2", DiameterMM: &diameter, DensityGCM3: &density}}, PhysicalExtruder: &physicalExtruder,
-	})
+	estimate, err := EstimateGCode(
+		strings.NewReader("M83\nM620 S2A\nT1000\nG1 E5\nT1100\nG1 E2\nT255\nG1 E1\n"),
+		GCodeOptions{
+			Filaments: []GCodeFilament{
+				{ID: "2", DiameterMM: &diameter, DensityGCM3: &density},
+			}, PhysicalExtruder: &physicalExtruder,
+		},
+	)
 	if err != nil {
 		t.Fatalf("EstimateGCode: %v", err)
 	}
-	if !estimate.Resolved || len(estimate.Filaments) != 1 || estimate.Filaments[0].FilamentID != "2" || !slices.Equal(estimate.Filaments[0].Extruders, []int{1}) {
+	if !estimate.Resolved || len(estimate.Filaments) != 1 || estimate.Filaments[0].FilamentID != "2" ||
+		!slices.Equal(estimate.Filaments[0].Extruders, []int{1}) {
 		t.Fatalf("estimate = %+v", estimate)
 	}
 	assertLengths(t, estimate.Filaments[0], 8, 0, 0, 8)
@@ -203,7 +210,10 @@ func TestEstimateGCodeWithoutCompatibleCheckpointIsUnresolved(t *testing.T) {
 	t.Parallel()
 
 	progress := 10.0
-	estimate, err := EstimateGCode(strings.NewReader("M83\nG1 E5\nM73 P20\n"), GCodeOptions{LastReliableProgress: &progress})
+	estimate, err := EstimateGCode(
+		strings.NewReader("M83\nG1 E5\nM73 P20\n"),
+		GCodeOptions{LastReliableProgress: &progress},
+	)
 	if err != nil {
 		t.Fatalf("EstimateGCode: %v", err)
 	}
@@ -214,7 +224,15 @@ func TestEstimateGCodeWithoutCompatibleCheckpointIsUnresolved(t *testing.T) {
 
 func assertLengths(t *testing.T, item FilamentEstimate, total, model, purge, unclassified float64) {
 	t.Helper()
-	if item.LengthMM != total || item.ModelLengthMM != model || item.PurgeLengthMM != purge || item.UnclassifiedMM != unclassified {
-		t.Fatalf("lengths for filament %q = total %v model %v purge %v unclassified %v", item.FilamentID, item.LengthMM, item.ModelLengthMM, item.PurgeLengthMM, item.UnclassifiedMM)
+	if item.LengthMM != total || item.ModelLengthMM != model || item.PurgeLengthMM != purge ||
+		item.UnclassifiedMM != unclassified {
+		t.Fatalf(
+			"lengths for filament %q = total %v model %v purge %v unclassified %v",
+			item.FilamentID,
+			item.LengthMM,
+			item.ModelLengthMM,
+			item.PurgeLengthMM,
+			item.UnclassifiedMM,
+		)
 	}
 }

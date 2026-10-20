@@ -15,7 +15,10 @@ type permissionsStub struct {
 	rows []authorizationdb.GetPrincipalRolePermissionsRow
 }
 
-func (s permissionsStub) GetPrincipalRolePermissions(context.Context, uuid.UUID) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
+func (s permissionsStub) GetPrincipalRolePermissions(
+	context.Context,
+	uuid.UUID,
+) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
 	return s.rows, nil
 }
 
@@ -23,11 +26,30 @@ func principalWith(t *testing.T, accountID uuid.UUID, permissions ...authorizati
 	t.Helper()
 	rows := make([]authorizationdb.GetPrincipalRolePermissionsRow, 0, len(permissions))
 	for _, permission := range permissions {
-		permissionID, scope, minimum := string(permission), string(authorization.GrantEverywhere), string(authorization.AssuranceLow)
+		permissionID, scope, minimum := string(
+			permission,
+		), string(
+			authorization.GrantEverywhere,
+		), string(
+			authorization.AssuranceLow,
+		)
 		grantID := uuid.Must(uuid.NewV7())
-		rows = append(rows, authorizationdb.GetPrincipalRolePermissionsRow{RoleID: uuid.Must(uuid.NewV7()), GrantID: &grantID, PermissionID: &permissionID, Scope: &scope, MinimumAssurance: &minimum})
+		rows = append(
+			rows,
+			authorizationdb.GetPrincipalRolePermissionsRow{
+				RoleID:           uuid.Must(uuid.NewV7()),
+				GrantID:          &grantID,
+				PermissionID:     &permissionID,
+				Scope:            &scope,
+				MinimumAssurance: &minimum,
+			},
+		)
 	}
-	principal, err := authorization.LoadPermissions(t.Context(), permissionsStub{rows: rows}, authorization.Principal{AccountID: accountID})
+	principal, err := authorization.LoadPermissions(
+		t.Context(),
+		permissionsStub{rows: rows},
+		authorization.Principal{AccountID: accountID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +76,10 @@ func TestDeleteRequiresManagePermission(t *testing.T) {
 		"read only":      principalWith(t, h.principal.AccountID, authorization.PrinterConnectorsRead),
 		"credentials":    principalWith(t, h.principal.AccountID, authorization.PrinterConnectorsCredentialsManage),
 	} {
-		if err = h.service.Delete(t.Context(), principal, current.ID, current.Version, nil); !apperror.IsCode(err, "permission_denied") {
+		if err = h.service.Delete(t.Context(), principal, current.ID, current.Version, nil); !apperror.IsCode(
+			err,
+			"permission_denied",
+		) {
 			t.Fatalf("%s: expected permission_denied, got %v", name, err)
 		}
 	}
@@ -89,13 +114,21 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	if n := count(t, h, `SELECT count(*) FROM printer_error_occurrences WHERE assignment_id = $1 AND resolved_at IS NULL`, h.assignment.ID); n != 1 {
 		t.Fatalf("expected an open error, got %d", n)
 	}
-	eventsOfRuns := count(t, h, `SELECT count(*) FROM printer_events WHERE connector_id = $1 AND run_id IS NOT NULL`, h.connector.ID)
+	eventsOfRuns := count(
+		t,
+		h,
+		`SELECT count(*) FROM printer_events WHERE connector_id = $1 AND run_id IS NOT NULL`,
+		h.connector.ID,
+	)
 
 	current, err := h.service.Get(ctx, h.principal, h.connector.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = h.service.Delete(ctx, h.principal, h.connector.ID, current.Version+1, nil); !apperror.IsCode(err, "stale_write") {
+	if err = h.service.Delete(ctx, h.principal, h.connector.ID, current.Version+1, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale version: %v", err)
 	}
 	if err = h.service.Delete(ctx, h.principal, h.connector.ID, current.Version, &h.assignment.ID); err != nil {
@@ -108,7 +141,10 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	if _, err = h.service.Get(ctx, h.principal, h.connector.ID); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("connector still readable: %v", err)
 	}
-	if err = h.service.Delete(ctx, h.principal, h.connector.ID, current.Version, nil); !apperror.IsCode(err, "not_found") {
+	if err = h.service.Delete(ctx, h.principal, h.connector.ID, current.Version, nil); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("second delete: %v", err)
 	}
 	for table, query := range map[string]string{

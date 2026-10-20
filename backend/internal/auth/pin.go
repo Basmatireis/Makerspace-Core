@@ -21,7 +21,11 @@ import (
 
 const freshMethodAuthentication = 10 * time.Minute
 
-func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey string, requestID *uuid.UUID) (Session, error) {
+func (s *Service) LoginWithPIN(
+	ctx context.Context,
+	loginName, pin, sourceKey string,
+	requestID *uuid.UUID,
+) (Session, error) {
 	_, normalized, normalizeErr := normalizeLoginName(loginName)
 	loginDigest := s.pinThrottleDigest("login_name", normalized)
 	sourceDigest := s.pinThrottleDigest("source", sourceKey)
@@ -72,7 +76,8 @@ func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey st
 		return Session{}, err
 	}
 	// The credential may have changed between verification and acquiring the lock.
-	if login.AuthIdentityID != candidate.AuthIdentityID || login.PinHash != candidate.PinHash || login.Status != "enabled" {
+	if login.AuthIdentityID != candidate.AuthIdentityID || login.PinHash != candidate.PinHash ||
+		login.Status != "enabled" {
 		return Session{}, apperror.InvalidCredentials
 	}
 
@@ -101,12 +106,20 @@ const pinMaxBackoff = 5 * time.Minute
 // admitPINAttempt applies the persistent PIN back-off and the in-memory attempt limit. The
 // in-memory limit is atomic, so a burst of parallel guesses cannot all pass the persistent check
 // before the first failure is recorded.
-func (s *Service) admitPINAttempt(ctx context.Context, queries *authdb.Queries, scope, sourceKey, loginName string, loginDigest, sourceDigest []byte) (string, error) {
+func (s *Service) admitPINAttempt(
+	ctx context.Context,
+	queries *authdb.Queries,
+	scope, sourceKey, loginName string,
+	loginDigest, sourceDigest []byte,
+) (string, error) {
 	for _, dimension := range []struct {
 		name   string
 		digest []byte
 	}{{"login_name", loginDigest}, {"source", sourceDigest}} {
-		blocked, err := queries.PINThrottleBlocked(ctx, authdb.PINThrottleBlockedParams{Dimension: dimension.name, KeyDigest: dimension.digest})
+		blocked, err := queries.PINThrottleBlocked(
+			ctx,
+			authdb.PINThrottleBlockedParams{Dimension: dimension.name, KeyDigest: dimension.digest},
+		)
 		if err != nil {
 			return "", err
 		}
@@ -128,7 +141,12 @@ func recordPINFailure(ctx context.Context, queries *authdb.Queries, loginDigest,
 	return queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "source", KeyDigest: sourceDigest})
 }
 
-func (s *Service) EnrollOwnPIN(ctx context.Context, principal authorization.Principal, loginName, pin string, requestID *uuid.UUID) error {
+func (s *Service) EnrollOwnPIN(
+	ctx context.Context,
+	principal authorization.Principal,
+	loginName, pin string,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.AccountsPINEnrollSelf) {
 		return apperror.PermissionDenied
 	}
@@ -154,7 +172,15 @@ func (s *Service) EnrollOwnPIN(ctx context.Context, principal authorization.Prin
 	}
 	identity, err := queries.GetPINIdentityForAccount(ctx, principal.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		identity, err = queries.CreatePINIdentity(ctx, authdb.CreatePINIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: principal.AccountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
+		identity, err = queries.CreatePINIdentity(
+			ctx,
+			authdb.CreatePINIdentityParams{
+				ID:                   uuid.Must(uuid.NewV7()),
+				AccountID:            principal.AccountID,
+				IdentifierDisplay:    &display,
+				IdentifierNormalized: &normalized,
+			},
+		)
 	} else if err == nil {
 		identity, err = queries.UpdatePINIdentity(ctx, authdb.UpdatePINIdentityParams{AccountID: principal.AccountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
 	}
@@ -181,7 +207,14 @@ func (s *Service) EnrollOwnPIN(ctx context.Context, principal authorization.Prin
 	return tx.Commit(ctx)
 }
 
-func (s *Service) SetAccountPIN(ctx context.Context, principal authorization.Principal, accountID uuid.UUID, loginName, pin string, expectedVersion int64, requestID *uuid.UUID) error {
+func (s *Service) SetAccountPIN(
+	ctx context.Context,
+	principal authorization.Principal,
+	accountID uuid.UUID,
+	loginName, pin string,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.AccountsPINEnrollAll) && !principal.Has(authorization.AccountsPINReset) {
 		return apperror.PermissionDenied
 	}
@@ -260,7 +293,12 @@ func (s *Service) SetAccountPIN(ctx context.Context, principal authorization.Pri
 	return tx.Commit(ctx)
 }
 
-func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID, code, loginName, pin, sourceKey string, requestID *uuid.UUID) error {
+func (s *Service) CompletePINEnrollment(
+	ctx context.Context,
+	accountID uuid.UUID,
+	code, loginName, pin, sourceKey string,
+	requestID *uuid.UUID,
+) error {
 	display, normalized, normalizeErr := normalizeLoginName(loginName)
 	hash, hashErr := security.HashPIN(s.config.PINPepper, pin)
 	allowed, err := s.consumeChallengeLimit(ctx, "pin_enrollment_verify_source", sourceKey, 10)
@@ -291,7 +329,10 @@ func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID
 	} else if err != nil {
 		return err
 	}
-	challenge, err := queries.GetActiveAuthChallengeForUpdate(ctx, authdb.GetActiveAuthChallengeForUpdateParams{AccountID: accountID, Kind: "pin_enrollment"})
+	challenge, err := queries.GetActiveAuthChallengeForUpdate(
+		ctx,
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: accountID, Kind: "pin_enrollment"},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
 	}
@@ -299,7 +340,8 @@ func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID
 		return err
 	}
 	if !s.challengeValid(challenge, code) {
-		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 || !challenge.ExpiresAt.After(time.Now().UTC()) {
+		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 ||
+			!challenge.ExpiresAt.After(time.Now().UTC()) {
 			return invalidChallenge()
 		}
 		if err := queries.IncrementAuthChallengeFailure(ctx, challenge.ID); err != nil {
@@ -318,7 +360,15 @@ func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID
 		if !errors.Is(identityErr, pgx.ErrNoRows) {
 			return identityErr
 		}
-		identity, err = queries.CreatePINIdentity(ctx, authdb.CreatePINIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
+		identity, err = queries.CreatePINIdentity(
+			ctx,
+			authdb.CreatePINIdentityParams{
+				ID:                   uuid.Must(uuid.NewV7()),
+				AccountID:            accountID,
+				IdentifierDisplay:    &display,
+				IdentifierNormalized: &normalized,
+			},
+		)
 	} else {
 		if identityErr != nil || identity.ID != *challenge.AuthIdentityID {
 			return invalidChallenge()
@@ -351,7 +401,12 @@ func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID
 		return err
 	}
 	if s.notifier != nil && challenge.DeliveryAddress != nil {
-		_ = s.notifier.SendSecurityNotice(ctx, *challenge.DeliveryAddress, "Makerspace PIN login configured", "Your Makerspace username and PIN were configured. If this was not you, contact an administrator immediately.")
+		_ = s.notifier.SendSecurityNotice(
+			ctx,
+			*challenge.DeliveryAddress,
+			"Makerspace PIN login configured",
+			"Your Makerspace username and PIN were configured. If this was not you, contact an administrator immediately.",
+		)
 	}
 	return nil
 }
@@ -395,7 +450,11 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 	return tx.Commit(ctx)
 }
 
-func (s *Service) createPINSession(ctx context.Context, queries *authdb.Queries, accountID, identityID uuid.UUID) (Session, error) {
+func (s *Service) createPINSession(
+	ctx context.Context,
+	queries *authdb.Queries,
+	accountID, identityID uuid.UUID,
+) (Session, error) {
 	rawToken, tokenDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		return Session{}, err
@@ -409,10 +468,15 @@ func (s *Service) createPINSession(ctx context.Context, queries *authdb.Queries,
 	if err != nil {
 		return Session{}, err
 	}
-	row, err := queries.CreatePINSession(ctx, authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
-		AuthIdentityID: identityID, TokenDigest: tokenDigest, CsrfDigest: csrfDigest, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
-		ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
-		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination})
+	row, err := queries.CreatePINSession(
+		ctx,
+		authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
+			AuthIdentityID: identityID, TokenDigest: tokenDigest, CsrfDigest: csrfDigest, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+			ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
+			IdleTimeoutSeconds: int32(
+				policy.IdleTimeout / time.Second,
+			), PostSessionDestination: policy.PostSessionDestination},
+	)
 	if err != nil {
 		return Session{}, err
 	}
@@ -434,7 +498,8 @@ func normalizeLoginName(raw string) (string, string, error) {
 		return "", "", errors.New("loginName must contain 3 to 64 characters")
 	}
 	for index, value := range []byte(display) {
-		allowed := value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9' || (index > 0 && (value == '.' || value == '_' || value == '-'))
+		allowed := value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9' ||
+			(index > 0 && (value == '.' || value == '_' || value == '-'))
 		if !allowed {
 			return "", "", errors.New("loginName contains unsupported characters")
 		}

@@ -25,7 +25,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	loadedType, err := service.GetType(ctx, principal, typeRow.ID)
-	if err != nil || loadedType.ID != typeRow.ID || loadedType.Name != typeRow.Name || loadedType.Version != typeRow.Version {
+	if err != nil || loadedType.ID != typeRow.ID || loadedType.Name != typeRow.Name ||
+		loadedType.Version != typeRow.Version {
 		t.Fatalf("get device type: got=%#v want=%#v err=%v", loadedType, typeRow, err)
 	}
 	issued, err := service.Create(ctx, principal, "Front desk", typeRow.ID, nil, nil)
@@ -39,7 +40,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT token_digest FROM managed_devices WHERE id=$1`, issued.Device.ID).Scan(&storedDigest); err != nil {
 		t.Fatal(err)
 	}
-	if len(storedDigest) != 32 || !bytes.Equal(storedDigest, security.DigestToken(issued.Token)) || bytes.Contains(storedDigest, []byte(issued.Token)) {
+	if len(storedDigest) != 32 || !bytes.Equal(storedDigest, security.DigestToken(issued.Token)) ||
+		bytes.Contains(storedDigest, []byte(issued.Token)) {
 		t.Fatal("managed-device token was not stored exclusively as its SHA-256 digest")
 	}
 	device, err := service.Authenticate(ctx, issued.Token)
@@ -84,7 +86,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 		t.Fatalf("rotated token invalid: %v %v", current, err)
 	}
 	var sessionRevoked bool
-	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, boundSessionID).Scan(&sessionRevoked); err != nil || !sessionRevoked {
+	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, boundSessionID).Scan(&sessionRevoked); err != nil ||
+		!sessionRevoked {
 		t.Fatalf("rotation did not revoke bound session: revoked=%t err=%v", sessionRevoked, err)
 	}
 	revocationSessionID := uuid.Must(uuid.NewV7())
@@ -107,7 +110,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if current, err := service.Authenticate(ctx, rotated.Token); err != nil || current != nil {
 		t.Fatalf("revoked token authenticated: %v %v", current, err)
 	}
-	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, revocationSessionID).Scan(&sessionRevoked); err != nil || !sessionRevoked {
+	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, revocationSessionID).Scan(&sessionRevoked); err != nil ||
+		!sessionRevoked {
 		t.Fatalf("device revocation did not revoke bound session: revoked=%t err=%v", sessionRevoked, err)
 	}
 	if err = service.Delete(ctx, principal, revoked.ID, revoked.Version, nil); err != nil {
@@ -117,7 +121,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT coalesce(string_agg(row_to_json(a)::text, ''), '') FROM audit_events a WHERE resource_id = $1`, issued.Device.ID).Scan(&auditRows); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(auditRows, issued.Token) || strings.Contains(auditRows, rotated.Token) || strings.Contains(auditRows, hex.EncodeToString(security.DigestToken(issued.Token))) {
+	if strings.Contains(auditRows, issued.Token) || strings.Contains(auditRows, rotated.Token) ||
+		strings.Contains(auditRows, hex.EncodeToString(security.DigestToken(issued.Token))) {
 		t.Fatal("managed-device secret or digest leaked into audit data")
 	}
 	for _, action := range []string{"managed_device.created", "managed_device.token_rotated", "managed_device.revoked", "managed_device.deleted"} {
@@ -151,7 +156,8 @@ func TestExpiredDeviceAndGlobalGrantMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var scope string
-	if err = pool.QueryRow(ctx, `SELECT scope FROM role_permission_grants WHERE role_id=$1`, roleID).Scan(&scope); err != nil || scope != "global" {
+	if err = pool.QueryRow(ctx, `SELECT scope FROM role_permission_grants WHERE role_id=$1`, roleID).Scan(&scope); err != nil ||
+		scope != "global" {
 		t.Fatalf("legacy scope=%q err=%v", scope, err)
 	}
 }
@@ -170,7 +176,10 @@ func TestManagedDeviceMustBeRevokedBeforeDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.Delete(ctx, p, issued.Device.ID, issued.Device.Version, nil); !apperror.IsCode(err, "managed_device_not_revoked") {
+	if err = s.Delete(ctx, p, issued.Device.ID, issued.Device.Version, nil); !apperror.IsCode(
+		err,
+		"managed_device_not_revoked",
+	) {
 		t.Fatalf("error=%v", err)
 	}
 }
@@ -200,17 +209,26 @@ func TestManagedDeviceValidationConcurrencyAndLastSeenThrottle(t *testing.T) {
 		t.Fatal(err)
 	}
 	past := time.Now().UTC().Add(-time.Minute)
-	if _, err = service.Create(ctx, principal, "Invalid expiry", typeRow.ID, &past, nil); !apperror.IsCode(err, "validation_failed") {
+	if _, err = service.Create(ctx, principal, "Invalid expiry", typeRow.ID, &past, nil); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("past expiration error = %v", err)
 	}
 	issued, err := service.Create(ctx, principal, "Office computer", typeRow.ID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.Update(ctx, principal, issued.Device.ID, "Stale", typeRow.ID, nil, issued.Device.Version+1, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err = service.Update(ctx, principal, issued.Device.ID, "Stale", typeRow.ID, nil, issued.Device.Version+1, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale update error = %v", err)
 	}
-	if _, err = service.Create(ctx, principal, "office COMPUTER", typeRow.ID, nil, nil); !apperror.IsCode(err, "conflict") {
+	if _, err = service.Create(ctx, principal, "office COMPUTER", typeRow.ID, nil, nil); !apperror.IsCode(
+		err,
+		"conflict",
+	) {
 		t.Fatalf("case-insensitive duplicate error = %v", err)
 	}
 	if _, err = service.Authenticate(ctx, issued.Token); err != nil {
@@ -250,11 +268,23 @@ func TestManagedDeviceValidationConcurrencyAndLastSeenThrottle(t *testing.T) {
 	if err != nil || view.ExpiresAt == nil {
 		t.Fatalf("load expired device: %#v %v", view, err)
 	}
-	updated, err := service.Update(ctx, principal, view.ID, "Renamed expired computer", typeRow.ID, view.ExpiresAt, view.Version, nil)
+	updated, err := service.Update(
+		ctx,
+		principal,
+		view.ID,
+		"Renamed expired computer",
+		typeRow.ID,
+		view.ExpiresAt,
+		view.Version,
+		nil,
+	)
 	if err != nil || updated.Name != "Renamed expired computer" {
 		t.Fatalf("edit expired metadata: %#v %v", updated, err)
 	}
-	if _, err = service.Update(ctx, principal, updated.ID, updated.Name, typeRow.ID, nil, updated.Version, nil); !apperror.IsCode(err, "managed_device_rotation_required") {
+	if _, err = service.Update(ctx, principal, updated.ID, updated.Name, typeRow.ID, nil, updated.Version, nil); !apperror.IsCode(
+		err,
+		"managed_device_rotation_required",
+	) {
 		t.Fatalf("expired token reactivated without rotation: %v", err)
 	}
 }

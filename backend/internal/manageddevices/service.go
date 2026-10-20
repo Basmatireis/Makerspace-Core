@@ -143,10 +143,21 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 		return nil, err
 	}
 	_ = manageddevicesdb.New(s.pool).TouchManagedDevice(ctx, row.ID)
-	return &DeviceContext{ID: row.ID, Name: row.Name, DeviceTypeID: row.DeviceTypeID, DeviceTypeName: row.DeviceTypeName,
-		ExpiresAt: timePointer(row.ExpiresAt), SessionPolicyID: row.SessionPolicyID, TerminalEnabled: row.TerminalEnabled,
+	return &DeviceContext{
+		ID:             row.ID,
+		Name:           row.Name,
+		DeviceTypeID:   row.DeviceTypeID,
+		DeviceTypeName: row.DeviceTypeName,
+		ExpiresAt: timePointer(
+			row.ExpiresAt,
+		),
+		SessionPolicyID:         row.SessionPolicyID,
+		TerminalEnabled:         row.TerminalEnabled,
 		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
-		CheckInAssurance:        row.CheckInAssurance, CheckOutAssurance: row.CheckOutAssurance, CheckoutMode: row.CheckoutMode}, nil
+		CheckInAssurance:        row.CheckInAssurance,
+		CheckOutAssurance:       row.CheckOutAssurance,
+		CheckoutMode:            row.CheckoutMode,
+	}, nil
 }
 
 func (s *Service) GetHardwareContext(ctx context.Context, device DeviceContext) (HardwareContext, error) {
@@ -179,7 +190,12 @@ func (s *Service) GetHardwareContext(ctx context.Context, device DeviceContext) 
 	return result, nil
 }
 
-func (s *Service) ReportHardware(ctx context.Context, device DeviceContext, report HardwareReport, requestID *uuid.UUID) (HardwareContext, error) {
+func (s *Service) ReportHardware(
+	ctx context.Context,
+	device DeviceContext,
+	report HardwareReport,
+	requestID *uuid.UUID,
+) (HardwareContext, error) {
 	report.Platform = strings.TrimSpace(report.Platform)
 	report.BridgeVersion = strings.TrimSpace(report.BridgeVersion)
 	if report.Platform != "desktop" && report.Platform != "android" {
@@ -239,7 +255,8 @@ func intersectCapabilities(configured, reported []string) []string {
 }
 
 func (s *Service) ListTypes(ctx context.Context, principal authorization.Principal) ([]DeviceType, error) {
-	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) && !principal.Has(authorization.VisitorEnrollmentManage) {
+	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) &&
+		!principal.Has(authorization.VisitorEnrollmentManage) {
 		return nil, apperror.PermissionDenied
 	}
 	rows, err := manageddevicesdb.New(s.pool).ListDeviceTypes(ctx)
@@ -254,7 +271,8 @@ func (s *Service) ListTypes(ctx context.Context, principal authorization.Princip
 }
 
 func (s *Service) GetType(ctx context.Context, principal authorization.Principal, id uuid.UUID) (DeviceType, error) {
-	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) && !principal.Has(authorization.VisitorEnrollmentManage) {
+	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) &&
+		!principal.Has(authorization.VisitorEnrollmentManage) {
 		return DeviceType{}, apperror.PermissionDenied
 	}
 	row, err := manageddevicesdb.New(s.pool).GetDeviceType(ctx, id)
@@ -339,7 +357,16 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	return item, nil
 }
 
-func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, typeID uuid.UUID, expiresAt *time.Time, version int64, requestID *uuid.UUID) (Device, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name string,
+	typeID uuid.UUID,
+	expiresAt *time.Time,
+	version int64,
+	requestID *uuid.UUID,
+) (Device, error) {
 	current, err := manageddevicesdb.New(s.pool).GetManagedDevice(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, apperror.NotFound
@@ -359,7 +386,17 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	}, version, requestID)
 }
 
-func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, typeID uuid.UUID, expiresAt *time.Time, settings DeviceSettings, version int64, requestID *uuid.UUID) (Device, error) {
+func (s *Service) UpdateConfigured(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name string,
+	typeID uuid.UUID,
+	expiresAt *time.Time,
+	settings DeviceSettings,
+	version int64,
+	requestID *uuid.UUID,
+) (Device, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return Device{}, apperror.PermissionDenied
 	}
@@ -396,7 +433,11 @@ func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.
 	expirationUnchanged := (expiresAt == nil && !current.ExpiresAt.Valid) ||
 		(expiresAt != nil && current.ExpiresAt.Valid && current.ExpiresAt.Time.Equal(*expiresAt))
 	if current.ExpiresAt.Valid && !current.ExpiresAt.Time.After(now) && !expirationUnchanged {
-		return Device{}, apperror.New(409, "managed_device_rotation_required", "Rotate the token to reactivate an expired managed device")
+		return Device{}, apperror.New(
+			409,
+			"managed_device_rotation_required",
+			"Rotate the token to reactivate an expired managed device",
+		)
 	}
 	if expiresAt != nil && !expiresAt.After(now) && !expirationUnchanged {
 		return Device{}, validation("expiration must be in the future")
@@ -413,11 +454,16 @@ func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.
 			return Device{}, err
 		}
 	}
-	_, err = q.UpdateManagedDevice(ctx, manageddevicesdb.UpdateManagedDeviceParams{ID: id, Name: name, DeviceTypeID: typeID,
-		ExpiresAt: timestamp(expiresAt), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.TerminalEnabled,
-		AllowedAppModes:  settings.AllowedApplicationModes,
-		CheckInAssurance: settings.CheckInAssurance, CheckOutAssurance: settings.CheckOutAssurance,
-		CheckoutMode: settings.CheckoutMode, ExpectedVersion: version})
+	_, err = q.UpdateManagedDevice(
+		ctx,
+		manageddevicesdb.UpdateManagedDeviceParams{ID: id, Name: name, DeviceTypeID: typeID,
+			ExpiresAt: timestamp(
+				expiresAt,
+			), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.TerminalEnabled,
+			AllowedAppModes:  settings.AllowedApplicationModes,
+			CheckInAssurance: settings.CheckInAssurance, CheckOutAssurance: settings.CheckOutAssurance,
+			CheckoutMode: settings.CheckoutMode, ExpectedVersion: version},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, apperror.StaleWrite
 	}
@@ -432,7 +478,9 @@ func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.
 			return Device{}, err
 		}
 	}
-	if !sameUUIDPointer(current.SessionPolicyID, settings.SessionPolicyID) || current.TerminalEnabled != settings.TerminalEnabled || !sameStringSet(current.AllowedAppModes, settings.AllowedApplicationModes) {
+	if !sameUUIDPointer(current.SessionPolicyID, settings.SessionPolicyID) ||
+		current.TerminalEnabled != settings.TerminalEnabled ||
+		!sameStringSet(current.AllowedAppModes, settings.AllowedApplicationModes) {
 		if err = q.RevokeSessionsForManagedDevice(ctx, &id); err != nil {
 			return Device{}, err
 		}
@@ -453,7 +501,13 @@ func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.
 	return result, nil
 }
 
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, version int64, requestID *uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return apperror.PermissionDenied
 	}
@@ -488,7 +542,14 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	}
 	return tx.Commit(ctx)
 }
-func (s *Service) CreateType(ctx context.Context, principal authorization.Principal, name string, description *string, requestID *uuid.UUID) (DeviceType, error) {
+
+func (s *Service) CreateType(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	description *string,
+	requestID *uuid.UUID,
+) (DeviceType, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return DeviceType{}, apperror.PermissionDenied
 	}
@@ -501,7 +562,8 @@ func (s *Service) CreateType(ctx context.Context, principal authorization.Princi
 		return DeviceType{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	row, err := manageddevicesdb.New(tx).CreateDeviceType(ctx, manageddevicesdb.CreateDeviceTypeParams{ID: uuid.Must(uuid.NewV7()), Name: name, Description: description})
+	row, err := manageddevicesdb.New(tx).
+		CreateDeviceType(ctx, manageddevicesdb.CreateDeviceTypeParams{ID: uuid.Must(uuid.NewV7()), Name: name, Description: description})
 	if err != nil {
 		return DeviceType{}, databaseError(err)
 	}
@@ -514,13 +576,31 @@ func (s *Service) CreateType(ctx context.Context, principal authorization.Princi
 	}
 	return typeFromRow(row), nil
 }
-func (s *Service) Create(ctx context.Context, principal authorization.Principal, name string, typeID uuid.UUID, expiresAt *time.Time, requestID *uuid.UUID) (ProvisionedDevice, error) {
+
+func (s *Service) Create(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	typeID uuid.UUID,
+	expiresAt *time.Time,
+	requestID *uuid.UUID,
+) (ProvisionedDevice, error) {
 	return s.CreateConfigured(ctx, principal, name, typeID, expiresAt, DeviceSettings{
-		AllowedApplicationModes: []string{"staff_ui"}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+		AllowedApplicationModes: []string{
+			"staff_ui",
+		}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
 	}, requestID)
 }
 
-func (s *Service) CreateConfigured(ctx context.Context, principal authorization.Principal, name string, typeID uuid.UUID, expiresAt *time.Time, settings DeviceSettings, requestID *uuid.UUID) (ProvisionedDevice, error) {
+func (s *Service) CreateConfigured(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	typeID uuid.UUID,
+	expiresAt *time.Time,
+	settings DeviceSettings,
+	requestID *uuid.UUID,
+) (ProvisionedDevice, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return ProvisionedDevice{}, apperror.PermissionDenied
 	}
@@ -554,11 +634,14 @@ func (s *Service) CreateConfigured(ctx context.Context, principal authorization.
 			return ProvisionedDevice{}, err
 		}
 	}
-	row, err := q.CreateManagedDevice(ctx, manageddevicesdb.CreateManagedDeviceParams{ID: uuid.Must(uuid.NewV7()), Name: name,
-		DeviceTypeID: typeID, TokenDigest: digest, ExpiresAt: timestamp(expiresAt), SessionPolicyID: settings.SessionPolicyID,
-		TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: settings.CheckInAssurance,
-		AllowedAppModes:   settings.AllowedApplicationModes,
-		CheckOutAssurance: settings.CheckOutAssurance, CheckoutMode: settings.CheckoutMode})
+	row, err := q.CreateManagedDevice(
+		ctx,
+		manageddevicesdb.CreateManagedDeviceParams{ID: uuid.Must(uuid.NewV7()), Name: name,
+			DeviceTypeID: typeID, TokenDigest: digest, ExpiresAt: timestamp(expiresAt), SessionPolicyID: settings.SessionPolicyID,
+			TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: settings.CheckInAssurance,
+			AllowedAppModes:   settings.AllowedApplicationModes,
+			CheckOutAssurance: settings.CheckOutAssurance, CheckoutMode: settings.CheckoutMode},
+	)
 	if err != nil {
 		return ProvisionedDevice{}, databaseError(err)
 	}
@@ -583,7 +666,15 @@ func (s *Service) CreateConfigured(ctx context.Context, principal authorization.
 	return ProvisionedDevice{Device: result, Token: token}, nil
 }
 
-func (s *Service) UpdateType(ctx context.Context, principal authorization.Principal, id uuid.UUID, version int64, name string, description *string, requestID *uuid.UUID) (DeviceType, error) {
+func (s *Service) UpdateType(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	name string,
+	description *string,
+	requestID *uuid.UUID,
+) (DeviceType, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return DeviceType{}, apperror.PermissionDenied
 	}
@@ -605,7 +696,10 @@ func (s *Service) UpdateType(ctx context.Context, principal authorization.Princi
 	} else if err != nil {
 		return DeviceType{}, err
 	}
-	row, err := q.UpdateDeviceType(ctx, manageddevicesdb.UpdateDeviceTypeParams{ID: id, ExpectedVersion: version, Name: name, Description: description})
+	row, err := q.UpdateDeviceType(
+		ctx,
+		manageddevicesdb.UpdateDeviceTypeParams{ID: id, ExpectedVersion: version, Name: name, Description: description},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DeviceType{}, apperror.StaleWrite
 	}
@@ -621,7 +715,14 @@ func (s *Service) UpdateType(ctx context.Context, principal authorization.Princi
 	}
 	return typeFromRow(row), nil
 }
-func (s *Service) DeleteType(ctx context.Context, principal authorization.Principal, id uuid.UUID, version int64, requestID *uuid.UUID) error {
+
+func (s *Service) DeleteType(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return apperror.PermissionDenied
 	}
@@ -652,7 +753,14 @@ func (s *Service) DeleteType(ctx context.Context, principal authorization.Princi
 	}
 	return tx.Commit(ctx)
 }
-func (s *Service) Revoke(ctx context.Context, principal authorization.Principal, id uuid.UUID, version int64, requestID *uuid.UUID) (Device, error) {
+
+func (s *Service) Revoke(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	requestID *uuid.UUID,
+) (Device, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return Device{}, apperror.PermissionDenied
 	}
@@ -700,7 +808,15 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 	}
 	return deviceFromGetRow(view), nil
 }
-func (s *Service) Rotate(ctx context.Context, principal authorization.Principal, id uuid.UUID, version int64, expiresAt *time.Time, requestID *uuid.UUID) (ProvisionedDevice, error) {
+
+func (s *Service) Rotate(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	expiresAt *time.Time,
+	requestID *uuid.UUID,
+) (ProvisionedDevice, error) {
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return ProvisionedDevice{}, apperror.PermissionDenied
 	}
@@ -732,12 +848,26 @@ func (s *Service) Rotate(ctx context.Context, principal authorization.Principal,
 		return ProvisionedDevice{}, apperror.StaleWrite
 	}
 	if current.RevokedAt.Valid {
-		return ProvisionedDevice{}, apperror.New(409, "managed_device_revoked", "A revoked managed device cannot rotate its token")
+		return ProvisionedDevice{}, apperror.New(
+			409,
+			"managed_device_revoked",
+			"A revoked managed device cannot rotate its token",
+		)
 	}
 	if isSignagePlayer(current.AllowedAppModes) {
-		return ProvisionedDevice{}, validation("signage player devices cannot rotate their token; pair the display again")
+		return ProvisionedDevice{}, validation(
+			"signage player devices cannot rotate their token; pair the display again",
+		)
 	}
-	row, err := q.RotateManagedDeviceToken(ctx, manageddevicesdb.RotateManagedDeviceTokenParams{ID: id, ExpectedVersion: version, TokenDigest: digest, ExpiresAt: timestamp(expiresAt)})
+	row, err := q.RotateManagedDeviceToken(
+		ctx,
+		manageddevicesdb.RotateManagedDeviceTokenParams{
+			ID:              id,
+			ExpectedVersion: version,
+			TokenDigest:     digest,
+			ExpiresAt:       timestamp(expiresAt),
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProvisionedDevice{}, apperror.StaleWrite
 	}
@@ -762,11 +892,20 @@ func (s *Service) Rotate(ctx context.Context, principal authorization.Principal,
 }
 
 func typeFromRow(row manageddevicesdb.DeviceType) DeviceType {
-	return DeviceType{ID: row.ID, Name: row.Name, Description: row.Description, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return DeviceType{
+		ID:          row.ID,
+		Name:        row.Name,
+		Description: row.Description,
+		Version:     row.Version,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
 }
 func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 	return Device{ID: row.ID, Name: row.Name, DeviceTypeID: row.DeviceTypeID, DeviceTypeName: row.DeviceTypeName,
-		ExpiresAt: timePointer(row.ExpiresAt), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
+		ExpiresAt: timePointer(
+			row.ExpiresAt,
+		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID: row.SessionPolicyID, TerminalEnabled: row.TerminalEnabled, CheckInAssurance: row.CheckInAssurance,
 		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
 		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
@@ -774,7 +913,9 @@ func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 }
 func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
 	return Device{ID: row.ID, Name: row.Name, DeviceTypeID: row.DeviceTypeID, DeviceTypeName: row.DeviceTypeName,
-		ExpiresAt: timePointer(row.ExpiresAt), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
+		ExpiresAt: timePointer(
+			row.ExpiresAt,
+		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID: row.SessionPolicyID, TerminalEnabled: row.TerminalEnabled, CheckInAssurance: row.CheckInAssurance,
 		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
 		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
@@ -807,7 +948,9 @@ func validateSessionPolicy(input SessionPolicyInput) (SessionPolicyInput, error)
 	if input.Name == "" || len([]rune(input.Name)) > 120 {
 		return input, validation("name is required and limited to 120 characters")
 	}
-	if input.IdleTimeoutSeconds < 60 || input.IdleTimeoutSeconds > 2592000 || input.AbsoluteLifetimeSeconds < 300 || input.AbsoluteLifetimeSeconds > 7776000 || input.IdleTimeoutSeconds > input.AbsoluteLifetimeSeconds {
+	if input.IdleTimeoutSeconds < 60 || input.IdleTimeoutSeconds > 2592000 || input.AbsoluteLifetimeSeconds < 300 ||
+		input.AbsoluteLifetimeSeconds > 7776000 ||
+		input.IdleTimeoutSeconds > input.AbsoluteLifetimeSeconds {
 		return input, validation("session lifetimes are invalid")
 	}
 	if input.PostSessionDestination != "login" && input.PostSessionDestination != "visitor_terminal" {
@@ -816,7 +959,12 @@ func validateSessionPolicy(input SessionPolicyInput) (SessionPolicyInput, error)
 	return input, nil
 }
 
-func (s *Service) CreateSessionPolicy(ctx context.Context, principal authorization.Principal, input SessionPolicyInput, requestID *uuid.UUID) (SessionPolicy, error) {
+func (s *Service) CreateSessionPolicy(
+	ctx context.Context,
+	principal authorization.Principal,
+	input SessionPolicyInput,
+	requestID *uuid.UUID,
+) (SessionPolicy, error) {
 	if !principal.Has(authorization.SessionPoliciesManage) {
 		return SessionPolicy{}, apperror.PermissionDenied
 	}
@@ -861,7 +1009,13 @@ func (s *Service) CreateSessionPolicy(ctx context.Context, principal authorizati
 	return policyFromRow(row), nil
 }
 
-func (s *Service) UpdateSessionPolicy(ctx context.Context, principal authorization.Principal, id uuid.UUID, input SessionPolicyInput, requestID *uuid.UUID) (SessionPolicy, error) {
+func (s *Service) UpdateSessionPolicy(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	input SessionPolicyInput,
+	requestID *uuid.UUID,
+) (SessionPolicy, error) {
 	if !principal.Has(authorization.SessionPoliciesManage) {
 		return SessionPolicy{}, apperror.PermissionDenied
 	}
@@ -889,7 +1043,9 @@ func (s *Service) UpdateSessionPolicy(ctx context.Context, principal authorizati
 		return SessionPolicy{}, apperror.StaleWrite
 	}
 	if current.IsDefault && !input.IsDefault {
-		return SessionPolicy{}, validation("the default policy can only be replaced by making another policy the default")
+		return SessionPolicy{}, validation(
+			"the default policy can only be replaced by making another policy the default",
+		)
 	}
 	if input.IsDefault {
 		previous, previousErr := q.GetDefaultSessionPolicy(ctx)
@@ -993,7 +1149,14 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 }
 
 func validateCapabilities(capabilities []string) error {
-	allowed := map[string]bool{"nfc": true, "camera": true, "qr": true, "barcode": true, "scale": true, "label_printer": true}
+	allowed := map[string]bool{
+		"nfc":           true,
+		"camera":        true,
+		"qr":            true,
+		"barcode":       true,
+		"scale":         true,
+		"label_printer": true,
+	}
 	seen := map[string]bool{}
 	for _, value := range capabilities {
 		if !allowed[value] || seen[value] {

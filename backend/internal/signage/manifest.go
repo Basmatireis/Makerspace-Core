@@ -142,7 +142,11 @@ func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 // drafts always produce equal manifests.
 func assembleManifest(draft displayDraft, content manifestContent) (Manifest, error) {
 	manifest := Manifest{
-		Display:           ManifestDisplay{Orientation: draft.Orientation, Resolution: draft.Resolution, VisibleFromOutside: draft.VisibleFromOutside},
+		Display: ManifestDisplay{
+			Orientation:        draft.Orientation,
+			Resolution:         draft.Resolution,
+			VisibleFromOutside: draft.VisibleFromOutside,
+		},
 		DefaultPlaylistID: draft.DefaultPlaylistID,
 		Rules:             []ManifestRule{}, Scenes: []ManifestScene{}, Playlists: []ManifestPlaylist{}, Assets: []ManifestAsset{},
 		LayoutsVersion: LayoutsVersion,

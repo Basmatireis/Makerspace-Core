@@ -14,7 +14,10 @@ type personStatusPermissionsStub struct {
 	rows []authorizationdb.GetPrincipalRolePermissionsRow
 }
 
-func (s personStatusPermissionsStub) GetPrincipalRolePermissions(context.Context, uuid.UUID) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
+func (s personStatusPermissionsStub) GetPrincipalRolePermissions(
+	context.Context,
+	uuid.UUID,
+) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
 	return s.rows, nil
 }
 
@@ -31,7 +34,11 @@ func openDaysPrincipal(t *testing.T, permissions ...authorization.Permission) au
 			Scope: &scope, MinimumAssurance: &minimum,
 		})
 	}
-	principal, err := authorization.LoadPermissions(t.Context(), personStatusPermissionsStub{rows: rows}, authorization.Principal{AccountID: uuid.Must(uuid.NewV7())})
+	principal, err := authorization.LoadPermissions(
+		t.Context(),
+		personStatusPermissionsStub{rows: rows},
+		authorization.Principal{AccountID: uuid.Must(uuid.NewV7())},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

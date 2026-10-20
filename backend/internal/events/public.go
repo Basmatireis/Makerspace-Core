@@ -27,7 +27,15 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	if event.PublicTitle == nil {
 		return PublicEvent{}, apperror.NotFound
 	}
-	result := PublicEvent{PublicID: event.PublicID, Title: *event.PublicTitle, Description: event.PublicDescription, Location: event.PublicLocation, Status: event.Status, TimeZone: s.cfg.MakerspaceTimeZone, PublicSignupEnabled: event.PublicSignupEnabled && event.Status != "completed" && event.Status != "cancelled"}
+	result := PublicEvent{
+		PublicID:            event.PublicID,
+		Title:               *event.PublicTitle,
+		Description:         event.PublicDescription,
+		Location:            event.PublicLocation,
+		Status:              event.Status,
+		TimeZone:            s.cfg.MakerspaceTimeZone,
+		PublicSignupEnabled: event.PublicSignupEnabled && event.Status != "completed" && event.Status != "cancelled",
+	}
 	sessions, err := q.ListEventSessions(ctx, event.ID)
 	if err != nil {
 		return PublicEvent{}, err
@@ -55,7 +63,18 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 		if remaining <= 0 {
 			availability = "full"
 		}
-		item := Requirement{ID: row.ID, EventID: uuid.Nil, ShiftID: row.ShiftID, Name: row.Name, Description: row.Description, RequiredCount: int(row.RequiredCount), FilledCount: int(row.FilledCount), EligibilityMode: row.EligibilityMode, Availability: availability, Version: int64(row.Version)}
+		item := Requirement{
+			ID:              row.ID,
+			EventID:         uuid.Nil,
+			ShiftID:         row.ShiftID,
+			Name:            row.Name,
+			Description:     row.Description,
+			RequiredCount:   int(row.RequiredCount),
+			FilledCount:     int(row.FilledCount),
+			EligibilityMode: row.EligibilityMode,
+			Availability:    availability,
+			Version:         int64(row.Version),
+		}
 		if row.EligibilityMode == "roles" && remaining > 0 {
 			item.Availability = "authenticated_only"
 		}
@@ -67,8 +86,25 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 		if !row.IsPublic || row.Status == "cancelled" {
 			continue
 		}
-		shift := Shift{ID: row.ID, EventID: uuid.Nil, SessionID: row.SessionID, Name: row.Name, Description: row.Description, StartsAt: row.StartsAt, EndsAt: row.EndsAt, SignupOpensAt: pgTime(row.SignupOpensAt), SignupClosesAt: pgTime(row.SignupClosesAt), IsPublic: true, Status: row.Status, LinkedSessionStatus: row.SessionStatus, Version: int64(row.Version)}
-		effective := row.Status == "open" && result.PublicSignupEnabled && (row.SessionStatus == nil || *row.SessionStatus != "cancelled") && (!row.SignupOpensAt.Valid || !now.Before(row.SignupOpensAt.Time)) && (!row.SignupClosesAt.Valid || now.Before(row.SignupClosesAt.Time))
+		shift := Shift{
+			ID:                  row.ID,
+			EventID:             uuid.Nil,
+			SessionID:           row.SessionID,
+			Name:                row.Name,
+			Description:         row.Description,
+			StartsAt:            row.StartsAt,
+			EndsAt:              row.EndsAt,
+			SignupOpensAt:       pgTime(row.SignupOpensAt),
+			SignupClosesAt:      pgTime(row.SignupClosesAt),
+			IsPublic:            true,
+			Status:              row.Status,
+			LinkedSessionStatus: row.SessionStatus,
+			Version:             int64(row.Version),
+		}
+		effective := row.Status == "open" && result.PublicSignupEnabled &&
+			(row.SessionStatus == nil || *row.SessionStatus != "cancelled") &&
+			(!row.SignupOpensAt.Valid || !now.Before(row.SignupOpensAt.Time)) &&
+			(!row.SignupClosesAt.Valid || now.Before(row.SignupClosesAt.Time))
 		items := byShift[row.ID]
 		if !effective {
 			for i := range items {
@@ -88,13 +124,34 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			continue
 		}
 		if row.Visibility == "public" {
-			result.Files = append(result.Files, EventFile{ID: row.ID, EventID: uuid.Nil, FileID: uuid.Nil, Description: row.Description, Visibility: "public", IsBanner: false, OriginalFilename: row.OriginalFilename, ContentType: row.ContentType, SizeBytes: row.SizeBytes, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+			result.Files = append(
+				result.Files,
+				EventFile{
+					ID:               row.ID,
+					EventID:          uuid.Nil,
+					FileID:           uuid.Nil,
+					Description:      row.Description,
+					Visibility:       "public",
+					IsBanner:         false,
+					OriginalFilename: row.OriginalFilename,
+					ContentType:      row.ContentType,
+					SizeBytes:        row.SizeBytes,
+					Version:          int64(row.Version),
+					CreatedAt:        row.CreatedAt,
+					UpdatedAt:        row.UpdatedAt,
+				},
+			)
 		}
 	}
 	return result, nil
 }
 
-func (s *Service) SignupAnonymous(ctx context.Context, publicID, clientIP string, input AssignmentInput, requestID *uuid.UUID) (SignupResult, error) {
+func (s *Service) SignupAnonymous(
+	ctx context.Context,
+	publicID, clientIP string,
+	input AssignmentInput,
+	requestID *uuid.UUID,
+) (SignupResult, error) {
 	_, emailNormalized, _, phoneNormalized, err := normalizeContact(input.Email, input.Phone)
 	if err != nil {
 		return SignupResult{}, err
@@ -118,7 +175,13 @@ func (s *Service) SignupAnonymous(ctx context.Context, publicID, clientIP string
 	return SignupResult{Assignment: assignment, ManagementURL: url}, nil
 }
 
-func (s *Service) SignupAuthenticated(ctx context.Context, principal authorization.Principal, publicID, clientIP, signupFor string, input AssignmentInput, requestID *uuid.UUID) (SignupResult, error) {
+func (s *Service) SignupAuthenticated(
+	ctx context.Context,
+	principal authorization.Principal,
+	publicID, clientIP, signupFor string,
+	input AssignmentInput,
+	requestID *uuid.UUID,
+) (SignupResult, error) {
 	event, err := eventsdb.New(s.pool).GetEventByPublicID(ctx, publicID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SignupResult{}, apperror.NotFound
@@ -133,10 +196,23 @@ func (s *Service) SignupAuthenticated(ctx context.Context, principal authorizati
 			return SignupResult{}, normalizationErr
 		}
 		if !s.limiter.allow(clientIP, publicID, emailNormalized, phoneNormalized) {
-			return SignupResult{}, apperror.RateLimited("signup_rate_limited", "Too many signup attempts", signupRateWindow)
+			return SignupResult{}, apperror.RateLimited(
+				"signup_rate_limited",
+				"Too many signup attempts",
+				signupRateWindow,
+			)
 		}
 		input.PersonID = &principal.PersonID
-		assignment, _, err := s.createAssignment(ctx, &principal, event.ID, input, "authenticated_self", true, false, requestID)
+		assignment, _, err := s.createAssignment(
+			ctx,
+			&principal,
+			event.ID,
+			input,
+			"authenticated_self",
+			true,
+			false,
+			requestID,
+		)
 		assignment.PublicID = publicID
 		return SignupResult{Assignment: assignment}, err
 	case "other":
@@ -145,10 +221,23 @@ func (s *Service) SignupAuthenticated(ctx context.Context, principal authorizati
 			return SignupResult{}, normalizationErr
 		}
 		if !s.limiter.allow(clientIP, publicID, emailNormalized, phoneNormalized) {
-			return SignupResult{}, apperror.RateLimited("signup_rate_limited", "Too many signup attempts", signupRateWindow)
+			return SignupResult{}, apperror.RateLimited(
+				"signup_rate_limited",
+				"Too many signup attempts",
+				signupRateWindow,
+			)
 		}
 		input.PersonID = nil
-		assignment, url, createErr := s.createAssignment(ctx, &principal, event.ID, input, "authenticated_on_behalf", true, true, requestID)
+		assignment, url, createErr := s.createAssignment(
+			ctx,
+			&principal,
+			event.ID,
+			input,
+			"authenticated_on_behalf",
+			true,
+			true,
+			requestID,
+		)
 		assignment.PublicID = publicID
 		return SignupResult{Assignment: assignment, ManagementURL: url}, createErr
 	default:
@@ -177,7 +266,12 @@ func (s *Service) GetManagedSignup(ctx context.Context, token string) (Assignmen
 	return result, nil
 }
 
-func (s *Service) UpdateManagedSignup(ctx context.Context, token string, input AssignmentUpdateInput, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) UpdateManagedSignup(
+	ctx context.Context,
+	token string,
+	input AssignmentUpdateInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	digest, err := managementDigest(token)
 	if err != nil {
 		return Assignment{}, apperror.NotFound
@@ -197,7 +291,19 @@ func (s *Service) UpdateManagedSignup(ctx context.Context, token string, input A
 		if input.ShiftID == nil || input.RequirementID == nil {
 			return Assignment{}, validation("shiftId and requirementId must be provided together")
 		}
-		result, err := s.moveAssignment(ctx, nil, digest, current.EventID, current.ID, *input.ShiftID, *input.RequirementID, input.ExpectedVersion, false, true, requestID)
+		result, err := s.moveAssignment(
+			ctx,
+			nil,
+			digest,
+			current.EventID,
+			current.ID,
+			*input.ShiftID,
+			*input.RequirementID,
+			input.ExpectedVersion,
+			false,
+			true,
+			requestID,
+		)
 		result.PublicID = event.PublicID
 		return result, err
 	}
@@ -206,7 +312,12 @@ func (s *Service) UpdateManagedSignup(ctx context.Context, token string, input A
 	return result, err
 }
 
-func (s *Service) CancelManagedSignup(ctx context.Context, token string, expected int64, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) CancelManagedSignup(
+	ctx context.Context,
+	token string,
+	expected int64,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	digest, err := managementDigest(token)
 	if err != nil {
 		return Assignment{}, apperror.NotFound
@@ -227,8 +338,13 @@ func (s *Service) CancelManagedSignup(ctx context.Context, token string, expecte
 	return result, err
 }
 
-func (s *Service) ListOwnAssignments(ctx context.Context, principal authorization.Principal, publicID string) ([]Assignment, error) {
-	rows, err := eventsdb.New(s.pool).ListOwnEventAssignments(ctx, eventsdb.ListOwnEventAssignmentsParams{PublicID: publicID, PersonID: &principal.PersonID})
+func (s *Service) ListOwnAssignments(
+	ctx context.Context,
+	principal authorization.Principal,
+	publicID string,
+) ([]Assignment, error) {
+	rows, err := eventsdb.New(s.pool).
+		ListOwnEventAssignments(ctx, eventsdb.ListOwnEventAssignmentsParams{PublicID: publicID, PersonID: &principal.PersonID})
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +356,15 @@ func (s *Service) ListOwnAssignments(ctx context.Context, principal authorizatio
 	}
 	return result, nil
 }
-func (s *Service) UpdateOwnAssignment(ctx context.Context, principal authorization.Principal, publicID string, id uuid.UUID, input AssignmentUpdateInput, requestID *uuid.UUID) (Assignment, error) {
+
+func (s *Service) UpdateOwnAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	publicID string,
+	id uuid.UUID,
+	input AssignmentUpdateInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	event, err := eventsdb.New(s.pool).GetEventByPublicID(ctx, publicID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.NotFound
@@ -252,7 +376,19 @@ func (s *Service) UpdateOwnAssignment(ctx context.Context, principal authorizati
 		if input.ShiftID == nil || input.RequirementID == nil {
 			return Assignment{}, validation("shiftId and requirementId must be provided together")
 		}
-		result, err := s.moveAssignment(ctx, &principal, nil, event.ID, id, *input.ShiftID, *input.RequirementID, input.ExpectedVersion, false, true, requestID)
+		result, err := s.moveAssignment(
+			ctx,
+			&principal,
+			nil,
+			event.ID,
+			id,
+			*input.ShiftID,
+			*input.RequirementID,
+			input.ExpectedVersion,
+			false,
+			true,
+			requestID,
+		)
 		result.PublicID = publicID
 		return result, err
 	}
@@ -260,7 +396,15 @@ func (s *Service) UpdateOwnAssignment(ctx context.Context, principal authorizati
 	result.PublicID = publicID
 	return result, err
 }
-func (s *Service) CancelOwnAssignment(ctx context.Context, principal authorization.Principal, publicID string, id uuid.UUID, expected int64, requestID *uuid.UUID) (Assignment, error) {
+
+func (s *Service) CancelOwnAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	publicID string,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	event, err := eventsdb.New(s.pool).GetEventByPublicID(ctx, publicID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.NotFound
@@ -273,7 +417,14 @@ func (s *Service) CancelOwnAssignment(ctx context.Context, principal authorizati
 	return result, err
 }
 
-func (s *Service) updateAssignmentContact(ctx context.Context, principal *authorization.Principal, digest []byte, eventID, id uuid.UUID, input AssignmentUpdateInput, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) updateAssignmentContact(
+	ctx context.Context,
+	principal *authorization.Principal,
+	digest []byte,
+	eventID, id uuid.UUID,
+	input AssignmentUpdateInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if err := validateVersion(input.ExpectedVersion); err != nil {
 		return Assignment{}, err
 	}
@@ -347,14 +498,35 @@ func (s *Service) updateAssignmentContact(ctx context.Context, principal *author
 	if err != nil {
 		return Assignment{}, err
 	}
-	conflicts, err := q.FindContactEventShiftConflicts(ctx, eventsdb.FindContactEventShiftConflictsParams{ExcludeAssignmentID: current.ID, EmailNormalized: emailNormalized, PhoneNormalized: phoneNormalized, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+	conflicts, err := q.FindContactEventShiftConflicts(
+		ctx,
+		eventsdb.FindContactEventShiftConflictsParams{
+			ExcludeAssignmentID: current.ID,
+			EmailNormalized:     emailNormalized,
+			PhoneNormalized:     phoneNormalized,
+			EndsAt:              shift.EndsAt,
+			StartsAt:            shift.StartsAt,
+		},
+	)
 	if err != nil {
 		return Assignment{}, err
 	}
 	if len(conflicts) != 0 {
 		return Assignment{}, signupUnavailable()
 	}
-	row, err := q.UpdateEventAssignmentContact(ctx, eventsdb.UpdateEventAssignmentContactParams{FirstNameSnapshot: &firstName, LastNameSnapshot: &lastName, EmailSnapshot: emailDisplay, EmailNormalized: emailNormalized, PhoneSnapshot: phoneDisplay, PhoneNormalized: phoneNormalized, ID: current.ID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventAssignmentContact(
+		ctx,
+		eventsdb.UpdateEventAssignmentContactParams{
+			FirstNameSnapshot: &firstName,
+			LastNameSnapshot:  &lastName,
+			EmailSnapshot:     emailDisplay,
+			EmailNormalized:   emailNormalized,
+			PhoneSnapshot:     phoneDisplay,
+			PhoneNormalized:   phoneNormalized,
+			ID:                current.ID,
+			ExpectedVersion:   int32(input.ExpectedVersion),
+		},
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -377,7 +549,15 @@ func (s *Service) updateAssignmentContact(ctx context.Context, principal *author
 	return assignmentFromRow(row), nil
 }
 
-func (s *Service) moveAssignment(ctx context.Context, principal *authorization.Principal, digest []byte, eventID, id, destinationShiftID, destinationRequirementID uuid.UUID, expected int64, override, publicFlow bool, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) moveAssignment(
+	ctx context.Context,
+	principal *authorization.Principal,
+	digest []byte,
+	eventID, id, destinationShiftID, destinationRequirementID uuid.UUID,
+	expected int64,
+	override, publicFlow bool,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if err := validateVersion(expected); err != nil {
 		return Assignment{}, err
 	}
@@ -429,7 +609,14 @@ func (s *Service) moveAssignment(ctx context.Context, principal *authorization.P
 		}
 		return Assignment{}, apperror.New(409, "shift_cancelled", "Cancelled shifts cannot receive assignments")
 	}
-	req, err := q.GetEventRequirement(ctx, eventsdb.GetEventRequirementParams{ID: destinationRequirementID, ShiftID: destinationShiftID, EventID: current.EventID})
+	req, err := q.GetEventRequirement(
+		ctx,
+		eventsdb.GetEventRequirementParams{
+			ID:      destinationRequirementID,
+			ShiftID: destinationShiftID,
+			EventID: current.EventID,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.NotFound
 	}
@@ -443,7 +630,10 @@ func (s *Service) moveAssignment(ctx context.Context, principal *authorization.P
 		if current.PersonID == nil {
 			return Assignment{}, signupUnavailable()
 		}
-		eligible, err := q.PersonEligibleForEventRequirement(ctx, eventsdb.PersonEligibleForEventRequirementParams{PersonID: *current.PersonID, RequirementID: req.ID})
+		eligible, err := q.PersonEligibleForEventRequirement(
+			ctx,
+			eventsdb.PersonEligibleForEventRequirementParams{PersonID: *current.PersonID, RequirementID: req.ID},
+		)
 		if err != nil {
 			return Assignment{}, err
 		}
@@ -465,7 +655,15 @@ func (s *Service) moveAssignment(ctx context.Context, principal *authorization.P
 		if _, err = q.LockPersonForEventAssignment(ctx, *current.PersonID); err != nil {
 			return Assignment{}, err
 		}
-		rows, err := q.FindPersonEventShiftConflicts(ctx, eventsdb.FindPersonEventShiftConflictsParams{PersonID: current.PersonID, ExcludeAssignmentID: current.ID, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+		rows, err := q.FindPersonEventShiftConflicts(
+			ctx,
+			eventsdb.FindPersonEventShiftConflictsParams{
+				PersonID:            current.PersonID,
+				ExcludeAssignmentID: current.ID,
+				EndsAt:              shift.EndsAt,
+				StartsAt:            shift.StartsAt,
+			},
+		)
 		if err != nil {
 			return Assignment{}, err
 		}
@@ -489,7 +687,16 @@ func (s *Service) moveAssignment(ctx context.Context, principal *authorization.P
 		}
 		overrideActor = &principal.AccountID
 	}
-	row, err := q.MoveEventAssignment(ctx, eventsdb.MoveEventAssignmentParams{ShiftID: destinationShiftID, RequirementID: destinationRequirementID, ConflictOverriddenByAccountID: overrideActor, ID: current.ID, ExpectedVersion: int32(expected)})
+	row, err := q.MoveEventAssignment(
+		ctx,
+		eventsdb.MoveEventAssignmentParams{
+			ShiftID:                       destinationShiftID,
+			RequirementID:                 destinationRequirementID,
+			ConflictOverriddenByAccountID: overrideActor,
+			ID:                            current.ID,
+			ExpectedVersion:               int32(expected),
+		},
+	)
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -513,7 +720,14 @@ func (s *Service) moveAssignment(ctx context.Context, principal *authorization.P
 	return assignmentFromRow(row), nil
 }
 
-func (s *Service) cancelAssignment(ctx context.Context, principal *authorization.Principal, digest []byte, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) cancelAssignment(
+	ctx context.Context,
+	principal *authorization.Principal,
+	digest []byte,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if err := validateVersion(expected); err != nil {
 		return Assignment{}, err
 	}
@@ -546,7 +760,14 @@ func (s *Service) cancelAssignment(ctx context.Context, principal *authorization
 		actor = &principal.AccountID
 		actorType = "user"
 	}
-	row, err := q.CancelEventAssignment(ctx, eventsdb.CancelEventAssignmentParams{CancelledByAccountID: actor, ID: current.ID, ExpectedVersion: int32(expected)})
+	row, err := q.CancelEventAssignment(
+		ctx,
+		eventsdb.CancelEventAssignmentParams{
+			CancelledByAccountID: actor,
+			ID:                   current.ID,
+			ExpectedVersion:      int32(expected),
+		},
+	)
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -559,7 +780,13 @@ func (s *Service) cancelAssignment(ctx context.Context, principal *authorization
 	return assignmentFromRow(row), nil
 }
 
-func loadAuthorizedAssignment(ctx context.Context, q *eventsdb.Queries, principal *authorization.Principal, digest []byte, eventID, id uuid.UUID) (eventsdb.EventShiftAssignment, error) {
+func loadAuthorizedAssignment(
+	ctx context.Context,
+	q *eventsdb.Queries,
+	principal *authorization.Principal,
+	digest []byte,
+	eventID, id uuid.UUID,
+) (eventsdb.EventShiftAssignment, error) {
 	var row eventsdb.EventShiftAssignment
 	var err error
 	if len(digest) != 0 {
@@ -573,7 +800,8 @@ func loadAuthorizedAssignment(ctx context.Context, q *eventsdb.Queries, principa
 	if err != nil {
 		return row, err
 	}
-	if principal != nil && !principal.Has(authorization.EventsAssign) && (row.PersonID == nil || *row.PersonID != principal.PersonID) {
+	if principal != nil && !principal.Has(authorization.EventsAssign) &&
+		(row.PersonID == nil || *row.PersonID != principal.PersonID) {
 		return row, apperror.NotFound
 	}
 	return row, nil
@@ -595,13 +823,17 @@ type UpcomingPublicEvent struct {
 // ListUpcomingPublic returns the next public sessions, one per publicly visible event, soonest first.
 // It exposes only title, start and location.
 func (s *Service) ListUpcomingPublic(ctx context.Context, now time.Time, limit int) ([]UpcomingPublicEvent, error) {
-	rows, err := eventsdb.New(s.pool).ListUpcomingPublicEventSessions(ctx, eventsdb.ListUpcomingPublicEventSessionsParams{Now: now.UTC(), RowLimit: int32(limit)})
+	rows, err := eventsdb.New(s.pool).
+		ListUpcomingPublicEventSessions(ctx, eventsdb.ListUpcomingPublicEventSessionsParams{Now: now.UTC(), RowLimit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]UpcomingPublicEvent, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, UpcomingPublicEvent{Title: row.Title, StartsAt: row.StartsAt.UTC(), Location: row.Location})
+		result = append(
+			result,
+			UpcomingPublicEvent{Title: row.Title, StartsAt: row.StartsAt.UTC(), Location: row.Location},
+		)
 	}
 	return result, nil
 }

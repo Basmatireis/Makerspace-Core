@@ -8,7 +8,10 @@ import (
 	"github.com/oapi-codegen/nullable"
 )
 
-func (s *Server) ListSurveys(ctx context.Context, _ openapi.ListSurveysRequestObject) (openapi.ListSurveysResponseObject, error) {
+func (s *Server) ListSurveys(
+	ctx context.Context,
+	_ openapi.ListSurveysRequestObject,
+) (openapi.ListSurveysResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -24,7 +27,10 @@ func (s *Server) ListSurveys(ctx context.Context, _ openapi.ListSurveysRequestOb
 	return openapi.ListSurveys200JSONResponse{Items: result}, nil
 }
 
-func (s *Server) CreateSurvey(ctx context.Context, request openapi.CreateSurveyRequestObject) (openapi.CreateSurveyResponseObject, error) {
+func (s *Server) CreateSurvey(
+	ctx context.Context,
+	request openapi.CreateSurveyRequestObject,
+) (openapi.CreateSurveyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -40,7 +46,10 @@ func (s *Server) CreateSurvey(ctx context.Context, request openapi.CreateSurveyR
 	return openapi.CreateSurvey201JSONResponse(surveyDTO(value)), nil
 }
 
-func (s *Server) GetSurvey(ctx context.Context, request openapi.GetSurveyRequestObject) (openapi.GetSurveyResponseObject, error) {
+func (s *Server) GetSurvey(
+	ctx context.Context,
+	request openapi.GetSurveyRequestObject,
+) (openapi.GetSurveyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -52,7 +61,10 @@ func (s *Server) GetSurvey(ctx context.Context, request openapi.GetSurveyRequest
 	return openapi.GetSurvey200JSONResponse(surveyDTO(value)), nil
 }
 
-func (s *Server) UpdateSurvey(ctx context.Context, request openapi.UpdateSurveyRequestObject) (openapi.UpdateSurveyResponseObject, error) {
+func (s *Server) UpdateSurvey(
+	ctx context.Context,
+	request openapi.UpdateSurveyRequestObject,
+) (openapi.UpdateSurveyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -60,15 +72,31 @@ func (s *Server) UpdateSurvey(ctx context.Context, request openapi.UpdateSurveyR
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	value, err := s.surveys.Update(ctx, p, request.SurveyId, surveyInput(request.Body.Name, request.Body.Title, request.Body.Anonymous,
-		request.Body.Description, request.Body.Introduction, request.Body.Questions, request.Body.ExpectedVersion), requestIDPointer(ctx))
+	value, err := s.surveys.Update(
+		ctx,
+		p,
+		request.SurveyId,
+		surveyInput(
+			request.Body.Name,
+			request.Body.Title,
+			request.Body.Anonymous,
+			request.Body.Description,
+			request.Body.Introduction,
+			request.Body.Questions,
+			request.Body.ExpectedVersion,
+		),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSurvey200JSONResponse(surveyDTO(value)), nil
 }
 
-func (s *Server) PublishSurvey(ctx context.Context, request openapi.PublishSurveyRequestObject) (openapi.PublishSurveyResponseObject, error) {
+func (s *Server) PublishSurvey(
+	ctx context.Context,
+	request openapi.PublishSurveyRequestObject,
+) (openapi.PublishSurveyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +111,10 @@ func (s *Server) PublishSurvey(ctx context.Context, request openapi.PublishSurve
 	return openapi.PublishSurvey200JSONResponse(surveyDTO(value)), nil
 }
 
-func (s *Server) CloseSurvey(ctx context.Context, request openapi.CloseSurveyRequestObject) (openapi.CloseSurveyResponseObject, error) {
+func (s *Server) CloseSurvey(
+	ctx context.Context,
+	request openapi.CloseSurveyRequestObject,
+) (openapi.CloseSurveyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -98,7 +129,10 @@ func (s *Server) CloseSurvey(ctx context.Context, request openapi.CloseSurveyReq
 	return openapi.CloseSurvey200JSONResponse(surveyDTO(value)), nil
 }
 
-func (s *Server) UpdateSurveyTrigger(ctx context.Context, request openapi.UpdateSurveyTriggerRequestObject) (openapi.UpdateSurveyTriggerResponseObject, error) {
+func (s *Server) UpdateSurveyTrigger(
+	ctx context.Context,
+	request openapi.UpdateSurveyTriggerRequestObject,
+) (openapi.UpdateSurveyTriggerResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -106,15 +140,26 @@ func (s *Server) UpdateSurveyTrigger(ctx context.Context, request openapi.Update
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	value, err := s.surveys.UpdateTrigger(ctx, p, request.SurveyId, request.Body.Enabled, int32(request.Body.DelaySeconds),
-		int32(request.Body.CooldownDays), request.Body.ExpectedVersion, requestIDPointer(ctx))
+	value, err := s.surveys.UpdateTrigger(
+		ctx,
+		p,
+		request.SurveyId,
+		request.Body.Enabled,
+		int32(request.Body.DelaySeconds),
+		int32(request.Body.CooldownDays),
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSurveyTrigger200JSONResponse(surveyTriggerDTO(value)), nil
 }
 
-func (s *Server) GetPublicSurvey(ctx context.Context, request openapi.GetPublicSurveyRequestObject) (openapi.GetPublicSurveyResponseObject, error) {
+func (s *Server) GetPublicSurvey(
+	ctx context.Context,
+	request openapi.GetPublicSurveyRequestObject,
+) (openapi.GetPublicSurveyResponseObject, error) {
 	value, err := s.surveys.Public(ctx, request.Token)
 	if err != nil {
 		return nil, err
@@ -122,14 +167,24 @@ func (s *Server) GetPublicSurvey(ctx context.Context, request openapi.GetPublicS
 	return openapi.GetPublicSurvey200JSONResponse(publicSurveyDTO(value)), nil
 }
 
-func (s *Server) SubmitPublicSurvey(ctx context.Context, request openapi.SubmitPublicSurveyRequestObject) (openapi.SubmitPublicSurveyResponseObject, error) {
+func (s *Server) SubmitPublicSurvey(
+	ctx context.Context,
+	request openapi.SubmitPublicSurveyRequestObject,
+) (openapi.SubmitPublicSurveyResponseObject, error) {
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
 	answers := make([]surveys.AnswerInput, len(request.Body.Answers))
 	for i, answer := range request.Body.Answers {
-		answers[i] = surveys.AnswerInput{QuestionID: answer.QuestionId, OptionIDs: append([]openapi.UUIDv7(nil), answer.OptionIds...),
-			TextValue: nullableStringPointer(answer.TextValue), NumericValue: nullableInt32Pointer(answer.NumericValue), BooleanValue: nullableBoolPointer(answer.BooleanValue)}
+		answers[i] = surveys.AnswerInput{
+			QuestionID: answer.QuestionId,
+			OptionIDs:  append([]openapi.UUIDv7(nil), answer.OptionIds...),
+			TextValue: nullableStringPointer(
+				answer.TextValue,
+			),
+			NumericValue: nullableInt32Pointer(answer.NumericValue),
+			BooleanValue: nullableBoolPointer(answer.BooleanValue),
+		}
 	}
 	if err := s.surveys.Submit(ctx, request.Token, answers); err != nil {
 		return nil, err
@@ -137,15 +192,27 @@ func (s *Server) SubmitPublicSurvey(ctx context.Context, request openapi.SubmitP
 	return openapi.SubmitPublicSurvey204Response{}, nil
 }
 
-func surveyInput(name, title string, anonymous bool, description, introduction nullable.Nullable[string], questions []openapi.SurveyQuestionInput, expected int64) surveys.Input {
+func surveyInput(
+	name, title string,
+	anonymous bool,
+	description, introduction nullable.Nullable[string],
+	questions []openapi.SurveyQuestionInput,
+	expected int64,
+) surveys.Input {
 	converted := make([]surveys.QuestionInput, len(questions))
 	for i, question := range questions {
 		options := make([]surveys.OptionInput, len(question.Options))
 		for j, option := range question.Options {
 			options[j] = surveys.OptionInput{Label: option.Label}
 		}
-		converted[i] = surveys.QuestionInput{Kind: string(question.Kind), Prompt: question.Prompt, Required: question.Required, Options: options,
-			RatingMin: nullableInt32Pointer(question.RatingMin), RatingMax: nullableInt32Pointer(question.RatingMax)}
+		converted[i] = surveys.QuestionInput{
+			Kind:      string(question.Kind),
+			Prompt:    question.Prompt,
+			Required:  question.Required,
+			Options:   options,
+			RatingMin: nullableInt32Pointer(question.RatingMin),
+			RatingMax: nullableInt32Pointer(question.RatingMax),
+		}
 	}
 	return surveys.Input{Name: name, Title: title, Anonymous: anonymous, Description: nullableStringLike(description),
 		Introduction: nullableStringLike(introduction), Questions: converted, ExpectedVersion: expected}
@@ -178,10 +245,24 @@ func nullableBoolPointer(value nullable.Nullable[bool]) *bool {
 func surveyDTO(value surveys.Survey) openapi.Survey {
 	questions := surveyQuestionsDTO(value.Questions)
 	trigger := nullablePointer[surveys.Trigger, openapi.SurveyTrigger](value.Trigger, surveyTriggerDTO)
-	return openapi.Survey{Id: value.ID, Name: value.Name, Description: nullablePointer[string](value.Description, func(v string) string { return v }),
-		Status: openapi.SurveyStatus(value.Status), Anonymous: value.Anonymous, Title: value.Title,
-		Introduction: nullablePointer[string](value.Introduction, func(v string) string { return v }), Revision: int(value.Revision),
-		Questions: questions, Trigger: trigger, Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
+	return openapi.Survey{
+		Id:          value.ID,
+		Name:        value.Name,
+		Description: nullablePointer[string](value.Description, func(v string) string { return v }),
+		Status:      openapi.SurveyStatus(value.Status),
+		Anonymous:   value.Anonymous,
+		Title:       value.Title,
+		Introduction: nullablePointer[string](
+			value.Introduction,
+			func(v string) string { return v },
+		),
+		Revision:  int(value.Revision),
+		Questions: questions,
+		Trigger:   trigger,
+		Version:   value.Version,
+		CreatedAt: value.CreatedAt,
+		UpdatedAt: value.UpdatedAt,
+	}
 }
 
 func surveyQuestionsDTO(values []surveys.Question) []openapi.SurveyQuestion {
@@ -191,8 +272,18 @@ func surveyQuestionsDTO(values []surveys.Question) []openapi.SurveyQuestion {
 		for j, option := range value.Options {
 			options[j] = openapi.SurveyOption{Id: option.ID, Label: option.Label, Position: int(option.Position)}
 		}
-		result[i] = openapi.SurveyQuestion{Id: value.ID, Kind: openapi.SurveyQuestionKind(value.Kind), Prompt: value.Prompt, Required: value.Required,
-			Position: int(value.Position), Options: options, RatingMin: nullablePointer[int32](value.RatingMin, func(v int32) int { return int(v) }), RatingMax: nullablePointer[int32](value.RatingMax, func(v int32) int { return int(v) })}
+		result[i] = openapi.SurveyQuestion{
+			Id:       value.ID,
+			Kind:     openapi.SurveyQuestionKind(value.Kind),
+			Prompt:   value.Prompt,
+			Required: value.Required,
+			Position: int(
+				value.Position,
+			),
+			Options:   options,
+			RatingMin: nullablePointer[int32](value.RatingMin, func(v int32) int { return int(v) }),
+			RatingMax: nullablePointer[int32](value.RatingMax, func(v int32) int { return int(v) }),
+		}
 	}
 	return result
 }
@@ -203,6 +294,11 @@ func surveyTriggerDTO(value surveys.Trigger) openapi.SurveyTrigger {
 }
 
 func publicSurveyDTO(value surveys.PublicSurvey) openapi.PublicSurvey {
-	return openapi.PublicSurvey{Title: value.Title, Introduction: nullablePointer[string](value.Introduction, func(v string) string { return v }),
-		Anonymous: value.Anonymous, Questions: surveyQuestionsDTO(value.Questions), ExpiresAt: value.ExpiresAt}
+	return openapi.PublicSurvey{
+		Title:        value.Title,
+		Introduction: nullablePointer[string](value.Introduction, func(v string) string { return v }),
+		Anonymous:    value.Anonymous,
+		Questions:    surveyQuestionsDTO(value.Questions),
+		ExpiresAt:    value.ExpiresAt,
+	}
 }

@@ -21,7 +21,14 @@ func TestPersonHardDeletionRemovesPrivateProfileImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	fileService := files.NewService(pool, store)
-	image, err := fileService.StoreBytes(ctx, actor, "profile.jpg", "image/jpeg", []byte("private-profile-fixture"), nil)
+	image, err := fileService.StoreBytes(
+		ctx,
+		actor,
+		"profile.jpg",
+		"image/jpeg",
+		[]byte("private-profile-fixture"),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +36,10 @@ func TestPersonHardDeletionRemovesPrivateProfileImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := people.NewService(pool, fileService)
-	if err := service.Delete(ctx, authorization.Principal{AccountID: account.accountID, PersonID: account.personID}, account.personID, 1, nil); !apperror.IsCode(err, "permission_denied") {
+	if err := service.Delete(ctx, authorization.Principal{AccountID: account.accountID, PersonID: account.personID}, account.personID, 1, nil); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("unauthorized deletion: %v", err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM files WHERE id=$1`, 1, image.ID)
@@ -41,5 +51,11 @@ func TestPersonHardDeletionRemovesPrivateProfileImage(t *testing.T) {
 	if _, err := store.Metadata(ctx, image.StorageKey); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("profile blob remains after hard deletion: %v", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`, 1, account.personID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`,
+		1,
+		account.personID,
+	)
 }

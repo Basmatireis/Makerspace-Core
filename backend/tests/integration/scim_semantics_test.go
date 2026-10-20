@@ -21,7 +21,15 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			master := authorization.Principal{AccountID: actor.accountID, Master: true}
 			service := scim.NewService(pool)
 			providerID := insertSCIMOIDCProvider(t, pool, "https://delegation.example.test")
-			issue, err := service.CreateConnector(ctx, master, "Delegation", &providerID, true, time.Now().Add(time.Hour), nil)
+			issue, err := service.CreateConnector(
+				ctx,
+				master,
+				"Delegation",
+				&providerID,
+				true,
+				time.Now().Add(time.Hour),
+				nil,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -29,7 +37,19 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			user, err := service.CreateUser(ctx, connector, scim.UserInput{UserName: "source", ExternalID: testStringPointer("source-subject"), Active: true, GivenName: "Source", FamilyName: "Person", Emails: []scim.MultiValue{{Value: "source@example.test"}}}, nil)
+			user, err := service.CreateUser(
+				ctx,
+				connector,
+				scim.UserInput{
+					UserName:   "source",
+					ExternalID: testStringPointer("source-subject"),
+					Active:     true,
+					GivenName:  "Source",
+					FamilyName: "Person",
+					Emails:     []scim.MultiValue{{Value: "source@example.test"}},
+				},
+				nil,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,12 +57,26 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&source, &sourcePerson); err != nil {
 				t.Fatal(err)
 			}
-			grants := []authorization.PermissionGrant{{PermissionID: authorization.SCIMManage, Scope: authorization.GrantEverywhere}}
+			grants := []authorization.PermissionGrant{
+				{PermissionID: authorization.SCIMManage, Scope: authorization.GrantEverywhere},
+			}
 			if scenario == "permitted_roles" || scenario == "forbidden_subset" {
-				grants = append(grants, authorization.PermissionGrant{PermissionID: authorization.PeopleRolesAssign, Scope: authorization.GrantEverywhere})
+				grants = append(
+					grants,
+					authorization.PermissionGrant{
+						PermissionID: authorization.PeopleRolesAssign,
+						Scope:        authorization.GrantEverywhere,
+					},
+				)
 			}
 			if scenario == "permitted_roles" {
-				grants = append(grants, authorization.PermissionGrant{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere})
+				grants = append(
+					grants,
+					authorization.PermissionGrant{
+						PermissionID: authorization.PeopleReadSelf,
+						Scope:        authorization.GrantEverywhere,
+					},
+				)
 			}
 			roleService := roles.NewService(pool)
 			actorRole, err := roleService.Create(ctx, master, "operator", nil, grants, nil)
@@ -54,7 +88,16 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			}
 			var sourceRole uuid.UUID
 			if scenario != "provisional" && scenario != "established" {
-				role, err := roleService.Create(ctx, master, "source role", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
+				role, err := roleService.Create(
+					ctx,
+					master,
+					"source role",
+					nil,
+					[]authorization.PermissionGrant{
+						{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+					},
+					nil,
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -68,7 +111,11 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 					t.Fatal(err)
 				}
 			}
-			principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: actor.accountID})
+			principal, err := authorization.LoadPermissionsFrom(
+				ctx,
+				pool,
+				authorization.Principal{AccountID: actor.accountID},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -86,9 +133,24 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			}
 			if allowed {
 				assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, source)
-				assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`, 1, user.ID, target.accountID)
+				assertCount(
+					t,
+					pool,
+					`SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`,
+					1,
+					user.ID,
+					target.accountID,
+				)
 				if sourceRole != uuid.Nil {
-					assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, target.personID, sourceRole, actor.accountID)
+					assertCount(
+						t,
+						pool,
+						`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`,
+						1,
+						target.personID,
+						sourceRole,
+						actor.accountID,
+					)
 				}
 			} else {
 				want := "role_transfer_forbidden"
@@ -115,7 +177,15 @@ func TestSCIMLinkedSubjectIsImmutable(t *testing.T) {
 	actor := seedAccount(t, pool, "subject-admin", true)
 	service := scim.NewService(pool)
 	providerID := insertSCIMOIDCProvider(t, pool, "https://subject.example.test")
-	issue, err := service.CreateConnector(ctx, authorization.Principal{AccountID: actor.accountID, Master: true}, "Subjects", &providerID, true, time.Now().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		authorization.Principal{AccountID: actor.accountID, Master: true},
+		"Subjects",
+		&providerID,
+		true,
+		time.Now().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +193,19 @@ func TestSCIMLinkedSubjectIsImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := service.CreateUser(ctx, connector, scim.UserInput{UserName: "subject-user", ExternalID: testStringPointer("immutable-subject"), Active: true, GivenName: "Original", FamilyName: "Person", Emails: []scim.MultiValue{{Value: "subject@example.test"}}}, nil)
+	user, err := service.CreateUser(
+		ctx,
+		connector,
+		scim.UserInput{
+			UserName:   "subject-user",
+			ExternalID: testStringPointer("immutable-subject"),
+			Active:     true,
+			GivenName:  "Original",
+			FamilyName: "Person",
+			Emails:     []scim.MultiValue{{Value: "subject@example.test"}},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +218,13 @@ func TestSCIMLinkedSubjectIsImmutable(t *testing.T) {
 	if !errors.As(err, &protocol) || protocol.Status != 409 || protocol.SCIMType != "mutability" {
 		t.Fatalf("subject replacement: %v", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM scim_users su JOIN people p ON p.id=su.person_id JOIN accounts a ON a.id=su.account_id JOIN auth_identities i ON i.account_id=a.id WHERE su.id=$1 AND su.version=1 AND su.external_id='immutable-subject' AND i.subject='immutable-subject' AND i.disabled_at IS NULL AND a.status='enabled' AND p.first_name='Original'`, 1, user.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM scim_users su JOIN people p ON p.id=su.person_id JOIN accounts a ON a.id=su.account_id JOIN auth_identities i ON i.account_id=a.id WHERE su.id=$1 AND su.version=1 AND su.external_id='immutable-subject' AND i.subject='immutable-subject' AND i.disabled_at IS NULL AND a.status='enabled' AND p.first_name='Original'`,
+		1,
+		user.ID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='scim.user_updated'`, 0)
 	changed.ExternalID = user.Input.ExternalID
 	changed.Active = true
@@ -144,5 +232,11 @@ func TestSCIMLinkedSubjectIsImmutable(t *testing.T) {
 	if err != nil || updated.Input.GivenName != "Changed" {
 		t.Fatalf("ordinary update: %#v %v", updated, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE provider_id=$1 AND subject='immutable-subject'`, 1, providerID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE provider_id=$1 AND subject='immutable-subject'`,
+		1,
+		providerID,
+	)
 }

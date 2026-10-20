@@ -30,7 +30,10 @@ func run() error {
 	}
 	logger := logging.New(os.Stdout, env("APP_ENV", "production"))
 	slog.SetDefault(logger)
-	client, err := printerconnector.NewClient(os.Getenv("CORE_URL"), strings.EqualFold(os.Getenv("CONNECTOR_ALLOW_HTTP"), "true"))
+	client, err := printerconnector.NewClient(
+		os.Getenv("CORE_URL"),
+		strings.EqualFold(os.Getenv("CONNECTOR_ALLOW_HTTP"), "true"),
+	)
 	if err != nil {
 		return err
 	}
@@ -41,7 +44,16 @@ func run() error {
 	defer store.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runtime := printerconnector.NewRuntime(store, client, dataDir, printerconnector.Enrollment{Secret: os.Getenv("CONNECTOR_ENROLLMENT_SECRET"), File: os.Getenv("CONNECTOR_ENROLLMENT_SECRET_FILE")}, logger)
+	runtime := printerconnector.NewRuntime(
+		store,
+		client,
+		dataDir,
+		printerconnector.Enrollment{
+			Secret: os.Getenv("CONNECTOR_ENROLLMENT_SECRET"),
+			File:   os.Getenv("CONNECTOR_ENROLLMENT_SECRET_FILE"),
+		},
+		logger,
+	)
 	return runtime.Run(ctx)
 }
 

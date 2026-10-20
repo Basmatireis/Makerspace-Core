@@ -33,7 +33,10 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 		{"get", func() error { _, err := service.Get(ctx, principal, id); return err }},
 		{"list events", func() error { _, err := service.ListEvents(ctx, principal, id, false); return err }},
 		{"clear events", func() error { _, err := service.ClearEvents(ctx, principal, id, nil); return err }},
-		{"update", func() error { _, err := service.Update(ctx, principal, id, "connector", nil, true, 1, nil); return err }},
+		{
+			"update",
+			func() error { _, err := service.Update(ctx, principal, id, "connector", nil, true, 1, nil); return err },
+		},
 		{"enrollment", func() error { _, err := service.IssueEnrollment(ctx, principal, id, nil); return err }},
 		{"revoke", func() error { _, err := service.Revoke(ctx, principal, id, 1, nil); return err }},
 		{"delete", func() error { return service.Delete(ctx, principal, id, 1, nil) }},
@@ -63,7 +66,8 @@ func TestX1CAssignmentUsesBambuLANContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(settings) != `{"ipAddress":"192.168.1.43","serialNumber":"00M00A123456789","autoDetectSpools":true}` || secrets["lanAccessCode"] != "secret" {
+	if string(settings) != `{"ipAddress":"192.168.1.43","serialNumber":"00M00A123456789","autoDetectSpools":true}` ||
+		secrets["lanAccessCode"] != "secret" {
 		t.Fatalf("normalized contract = %s / %#v", settings, secrets)
 	}
 }
@@ -93,11 +97,26 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := logbook.CreateMachineType(ctx, principal, "Connector printer "+suffix, "fdm_printing", &requestID)
+	machineType, err := logbook.CreateMachineType(
+		ctx,
+		principal,
+		"Connector printer "+suffix,
+		"fdm_printing",
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, principal, machineType.ID, "Simulated printer "+suffix, "active", nil, false, &requestID)
+	machine, err := logbook.CreateMachine(
+		ctx,
+		principal,
+		machineType.ID,
+		"Simulated printer "+suffix,
+		"active",
+		nil,
+		false,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,14 +143,43 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil || connectorContext == nil || connectorContext.ID != connector.ID {
 		t.Fatalf("authenticate connector=%+v err=%v", connectorContext, err)
 	}
-	assignment, err := service.CreateAssignment(ctx, principal, connector.ID, AssignmentInput{MachineID: machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`), Enabled: true}, &requestID)
+	assignment, err := service.CreateAssignment(
+		ctx,
+		principal,
+		connector.ID,
+		AssignmentInput{
+			MachineID:            machine.ID,
+			AdapterKind:          "simulator",
+			AdapterSchemaVersion: 1,
+			Settings:             json.RawMessage(`{"scenario":"idle"}`),
+			Enabled:              true,
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	runID := uuid.Must(uuid.NewV7())
 	vendorJobID := "sim-" + suffix
 	firstID := uuid.Must(uuid.NewV7())
-	receipts, err := service.IngestEvents(ctx, *connectorContext, []EventInput{{EventID: firstID, AssignmentID: assignment.ID, RunID: &runID, HistoryComplete: true, ConfigurationVersion: assignment.ConfigurationVersion, Sequence: 1, OccurredAt: time.Now().UTC(), Kind: "progress", ExternalPrintID: &vendorJobID, Payload: json.RawMessage(`{"percent":20}`)}})
+	receipts, err := service.IngestEvents(
+		ctx,
+		*connectorContext,
+		[]EventInput{
+			{
+				EventID:              firstID,
+				AssignmentID:         assignment.ID,
+				RunID:                &runID,
+				HistoryComplete:      true,
+				ConfigurationVersion: assignment.ConfigurationVersion,
+				Sequence:             1,
+				OccurredAt:           time.Now().UTC(),
+				Kind:                 "progress",
+				ExternalPrintID:      &vendorJobID,
+				Payload:              json.RawMessage(`{"percent":20}`),
+			},
+		},
+	)
 	if err != nil || len(receipts) != 1 || receipts[0].Status != "accepted" {
 		t.Fatalf("first event receipts=%+v err=%v", receipts, err)
 	}
@@ -140,7 +188,18 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("observed runs=%+v err=%v", runs, err)
 	}
 	secondID := uuid.Must(uuid.NewV7())
-	second := EventInput{EventID: secondID, AssignmentID: assignment.ID, RunID: &runID, HistoryComplete: true, ConfigurationVersion: assignment.ConfigurationVersion, Sequence: 2, OccurredAt: time.Now().UTC(), Kind: "progress", ExternalPrintID: &vendorJobID, Payload: json.RawMessage(`{"percent":40}`)}
+	second := EventInput{
+		EventID:              secondID,
+		AssignmentID:         assignment.ID,
+		RunID:                &runID,
+		HistoryComplete:      true,
+		ConfigurationVersion: assignment.ConfigurationVersion,
+		Sequence:             2,
+		OccurredAt:           time.Now().UTC(),
+		Kind:                 "progress",
+		ExternalPrintID:      &vendorJobID,
+		Payload:              json.RawMessage(`{"percent":40}`),
+	}
 	receipts, err = service.IngestEvents(ctx, *connectorContext, []EventInput{second})
 	if err != nil || receipts[0].Status != "accepted" {
 		t.Fatalf("second event receipts=%+v err=%v", receipts, err)
@@ -159,7 +218,12 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	}
 	runsAfterDuplicate, err := service.ListObservedRuns(ctx, principal, connector.ID)
 	if err != nil || len(runsAfterDuplicate) != 1 || runsAfterDuplicate[0].Version != runsBeforeDuplicate[0].Version {
-		t.Fatalf("duplicate changed observed run version: before=%+v after=%+v err=%v", runsBeforeDuplicate, runsAfterDuplicate, err)
+		t.Fatalf(
+			"duplicate changed observed run version: before=%+v after=%+v err=%v",
+			runsBeforeDuplicate,
+			runsAfterDuplicate,
+			err,
+		)
 	}
 	second.Payload = json.RawMessage(`{"percent":41}`)
 	receipts, err = service.IngestEvents(ctx, *connectorContext, []EventInput{second})
@@ -170,19 +234,51 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current, err = service.Update(ctx, principal, connector.ID, current.Name, current.LocationLabel, false, current.Version, &requestID)
+	current, err = service.Update(
+		ctx,
+		principal,
+		connector.ID,
+		current.Name,
+		current.LocationLabel,
+		false,
+		current.Version,
+		&requestID,
+	)
 	if err != nil || current.Lifecycle != "disabled" {
 		t.Fatalf("disable connector=%+v err=%v", current, err)
 	}
 	disabledConfiguration, err := service.Configuration(ctx, Context{ID: current.ID, Lifecycle: current.Lifecycle})
-	if err != nil || len(disabledConfiguration.Assignments) != 0 || disabledConfiguration.Revision != current.ConfigurationRevision {
+	if err != nil || len(disabledConfiguration.Assignments) != 0 ||
+		disabledConfiguration.Revision != current.ConfigurationRevision {
 		t.Fatalf("disabled connector configuration=%+v error=%v", disabledConfiguration, err)
 	}
-	current, err = service.Update(ctx, principal, connector.ID, current.Name, current.LocationLabel, true, current.Version, &requestID)
+	current, err = service.Update(
+		ctx,
+		principal,
+		connector.ID,
+		current.Name,
+		current.LocationLabel,
+		true,
+		current.Version,
+		&requestID,
+	)
 	if err != nil || current.Lifecycle != "active" {
 		t.Fatalf("enable connector=%+v err=%v", current, err)
 	}
-	assignment, err = service.UpdateAssignment(ctx, principal, connector.ID, assignment.ID, AssignmentUpdate{AdapterKind: assignment.AdapterKind, AdapterSchemaVersion: assignment.AdapterSchemaVersion, Settings: json.RawMessage(`{"scenario":"idle"}`), Enabled: false, ExpectedVersion: assignment.Version}, &requestID)
+	assignment, err = service.UpdateAssignment(
+		ctx,
+		principal,
+		connector.ID,
+		assignment.ID,
+		AssignmentUpdate{
+			AdapterKind:          assignment.AdapterKind,
+			AdapterSchemaVersion: assignment.AdapterSchemaVersion,
+			Settings:             json.RawMessage(`{"scenario":"idle"}`),
+			Enabled:              false,
+			ExpectedVersion:      assignment.Version,
+		},
+		&requestID,
+	)
 	if err != nil || assignment.Enabled || assignment.ConfigurationVersion != 2 {
 		t.Fatalf("disable assignment=%+v err=%v", assignment, err)
 	}

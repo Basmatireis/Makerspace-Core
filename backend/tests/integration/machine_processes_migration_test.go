@@ -42,9 +42,23 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 
 	// Machine types: flagged as printer, unflagged but owning a printer profile, plain, and a laser.
 	flagged, profiled, plain, laserType := id(), id(), id(), id()
-	exec(`INSERT INTO machine_types (id, name, printer) VALUES ($1, 'Flagged printer', true), ($2, 'Profiled', false), ($3, 'Plain', false), ($4, 'Laser', false)`, flagged, profiled, plain, laserType)
+	exec(
+		`INSERT INTO machine_types (id, name, printer) VALUES ($1, 'Flagged printer', true), ($2, 'Profiled', false), ($3, 'Plain', false), ($4, 'Laser', false)`,
+		flagged,
+		profiled,
+		plain,
+		laserType,
+	)
 	profiledMachine, laserMachine, fdmMachine := id(), id(), id()
-	exec(`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Profiled machine'), ($3, $4, 'Laser machine'), ($5, $6, 'Flagged machine')`, profiledMachine, profiled, laserMachine, laserType, fdmMachine, flagged)
+	exec(
+		`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Profiled machine'), ($3, $4, 'Laser machine'), ($5, $6, 'Flagged machine')`,
+		profiledMachine,
+		profiled,
+		laserMachine,
+		laserType,
+		fdmMachine,
+		flagged,
+	)
 	exec(`INSERT INTO printer_profiles (machine_id) VALUES ($1)`, profiledMachine)
 
 	// Material types: one per case the process mapping distinguishes.
@@ -57,7 +71,13 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 	}
 	material := func(typeID uuid.UUID, name, unit string, diameter bool) uuid.UUID {
 		materialID := id()
-		exec(`INSERT INTO materials (id, name, material_type_id, unit) VALUES ($1, $2, $3, $4)`, materialID, name, typeID, unit)
+		exec(
+			`INSERT INTO materials (id, name, material_type_id, unit) VALUES ($1, $2, $3, $4)`,
+			materialID,
+			name,
+			typeID,
+			unit,
+		)
 		exec(`INSERT INTO material_balances (material_id) VALUES ($1)`, materialID)
 		if diameter {
 			exec(`INSERT INTO material_filament_properties (material_id, diameter_mm) VALUES ($1, 1.75)`, materialID)
@@ -71,12 +91,31 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 	sharedMaterial := material(shared, "Shared PLA", "g", true)
 
 	customer, job := id(), id()
-	exec(`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Process', 'Customer', 'process-customer@example.test')`, customer)
-	exec(`INSERT INTO machine_jobs (id, display_id, machine_id, customer_person_id) VALUES ($1, 'J-2026-900047', $2, $3)`, job, laserMachine, customer)
+	exec(
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Process', 'Customer', 'process-customer@example.test')`,
+		customer,
+	)
+	exec(
+		`INSERT INTO machine_jobs (id, display_id, machine_id, customer_person_id) VALUES ($1, 'J-2026-900047', $2, $3)`,
+		job,
+		laserMachine,
+		customer,
+	)
 	usage := func(runDisplay string, machineID, materialID uuid.UUID) {
 		runID := id()
-		exec(`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, history_complete) VALUES ($1, $2, $3, 'manual', $4, now() - interval '2 hours', now() - interval '1 hour', true)`, runID, runDisplay, machineID, job)
-		exec(`INSERT INTO machine_run_usages (id, run_id, material_id, quantity) VALUES ($1, $2, $3, 1)`, id(), runID, materialID)
+		exec(
+			`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, history_complete) VALUES ($1, $2, $3, 'manual', $4, now() - interval '2 hours', now() - interval '1 hour', true)`,
+			runID,
+			runDisplay,
+			machineID,
+			job,
+		)
+		exec(
+			`INSERT INTO machine_run_usages (id, run_id, material_id, quantity) VALUES ($1, $2, $3, 1)`,
+			id(),
+			runID,
+			materialID,
+		)
 	}
 	usage("R-2026-900001", laserMachine, sheetMaterial)
 	usage("R-2026-900002", laserMachine, powder)
@@ -114,13 +153,23 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 			t.Fatalf("processes of %s = %q, want %q", typeID, got, want)
 		}
 	}
-	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_name = 'machine_types' AND column_name = 'printer'`, 0)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM information_schema.columns WHERE table_name = 'machine_types' AND column_name = 'printer'`,
+		0,
+	)
 
 	// cm2, measures and measure rules exist now; the database enforces their shape.
 	cmType := id()
 	exec(`INSERT INTO material_types (id, name, unit) VALUES ($1, 'Sticker paper', 'cm2')`, cmType)
 	runID := id()
-	exec(`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, history_complete) VALUES ($1, 'R-2026-900010', $2, 'manual', $3, now() - interval '2 hours', now() - interval '1 hour', true)`, runID, laserMachine, job)
+	exec(
+		`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, history_complete) VALUES ($1, 'R-2026-900010', $2, 'manual', $3, now() - interval '2 hours', now() - interval '1 hour', true)`,
+		runID,
+		laserMachine,
+		job,
+	)
 	exec(`INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'stitches', 12400)`, runID)
 	if _, err = pool.Exec(ctx, `INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'stitches', -1)`, runID); err == nil {
 		t.Fatal("negative measure accepted")
@@ -130,7 +179,12 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 	}
 	group := id()
 	exec(`INSERT INTO pricing_groups (id, name) VALUES ($1, 'Process group')`, group)
-	exec(`INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, measure, block_size, rate) VALUES ($1, $2, 'machine_measure', $3, 'stitches', 1000, 0.5)`, id(), group, laserType)
+	exec(
+		`INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, measure, block_size, rate) VALUES ($1, $2, 'machine_measure', $3, 'stitches', 1000, 0.5)`,
+		id(),
+		group,
+		laserType,
+	)
 	if _, err = pool.Exec(ctx, `INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, measure, block_size, rate) VALUES ($1, $2, 'machine_measure', $3, 'stitches', 1000, 0.7)`, id(), group, laserType); err == nil {
 		t.Fatal("second active rule for the same measure accepted")
 	}

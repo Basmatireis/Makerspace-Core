@@ -101,7 +101,8 @@ func TestCookieResponseWritesSeparateSecureCookies(t *testing.T) {
 		t.Fatal("session must be HttpOnly and CSRF must be readable")
 	}
 	for _, cookie := range []*http.Cookie{session, csrf} {
-		if !cookie.Secure || cookie.Path != "/" || cookie.Domain != "" || cookie.SameSite != http.SameSiteLaxMode || cookie.MaxAge <= 0 {
+		if !cookie.Secure || cookie.Path != "/" || cookie.Domain != "" || cookie.SameSite != http.SameSiteLaxMode ||
+			cookie.MaxAge <= 0 {
 			t.Fatalf("invalid cookie attributes: %#v", cookie)
 		}
 	}
@@ -150,7 +151,10 @@ func TestBrowserManagedDeviceProvisioningNeverExposesTokenToJavaScript(t *testin
 		t.Fatalf("cookie count=%d, want 1", len(cookies))
 	}
 	cookie := cookies[0]
-	if cookie.Name != cfg.ManagedDeviceCookieName || cookie.Value != provisioned.Token || !cookie.HttpOnly || !cookie.Secure || cookie.Path != "/" || cookie.SameSite != http.SameSiteStrictMode {
+	if cookie.Name != cfg.ManagedDeviceCookieName || cookie.Value != provisioned.Token || !cookie.HttpOnly ||
+		!cookie.Secure ||
+		cookie.Path != "/" ||
+		cookie.SameSite != http.SameSiteStrictMode {
 		t.Fatalf("invalid managed-device browser cookie: %#v", cookie)
 	}
 
@@ -217,9 +221,13 @@ func TestOriginMiddlewareRequiresExactOriginForUnsafeRequests(t *testing.T) {
 	cfg := testConfig(t)
 	server := &Server{config: cfg}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	handler := requestMetadataMiddleware(server.originMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}), logger), nil, nil)
+	handler := requestMetadataMiddleware(
+		server.originMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}), logger),
+		nil,
+		nil,
+	)
 
 	for _, origin := range []string{"", "https://example.test", "http://localhost:5173.evil.test"} {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
@@ -325,7 +333,11 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusBadRequest || recorder.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("public PIN enrollment completion status=%d cache=%q", recorder.Code, recorder.Header().Get("Cache-Control"))
+		t.Fatalf(
+			"public PIN enrollment completion status=%d cache=%q",
+			recorder.Code,
+			recorder.Header().Get("Cache-Control"),
+		)
 	}
 
 	for _, path := range []string{
@@ -363,7 +375,10 @@ func isSessionlessRequest(t *testing.T, method, path string) bool {
 		t.Fatal(err)
 	}
 	router := chi.NewRouter()
-	openapi.HandlerWithOptions(openapi.NewStrictHandler(nil, nil), openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router})
+	openapi.HandlerWithOptions(
+		openapi.NewStrictHandler(nil, nil),
+		openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router},
+	)
 	key := matchedRoute(router, method, path)
 	if key == "" {
 		t.Fatalf("%s %s matches no operation", method, path)
@@ -377,7 +392,10 @@ func TestEveryOperationHasAMatchableRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	router := chi.NewRouter()
-	openapi.HandlerWithOptions(openapi.NewStrictHandler(nil, nil), openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router})
+	openapi.HandlerWithOptions(
+		openapi.NewStrictHandler(nil, nil),
+		openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router},
+	)
 	policy := newRoutePolicy(spec)
 	for key := range policy.sessionless {
 		method, template, _ := strings.Cut(key, " ")
@@ -445,7 +463,9 @@ func TestEventPublicRouteAndCacheBoundaries(t *testing.T) {
 		apiBasePath + "/events/0192f6f8-743e-7c77-a349-cd07c3e8a921/files/0192f6f8-743e-7c77-a349-cd07c3e8a922/content",
 	} {
 		recorder := httptest.NewRecorder()
-		cacheControlMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		cacheControlMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
+		).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		if recorder.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("Event response %s was cacheable", path)
 		}
@@ -474,7 +494,8 @@ func TestAccessLogNeverIncludesRequestPathsOrQueryValues(t *testing.T) {
 	if _, exists := unmatched["path"]; exists {
 		t.Fatalf("unmatched request exposed a path: %#v", unmatched)
 	}
-	if strings.Contains(unmatchedRaw, querySecret) || strings.Contains(unmatchedRaw, "probe=") || strings.Contains(unmatchedRaw, "wp-login") {
+	if strings.Contains(unmatchedRaw, querySecret) || strings.Contains(unmatchedRaw, "probe=") ||
+		strings.Contains(unmatchedRaw, "wp-login") {
 		t.Fatalf("unmatched request log exposed path or query string: %s", unmatchedRaw)
 	}
 }
@@ -626,7 +647,15 @@ func TestAccessLogResolvesClientIP(t *testing.T) {
 				throttlingSource = sourceAddress(r.Context())
 				w.WriteHeader(http.StatusNoContent)
 			})
-			entry, _ := recordedRequestLog(t, router, http.MethodGet, "/known", test.remoteAddress, test.headers, test.trustedProxies)
+			entry, _ := recordedRequestLog(
+				t,
+				router,
+				http.MethodGet,
+				"/known",
+				test.remoteAddress,
+				test.headers,
+				test.trustedProxies,
+			)
 			if entry["client_ip"] != test.want {
 				t.Fatalf("client_ip = %q, want %q", entry["client_ip"], test.want)
 			}
@@ -650,7 +679,16 @@ func TestAccessLogBoundsUserAgentAndOmitsSensitiveInputs(t *testing.T) {
 	}
 
 	body := `{"email":"private@example.test","name":"Private Person","password":"super-secret-password","token":"one-time-token"}`
-	entry, raw := recordedRequestLogWithBody(t, router, http.MethodPost, longPath, body, "192.0.2.8:45123", headers, nil)
+	entry, raw := recordedRequestLogWithBody(
+		t,
+		router,
+		http.MethodPost,
+		longPath,
+		body,
+		"192.0.2.8:45123",
+		headers,
+		nil,
+	)
 	for _, forbidden := range []string{secret, "Authorization", "Cookie", "private@example.test", "Private Person", "super-secret-password", "one-time-token"} {
 		if strings.Contains(raw, forbidden) {
 			t.Fatalf("request log exposed %q: %s", forbidden, raw)
@@ -696,11 +734,23 @@ func TestManagedDeviceApplicationModeBoundaries(t *testing.T) {
 	}
 }
 
-func recordedRequestLog(t *testing.T, router *chi.Mux, method, target, remoteAddress string, headers http.Header, trustedProxies []netip.Prefix) (map[string]any, string) {
+func recordedRequestLog(
+	t *testing.T,
+	router *chi.Mux,
+	method, target, remoteAddress string,
+	headers http.Header,
+	trustedProxies []netip.Prefix,
+) (map[string]any, string) {
 	return recordedRequestLogWithBody(t, router, method, target, "", remoteAddress, headers, trustedProxies)
 }
 
-func recordedRequestLogWithBody(t *testing.T, router *chi.Mux, method, target, body, remoteAddress string, headers http.Header, trustedProxies []netip.Prefix) (map[string]any, string) {
+func recordedRequestLogWithBody(
+	t *testing.T,
+	router *chi.Mux,
+	method, target, body, remoteAddress string,
+	headers http.Header,
+	trustedProxies []netip.Prefix,
+) (map[string]any, string) {
 	t.Helper()
 	var output bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&output, nil))
@@ -741,7 +791,12 @@ func TestDeadlockAndSerializationAbortsAreRetryableConflicts(t *testing.T) {
 	for _, code := range []string{"40P01", "40001"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodPost, "/", nil)
-		writeAPIError(recorder, request, fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: code}), slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		writeAPIError(
+			recorder,
+			request,
+			fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: code}),
+			slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		)
 		if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), `"retry_conflict"`) {
 			t.Fatalf("%s mapped to %d %s", code, recorder.Code, recorder.Body.String())
 		}

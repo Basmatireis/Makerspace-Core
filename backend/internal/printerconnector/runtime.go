@@ -71,7 +71,16 @@ func (e Enrollment) Resolve() (string, error) {
 func (e Enrollment) configured() bool { return strings.TrimSpace(e.Secret) != "" || e.File != "" }
 
 func NewRuntime(store *Store, client *Client, dataDir string, enrollment Enrollment, logger *slog.Logger) *Runtime {
-	return &Runtime{store: store, client: client, dataDir: dataDir, enrollment: enrollment, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}, live: newLiveStatusHub()}
+	return &Runtime{
+		store:      store,
+		client:     client,
+		dataDir:    dataDir,
+		enrollment: enrollment,
+		logger:     logger,
+		adapters:   map[uuid.UUID]context.CancelFunc{},
+		health:     map[uuid.UUID]AssignmentHealth{},
+		live:       newLiveStatusHub(),
+	}
 }
 
 func newSecret() (string, error) {
@@ -187,7 +196,9 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 		return Identity{}, err
 	}
 	if enrollment == "" {
-		return Identity{}, errors.New("not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Machines > Connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again")
+		return Identity{}, errors.New(
+			"not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Machines > Connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again",
+		)
 	}
 	value, err := r.client.Enroll(ctx, enrollment, *identity, Version)
 	if err != nil {
@@ -234,18 +245,32 @@ func (r *Runtime) reenrollIfNewSecret(ctx context.Context, current Identity) Ide
 		if errors.As(err, &coreErr) {
 			attrs = append(attrs, "status", coreErr.Status, "code", safeCode(coreErr.Code))
 		}
-		r.logger.Error("the new CONNECTOR_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Create a new connector or issue a new enrollment secret in Core, update .env and restart", attrs...)
+		r.logger.Error(
+			"the new CONNECTOR_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Create a new connector or issue a new enrollment secret in Core, update .env and restart",
+			attrs...)
 		return current
 	}
 	enrolled.EnrollmentDigest = digest
 	if err = r.store.SaveIdentity(ctx, enrolled); err != nil {
-		r.logger.Error("re-enrollment succeeded but the new identity could not be saved; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		r.logger.Error(
+			"re-enrollment succeeded but the new identity could not be saved; keeping the current identity",
+			"error_type",
+			fmt.Sprintf("%T", err),
+		)
 		return current
 	}
 	if err = r.store.ClearConfiguration(ctx); err != nil {
-		r.logger.Warn("cached configuration of the previous connector could not be cleared", "error_type", fmt.Sprintf("%T", err))
+		r.logger.Warn(
+			"cached configuration of the previous connector could not be cleared",
+			"error_type",
+			fmt.Sprintf("%T", err),
+		)
 	}
-	r.logger.Info("enrolled with the new CONNECTOR_ENROLLMENT_SECRET; the previous identity was replaced", "connector_id", enrolled.ConnectorID.String())
+	r.logger.Info(
+		"enrolled with the new CONNECTOR_ENROLLMENT_SECRET; the previous identity was replaced",
+		"connector_id",
+		enrolled.ConnectorID.String(),
+	)
 	return enrolled
 }
 
@@ -297,26 +322,58 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		if err != nil {
 			code := "invalid_adapter_configuration"
 			r.mu.Lock()
-			r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: 0, State: "degraded", ErrorCode: &code}
+			r.health[id] = AssignmentHealth{
+				AssignmentID:                raw.ID,
+				AppliedConfigurationVersion: 0,
+				State:                       "degraded",
+				ErrorCode:                   &code,
+			}
 			r.mu.Unlock()
 			continue
 		}
 		ctx, cancel := context.WithCancel(parent)
 		r.mu.Lock()
 		r.adapters[id] = cancel
-		r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: raw.ConfigurationVersion, State: "connected"}
+		r.health[id] = AssignmentHealth{
+			AssignmentID:                raw.ID,
+			AppliedConfigurationVersion: raw.ConfigurationVersion,
+			State:                       "connected",
+		}
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
-			sink := &runtimeSink{store: r.store, live: r.live, assignmentID: assignmentID, adapterKind: adapter.Descriptor().Kind, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
-				r.mu.Lock()
-				defer r.mu.Unlock()
-				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: state, ErrorCode: code}
-			}}
+			sink := &runtimeSink{
+				store:                r.store,
+				live:                 r.live,
+				assignmentID:         assignmentID,
+				adapterKind:          adapter.Descriptor().Kind,
+				configurationVersion: configVersion,
+				reportHealth: func(state string, code *string) {
+					r.mu.Lock()
+					defer r.mu.Unlock()
+					r.health[assignmentID] = AssignmentHealth{
+						AssignmentID:                assignmentID.String(),
+						AppliedConfigurationVersion: configVersion,
+						State:                       state,
+						ErrorCode:                   code,
+					}
+				},
+			}
 			if runErr := adapter.Run(ctx, sink); runErr != nil && !errors.Is(runErr, context.Canceled) {
-				r.logger.Warn("adapter stopped", "assignment_id", assignmentID.String(), "error_type", fmt.Sprintf("%T", runErr))
+				r.logger.Warn(
+					"adapter stopped",
+					"assignment_id",
+					assignmentID.String(),
+					"error_type",
+					fmt.Sprintf("%T", runErr),
+				)
 				code := classifyAdapterError(runErr)
 				r.mu.Lock()
-				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: "degraded", ErrorCode: &code}
+				r.health[assignmentID] = AssignmentHealth{
+					AssignmentID:                assignmentID.String(),
+					AppliedConfigurationVersion: configVersion,
+					State:                       "degraded",
+					ErrorCode:                   &code,
+				}
 				r.mu.Unlock()
 			}
 		}(id, raw.ConfigurationVersion, adapter)
@@ -357,7 +414,17 @@ func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error
 			}
 		}
 	}
-	_, err := s.store.Enqueue(ctx, s.assignmentID, s.configurationVersion, observation.Kind, observation.Payload, observation.RunID, observation.HistoryComplete, observation.ExternalPrintID, observation.ReportRevision)
+	_, err := s.store.Enqueue(
+		ctx,
+		s.assignmentID,
+		s.configurationVersion,
+		observation.Kind,
+		observation.Payload,
+		observation.RunID,
+		observation.HistoryComplete,
+		observation.ExternalPrintID,
+		observation.ReportRevision,
+	)
 	return err
 }
 
@@ -368,7 +435,11 @@ func (s *runtimeSink) ReportLiveStatus(snapshot json.RawMessage) {
 	}
 }
 
-func (s *runtimeSink) CommitBambuState(ctx context.Context, observations []Observation, state bambuPersistedState) error {
+func (s *runtimeSink) CommitBambuState(
+	ctx context.Context,
+	observations []Observation,
+	state bambuPersistedState,
+) error {
 	for _, observation := range observations {
 		if observation.Kind == "connectivity" && s.reportHealth != nil {
 			var value struct {
@@ -461,7 +532,14 @@ func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
 		return r.health[id].State == "connected"
 	})
 	for _, item := range due {
-		err := r.client.PutLiveStatus(ctx, identity.CredentialSecret, item.AssignmentID, item.ConfigurationVersion, time.Now().UTC(), item.Snapshot)
+		err := r.client.PutLiveStatus(
+			ctx,
+			identity.CredentialSecret,
+			item.AssignmentID,
+			item.ConfigurationVersion,
+			time.Now().UTC(),
+			item.Snapshot,
+		)
 		var coreErr *CoreError
 		switch {
 		case err == nil:
@@ -527,7 +605,19 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 	}
 	revision := r.revision
 	r.mu.Unlock()
-	coreRevision, err := r.client.Heartbeat(ctx, identity.CredentialSecret, Heartbeat{SoftwareVersion: Version, ProtocolVersion: 1, AppliedConfigurationRevision: revision, HealthState: state, PendingEventCount: pending, QuarantinedEventCount: quarantined, Assignments: health})
+	coreRevision, err := r.client.Heartbeat(
+		ctx,
+		identity.CredentialSecret,
+		Heartbeat{
+			SoftwareVersion:              Version,
+			ProtocolVersion:              1,
+			AppliedConfigurationRevision: revision,
+			HealthState:                  state,
+			PendingEventCount:            pending,
+			QuarantinedEventCount:        quarantined,
+			Assignments:                  health,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -556,7 +646,8 @@ func CheckHealth(dataDir string) error {
 		Status    string    `json:"status"`
 		UpdatedAt time.Time `json:"updatedAt"`
 	}
-	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" || time.Since(status.UpdatedAt) > 2*time.Minute {
+	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" ||
+		time.Since(status.UpdatedAt) > 2*time.Minute {
 		return errors.New("connector health is stale")
 	}
 	return nil

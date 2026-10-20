@@ -124,7 +124,13 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize streaming gateways: %w", err)
 	}
-	signageService, err := signage.NewService(pool, cfg, fileService, signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}), signage.WithStreamIssuer(streamIssuer{gateways: streamingGatewayService}))
+	signageService, err := signage.NewService(
+		pool,
+		cfg,
+		fileService,
+		signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}),
+		signage.WithStreamIssuer(streamIssuer{gateways: streamingGatewayService}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
@@ -163,7 +169,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) DeleteAccount(ctx context.Context, request openapi.DeleteAccountRequestObject) (openapi.DeleteAccountResponseObject, error) {
+func (s *Server) DeleteAccount(
+	ctx context.Context,
+	request openapi.DeleteAccountRequestObject,
+) (openapi.DeleteAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -177,7 +186,10 @@ func (s *Server) DeleteAccount(ctx context.Context, request openapi.DeleteAccoun
 	return openapi.DeleteAccount204Response{}, nil
 }
 
-func (s *Server) GetAccount(ctx context.Context, request openapi.GetAccountRequestObject) (openapi.GetAccountResponseObject, error) {
+func (s *Server) GetAccount(
+	ctx context.Context,
+	request openapi.GetAccountRequestObject,
+) (openapi.GetAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -189,7 +201,10 @@ func (s *Server) GetAccount(ctx context.Context, request openapi.GetAccountReque
 	return openapi.GetAccount200JSONResponse(accountDTO(account)), nil
 }
 
-func (s *Server) DisableAccount(ctx context.Context, request openapi.DisableAccountRequestObject) (openapi.DisableAccountResponseObject, error) {
+func (s *Server) DisableAccount(
+	ctx context.Context,
+	request openapi.DisableAccountRequestObject,
+) (openapi.DisableAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -197,14 +212,24 @@ func (s *Server) DisableAccount(ctx context.Context, request openapi.DisableAcco
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	account, err := s.accounts.SetStatus(ctx, principal, request.AccountId, "disabled", request.Body.ExpectedVersion, requestIDPointer(ctx))
+	account, err := s.accounts.SetStatus(
+		ctx,
+		principal,
+		request.AccountId,
+		"disabled",
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.DisableAccount200JSONResponse(accountDTO(account)), nil
 }
 
-func (s *Server) EnableAccount(ctx context.Context, request openapi.EnableAccountRequestObject) (openapi.EnableAccountResponseObject, error) {
+func (s *Server) EnableAccount(
+	ctx context.Context,
+	request openapi.EnableAccountRequestObject,
+) (openapi.EnableAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -212,14 +237,24 @@ func (s *Server) EnableAccount(ctx context.Context, request openapi.EnableAccoun
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	account, err := s.accounts.SetStatus(ctx, principal, request.AccountId, "enabled", request.Body.ExpectedVersion, requestIDPointer(ctx))
+	account, err := s.accounts.SetStatus(
+		ctx,
+		principal,
+		request.AccountId,
+		"enabled",
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.EnableAccount200JSONResponse(accountDTO(account)), nil
 }
 
-func (s *Server) UpdateAccountLoginEmail(ctx context.Context, request openapi.UpdateAccountLoginEmailRequestObject) (openapi.UpdateAccountLoginEmailResponseObject, error) {
+func (s *Server) UpdateAccountLoginEmail(
+	ctx context.Context,
+	request openapi.UpdateAccountLoginEmailRequestObject,
+) (openapi.UpdateAccountLoginEmailResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -227,14 +262,24 @@ func (s *Server) UpdateAccountLoginEmail(ctx context.Context, request openapi.Up
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	account, err := s.accounts.UpdateLoginEmail(ctx, principal, request.AccountId, string(request.Body.LoginEmail), request.Body.ExpectedVersion, requestIDPointer(ctx))
+	account, err := s.accounts.UpdateLoginEmail(
+		ctx,
+		principal,
+		request.AccountId,
+		string(request.Body.LoginEmail),
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateAccountLoginEmail200JSONResponse(accountDTO(account)), nil
 }
 
-func (s *Server) SetAccountPassword(ctx context.Context, request openapi.SetAccountPasswordRequestObject) (openapi.SetAccountPasswordResponseObject, error) {
+func (s *Server) SetAccountPassword(
+	ctx context.Context,
+	request openapi.SetAccountPasswordRequestObject,
+) (openapi.SetAccountPasswordResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -242,14 +287,24 @@ func (s *Server) SetAccountPassword(ctx context.Context, request openapi.SetAcco
 	if request.Body == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("newPassword is required")
 	}
-	account, err := s.accounts.SetPassword(ctx, principal, request.AccountId, *request.Body.NewPassword, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	account, err := s.accounts.SetPassword(
+		ctx,
+		principal,
+		request.AccountId,
+		*request.Body.NewPassword,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.SetAccountPassword200JSONResponse(accountDTO(account)), nil
 }
 
-func (s *Server) SetAccountPin(ctx context.Context, request openapi.SetAccountPinRequestObject) (openapi.SetAccountPinResponseObject, error) {
+func (s *Server) SetAccountPin(
+	ctx context.Context,
+	request openapi.SetAccountPinRequestObject,
+) (openapi.SetAccountPinResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -271,7 +326,10 @@ func (s *Server) SetAccountPin(ctx context.Context, request openapi.SetAccountPi
 	return openapi.SetAccountPin204Response{}, nil
 }
 
-func (s *Server) RemoveAccountAuthIdentity(ctx context.Context, request openapi.RemoveAccountAuthIdentityRequestObject) (openapi.RemoveAccountAuthIdentityResponseObject, error) {
+func (s *Server) RemoveAccountAuthIdentity(
+	ctx context.Context,
+	request openapi.RemoveAccountAuthIdentityRequestObject,
+) (openapi.RemoveAccountAuthIdentityResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -292,7 +350,10 @@ func (s *Server) RemoveAccountAuthIdentity(ctx context.Context, request openapi.
 	return openapi.RemoveAccountAuthIdentity204Response{}, nil
 }
 
-func (s *Server) IssueAccountPasswordReset(ctx context.Context, request openapi.IssueAccountPasswordResetRequestObject) (openapi.IssueAccountPasswordResetResponseObject, error) {
+func (s *Server) IssueAccountPasswordReset(
+	ctx context.Context,
+	request openapi.IssueAccountPasswordResetRequestObject,
+) (openapi.IssueAccountPasswordResetResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -300,19 +361,30 @@ func (s *Server) IssueAccountPasswordReset(ctx context.Context, request openapi.
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	issue, err := s.accounts.IssuePasswordReset(ctx, principal, request.AccountId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	issue, err := s.accounts.IssuePasswordReset(
+		ctx,
+		principal,
+		request.AccountId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.IssueAccountPasswordReset201JSONResponse{
 		Body: openapi.PasswordResetIssue{
-			Account: accountDTO(issue.Account), ExpiresAt: issue.ExpiresAt, DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus), SetupUrl: nullableString(issue.SetupURL),
+			Account: accountDTO(
+				issue.Account,
+			), ExpiresAt: issue.ExpiresAt, DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus), SetupUrl: nullableString(issue.SetupURL),
 		},
 		Headers: openapi.IssueAccountPasswordReset201ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
 
-func (s *Server) IssueAccountInvitation(ctx context.Context, request openapi.IssueAccountInvitationRequestObject) (openapi.IssueAccountInvitationResponseObject, error) {
+func (s *Server) IssueAccountInvitation(
+	ctx context.Context,
+	request openapi.IssueAccountInvitationRequestObject,
+) (openapi.IssueAccountInvitationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -320,17 +392,31 @@ func (s *Server) IssueAccountInvitation(ctx context.Context, request openapi.Iss
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	issue, err := s.accounts.IssueInvitation(ctx, principal, request.AccountId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	issue, err := s.accounts.IssueInvitation(
+		ctx,
+		principal,
+		request.AccountId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.IssueAccountInvitation201JSONResponse{
-		Body:    openapi.PasswordResetIssue{Account: accountDTO(issue.Account), ExpiresAt: issue.ExpiresAt, DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus), SetupUrl: nullableString(issue.SetupURL)},
+		Body: openapi.PasswordResetIssue{
+			Account:        accountDTO(issue.Account),
+			ExpiresAt:      issue.ExpiresAt,
+			DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus),
+			SetupUrl:       nullableString(issue.SetupURL),
+		},
 		Headers: openapi.IssueAccountInvitation201ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
 
-func (s *Server) IssueAccountPinEnrollment(ctx context.Context, request openapi.IssueAccountPinEnrollmentRequestObject) (openapi.IssueAccountPinEnrollmentResponseObject, error) {
+func (s *Server) IssueAccountPinEnrollment(
+	ctx context.Context,
+	request openapi.IssueAccountPinEnrollmentRequestObject,
+) (openapi.IssueAccountPinEnrollmentResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -338,17 +424,31 @@ func (s *Server) IssueAccountPinEnrollment(ctx context.Context, request openapi.
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	issue, err := s.accounts.IssuePINEnrollment(ctx, principal, request.AccountId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	issue, err := s.accounts.IssuePINEnrollment(
+		ctx,
+		principal,
+		request.AccountId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.IssueAccountPinEnrollment201JSONResponse{
-		Body:    openapi.PasswordResetIssue{Account: accountDTO(issue.Account), ExpiresAt: issue.ExpiresAt, DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus), SetupUrl: nullableString(issue.SetupURL)},
+		Body: openapi.PasswordResetIssue{
+			Account:        accountDTO(issue.Account),
+			ExpiresAt:      issue.ExpiresAt,
+			DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus),
+			SetupUrl:       nullableString(issue.SetupURL),
+		},
 		Headers: openapi.IssueAccountPinEnrollment201ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
 
-func (s *Server) RemovePersonRole(ctx context.Context, request openapi.RemovePersonRoleRequestObject) (openapi.RemovePersonRoleResponseObject, error) {
+func (s *Server) RemovePersonRole(
+	ctx context.Context,
+	request openapi.RemovePersonRoleRequestObject,
+) (openapi.RemovePersonRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -356,7 +456,15 @@ func (s *Server) RemovePersonRole(ctx context.Context, request openapi.RemovePer
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	person, err := s.people.ChangeRole(ctx, principal, request.PersonId, request.RoleId, request.Body.ExpectedVersion, false, requestIDPointer(ctx))
+	person, err := s.people.ChangeRole(
+		ctx,
+		principal,
+		request.PersonId,
+		request.RoleId,
+		request.Body.ExpectedVersion,
+		false,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +475,10 @@ func (s *Server) RemovePersonRole(ctx context.Context, request openapi.RemovePer
 	return openapi.RemovePersonRole200JSONResponse(response), nil
 }
 
-func (s *Server) AssignPersonRole(ctx context.Context, request openapi.AssignPersonRoleRequestObject) (openapi.AssignPersonRoleResponseObject, error) {
+func (s *Server) AssignPersonRole(
+	ctx context.Context,
+	request openapi.AssignPersonRoleRequestObject,
+) (openapi.AssignPersonRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -375,7 +486,15 @@ func (s *Server) AssignPersonRole(ctx context.Context, request openapi.AssignPer
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	person, err := s.people.ChangeRole(ctx, principal, request.PersonId, request.RoleId, request.Body.ExpectedVersion, true, requestIDPointer(ctx))
+	person, err := s.people.ChangeRole(
+		ctx,
+		principal,
+		request.PersonId,
+		request.RoleId,
+		request.Body.ExpectedVersion,
+		true,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +505,10 @@ func (s *Server) AssignPersonRole(ctx context.Context, request openapi.AssignPer
 	return openapi.AssignPersonRole200JSONResponse(response), nil
 }
 
-func (s *Server) ListAuditEvents(ctx context.Context, request openapi.ListAuditEventsRequestObject) (openapi.ListAuditEventsResponseObject, error) {
+func (s *Server) ListAuditEvents(
+	ctx context.Context,
+	request openapi.ListAuditEventsRequestObject,
+) (openapi.ListAuditEventsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -421,25 +543,43 @@ func (s *Server) Login(ctx context.Context, request openapi.LoginRequestObject) 
 	if request.Body == nil || request.Body.Password == nil {
 		return nil, invalidRequest("email and password are required")
 	}
-	session, err := s.auth.Login(ctx, string(request.Body.Email), *request.Body.Password, sourceAddress(ctx), requestIDPointer(ctx))
+	session, err := s.auth.Login(
+		ctx,
+		string(request.Body.Email),
+		*request.Body.Password,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return cookieNoContentResponse{config: s.config, session: &session}, nil
 }
 
-func (s *Server) LoginWithPin(ctx context.Context, request openapi.LoginWithPinRequestObject) (openapi.LoginWithPinResponseObject, error) {
+func (s *Server) LoginWithPin(
+	ctx context.Context,
+	request openapi.LoginWithPinRequestObject,
+) (openapi.LoginWithPinResponseObject, error) {
 	if request.Body == nil || request.Body.Pin == nil {
 		return nil, invalidRequest("loginName and pin are required")
 	}
-	session, err := s.auth.LoginWithPIN(ctx, request.Body.LoginName, *request.Body.Pin, sourceAddress(ctx), requestIDPointer(ctx))
+	session, err := s.auth.LoginWithPIN(
+		ctx,
+		request.Body.LoginName,
+		*request.Body.Pin,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return cookieNoContentResponse{config: s.config, session: &session}, nil
 }
 
-func (s *Server) EnrollOwnPin(ctx context.Context, request openapi.EnrollOwnPinRequestObject) (openapi.EnrollOwnPinResponseObject, error) {
+func (s *Server) EnrollOwnPin(
+	ctx context.Context,
+	request openapi.EnrollOwnPinRequestObject,
+) (openapi.EnrollOwnPinResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -453,7 +593,10 @@ func (s *Server) EnrollOwnPin(ctx context.Context, request openapi.EnrollOwnPinR
 	return openapi.EnrollOwnPin204Response{}, nil
 }
 
-func (s *Server) CompletePinEnrollment(ctx context.Context, request openapi.CompletePinEnrollmentRequestObject) (openapi.CompletePinEnrollmentResponseObject, error) {
+func (s *Server) CompletePinEnrollment(
+	ctx context.Context,
+	request openapi.CompletePinEnrollmentRequestObject,
+) (openapi.CompletePinEnrollmentResponseObject, error) {
 	if request.Body == nil || request.Body.Pin == nil {
 		return nil, invalidRequest("accountId, code, loginName, and pin are required")
 	}
@@ -463,7 +606,10 @@ func (s *Server) CompletePinEnrollment(ctx context.Context, request openapi.Comp
 	return openapi.CompletePinEnrollment204Response{}, nil
 }
 
-func (s *Server) RemoveOwnPin(ctx context.Context, _ openapi.RemoveOwnPinRequestObject) (openapi.RemoveOwnPinResponseObject, error) {
+func (s *Server) RemoveOwnPin(
+	ctx context.Context,
+	_ openapi.RemoveOwnPinRequestObject,
+) (openapi.RemoveOwnPinResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -485,7 +631,10 @@ func (s *Server) Logout(ctx context.Context, _ openapi.LogoutRequestObject) (ope
 	return cookieNoContentResponse{config: s.config, clear: true}, nil
 }
 
-func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserRequestObject) (openapi.GetCurrentUserResponseObject, error) {
+func (s *Server) GetCurrentUser(
+	ctx context.Context,
+	_ openapi.GetCurrentUserRequestObject,
+) (openapi.GetCurrentUserResponseObject, error) {
 	authenticated, ok := ctx.Value(authenticatedContextKey).(auth.Authenticated)
 	if !ok {
 		return nil, apperror.Unauthenticated
@@ -514,7 +663,18 @@ func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserReq
 	}
 	device := nullable.NewNullNullable[openapi.ManagedDeviceContext]()
 	if principal.Device != nil {
-		device = nullable.NewNullableWithValue(openapi.ManagedDeviceContext{Id: principal.Device.ID, Name: principal.Device.Name, DeviceTypeId: principal.Device.DeviceTypeID, DeviceTypeName: principal.Device.DeviceTypeName, ExpiresAt: nullablePointer[time.Time](principal.Device.ExpiresAt, func(v time.Time) time.Time { return v })})
+		device = nullable.NewNullableWithValue(
+			openapi.ManagedDeviceContext{
+				Id:             principal.Device.ID,
+				Name:           principal.Device.Name,
+				DeviceTypeId:   principal.Device.DeviceTypeID,
+				DeviceTypeName: principal.Device.DeviceTypeName,
+				ExpiresAt: nullablePointer[time.Time](
+					principal.Device.ExpiresAt,
+					func(v time.Time) time.Time { return v },
+				),
+			},
+		)
 	}
 	laborStatus, err := s.laborordnung.Evaluate(ctx, principal.PersonID)
 	if err != nil {
@@ -526,14 +686,20 @@ func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserReq
 			AuthenticationAssurance: openapi.AuthenticationAssurance(principal.Assurance),
 			ManagedDevice:           device, DelegablePermissionGrants: delegable,
 			LaborordnungStatus: laborordnungStatusDTO(laborStatus),
-			Session: openapi.SessionContext{IdleExpiresAt: authenticated.IdleExpiresAt, AbsoluteExpiresAt: authenticated.AbsoluteExpiresAt,
-				PostSessionDestination: openapi.PostSessionDestination(authenticated.PostSessionDestination)},
+			Session: openapi.SessionContext{
+				IdleExpiresAt:          authenticated.IdleExpiresAt,
+				AbsoluteExpiresAt:      authenticated.AbsoluteExpiresAt,
+				PostSessionDestination: openapi.PostSessionDestination(authenticated.PostSessionDestination),
+			},
 		},
 		Headers: openapi.GetCurrentUser200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
 
-func (s *Server) RecordSessionActivity(ctx context.Context, _ openapi.RecordSessionActivityRequestObject) (openapi.RecordSessionActivityResponseObject, error) {
+func (s *Server) RecordSessionActivity(
+	ctx context.Context,
+	_ openapi.RecordSessionActivityRequestObject,
+) (openapi.RecordSessionActivityResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -542,11 +708,17 @@ func (s *Server) RecordSessionActivity(ctx context.Context, _ openapi.RecordSess
 	if err != nil {
 		return nil, err
 	}
-	return openapi.RecordSessionActivity200JSONResponse{IdleExpiresAt: session.IdleExpiresAt, AbsoluteExpiresAt: session.AbsoluteExpiry,
-		PostSessionDestination: openapi.PostSessionDestination(session.PostSessionDestination)}, nil
+	return openapi.RecordSessionActivity200JSONResponse{
+		IdleExpiresAt:          session.IdleExpiresAt,
+		AbsoluteExpiresAt:      session.AbsoluteExpiry,
+		PostSessionDestination: openapi.PostSessionDestination(session.PostSessionDestination),
+	}, nil
 }
 
-func (s *Server) ChangeOwnPassword(ctx context.Context, request openapi.ChangeOwnPasswordRequestObject) (openapi.ChangeOwnPasswordResponseObject, error) {
+func (s *Server) ChangeOwnPassword(
+	ctx context.Context,
+	request openapi.ChangeOwnPasswordRequestObject,
+) (openapi.ChangeOwnPasswordResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -554,14 +726,23 @@ func (s *Server) ChangeOwnPassword(ctx context.Context, request openapi.ChangeOw
 	if request.Body == nil || request.Body.CurrentPassword == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("currentPassword and newPassword are required")
 	}
-	session, err := s.auth.ChangePassword(ctx, principal, *request.Body.CurrentPassword, *request.Body.NewPassword, requestIDPointer(ctx))
+	session, err := s.auth.ChangePassword(
+		ctx,
+		principal,
+		*request.Body.CurrentPassword,
+		*request.Body.NewPassword,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return cookieNoContentResponse{config: s.config, session: &session}, nil
 }
 
-func (s *Server) RemoveOwnPassword(ctx context.Context, request openapi.RemoveOwnPasswordRequestObject) (openapi.RemoveOwnPasswordResponseObject, error) {
+func (s *Server) RemoveOwnPassword(
+	ctx context.Context,
+	request openapi.RemoveOwnPasswordRequestObject,
+) (openapi.RemoveOwnPasswordResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -575,7 +756,10 @@ func (s *Server) RemoveOwnPassword(ctx context.Context, request openapi.RemoveOw
 	return cookieNoContentResponse{config: s.config, clear: true}, nil
 }
 
-func (s *Server) CompletePasswordReset(ctx context.Context, request openapi.CompletePasswordResetRequestObject) (openapi.CompletePasswordResetResponseObject, error) {
+func (s *Server) CompletePasswordReset(
+	ctx context.Context,
+	request openapi.CompletePasswordResetRequestObject,
+) (openapi.CompletePasswordResetResponseObject, error) {
 	if request.Body == nil || request.Body.Token == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("token and newPassword are required")
 	}
@@ -585,37 +769,55 @@ func (s *Server) CompletePasswordReset(ctx context.Context, request openapi.Comp
 	return cookieNoContentResponse{config: s.config, clear: true}, nil
 }
 
-func (s *Server) RequestPasswordReset(ctx context.Context, request openapi.RequestPasswordResetRequestObject) (openapi.RequestPasswordResetResponseObject, error) {
+func (s *Server) RequestPasswordReset(
+	ctx context.Context,
+	request openapi.RequestPasswordResetRequestObject,
+) (openapi.RequestPasswordResetResponseObject, error) {
 	if request.Body == nil {
 		return nil, invalidRequest("email is required")
 	}
 	if err := s.auth.RequestPasswordReset(ctx, string(request.Body.Email), sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.RequestPasswordReset202Response{Headers: openapi.RequestPasswordReset202ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.RequestPasswordReset202Response{
+		Headers: openapi.RequestPasswordReset202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) CompletePasswordResetCode(ctx context.Context, request openapi.CompletePasswordResetCodeRequestObject) (openapi.CompletePasswordResetCodeResponseObject, error) {
+func (s *Server) CompletePasswordResetCode(
+	ctx context.Context,
+	request openapi.CompletePasswordResetCodeRequestObject,
+) (openapi.CompletePasswordResetCodeResponseObject, error) {
 	if request.Body == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("email, code, and newPassword are required")
 	}
 	if err := s.auth.CompletePasswordResetCode(ctx, string(request.Body.Email), request.Body.Code, *request.Body.NewPassword, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.CompletePasswordResetCode204Response{Headers: openapi.CompletePasswordResetCode204ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.CompletePasswordResetCode204Response{
+		Headers: openapi.CompletePasswordResetCode204ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) CompleteInvitation(ctx context.Context, request openapi.CompleteInvitationRequestObject) (openapi.CompleteInvitationResponseObject, error) {
+func (s *Server) CompleteInvitation(
+	ctx context.Context,
+	request openapi.CompleteInvitationRequestObject,
+) (openapi.CompleteInvitationResponseObject, error) {
 	if request.Body == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("email, code, and newPassword are required")
 	}
 	if err := s.auth.CompleteInvitation(ctx, string(request.Body.Email), request.Body.Code, *request.Body.NewPassword, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.CompleteInvitation204Response{Headers: openapi.CompleteInvitation204ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.CompleteInvitation204Response{
+		Headers: openapi.CompleteInvitation204ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) RequestOwnEmailVerification(ctx context.Context, _ openapi.RequestOwnEmailVerificationRequestObject) (openapi.RequestOwnEmailVerificationResponseObject, error) {
+func (s *Server) RequestOwnEmailVerification(
+	ctx context.Context,
+	_ openapi.RequestOwnEmailVerificationRequestObject,
+) (openapi.RequestOwnEmailVerificationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -623,31 +825,49 @@ func (s *Server) RequestOwnEmailVerification(ctx context.Context, _ openapi.Requ
 	if err := s.auth.RequestOwnEmailVerification(ctx, principal, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.RequestOwnEmailVerification202Response{Headers: openapi.RequestOwnEmailVerification202ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.RequestOwnEmailVerification202Response{
+		Headers: openapi.RequestOwnEmailVerification202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) CompleteEmailVerification(ctx context.Context, request openapi.CompleteEmailVerificationRequestObject) (openapi.CompleteEmailVerificationResponseObject, error) {
+func (s *Server) CompleteEmailVerification(
+	ctx context.Context,
+	request openapi.CompleteEmailVerificationRequestObject,
+) (openapi.CompleteEmailVerificationResponseObject, error) {
 	if request.Body == nil {
 		return nil, invalidRequest("email and code are required")
 	}
 	if err := s.auth.CompleteEmailVerification(ctx, string(request.Body.Email), request.Body.Code, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.CompleteEmailVerification204Response{Headers: openapi.CompleteEmailVerification204ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.CompleteEmailVerification204Response{
+		Headers: openapi.CompleteEmailVerification204ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) GetLiveness(context.Context, openapi.GetLivenessRequestObject) (openapi.GetLivenessResponseObject, error) {
+func (s *Server) GetLiveness(
+	context.Context,
+	openapi.GetLivenessRequestObject,
+) (openapi.GetLivenessResponseObject, error) {
 	return openapi.GetLiveness200JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusOk}), nil
 }
 
-func (s *Server) GetReadiness(ctx context.Context, _ openapi.GetReadinessRequestObject) (openapi.GetReadinessResponseObject, error) {
+func (s *Server) GetReadiness(
+	ctx context.Context,
+	_ openapi.GetReadinessRequestObject,
+) (openapi.GetReadinessResponseObject, error) {
 	if err := s.pool.Ping(ctx); err != nil {
-		return openapi.GetReadiness503JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusUnavailable}), nil
+		return openapi.GetReadiness503JSONResponse(
+			openapi.HealthStatus{Status: openapi.HealthStatusStatusUnavailable},
+		), nil
 	}
 	return openapi.GetReadiness200JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusOk}), nil
 }
 
-func (s *Server) ListPeople(ctx context.Context, request openapi.ListPeopleRequestObject) (openapi.ListPeopleResponseObject, error) {
+func (s *Server) ListPeople(
+	ctx context.Context,
+	request openapi.ListPeopleRequestObject,
+) (openapi.ListPeopleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -706,12 +926,20 @@ func (s *Server) ListPeople(ctx context.Context, request openapi.ListPeopleReque
 			copy := value
 			account = &copy
 		}
-		items = append(items, personDTOWithRelated(principal, person, true, true, profileImageRequirements[person.ID], account))
+		items = append(
+			items,
+			personDTOWithRelated(principal, person, true, true, profileImageRequirements[person.ID], account),
+		)
 	}
-	return openapi.ListPeople200JSONResponse(openapi.PersonPage{Items: items, Page: page.Page, PageSize: page.PageSize, Total: page.Total}), nil
+	return openapi.ListPeople200JSONResponse(
+		openapi.PersonPage{Items: items, Page: page.Page, PageSize: page.PageSize, Total: page.Total},
+	), nil
 }
 
-func (s *Server) GetPersonMakerspaceStatus(ctx context.Context, request openapi.GetPersonMakerspaceStatusRequestObject) (openapi.GetPersonMakerspaceStatusResponseObject, error) {
+func (s *Server) GetPersonMakerspaceStatus(
+	ctx context.Context,
+	request openapi.GetPersonMakerspaceStatusRequestObject,
+) (openapi.GetPersonMakerspaceStatusResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -747,7 +975,10 @@ func (s *Server) GetPersonMakerspaceStatus(ctx context.Context, request openapi.
 	return openapi.GetPersonMakerspaceStatus200JSONResponse(response), nil
 }
 
-func (s *Server) CreatePerson(ctx context.Context, request openapi.CreatePersonRequestObject) (openapi.CreatePersonResponseObject, error) {
+func (s *Server) CreatePerson(
+	ctx context.Context,
+	request openapi.CreatePersonRequestObject,
+) (openapi.CreatePersonResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -772,7 +1003,10 @@ func (s *Server) CreatePerson(ctx context.Context, request openapi.CreatePersonR
 	}, nil
 }
 
-func (s *Server) DeletePerson(ctx context.Context, request openapi.DeletePersonRequestObject) (openapi.DeletePersonResponseObject, error) {
+func (s *Server) DeletePerson(
+	ctx context.Context,
+	request openapi.DeletePersonRequestObject,
+) (openapi.DeletePersonResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -786,7 +1020,10 @@ func (s *Server) DeletePerson(ctx context.Context, request openapi.DeletePersonR
 	return openapi.DeletePerson204Response{}, nil
 }
 
-func (s *Server) GetPerson(ctx context.Context, request openapi.GetPersonRequestObject) (openapi.GetPersonResponseObject, error) {
+func (s *Server) GetPerson(
+	ctx context.Context,
+	request openapi.GetPersonRequestObject,
+) (openapi.GetPersonResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -802,7 +1039,10 @@ func (s *Server) GetPerson(ctx context.Context, request openapi.GetPersonRequest
 	return openapi.GetPerson200JSONResponse(response), nil
 }
 
-func (s *Server) UpdatePerson(ctx context.Context, request openapi.UpdatePersonRequestObject) (openapi.UpdatePersonResponseObject, error) {
+func (s *Server) UpdatePerson(
+	ctx context.Context,
+	request openapi.UpdatePersonRequestObject,
+) (openapi.UpdatePersonResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -826,7 +1066,10 @@ func (s *Server) UpdatePerson(ctx context.Context, request openapi.UpdatePersonR
 	return openapi.UpdatePerson200JSONResponse(response), nil
 }
 
-func (s *Server) PutPersonProfileImage(ctx context.Context, request openapi.PutPersonProfileImageRequestObject) (openapi.PutPersonProfileImageResponseObject, error) {
+func (s *Server) PutPersonProfileImage(
+	ctx context.Context,
+	request openapi.PutPersonProfileImageRequestObject,
+) (openapi.PutPersonProfileImageResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -841,14 +1084,26 @@ func (s *Server) PutPersonProfileImage(ctx context.Context, request openapi.PutP
 	if source == "terminal_capture" {
 		return nil, invalidRequest("terminal_capture is reserved for visitor enrollment")
 	}
-	person, err := s.people.PutProfileImage(ctx, principal, request.PersonId, request.Params.ExpectedVersion, request.Params.XFileName, source, request.Body, requestIDPointer(ctx))
+	person, err := s.people.PutProfileImage(
+		ctx,
+		principal,
+		request.PersonId,
+		request.Params.ExpectedVersion,
+		request.Params.XFileName,
+		source,
+		request.Body,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.PutPersonProfileImage200JSONResponse(profileImageDTO(person)), nil
 }
 
-func (s *Server) GetPersonProfileImage(ctx context.Context, request openapi.GetPersonProfileImageRequestObject) (openapi.GetPersonProfileImageResponseObject, error) {
+func (s *Server) GetPersonProfileImage(
+	ctx context.Context,
+	request openapi.GetPersonProfileImageRequestObject,
+) (openapi.GetPersonProfileImageResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -863,7 +1118,10 @@ func (s *Server) GetPersonProfileImage(ctx context.Context, request openapi.GetP
 	}, nil
 }
 
-func (s *Server) DeletePersonProfileImage(ctx context.Context, request openapi.DeletePersonProfileImageRequestObject) (openapi.DeletePersonProfileImageResponseObject, error) {
+func (s *Server) DeletePersonProfileImage(
+	ctx context.Context,
+	request openapi.DeletePersonProfileImageRequestObject,
+) (openapi.DeletePersonProfileImageResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -877,7 +1135,10 @@ func (s *Server) DeletePersonProfileImage(ctx context.Context, request openapi.D
 	return openapi.DeletePersonProfileImage204Response{}, nil
 }
 
-func (s *Server) CreatePersonAccount(ctx context.Context, request openapi.CreatePersonAccountRequestObject) (openapi.CreatePersonAccountResponseObject, error) {
+func (s *Server) CreatePersonAccount(
+	ctx context.Context,
+	request openapi.CreatePersonAccountRequestObject,
+) (openapi.CreatePersonAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -892,7 +1153,13 @@ func (s *Server) CreatePersonAccount(ctx context.Context, request openapi.Create
 	}
 	var account accounts.Account
 	if loginEmail == nil {
-		account, err = s.accounts.CreateWithoutIdentity(ctx, principal, request.PersonId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+		account, err = s.accounts.CreateWithoutIdentity(
+			ctx,
+			principal,
+			request.PersonId,
+			request.Body.ExpectedVersion,
+			requestIDPointer(ctx),
+		)
 	} else {
 		account, err = s.accounts.Create(ctx, principal, request.PersonId, *loginEmail, request.Body.ExpectedVersion, requestIDPointer(ctx))
 	}
@@ -900,11 +1167,16 @@ func (s *Server) CreatePersonAccount(ctx context.Context, request openapi.Create
 		return nil, err
 	}
 	return openapi.CreatePersonAccount201JSONResponse{
-		Body: accountDTO(account), Headers: openapi.CreatePersonAccount201ResponseHeaders{Location: apiBasePath + "/accounts/" + account.ID.String()},
+		Body: accountDTO(
+			account,
+		), Headers: openapi.CreatePersonAccount201ResponseHeaders{Location: apiBasePath + "/accounts/" + account.ID.String()},
 	}, nil
 }
 
-func (s *Server) ListPermissions(ctx context.Context, _ openapi.ListPermissionsRequestObject) (openapi.ListPermissionsResponseObject, error) {
+func (s *Server) ListPermissions(
+	ctx context.Context,
+	_ openapi.ListPermissionsRequestObject,
+) (openapi.ListPermissionsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -915,12 +1187,18 @@ func (s *Server) ListPermissions(ctx context.Context, _ openapi.ListPermissionsR
 	}
 	items := make([]openapi.Permission, 0, len(definitions))
 	for _, definition := range definitions {
-		items = append(items, openapi.Permission{Id: openapi.PermissionId(definition.ID), Description: definition.Description})
+		items = append(
+			items,
+			openapi.Permission{Id: openapi.PermissionId(definition.ID), Description: definition.Description},
+		)
 	}
 	return openapi.ListPermissions200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) ListRoles(ctx context.Context, request openapi.ListRolesRequestObject) (openapi.ListRolesResponseObject, error) {
+func (s *Server) ListRoles(
+	ctx context.Context,
+	request openapi.ListRolesRequestObject,
+) (openapi.ListRolesResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -939,7 +1217,10 @@ func (s *Server) ListRoles(ctx context.Context, request openapi.ListRolesRequest
 	return openapi.ListRoles200JSONResponse(rolePageDTO(page)), nil
 }
 
-func (s *Server) EvaluateRolePermissions(ctx context.Context, request openapi.EvaluateRolePermissionsRequestObject) (openapi.EvaluateRolePermissionsResponseObject, error) {
+func (s *Server) EvaluateRolePermissions(
+	ctx context.Context,
+	request openapi.EvaluateRolePermissionsRequestObject,
+) (openapi.EvaluateRolePermissionsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -973,7 +1254,10 @@ func (s *Server) EvaluateRolePermissions(ctx context.Context, request openapi.Ev
 	return openapi.EvaluateRolePermissions200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateRole(ctx context.Context, request openapi.CreateRoleRequestObject) (openapi.CreateRoleResponseObject, error) {
+func (s *Server) CreateRole(
+	ctx context.Context,
+	request openapi.CreateRoleRequestObject,
+) (openapi.CreateRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -991,16 +1275,31 @@ func (s *Server) CreateRole(ctx context.Context, request openapi.CreateRoleReque
 		laborordnungMode = string(*request.Body.LaborordnungMode)
 	}
 	supervisorDashboard := request.Body.SupervisorDashboard != nil && *request.Body.SupervisorDashboard
-	role, err := s.roles.CreateWithBehaviors(ctx, principal, request.Body.Name, nullableStringPointer(request.Body.Description), grants, profileImageRequired, laborordnungMode, supervisorDashboard, requestIDPointer(ctx))
+	role, err := s.roles.CreateWithBehaviors(
+		ctx,
+		principal,
+		request.Body.Name,
+		nullableStringPointer(request.Body.Description),
+		grants,
+		profileImageRequired,
+		laborordnungMode,
+		supervisorDashboard,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateRole201JSONResponse{
-		Body: roleDTO(role), Headers: openapi.CreateRole201ResponseHeaders{Location: apiBasePath + "/roles/" + role.ID.String()},
+		Body: roleDTO(
+			role,
+		), Headers: openapi.CreateRole201ResponseHeaders{Location: apiBasePath + "/roles/" + role.ID.String()},
 	}, nil
 }
 
-func (s *Server) DeleteRole(ctx context.Context, request openapi.DeleteRoleRequestObject) (openapi.DeleteRoleResponseObject, error) {
+func (s *Server) DeleteRole(
+	ctx context.Context,
+	request openapi.DeleteRoleRequestObject,
+) (openapi.DeleteRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -1014,7 +1313,10 @@ func (s *Server) DeleteRole(ctx context.Context, request openapi.DeleteRoleReque
 	return openapi.DeleteRole204Response{}, nil
 }
 
-func (s *Server) GetRole(ctx context.Context, request openapi.GetRoleRequestObject) (openapi.GetRoleResponseObject, error) {
+func (s *Server) GetRole(
+	ctx context.Context,
+	request openapi.GetRoleRequestObject,
+) (openapi.GetRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -1026,7 +1328,10 @@ func (s *Server) GetRole(ctx context.Context, request openapi.GetRoleRequestObje
 	return openapi.GetRole200JSONResponse(roleDTO(role)), nil
 }
 
-func (s *Server) UpdateRole(ctx context.Context, request openapi.UpdateRoleRequestObject) (openapi.UpdateRoleResponseObject, error) {
+func (s *Server) UpdateRole(
+	ctx context.Context,
+	request openapi.UpdateRoleRequestObject,
+) (openapi.UpdateRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -1034,16 +1339,29 @@ func (s *Server) UpdateRole(ctx context.Context, request openapi.UpdateRoleReque
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	role, err := s.roles.UpdateWithBehaviors(ctx, principal, request.RoleId, request.Body.ExpectedVersion, request.Body.Name,
-		request.Body.Description.IsSpecified(), nullableStringPointer(request.Body.Description), request.Body.ProfileImageRequired,
-		stringPointer(request.Body.LaborordnungMode), request.Body.SupervisorDashboard, requestIDPointer(ctx))
+	role, err := s.roles.UpdateWithBehaviors(
+		ctx,
+		principal,
+		request.RoleId,
+		request.Body.ExpectedVersion,
+		request.Body.Name,
+		request.Body.Description.IsSpecified(),
+		nullableStringPointer(request.Body.Description),
+		request.Body.ProfileImageRequired,
+		stringPointer(request.Body.LaborordnungMode),
+		request.Body.SupervisorDashboard,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateRole200JSONResponse(roleDTO(role)), nil
 }
 
-func (s *Server) ReplaceRolePermissions(ctx context.Context, request openapi.ReplaceRolePermissionsRequestObject) (openapi.ReplaceRolePermissionsResponseObject, error) {
+func (s *Server) ReplaceRolePermissions(
+	ctx context.Context,
+	request openapi.ReplaceRolePermissionsRequestObject,
+) (openapi.ReplaceRolePermissionsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -1055,14 +1373,26 @@ func (s *Server) ReplaceRolePermissions(ctx context.Context, request openapi.Rep
 	for _, grant := range request.Body.PermissionGrants {
 		grants = append(grants, grantDomain(grant))
 	}
-	role, err := s.roles.ReplacePermissions(ctx, principal, request.RoleId, request.Body.ExpectedVersion, grants, requestIDPointer(ctx))
+	role, err := s.roles.ReplacePermissions(
+		ctx,
+		principal,
+		request.RoleId,
+		request.Body.ExpectedVersion,
+		grants,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.ReplaceRolePermissions200JSONResponse(roleDTO(role)), nil
 }
 
-func (s *Server) personDTO(ctx context.Context, principal authorization.Principal, person people.Person, includeContact, includeAccount bool) (openapi.Person, error) {
+func (s *Server) personDTO(
+	ctx context.Context,
+	principal authorization.Principal,
+	person people.Person,
+	includeContact, includeAccount bool,
+) (openapi.Person, error) {
 	required, err := s.people.RequiresProfileImage(ctx, person.ID)
 	if err != nil {
 		return openapi.Person{}, err
@@ -1077,7 +1407,12 @@ func (s *Server) personDTO(ctx context.Context, principal authorization.Principa
 	return personDTOWithRelated(principal, person, includeContact, includeAccount, required, account), nil
 }
 
-func personDTOWithRelated(principal authorization.Principal, person people.Person, includeContact, includeAccount, profileImageRequired bool, account *accounts.Account) openapi.Person {
+func personDTOWithRelated(
+	principal authorization.Principal,
+	person people.Person,
+	includeContact, includeAccount, profileImageRequired bool,
+	account *accounts.Account,
+) openapi.Person {
 	roleSummaries := make([]openapi.RoleSummary, 0, len(person.Roles))
 	for _, role := range person.Roles {
 		roleSummaries = append(roleSummaries, roleSummaryDTO(role))
@@ -1088,16 +1423,25 @@ func personDTOWithRelated(principal authorization.Principal, person people.Perso
 		ProfileImageRequired: &profileImageRequired, Roles: roleSummaries,
 	}
 	if includeContact {
-		response.Email = nullablePointer[string, openapi.Email](person.Email, func(value string) openapi.Email { return openapi.Email(value) })
+		response.Email = nullablePointer[string, openapi.Email](
+			person.Email,
+			func(value string) openapi.Email { return openapi.Email(value) },
+		)
 		response.Phone = nullablePointer[string](person.Phone, func(value string) string { return value })
-		response.PhotoReference = nullablePointer[string](person.PhotoReference, func(value string) string { return value })
+		response.PhotoReference = nullablePointer[string](
+			person.PhotoReference,
+			func(value string) string { return value },
+		)
 		if person.ProfileImageFileID == nil || person.ProfileImageSource == nil {
 			response.ProfileImage = nullable.NewNullNullable[openapi.ProfileImage]()
 		} else {
 			response.ProfileImage = nullable.NewNullableWithValue(profileImageDTO(person))
 		}
 		if principal.Has(authorization.PeopleReadMatriculation) {
-			response.MatriculationNumber = nullablePointer[string](person.MatriculationNumber, func(value string) string { return value })
+			response.MatriculationNumber = nullablePointer[string](
+				person.MatriculationNumber,
+				func(value string) string { return value },
+			)
 		}
 	}
 	if includeAccount && principal.Has(authorization.AccountsRead) {
@@ -1122,20 +1466,32 @@ func accountDTO(account accounts.Account) openapi.Account {
 	for _, identity := range account.AuthIdentities {
 		identities = append(identities, openapi.AuthIdentitySummary{
 			Id: identity.ID, Kind: openapi.AuthIdentitySummaryKind(identity.Kind), CreatedAt: identity.CreatedAt, ProviderSlug: identity.ProviderSlug,
-			DisplayIdentifier: nullablePointer[string](identity.DisplayIdentifier, func(value string) string { return value }),
-			VerifiedAt:        nullablePointer[time.Time](identity.VerifiedAt, func(value time.Time) time.Time { return value }),
-			DisabledAt:        nullablePointer[time.Time](identity.DisabledAt, func(value time.Time) time.Time { return value }),
-			Usable:            identity.Usable,
+			DisplayIdentifier: nullablePointer[string](
+				identity.DisplayIdentifier,
+				func(value string) string { return value },
+			),
+			VerifiedAt: nullablePointer[time.Time](
+				identity.VerifiedAt,
+				func(value time.Time) time.Time { return value },
+			),
+			DisabledAt: nullablePointer[time.Time](
+				identity.DisabledAt,
+				func(value time.Time) time.Time { return value },
+			),
+			Usable: identity.Usable,
 		})
 	}
 	return openapi.Account{
 		Id: account.ID, PersonId: account.PersonID, Status: openapi.AccountStatus(account.Status),
-		ProvisioningSource:   openapi.AccountProvisioningSource(account.ProvisioningSource),
-		FirstAuthenticatedAt: nullablePointer[time.Time](account.FirstAuthenticatedAt, func(value time.Time) time.Time { return value }),
-		PasswordStatus:       openapi.PasswordStatus(account.PasswordStatus),
-		LoginEmail:           optionalLoginEmail(account.LoginEmail),
-		AuthIdentities:       identities,
-		Version:              account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
+		ProvisioningSource: openapi.AccountProvisioningSource(account.ProvisioningSource),
+		FirstAuthenticatedAt: nullablePointer[time.Time](
+			account.FirstAuthenticatedAt,
+			func(value time.Time) time.Time { return value },
+		),
+		PasswordStatus: openapi.PasswordStatus(account.PasswordStatus),
+		LoginEmail:     optionalLoginEmail(account.LoginEmail),
+		AuthIdentities: identities,
+		Version:        account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
 	}
 }
 
@@ -1150,7 +1506,9 @@ func accountSummaryDTO(account accounts.Account) openapi.AccountSummary {
 	full := accountDTO(account)
 	return openapi.AccountSummary{
 		Id: full.Id, PersonId: full.PersonId, Status: full.Status, PasswordStatus: full.PasswordStatus,
-		ProvisioningSource: openapi.AccountSummaryProvisioningSource(full.ProvisioningSource), FirstAuthenticatedAt: full.FirstAuthenticatedAt,
+		ProvisioningSource: openapi.AccountSummaryProvisioningSource(
+			full.ProvisioningSource,
+		), FirstAuthenticatedAt: full.FirstAuthenticatedAt,
 		LoginEmail: full.LoginEmail, AuthIdentities: full.AuthIdentities, Version: full.Version,
 	}
 }
@@ -1189,7 +1547,10 @@ func rolePageDTO(page roles.Page) openapi.RolePage {
 	for _, role := range page.Items {
 		items = append(items, roleDTO(role))
 	}
-	return openapi.RolePage{Items: items, NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value })}
+	return openapi.RolePage{
+		Items:      items,
+		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
+	}
 }
 
 func auditPageDTO(page audit.Page) openapi.AuditEventPage {
@@ -1199,16 +1560,31 @@ func auditPageDTO(page audit.Page) openapi.AuditEventPage {
 			Id: event.ID, Action: event.Action, ResourceType: event.ResourceType,
 			OccurredAt: event.OccurredAt, ChangedFields: event.ChangedFields,
 			Metadata: event.Metadata, ResolvedMetadata: &event.ResolvedMetadata, Source: openapi.AuditEventSource(event.Source),
-			ActorType:           openapi.AuditActorType(event.ActorType),
-			ActorAccountId:      nullablePointer[openapi.UUIDv7](event.ActorAccountID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
-			ResourceId:          nullablePointer[openapi.UUIDv7](event.ResourceID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
-			RequestId:           nullablePointer[string](event.RequestID, func(value string) string { return value }),
-			ActorDisplayName:    nullablePointer[string](event.ActorDisplayName, func(value string) string { return value }),
-			ResourceDisplayName: nullablePointer[string](event.ResourceDisplayName, func(value string) string { return value }),
+			ActorType: openapi.AuditActorType(event.ActorType),
+			ActorAccountId: nullablePointer[openapi.UUIDv7](
+				event.ActorAccountID,
+				func(value uuid.UUID) openapi.UUIDv7 { return value },
+			),
+			ResourceId: nullablePointer[openapi.UUIDv7](
+				event.ResourceID,
+				func(value uuid.UUID) openapi.UUIDv7 { return value },
+			),
+			RequestId: nullablePointer[string](event.RequestID, func(value string) string { return value }),
+			ActorDisplayName: nullablePointer[string](
+				event.ActorDisplayName,
+				func(value string) string { return value },
+			),
+			ResourceDisplayName: nullablePointer[string](
+				event.ResourceDisplayName,
+				func(value string) string { return value },
+			),
 		}
 		items = append(items, response)
 	}
-	return openapi.AuditEventPage{Items: items, NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value })}
+	return openapi.AuditEventPage{
+		Items:      items,
+		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
+	}
 }
 
 func permissionStrings(values []openapi.PermissionId) []string {

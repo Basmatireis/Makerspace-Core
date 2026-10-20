@@ -75,7 +75,15 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	if _, err := accountQueries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"}); err != nil {
 		return uuid.Nil, err
 	}
-	identity, err := accountQueries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: loginDisplay, IdentifierNormalized: loginNormalized})
+	identity, err := accountQueries.CreateAuthIdentity(
+		ctx,
+		accountsdb.CreateAuthIdentityParams{
+			ID:                   uuid.Must(uuid.NewV7()),
+			AccountID:            accountID,
+			IdentifierDisplay:    loginDisplay,
+			IdentifierNormalized: loginNormalized,
+		},
+	)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -155,7 +163,10 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: account.AuthIdentityID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
-	present, err := peopleQueries.IsPersonRoleAssigned(ctx, peopledb.IsPersonRoleAssignedParams{PersonID: account.PersonID, RoleID: master.ID})
+	present, err := peopleQueries.IsPersonRoleAssigned(
+		ctx,
+		peopledb.IsPersonRoleAssignedParams{PersonID: account.PersonID, RoleID: master.ID},
+	)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -254,7 +265,10 @@ func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string
 	return accountID, nil
 }
 
-func (s *Service) Cleanup(ctx context.Context, sessionBefore, auditBefore, eventSignupBefore time.Time) (sessions, resets, auditEvents, eventAssignments int64, err error) {
+func (s *Service) Cleanup(
+	ctx context.Context,
+	sessionBefore, auditBefore, eventSignupBefore time.Time,
+) (sessions, resets, auditEvents, eventAssignments int64, err error) {
 	authQueries := authdb.New(s.pool)
 	sessions, err = authQueries.DeleteExpiredSessions(ctx, sessionBefore)
 	if err != nil {

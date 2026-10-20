@@ -203,7 +203,11 @@ func (s *Store) SaveIdentity(ctx context.Context, value Identity) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO metadata(key,value) VALUES('identity',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, encrypted)
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO metadata(key,value) VALUES('identity',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+		encrypted,
+	)
 	return err
 }
 
@@ -236,7 +240,11 @@ func (s *Store) SaveConfiguration(ctx context.Context, value Configuration) erro
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO metadata(key,value) VALUES('configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, encrypted)
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO metadata(key,value) VALUES('configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+		encrypted,
+	)
 	return err
 }
 
@@ -266,7 +274,17 @@ func (s *Store) Configuration(ctx context.Context) (*Configuration, error) {
 	return &value, nil
 }
 
-func (s *Store) Enqueue(ctx context.Context, assignmentID uuid.UUID, configurationVersion int64, kind string, payload json.RawMessage, runID *uuid.UUID, historyComplete bool, externalPrintID *string, reportRevision *int64) (QueuedEvent, error) {
+func (s *Store) Enqueue(
+	ctx context.Context,
+	assignmentID uuid.UUID,
+	configurationVersion int64,
+	kind string,
+	payload json.RawMessage,
+	runID *uuid.UUID,
+	historyComplete bool,
+	externalPrintID *string,
+	reportRevision *int64,
+) (QueuedEvent, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return QueuedEvent{}, err
@@ -277,13 +295,20 @@ func (s *Store) Enqueue(ctx context.Context, assignmentID uuid.UUID, configurati
 		return QueuedEvent{}, err
 	}
 	if queued >= maxOutboxEvents {
-		return QueuedEvent{}, errors.New("connector event queue is full; printer polling is paused until delivery resumes")
+		return QueuedEvent{}, errors.New(
+			"connector event queue is full; printer polling is paused until delivery resumes",
+		)
 	}
 	var sequence int64
-	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, assignmentID.String()).Scan(&sequence)
+	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, assignmentID.String()).
+		Scan(&sequence)
 	if errors.Is(err, sql.ErrNoRows) {
 		sequence = 1
-		_, err = tx.ExecContext(ctx, `INSERT INTO assignment_sequences(assignment_id,next_sequence) VALUES(?,2)`, assignmentID.String())
+		_, err = tx.ExecContext(
+			ctx,
+			`INSERT INTO assignment_sequences(assignment_id,next_sequence) VALUES(?,2)`,
+			assignmentID.String(),
+		)
 	} else if err == nil {
 		_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+1, assignmentID.String())
 	}
@@ -291,12 +316,40 @@ func (s *Store) Enqueue(ctx context.Context, assignmentID uuid.UUID, configurati
 		return QueuedEvent{}, err
 	}
 	now := time.Now().UTC()
-	event := QueuedEvent{EventID: uuid.Must(uuid.NewV7()), AssignmentID: assignmentID, RunID: runID, HistoryComplete: historyComplete, ConfigurationVersion: configurationVersion, Sequence: sequence, OccurredAt: now, Kind: kind, ExternalPrintID: externalPrintID, ReportRevision: reportRevision, Payload: payload}
+	event := QueuedEvent{
+		EventID:              uuid.Must(uuid.NewV7()),
+		AssignmentID:         assignmentID,
+		RunID:                runID,
+		HistoryComplete:      historyComplete,
+		ConfigurationVersion: configurationVersion,
+		Sequence:             sequence,
+		OccurredAt:           now,
+		Kind:                 kind,
+		ExternalPrintID:      externalPrintID,
+		ReportRevision:       reportRevision,
+		Payload:              payload,
+	}
 	var runValue any
 	if runID != nil {
 		runValue = runID.String()
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, event.EventID.String(), assignmentID.String(), configurationVersion, sequence, now.Format(time.RFC3339Nano), kind, runValue, historyComplete, externalPrintID, reportRevision, []byte(payload), now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		event.EventID.String(),
+		assignmentID.String(),
+		configurationVersion,
+		sequence,
+		now.Format(time.RFC3339Nano),
+		kind,
+		runValue,
+		historyComplete,
+		externalPrintID,
+		reportRevision,
+		[]byte(payload),
+		now.Format(time.RFC3339Nano),
+		now.Format(time.RFC3339Nano),
+	)
 	if err != nil {
 		return QueuedEvent{}, err
 	}
@@ -317,7 +370,10 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 	defer tx.Rollback()
 	for _, event := range events {
 		var attempt int
-		if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, event.EventID.String()).Scan(&attempt); errors.Is(err, sql.ErrNoRows) {
+		if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, event.EventID.String()).Scan(&attempt); errors.Is(
+			err,
+			sql.ErrNoRows,
+		) {
 			continue
 		} else if err != nil {
 			return err
@@ -326,7 +382,12 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 		if delay > 5*time.Minute {
 			delay = 5 * time.Minute
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE outbox SET attempt_count=attempt_count+1,next_attempt_at=? WHERE event_id=? AND state='pending'`, time.Now().UTC().Add(delay).Format(time.RFC3339Nano), event.EventID.String())
+		_, err = tx.ExecContext(
+			ctx,
+			`UPDATE outbox SET attempt_count=attempt_count+1,next_attempt_at=? WHERE event_id=? AND state='pending'`,
+			time.Now().UTC().Add(delay).Format(time.RFC3339Nano),
+			event.EventID.String(),
+		)
 		if err != nil {
 			return err
 		}
@@ -335,7 +396,12 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 }
 
 func (s *Store) Pending(ctx context.Context, limit int) ([]QueuedEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload FROM outbox WHERE state='pending' AND next_attempt_at<=? ORDER BY created_at LIMIT ?`, time.Now().UTC().Format(time.RFC3339Nano), limit)
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload FROM outbox WHERE state='pending' AND next_attempt_at<=? ORDER BY created_at LIMIT ?`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -390,10 +456,18 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 		case "accepted", "duplicate":
 			_, err = tx.ExecContext(ctx, `DELETE FROM outbox WHERE event_id=?`, receipt.EventID.String())
 		case "rejected":
-			_, err = tx.ExecContext(ctx, `UPDATE outbox SET state='quarantined',reason_code=? WHERE event_id=?`, receipt.ReasonCode, receipt.EventID.String())
+			_, err = tx.ExecContext(
+				ctx,
+				`UPDATE outbox SET state='quarantined',reason_code=? WHERE event_id=?`,
+				receipt.ReasonCode,
+				receipt.EventID.String(),
+			)
 		case "retry":
 			var attempt int
-			if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, receipt.EventID.String()).Scan(&attempt); errors.Is(err, sql.ErrNoRows) {
+			if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, receipt.EventID.String()).Scan(&attempt); errors.Is(
+				err,
+				sql.ErrNoRows,
+			) {
 				continue
 			} else if err != nil {
 				return err
@@ -402,7 +476,12 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 			if delay > 5*time.Minute {
 				delay = 5 * time.Minute
 			}
-			_, err = tx.ExecContext(ctx, `UPDATE outbox SET attempt_count=attempt_count+1,next_attempt_at=? WHERE event_id=? AND state='pending'`, time.Now().UTC().Add(delay).Format(time.RFC3339Nano), receipt.EventID.String())
+			_, err = tx.ExecContext(
+				ctx,
+				`UPDATE outbox SET attempt_count=attempt_count+1,next_attempt_at=? WHERE event_id=? AND state='pending'`,
+				time.Now().UTC().Add(delay).Format(time.RFC3339Nano),
+				receipt.EventID.String(),
+			)
 		default:
 			return fmt.Errorf("unknown event receipt status %q", receipt.Status)
 		}
@@ -414,6 +493,7 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 }
 
 func (s *Store) QueueCounts(ctx context.Context) (pending, quarantined int64, err error) {
-	err = s.db.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`).Scan(&pending, &quarantined)
+	err = s.db.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`).
+		Scan(&pending, &quarantined)
 	return
 }

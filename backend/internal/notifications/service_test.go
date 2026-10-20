@@ -38,7 +38,8 @@ func TestTransactionalMessagesUseConfiguredApplicationName(t *testing.T) {
 	if err := service.SendPasswordReset(context.Background(), "member@example.test", "ABC23456", time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(mail.message.Subject, "Open Workshop Portal") || !strings.Contains(mail.message.Text, "Open Workshop Portal") {
+	if !strings.Contains(mail.message.Subject, "Open Workshop Portal") ||
+		!strings.Contains(mail.message.Text, "Open Workshop Portal") {
 		t.Fatalf("configured name missing from message: %#v", mail.message)
 	}
 	if strings.Contains(mail.message.Subject, "Makerspace") || strings.Contains(mail.message.Text, "Makerspace") {
@@ -55,7 +56,8 @@ func TestSecurityNoticeReplacesLegacyMessageName(t *testing.T) {
 	if err := service.SendSecurityNotice(context.Background(), "member@example.test", "Makerspace PIN configured", "Your Makerspace PIN changed."); err != nil {
 		t.Fatal(err)
 	}
-	if mail.message.Subject != "Open Workshop Portal PIN configured" || mail.message.Text != "Your Open Workshop Portal PIN changed." {
+	if mail.message.Subject != "Open Workshop Portal PIN configured" ||
+		mail.message.Text != "Your Open Workshop Portal PIN changed." {
 		t.Fatalf("unexpected security notice: %#v", mail.message)
 	}
 }

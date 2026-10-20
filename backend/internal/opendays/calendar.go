@@ -57,7 +57,11 @@ func newHolidayProvider(cfg config.Config) (HolidayProvider, error) {
 		provider := countries.NewATProvider()
 		providerSubdivision := strings.TrimPrefix(subdivision, "AT-")
 		if !containsString(provider.GetSupportedSubdivisions(), providerSubdivision) {
-			return nil, fmt.Errorf("validate Open Days holiday jurisdiction %s/%s: unsupported subdivision", country, subdivision)
+			return nil, fmt.Errorf(
+				"validate Open Days holiday jurisdiction %s/%s: unsupported subdivision",
+				country,
+				subdivision,
+			)
 		}
 		return &austriaHolidayProvider{provider: provider, subdivision: providerSubdivision, language: language}, nil
 	}
@@ -79,12 +83,18 @@ func (p *austriaHolidayProvider) Between(start, end time.Time) ([]Holiday, error
 	for year := start.Year(); year <= end.Year(); year++ {
 		for date, value := range p.provider.LoadHolidays(year) {
 			if !date.Before(start) && !date.After(end) {
-				items = append(items, Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date})
+				items = append(
+					items,
+					Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date},
+				)
 			}
 		}
 		for date, value := range p.provider.GetRegionalHolidays(year, []string{p.subdivision}) {
 			if !date.Before(start) && !date.After(end) {
-				items = append(items, Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date})
+				items = append(
+					items,
+					Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date},
+				)
 			}
 		}
 	}
@@ -159,13 +169,20 @@ func (s *Service) ListAcademicBreaks(ctx context.Context, p authorization.Princi
 	return items, nil
 }
 
-func (s *Service) CalendarContext(ctx context.Context, principal authorization.Principal, periodID uuid.UUID) (CalendarContext, error) {
+func (s *Service) CalendarContext(
+	ctx context.Context,
+	principal authorization.Principal,
+	periodID uuid.UUID,
+) (CalendarContext, error) {
 	period, err := s.GetPeriod(ctx, principal, periodID)
 	if err != nil {
 		return CalendarContext{}, err
 	}
 	q := opendaysdb.New(s.pool)
-	breaks, err := q.ListAcademicBreaksInRange(ctx, opendaysdb.ListAcademicBreaksInRangeParams{EndsOn: pgDate(period.EndsOn), StartsOn: pgDate(period.StartsOn)})
+	breaks, err := q.ListAcademicBreaksInRange(
+		ctx,
+		opendaysdb.ListAcademicBreaksInRangeParams{EndsOn: pgDate(period.EndsOn), StartsOn: pgDate(period.StartsOn)},
+	)
 	if err != nil {
 		return CalendarContext{}, err
 	}
@@ -173,21 +190,53 @@ func (s *Service) CalendarContext(ctx context.Context, principal authorization.P
 	if err != nil {
 		return CalendarContext{}, err
 	}
-	result := CalendarContext{TimeZone: s.location.String(), CountryCode: valueOr(s.cfg.HolidayCountry, "AT"), SubdivisionCode: valueOr(s.cfg.HolidaySubdivision, "AT-6"), LanguageCode: valueOr(s.cfg.HolidayLanguage, "de"), Entries: []CalendarEntry{}, AcademicBreaks: []AcademicBreak{}}
+	result := CalendarContext{
+		TimeZone:        s.location.String(),
+		CountryCode:     valueOr(s.cfg.HolidayCountry, "AT"),
+		SubdivisionCode: valueOr(s.cfg.HolidaySubdivision, "AT-6"),
+		LanguageCode:    valueOr(s.cfg.HolidayLanguage, "de"),
+		Entries:         []CalendarEntry{},
+		AcademicBreaks:  []AcademicBreak{},
+	}
 	for _, holiday := range holidays {
 		date := dateOnly(holiday.Date)
-		result.Entries = append(result.Entries, CalendarEntry{Name: holiday.Name, Source: "holidayLibrary", Category: "publicHoliday", StartsOn: date, EndsOn: date})
+		result.Entries = append(
+			result.Entries,
+			CalendarEntry{
+				Name:     holiday.Name,
+				Source:   "holidayLibrary",
+				Category: "publicHoliday",
+				StartsOn: date,
+				EndsOn:   date,
+			},
+		)
 	}
 	for _, row := range breaks {
 		item := breakFromRow(row)
 		result.AcademicBreaks = append(result.AcademicBreaks, item)
 		id := item.ID
-		result.Entries = append(result.Entries, CalendarEntry{ID: &id, Name: item.Name, Source: "manual", Category: "academicBreak", StartsOn: item.StartsOn, EndsOn: item.EndsOn})
+		result.Entries = append(
+			result.Entries,
+			CalendarEntry{
+				ID:       &id,
+				Name:     item.Name,
+				Source:   "manual",
+				Category: "academicBreak",
+				StartsOn: item.StartsOn,
+				EndsOn:   item.EndsOn,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) CreateAcademicBreak(ctx context.Context, p authorization.Principal, name string, start, end time.Time, requestID *uuid.UUID) (AcademicBreak, error) {
+func (s *Service) CreateAcademicBreak(
+	ctx context.Context,
+	p authorization.Principal,
+	name string,
+	start, end time.Time,
+	requestID *uuid.UUID,
+) (AcademicBreak, error) {
 	if !p.Has(authorization.OpenDaysManage) {
 		return AcademicBreak{}, apperror.PermissionDenied
 	}
@@ -201,7 +250,8 @@ func (s *Service) CreateAcademicBreak(ctx context.Context, p authorization.Princ
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
-	row, err := opendaysdb.New(tx).CreateAcademicBreak(ctx, opendaysdb.CreateAcademicBreakParams{ID: id, Name: name, StartsOn: pgDate(start), EndsOn: pgDate(end)})
+	row, err := opendaysdb.New(tx).
+		CreateAcademicBreak(ctx, opendaysdb.CreateAcademicBreakParams{ID: id, Name: name, StartsOn: pgDate(start), EndsOn: pgDate(end)})
 	if err != nil {
 		return AcademicBreak{}, databaseError(err)
 	}
@@ -215,7 +265,15 @@ func (s *Service) CreateAcademicBreak(ctx context.Context, p authorization.Princ
 	return breakFromRow(row), nil
 }
 
-func (s *Service) UpdateAcademicBreak(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name string, start, end time.Time, requestID *uuid.UUID) (AcademicBreak, error) {
+func (s *Service) UpdateAcademicBreak(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	start, end time.Time,
+	requestID *uuid.UUID,
+) (AcademicBreak, error) {
 	if !p.Has(authorization.OpenDaysManage) {
 		return AcademicBreak{}, apperror.PermissionDenied
 	}
@@ -242,7 +300,16 @@ func (s *Service) UpdateAcademicBreak(ctx context.Context, p authorization.Princ
 	if current.Version != expected {
 		return AcademicBreak{}, apperror.StaleWrite
 	}
-	row, err := q.UpdateAcademicBreak(ctx, opendaysdb.UpdateAcademicBreakParams{Name: name, StartsOn: pgDate(start), EndsOn: pgDate(end), ID: id, ExpectedVersion: expected})
+	row, err := q.UpdateAcademicBreak(
+		ctx,
+		opendaysdb.UpdateAcademicBreakParams{
+			Name:            name,
+			StartsOn:        pgDate(start),
+			EndsOn:          pgDate(end),
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if err != nil {
 		return AcademicBreak{}, databaseError(err)
 	}
@@ -255,7 +322,13 @@ func (s *Service) UpdateAcademicBreak(ctx context.Context, p authorization.Princ
 	return breakFromRow(row), nil
 }
 
-func (s *Service) DeleteAcademicBreak(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteAcademicBreak(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.OpenDaysManage) {
 		return apperror.PermissionDenied
 	}
@@ -299,7 +372,12 @@ type RecurrenceOccurrence struct {
 	Disposition, Reason    string
 }
 
-func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Principal, periodID uuid.UUID, input RecurrenceInput) ([]RecurrenceOccurrence, error) {
+func (s *Service) PreviewRecurrence(
+	ctx context.Context,
+	p authorization.Principal,
+	periodID uuid.UUID,
+	input RecurrenceInput,
+) ([]RecurrenceOccurrence, error) {
 	if !p.Has(authorization.OpenDaysManage) {
 		return nil, apperror.PermissionDenied
 	}
@@ -307,7 +385,8 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return nil, err
 	}
-	if input.Weekday < 1 || input.Weekday > 7 || input.EveryWeeks < 1 || input.EveryWeeks > 52 || input.EndsOn.Before(input.StartsOn) {
+	if input.Weekday < 1 || input.Weekday > 7 || input.EveryWeeks < 1 || input.EveryWeeks > 52 ||
+		input.EndsOn.Before(input.StartsOn) {
 		return nil, validation("recurrence range is invalid")
 	}
 	startClock, err := time.Parse("15:04", input.StartTime)
@@ -318,7 +397,8 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return nil, validation("endTime is invalid")
 	}
-	if !input.StartsOn.Equal(dateOnly(input.StartsOn)) || !dateWithin(input.StartsOn, period.StartsOn, period.EndsOn) || !dateWithin(input.EndsOn, period.StartsOn, period.EndsOn) {
+	if !input.StartsOn.Equal(dateOnly(input.StartsOn)) || !dateWithin(input.StartsOn, period.StartsOn, period.EndsOn) ||
+		!dateWithin(input.EndsOn, period.StartsOn, period.EndsOn) {
 		return nil, validation("recurrence must stay within the period")
 	}
 	q := opendaysdb.New(s.pool)
@@ -326,7 +406,10 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return nil, err
 	}
-	breaks, err := q.ListAcademicBreaksInRange(ctx, opendaysdb.ListAcademicBreaksInRangeParams{EndsOn: pgDate(input.EndsOn), StartsOn: pgDate(input.StartsOn)})
+	breaks, err := q.ListAcademicBreaksInRange(
+		ctx,
+		opendaysdb.ListAcademicBreaksInRangeParams{EndsOn: pgDate(input.EndsOn), StartsOn: pgDate(input.StartsOn)},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +427,9 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 	}
 	items := []RecurrenceOccurrence{}
 	for !date.After(dateOnly(input.EndsOn)) {
-		start, err := s.resolveWallTime(time.Date(date.Year(), date.Month(), date.Day(), startClock.Hour(), startClock.Minute(), 0, 0, time.UTC))
+		start, err := s.resolveWallTime(
+			time.Date(date.Year(), date.Month(), date.Day(), startClock.Hour(), startClock.Minute(), 0, 0, time.UTC),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -352,7 +437,18 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 		if !endClock.After(startClock) {
 			endDate = endDate.AddDate(0, 0, 1)
 		}
-		end, err := s.resolveWallTime(time.Date(endDate.Year(), endDate.Month(), endDate.Day(), endClock.Hour(), endClock.Minute(), 0, 0, time.UTC))
+		end, err := s.resolveWallTime(
+			time.Date(
+				endDate.Year(),
+				endDate.Month(),
+				endDate.Day(),
+				endClock.Hour(),
+				endClock.Minute(),
+				0,
+				0,
+				time.UTC,
+			),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -397,7 +493,18 @@ func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 	}
 	items := make([]PublicOpenDay, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, PublicOpenDay{ID: row.ID, Title: "Open Day", StartsAt: row.StartsAt, EndsAt: row.EndsAt, Status: row.Status, UpdatedAt: row.UpdatedAt, Version: row.Version})
+		items = append(
+			items,
+			PublicOpenDay{
+				ID:        row.ID,
+				Title:     "Open Day",
+				StartsAt:  row.StartsAt,
+				EndsAt:    row.EndsAt,
+				Status:    row.Status,
+				UpdatedAt: row.UpdatedAt,
+				Version:   row.Version,
+			},
+		)
 	}
 	return items, nil
 }
@@ -455,7 +562,15 @@ func validateBreak(name string, start, end time.Time) (string, error) {
 	return name, nil
 }
 func breakFromRow(r opendaysdb.OpenDayAcademicBreak) AcademicBreak {
-	return AcademicBreak{ID: r.ID, Name: r.Name, StartsOn: r.StartsOn.Time, EndsOn: r.EndsOn.Time, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+	return AcademicBreak{
+		ID:        r.ID,
+		Name:      r.Name,
+		StartsOn:  r.StartsOn.Time,
+		EndsOn:    r.EndsOn.Time,
+		Version:   r.Version,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+	}
 }
 func dateOnly(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)

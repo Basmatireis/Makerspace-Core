@@ -45,7 +45,8 @@ func NewServer(config ServerConfig, broker *Broker) (*Server, error) {
 	origins := make(map[string]struct{}, len(config.AllowedOrigins))
 	for _, candidate := range config.AllowedOrigins {
 		parsed, err := url.Parse(candidate)
-		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" ||
+			parsed.Fragment != "" {
 			return nil, fmt.Errorf("invalid allowed origin %q", candidate)
 		}
 		origin := parsed.Scheme + "://" + parsed.Host
@@ -117,10 +118,12 @@ func (s *Server) protected(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		provided := ""
-		if scheme, value, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " "); ok && scheme == "Pairing" {
+		if scheme, value, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " "); ok &&
+			scheme == "Pairing" {
 			provided = value
 		}
-		if len(provided) != len(s.config.PairingKey) || subtle.ConstantTimeCompare([]byte(provided), []byte(s.config.PairingKey)) != 1 {
+		if len(provided) != len(s.config.PairingKey) ||
+			subtle.ConstantTimeCompare([]byte(provided), []byte(s.config.PairingKey)) != 1 {
 			w.Header().Set("WWW-Authenticate", `Pairing realm="makerspace-device-bridge"`)
 			writeProblem(w, http.StatusUnauthorized, "pairing_required", "Valid bridge pairing is required")
 			return
@@ -146,8 +149,12 @@ func (s *Server) info(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RLock()
 	core := s.core
 	s.mu.RUnlock()
-	writeJSON(w, http.StatusOK, DeviceInfo{ProtocolVersion: ProtocolVersion, BridgeVersion: BridgeVersion, Platform: "desktop",
-		Capabilities: s.config.Capabilities(), LatestSequence: s.broker.LatestSequence(), CoreConnected: core.connected, DeviceName: core.name})
+	writeJSON(
+		w,
+		http.StatusOK,
+		DeviceInfo{ProtocolVersion: ProtocolVersion, BridgeVersion: BridgeVersion, Platform: "desktop",
+			Capabilities: s.config.Capabilities(), LatestSequence: s.broker.LatestSequence(), CoreConnected: core.connected, DeviceName: core.name},
+	)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

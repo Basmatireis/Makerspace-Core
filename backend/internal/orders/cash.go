@@ -32,7 +32,12 @@ func cashFiguresUntil(ctx context.Context, q *db.Queries, to *time.Time) (cashFi
 	if err != nil {
 		return cashFigures{}, err
 	}
-	return cashFigures{receipts: d(payments.Receipts), refunds: d(payments.Refunds), withdrawals: d(movements.Withdrawals), deposits: d(movements.Deposits)}, nil
+	return cashFigures{
+		receipts:    d(payments.Receipts),
+		refunds:     d(payments.Refunds),
+		withdrawals: d(movements.Withdrawals),
+		deposits:    d(movements.Deposits),
+	}, nil
 }
 
 func (s *Service) CashRegister(ctx context.Context, p authorization.Principal, to *time.Time) (CashRegister, error) {
@@ -43,7 +48,13 @@ func (s *Service) CashRegister(ctx context.Context, p authorization.Principal, t
 	if err != nil {
 		return CashRegister{}, err
 	}
-	result := CashRegister{Receipts: figures.receipts.StringFixed(2), Refunds: figures.refunds.StringFixed(2), Withdrawals: figures.withdrawals.StringFixed(2), Deposits: figures.deposits.StringFixed(2), Expected: figures.expected().StringFixed(2)}
+	result := CashRegister{
+		Receipts:    figures.receipts.StringFixed(2),
+		Refunds:     figures.refunds.StringFixed(2),
+		Withdrawals: figures.withdrawals.StringFixed(2),
+		Deposits:    figures.deposits.StringFixed(2),
+		Expected:    figures.expected().StringFixed(2),
+	}
 	if to != nil {
 		utc := to.UTC()
 		result.To = &utc
@@ -52,7 +63,16 @@ func (s *Service) CashRegister(ctx context.Context, p authorization.Principal, t
 }
 
 func (s *Service) cashMovement(ctx context.Context, q *db.Queries, row db.CashMovement) (CashMovement, error) {
-	v := CashMovement{ID: row.ID, Reference: row.Reference, Kind: row.Kind, Amount: money(row.Amount), Reason: row.Reason, Note: row.Note, OccurredAt: row.OccurredAt, CreatedAt: row.CreatedAt}
+	v := CashMovement{
+		ID:         row.ID,
+		Reference:  row.Reference,
+		Kind:       row.Kind,
+		Amount:     money(row.Amount),
+		Reason:     row.Reason,
+		Note:       row.Note,
+		OccurredAt: row.OccurredAt,
+		CreatedAt:  row.CreatedAt,
+	}
 	if row.RecordedByPersonID != nil {
 		person, err := q.GetPerson(ctx, *row.RecordedByPersonID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -65,7 +85,13 @@ func (s *Service) cashMovement(ctx context.Context, q *db.Queries, row db.CashMo
 	return v, nil
 }
 
-func (s *Service) ListCashMovements(ctx context.Context, p authorization.Principal, kind string, from, to *time.Time, page, size int) (CashMovementPage, error) {
+func (s *Service) ListCashMovements(
+	ctx context.Context,
+	p authorization.Principal,
+	kind string,
+	from, to *time.Time,
+	page, size int,
+) (CashMovementPage, error) {
 	if err := require(p, authorization.CashMovementsRead); err != nil {
 		return CashMovementPage{}, err
 	}
@@ -77,7 +103,16 @@ func (s *Service) ListCashMovements(ctx context.Context, p authorization.Princip
 		return CashMovementPage{}, err
 	}
 	q := db.New(s.pool)
-	rows, err := q.ListCashMovements(ctx, db.ListCashMovementsParams{Kind: kind, FromTime: nullableTime(from), ToTime: nullableTime(to), PageLimit: limit, PageOffset: offset})
+	rows, err := q.ListCashMovements(
+		ctx,
+		db.ListCashMovementsParams{
+			Kind:       kind,
+			FromTime:   nullableTime(from),
+			ToTime:     nullableTime(to),
+			PageLimit:  limit,
+			PageOffset: offset,
+		},
+	)
 	if err != nil {
 		return CashMovementPage{}, err
 	}
@@ -97,7 +132,12 @@ func (s *Service) ListCashMovements(ctx context.Context, p authorization.Princip
 
 // CreateCashMovement records a withdrawal or deposit. Movements are immutable; a mistake is corrected with
 // another movement. A withdrawal cannot exceed what the register should hold, neither at its own time nor now.
-func (s *Service) CreateCashMovement(ctx context.Context, p authorization.Principal, input CashMovementInput, requestID *uuid.UUID) (CashMovement, error) {
+func (s *Service) CreateCashMovement(
+	ctx context.Context,
+	p authorization.Principal,
+	input CashMovementInput,
+	requestID *uuid.UUID,
+) (CashMovement, error) {
 	if err := require(p, authorization.CashMovementsRead, authorization.CashMovementsRecord); err != nil {
 		return CashMovement{}, err
 	}
@@ -142,7 +182,9 @@ func (s *Service) CreateCashMovement(ctx context.Context, p authorization.Princi
 	}
 	existing, err := q.GetCashMovementByKey(ctx, input.OperationKey)
 	if err == nil {
-		same := existing.Kind == input.Kind && d(existing.Amount).Equal(amount) && existing.Reason == input.Reason && existing.Note == note && existing.OccurredAt.Equal(occurred) &&
+		same := existing.Kind == input.Kind && d(existing.Amount).Equal(amount) && existing.Reason == input.Reason &&
+			existing.Note == note &&
+			existing.OccurredAt.Equal(occurred) &&
 			((existing.RecordedByPersonID == nil && p.PersonID == uuid.Nil) || (existing.RecordedByPersonID != nil && *existing.RecordedByPersonID == p.PersonID))
 		if !same {
 			return CashMovement{}, conflict("idempotency_conflict", "Operation key was used for different input")
@@ -163,7 +205,10 @@ func (s *Service) CreateCashMovement(ctx context.Context, p authorization.Princi
 			return CashMovement{}, e
 		}
 		if amount.GreaterThan(held.expected()) || amount.GreaterThan(now.expected()) {
-			return CashMovement{}, conflict("insufficient_cash", "The register does not hold enough cash for this withdrawal")
+			return CashMovement{}, conflict(
+				"insufficient_cash",
+				"The register does not hold enough cash for this withdrawal",
+			)
 		}
 	}
 	n, err := q.NextCashMovementReference(ctx)
@@ -174,7 +219,20 @@ func (s *Service) CreateCashMovement(ctx context.Context, p authorization.Princi
 	if p.PersonID != uuid.Nil {
 		person = &p.PersonID
 	}
-	row, err := q.InsertCashMovement(ctx, db.InsertCashMovementParams{ID: newID(), Reference: reference("C", n), OperationKey: input.OperationKey, Kind: input.Kind, Amount: numeric(amount), Reason: input.Reason, Note: note, OccurredAt: occurred, RecordedByPersonID: person})
+	row, err := q.InsertCashMovement(
+		ctx,
+		db.InsertCashMovementParams{
+			ID:                 newID(),
+			Reference:          reference("C", n),
+			OperationKey:       input.OperationKey,
+			Kind:               input.Kind,
+			Amount:             numeric(amount),
+			Reason:             input.Reason,
+			Note:               note,
+			OccurredAt:         occurred,
+			RecordedByPersonID: person,
+		},
+	)
 	if err != nil {
 		return CashMovement{}, databaseError(err)
 	}

@@ -55,7 +55,8 @@ func (s *Service) activeKey(ctx context.Context) (*signingKey, error) {
 	s.keyMu.Lock()
 	defer s.keyMu.Unlock()
 	now := s.now()
-	if s.cachedKey != nil && now.Sub(s.cachedKey.loadedAt) < signingKeyCacheTTL && (s.cachedKey.pendingAt == nil || now.Before(*s.cachedKey.pendingAt)) {
+	if s.cachedKey != nil && now.Sub(s.cachedKey.loadedAt) < signingKeyCacheTTL &&
+		(s.cachedKey.pendingAt == nil || now.Before(*s.cachedKey.pendingAt)) {
 		return s.cachedKey, nil
 	}
 	if s.keyring == nil {
@@ -79,7 +80,10 @@ func (s *Service) activeKey(ctx context.Context) (*signingKey, error) {
 }
 
 func conflictEncryption() error {
-	return conflict("encryption_not_configured", "Application encryption must be configured before stream tickets can be signed")
+	return conflict(
+		"encryption_not_configured",
+		"Application encryption must be configured before stream tickets can be signed",
+	)
 }
 
 func (s *Service) loadActiveKey(ctx context.Context) (*signingKey, error) {
@@ -162,7 +166,13 @@ func (s *Service) promote(ctx context.Context, q *db.Queries, force bool) (bool,
 // createKey inserts a new key. A concurrent creator that loses the unique-key race is a no-op.
 // actor and requestID attribute an administrator-initiated rotation; without them the event is a
 // system event.
-func (s *Service) createKey(ctx context.Context, params db.InsertTicketKeyParams, action string, actor *uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) createKey(
+	ctx context.Context,
+	params db.InsertTicketKeyParams,
+	action string,
+	actor *uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return err
@@ -179,7 +189,9 @@ func (s *Service) createKey(ctx context.Context, params db.InsertTicketKeyParams
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	now := s.now()
-	params.ID, params.Kid, params.PublicKey, params.EncryptedPrivateKey = id, streamticket.KeyID(public), public, encrypted
+	params.ID, params.Kid, params.PublicKey, params.EncryptedPrivateKey = id, streamticket.KeyID(
+		public,
+	), public, encrypted
 	inserted, err := q.InsertTicketKey(ctx, params)
 	if err != nil {
 		return databaseError(err)
@@ -195,9 +207,24 @@ func (s *Service) createKey(ctx context.Context, params db.InsertTicketKeyParams
 	if err = q.DeleteExpiredTicketKeys(ctx, timestamptz(ptrTime(now.Add(-24*time.Hour)))); err != nil {
 		return err
 	}
-	event := audit.Event{ActorType: "system", Action: action, ResourceType: "signage_ticket_key", ResourceID: &id, ChangedFields: []string{"signingKey"}, Source: "system", RequestID: requestID}
+	event := audit.Event{
+		ActorType:     "system",
+		Action:        action,
+		ResourceType:  "signage_ticket_key",
+		ResourceID:    &id,
+		ChangedFields: []string{"signingKey"},
+		Source:        "system",
+		RequestID:     requestID,
+	}
 	if actor != nil {
-		event = audit.Event{ActorAccountID: actor, Action: action, ResourceType: "signage_ticket_key", ResourceID: &id, ChangedFields: []string{"signingKey"}, RequestID: requestID}
+		event = audit.Event{
+			ActorAccountID: actor,
+			Action:         action,
+			ResourceType:   "signage_ticket_key",
+			ResourceID:     &id,
+			ChangedFields:  []string{"signingKey"},
+			RequestID:      requestID,
+		}
 	}
 	if err = audit.Write(ctx, tx, event); err != nil {
 		return err
@@ -216,7 +243,11 @@ type KeyRotation struct {
 // ticket is signed after that time, or by the next rotation call, which activates a still pending
 // key first). The previous public key stays in gateway configurations for ten minutes after its
 // retirement. Needs local_services.manage.
-func (s *Service) RotateTicketKey(ctx context.Context, principal authorization.Principal, requestID *uuid.UUID) (KeyRotation, error) {
+func (s *Service) RotateTicketKey(
+	ctx context.Context,
+	principal authorization.Principal,
+	requestID *uuid.UUID,
+) (KeyRotation, error) {
 	if err := requireManage(principal); err != nil {
 		return KeyRotation{}, err
 	}

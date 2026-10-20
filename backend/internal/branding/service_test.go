@@ -11,10 +11,22 @@ import (
 
 func validInput() ConfigurationInput {
 	return ConfigurationInput{
-		Identity:        Identity{LegalOrganizationName: " HTU Graz ", DisplayName: " Makerspace ", ApplicationName: " HTU Graz Makerspace "},
-		Colors:          Colors{Primary: "#AABBCC", Secondary: "#ffbf3d", Accent: "#e76f12", Background: "#111621"},
-		Imprint:         Legal{Mode: "internal", Markdown: "# Imprint", ExternalURL: "https://example.test/imprint-draft"},
-		Privacy:         Legal{Mode: "external", Markdown: "# retained draft", ExternalURL: "https://example.test/privacy"},
+		Identity: Identity{
+			LegalOrganizationName: " HTU Graz ",
+			DisplayName:           " Makerspace ",
+			ApplicationName:       " HTU Graz Makerspace ",
+		},
+		Colors: Colors{Primary: "#AABBCC", Secondary: "#ffbf3d", Accent: "#e76f12", Background: "#111621"},
+		Imprint: Legal{
+			Mode:        "internal",
+			Markdown:    "# Imprint",
+			ExternalURL: "https://example.test/imprint-draft",
+		},
+		Privacy: Legal{
+			Mode:        "external",
+			Markdown:    "# retained draft",
+			ExternalURL: "https://example.test/privacy",
+		},
 		ExpectedVersion: 1,
 	}
 }
@@ -99,7 +111,8 @@ func TestValidateAssetRasterFormatsDimensionsAndLimits(t *testing.T) {
 	if _, _, err := validateAsset(Logo, bytes.NewReader(jpegBytes.Bytes())); err == nil {
 		t.Fatal("logo JPEG unexpectedly accepted")
 	}
-	if _, contentType, err := validateAsset(ApplicationBackground, bytes.NewReader(jpegBytes.Bytes())); err != nil || contentType != "image/jpeg" {
+	if _, contentType, err := validateAsset(ApplicationBackground, bytes.NewReader(jpegBytes.Bytes())); err != nil ||
+		contentType != "image/jpeg" {
 		t.Fatalf("background JPEG: contentType=%q err=%v", contentType, err)
 	}
 
@@ -113,12 +126,15 @@ func TestValidateAssetRasterFormatsDimensionsAndLimits(t *testing.T) {
 }
 
 func TestSanitizeSVGAcceptsSafeSubsetAndRemovesMetadata(t *testing.T) {
-	raw := []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><!--private--><defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs><rect width="10" height="10" fill="url(#g)"/></svg>`)
+	raw := []byte(
+		`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><!--private--><defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient></defs><rect width="10" height="10" fill="url(#g)"/></svg>`,
+	)
 	result, contentType, err := validateAsset(Favicon, bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("validateAsset: %v", err)
 	}
-	if contentType != "image/svg+xml" || bytes.Contains(result, []byte("private")) || !bytes.Contains(result, []byte("xmlns=")) {
+	if contentType != "image/svg+xml" || bytes.Contains(result, []byte("private")) ||
+		!bytes.Contains(result, []byte("xmlns=")) {
 		t.Fatalf("unexpected sanitized SVG: %s", result)
 	}
 }

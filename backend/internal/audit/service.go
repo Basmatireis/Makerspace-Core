@@ -71,7 +71,8 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 	if filter.ResourceType != nil && len([]rune(*filter.ResourceType)) > 64 {
 		return Page{}, invalidRequest("resourceType is limited to 64 characters")
 	}
-	if filter.ActorType != nil && *filter.ActorType != "user" && *filter.ActorType != "system" && *filter.ActorType != "unknown" {
+	if filter.ActorType != nil && *filter.ActorType != "user" && *filter.ActorType != "system" &&
+		*filter.ActorType != "unknown" {
 		return Page{}, invalidRequest("actorType is invalid")
 	}
 	filter.ActorSearch = strings.TrimSpace(filter.ActorSearch)
@@ -106,7 +107,9 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 		BeforeTime: nullableTime(beforeTime), BeforeID: beforeID, ActorAccountID: filter.ActorAccountID,
 		ActorType: filter.ActorType, ActorSearch: filter.ActorSearch,
 		Action: filter.Action, ResourceType: filter.ResourceType, ResourceID: filter.ResourceID,
-		OccurredFrom: nullableTime(filter.OccurredFrom), OccurredTo: nullableTime(filter.OccurredTo), PageLimit: int32(filter.Limit + 1),
+		OccurredFrom: nullableTime(
+			filter.OccurredFrom,
+		), OccurredTo: nullableTime(filter.OccurredTo), PageLimit: int32(filter.Limit + 1),
 	})
 	if err != nil {
 		return Page{}, err
@@ -131,14 +134,18 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 			requestID = &value
 		}
 		items = append(items, AuditEvent{ID: row.ID, ActorType: row.ActorType, ActorAccountID: row.ActorAccountID,
-			ActorDisplayName: nonEmptyPointer(row.ActorDisplayName), ResourceDisplayName: nonEmptyPointer(row.ResourceDisplayName),
+			ActorDisplayName: nonEmptyPointer(
+				row.ActorDisplayName,
+			), ResourceDisplayName: nonEmptyPointer(row.ResourceDisplayName),
 			Action: row.Action, ResourceType: row.ResourceType, ResourceID: row.ResourceID, OccurredAt: row.OccurredAt,
 			RequestID: requestID, ChangedFields: row.ChangedFields, Metadata: metadata, ResolvedMetadata: resolvedMetadata, Source: row.Source})
 	}
 	var next *string
 	if hasMore && len(items) > 0 {
 		last := items[len(items)-1]
-		value := base64.RawURLEncoding.EncodeToString([]byte(last.OccurredAt.Format(time.RFC3339Nano) + "|" + last.ID.String()))
+		value := base64.RawURLEncoding.EncodeToString(
+			[]byte(last.OccurredAt.Format(time.RFC3339Nano) + "|" + last.ID.String()),
+		)
 		next = &value
 	}
 	return Page{Items: items, NextCursor: next}, nil

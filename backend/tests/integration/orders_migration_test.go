@@ -38,10 +38,16 @@ func TestOrdersMigrationRoundTripAndPopulatedDowngradeGuard(t *testing.T) {
 	if _, e = pool.Exec(ctx, "INSERT INTO orders(id,reference,customer_kind,fulfillment_mode) VALUES($1,'O-2026-000001','anonymous','immediate')", uuid.Must(uuid.NewV7())); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = pool.Exec(ctx, down); e == nil || !strings.Contains(e.Error(), "cannot downgrade while financial history exists") {
+	if _, e = pool.Exec(ctx, down); e == nil ||
+		!strings.Contains(e.Error(), "cannot downgrade while financial history exists") {
 		t.Fatal("populated financial history could be dropped", e)
 	}
 	applyMigrationFiles(t, pool, paths[27:])
-	assertCount(t, pool, "SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='machine_jobs' AND column_name IN ('billing_status','billing_reference')", 0)
+	assertCount(
+		t,
+		pool,
+		"SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='machine_jobs' AND column_name IN ('billing_status','billing_reference')",
+		0,
+	)
 	assertCount(t, pool, "SELECT count(*) FROM orders", 1)
 }

@@ -21,14 +21,24 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 	p := authorization.Principal{}
 	id := uuid.Must(uuid.NewV7())
 	now := time.Now().UTC()
-	jobInput := JobInput{MachineID: id, StartsAt: now, EndsAt: now.Add(time.Hour), Customer: PartyReference{Kind: "person", ID: id}, OperatorPersonID: id, Outcome: "successful"}
+	jobInput := JobInput{
+		MachineID:        id,
+		StartsAt:         now,
+		EndsAt:           now.Add(time.Hour),
+		Customer:         PartyReference{Kind: "person", ID: id},
+		OperatorPersonID: id,
+		Outcome:          "successful",
+	}
 
 	tests := []struct {
 		name string
 		call func() error
 	}{
 		{"machines.read", func() error { _, err := s.ListMachineTypes(ctx, p); return err }},
-		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", "other", nil); return err }},
+		{
+			"machines.manage",
+			func() error { _, err := s.CreateMachineType(ctx, p, "Printer", "other", nil); return err },
+		},
 		{"machines.manage update machine type process", func() error {
 			process := "embroidery"
 			_, err := s.UpdateMachineType(ctx, p, id, 1, nil, nil, &process, nil)
@@ -37,37 +47,78 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
 		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, JobUpdate{}, nil); return err }},
-		{"machine_jobs.read list runs", func() error { _, _, err := s.ListRuns(ctx, p, RunFilters{Page: 1, PageSize: 25}); return err }},
+		{
+			"machine_jobs.read list runs",
+			func() error { _, _, err := s.ListRuns(ctx, p, RunFilters{Page: 1, PageSize: 25}); return err },
+		},
 		{"machine_jobs.read get run", func() error { _, err := s.GetRun(ctx, p, id); return err }},
-		{"machine_jobs.edit update run", func() error { _, err := s.UpdateRun(ctx, p, id, 1, RunUpdate{}, nil); return err }},
-		{"machine_jobs.edit replace run usages", func() error { _, err := s.ReplaceRunUsages(ctx, p, id, 1, nil, nil); return err }},
+		{
+			"machine_jobs.edit update run",
+			func() error { _, err := s.UpdateRun(ctx, p, id, 1, RunUpdate{}, nil); return err },
+		},
+		{
+			"machine_jobs.edit replace run usages",
+			func() error { _, err := s.ReplaceRunUsages(ctx, p, id, 1, nil, nil); return err },
+		},
 		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelRun(ctx, p, id, 1, nil); return err }},
 		{"machine_jobs.delete delete run", func() error { return s.DeleteRun(ctx, p, id, 1, true, nil) }},
-		{"machine_jobs.delete delete job", func() error { return s.DeleteJob(ctx, p, id, DeleteJobInput{ExpectedVersion: 1}, nil) }},
-		{"machine_jobs.edit add run", func() error { _, err := s.AddManualRun(ctx, p, id, 1, ManualRunInput{}, nil); return err }},
-		{"machine_jobs.edit attach run", func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil); return err }},
+		{
+			"machine_jobs.delete delete job",
+			func() error { return s.DeleteJob(ctx, p, id, DeleteJobInput{ExpectedVersion: 1}, nil) },
+		},
+		{
+			"machine_jobs.edit add run",
+			func() error { _, err := s.AddManualRun(ctx, p, id, 1, ManualRunInput{}, nil); return err },
+		},
+		{
+			"machine_jobs.edit attach run",
+			func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil); return err },
+		},
 		{"machine_jobs.edit detach run", func() error { _, err := s.DetachRun(ctx, p, id, 1, nil); return err }},
-		{"machine_jobs.create from run", func() error { _, err := s.CreateJobFromRun(ctx, p, id, RunJobInput{}, nil); return err }},
+		{
+			"machine_jobs.create from run",
+			func() error { _, err := s.CreateJobFromRun(ctx, p, id, RunJobInput{}, nil); return err },
+		},
 		{"machine_jobs.delete bulk delete", func() error {
 			return s.BulkDelete(ctx, p, BulkDeleteInput{Jobs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
 		}},
 		{"machine_jobs.create bulk create jobs", func() error {
-			_, err := s.BulkCreateJobsFromRuns(ctx, p, BulkRunJobInput{Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
+			_, err := s.BulkCreateJobsFromRuns(
+				ctx,
+				p,
+				BulkRunJobInput{Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}},
+				nil,
+			)
 			return err
 		}},
 		{"machine_jobs.create bulk combine", func() error {
-			_, err := s.BulkCombineRuns(ctx, p, BulkRunJobInput{Runs: []BulkItem{{ID: id, ExpectedVersion: 1}, {ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1}}}, nil)
+			_, err := s.BulkCombineRuns(
+				ctx,
+				p,
+				BulkRunJobInput{
+					Runs: []BulkItem{{ID: id, ExpectedVersion: 1}, {ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1}},
+				},
+				nil,
+			)
 			return err
 		}},
 		{"machine_jobs.edit bulk attach", func() error {
-			_, err := s.BulkAttachRuns(ctx, p, BulkAttachInput{JobID: id, ExpectedJobVersion: 1, Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
+			_, err := s.BulkAttachRuns(
+				ctx,
+				p,
+				BulkAttachInput{JobID: id, ExpectedJobVersion: 1, Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}},
+				nil,
+			)
 			return err
 		}},
 		{"machine_jobs.override_price set", func() error {
 			_, err := s.SetJobPriceAdjustment(ctx, p, id, 1, "fixed", "1", "test", nil)
 			return err
 		}},
-		{"machine_jobs.override_price clear", func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err }},
+		{
+			"machine_jobs.override_price clear",
+			func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err },
+		},
 		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", nil, "", 1, 25); return err }},
 		{"inventory.read spools", func() error {
 			_, _, err := s.ListFilamentSpools(ctx, p, SpoolFilters{Page: 1, PageSize: 25})
@@ -83,9 +134,15 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			_, err := s.CreateMaterialType(ctx, p, "PLA", "g", []string{"fdm_printing", "other"}, nil)
 			return err
 		}},
-		{"inventory.manage update material type", func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", nil, true, nil); return err }},
+		{
+			"inventory.manage update material type",
+			func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", nil, true, nil); return err },
+		},
 		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
-		{"filament_spools.manage", func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err }},
+		{
+			"filament_spools.manage",
+			func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err },
+		},
 		{"filament_spools.manage change fill", func() error {
 			_, err := s.ChangeFilamentSpoolFill(ctx, p, id, ChangeFillInput{}, nil)
 			return err
@@ -102,7 +159,10 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			_, _, err := s.ListFilamentProducts(ctx, p, FilamentProductFilters{Page: 1, PageSize: 25})
 			return err
 		}},
-		{"inventory.manage products", func() error { _, err := s.CreateFilamentProduct(ctx, p, FilamentProductInput{}, nil); return err }},
+		{
+			"inventory.manage products",
+			func() error { _, err := s.CreateFilamentProduct(ctx, p, FilamentProductInput{}, nil); return err },
+		},
 		{"organizations.read", func() error {
 			_, _, err := s.ListOrganizations(ctx, p, OrganizationFilters{Page: 1, PageSize: 25})
 			return err
@@ -112,7 +172,10 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			return err
 		}},
 		{"pricing.read", func() error { _, err := s.ListPricingGroups(ctx, p); return err }},
-		{"pricing.manage", func() error { _, err := s.CreatePricingGroup(ctx, p, "Standard", nil, false, nil); return err }},
+		{
+			"pricing.manage",
+			func() error { _, err := s.CreatePricingGroup(ctx, p, "Standard", nil, false, nil); return err },
+		},
 		{"pricing.manage create measure rule", func() error {
 			measure := "stitches"
 			_, err := s.CreatePricingRule(ctx, p, id, "machine_measure", &id, nil, &measure, "0.5", nil)
@@ -216,32 +279,76 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 	machineTypeID = machineType.ID
 	externalIdentifier := "collector-" + suffix
-	machine, err := s.CreateMachine(ctx, p, machineType.ID, "Test machine "+suffix, "active", &externalIdentifier, true, &requestID)
+	machine, err := s.CreateMachine(
+		ctx,
+		p,
+		machineType.ID,
+		"Test machine "+suffix,
+		"active",
+		&externalIdentifier,
+		true,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	machineID = machine.ID
 	threshold := "100"
-	materialType, err := s.CreateMaterialType(ctx, p, "Test PLA "+suffix, "g", []string{"fdm_printing", "other"}, &requestID)
+	materialType, err := s.CreateMaterialType(
+		ctx,
+		p,
+		"Test PLA "+suffix,
+		"g",
+		[]string{"fdm_printing", "other"},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	materialTypeID = materialType.ID
-	material, err := s.CreateMaterial(ctx, p, MaterialInput{Name: "Test PLA " + suffix, MaterialTypeID: materialType.ID, LowStockThreshold: &threshold}, &requestID)
+	material, err := s.CreateMaterial(
+		ctx,
+		p,
+		MaterialInput{Name: "Test PLA " + suffix, MaterialTypeID: materialType.ID, LowStockThreshold: &threshold},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	materialID = material.ID
 
-	firstPurchase, err := s.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "1000", "18", time.Now().UTC(), nil, nil, &requestID)
+	firstPurchase, err := s.AddPurchase(
+		ctx,
+		p,
+		material.ID,
+		material.InventoryVersion,
+		"1000",
+		"18",
+		time.Now().UTC(),
+		nil,
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondPurchase, err := s.AddPurchase(ctx, p, material.ID, firstPurchase.Material.InventoryVersion, "1000", "22", time.Now().UTC(), nil, nil, &requestID)
+	secondPurchase, err := s.AddPurchase(
+		ctx,
+		p,
+		material.ID,
+		firstPurchase.Material.InventoryVersion,
+		"1000",
+		"22",
+		time.Now().UTC(),
+		nil,
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if secondPurchase.Material.Quantity != "2000" || secondPurchase.Material.InventoryValue != "40" || secondPurchase.Material.AverageUnitCost != "0.02" {
+	if secondPurchase.Material.Quantity != "2000" || secondPurchase.Material.InventoryValue != "40" ||
+		secondPurchase.Material.AverageUnitCost != "0.02" {
 		t.Fatalf("unexpected weighted balance: %+v", secondPurchase.Material)
 	}
 
@@ -250,21 +357,58 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	pricingGroupID = group.ID
-	runtimeRule, err := s.CreatePricingRule(ctx, p, group.ID, "machine_runtime", &machineType.ID, nil, nil, "0.5", &requestID)
+	runtimeRule, err := s.CreatePricingRule(
+		ctx,
+		p,
+		group.ID,
+		"machine_runtime",
+		&machineType.ID,
+		nil,
+		nil,
+		"0.5",
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	materialRule, err := s.CreatePricingRule(ctx, p, group.ID, "material", nil, &materialType.ID, nil, "0.025", &requestID)
+	materialRule, err := s.CreatePricingRule(
+		ctx,
+		p,
+		group.ID,
+		"material",
+		nil,
+		&materialType.ID,
+		nil,
+		"0.025",
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = runtimeRule
 	externalName := "Customer supplied PLA"
-	externalJob, err := s.CreateManualJob(ctx, p, JobInput{MachineID: machine.ID, StartsAt: time.Date(2026, time.September, 14, 8, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, time.September, 14, 9, 0, 0, 0, time.UTC), Customer: PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful", PricingGroupID: &group.ID, Usages: []UsageInput{{Ownership: "external", ExternalMaterialName: &externalName, Quantity: "50", QuantityBasis: "actual"}}}, &requestID)
+	externalJob, err := s.CreateManualJob(
+		ctx,
+		p,
+		JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         time.Date(2026, time.September, 14, 8, 0, 0, 0, time.UTC),
+			EndsAt:           time.Date(2026, time.September, 14, 9, 0, 0, 0, time.UTC),
+			Customer:         PartyReference{Kind: "person", ID: personID},
+			OperatorPersonID: personID,
+			Outcome:          "successful",
+			PricingGroupID:   &group.ID,
+			Usages: []UsageInput{
+				{Ownership: "external", ExternalMaterialName: &externalName, Quantity: "50", QuantityBasis: "actual"},
+			},
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if externalJob.CalculatedPrice == nil || *externalJob.CalculatedPrice != "0.5" || len(externalJob.Usages) != 1 || externalJob.Usages[0].Ownership != "external" {
+	if externalJob.CalculatedPrice == nil || *externalJob.CalculatedPrice != "0.5" || len(externalJob.Usages) != 1 ||
+		externalJob.Usages[0].Ownership != "external" {
 		t.Fatalf("external filament pricing result: %+v", externalJob)
 	}
 	afterExternalJob, err := s.GetMaterial(ctx, p, material.ID)
@@ -275,12 +419,26 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("external filament changed inventory: %+v", afterExternalJob)
 	}
 
-	organization, err := s.CreateOrganization(ctx, p, "Test Institute "+suffix, "institute", OrganizationDetailsInput{}, &requestID)
+	organization, err := s.CreateOrganization(
+		ctx,
+		p,
+		"Test Institute "+suffix,
+		"institute",
+		OrganizationDetailsInput{},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	organizationIDs = append(organizationIDs, organization.ID)
-	assignment, err := s.SetPartyPricingGroup(ctx, p, PartyReference{Kind: "organization", ID: organization.ID}, &group.ID, 0, &requestID)
+	assignment, err := s.SetPartyPricingGroup(
+		ctx,
+		p,
+		PartyReference{Kind: "organization", ID: organization.ID},
+		&group.ID,
+		0,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,14 +447,29 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 
 	startsAt := time.Date(2026, time.September, 15, 8, 12, 0, 0, time.UTC)
-	confirmed, err := s.CreateManualJob(ctx, p, JobInput{MachineID: machine.ID, StartsAt: startsAt, EndsAt: startsAt.Add(3*time.Hour + 14*time.Minute), Customer: PartyReference{Kind: "organization", ID: organization.ID}, OperatorPersonID: personID, Outcome: "successful", Usages: []UsageInput{{MaterialID: material.ID, Quantity: "183"}}}, &requestID)
+	confirmed, err := s.CreateManualJob(
+		ctx,
+		p,
+		JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         startsAt,
+			EndsAt:           startsAt.Add(3*time.Hour + 14*time.Minute),
+			Customer:         PartyReference{Kind: "organization", ID: organization.ID},
+			OperatorPersonID: personID,
+			Outcome:          "successful",
+			Usages:           []UsageInput{{MaterialID: material.ID, Quantity: "183"}},
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if confirmed.PricingStatus != "complete" || confirmed.CalculatedPrice == nil || *confirmed.CalculatedPrice != "6.19" {
+	if confirmed.PricingStatus != "complete" || confirmed.CalculatedPrice == nil ||
+		*confirmed.CalculatedPrice != "6.19" {
 		t.Fatalf("unexpected confirmed price: %+v", confirmed)
 	}
-	if confirmed.PricingSnapshot == nil || confirmed.PricingSnapshot.Revision != 1 || len(confirmed.PricingSnapshot.Rules) != 2 {
+	if confirmed.PricingSnapshot == nil || confirmed.PricingSnapshot.Revision != 1 ||
+		len(confirmed.PricingSnapshot.Rules) != 2 {
 		t.Fatalf("unexpected pricing snapshot: %+v", confirmed.PricingSnapshot)
 	}
 	for _, rule := range confirmed.PricingSnapshot.Rules {
@@ -312,7 +485,14 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("job creation did not atomically consume stock: %+v", afterCreate)
 	}
 
-	correctedResult, err := s.ReplaceRunUsages(ctx, p, confirmed.Runs[0].ID, confirmed.Runs[0].Version, []UsageInput{{MaterialID: material.ID, Quantity: "180"}}, &requestID)
+	correctedResult, err := s.ReplaceRunUsages(
+		ctx,
+		p,
+		confirmed.Runs[0].ID,
+		confirmed.Runs[0].Version,
+		[]UsageInput{{MaterialID: material.ID, Quantity: "180"}},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +501,21 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("usage correction price = %v", correctedJob.CalculatedPrice)
 	}
 
-	failedJob, err := s.CreateManualJob(ctx, p, JobInput{MachineID: machine.ID, StartsAt: startsAt.Add(24 * time.Hour), EndsAt: startsAt.Add(25 * time.Hour), Customer: PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "failed", PricingGroupID: &group.ID, Usages: []UsageInput{{MaterialID: material.ID, Quantity: "17"}}}, &requestID)
+	failedJob, err := s.CreateManualJob(
+		ctx,
+		p,
+		JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         startsAt.Add(24 * time.Hour),
+			EndsAt:           startsAt.Add(25 * time.Hour),
+			Customer:         PartyReference{Kind: "person", ID: personID},
+			OperatorPersonID: personID,
+			Outcome:          "failed",
+			PricingGroupID:   &group.ID,
+			Usages:           []UsageInput{{MaterialID: material.ID, Quantity: "17"}},
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,16 +530,44 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("failed job consumption was not retained: %s", afterFailure.Quantity)
 	}
 
-	materialRule, err = s.UpdatePricingRule(ctx, p, materialRule.ID, materialRule.Version, "material", nil, &materialType.ID, nil, "0.03", true, &requestID)
+	materialRule, err = s.UpdatePricingRule(
+		ctx,
+		p,
+		materialRule.ID,
+		materialRule.Version,
+		"material",
+		nil,
+		&materialType.ID,
+		nil,
+		"0.03",
+		true,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = materialRule
-	overridden, err := s.SetJobPriceAdjustment(ctx, p, correctedJob.ID, correctedJob.Version, "fixed", "7", "approved exception", &requestID)
+	overridden, err := s.SetJobPriceAdjustment(
+		ctx,
+		p,
+		correctedJob.ID,
+		correctedJob.Version,
+		"fixed",
+		"7",
+		"approved exception",
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	organization2, err := s.CreateOrganization(ctx, p, "Test Partner "+suffix, "company", OrganizationDetailsInput{}, &requestID)
+	organization2, err := s.CreateOrganization(
+		ctx,
+		p,
+		"Test Partner "+suffix,
+		"company",
+		OrganizationDetailsInput{},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,14 +575,28 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if _, err = s.SetPartyPricingGroup(ctx, p, PartyReference{Kind: "organization", ID: organization2.ID}, &group.ID, 0, &requestID); err != nil {
 		t.Fatal(err)
 	}
-	repriced, err := s.UpdateJobFacts(ctx, p, overridden.ID, overridden.Version, JobUpdate{MachineID: machine.ID, Customer: PartyReference{Kind: "organization", ID: organization2.ID}, OperatorPersonID: personID}, &requestID)
+	repriced, err := s.UpdateJobFacts(
+		ctx,
+		p,
+		overridden.ID,
+		overridden.Version,
+		JobUpdate{
+			MachineID:        machine.ID,
+			Customer:         PartyReference{Kind: "organization", ID: organization2.ID},
+			OperatorPersonID: personID,
+		},
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repriced.PricingSnapshot == nil || repriced.PricingSnapshot.Revision != 2 || repriced.PricingSnapshot.Reason != "customer_changed" {
+	if repriced.PricingSnapshot == nil || repriced.PricingSnapshot.Revision != 2 ||
+		repriced.PricingSnapshot.Reason != "customer_changed" {
 		t.Fatalf("unexpected repricing snapshot: %+v", repriced.PricingSnapshot)
 	}
-	if repriced.CalculatedPrice == nil || *repriced.CalculatedPrice != "7.02" || repriced.PriceAdjustment == nil || repriced.EffectivePrice == nil || *repriced.EffectivePrice != "7" {
+	if repriced.CalculatedPrice == nil || *repriced.CalculatedPrice != "7.02" || repriced.PriceAdjustment == nil ||
+		repriced.EffectivePrice == nil ||
+		*repriced.EffectivePrice != "7" {
 		t.Fatalf("reprice did not preserve override: %+v", repriced)
 	}
 	var revisions int
@@ -383,7 +619,18 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, mutationErr := s.RecordConsumption(context.Background(), p, material.ID, current.InventoryVersion, "1", time.Now().UTC(), false, nil, nil, &requestID)
+			_, mutationErr := s.RecordConsumption(
+				context.Background(),
+				p,
+				material.ID,
+				current.InventoryVersion,
+				"1",
+				time.Now().UTC(),
+				false,
+				nil,
+				nil,
+				&requestID,
+			)
 			results <- mutationResult{err: mutationErr}
 		}()
 	}
@@ -411,16 +658,46 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	corrected, err := s.CorrectStock(ctx, p, material.ID, current.InventoryVersion, "1810", nil, time.Now().UTC(), "inventory_count", nil, &requestID)
+	corrected, err := s.CorrectStock(
+		ctx,
+		p,
+		material.ID,
+		current.InventoryVersion,
+		"1810",
+		nil,
+		time.Now().UTC(),
+		"inventory_count",
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	reason := "disposed"
-	disposed, err := s.RecordConsumption(ctx, p, material.ID, corrected.Material.InventoryVersion, "10", time.Now().UTC(), true, &reason, nil, &requestID)
+	disposed, err := s.RecordConsumption(
+		ctx,
+		p,
+		material.ID,
+		corrected.Material.InventoryVersion,
+		"10",
+		time.Now().UTC(),
+		true,
+		&reason,
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	empty, err := s.MarkEmpty(ctx, p, material.ID, disposed.Material.InventoryVersion, time.Now().UTC(), nil, &requestID)
+	empty, err := s.MarkEmpty(
+		ctx,
+		p,
+		material.ID,
+		disposed.Material.InventoryVersion,
+		time.Now().UTC(),
+		nil,
+		&requestID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +715,21 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("latest transaction is not mark-empty: %+v", transactions[0])
 	}
 
-	filtered, total, err := s.ListJobs(ctx, p, JobFilters{MachineID: &machine.ID, CustomerID: &organization2.ID, OperatorID: &personID, MaterialID: &material.ID, Outcome: stringPointer("successful"), From: timePointer(startsAt.Add(-time.Minute)), To: timePointer(startsAt.Add(24 * time.Hour)), Page: 1, PageSize: 25})
+	filtered, total, err := s.ListJobs(
+		ctx,
+		p,
+		JobFilters{
+			MachineID:  &machine.ID,
+			CustomerID: &organization2.ID,
+			OperatorID: &personID,
+			MaterialID: &material.ID,
+			Outcome:    stringPointer("successful"),
+			From:       timePointer(startsAt.Add(-time.Minute)),
+			To:         timePointer(startsAt.Add(24 * time.Hour)),
+			Page:       1,
+			PageSize:   25,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,7 +740,9 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(statistics.MaterialUsageByType) == 0 || len(statistics.MachineRuntimeHours) == 0 || len(statistics.MachineJobCounts) == 0 || len(statistics.MachineFailureRates) == 0 {
+	if len(statistics.MaterialUsageByType) == 0 || len(statistics.MachineRuntimeHours) == 0 ||
+		len(statistics.MachineJobCounts) == 0 ||
+		len(statistics.MachineFailureRates) == 0 {
 		t.Fatalf("statistics omitted expected series: %+v", statistics)
 	}
 
@@ -461,14 +754,22 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	if deletedPartyJob.Customer != nil || deletedPartyJob.Operator != nil {
-		t.Fatalf("deleted person references were retained: customer=%+v operator=%+v", deletedPartyJob.Customer, deletedPartyJob.Operator)
+		t.Fatalf(
+			"deleted person references were retained: customer=%+v operator=%+v",
+			deletedPartyJob.Customer,
+			deletedPartyJob.Operator,
+		)
 	}
 	organizationJob, err := s.GetJob(ctx, p, repriced.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if organizationJob.Customer == nil || organizationJob.Operator != nil {
-		t.Fatalf("organization customer should remain while deleted operator is nulled: customer=%+v operator=%+v", organizationJob.Customer, organizationJob.Operator)
+		t.Fatalf(
+			"organization customer should remain while deleted operator is nulled: customer=%+v operator=%+v",
+			organizationJob.Customer,
+			organizationJob.Operator,
+		)
 	}
 }
 

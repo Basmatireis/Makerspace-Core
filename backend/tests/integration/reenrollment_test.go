@@ -22,12 +22,29 @@ type reenrollment struct {
 	disable      string // SQL moving the entry to disabled
 }
 
-func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string, firstSecret, firstCredential string, manage staffSession, denied staffSession) {
+func (g *gatewayEnv) runReenrollment(
+	t *testing.T,
+	spec reenrollment,
+	id string,
+	firstSecret, firstCredential string,
+	manage staffSession,
+	denied staffSession,
+) {
 	t.Helper()
 	ctx := testContext(t)
 	enroll := func(secret string) (string, string, *http.Response) {
 		credID, credSecret := g.newCredential()
-		return credID, credSecret, g.gw(secret, http.MethodPost, spec.enrollPath, map[string]any{"credentialId": credID, "credentialSecret": credSecret, "softwareVersion": "test", "protocolVersion": 1})
+		return credID, credSecret, g.gw(
+			secret,
+			http.MethodPost,
+			spec.enrollPath,
+			map[string]any{
+				"credentialId":     credID,
+				"credentialSecret": credSecret,
+				"softwareVersion":  "test",
+				"protocolVersion":  1,
+			},
+		)
 	}
 	var revisionBefore, children int64
 	if err := g.pool.QueryRow(ctx, spec.revisionSQL, id).Scan(&revisionBefore); err != nil {
@@ -38,7 +55,11 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 	}
 
 	// Without the manage permission nothing is issued.
-	g.expectCode(g.as(denied, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusForbidden, "permission_denied")
+	g.expectCode(
+		g.as(denied, http.MethodPost, spec.adminPath+"/enrollments", nil),
+		http.StatusForbidden,
+		"permission_denied",
+	)
 
 	// Issuing for an enrolled entry leaves the running daemon untouched.
 	first := g.expect(g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusCreated)
@@ -59,7 +80,8 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 	g.expectCode(g.gw(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
 	var current int
 	var currentID string
-	if err := g.pool.QueryRow(ctx, spec.credentialsQ, id).Scan(&current, &currentID); err != nil || current != 1 || currentID != newID {
+	if err := g.pool.QueryRow(ctx, spec.credentialsQ, id).Scan(&current, &currentID); err != nil || current != 1 ||
+		currentID != newID {
 		t.Fatalf("current credentials = %d %s (%v), want 1 %s", current, currentID, err, newID)
 	}
 	if firstCredential == newID {
@@ -67,7 +89,8 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 	}
 	// Entry keeps its lifecycle, children and gets a newer configuration revision.
 	var revisionAfter, childrenAfter int64
-	if err := g.pool.QueryRow(ctx, spec.revisionSQL, id).Scan(&revisionAfter); err != nil || revisionAfter != revisionBefore+1 {
+	if err := g.pool.QueryRow(ctx, spec.revisionSQL, id).Scan(&revisionAfter); err != nil ||
+		revisionAfter != revisionBefore+1 {
 		t.Fatalf("revision %d -> %d (%v)", revisionBefore, revisionAfter, err)
 	}
 	if err := g.pool.QueryRow(ctx, spec.childrenSQL, id).Scan(&childrenAfter); err != nil || childrenAfter != children {
@@ -77,7 +100,20 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 		t.Fatalf("lifecycle = %v", got["lifecycle"])
 	}
 	// The same exchange is idempotent; another credential on the used secret is refused.
-	g.expect(g.gw(second["enrollmentSecret"].(string), http.MethodPost, spec.enrollPath, map[string]any{"credentialId": newID, "credentialSecret": newSecret, "softwareVersion": "test", "protocolVersion": 1}), http.StatusOK)
+	g.expect(
+		g.gw(
+			second["enrollmentSecret"].(string),
+			http.MethodPost,
+			spec.enrollPath,
+			map[string]any{
+				"credentialId":     newID,
+				"credentialSecret": newSecret,
+				"softwareVersion":  "test",
+				"protocolVersion":  1,
+			},
+		),
+		http.StatusOK,
+	)
 	_, _, replay := enroll(second["enrollmentSecret"].(string))
 	if replay.StatusCode != http.StatusConflict {
 		t.Fatalf("replay status = %d", replay.StatusCode)
@@ -88,7 +124,8 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 	}
 	var leaked int
 	for _, secret := range []string{first["enrollmentSecret"].(string), second["enrollmentSecret"].(string), newSecret, firstSecret} {
-		if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`, secret).Scan(&leaked); err != nil || leaked != 0 {
+		if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`, secret).Scan(&leaked); err != nil ||
+			leaked != 0 {
 			t.Fatalf("secret in %d audit rows (%v)", leaked, err)
 		}
 	}
@@ -110,8 +147,15 @@ func (g *gatewayEnv) runReenrollment(t *testing.T, spec reenrollment, id string,
 	// A revoked entry cannot be enrolled again, and an outstanding secret stops working.
 	pending := g.expect(g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusCreated)
 	version := g.expect(g.as(manage, http.MethodGet, spec.adminPath, nil), http.StatusOK)["version"]
-	g.expect(g.as(manage, http.MethodPost, spec.adminPath+"/revocation", map[string]any{"expectedVersion": version}), http.StatusOK)
-	g.expectCode(g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusConflict, spec.revokedCode)
+	g.expect(
+		g.as(manage, http.MethodPost, spec.adminPath+"/revocation", map[string]any{"expectedVersion": version}),
+		http.StatusOK,
+	)
+	g.expectCode(
+		g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil),
+		http.StatusConflict,
+		spec.revokedCode,
+	)
 	_, _, late := enroll(pending["enrollmentSecret"].(string))
 	if late.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("enrollment after revocation = %d", late.StatusCode)
@@ -125,7 +169,15 @@ func TestStreamingGatewayReenrollment(t *testing.T) {
 	gateway, identity := g.enrolledGateway("Reenroll gateway", "gw.example.org")
 	id := gateway["id"].(string)
 	machine := g.bambu("Reenroll printer", "bambu_h2d", "192.168.1.60", "55556666")
-	g.expect(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+id+"/cameras", map[string]any{"machineId": machine.String(), "enabled": true}), http.StatusCreated)
+	g.expect(
+		g.as(
+			g.admin,
+			http.MethodPost,
+			"/streaming-gateways/"+id+"/cameras",
+			map[string]any{"machineId": machine.String(), "enabled": true},
+		),
+		http.StatusCreated,
+	)
 	g.runReenrollment(t, reenrollment{
 		adminPath: "/streaming-gateways/" + id, enrollPath: "/streaming-gateway/enroll", configPath: "/streaming-gateway/configuration",
 		revisionSQL:  `SELECT configuration_revision FROM streaming_gateways WHERE id = $1`,
@@ -138,7 +190,12 @@ func TestStreamingGatewayReenrollment(t *testing.T) {
 
 func TestPrinterConnectorReenrollment(t *testing.T) {
 	g := newGatewayEnv(t)
-	manage := g.staff("pcm-"+uuid.NewString()[:6], authorization.PrinterConnectorsRead, authorization.PrinterConnectorsManage, authorization.PrinterConnectorsCredentialsManage)
+	manage := g.staff(
+		"pcm-"+uuid.NewString()[:6],
+		authorization.PrinterConnectorsRead,
+		authorization.PrinterConnectorsManage,
+		authorization.PrinterConnectorsCredentialsManage,
+	)
 	machine := g.bambu("Reenroll connector printer", "bambu_h2d", "192.168.1.61", "77778888")
 	var connectorID string
 	if err := g.pool.QueryRow(testContext(t), `SELECT connector_id::text FROM printer_connector_assignments WHERE machine_id = $1`, machine).Scan(&connectorID); err != nil {
@@ -147,7 +204,20 @@ func TestPrinterConnectorReenrollment(t *testing.T) {
 	path := "/printer-connectors/" + connectorID
 	issue := g.expect(g.as(manage, http.MethodPost, path+"/enrollments", nil), http.StatusCreated)
 	credID, credSecret := g.newCredential()
-	g.expect(g.gw(issue["enrollmentSecret"].(string), http.MethodPost, "/printer-connector/enroll", map[string]any{"credentialId": credID, "credentialSecret": credSecret, "softwareVersion": "test", "protocolVersion": 1}), http.StatusOK)
+	g.expect(
+		g.gw(
+			issue["enrollmentSecret"].(string),
+			http.MethodPost,
+			"/printer-connector/enroll",
+			map[string]any{
+				"credentialId":     credID,
+				"credentialSecret": credSecret,
+				"softwareVersion":  "test",
+				"protocolVersion":  1,
+			},
+		),
+		http.StatusOK,
+	)
 	g.runReenrollment(t, reenrollment{
 		adminPath: path, enrollPath: "/printer-connector/enroll", configPath: "/printer-connector/self/configuration",
 		revisionSQL:  `SELECT configuration_revision FROM printer_connectors WHERE id = $1`,

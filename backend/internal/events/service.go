@@ -34,11 +34,19 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 	if err != nil {
 		return nil, fmt.Errorf("load makerspace timezone: %w", err)
 	}
-	return &Service{pool: pool, cfg: cfg, files: fileService, location: location, limiter: newSignupLimiter(cfg.ChallengeHMACKey)}, nil
+	return &Service{
+		pool:     pool,
+		cfg:      cfg,
+		files:    fileService,
+		location: location,
+		limiter:  newSignupLimiter(cfg.ChallengeHMACKey),
+	}, nil
 }
 
 func canRead(principal authorization.Principal) bool {
-	return principal.Has(authorization.EventsRead) || principal.Has(authorization.EventsManage) || principal.Has(authorization.EventsStaffingManage) || principal.Has(authorization.EventsAssign)
+	return principal.Has(authorization.EventsRead) || principal.Has(authorization.EventsManage) ||
+		principal.Has(authorization.EventsStaffingManage) ||
+		principal.Has(authorization.EventsAssign)
 }
 
 func canViewPII(principal authorization.Principal) bool {
@@ -143,7 +151,12 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	return item, nil
 }
 
-func (s *Service) Create(ctx context.Context, principal authorization.Principal, input EventInput, requestID *uuid.UUID) (Event, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	principal authorization.Principal,
+	input EventInput,
+	requestID *uuid.UUID,
+) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Event{}, apperror.PermissionDenied
 	}
@@ -170,7 +183,8 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
-	row, err := eventsdb.New(tx).CreateEvent(ctx, eventsdb.CreateEventParams{ID: id, Name: name, InternalDescription: description, Location: location, OwnerPersonID: input.OwnerPersonID, PublicID: publicID, CreatedByAccountID: &actor})
+	row, err := eventsdb.New(tx).
+		CreateEvent(ctx, eventsdb.CreateEventParams{ID: id, Name: name, InternalDescription: description, Location: location, OwnerPersonID: input.OwnerPersonID, PublicID: publicID, CreatedByAccountID: &actor})
 	if err != nil {
 		return Event{}, databaseError(err)
 	}
@@ -183,7 +197,13 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	return eventFromRow(row), nil
 }
 
-func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, input EventInput, requestID *uuid.UUID) (Event, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	input EventInput,
+	requestID *uuid.UUID,
+) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Event{}, apperror.PermissionDenied
 	}
@@ -242,7 +262,21 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 			return Event{}, validation("Add a public shift with at least one requirement before enabling public signup")
 		}
 	}
-	row, err := q.UpdateEvent(ctx, eventsdb.UpdateEventParams{Name: name, InternalDescription: description, Location: location, OwnerPersonID: input.OwnerPersonID, PublicTitle: publicTitle, PublicDescription: publicDescription, PublicLocation: publicLocation, PublicSignupEnabled: input.PublicSignupEnabled, ID: id, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEvent(
+		ctx,
+		eventsdb.UpdateEventParams{
+			Name:                name,
+			InternalDescription: description,
+			Location:            location,
+			OwnerPersonID:       input.OwnerPersonID,
+			PublicTitle:         publicTitle,
+			PublicDescription:   publicDescription,
+			PublicLocation:      publicLocation,
+			PublicSignupEnabled: input.PublicSignupEnabled,
+			ID:                  id,
+			ExpectedVersion:     int32(input.ExpectedVersion),
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Event{}, apperror.StaleWrite
 	}
@@ -261,10 +295,21 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 
 var lifecycleTransitions = map[string]map[string]bool{
 	"draft": {"planning": true}, "planning": {"draft": true, "confirmed": true, "cancelled": true},
-	"confirmed": {"planning": true, "completed": true, "cancelled": true}, "completed": {"archived": true}, "cancelled": {"archived": true},
+	"confirmed": {
+		"planning":  true,
+		"completed": true,
+		"cancelled": true,
+	}, "completed": {"archived": true}, "cancelled": {"archived": true},
 }
 
-func (s *Service) Transition(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, target string, requestID *uuid.UUID) (Event, error) {
+func (s *Service) Transition(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	target string,
+	requestID *uuid.UUID,
+) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Event{}, apperror.PermissionDenied
 	}
@@ -306,7 +351,15 @@ func (s *Service) Transition(ctx context.Context, principal authorization.Princi
 	if target == "archived" {
 		closedAt = current.ClosedAt
 	}
-	row, err := q.TransitionEvent(ctx, eventsdb.TransitionEventParams{Status: target, ClosedAt: closedAt, ID: id, ExpectedVersion: int32(expectedVersion)})
+	row, err := q.TransitionEvent(
+		ctx,
+		eventsdb.TransitionEventParams{
+			Status:          target,
+			ClosedAt:        closedAt,
+			ID:              id,
+			ExpectedVersion: int32(expectedVersion),
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Event{}, apperror.StaleWrite
 	}
@@ -323,7 +376,14 @@ func (s *Service) Transition(ctx context.Context, principal authorization.Princi
 	return eventFromRow(row), nil
 }
 
-func (s *Service) SetPublished(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, published bool, requestID *uuid.UUID) (Event, error) {
+func (s *Service) SetPublished(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	published bool,
+	requestID *uuid.UUID,
+) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Event{}, apperror.PermissionDenied
 	}
@@ -357,14 +417,18 @@ func (s *Service) SetPublished(ctx context.Context, principal authorization.Prin
 		if err != nil {
 			return Event{}, err
 		}
-		if current.OwnerPersonID == nil || current.PublicTitle == nil || (!facts.HasPublicSession && !facts.HasPublicShift) {
+		if current.OwnerPersonID == nil || current.PublicTitle == nil ||
+			(!facts.HasPublicSession && !facts.HasPublicShift) {
 			return Event{}, validation("publication requires an owner, public title, and public schedule content")
 		}
 		if current.PublicSignupEnabled && !facts.HasPublicRequirement {
 			return Event{}, validation("Add a public shift with at least one requirement before enabling public signup")
 		}
 	}
-	row, err := q.SetEventPublication(ctx, eventsdb.SetEventPublicationParams{IsPublic: published, ID: id, ExpectedVersion: int32(expectedVersion)})
+	row, err := q.SetEventPublication(
+		ctx,
+		eventsdb.SetEventPublicationParams{IsPublic: published, ID: id, ExpectedVersion: int32(expectedVersion)},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Event{}, apperror.StaleWrite
 	}
@@ -385,7 +449,13 @@ func (s *Service) SetPublished(ctx context.Context, principal authorization.Prin
 	return eventFromRow(row), nil
 }
 
-func (s *Service) RotatePublicID(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (Event, error) {
+func (s *Service) RotatePublicID(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Event{}, apperror.PermissionDenied
 	}
@@ -415,7 +485,10 @@ func (s *Service) RotatePublicID(ctx context.Context, principal authorization.Pr
 	if current.Status == "completed" || current.Status == "cancelled" || current.Status == "archived" {
 		return Event{}, apperror.New(409, "event_read_only", "Event is read-only")
 	}
-	row, err := q.RotateEventPublicID(ctx, eventsdb.RotateEventPublicIDParams{PublicID: publicID, ID: id, ExpectedVersion: int32(expectedVersion)})
+	row, err := q.RotateEventPublicID(
+		ctx,
+		eventsdb.RotateEventPublicIDParams{PublicID: publicID, ID: id, ExpectedVersion: int32(expectedVersion)},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Event{}, apperror.StaleWrite
 	}
@@ -432,7 +505,13 @@ func (s *Service) RotatePublicID(ctx context.Context, principal authorization.Pr
 	return eventFromRow(row), nil
 }
 
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) ([]uuid.UUID, error) {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) ([]uuid.UUID, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return nil, apperror.PermissionDenied
 	}
@@ -486,7 +565,24 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 }
 
 func eventFromRow(row eventsdb.Event) Event {
-	return Event{ID: row.ID, Name: row.Name, InternalDescription: row.InternalDescription, Location: row.Location, OwnerPersonID: row.OwnerPersonID, Status: row.Status, PublicTitle: row.PublicTitle, PublicDescription: row.PublicDescription, PublicLocation: row.PublicLocation, PublicID: row.PublicID, IsPublic: row.IsPublic, PublicSignupEnabled: row.PublicSignupEnabled, ClosedAt: pgTime(row.ClosedAt), Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Event{
+		ID:                  row.ID,
+		Name:                row.Name,
+		InternalDescription: row.InternalDescription,
+		Location:            row.Location,
+		OwnerPersonID:       row.OwnerPersonID,
+		Status:              row.Status,
+		PublicTitle:         row.PublicTitle,
+		PublicDescription:   row.PublicDescription,
+		PublicLocation:      row.PublicLocation,
+		PublicID:            row.PublicID,
+		IsPublic:            row.IsPublic,
+		PublicSignupEnabled: row.PublicSignupEnabled,
+		ClosedAt:            pgTime(row.ClosedAt),
+		Version:             int64(row.Version),
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}
 }
 
 func pgTime(value pgtype.Timestamptz) *time.Time {
@@ -516,8 +612,29 @@ func setEarlier(current **time.Time, value time.Time) {
 	}
 }
 
-func eventAudit(ctx context.Context, tx pgx.Tx, actor *uuid.UUID, action, resourceType string, resourceID uuid.UUID, requestID *uuid.UUID, changed []string, metadata map[string]any) error {
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: action, ResourceType: resourceType, ResourceID: &resourceID, RequestID: requestID, ChangedFields: changed, Metadata: metadata})
+func eventAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor *uuid.UUID,
+	action, resourceType string,
+	resourceID uuid.UUID,
+	requestID *uuid.UUID,
+	changed []string,
+	metadata map[string]any,
+) error {
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: actor,
+			Action:         action,
+			ResourceType:   resourceType,
+			ResourceID:     &resourceID,
+			RequestID:      requestID,
+			ChangedFields:  changed,
+			Metadata:       metadata,
+		},
+	)
 }
 
 func databaseError(err error) error {

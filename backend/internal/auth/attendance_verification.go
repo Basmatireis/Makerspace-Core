@@ -22,7 +22,10 @@ type VerifiedIdentity struct {
 	Assurance authorization.Assurance
 }
 
-func (s *Service) VerifyPasswordForAttendance(ctx context.Context, email, password, sourceKey string) (VerifiedIdentity, error) {
+func (s *Service) VerifyPasswordForAttendance(
+	ctx context.Context,
+	email, password, sourceKey string,
+) (VerifiedIdentity, error) {
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	key, allowed := s.limits.take("attendance", sourceKey, normalized, time.Now())
 	if !allowed {
@@ -42,10 +45,18 @@ func (s *Service) VerifyPasswordForAttendance(ctx context.Context, email, passwo
 		return VerifiedIdentity{}, apperror.InvalidCredentials
 	}
 	s.limits.succeeded(key)
-	return VerifiedIdentity{AccountID: row.AccountID, PersonID: row.PersonID, Method: "password", Assurance: authorization.AssuranceNormal}, nil
+	return VerifiedIdentity{
+		AccountID: row.AccountID,
+		PersonID:  row.PersonID,
+		Method:    "password",
+		Assurance: authorization.AssuranceNormal,
+	}, nil
 }
 
-func (s *Service) VerifyPINForAttendance(ctx context.Context, loginName, pin, sourceKey string) (VerifiedIdentity, error) {
+func (s *Service) VerifyPINForAttendance(
+	ctx context.Context,
+	loginName, pin, sourceKey string,
+) (VerifiedIdentity, error) {
 	_, normalized, normalizeErr := normalizeLoginName(loginName)
 	loginDigest := s.pinThrottleDigest("attendance_login_name", normalized)
 	sourceDigest := s.pinThrottleDigest("attendance_source", sourceKey)
@@ -71,5 +82,10 @@ func (s *Service) VerifyPINForAttendance(ctx context.Context, loginName, pin, so
 	}
 	_ = q.ClearPINThrottle(ctx, authdb.ClearPINThrottleParams{Dimension: "login_name", KeyDigest: loginDigest})
 	s.limits.succeeded(limitKey)
-	return VerifiedIdentity{AccountID: row.AccountID, PersonID: row.PersonID, Method: "pin", Assurance: authorization.AssuranceLow}, nil
+	return VerifiedIdentity{
+		AccountID: row.AccountID,
+		PersonID:  row.PersonID,
+		Method:    "pin",
+		Assurance: authorization.AssuranceLow,
+	}, nil
 }

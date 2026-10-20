@@ -13,9 +13,29 @@ func TestValidateDeviceSettingsRequiresExplicitUniqueModes(t *testing.T) {
 		wantErr  bool
 	}{
 		{name: "private default", settings: DeviceSettings{}, wantErr: false},
-		{name: "terminal modes", settings: DeviceSettings{TerminalEnabled: true, SessionPolicyID: uuidPointer(), AllowedApplicationModes: []string{"visitor_terminal", "staff_ui"}}, wantErr: false},
-		{name: "terminal lacks visitor mode", settings: DeviceSettings{TerminalEnabled: true, SessionPolicyID: uuidPointer(), AllowedApplicationModes: []string{"staff_ui"}}, wantErr: true},
-		{name: "duplicate", settings: DeviceSettings{AllowedApplicationModes: []string{"staff_ui", "staff_ui"}}, wantErr: true},
+		{
+			name: "terminal modes",
+			settings: DeviceSettings{
+				TerminalEnabled:         true,
+				SessionPolicyID:         uuidPointer(),
+				AllowedApplicationModes: []string{"visitor_terminal", "staff_ui"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "terminal lacks visitor mode",
+			settings: DeviceSettings{
+				TerminalEnabled:         true,
+				SessionPolicyID:         uuidPointer(),
+				AllowedApplicationModes: []string{"staff_ui"},
+			},
+			wantErr: true,
+		},
+		{
+			name:     "duplicate",
+			settings: DeviceSettings{AllowedApplicationModes: []string{"staff_ui", "staff_ui"}},
+			wantErr:  true,
+		},
 		{name: "unknown", settings: DeviceSettings{AllowedApplicationModes: []string{"maintenance"}}, wantErr: true},
 	}
 	for _, test := range tests {

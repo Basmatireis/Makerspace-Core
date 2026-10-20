@@ -389,7 +389,8 @@ func buildEstimate(totals extrusionTotals, filamentConfig []GCodeFilament) GCode
 		}
 		sort.Ints(item.Extruders)
 		config, exists := configs[id]
-		if exists && config.DiameterMM != nil && config.DensityGCM3 != nil && *config.DiameterMM > 0 && *config.DensityGCM3 > 0 {
+		if exists && config.DiameterMM != nil && config.DensityGCM3 != nil && *config.DiameterMM > 0 &&
+			*config.DensityGCM3 > 0 {
 			grams := lengthToGrams(item.LengthMM, *config.DiameterMM, *config.DensityGCM3)
 			item.WeightGrams = &grams
 			item.ConversionMethod = "density_diameter"

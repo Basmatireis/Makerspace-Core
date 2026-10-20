@@ -48,7 +48,13 @@ type oidcSemanticsFixture struct {
 
 func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture {
 	t.Helper()
-	f := &oidcSemanticsFixture{t: t, pool: migratedPool(t), ctx: testContext(t), tokens: map[string]string{}, challenges: map[string]string{}}
+	f := &oidcSemanticsFixture{
+		t:          t,
+		pool:       migratedPool(t),
+		ctx:        testContext(t),
+		tokens:     map[string]string{},
+		challenges: map[string]string{},
+	}
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +68,8 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 		issuer := server.URL + "/" + name
 		mux.HandleFunc("/"+name+"/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token", "jwks_uri": server.URL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+			_ = json.NewEncoder(w).
+				Encode(map[string]any{"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token", "jwks_uri": server.URL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
 		})
 		mux.HandleFunc("/"+name+"/token", func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
@@ -73,18 +80,21 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 			defer f.mu.Unlock()
 			code := r.Form.Get("code")
 			id, secret, _ := r.BasicAuth()
-			if id != "semantics-client" || secret != "semantics-secret" || f.tokens[code] == "" || oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != f.challenges[code] {
+			if id != "semantics-client" || secret != "semantics-secret" || f.tokens[code] == "" ||
+				oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != f.challenges[code] {
 				http.Error(w, "invalid exchange", 400)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "local-only", "token_type": "Bearer", "id_token": f.tokens[code]})
+			_ = json.NewEncoder(w).
+				Encode(map[string]any{"access_token": "local-only", "token_type": "Bearer", "id_token": f.tokens[code]})
 			delete(f.tokens, code)
 		})
 	}
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "semantics", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "semantics", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
 	})
 	actor := seedAccount(t, f.pool, "oidc-semantics", true)
 	hash, err := security.HashPassword(bootstrapPassword)
@@ -106,7 +116,20 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 	}
 	secret := "semantics-secret"
 	create := func(slug string) oidc.Provider {
-		provider, err := f.service.CreateProvider(f.ctx, authorization.Principal{AccountID: actor.accountID, Master: true}, oidc.ProviderInput{Slug: slug, DisplayName: slug, Issuer: server.URL + "/" + slug, ClientID: "semantics-client", ClientSecret: &secret, Enabled: true, JITEnabled: true}, nil)
+		provider, err := f.service.CreateProvider(
+			f.ctx,
+			authorization.Principal{AccountID: actor.accountID, Master: true},
+			oidc.ProviderInput{
+				Slug:         slug,
+				DisplayName:  slug,
+				Issuer:       server.URL + "/" + slug,
+				ClientID:     "semantics-client",
+				ClientSecret: &secret,
+				Enabled:      true,
+				JITEnabled:   true,
+			},
+			nil,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +145,14 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.session, err = f.auth.CreateOIDCSession(f.ctx, tx, actor.accountID, f.identity, authorization.AssuranceNormal, time.Unix(0, 0))
+		f.session, err = f.auth.CreateOIDCSession(
+			f.ctx,
+			tx,
+			actor.accountID,
+			f.identity,
+			authorization.AssuranceNormal,
+			time.Unix(0, 0),
+		)
 		if err != nil {
 			_ = tx.Rollback(f.ctx)
 			t.Fatal(err)
@@ -147,14 +177,25 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 	return f
 }
 
-func (f *oidcSemanticsFixture) prepareCallback(flow oidc.FlowStart, subject string, authenticatedAt time.Time) (string, string) {
+func (f *oidcSemanticsFixture) prepareCallback(
+	flow oidc.FlowStart,
+	subject string,
+	authenticatedAt time.Time,
+) (string, string) {
 	f.t.Helper()
 	redirect, err := url.Parse(flow.AuthorizationURL)
 	if err != nil {
 		f.t.Fatal(err)
 	}
 	params := redirect.Query()
-	claims := map[string]any{"iss": strings.TrimSuffix(redirect.Scheme+"://"+redirect.Host+redirect.Path, "/authorize"), "sub": subject, "aud": "semantics-client", "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix(), "nonce": params.Get("nonce")}
+	claims := map[string]any{
+		"iss":   strings.TrimSuffix(redirect.Scheme+"://"+redirect.Host+redirect.Path, "/authorize"),
+		"sub":   subject,
+		"aud":   "semantics-client",
+		"exp":   time.Now().Add(time.Hour).Unix(),
+		"iat":   time.Now().Unix(),
+		"nonce": params.Get("nonce"),
+	}
 	if !authenticatedAt.IsZero() {
 		claims["auth_time"] = authenticatedAt.Unix()
 	}
@@ -174,7 +215,12 @@ func (f *oidcSemanticsFixture) prepareCallback(flow oidc.FlowStart, subject stri
 	return params.Get("state"), code
 }
 
-func (f *oidcSemanticsFixture) complete(flow oidc.FlowStart, subject string, authenticatedAt time.Time, principal authorization.Principal) (oidc.Completion, error) {
+func (f *oidcSemanticsFixture) complete(
+	flow oidc.FlowStart,
+	subject string,
+	authenticatedAt time.Time,
+	principal authorization.Principal,
+) (oidc.Completion, error) {
 	state, code := f.prepareCallback(flow, subject, authenticatedAt)
 	return f.service.Complete(f.ctx, state, code, flow.BrowserToken, principal, nil)
 }
@@ -195,7 +241,13 @@ func TestOIDCLinkUsesRecentSessionAssurance(t *testing.T) {
 	if _, err := f.complete(flow, "new-linked-subject", time.Now(), f.principal); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='new-linked-subject'`, 1, f.principal.AccountID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='new-linked-subject'`,
+		1,
+		f.principal.AccountID,
+	)
 	flow, err = f.service.StartLink(f.ctx, f.principal, "two", "")
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +312,13 @@ func TestOIDCOnlyAccountReauthenticatesThroughItsLinkedIdentity(t *testing.T) {
 	if _, err := f.complete(flow, "second-provider-subject", time.Now(), f.principal); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`, 2, f.principal.AccountID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`,
+		2,
+		f.principal.AccountID,
+	)
 	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE kind='password'`, 0)
 	assertCount(t, f.pool, `SELECT count(*) FROM accounts`, 1)
 }
@@ -297,13 +355,31 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 	if err := passwordFixture.auth.RemovePassword(passwordFixture.ctx, passwordFixture.principal, bootstrapPassword, nil); err != nil {
 		t.Fatalf("remove last usable password method: %v", err)
 	}
-	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, passwordFixture.principal.AccountID)
+	assertCount(
+		t,
+		passwordFixture.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`,
+		0,
+		passwordFixture.principal.AccountID,
+	)
 	// The active Account remains valid with only an unavailable OIDC identity.
 	if err := passwordFixture.service.Unlink(passwordFixture.ctx, passwordFixture.principal, passwordFixture.identity, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, passwordFixture.principal.AccountID)
-	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, passwordFixture.principal.AccountID)
+	assertCount(
+		t,
+		passwordFixture.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1`,
+		0,
+		passwordFixture.principal.AccountID,
+	)
+	assertCount(
+		t,
+		passwordFixture.pool,
+		`SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`,
+		1,
+		passwordFixture.principal.AccountID,
+	)
 }
 
 func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T) {
@@ -322,7 +398,13 @@ func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T
 	forged.AccountID = target.accountID
 	_, err = f.service.StartLink(f.ctx, forged, "two", bootstrapPassword)
 	expectAppCode(t, err, "unauthenticated")
-	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`, 0, target.accountID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`,
+		0,
+		target.accountID,
+	)
 }
 
 func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
@@ -348,7 +430,13 @@ func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, f.principal.AccountID)
-			assertCount(t, f.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, f.principal.AccountID)
+			assertCount(
+				t,
+				f.pool,
+				`SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`,
+				1,
+				f.principal.AccountID,
+			)
 		})
 	}
 }
@@ -368,7 +456,13 @@ func TestAdministrativeOIDCIdentityRemovalRevokesSessionsWithoutChangingAccountS
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, account.ID)
 	assertCount(t, f.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, account.ID)
-	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='auth.oidc_unlinked'`, 1, f.identity)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='auth.oidc_unlinked'`,
+		1,
+		f.identity,
+	)
 	if _, err := f.auth.Authenticate(f.ctx, f.session.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("session after administrative OIDC removal error=%v", err)
 	}
@@ -424,7 +518,8 @@ func TestOIDCReauthenticationAndLinkHTTPRequireBoundSessionAndCSRF(t *testing.T)
 		}
 		flow := oidc.FlowStart{AuthorizationURL: body.AuthorizationURL, BrowserToken: browser}
 		state, code := f.prepareCallback(flow, subject, time.Now())
-		request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/oidc/callback?state="+url.QueryEscape(state)+"&code="+url.QueryEscape(code), nil).WithContext(f.ctx)
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/oidc/callback?state="+url.QueryEscape(state)+"&code="+url.QueryEscape(code), nil).
+			WithContext(f.ctx)
 		request.AddCookie(&http.Cookie{Name: cfg.SessionCookieName, Value: f.session.Token})
 		request.AddCookie(&http.Cookie{Name: cfg.OIDCFlowCookieName, Value: browser})
 		completed := httptest.NewRecorder()
@@ -443,5 +538,11 @@ func TestOIDCReauthenticationAndLinkHTTPRequireBoundSessionAndCSRF(t *testing.T)
 	if response.Code != 400 {
 		t.Fatalf("arbitrary subject request accepted: %d", response.Code)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='linked-via-http'`, 1, f.principal.AccountID)
+	assertCount(
+		t,
+		f.pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='linked-via-http'`,
+		1,
+		f.principal.AccountID,
+	)
 }

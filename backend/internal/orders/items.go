@@ -21,13 +21,53 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 		return nil, conflict("pricing_incomplete", "A calculated charge or explicit final override is required")
 	}
 	p := job.PricingSnapshot
-	pricing := PricingEvidence{ID: p.ID, Revision: p.Revision, PricingGroupName: p.PricingGroupName, Currency: p.Currency, Reason: p.Reason, Complete: p.Complete, CalculatedAmount: p.CalculatedAmount, CapturedAt: p.CapturedAt, Rules: []PriceRule{}}
+	pricing := PricingEvidence{
+		ID:               p.ID,
+		Revision:         p.Revision,
+		PricingGroupName: p.PricingGroupName,
+		Currency:         p.Currency,
+		Reason:           p.Reason,
+		Complete:         p.Complete,
+		CalculatedAmount: p.CalculatedAmount,
+		CapturedAt:       p.CapturedAt,
+		Rules:            []PriceRule{},
+	}
 	for _, r := range p.Rules {
-		pricing.Rules = append(pricing.Rules, PriceRule{SourceRuleID: r.SourceRuleID, Kind: r.Kind, Label: r.Label, Selector: r.Selector, Unit: r.Unit, Rate: r.Rate, Missing: r.Missing})
+		pricing.Rules = append(
+			pricing.Rules,
+			PriceRule{
+				SourceRuleID: r.SourceRuleID,
+				Kind:         r.Kind,
+				Label:        r.Label,
+				Selector:     r.Selector,
+				Unit:         r.Unit,
+				Rate:         r.Rate,
+				Missing:      r.Missing,
+			},
+		)
 	}
 	usages := []JobUsage{}
 	for _, u := range job.Usages {
-		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, SpoolDisplayID: u.SpoolDisplayID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.MaterialTypeName, Unit: u.Unit, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected})
+		usages = append(
+			usages,
+			JobUsage{
+				ID:                 u.ID,
+				MaterialID:         u.MaterialID,
+				SpoolID:            u.SpoolID,
+				SpoolDisplayID:     u.SpoolDisplayID,
+				Ownership:          u.Ownership,
+				MaterialName:       u.MaterialName,
+				Category:           u.MaterialTypeName,
+				Unit:               u.Unit,
+				Quantity:           u.Quantity,
+				QuantityBasis:      u.QuantityBasis,
+				EstimationMethod:   u.EstimationMethod,
+				CalculationVersion: u.CalculationVersion,
+				EstimateQuality:    u.EstimateQuality,
+				ReportRevision:     u.ReportRevision,
+				StaffCorrected:     u.StaffCorrected,
+			},
+		)
 	}
 	var finalAmount, overrideReason *string
 	var overriddenAt *time.Time
@@ -45,11 +85,47 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	} else if job.ExpectedEndAt != nil {
 		endsAt = *job.ExpectedEndAt
 	}
-	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: startsAt, EndsAt: endsAt, DurationNanoseconds: decimal.NewFromInt(job.DurationSeconds).Mul(decimal.NewFromInt(int64(time.Second))).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: finalAmount, EffectiveAmount: *job.EffectivePrice, OverrideReason: overrideReason, OverriddenAt: overriddenAt, CapturedAt: time.Now().UTC()}, nil
+	return &JobChargeSnapshot{
+		DisplayID:       job.DisplayID,
+		MachineID:       job.Machine.ID,
+		MachineName:     job.Machine.Name,
+		MachineTypeID:   job.Machine.MachineType.ID,
+		MachineTypeName: job.Machine.MachineType.Name,
+		StartsAt:        startsAt,
+		EndsAt:          endsAt,
+		DurationNanoseconds: decimal.NewFromInt(job.DurationSeconds).
+			Mul(decimal.NewFromInt(int64(time.Second))).
+			String(),
+		Outcome:          job.Outcome,
+		Usages:           usages,
+		Pricing:          pricing,
+		PricingStatus:    job.PricingStatus,
+		CalculatedAmount: job.CalculatedPrice,
+		FinalAmount:      finalAmount,
+		EffectiveAmount:  *job.EffectivePrice,
+		OverrideReason:   overrideReason,
+		OverriddenAt:     overriddenAt,
+		CapturedAt:       time.Now().UTC(),
+	}, nil
 }
-func (s *Service) insertItem(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, input OrderItemInput, requestID *uuid.UUID) (db.OrderItem, error) {
+
+func (s *Service) insertItem(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	input OrderItemInput,
+	requestID *uuid.UUID,
+) (db.OrderItem, error) {
 	q := db.New(tx)
-	params := db.InsertItemParams{ID: newID(), OrderID: o.ID, Kind: input.Kind, Description: strings.TrimSpace(input.Description), Unit: strings.TrimSpace(input.Unit), CreatedByAccountID: &p.AccountID}
+	params := db.InsertItemParams{
+		ID:                 newID(),
+		OrderID:            o.ID,
+		Kind:               input.Kind,
+		Description:        strings.TrimSpace(input.Description),
+		Unit:               strings.TrimSpace(input.Unit),
+		CreatedByAccountID: &p.AccountID,
+	}
 	switch input.Kind {
 	case "manual":
 		qty, err := parseAmount(input.Quantity, 6, true)
@@ -125,7 +201,15 @@ func (s *Service) insertItem(ctx context.Context, tx pgx.Tx, p authorization.Pri
 	}
 	return item, writeAudit(ctx, tx, p, "order.item_added", "order", o.ID, requestID, "items")
 }
-func (s *Service) ChangeItem(ctx context.Context, p authorization.Principal, id, itemID uuid.UUID, input OrderItemInput, action string, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) ChangeItem(
+	ctx context.Context,
+	p authorization.Principal,
+	id, itemID uuid.UUID,
+	input OrderItemInput,
+	action string,
+	requestID *uuid.UUID,
+) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.OrdersWrite); err != nil {
 		return Order{}, err
 	}
@@ -170,7 +254,12 @@ func (s *Service) ChangeItem(ctx context.Context, p authorization.Principal, id,
 			if e != nil {
 				return Order{}, e
 			}
-			input = OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, Description: old.Description}
+			input = OrderItemInput{
+				Kind:               "machine_job",
+				MachineJobID:       job.ID,
+				ExpectedJobVersion: job.Version,
+				Description:        old.Description,
+			}
 		}
 	}
 	if action == "remove" {
@@ -192,7 +281,12 @@ func (s *Service) ChangeItem(ctx context.Context, p authorization.Principal, id,
 	}
 	return result, databaseError(tx.Commit(ctx))
 }
-func (s *Service) JobAssociation(ctx context.Context, p authorization.Principal, id uuid.UUID) (JobOrderAssociation, error) {
+
+func (s *Service) JobAssociation(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+) (JobOrderAssociation, error) {
 	if err := require(p, authorization.OrdersRead); err != nil {
 		return JobOrderAssociation{}, err
 	}
@@ -203,5 +297,9 @@ func (s *Service) JobAssociation(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return JobOrderAssociation{}, err
 	}
-	return JobOrderAssociation{OrderID: &r.OrderID, OrderReference: &r.Reference, SourceChanged: r.SourceJobVersion != nil && r.CurrentJobVersion != *r.SourceJobVersion}, nil
+	return JobOrderAssociation{
+		OrderID:        &r.OrderID,
+		OrderReference: &r.Reference,
+		SourceChanged:  r.SourceJobVersion != nil && r.CurrentJobVersion != *r.SourceJobVersion,
+	}, nil
 }

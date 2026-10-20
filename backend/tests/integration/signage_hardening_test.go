@@ -40,9 +40,30 @@ func TestUnauthenticatedRawUploadsAreRejectedWithoutReadingTheBody(t *testing.T)
 		method, path string
 		headers      map[string]string
 	}{
-		{http.MethodPost, "/api/v1/signage/assets", map[string]string{"X-File-Name": "a.mp4", "X-File-Content-Type": "video/mp4"}},
-		{http.MethodPost, "/api/v1/events/01a00000-0000-7000-8000-000000000001/files", map[string]string{"X-File-Name": "a.bin", "X-File-Content-Type": "application/pdf", "X-Event-File-Visibility": "internal"}},
-		{http.MethodPut, "/api/v1/printer-connector/self/assignments/01a00000-0000-7000-8000-000000000001/artifact", map[string]string{"Authorization": "Bearer nope", "X-Configuration-Version": "1", "X-Artifact-Filename": "a.3mf", "X-Artifact-SHA256": "00000000000000000000000000000000000000000000000000000000000000aa"}},
+		{
+			http.MethodPost,
+			"/api/v1/signage/assets",
+			map[string]string{"X-File-Name": "a.mp4", "X-File-Content-Type": "video/mp4"},
+		},
+		{
+			http.MethodPost,
+			"/api/v1/events/01a00000-0000-7000-8000-000000000001/files",
+			map[string]string{
+				"X-File-Name":             "a.bin",
+				"X-File-Content-Type":     "application/pdf",
+				"X-Event-File-Visibility": "internal",
+			},
+		},
+		{
+			http.MethodPut,
+			"/api/v1/printer-connector/self/assignments/01a00000-0000-7000-8000-000000000001/artifact",
+			map[string]string{
+				"Authorization":           "Bearer nope",
+				"X-Configuration-Version": "1",
+				"X-Artifact-Filename":     "a.3mf",
+				"X-Artifact-SHA256":       "00000000000000000000000000000000000000000000000000000000000000aa",
+			},
+		},
 	}
 	for _, route := range routes {
 		body := &countingBody{}
@@ -72,7 +93,11 @@ func TestSignageAssetUploadStillValidatesHeaders(t *testing.T) {
 	send := func(headers ...string) *http.Response {
 		return e.doRaw(staff.client, staff.csrf, http.MethodPost, "/signage/assets", image, headers...)
 	}
-	e.expectCode(send("X-File-Name", "a.jpg", "X-File-Content-Type", "application/pdf"), http.StatusBadRequest, "invalid_request")
+	e.expectCode(
+		send("X-File-Name", "a.jpg", "X-File-Content-Type", "application/pdf"),
+		http.StatusBadRequest,
+		"invalid_request",
+	)
 	e.expectCode(send("X-File-Content-Type", "image/jpeg"), http.StatusBadRequest, "invalid_request")
 	e.expect(send("X-File-Name", "a.jpg", "X-File-Content-Type", "image/jpeg"), http.StatusCreated)
 }
@@ -81,7 +106,16 @@ func TestSignageImageDimensionCaps(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
 	for _, size := range [][2]int{{8193, 8}, {7000, 6000}} {
-		_, err := f.service.UploadAsset(ctx, f.admin, signage.UploadInput{Name: "big.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(signageJPEG(t, size[0], size[1]))}, nil)
+		_, err := f.service.UploadAsset(
+			ctx,
+			f.admin,
+			signage.UploadInput{
+				Name:        "big.jpg",
+				ContentType: "image/jpeg",
+				Body:        bytes.NewReader(signageJPEG(t, size[0], size[1])),
+			},
+			nil,
+		)
 		var appErr *apperror.Error
 		if !errors.As(err, &appErr) || appErr.HTTPStatus != http.StatusUnprocessableEntity {
 			t.Errorf("%v: err = %v, want 422", size, err)
@@ -106,9 +140,16 @@ func TestSignagePairingHardening(t *testing.T) {
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": "Restart", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"resolution": map[string]any{
+			"width":  1920,
+			"height": 1080,
+		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}), http.StatusCreated)
-	e.expectCode(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusConflict, "pairing_claimed")
+	e.expectCode(
+		e.do(player, "", http.MethodPost, "/public/signage/pairing", nil),
+		http.StatusConflict,
+		"pairing_claimed",
+	)
 	if poll := e.expect(e.do(player, "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK); poll["status"] != "paired" {
 		t.Fatalf("claimed request was lost by a restart: %v", poll)
 	}
@@ -133,11 +174,21 @@ func TestSignagePairingAllowedCIDRs(t *testing.T) {
 	denied := newSignageEnvWith(t, func(c *config.Config) {
 		c.SignagePairingAllowedCIDRs = []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")}
 	})
-	denied.expectCode(denied.do(denied.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusForbidden, "pairing_network_denied")
+	denied.expectCode(
+		denied.do(denied.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil),
+		http.StatusForbidden,
+		"pairing_network_denied",
+	)
 	allowed := newSignageEnvWith(t, func(c *config.Config) {
-		c.SignagePairingAllowedCIDRs = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")}
+		c.SignagePairingAllowedCIDRs = []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}
 	})
-	allowed.expect(allowed.do(allowed.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
+	allowed.expect(
+		allowed.do(allowed.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil),
+		http.StatusCreated,
+	)
 }
 
 func TestSignagePlayerRequestsAreRateLimitedPerDevice(t *testing.T) {
@@ -199,7 +250,12 @@ func TestSignagePublishSerializationFailureIsStaleWrite(t *testing.T) {
 }
 
 // doRaw sends raw bytes as an octet-stream with the same-origin and CSRF headers.
-func (e *signageEnv) doRaw(client *http.Client, csrf, method, path string, body []byte, headers ...string) *http.Response {
+func (e *signageEnv) doRaw(
+	client *http.Client,
+	csrf, method, path string,
+	body []byte,
+	headers ...string,
+) *http.Response {
 	e.t.Helper()
 	request, err := http.NewRequestWithContext(testContext(e.t), method, e.api+path, bytes.NewReader(body))
 	if err != nil {

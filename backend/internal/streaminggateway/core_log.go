@@ -47,7 +47,15 @@ func safeCode(code string) string {
 func (g *Gateway) logFailure(message string, err error) {
 	var coreErr *CoreError
 	if errors.As(err, &coreErr) {
-		g.logger.Warn(message, "error_type", fmt.Sprintf("%T", err), "status", coreErr.Status, "code", safeCode(coreErr.Code))
+		g.logger.Warn(
+			message,
+			"error_type",
+			fmt.Sprintf("%T", err),
+			"status",
+			coreErr.Status,
+			"code",
+			safeCode(coreErr.Code),
+		)
 	} else {
 		g.logger.Warn(message, "error_type", fmt.Sprintf("%T", err))
 	}
@@ -65,7 +73,9 @@ func (g *Gateway) logCredentialRejected() {
 	}
 	g.mu.Unlock()
 	if due {
-		g.logger.Error("Core rejects this gateway's credential (revoked or deleted). Create or pick a gateway in Core (Settings > Local services), put a new STREAM_ENROLLMENT_SECRET into .env and restart.")
+		g.logger.Error(
+			"Core rejects this gateway's credential (revoked or deleted). Create or pick a gateway in Core (Settings > Local services), put a new STREAM_ENROLLMENT_SECRET into .env and restart.",
+		)
 	}
 }
 

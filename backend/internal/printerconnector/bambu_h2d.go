@@ -40,13 +40,23 @@ type BambuH2DSecrets struct {
 	LANAccessCode string
 }
 
-func parseBambuH2DConfiguration(settings map[string]any, secrets map[string]string) (BambuH2DSettings, BambuH2DSecrets, error) {
+func parseBambuH2DConfiguration(
+	settings map[string]any,
+	secrets map[string]string,
+) (BambuH2DSettings, BambuH2DSecrets, error) {
 	return parseBambuConfiguration(bambuH2DAdapterKind, settings, secrets)
 }
 
-func parseBambuConfiguration(kind string, settings map[string]any, secrets map[string]string) (BambuH2DSettings, BambuH2DSecrets, error) {
+func parseBambuConfiguration(
+	kind string,
+	settings map[string]any,
+	secrets map[string]string,
+) (BambuH2DSettings, BambuH2DSecrets, error) {
 	if len(settings) < 2 || len(settings) > 3 {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s settings must contain ipAddress, serialNumber, and optional autoDetectSpools", kind)
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf(
+			"%s settings must contain ipAddress, serialNumber, and optional autoDetectSpools",
+			kind,
+		)
 	}
 	for key := range settings {
 		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
@@ -59,12 +69,16 @@ func parseBambuConfiguration(kind string, settings map[string]any, secrets map[s
 		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s ipAddress and serialNumber must be strings", kind)
 	}
 	ip, err := netip.ParseAddr(strings.TrimSpace(ipText))
-	if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() || ip == netip.MustParseAddr("255.255.255.255") {
+	if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() ||
+		ip == netip.MustParseAddr("255.255.255.255") {
 		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s ipAddress must be an IPv4 unicast literal", kind)
 	}
 	serial = strings.ToUpper(strings.TrimSpace(serial))
 	if !bambuSerialPattern.MatchString(serial) {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s serialNumber must contain 8 to 32 ASCII letters or digits", kind)
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf(
+			"%s serialNumber must contain 8 to 32 ASCII letters or digits",
+			kind,
+		)
 	}
 	autoDetect := false
 	if raw, exists := settings["autoDetectSpools"]; exists {
@@ -79,9 +93,18 @@ func parseBambuConfiguration(kind string, settings map[string]any, secrets map[s
 	}
 	accessCode := strings.TrimSpace(secrets["lanAccessCode"])
 	if accessCode == "" || len(accessCode) > 128 {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s lanAccessCode is required and must not exceed 128 bytes", kind)
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf(
+			"%s lanAccessCode is required and must not exceed 128 bytes",
+			kind,
+		)
 	}
-	return BambuH2DSettings{IPAddress: ip, SerialNumber: serial, AutoDetectSpools: autoDetect}, BambuH2DSecrets{LANAccessCode: accessCode}, nil
+	return BambuH2DSettings{
+			IPAddress:        ip,
+			SerialNumber:     serial,
+			AutoDetectSpools: autoDetect,
+		}, BambuH2DSecrets{
+			LANAccessCode: accessCode,
+		}, nil
 }
 
 type bambuH2DAdapter struct {
@@ -94,15 +117,53 @@ type bambuH2DAdapter struct {
 	newMQTT              func(BambuH2DSettings, BambuH2DSecrets) (bambuMQTTClient, error)
 }
 
-func NewBambuH2D(assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
-	return newBambuLANAdapter(bambuH2DAdapterKind, assignmentID, configurationVersion, schemaVersion, settings, secrets, store)
+func NewBambuH2D(
+	assignmentID uuid.UUID,
+	configurationVersion int64,
+	schemaVersion int,
+	settings map[string]any,
+	secrets map[string]string,
+	store *Store,
+) (Adapter, error) {
+	return newBambuLANAdapter(
+		bambuH2DAdapterKind,
+		assignmentID,
+		configurationVersion,
+		schemaVersion,
+		settings,
+		secrets,
+		store,
+	)
 }
 
-func NewBambuX1C(assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
-	return newBambuLANAdapter(bambuX1CAdapterKind, assignmentID, configurationVersion, schemaVersion, settings, secrets, store)
+func NewBambuX1C(
+	assignmentID uuid.UUID,
+	configurationVersion int64,
+	schemaVersion int,
+	settings map[string]any,
+	secrets map[string]string,
+	store *Store,
+) (Adapter, error) {
+	return newBambuLANAdapter(
+		bambuX1CAdapterKind,
+		assignmentID,
+		configurationVersion,
+		schemaVersion,
+		settings,
+		secrets,
+		store,
+	)
 }
 
-func newBambuLANAdapter(kind string, assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
+func newBambuLANAdapter(
+	kind string,
+	assignmentID uuid.UUID,
+	configurationVersion int64,
+	schemaVersion int,
+	settings map[string]any,
+	secrets map[string]string,
+	store *Store,
+) (Adapter, error) {
 	if assignmentID == uuid.Nil {
 		return nil, fmt.Errorf("%s assignment ID is required", kind)
 	}
@@ -119,11 +180,29 @@ func newBambuLANAdapter(kind string, assignmentID uuid.UUID, configurationVersio
 	if err != nil {
 		return nil, err
 	}
-	return &bambuH2DAdapter{kind: kind, assignmentID: assignmentID, configurationVersion: configurationVersion, settings: parsedSettings, secrets: parsedSecrets, store: store, newMQTT: newPahoBambuClient}, nil
+	return &bambuH2DAdapter{
+		kind:                 kind,
+		assignmentID:         assignmentID,
+		configurationVersion: configurationVersion,
+		settings:             parsedSettings,
+		secrets:              parsedSecrets,
+		store:                store,
+		newMQTT:              newPahoBambuClient,
+	}, nil
 }
 
 func (a *bambuH2DAdapter) Descriptor() AdapterDescriptor {
-	return AdapterDescriptor{Kind: a.adapterKind(), SchemaVersion: 1, Capabilities: []Capability{CapabilityStatus, CapabilityProgress, CapabilitySlots, CapabilityConsumption, CapabilityTerminal}}
+	return AdapterDescriptor{
+		Kind:          a.adapterKind(),
+		SchemaVersion: 1,
+		Capabilities: []Capability{
+			CapabilityStatus,
+			CapabilityProgress,
+			CapabilitySlots,
+			CapabilityConsumption,
+			CapabilityTerminal,
+		},
+	}
 }
 
 func (a *bambuH2DAdapter) adapterKind() string {
@@ -297,7 +376,12 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observ
 	return nil
 }
 
-func commitBambuProcessorState(ctx context.Context, sink Sink, processor *bambuProcessor, observations []Observation) error {
+func commitBambuProcessorState(
+	ctx context.Context,
+	sink Sink,
+	processor *bambuProcessor,
+	observations []Observation,
+) error {
 	if persistent, ok := sink.(bambuStateSink); ok {
 		return persistent.CommitBambuState(ctx, observations, processor.state)
 	}

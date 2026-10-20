@@ -642,8 +642,23 @@ func accountPointer(p authorization.Principal) *uuid.UUID {
 	return &account
 }
 
-func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
-	event := audit.Event{ActorAccountID: accountPointer(p), Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields}
+func writeAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields []string,
+) error {
+	event := audit.Event{
+		ActorAccountID: accountPointer(p),
+		Action:         action,
+		ResourceType:   resource,
+		ResourceID:     &id,
+		RequestID:      requestID,
+		ChangedFields:  fields,
+	}
 	if event.ActorAccountID == nil {
 		event.ActorType = "system"
 	}
@@ -651,7 +666,15 @@ func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, actio
 }
 
 func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
-	return MachineType{ID: row.ID, Name: row.Name, Active: row.Active, Process: row.Process, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return MachineType{
+		ID:        row.ID,
+		Name:      row.Name,
+		Active:    row.Active,
+		Process:   row.Process,
+		Version:   row.Version,
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
+	}
 }
 
 func formatDisplayID(sequence int64, now time.Time) string {

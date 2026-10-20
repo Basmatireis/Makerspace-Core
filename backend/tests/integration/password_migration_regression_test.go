@@ -69,7 +69,8 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
 		uuid.Must(uuid.NewV7()), accountID, identityID, bytes.Repeat([]byte{9}, 32), bytes.Repeat([]byte{8}, 32))
 	var pgErr *pgconn.PgError
-	if !strings.Contains(errorString(err), "authenticated_at") || !asPostgresError(err, &pgErr) || pgErr.Code != "23502" {
+	if !strings.Contains(errorString(err), "authenticated_at") || !asPostgresError(err, &pgErr) ||
+		pgErr.Code != "23502" {
 		t.Fatalf("pre-repair session insert error = %v, want authenticated_at not-null violation", err)
 	}
 	applyMigrationFiles(t, pool, migrations[11:])
@@ -93,9 +94,23 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	if gotPersonID != personID || gotAccountID != accountID || gotStatus != "enabled" || gotIdentityID != identityID ||
 		gotKind != "password" || gotIdentifierDisplay != email || gotIdentifierNormalized != strings.ToLower(email) ||
 		gotVerifiedAt.IsZero() || gotDisabledAt != nil || gotHash != hash || !security.VerifyPassword(gotHash, password) {
-		t.Fatalf("migrated identity changed: person=%s account=%s identity=%s kind=%q hashPreserved=%v", gotPersonID, gotAccountID, gotIdentityID, gotKind, gotHash == hash)
+		t.Fatalf(
+			"migrated identity changed: person=%s account=%s identity=%s kind=%q hashPreserved=%v",
+			gotPersonID,
+			gotAccountID,
+			gotIdentityID,
+			gotKind,
+			gotHash == hash,
+		)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, personID, masterRoleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`,
+		1,
+		personID,
+		masterRoleID,
+	)
 
 	service, err := auth.NewService(pool, integrationConfig(t))
 	if err != nil {
@@ -106,7 +121,9 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		t.Fatalf("pre-migration session cookie after migration: %v", err)
 	}
 	if preMigrationAuthentication.Principal.AccountID != accountID || preMigrationAuthentication.Principal.PersonID != personID ||
-		!preMigrationAuthentication.Principal.Master || preMigrationAuthentication.Principal.Assurance != "normal" || preMigrationAuthentication.AuthMethod != "password" {
+		!preMigrationAuthentication.Principal.Master ||
+		preMigrationAuthentication.Principal.Assurance != "normal" ||
+		preMigrationAuthentication.AuthMethod != "password" {
 		t.Fatalf("migrated session principal = %#v", preMigrationAuthentication.Principal)
 	}
 	var migratedSessionMethod, migratedSessionBase, migratedSessionCurrent string
@@ -118,8 +135,15 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if migratedSessionMethod != "password" || migratedSessionBase != "normal" || migratedSessionCurrent != "normal" || migratedSessionAuthenticatedAt.IsZero() {
-		t.Fatalf("pre-migration session changed incorrectly: method=%q assurance=%q/%q authenticatedAt=%v", migratedSessionMethod, migratedSessionBase, migratedSessionCurrent, migratedSessionAuthenticatedAt)
+	if migratedSessionMethod != "password" || migratedSessionBase != "normal" || migratedSessionCurrent != "normal" ||
+		migratedSessionAuthenticatedAt.IsZero() {
+		t.Fatalf(
+			"pre-migration session changed incorrectly: method=%q assurance=%q/%q authenticatedAt=%v",
+			migratedSessionMethod,
+			migratedSessionBase,
+			migratedSessionCurrent,
+			migratedSessionAuthenticatedAt,
+		)
 	}
 	session, err := service.Login(ctx, strings.ToUpper(email), password, "migration-regression", nil)
 	if err != nil {
@@ -131,7 +155,13 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	if method != "password" || baseAssurance != "normal" || currentAssurance != "normal" || authenticatedAt.IsZero() {
-		t.Fatalf("migrated login session = method %q assurance %q/%q authenticatedAt=%v", method, baseAssurance, currentAssurance, authenticatedAt)
+		t.Fatalf(
+			"migrated login session = method %q assurance %q/%q authenticatedAt=%v",
+			method,
+			baseAssurance,
+			currentAssurance,
+			authenticatedAt,
+		)
 	}
 }
 
@@ -148,7 +178,15 @@ func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	userEvent, adminEvent, systemEvent, unknownEvent := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	userEvent, adminEvent, systemEvent, unknownEvent := uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO audit_events (id, actor_account_id, action, resource_type, source) VALUES
 		($1, $5, 'person.updated', 'person', 'http'),
@@ -175,7 +213,8 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	ctx := testContext(t)
 	oldPassword := "old master password 2026"
 	newPassword := "new master password 2026"
-	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "CLI", LastName: "Master", ContactEmail: "cli-master@example.test", LoginEmail: "cli-login@example.test", Password: oldPassword})
+	accountID, err := admin.NewService(pool).
+		BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "CLI", LastName: "Master", ContactEmail: "cli-master@example.test", LoginEmail: "cli-login@example.test", Password: oldPassword})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,19 +273,51 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if gotPersonID != personID || status != "enabled" {
 		t.Fatalf("account identity/status changed: person=%s status=%s", gotPersonID, status)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, personID, masterRoleID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND id IN ($2,$3,$4)`, 3, accountID, passwordIdentityID, pinIdentityID, oidcIdentityID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		1,
+		personID,
+		masterRoleID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND id IN ($2,$3,$4)`,
+		3,
+		accountID,
+		passwordIdentityID,
+		pinIdentityID,
+		oidcIdentityID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM sessions WHERE id=$1 AND revoked_at IS NOT NULL`, 1, oldSession.ID)
 	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id=$1`, 0, accountID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind IN ('invitation','email_verification','password_reset')`, 0, accountID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.password_reset_by_admin_cli' AND source='admin_cli'`, 1, accountID)
-	if _, err := authService.Login(ctx, "cli-login@example.test", oldPassword, "old-after-reset", nil); !apperror.IsCode(err, "invalid_credentials") {
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind IN ('invitation','email_verification','password_reset')`,
+		0,
+		accountID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.password_reset_by_admin_cli' AND source='admin_cli'`,
+		1,
+		accountID,
+	)
+	if _, err := authService.Login(ctx, "cli-login@example.test", oldPassword, "old-after-reset", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("old password login error = %v, want invalid_credentials", err)
 	}
 	if _, err := authService.Login(ctx, "cli-login@example.test", newPassword, "new-after-reset", nil); err != nil {
 		t.Fatalf("new password login: %v", err)
 	}
-	if _, err := admin.NewService(pool).RecoverMaster(ctx, "cli-login@example.test", "another valid password 2026"); err == nil || !strings.Contains(err.Error(), "enabled master") {
+	if _, err := admin.NewService(pool).RecoverMaster(ctx, "cli-login@example.test", "another valid password 2026"); err == nil ||
+		!strings.Contains(err.Error(), "enabled master") {
 		t.Fatalf("recover-master after CLI reset error = %v, want enabled-master refusal", err)
 	}
 }
@@ -278,8 +349,22 @@ func TestAdministrativeResetPasswordRefusesPINAndContactOnlyMatches(t *testing.T
 		t.Fatal("reset-password matched a Person contact email")
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, personID)
-	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled'`, 1, accountID, personID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND account_id=$2 AND kind='pin'`, 1, pinIdentityID, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled'`,
+		1,
+		accountID,
+		personID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE id=$1 AND account_id=$2 AND kind='pin'`,
+		1,
+		pinIdentityID,
+		accountID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, accountID)
 }
 

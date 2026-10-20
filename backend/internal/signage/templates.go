@@ -59,7 +59,17 @@ func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateFi
 	if fields == nil {
 		fields = []TemplateField{}
 	}
-	return Template{ID: row.ID, Name: row.Name, Tone: row.Tone, Title: row.Title, Body: row.Body, Fields: fields, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC()}
+	return Template{
+		ID:        row.ID,
+		Name:      row.Name,
+		Tone:      row.Tone,
+		Title:     row.Title,
+		Body:      row.Body,
+		Fields:    fields,
+		Version:   row.Version,
+		CreatedAt: row.CreatedAt.UTC(),
+		UpdatedAt: row.UpdatedAt.UTC(),
+	}
 }
 
 func fieldsByTemplate(rows []signagedb.SignageAnnouncementTemplateField) map[uuid.UUID][]TemplateField {
@@ -163,7 +173,10 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 	fields := make([]TemplateField, 0, len(input.Fields))
 	for _, field := range input.Fields {
 		if !fieldKeyPattern.MatchString(field.Key) {
-			return TemplateInput{}, validation("field key %q must be lowercase letters, digits and underscores, starting with a letter", field.Key)
+			return TemplateInput{}, validation(
+				"field key %q must be lowercase letters, digits and underscores, starting with a letter",
+				field.Key,
+			)
 		}
 		if isBuiltInKey(field.Key) {
 			return TemplateInput{}, validation("field key %q is a built-in variable", field.Key)
@@ -180,30 +193,52 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 			return TemplateInput{}, validation("field %q has an unknown type", field.Key)
 		}
 		if !plainText(field.HelperText, 300, false) {
-			return TemplateInput{}, validation("helper text of field %q is limited to 300 characters of single-line text", field.Key)
+			return TemplateInput{}, validation(
+				"helper text of field %q is limited to 300 characters of single-line text",
+				field.Key,
+			)
 		}
 		options := []string{}
 		if field.Type == "choice" {
 			if len(field.Options) == 0 || len(field.Options) > maxFieldOptions {
-				return TemplateInput{}, validation("choice field %q needs between 1 and %d options", field.Key, maxFieldOptions)
+				return TemplateInput{}, validation(
+					"choice field %q needs between 1 and %d options",
+					field.Key,
+					maxFieldOptions,
+				)
 			}
 			for _, option := range field.Options {
 				if option == "" || !plainText(option, 100, false) || contains(options, option) {
-					return TemplateInput{}, validation("options of field %q must be distinct single-line texts of at most 100 characters", field.Key)
+					return TemplateInput{}, validation(
+						"options of field %q must be distinct single-line texts of at most 100 characters",
+						field.Key,
+					)
 				}
 				options = append(options, option)
 			}
 		} else if len(field.Options) > 0 {
 			return TemplateInput{}, validation("only choice fields have options")
 		}
-		checked := TemplateField{Key: field.Key, Label: label, Type: field.Type, Required: field.Required, DefaultValue: field.DefaultValue, HelperText: field.HelperText, Options: options}
+		checked := TemplateField{
+			Key:          field.Key,
+			Label:        label,
+			Type:         field.Type,
+			Required:     field.Required,
+			DefaultValue: field.DefaultValue,
+			HelperText:   field.HelperText,
+			Options:      options,
+		}
 		if err := ValidateFieldValue(checked, checked.DefaultValue); err != nil {
 			return TemplateInput{}, err
 		}
 		fields = append(fields, checked)
 	}
 	if unknown := UnknownPlaceholders(keys, input.Title, input.Body); len(unknown) > 0 {
-		result := apperror.New(422, "unknown_placeholders", "Title or body use placeholders that are neither fields nor built-in variables")
+		result := apperror.New(
+			422,
+			"unknown_placeholders",
+			"Title or body use placeholders that are neither fields nor built-in variables",
+		)
 		result.Details["placeholders"] = unknown
 		return TemplateInput{}, result
 	}
@@ -275,7 +310,12 @@ func (s *Service) getTemplate(ctx context.Context, q *signagedb.Queries, id uuid
 }
 
 // CreateTemplate stores a template and its fields.
-func (s *Service) CreateTemplate(ctx context.Context, principal authorization.Principal, input TemplateInput, requestID *uuid.UUID) (Template, error) {
+func (s *Service) CreateTemplate(
+	ctx context.Context,
+	principal authorization.Principal,
+	input TemplateInput,
+	requestID *uuid.UUID,
+) (Template, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Template{}, err
 	}
@@ -308,7 +348,14 @@ func (s *Service) CreateTemplate(ctx context.Context, principal authorization.Pr
 
 // UpdateTemplate replaces a template and its fields. Stored values of removed fields are dropped
 // from the template's announcements.
-func (s *Service) UpdateTemplate(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, input TemplateInput, requestID *uuid.UUID) (Template, error) {
+func (s *Service) UpdateTemplate(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input TemplateInput,
+	requestID *uuid.UUID,
+) (Template, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Template{}, err
 	}
@@ -335,7 +382,10 @@ func (s *Service) UpdateTemplate(ctx context.Context, principal authorization.Pr
 	if current.Version != expected {
 		return Template{}, apperror.StaleWrite
 	}
-	if _, err := q.UpdateSignageTemplate(ctx, signagedb.UpdateSignageTemplateParams{Name: checked.Name, Tone: checked.Tone, Title: checked.Title, Body: checked.Body, ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.UpdateSignageTemplate(ctx, signagedb.UpdateSignageTemplateParams{Name: checked.Name, Tone: checked.Tone, Title: checked.Title, Body: checked.Body, ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Template{}, apperror.StaleWrite
 	} else if err != nil {
 		return Template{}, databaseError(err)
@@ -362,7 +412,13 @@ func (s *Service) UpdateTemplate(ctx context.Context, principal authorization.Pr
 
 // DeleteTemplate removes a template that no active or scheduled announcement, rule filter or
 // widget filter uses. Ended announcements of the template are deleted with it.
-func (s *Service) DeleteTemplate(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteTemplate(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireContentManage(principal); err != nil {
 		return err
 	}
@@ -387,7 +443,10 @@ func (s *Service) DeleteTemplate(ctx context.Context, principal authorization.Pr
 	}
 	now := s.now()
 	var references []Reference
-	live, err := q.ListAnnouncementsUsingTemplate(ctx, signagedb.ListAnnouncementsUsingTemplateParams{TemplateID: id, Now: now})
+	live, err := q.ListAnnouncementsUsingTemplate(
+		ctx,
+		signagedb.ListAnnouncementsUsingTemplateParams{TemplateID: id, Now: now},
+	)
 	if err != nil {
 		return err
 	}
@@ -414,7 +473,10 @@ func (s *Service) DeleteTemplate(ctx context.Context, principal authorization.Pr
 	if err := q.DeleteEndedAnnouncementsOfTemplate(ctx, signagedb.DeleteEndedAnnouncementsOfTemplateParams{TemplateID: id, Now: now}); err != nil {
 		return err
 	}
-	if _, err := q.DeleteSignageTemplate(ctx, signagedb.DeleteSignageTemplateParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.DeleteSignageTemplate(ctx, signagedb.DeleteSignageTemplateParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return databaseError(err)

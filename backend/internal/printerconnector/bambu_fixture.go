@@ -199,20 +199,36 @@ func (r *fixtureRedactor) stringValue(key, value string) string {
 		return value
 	}
 	switch key {
-	case "lanaccesscode", "accesscode", "password", "passwd", "token", "accesstoken", "authorization", "cookie", "secret":
+	case "lanaccesscode",
+		"accesscode",
+		"password",
+		"passwd",
+		"token",
+		"accesstoken",
+		"authorization",
+		"cookie",
+		"secret":
 		return "<redacted>"
 	case "serial", "serialnumber", "printerserial", "sn", "devicesn", "deviceid":
 		return r.replacement("serial", value, func(index int) string { return fmt.Sprintf("FIXTURE%08d", index) })
 	case "ip", "ipaddress", "hostip", "printerip":
 		return r.replacement("ip", value, func(index int) string { return fmt.Sprintf("192.0.2.%d", 1+(index-1)%253) })
 	case "mac", "macaddress", "bssid":
-		return r.replacement("mac", value, func(index int) string { return fmt.Sprintf("02:00:00:00:%02X:%02X", (index/256)%256, index%256) })
+		return r.replacement(
+			"mac",
+			value,
+			func(index int) string { return fmt.Sprintf("02:00:00:00:%02X:%02X", (index/256)%256, index%256) },
+		)
 	case "hostname", "host", "ssid", "wifissid":
 		return r.replacement("host", value, func(index int) string { return fmt.Sprintf("fixture-host-%03d", index) })
 	case "taguid", "rfid", "rfiduid":
 		return r.replacement("tag", value, func(index int) string { return fmt.Sprintf("%016X", index) })
 	case "trayuuid", "uuid", "deviceuuid":
-		return r.replacement("uuid", value, func(index int) string { return fmt.Sprintf("00000000-0000-7000-8000-%012d", index) })
+		return r.replacement(
+			"uuid",
+			value,
+			func(index int) string { return fmt.Sprintf("00000000-0000-7000-8000-%012d", index) },
+		)
 	case "localtaskid", "lantaskid", "taskid", "jobid", "subtaskid", "userid", "accountid":
 		if value == "0" {
 			return value
@@ -221,7 +237,11 @@ func (r *fixtureRedactor) stringValue(key, value string) string {
 	case "gcodefile", "file", "filename", "filepath", "projectname", "subtaskname", "taskname", "jobname":
 		return r.fileReplacement(value)
 	case "email", "username", "user", "owner", "creator":
-		return r.replacement("person", value, func(index int) string { return fmt.Sprintf("fixture-person-%03d", index) })
+		return r.replacement(
+			"person",
+			value,
+			func(index int) string { return fmt.Sprintf("fixture-person-%03d", index) },
+		)
 	case "timestamp", "time", "datetime", "createdat", "updatedat":
 		return "2026-01-01T00:00:00Z"
 	}
@@ -332,8 +352,14 @@ func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind st
 		}
 		messageCount++
 		var message bambuFixtureMessage
-		if err := json.Unmarshal(line, &message); err != nil || message.SchemaVersion != BambuFixtureSchemaVersion || message.ObservedAt.IsZero() || len(message.Payload) == 0 {
-			return fmt.Errorf("fixture line %d is not a sanitized schema-version %d message", lineNumber, BambuFixtureSchemaVersion)
+		if err := json.Unmarshal(line, &message); err != nil || message.SchemaVersion != BambuFixtureSchemaVersion ||
+			message.ObservedAt.IsZero() ||
+			len(message.Payload) == 0 {
+			return fmt.Errorf(
+				"fixture line %d is not a sanitized schema-version %d message",
+				lineNumber,
+				BambuFixtureSchemaVersion,
+			)
 		}
 		observations, ready, err := processor.apply(context.Background(), message.Payload, message.ObservedAt.UTC())
 		if err != nil {

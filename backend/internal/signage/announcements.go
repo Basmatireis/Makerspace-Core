@@ -75,7 +75,8 @@ const announcementSweepInterval = 10 * time.Minute
 func (s *Service) sweepExpiredThrottled(ctx context.Context) {
 	now := s.now()
 	s.sweepMu.Lock()
-	if !s.lastAnnounceGC.IsZero() && now.Sub(s.lastAnnounceGC) < announcementSweepInterval && !now.Before(s.lastAnnounceGC) {
+	if !s.lastAnnounceGC.IsZero() && now.Sub(s.lastAnnounceGC) < announcementSweepInterval &&
+		!now.Before(s.lastAnnounceGC) {
 		s.sweepMu.Unlock()
 		return
 	}
@@ -92,13 +93,22 @@ func (s *Service) statusOf(startsAt time.Time, now time.Time) string {
 }
 
 // hydrate loads values, targets, templates and machine names and renders the announcements.
-func (s *Service) hydrate(ctx context.Context, q *signagedb.Queries, rows []signagedb.SignageAnnouncement) ([]Announcement, error) {
+func (s *Service) hydrate(
+	ctx context.Context,
+	q *signagedb.Queries,
+	rows []signagedb.SignageAnnouncement,
+) ([]Announcement, error) {
 	return s.hydrateFor(ctx, q, rows, "{display}", "{location}")
 }
 
 // hydrateFor renders the announcements for one display; the admin views keep the display
 // placeholders as typed because they do not depend on a showing display.
-func (s *Service) hydrateFor(ctx context.Context, q *signagedb.Queries, rows []signagedb.SignageAnnouncement, displayName, location string) ([]Announcement, error) {
+func (s *Service) hydrateFor(
+	ctx context.Context,
+	q *signagedb.Queries,
+	rows []signagedb.SignageAnnouncement,
+	displayName, location string,
+) ([]Announcement, error) {
 	if len(rows) == 0 {
 		return []Announcement{}, nil
 	}
@@ -177,9 +187,21 @@ func (s *Service) hydrateFor(ctx context.Context, q *signagedb.Queries, rows []s
 		}
 		endsAt := fromPgTime(row.EndsAt)
 		rendered := RenderAnnouncement(
-			RenderTemplate{Fields: renderFields(fields[row.TemplateID]), Title: template.Title, Body: template.Body, Tone: template.Tone},
-			announcementValues, RenderTiming{StartsAt: row.StartsAt, EndsAt: endsAt},
-			RenderContext{Now: now, TimeZone: s.location, DisplayName: displayName, Location: location, MachineNames: machineNames},
+			RenderTemplate{
+				Fields: renderFields(fields[row.TemplateID]),
+				Title:  template.Title,
+				Body:   template.Body,
+				Tone:   template.Tone,
+			},
+			announcementValues,
+			RenderTiming{StartsAt: row.StartsAt, EndsAt: endsAt},
+			RenderContext{
+				Now:          now,
+				TimeZone:     s.location,
+				DisplayName:  displayName,
+				Location:     location,
+				MachineNames: machineNames,
+			},
 		)
 		result = append(result, Announcement{
 			ID: row.ID, TemplateID: row.TemplateID, Values: announcementValues, AllDisplays: row.AllDisplays, DisplayIDs: displayIDs,
@@ -207,7 +229,11 @@ func (s *Service) ListAnnouncements(ctx context.Context, principal authorization
 }
 
 // GetAnnouncement reads one active or scheduled announcement; ended ones are hidden.
-func (s *Service) GetAnnouncement(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Announcement, error) {
+func (s *Service) GetAnnouncement(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (Announcement, error) {
 	if err := requireRead(principal); err != nil {
 		return Announcement{}, err
 	}
@@ -267,7 +293,11 @@ func normalizeValues(fields []TemplateField, given map[string]string) (map[strin
 	return values, nil
 }
 
-func (s *Service) validateTargets(ctx context.Context, q *signagedb.Queries, input AnnouncementInput) ([]uuid.UUID, error) {
+func (s *Service) validateTargets(
+	ctx context.Context,
+	q *signagedb.Queries,
+	input AnnouncementInput,
+) ([]uuid.UUID, error) {
 	if input.AllDisplays {
 		if len(input.DisplayIDs) > 0 {
 			return nil, validation("displayIds must be empty when the announcement targets all displays")
@@ -308,7 +338,13 @@ func (s *Service) validateWindow(input AnnouncementInput, now time.Time) (time.T
 	return startsAt, endsAt, nil
 }
 
-func writeValuesAndTargets(ctx context.Context, q *signagedb.Queries, id uuid.UUID, values map[string]string, displayIDs []uuid.UUID) error {
+func writeValuesAndTargets(
+	ctx context.Context,
+	q *signagedb.Queries,
+	id uuid.UUID,
+	values map[string]string,
+	displayIDs []uuid.UUID,
+) error {
 	if err := q.DeleteSignageAnnouncementValues(ctx, id); err != nil {
 		return err
 	}
@@ -334,7 +370,12 @@ func writeValuesAndTargets(ctx context.Context, q *signagedb.Queries, id uuid.UU
 }
 
 // StartAnnouncement starts (or schedules, when StartsAt is in the future) an announcement.
-func (s *Service) StartAnnouncement(ctx context.Context, principal authorization.Principal, input AnnouncementInput, requestID *uuid.UUID) (Announcement, error) {
+func (s *Service) StartAnnouncement(
+	ctx context.Context,
+	principal authorization.Principal,
+	input AnnouncementInput,
+	requestID *uuid.UUID,
+) (Announcement, error) {
 	if err := requireOverride(principal); err != nil {
 		return Announcement{}, err
 	}
@@ -388,7 +429,12 @@ func (s *Service) StartAnnouncement(ctx context.Context, principal authorization
 }
 
 // verifyMachineValues checks that machine-typed values name existing machines.
-func (s *Service) verifyMachineValues(ctx context.Context, q *signagedb.Queries, fields []TemplateField, values map[string]string) error {
+func (s *Service) verifyMachineValues(
+	ctx context.Context,
+	q *signagedb.Queries,
+	fields []TemplateField,
+	values map[string]string,
+) error {
 	var ids []uuid.UUID
 	for _, field := range fields {
 		if field.Type == "machine" && values[field.Key] != "" {
@@ -410,7 +456,14 @@ func (s *Service) verifyMachineValues(ctx context.Context, q *signagedb.Queries,
 }
 
 // UpdateAnnouncement edits values, targets and window of an active or scheduled announcement.
-func (s *Service) UpdateAnnouncement(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, input AnnouncementInput, requestID *uuid.UUID) (Announcement, error) {
+func (s *Service) UpdateAnnouncement(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input AnnouncementInput,
+	requestID *uuid.UUID,
+) (Announcement, error) {
 	if err := requireOverride(principal); err != nil {
 		return Announcement{}, err
 	}
@@ -482,7 +535,13 @@ func (s *Service) UpdateAnnouncement(ctx context.Context, principal authorizatio
 }
 
 // StopAnnouncement stops an announcement by hard-deleting it and its values.
-func (s *Service) StopAnnouncement(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) StopAnnouncement(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireOverride(principal); err != nil {
 		return err
 	}
@@ -505,7 +564,10 @@ func (s *Service) StopAnnouncement(ctx context.Context, principal authorization.
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeleteSignageAnnouncement(ctx, signagedb.DeleteSignageAnnouncementParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.DeleteSignageAnnouncement(ctx, signagedb.DeleteSignageAnnouncementParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return databaseError(err)

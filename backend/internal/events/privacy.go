@@ -14,7 +14,13 @@ import (
 
 // ScrubAssignmentsForDeletedPerson is the Event-domain participant in Person
 // hard deletion. It must run inside the caller's Person deletion transaction.
-func ScrubAssignmentsForDeletedPerson(ctx context.Context, tx pgx.Tx, actor uuid.UUID, personID uuid.UUID, requestID *uuid.UUID) error {
+func ScrubAssignmentsForDeletedPerson(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor uuid.UUID,
+	personID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	rows, err := eventsdb.New(tx).ScrubEventAssignmentsForPerson(ctx, &personID)
 	if err != nil {
 		return err

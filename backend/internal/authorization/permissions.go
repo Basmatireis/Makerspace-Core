@@ -440,7 +440,12 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 			if !validAssurance(minimum) {
 				continue
 			}
-			grant = PermissionGrant{ID: *row.GrantID, PermissionID: permission, Scope: rowScope, MinimumAssurance: minimum}
+			grant = PermissionGrant{
+				ID:               *row.GrantID,
+				PermissionID:     permission,
+				Scope:            rowScope,
+				MinimumAssurance: minimum,
+			}
 			order = append(order, *row.GrantID)
 		}
 		if row.DeviceTypeID != nil {
@@ -522,7 +527,10 @@ func (p Principal) DelegablePermissionGrants() []PermissionGrant {
 	if p.Master {
 		result := make([]PermissionGrant, 0, len(registry))
 		for _, v := range Registry() {
-			result = append(result, PermissionGrant{PermissionID: v, Scope: GrantEverywhere, MinimumAssurance: AssuranceLow})
+			result = append(
+				result,
+				PermissionGrant{PermissionID: v, Scope: GrantEverywhere, MinimumAssurance: AssuranceLow},
+			)
 		}
 		return result
 	}
@@ -574,7 +582,8 @@ func (p Principal) CanDelegate(grant PermissionGrant) bool {
 }
 
 func grantCoveredBy(envelope, requested PermissionGrant, selectedType uuid.UUID) bool {
-	if !validGrantScope(envelope.Scope) || !validAssurance(envelope.MinimumAssurance) || assuranceRank(envelope.MinimumAssurance) > assuranceRank(requested.MinimumAssurance) {
+	if !validGrantScope(envelope.Scope) || !validAssurance(envelope.MinimumAssurance) ||
+		assuranceRank(envelope.MinimumAssurance) > assuranceRank(requested.MinimumAssurance) {
 		return false
 	}
 	switch requested.Scope {

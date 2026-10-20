@@ -76,7 +76,8 @@ func requiresSession(requirements openapi3.SecurityRequirements) bool {
 }
 
 func hasOnlyBinaryBody(operation *openapi3.Operation) bool {
-	if operation.RequestBody == nil || operation.RequestBody.Value == nil || len(operation.RequestBody.Value.Content) == 0 {
+	if operation.RequestBody == nil || operation.RequestBody.Value == nil ||
+		len(operation.RequestBody.Value.Content) == 0 {
 		return false
 	}
 	for contentType := range operation.RequestBody.Value.Content {

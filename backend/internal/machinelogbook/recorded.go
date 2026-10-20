@@ -81,12 +81,29 @@ func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event Re
 		return err
 	}
 	jobFields := append(append([]string{"runs"}, fields...), "calculatedPrice", "effectivePrice")
-	return audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "machine_job.recorded_run_updated", ResourceType: "machine_job", ResourceID: &job.ID, ChangedFields: dedupe(jobFields), Metadata: metadata})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "system",
+			Action:        "machine_job.recorded_run_updated",
+			ResourceType:  "machine_job",
+			ResourceID:    &job.ID,
+			ChangedFields: dedupe(jobFields),
+			Metadata:      metadata,
+		},
+	)
 }
 
 // consumeReportedUsage records the machine's reported consumption as the usage
 // of an ended run. It reports whether the usage changed.
-func (s *Service) consumeReportedUsage(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, actor authorization.Principal, run machinelogbookdb.MachineRun) (bool, error) {
+func (s *Service) consumeReportedUsage(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	actor authorization.Principal,
+	run machinelogbookdb.MachineRun,
+) (bool, error) {
 	if run.State == nil || *run.State == "running" {
 		return false, nil
 	}
@@ -97,7 +114,8 @@ func (s *Service) consumeReportedUsage(ctx context.Context, tx pgx.Tx, q *machin
 	if len(items) != 0 {
 		return s.consumeItemizedReportedUsage(ctx, tx, q, actor, run, items)
 	}
-	if !run.ReportedQuantityG.Valid || run.ReportedQuantityBasis == nil || run.ReportedSpoolID == nil || run.ReportedEventID == nil {
+	if !run.ReportedQuantityG.Valid || run.ReportedQuantityBasis == nil || run.ReportedSpoolID == nil ||
+		run.ReportedEventID == nil {
 		return false, nil
 	}
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, run.ID)
@@ -107,7 +125,10 @@ func (s *Service) consumeReportedUsage(ctx context.Context, tx pgx.Tx, q *machin
 	// Inactive rows count too: once staff set or cleared the usage, or this
 	// report was applied before, the machine report must not be booked again.
 	// A newer report revision may only replace an active machine report.
-	provenance, err := q.GetRunUsageProvenance(ctx, machinelogbookdb.GetRunUsageProvenanceParams{RunID: run.ID, EventID: run.ReportedEventID})
+	provenance, err := q.GetRunUsageProvenance(
+		ctx,
+		machinelogbookdb.GetRunUsageProvenanceParams{RunID: run.ID, EventID: run.ReportedEventID},
+	)
 	if err != nil {
 		return false, err
 	}
@@ -124,7 +145,17 @@ func (s *Service) consumeReportedUsage(ctx context.Context, tx pgx.Tx, q *machin
 	if spool.MaterialID == nil {
 		return false, nil
 	}
-	parsed, err := parseUsages([]UsageInput{{MaterialID: *spool.MaterialID, SpoolID: run.ReportedSpoolID, Ownership: "makerspace", Quantity: decimalString(run.ReportedQuantityG), QuantityBasis: *run.ReportedQuantityBasis}})
+	parsed, err := parseUsages(
+		[]UsageInput{
+			{
+				MaterialID:    *spool.MaterialID,
+				SpoolID:       run.ReportedSpoolID,
+				Ownership:     "makerspace",
+				Quantity:      decimalString(run.ReportedQuantityG),
+				QuantityBasis: *run.ReportedQuantityBasis,
+			},
+		},
+	)
 	if err != nil {
 		return false, nil
 	}
@@ -154,13 +185,23 @@ func (s *Service) consumeReportedUsage(ctx context.Context, tx pgx.Tx, q *machin
 	return true, nil
 }
 
-func (s *Service) consumeItemizedReportedUsage(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, actor authorization.Principal, run machinelogbookdb.MachineRun, items []machinelogbookdb.MachineRunReportedUsageItem) (bool, error) {
+func (s *Service) consumeItemizedReportedUsage(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	actor authorization.Principal,
+	run machinelogbookdb.MachineRun,
+	items []machinelogbookdb.MachineRunReportedUsageItem,
+) (bool, error) {
 	eventID := items[0].SourcePrinterEventID
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, run.ID)
 	if err != nil {
 		return false, err
 	}
-	provenance, err := q.GetRunUsageProvenance(ctx, machinelogbookdb.GetRunUsageProvenanceParams{RunID: run.ID, EventID: &eventID})
+	provenance, err := q.GetRunUsageProvenance(
+		ctx,
+		machinelogbookdb.GetRunUsageProvenanceParams{RunID: run.ID, EventID: &eventID},
+	)
 	if err != nil {
 		return false, err
 	}
@@ -169,7 +210,8 @@ func (s *Service) consumeItemizedReportedUsage(ctx context.Context, tx pgx.Tx, q
 	}
 	parsed := make([]parsedUsage, 0, len(items))
 	for _, item := range items {
-		if item.SourcePrinterEventID != eventID || item.SpoolID == nil || !item.EstimatedQuantityG.Valid || item.Quality == "unresolved" {
+		if item.SourcePrinterEventID != eventID || item.SpoolID == nil || !item.EstimatedQuantityG.Valid ||
+			item.Quality == "unresolved" {
 			continue
 		}
 		quantity := decimalFromNumeric(item.EstimatedQuantityG)
@@ -184,7 +226,22 @@ func (s *Service) consumeItemizedReportedUsage(ctx context.Context, tx pgx.Tx, q
 			return false, spoolErr
 		}
 		method, version, quality, revision := item.Method, item.CalculationVersion, item.Quality, item.ReportRevision
-		parsed = append(parsed, parsedUsage{MaterialID: spool.MaterialID, SpoolID: item.SpoolID, Ownership: "makerspace", QuantityBasis: "estimated", Quantity: quantity, UsageID: uuid.Must(uuid.NewV7()), SourcePrinterEventID: &eventID, EstimationMethod: &method, CalculationVersion: &version, EstimateQuality: &quality, ReportRevision: &revision})
+		parsed = append(
+			parsed,
+			parsedUsage{
+				MaterialID:           spool.MaterialID,
+				SpoolID:              item.SpoolID,
+				Ownership:            "makerspace",
+				QuantityBasis:        "estimated",
+				Quantity:             quantity,
+				UsageID:              uuid.Must(uuid.NewV7()),
+				SourcePrinterEventID: &eventID,
+				EstimationMethod:     &method,
+				CalculationVersion:   &version,
+				EstimateQuality:      &quality,
+				ReportRevision:       &revision,
+			},
+		)
 	}
 	if len(parsed) == 0 {
 		return false, nil

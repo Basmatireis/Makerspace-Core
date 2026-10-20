@@ -20,12 +20,23 @@ func mapFinancialJSON[To any](from any) (To, error) {
 	err = json.Unmarshal(encoded, &result)
 	return result, err
 }
-func (s *Server) ListOrders(ctx context.Context, r openapi.ListOrdersRequestObject) (openapi.ListOrdersResponseObject, error) {
+
+func (s *Server) ListOrders(
+	ctx context.Context,
+	r openapi.ListOrdersRequestObject,
+) (openapi.ListOrdersResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.List(ctx, p, defaultString(r.Params.Search), defaultString(r.Params.Status), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.List(
+		ctx,
+		p,
+		defaultString(r.Params.Search),
+		defaultString(r.Params.Status),
+		defaultInt(r.Params.Page, 1),
+		defaultInt(r.Params.PageSize, 25),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +46,11 @@ func (s *Server) ListOrders(ctx context.Context, r openapi.ListOrdersRequestObje
 	}
 	return openapi.ListOrders200JSONResponse(dto), nil
 }
-func (s *Server) CreateOrder(ctx context.Context, r openapi.CreateOrderRequestObject) (openapi.CreateOrderResponseObject, error) {
+
+func (s *Server) CreateOrder(
+	ctx context.Context,
+	r openapi.CreateOrderRequestObject,
+) (openapi.CreateOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -57,7 +72,11 @@ func (s *Server) CreateOrder(ctx context.Context, r openapi.CreateOrderRequestOb
 	}
 	return openapi.CreateOrder201JSONResponse(dto), nil
 }
-func (s *Server) GetOrder(ctx context.Context, r openapi.GetOrderRequestObject) (openapi.GetOrderResponseObject, error) {
+
+func (s *Server) GetOrder(
+	ctx context.Context,
+	r openapi.GetOrderRequestObject,
+) (openapi.GetOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -72,7 +91,11 @@ func (s *Server) GetOrder(ctx context.Context, r openapi.GetOrderRequestObject) 
 	}
 	return openapi.GetOrder200JSONResponse(dto), nil
 }
-func (s *Server) UpdateOrder(ctx context.Context, r openapi.UpdateOrderRequestObject) (openapi.UpdateOrderResponseObject, error) {
+
+func (s *Server) UpdateOrder(
+	ctx context.Context,
+	r openapi.UpdateOrderRequestObject,
+) (openapi.UpdateOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -95,7 +118,11 @@ func (s *Server) UpdateOrder(ctx context.Context, r openapi.UpdateOrderRequestOb
 	}
 	return openapi.UpdateOrder200JSONResponse(dto), nil
 }
-func (s *Server) AddOrderItem(ctx context.Context, r openapi.AddOrderItemRequestObject) (openapi.AddOrderItemResponseObject, error) {
+
+func (s *Server) AddOrderItem(
+	ctx context.Context,
+	r openapi.AddOrderItemRequestObject,
+) (openapi.AddOrderItemResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -117,7 +144,11 @@ func (s *Server) AddOrderItem(ctx context.Context, r openapi.AddOrderItemRequest
 	}
 	return openapi.AddOrderItem201JSONResponse(dto), nil
 }
-func (s *Server) UpdateOrderItem(ctx context.Context, r openapi.UpdateOrderItemRequestObject) (openapi.UpdateOrderItemResponseObject, error) {
+
+func (s *Server) UpdateOrderItem(
+	ctx context.Context,
+	r openapi.UpdateOrderItemRequestObject,
+) (openapi.UpdateOrderItemResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -139,7 +170,11 @@ func (s *Server) UpdateOrderItem(ctx context.Context, r openapi.UpdateOrderItemR
 	}
 	return openapi.UpdateOrderItem200JSONResponse(dto), nil
 }
-func (s *Server) RemoveOrderItem(ctx context.Context, r openapi.RemoveOrderItemRequestObject) (openapi.RemoveOrderItemResponseObject, error) {
+
+func (s *Server) RemoveOrderItem(
+	ctx context.Context,
+	r openapi.RemoveOrderItemRequestObject,
+) (openapi.RemoveOrderItemResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -162,7 +197,11 @@ func (s *Server) RemoveOrderItem(ctx context.Context, r openapi.RemoveOrderItemR
 	}
 	return openapi.RemoveOrderItem200JSONResponse(dto), nil
 }
-func (s *Server) RefreshOrderItem(ctx context.Context, r openapi.RefreshOrderItemRequestObject) (openapi.RefreshOrderItemResponseObject, error) {
+
+func (s *Server) RefreshOrderItem(
+	ctx context.Context,
+	r openapi.RefreshOrderItemRequestObject,
+) (openapi.RefreshOrderItemResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -185,7 +224,11 @@ func (s *Server) RefreshOrderItem(ctx context.Context, r openapi.RefreshOrderIte
 	}
 	return openapi.RefreshOrderItem201JSONResponse(dto), nil
 }
-func (s *Server) FinalizeOrder(ctx context.Context, r openapi.FinalizeOrderRequestObject) (openapi.FinalizeOrderResponseObject, error) {
+
+func (s *Server) FinalizeOrder(
+	ctx context.Context,
+	r openapi.FinalizeOrderRequestObject,
+) (openapi.FinalizeOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -207,7 +250,11 @@ func (s *Server) FinalizeOrder(ctx context.Context, r openapi.FinalizeOrderReque
 	}
 	return openapi.FinalizeOrder201JSONResponse(dto), nil
 }
-func (s *Server) CheckoutOrder(ctx context.Context, r openapi.CheckoutOrderRequestObject) (openapi.CheckoutOrderResponseObject, error) {
+
+func (s *Server) CheckoutOrder(
+	ctx context.Context,
+	r openapi.CheckoutOrderRequestObject,
+) (openapi.CheckoutOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -229,7 +276,11 @@ func (s *Server) CheckoutOrder(ctx context.Context, r openapi.CheckoutOrderReque
 	}
 	return openapi.CheckoutOrder201JSONResponse(dto), nil
 }
-func (s *Server) CancelOrder(ctx context.Context, r openapi.CancelOrderRequestObject) (openapi.CancelOrderResponseObject, error) {
+
+func (s *Server) CancelOrder(
+	ctx context.Context,
+	r openapi.CancelOrderRequestObject,
+) (openapi.CancelOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -251,7 +302,11 @@ func (s *Server) CancelOrder(ctx context.Context, r openapi.CancelOrderRequestOb
 	}
 	return openapi.CancelOrder201JSONResponse(dto), nil
 }
-func (s *Server) ReverseOrder(ctx context.Context, r openapi.ReverseOrderRequestObject) (openapi.ReverseOrderResponseObject, error) {
+
+func (s *Server) ReverseOrder(
+	ctx context.Context,
+	r openapi.ReverseOrderRequestObject,
+) (openapi.ReverseOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -273,7 +328,11 @@ func (s *Server) ReverseOrder(ctx context.Context, r openapi.ReverseOrderRequest
 	}
 	return openapi.ReverseOrder201JSONResponse(dto), nil
 }
-func (s *Server) CreateReplacementOrder(ctx context.Context, r openapi.CreateReplacementOrderRequestObject) (openapi.CreateReplacementOrderResponseObject, error) {
+
+func (s *Server) CreateReplacementOrder(
+	ctx context.Context,
+	r openapi.CreateReplacementOrderRequestObject,
+) (openapi.CreateReplacementOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -295,7 +354,11 @@ func (s *Server) CreateReplacementOrder(ctx context.Context, r openapi.CreateRep
 	}
 	return openapi.CreateReplacementOrder201JSONResponse(dto), nil
 }
-func (s *Server) ReplaceOrder(ctx context.Context, r openapi.ReplaceOrderRequestObject) (openapi.ReplaceOrderResponseObject, error) {
+
+func (s *Server) ReplaceOrder(
+	ctx context.Context,
+	r openapi.ReplaceOrderRequestObject,
+) (openapi.ReplaceOrderResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -317,12 +380,24 @@ func (s *Server) ReplaceOrder(ctx context.Context, r openapi.ReplaceOrderRequest
 	}
 	return openapi.ReplaceOrder201JSONResponse(dto), nil
 }
-func (s *Server) ListOrderPayments(ctx context.Context, r openapi.ListOrderPaymentsRequestObject) (openapi.ListOrderPaymentsResponseObject, error) {
+
+func (s *Server) ListOrderPayments(
+	ctx context.Context,
+	r openapi.ListOrderPaymentsRequestObject,
+) (openapi.ListOrderPaymentsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.ListPayments(ctx, p, defaultString(stringEnum(r.Params.Method)), r.Params.From, r.Params.To, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.ListPayments(
+		ctx,
+		p,
+		defaultString(stringEnum(r.Params.Method)),
+		r.Params.From,
+		r.Params.To,
+		defaultInt(r.Params.Page, 1),
+		defaultInt(r.Params.PageSize, 25),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +407,11 @@ func (s *Server) ListOrderPayments(ctx context.Context, r openapi.ListOrderPayme
 	}
 	return openapi.ListOrderPayments200JSONResponse(dto), nil
 }
-func (s *Server) GetOrderPayment(ctx context.Context, r openapi.GetOrderPaymentRequestObject) (openapi.GetOrderPaymentResponseObject, error) {
+
+func (s *Server) GetOrderPayment(
+	ctx context.Context,
+	r openapi.GetOrderPaymentRequestObject,
+) (openapi.GetOrderPaymentResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -347,7 +426,11 @@ func (s *Server) GetOrderPayment(ctx context.Context, r openapi.GetOrderPaymentR
 	}
 	return openapi.GetOrderPayment200JSONResponse(dto), nil
 }
-func (s *Server) RecordOrderPayment(ctx context.Context, r openapi.RecordOrderPaymentRequestObject) (openapi.RecordOrderPaymentResponseObject, error) {
+
+func (s *Server) RecordOrderPayment(
+	ctx context.Context,
+	r openapi.RecordOrderPaymentRequestObject,
+) (openapi.RecordOrderPaymentResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -369,7 +452,11 @@ func (s *Server) RecordOrderPayment(ctx context.Context, r openapi.RecordOrderPa
 	}
 	return openapi.RecordOrderPayment201JSONResponse(dto), nil
 }
-func (s *Server) ReverseOrderPayment(ctx context.Context, r openapi.ReverseOrderPaymentRequestObject) (openapi.ReverseOrderPaymentResponseObject, error) {
+
+func (s *Server) ReverseOrderPayment(
+	ctx context.Context,
+	r openapi.ReverseOrderPaymentRequestObject,
+) (openapi.ReverseOrderPaymentResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -391,12 +478,24 @@ func (s *Server) ReverseOrderPayment(ctx context.Context, r openapi.ReverseOrder
 	}
 	return openapi.ReverseOrderPayment201JSONResponse(dto), nil
 }
-func (s *Server) GetPaymentReconciliation(ctx context.Context, r openapi.GetPaymentReconciliationRequestObject) (openapi.GetPaymentReconciliationResponseObject, error) {
+
+func (s *Server) GetPaymentReconciliation(
+	ctx context.Context,
+	r openapi.GetPaymentReconciliationRequestObject,
+) (openapi.GetPaymentReconciliationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.Reconciliation(ctx, p, defaultString(stringEnum(r.Params.Method)), r.Params.From, r.Params.To, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.Reconciliation(
+		ctx,
+		p,
+		defaultString(stringEnum(r.Params.Method)),
+		r.Params.From,
+		r.Params.To,
+		defaultInt(r.Params.Page, 1),
+		defaultInt(r.Params.PageSize, 25),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +505,11 @@ func (s *Server) GetPaymentReconciliation(ctx context.Context, r openapi.GetPaym
 	}
 	return openapi.GetPaymentReconciliation200JSONResponse(dto), nil
 }
-func (s *Server) CreateExternalInvoiceRequest(ctx context.Context, r openapi.CreateExternalInvoiceRequestRequestObject) (openapi.CreateExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) CreateExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.CreateExternalInvoiceRequestRequestObject,
+) (openapi.CreateExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -428,12 +531,24 @@ func (s *Server) CreateExternalInvoiceRequest(ctx context.Context, r openapi.Cre
 	}
 	return openapi.CreateExternalInvoiceRequest201JSONResponse(dto), nil
 }
-func (s *Server) ListExternalInvoiceRequests(ctx context.Context, r openapi.ListExternalInvoiceRequestsRequestObject) (openapi.ListExternalInvoiceRequestsResponseObject, error) {
+
+func (s *Server) ListExternalInvoiceRequests(
+	ctx context.Context,
+	r openapi.ListExternalInvoiceRequestsRequestObject,
+) (openapi.ListExternalInvoiceRequestsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.ListRequests(ctx, p, defaultString(r.Params.Search), defaultString(r.Params.Status), r.Params.OrderId, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.ListRequests(
+		ctx,
+		p,
+		defaultString(r.Params.Search),
+		defaultString(r.Params.Status),
+		r.Params.OrderId,
+		defaultInt(r.Params.Page, 1),
+		defaultInt(r.Params.PageSize, 25),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +558,11 @@ func (s *Server) ListExternalInvoiceRequests(ctx context.Context, r openapi.List
 	}
 	return openapi.ListExternalInvoiceRequests200JSONResponse(dto), nil
 }
-func (s *Server) GetExternalInvoiceRequest(ctx context.Context, r openapi.GetExternalInvoiceRequestRequestObject) (openapi.GetExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) GetExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.GetExternalInvoiceRequestRequestObject,
+) (openapi.GetExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -458,7 +577,11 @@ func (s *Server) GetExternalInvoiceRequest(ctx context.Context, r openapi.GetExt
 	}
 	return openapi.GetExternalInvoiceRequest200JSONResponse(dto), nil
 }
-func (s *Server) UpdateExternalInvoiceRequest(ctx context.Context, r openapi.UpdateExternalInvoiceRequestRequestObject) (openapi.UpdateExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) UpdateExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.UpdateExternalInvoiceRequestRequestObject,
+) (openapi.UpdateExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -480,7 +603,11 @@ func (s *Server) UpdateExternalInvoiceRequest(ctx context.Context, r openapi.Upd
 	}
 	return openapi.UpdateExternalInvoiceRequest200JSONResponse(dto), nil
 }
-func (s *Server) SubmitExternalInvoiceRequest(ctx context.Context, r openapi.SubmitExternalInvoiceRequestRequestObject) (openapi.SubmitExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) SubmitExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.SubmitExternalInvoiceRequestRequestObject,
+) (openapi.SubmitExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -502,7 +629,11 @@ func (s *Server) SubmitExternalInvoiceRequest(ctx context.Context, r openapi.Sub
 	}
 	return openapi.SubmitExternalInvoiceRequest201JSONResponse(dto), nil
 }
-func (s *Server) RequestExternalInvoiceCancellation(ctx context.Context, r openapi.RequestExternalInvoiceCancellationRequestObject) (openapi.RequestExternalInvoiceCancellationResponseObject, error) {
+
+func (s *Server) RequestExternalInvoiceCancellation(
+	ctx context.Context,
+	r openapi.RequestExternalInvoiceCancellationRequestObject,
+) (openapi.RequestExternalInvoiceCancellationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -524,7 +655,11 @@ func (s *Server) RequestExternalInvoiceCancellation(ctx context.Context, r opena
 	}
 	return openapi.RequestExternalInvoiceCancellation201JSONResponse(dto), nil
 }
-func (s *Server) ConfirmExternalInvoiceCancellation(ctx context.Context, r openapi.ConfirmExternalInvoiceCancellationRequestObject) (openapi.ConfirmExternalInvoiceCancellationResponseObject, error) {
+
+func (s *Server) ConfirmExternalInvoiceCancellation(
+	ctx context.Context,
+	r openapi.ConfirmExternalInvoiceCancellationRequestObject,
+) (openapi.ConfirmExternalInvoiceCancellationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -546,7 +681,11 @@ func (s *Server) ConfirmExternalInvoiceCancellation(ctx context.Context, r opena
 	}
 	return openapi.ConfirmExternalInvoiceCancellation201JSONResponse(dto), nil
 }
-func (s *Server) CancelExternalInvoiceRequest(ctx context.Context, r openapi.CancelExternalInvoiceRequestRequestObject) (openapi.CancelExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) CancelExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.CancelExternalInvoiceRequestRequestObject,
+) (openapi.CancelExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -568,7 +707,11 @@ func (s *Server) CancelExternalInvoiceRequest(ctx context.Context, r openapi.Can
 	}
 	return openapi.CancelExternalInvoiceRequest201JSONResponse(dto), nil
 }
-func (s *Server) CorrectExternalInvoiceReference(ctx context.Context, r openapi.CorrectExternalInvoiceReferenceRequestObject) (openapi.CorrectExternalInvoiceReferenceResponseObject, error) {
+
+func (s *Server) CorrectExternalInvoiceReference(
+	ctx context.Context,
+	r openapi.CorrectExternalInvoiceReferenceRequestObject,
+) (openapi.CorrectExternalInvoiceReferenceResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -590,7 +733,11 @@ func (s *Server) CorrectExternalInvoiceReference(ctx context.Context, r openapi.
 	}
 	return openapi.CorrectExternalInvoiceReference201JSONResponse(dto), nil
 }
-func (s *Server) GetOrganizationInvoicingRequirements(ctx context.Context, r openapi.GetOrganizationInvoicingRequirementsRequestObject) (openapi.GetOrganizationInvoicingRequirementsResponseObject, error) {
+
+func (s *Server) GetOrganizationInvoicingRequirements(
+	ctx context.Context,
+	r openapi.GetOrganizationInvoicingRequirementsRequestObject,
+) (openapi.GetOrganizationInvoicingRequirementsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -605,7 +752,11 @@ func (s *Server) GetOrganizationInvoicingRequirements(ctx context.Context, r ope
 	}
 	return openapi.GetOrganizationInvoicingRequirements200JSONResponse(dto), nil
 }
-func (s *Server) UpdateOrganizationInvoicingRequirements(ctx context.Context, r openapi.UpdateOrganizationInvoicingRequirementsRequestObject) (openapi.UpdateOrganizationInvoicingRequirementsResponseObject, error) {
+
+func (s *Server) UpdateOrganizationInvoicingRequirements(
+	ctx context.Context,
+	r openapi.UpdateOrganizationInvoicingRequirementsRequestObject,
+) (openapi.UpdateOrganizationInvoicingRequirementsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -627,7 +778,11 @@ func (s *Server) UpdateOrganizationInvoicingRequirements(ctx context.Context, r 
 	}
 	return openapi.UpdateOrganizationInvoicingRequirements200JSONResponse(dto), nil
 }
-func (s *Server) GetJobOrderAssociation(ctx context.Context, r openapi.GetJobOrderAssociationRequestObject) (openapi.GetJobOrderAssociationResponseObject, error) {
+
+func (s *Server) GetJobOrderAssociation(
+	ctx context.Context,
+	r openapi.GetJobOrderAssociationRequestObject,
+) (openapi.GetJobOrderAssociationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -642,7 +797,11 @@ func (s *Server) GetJobOrderAssociation(ctx context.Context, r openapi.GetJobOrd
 	}
 	return openapi.GetJobOrderAssociation200JSONResponse(dto), nil
 }
-func (s *Server) ReturnExternalInvoiceRequest(ctx context.Context, r openapi.ReturnExternalInvoiceRequestRequestObject) (openapi.ReturnExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) ReturnExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.ReturnExternalInvoiceRequestRequestObject,
+) (openapi.ReturnExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -664,7 +823,11 @@ func (s *Server) ReturnExternalInvoiceRequest(ctx context.Context, r openapi.Ret
 	}
 	return openapi.ReturnExternalInvoiceRequest201JSONResponse(dto), nil
 }
-func (s *Server) ForwardExternalInvoiceRequest(ctx context.Context, r openapi.ForwardExternalInvoiceRequestRequestObject) (openapi.ForwardExternalInvoiceRequestResponseObject, error) {
+
+func (s *Server) ForwardExternalInvoiceRequest(
+	ctx context.Context,
+	r openapi.ForwardExternalInvoiceRequestRequestObject,
+) (openapi.ForwardExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -686,7 +849,11 @@ func (s *Server) ForwardExternalInvoiceRequest(ctx context.Context, r openapi.Fo
 	}
 	return openapi.ForwardExternalInvoiceRequest201JSONResponse(dto), nil
 }
-func (s *Server) GetCashRegister(ctx context.Context, r openapi.GetCashRegisterRequestObject) (openapi.GetCashRegisterResponseObject, error) {
+
+func (s *Server) GetCashRegister(
+	ctx context.Context,
+	r openapi.GetCashRegisterRequestObject,
+) (openapi.GetCashRegisterResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -701,12 +868,24 @@ func (s *Server) GetCashRegister(ctx context.Context, r openapi.GetCashRegisterR
 	}
 	return openapi.GetCashRegister200JSONResponse(dto), nil
 }
-func (s *Server) ListCashMovements(ctx context.Context, r openapi.ListCashMovementsRequestObject) (openapi.ListCashMovementsResponseObject, error) {
+
+func (s *Server) ListCashMovements(
+	ctx context.Context,
+	r openapi.ListCashMovementsRequestObject,
+) (openapi.ListCashMovementsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.ListCashMovements(ctx, p, defaultString(stringEnum(r.Params.Kind)), r.Params.From, r.Params.To, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.ListCashMovements(
+		ctx,
+		p,
+		defaultString(stringEnum(r.Params.Kind)),
+		r.Params.From,
+		r.Params.To,
+		defaultInt(r.Params.Page, 1),
+		defaultInt(r.Params.PageSize, 25),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -716,7 +895,11 @@ func (s *Server) ListCashMovements(ctx context.Context, r openapi.ListCashMoveme
 	}
 	return openapi.ListCashMovements200JSONResponse(dto), nil
 }
-func (s *Server) CreateCashMovement(ctx context.Context, r openapi.CreateCashMovementRequestObject) (openapi.CreateCashMovementResponseObject, error) {
+
+func (s *Server) CreateCashMovement(
+	ctx context.Context,
+	r openapi.CreateCashMovementRequestObject,
+) (openapi.CreateCashMovementResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err

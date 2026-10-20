@@ -103,7 +103,12 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 // verifyReferences checks that assets (with the right kind), machines and announcement templates
 // named by a scene exist. Assets and templates are share-locked so that a concurrent deletion
 // either waits for this transaction or finds the new reference.
-func (s *Service) verifyReferences(ctx context.Context, q *signagedb.Queries, background *uuid.UUID, refs WidgetRefs) error {
+func (s *Service) verifyReferences(
+	ctx context.Context,
+	q *signagedb.Queries,
+	background *uuid.UUID,
+	refs WidgetRefs,
+) error {
 	images, videos := refs.ImageAssets, refs.VideoAssets
 	if background != nil {
 		images = append(append([]uuid.UUID{}, images...), *background)
@@ -185,7 +190,12 @@ func (s *Service) GetScene(ctx context.Context, principal authorization.Principa
 }
 
 // CreateScene validates and stores a scene.
-func (s *Service) CreateScene(ctx context.Context, principal authorization.Principal, input SceneInput, requestID *uuid.UUID) (Scene, error) {
+func (s *Service) CreateScene(
+	ctx context.Context,
+	principal authorization.Principal,
+	input SceneInput,
+	requestID *uuid.UUID,
+) (Scene, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Scene{}, err
 	}
@@ -232,7 +242,14 @@ func (s *Service) CreateScene(ctx context.Context, principal authorization.Princ
 
 // UpdateScene replaces a scene. Changing the layout without new zones keeps the existing widgets
 // by position (zone n of the new layout takes the widget of zone n of the old one).
-func (s *Service) UpdateScene(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, input SceneInput, requestID *uuid.UUID) (Scene, error) {
+func (s *Service) UpdateScene(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input SceneInput,
+	requestID *uuid.UUID,
+) (Scene, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Scene{}, err
 	}
@@ -314,7 +331,13 @@ func (s *Service) UpdateScene(ctx context.Context, principal authorization.Princ
 }
 
 // DeleteScene removes a scene that no playlist or rule references.
-func (s *Service) DeleteScene(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteScene(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireContentManage(principal); err != nil {
 		return err
 	}
@@ -355,7 +378,10 @@ func (s *Service) DeleteScene(ctx context.Context, principal authorization.Princ
 	if len(references) > 0 {
 		return inUse("Scene", references)
 	}
-	if _, err := q.DeleteSignageScene(ctx, signagedb.DeleteSignageSceneParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.DeleteSignageScene(ctx, signagedb.DeleteSignageSceneParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return databaseError(err)

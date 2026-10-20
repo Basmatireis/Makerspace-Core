@@ -110,7 +110,14 @@ func TestOIDCSessionRejectsDisabledOrForeignIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			session, err := service.CreateOIDCSession(ctx, tx, targetID, identityID, authorization.AssuranceNormal, time.Now().UTC())
+			session, err := service.CreateOIDCSession(
+				ctx,
+				tx,
+				targetID,
+				identityID,
+				authorization.AssuranceNormal,
+				time.Now().UTC(),
+			)
 			if state == "enabled" {
 				if err != nil || session.Token == "" {
 					t.Fatalf("valid OIDC identity rejected: %v", err)
@@ -155,7 +162,13 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 				if _, err := service.UpdateLoginEmail(ctx, principal, account.accountID, email, 1, nil); err != nil {
 					t.Fatal(err)
 				}
-				assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND verified_at IS NOT NULL`, 0, account.identity)
+				assertCount(
+					t,
+					pool,
+					`SELECT count(*) FROM auth_identities WHERE id=$1 AND verified_at IS NOT NULL`,
+					0,
+					account.identity,
+				)
 			case "recover_master":
 				if _, err := admin.NewService(pool).RecoverMaster(ctx, email, changedPassword); err != nil {
 					t.Fatal(err)
@@ -165,13 +178,22 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := authService.CompletePasswordResetCode(ctx, email, code, resetPassword, "review-reset", nil); !apperror.IsCode(err, "challenge_invalid") {
+			if err := authService.CompletePasswordResetCode(ctx, email, code, resetPassword, "review-reset", nil); !apperror.IsCode(
+				err,
+				"challenge_invalid",
+			) {
 				t.Fatalf("obsolete reset code accepted: %v", err)
 			}
-			if err := authService.CompleteInvitation(ctx, email, code, resetPassword, "review-invitation", nil); !apperror.IsCode(err, "challenge_invalid") {
+			if err := authService.CompleteInvitation(ctx, email, code, resetPassword, "review-invitation", nil); !apperror.IsCode(
+				err,
+				"challenge_invalid",
+			) {
 				t.Fatalf("obsolete invitation accepted: %v", err)
 			}
-			if err := authService.CompleteEmailVerification(ctx, email, code, "review-verification", nil); !apperror.IsCode(err, "challenge_invalid") {
+			if err := authService.CompleteEmailVerification(ctx, email, code, "review-verification", nil); !apperror.IsCode(
+				err,
+				"challenge_invalid",
+			) {
 				t.Fatalf("obsolete verification accepted: %v", err)
 			}
 		})

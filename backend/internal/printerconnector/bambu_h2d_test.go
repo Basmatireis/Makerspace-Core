@@ -29,7 +29,9 @@ func TestParseBambuH2DConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.IPAddress.String() != "192.168.1.42" || settings.SerialNumber != "01P09A123456789" || !settings.AutoDetectSpools || secrets.LANAccessCode != "secret" {
+	if settings.IPAddress.String() != "192.168.1.42" || settings.SerialNumber != "01P09A123456789" ||
+		!settings.AutoDetectSpools ||
+		secrets.LANAccessCode != "secret" {
 		t.Fatalf("unexpected parsed configuration: %#v %#v", settings, secrets)
 	}
 	for name, test := range map[string]struct {
@@ -75,18 +77,24 @@ func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
 	at := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
-	initial := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"6380","subtask_name":"Two colour part","ams":{"tray_now":"255","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]},"vir_slot":[{"id":"255","tag_uid":"0000000000000000","tray_type":"TPU"}]}}`)
+	initial := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"6380","subtask_name":"Two colour part","ams":{"tray_now":"255","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]},"vir_slot":[{"id":"255","tag_uid":"0000000000000000","tray_type":"TPU"}]}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), initial, at); err != nil {
 		t.Fatal(err)
 	}
-	first := []byte(`{"print":{"ams":{"tray_now":"2","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`)
+	first := []byte(
+		`{"print":{"ams":{"tray_now":"2","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), first, at.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if processor.state.LastTray != "2" {
 		t.Fatalf("initial tray = %q", processor.state.LastTray)
 	}
-	second := []byte(`{"print":{"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`)
+	second := []byte(
+		`{"print":{"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`,
+	)
 	observations, _, err := processor.apply(context.Background(), second, at.Add(2*time.Minute))
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +105,10 @@ func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 		t.Fatal("X1C run ID not allocated")
 	}
 	facts := processor.state.RunFacts[runID.String()]
-	if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].Extruder != 1 || facts.SpoolEvidence[0].SlotExternalID != "2" || facts.SpoolEvidence[1].SlotExternalID != "0" || facts.SpoolEvidence[1].TagUID != "" {
+	if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].Extruder != 1 ||
+		facts.SpoolEvidence[0].SlotExternalID != "2" ||
+		facts.SpoolEvidence[1].SlotExternalID != "0" ||
+		facts.SpoolEvidence[1].TagUID != "" {
 		t.Fatalf("spool evidence = %+v", facts.SpoolEvidence)
 	}
 }
@@ -107,7 +118,9 @@ func TestBambuX1CReducerUsesExplicitSlicerFilamentMapping(t *testing.T) {
 	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
 		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
-	payload := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"6380","ams_mapping":[0,-1,2,-1,-1],"ams_mapping2":[{"ams_id":0,"slot_id":0},{"ams_id":255,"slot_id":255},{"ams_id":0,"slot_id":2},{"ams_id":255,"slot_id":255},{"ams_id":255,"slot_id":255}],"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA","tray_color":"FFFFFFFF"}]}]}}}`)
+	payload := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"6380","ams_mapping":[0,-1,2,-1,-1],"ams_mapping2":[{"ams_id":0,"slot_id":0},{"ams_id":255,"slot_id":255},{"ams_id":0,"slot_id":2},{"ams_id":255,"slot_id":255},{"ams_id":255,"slot_id":255}],"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA","tray_color":"FFFFFFFF"}]}]}}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), payload, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +138,10 @@ func TestBambuX1CReducerUsesExplicitSlicerFilamentMapping(t *testing.T) {
 
 func TestBambuX1CRejectsAmbiguousExternalHolderSentinel(t *testing.T) {
 	t.Parallel()
-	state := decodeDocument(t, `{"ams":{"tray_now":"255"},"vir_slot":[{"id":"255","tray_type":"TPU","tag_uid":"0000000000000000"}]}`)
+	state := decodeDocument(
+		t,
+		`{"ams":{"tray_now":"255"},"vir_slot":[{"id":"255","tray_type":"TPU","tag_uid":"0000000000000000"}]}`,
+	)
 	if _, _, _, ok := bambuX1CActiveSlot(state); ok {
 		t.Fatal("ambiguous X1C holder 255 was treated as selected")
 	}
@@ -188,8 +204,19 @@ func TestSessionKeyDoesNotTrustUnverifiedLocalTaskID(t *testing.T) {
 
 func TestBareActiveTrayIsNotAppliedAcrossMultipleAMSUnits(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{state: bambuPersistedState{Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{}}, firstSnapshot: true}
-	payload := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"TAG-A"}]},{"id":"1","tray":[{"id":"0","tag_uid":"TAG-B"}]}]}}}`)
+	processor := &bambuProcessor{
+		state: bambuPersistedState{
+			Document:     map[string]any{},
+			Sessions:     map[string]string{},
+			LastSlots:    map[string]string{},
+			ActiveErrors: map[string]bool{},
+			RunFacts:     map[string]bambuRunFacts{},
+		},
+		firstSnapshot: true,
+	}
+	payload := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"TAG-A"}]},{"id":"1","tray":[{"id":"0","tag_uid":"TAG-B"}]}]}}}`,
+	)
 	observations, _, err := processor.apply(context.Background(), payload, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +256,9 @@ func TestNoTraySentinelDoesNotEraseRunSpoolEvidence(t *testing.T) {
 		RunFacts:        map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
 	at := time.Date(2026, 10, 15, 12, 43, 0, 0, time.UTC)
-	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"5","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`)
+	active := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"5","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), active, at); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +290,9 @@ func TestInactiveExtruderDoesNotReplaceRunSpoolEvidence(t *testing.T) {
 		RunFacts:        map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
 	at := time.Date(2026, 10, 15, 14, 36, 0, 0, time.UTC)
-	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"9565","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`)
+	active := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"9565","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), active, at); err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +304,9 @@ func TestInactiveExtruderDoesNotReplaceRunSpoolEvidence(t *testing.T) {
 
 	// The active left hotend becomes empty while unloading, but the inactive
 	// right hotend still advertises its external holder. It must not win.
-	unloading := []byte(`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":65279,"info":2}]}}}}`)
+	unloading := []byte(
+		`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":65279,"info":2}]}}}}`,
+	)
 	if _, _, err := processor.apply(context.Background(), unloading, at.Add(15*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -299,9 +332,21 @@ func TestEnablingAutoDetectionReplaysStableSlotIdentitiesOnce(t *testing.T) {
 
 func TestBambuReducerRequiresRepeatedEmptyTrayBeforeUnassignment(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{state: bambuPersistedState{Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{}}, firstSnapshot: true}
+	processor := &bambuProcessor{
+		state: bambuPersistedState{
+			Document:        map[string]any{},
+			Sessions:        map[string]string{},
+			LastSlots:       map[string]string{},
+			EmptySlotCounts: map[string]uint8{},
+			ActiveErrors:    map[string]bool{},
+			RunFacts:        map[string]bambuRunFacts{},
+		},
+		firstSnapshot: true,
+	}
 	at := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
-	occupied := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-1","tray_type":"PLA"}]}]}}}`)
+	occupied := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"5","ams":{"ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-1","tray_type":"PLA"}]}]}}}`,
+	)
 	observations, _, err := processor.apply(context.Background(), occupied, at)
 	if err != nil {
 		t.Fatal(err)
@@ -324,21 +369,27 @@ func TestBambuReducerRequiresRepeatedEmptyTrayBeforeUnassignment(t *testing.T) {
 	}
 	assertKinds(t, observations, "slot_observation")
 	var payload map[string]any
-	if err = json.Unmarshal(observations[0].Payload, &payload); err != nil || payload["empty"] != true || payload["tagUid"] != nil {
+	if err = json.Unmarshal(observations[0].Payload, &payload); err != nil || payload["empty"] != true ||
+		payload["tagUid"] != nil {
 		t.Fatalf("confirmed empty payload = %s, err=%v", observations[0].Payload, err)
 	}
 }
 
 func TestMergeBambuObjectRecursivelyMergesAndReplacesArrays(t *testing.T) {
 	t.Parallel()
-	current := map[string]any{"print": map[string]any{"state": "RUNNING", "progress": json.Number("10"), "keep": true}, "ams": []any{1, 2}, "clear": "value"}
+	current := map[string]any{
+		"print": map[string]any{"state": "RUNNING", "progress": json.Number("10"), "keep": true},
+		"ams":   []any{1, 2},
+		"clear": "value",
+	}
 	patch := map[string]any{"print": map[string]any{"progress": json.Number("20")}, "ams": []any{3}, "clear": nil}
 	merged, err := mergeBambuObject(current, patch, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	printState := objectAt(merged, "print")
-	if stringAt(printState, "state") != "RUNNING" || stringAt(printState, "progress") != "20" || printState["keep"] != true {
+	if stringAt(printState, "state") != "RUNNING" || stringAt(printState, "progress") != "20" ||
+		printState["keep"] != true {
 		t.Fatalf("nested merge lost state: %#v", merged)
 	}
 	if values, _ := merged["ams"].([]any); len(values) != 1 || scalarString(values[0]) != "3" {
@@ -364,7 +415,9 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
-	initial := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","subtask_name":"Customer project","gcode_file":"/cache/generated-name.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"observed-only","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`)
+	initial := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","subtask_name":"Customer project","gcode_file":"/cache/generated-name.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"observed-only","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`,
+	)
 	observations, ready, err := processor.apply(ctx, initial, at)
 	if err != nil || !ready {
 		t.Fatalf("initial reducer application failed: ready=%v err=%v", ready, err)
@@ -380,13 +433,15 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		}
 		if observation.Kind == "printer_error" {
 			var payload map[string]any
-			if json.Unmarshal(observation.Payload, &payload) != nil || payload["transition"] != "appeared" || payload["code"] != "134184963" {
+			if json.Unmarshal(observation.Payload, &payload) != nil || payload["transition"] != "appeared" ||
+				payload["code"] != "134184963" {
 				t.Fatalf("unexpected printer error payload: %s", observation.Payload)
 			}
 		}
 		if observation.Kind == "operational_state" || observation.Kind == "progress" {
 			var payload map[string]any
-			if json.Unmarshal(observation.Payload, &payload) != nil || payload["fileName"] != "Customer project" || payload["artifactPath"] != "/cache/generated-name.3mf" {
+			if json.Unmarshal(observation.Payload, &payload) != nil || payload["fileName"] != "Customer project" ||
+				payload["artifactPath"] != "/cache/generated-name.3mf" {
 				t.Fatalf("run name and artifact path were conflated: %s", observation.Payload)
 			}
 		}
@@ -395,7 +450,9 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 				t.Fatal("assignment-level slot observation was attached to a run")
 			}
 			var payload map[string]any
-			if json.Unmarshal(observation.Payload, &payload) != nil || payload["inputUnitExternalId"] != "0" || payload["slotExternalId"] != "1" || payload["externalSlotKey"] != "0:1" {
+			if json.Unmarshal(observation.Payload, &payload) != nil || payload["inputUnitExternalId"] != "0" ||
+				payload["slotExternalId"] != "1" ||
+				payload["externalSlotKey"] != "0:1" {
 				t.Fatalf("unexpected normalized slot payload: %s", observation.Payload)
 			}
 			if _, exists := payload["remainPercent"]; exists {
@@ -410,7 +467,11 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 	if facts.InputUnitExternalID != "0" || facts.SlotExternalID != "1" || facts.TagUID != "ABC" {
 		t.Fatalf("active slot was not retained for terminal consumption: %#v", facts)
 	}
-	volatile, _, err := processor.apply(ctx, []byte(`{"print":{"nozzle_temper":"220","nozzle_target_temper":"230","mc_print_stage":"5"}}`), at.Add(time.Second))
+	volatile, _, err := processor.apply(
+		ctx,
+		[]byte(`{"print":{"nozzle_temper":"220","nozzle_target_temper":"230","mc_print_stage":"5"}}`),
+		at.Add(time.Second),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +501,8 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		if !observation.HistoryComplete {
 			t.Fatal("persisted active run should resume with complete known connector history")
 		}
-		if observation.Kind == "printer_error" && !bytes.Contains(observation.Payload, []byte(`"transition":"cleared"`)) {
+		if observation.Kind == "printer_error" &&
+			!bytes.Contains(observation.Payload, []byte(`"transition":"cleared"`)) {
 			t.Fatalf("error clear transition was not normalized: %s", observation.Payload)
 		}
 	}
@@ -474,7 +536,9 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	startedAt := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
-	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"42","subtask_name":"Gearbox housing","gcode_file":"/cache/plate_1.gcode","mc_percent":30}}`)
+	active := []byte(
+		`{"print":{"gcode_state":"RUNNING","task_id":"42","subtask_name":"Gearbox housing","gcode_file":"/cache/plate_1.gcode","mc_percent":30}}`,
+	)
 	observations, _, err := processor.apply(ctx, active, startedAt)
 	if err != nil || len(observations) == 0 {
 		t.Fatalf("active run was not established: observations=%#v err=%v", observations, err)
@@ -483,7 +547,9 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 	if runID == nil || !processor.noteDisconnected(startedAt.Add(time.Minute)) {
 		t.Fatal("active run did not record its first disconnect")
 	}
-	if got := processor.expireDisconnectedRun(startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod - time.Second)); len(got) != 0 {
+	if got := processor.expireDisconnectedRun(startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod - time.Second)); len(
+		got,
+	) != 0 {
 		t.Fatalf("run ended before the disconnect grace period: %#v", got)
 	}
 	if err = processor.persist(ctx); err != nil {
@@ -497,7 +563,9 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 	deadline := startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod)
 	observations = restarted.expireDisconnectedRun(deadline.Add(time.Second))
 	assertKinds(t, observations, "terminal_outcome")
-	if observations[0].RunID == nil || *observations[0].RunID != *runID || !bytes.Contains(observations[0].Payload, []byte(`"outcome":"unknown"`)) || !bytes.Contains(observations[0].Payload, []byte(`"reason":"connection_timeout"`)) {
+	if observations[0].RunID == nil || *observations[0].RunID != *runID ||
+		!bytes.Contains(observations[0].Payload, []byte(`"outcome":"unknown"`)) ||
+		!bytes.Contains(observations[0].Payload, []byte(`"reason":"connection_timeout"`)) {
 		t.Fatalf("unexpected timeout observation: %#v", observations[0])
 	}
 	if !restarted.state.RunTimedOut || restarted.state.DisconnectedAt != nil || restarted.state.Lifecycle != "UNKNOWN" {
@@ -521,7 +589,11 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 	if err != nil || len(observations) != 0 {
 		t.Fatalf("late active snapshot reopened a timed-out run: observations=%#v err=%v", observations, err)
 	}
-	observations, _, err = reloaded.apply(ctx, []byte(`{"print":{"gcode_state":"FINISH","task_id":"42","mc_percent":100}}`), deadline.Add(3*time.Minute))
+	observations, _, err = reloaded.apply(
+		ctx,
+		[]byte(`{"print":{"gcode_state":"FINISH","task_id":"42","mc_percent":100}}`),
+		deadline.Add(3*time.Minute),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -594,7 +666,8 @@ func TestInternalGCodePathIsNotScheduledAsAnArtifact(t *testing.T) {
 	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}); err != nil {
 		t.Fatal(err)
 	}
-	if retrieval, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil || retrieval != nil {
+	if retrieval, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil ||
+		retrieval != nil {
 		t.Fatalf("internal G-code path was scheduled as an archive: %#v %v", retrieval, pendingErr)
 	}
 
@@ -639,7 +712,11 @@ func TestBambuReducerIgnoresRetainedTerminalAtStartup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	observations, ready, err := processor.apply(context.Background(), []byte(`{"print":{"gcode_state":"FINISH","task_id":"old","mc_percent":100}}`), time.Now().UTC())
+	observations, ready, err := processor.apply(
+		context.Background(),
+		[]byte(`{"print":{"gcode_state":"FINISH","task_id":"old","mc_percent":100}}`),
+		time.Now().UTC(),
+	)
 	if err != nil || !ready || len(observations) != 0 {
 		t.Fatalf("retained terminal created observations: ready=%v observations=%#v err=%v", ready, observations, err)
 	}
@@ -668,7 +745,11 @@ func TestBambuReducerDoesNotClaimCompleteHistoryForPrintStartedWhileOffline(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	observations, _, err := restarted.apply(ctx, []byte(`{"print":{"gcode_state":"RUNNING","task_id":"new","mc_percent":50}}`), time.Now().UTC().Add(time.Hour))
+	observations, _, err := restarted.apply(
+		ctx,
+		[]byte(`{"print":{"gcode_state":"RUNNING","task_id":"new","mc_percent":50}}`),
+		time.Now().UTC().Add(time.Hour),
+	)
 	if err != nil || len(observations) == 0 {
 		t.Fatalf("new active print was not observed: %#v %v", observations, err)
 	}
@@ -685,8 +766,13 @@ func TestFTPParsers(t *testing.T) {
 	if err != nil || port != 49964 {
 		t.Fatalf("unexpected passive port: %d %v", port, err)
 	}
-	entries, err := parseFTPList([]byte("-rw-r--r-- 1 user group 123 Oct 14 12:00 part one.3mf\r\ndrwxr-xr-x 2 user group 0 Oct 14 12:00 folder\r\n"))
-	if err != nil || len(entries) != 2 || entries[0].Name != "part one.3mf" || entries[0].Size != 123 || !entries[1].IsDir {
+	entries, err := parseFTPList(
+		[]byte(
+			"-rw-r--r-- 1 user group 123 Oct 14 12:00 part one.3mf\r\ndrwxr-xr-x 2 user group 0 Oct 14 12:00 folder\r\n",
+		),
+	)
+	if err != nil || len(entries) != 2 || entries[0].Name != "part one.3mf" || entries[0].Size != 123 ||
+		!entries[1].IsDir {
 		t.Fatalf("unexpected listing: %#v %v", entries, err)
 	}
 	if _, err = parseFTPList([]byte("unsupported")); err == nil {
@@ -704,7 +790,8 @@ func TestArtifactCandidateSelectionIsExactAndRequiresStableSize(t *testing.T) {
 	if err != nil || candidate.RemotePath != "/cache/part.3mf" {
 		t.Fatalf("exact path was not preferred: %#v %v", candidate, err)
 	}
-	if _, err = SelectArtifactCandidate("part.3mf", listings); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+	if _, err = SelectArtifactCandidate("part.3mf", listings); err == nil ||
+		!strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("ambiguous basename was accepted: %v", err)
 	}
 	if _, err = SelectArtifactCandidate("missing.3mf", listings); err == nil {
@@ -723,13 +810,16 @@ func TestArtifactCandidateSelectionIsExactAndRequiresStableSize(t *testing.T) {
 func TestArtifactDirectoryListingsKeepUsableRootWhenCacheFails(t *testing.T) {
 	t.Parallel()
 	var visited []string
-	listings, err := listBambuArtifactDirectories(context.Background(), func(_ context.Context, directory string) ([]FTPEntry, error) {
-		visited = append(visited, directory)
-		if directory == "/cache" {
-			return nil, errors.New("finish Bambu FTPS transfer: cache unavailable")
-		}
-		return []FTPEntry{{Name: "FlipOff_Ghostie.stl.gcode.3mf", Size: 123}}, nil
-	})
+	listings, err := listBambuArtifactDirectories(
+		context.Background(),
+		func(_ context.Context, directory string) ([]FTPEntry, error) {
+			visited = append(visited, directory)
+			if directory == "/cache" {
+				return nil, errors.New("finish Bambu FTPS transfer: cache unavailable")
+			}
+			return []FTPEntry{{Name: "FlipOff_Ghostie.stl.gcode.3mf", Size: 123}}, nil
+		},
+	)
 	if !slices.Equal(visited, []string{"/", "/cache"}) {
 		t.Fatalf("listing order = %#v", visited)
 	}
@@ -751,7 +841,16 @@ func TestArtifactTransferQueueStagesValidZIPAndDeletesOnlyOnCompletion(t *testin
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
-	transfer, err := store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 2, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+	transfer, err := store.StageArtifact(
+		ctx,
+		uuid.Must(uuid.NewV7()),
+		uuid.Must(uuid.NewV7()),
+		2,
+		"/cache/part.3mf",
+		"part.3mf",
+		bytes.NewReader(archive),
+		time.Now().UTC().Add(time.Hour),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -769,7 +868,8 @@ func TestArtifactTransferQueueStagesValidZIPAndDeletesOnlyOnCompletion(t *testin
 		t.Fatalf("acknowledged staged file was not removed: %v", err)
 	}
 	unsafe := syntheticZIP(t, "../escape", "bad")
-	if _, err = store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 1, "/bad.3mf", "bad.3mf", bytes.NewReader(unsafe), time.Now().UTC().Add(time.Hour)); err == nil || !strings.Contains(err.Error(), "unsafe") {
+	if _, err = store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 1, "/bad.3mf", "bad.3mf", bytes.NewReader(unsafe), time.Now().UTC().Add(time.Hour)); err == nil ||
+		!strings.Contains(err.Error(), "unsafe") {
 		t.Fatalf("unsafe ZIP was accepted: %v", err)
 	}
 }
@@ -784,7 +884,16 @@ func TestClientUploadsQueuedArtifactWithIntegrityHeaders(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
-	transfer, err := store.StageArtifact(ctx, assignmentID, runID, 7, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+	transfer, err := store.StageArtifact(
+		ctx,
+		assignmentID,
+		runID,
+		7,
+		"/cache/part.3mf",
+		"part.3mf",
+		bytes.NewReader(archive),
+		time.Now().UTC().Add(time.Hour),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -793,10 +902,16 @@ func TestClientUploadsQueuedArtifactWithIntegrityHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method != http.MethodPut || request.URL.Path != "/api/v1/printer-connector/self/assignments/"+assignmentID.String()+"/runs/"+runID.String()+"/artifact" {
+		if request.Method != http.MethodPut ||
+			request.URL.Path != "/api/v1/printer-connector/self/assignments/"+assignmentID.String()+"/runs/"+runID.String()+"/artifact" {
 			t.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
 		}
-		if request.Header.Get("Authorization") != "Bearer connector-token" || request.Header.Get("Content-Type") != "application/octet-stream" || request.Header.Get("X-Configuration-Version") != "7" || request.Header.Get("X-Artifact-Filename") != "part.3mf" || request.Header.Get("X-Artifact-SHA256") != transfer.SHA256 || request.ContentLength != transfer.SizeBytes {
+		if request.Header.Get("Authorization") != "Bearer connector-token" ||
+			request.Header.Get("Content-Type") != "application/octet-stream" ||
+			request.Header.Get("X-Configuration-Version") != "7" ||
+			request.Header.Get("X-Artifact-Filename") != "part.3mf" ||
+			request.Header.Get("X-Artifact-SHA256") != transfer.SHA256 ||
+			request.ContentLength != transfer.SizeBytes {
 			t.Errorf("unexpected upload headers: %#v length=%d", request.Header, request.ContentLength)
 		}
 		body, readErr := io.ReadAll(request.Body)
@@ -804,7 +919,13 @@ func TestClientUploadsQueuedArtifactWithIntegrityHeaders(t *testing.T) {
 			t.Errorf("unexpected upload body: size=%d err=%v", len(body), readErr)
 		}
 		response := `{"artifact":{"id":"artifact"},"disposition":"created","runId":"` + runID.String() + `","autoAttachedJobId":null}`
-		return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Header: make(http.Header), Body: io.NopCloser(strings.NewReader(response)), Request: request}, nil
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Status:     "201 Created",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(response)),
+			Request:    request,
+		}, nil
 	})
 	receipt, err := client.UploadArtifact(ctx, "connector-token", transfer)
 	if err != nil || receipt.Disposition != "created" || receipt.RunID != runID {
@@ -821,7 +942,10 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	}
 	transfer := ArtifactTransfer{StagedPath: path, SizeBytes: int64(len(archive))}
 
-	completed, err := buildBambuConsumptionPayload(transfer, bambuRunFacts{Outcome: "completed", InputUnitExternalID: "128", SlotExternalID: "0", TagUID: "E2C92C29"})
+	completed, err := buildBambuConsumptionPayload(
+		transfer,
+		bambuRunFacts{Outcome: "completed", InputUnitExternalID: "128", SlotExternalID: "0", TagUID: "E2C92C29"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -831,14 +955,22 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	if err = json.Unmarshal(completed, &completedReport); err != nil {
 		t.Fatal(err)
 	}
-	if len(completedReport.Items) != 1 || completedReport.Items[0]["method"] != "slicer_complete" || completedReport.Items[0]["estimatedQuantityGrams"] != "0.300000" || completedReport.Items[0]["inputUnitExternalId"] != "128" || completedReport.Items[0]["slotExternalId"] != "0" || completedReport.Items[0]["tagUid"] != "E2C92C29" {
+	if len(completedReport.Items) != 1 || completedReport.Items[0]["method"] != "slicer_complete" ||
+		completedReport.Items[0]["estimatedQuantityGrams"] != "0.300000" ||
+		completedReport.Items[0]["inputUnitExternalId"] != "128" ||
+		completedReport.Items[0]["slotExternalId"] != "0" ||
+		completedReport.Items[0]["tagUid"] != "E2C92C29" {
 		t.Fatalf("completed report = %s", completed)
 	}
 
 	layer, progress := 1, 50.0
 	for _, adapterKind := range []string{bambuH2DAdapterKind, bambuX1CAdapterKind} {
 		t.Run(adapterKind, func(t *testing.T) {
-			failed, buildErr := buildBambuConsumptionPayloadFor(adapterKind, transfer, bambuRunFacts{Outcome: "failed", LastLayer: &layer, LastProgress: &progress})
+			failed, buildErr := buildBambuConsumptionPayloadFor(
+				adapterKind,
+				transfer,
+				bambuRunFacts{Outcome: "failed", LastLayer: &layer, LastProgress: &progress},
+			)
 			if buildErr != nil {
 				t.Fatal(buildErr)
 			}
@@ -848,7 +980,9 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 			if unmarshalErr := json.Unmarshal(failed, &failedReport); unmarshalErr != nil {
 				t.Fatal(unmarshalErr)
 			}
-			if len(failedReport.Items) != 1 || failedReport.Items[0]["method"] != "gcode_checkpoint" || failedReport.Items[0]["estimatedQuantityGrams"] != "0.029825" || failedReport.Items[0]["modelQuantityGrams"] != "0.029825" {
+			if len(failedReport.Items) != 1 || failedReport.Items[0]["method"] != "gcode_checkpoint" ||
+				failedReport.Items[0]["estimatedQuantityGrams"] != "0.029825" ||
+				failedReport.Items[0]["modelQuantityGrams"] != "0.029825" {
 				t.Fatalf("failed report = %s", failed)
 			}
 		})
@@ -864,7 +998,8 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	if err = json.Unmarshal(unresolved, &unresolvedReport); err != nil {
 		t.Fatal(err)
 	}
-	if len(unresolvedReport.Items) != 1 || unresolvedReport.Items[0]["quality"] != "unresolved" || unresolvedReport.Items[0]["estimatedQuantityGrams"] != nil {
+	if len(unresolvedReport.Items) != 1 || unresolvedReport.Items[0]["quality"] != "unresolved" ||
+		unresolvedReport.Items[0]["estimatedQuantityGrams"] != nil {
 		t.Fatalf("unresolved report = %s", unresolved)
 	}
 }
@@ -929,7 +1064,9 @@ func TestInterruptedX1CConsumptionUsesExplicitMaterialMapping(t *testing.T) {
 	if err = json.Unmarshal(payload, &report); err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Items) != 1 || report.Items[0]["slicerFilamentId"] != "3" || report.Items[0]["slotExternalId"] != "2" || report.Items[0]["tagUid"] != "WHITE" {
+	if len(report.Items) != 1 || report.Items[0]["slicerFilamentId"] != "3" ||
+		report.Items[0]["slotExternalId"] != "2" ||
+		report.Items[0]["tagUid"] != "WHITE" {
 		t.Fatalf("interrupted X1C report = %s", payload)
 	}
 }
@@ -961,8 +1098,11 @@ func TestMultiMaterialConsumptionMapsUniqueRemainingH2DRoute(t *testing.T) {
 	if err = json.Unmarshal(payload, &report); err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Items) != 2 || report.Items[0]["inputUnitExternalId"] != "255" || report.Items[0]["slotExternalId"] != "255" ||
-		report.Items[1]["inputUnitExternalId"] != "128" || report.Items[1]["slotExternalId"] != "0" || report.Items[1]["tagUid"] != "WHITE" {
+	if len(report.Items) != 2 || report.Items[0]["inputUnitExternalId"] != "255" ||
+		report.Items[0]["slotExternalId"] != "255" ||
+		report.Items[1]["inputUnitExternalId"] != "128" ||
+		report.Items[1]["slotExternalId"] != "0" ||
+		report.Items[1]["tagUid"] != "WHITE" {
 		t.Fatalf("H2D route elimination report = %s", payload)
 	}
 }
@@ -1007,7 +1147,10 @@ func TestMultiMaterialConsumptionDoesNotGuessWithIncompleteHistory(t *testing.T)
 	t.Parallel()
 	gramsA, gramsB := 2.0, 6.0
 	parsed := parser.Result{
-		Filaments:        []parser.Filament{{ID: "1", WeightGrams: &gramsA, Extruders: []int{1}}, {ID: "5", WeightGrams: &gramsB, Extruders: []int{1}}},
+		Filaments: []parser.Filament{
+			{ID: "1", WeightGrams: &gramsA, Extruders: []int{1}},
+			{ID: "5", WeightGrams: &gramsB, Extruders: []int{1}},
+		},
 		FilamentSequence: []string{"1", "5"},
 	}
 	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
@@ -1042,7 +1185,16 @@ func TestAcknowledgedArtifactIsRetainedUntilConsumptionIsDurable(t *testing.T) {
 		t.Fatal(err)
 	}
 	archive := syntheticBambuConsumptionZIP(t)
-	transfer, err := store.StageArtifact(ctx, assignmentID, runID, 3, "/cache/fixture.3mf", "fixture.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+	transfer, err := store.StageArtifact(
+		ctx,
+		assignmentID,
+		runID,
+		3,
+		"/cache/fixture.3mf",
+		"fixture.3mf",
+		bytes.NewReader(archive),
+		time.Now().UTC().Add(time.Hour),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1060,7 +1212,8 @@ func TestAcknowledgedArtifactIsRetainedUntilConsumptionIsDurable(t *testing.T) {
 		t.Fatalf("artifact was retained after upload acknowledgement and durable report: %v", err)
 	}
 	events, err := store.Pending(ctx, 10)
-	if err != nil || len(events) != 1 || events[0].Kind != "consumption_report" || events[0].ReportRevision == nil || *events[0].ReportRevision != 1 {
+	if err != nil || len(events) != 1 || events[0].Kind != "consumption_report" || events[0].ReportRevision == nil ||
+		*events[0].ReportRevision != 1 {
 		t.Fatalf("consumption outbox = %#v, err=%v", events, err)
 	}
 }
@@ -1141,7 +1294,16 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = store.Close() })
 		archive := syntheticZIP(t, "3D/3dmodel.model", "model")
-		transfer, err := store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 3, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+		transfer, err := store.StageArtifact(
+			ctx,
+			uuid.Must(uuid.NewV7()),
+			uuid.Must(uuid.NewV7()),
+			3,
+			"/cache/part.3mf",
+			"part.3mf",
+			bytes.NewReader(archive),
+			time.Now().UTC().Add(time.Hour),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1151,7 +1313,13 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 		}
 		client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			_, _ = io.Copy(io.Discard, request.Body)
-			return &http.Response{StatusCode: status, Status: http.StatusText(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"code":"not_found","message":"x"}`)), Request: request}, nil
+			return &http.Response{
+				StatusCode: status,
+				Status:     http.StatusText(status),
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"code":"not_found","message":"x"}`)),
+				Request:    request,
+			}, nil
 		})
 		var logs bytes.Buffer
 		runtime := &Runtime{client: client, store: store, logger: slog.New(slog.NewTextHandler(&logs, nil))}
@@ -1165,12 +1333,15 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 		if _, err = os.Stat(transfer.StagedPath); !os.IsNotExist(err) {
 			t.Fatalf("status %d: rejected staged file was kept: %v", status, err)
 		}
-		if line := logs.String(); !strings.Contains(line, "transfer quarantined") || !strings.Contains(line, fmt.Sprintf("status=%d", status)) || !strings.Contains(line, "code=not_found") {
+		if line := logs.String(); !strings.Contains(line, "transfer quarantined") ||
+			!strings.Contains(line, fmt.Sprintf("status=%d", status)) ||
+			!strings.Contains(line, "code=not_found") {
 			t.Fatalf("status %d: rejection log lacks status or code: %s", status, line)
 		}
 		// The rejected transfer no longer occupies queue capacity.
 		var queued int64
-		if err = store.db.QueryRowContext(ctx, `SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&queued); err != nil || queued != 0 {
+		if err = store.db.QueryRowContext(ctx, `SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&queued); err != nil ||
+			queued != 0 {
 			t.Fatalf("status %d: rejected transfer still counts as queued: %d %v", status, queued, err)
 		}
 	}
@@ -1185,7 +1356,16 @@ func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
-	transfer, err := store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 3, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+	transfer, err := store.StageArtifact(
+		ctx,
+		uuid.Must(uuid.NewV7()),
+		uuid.Must(uuid.NewV7()),
+		3,
+		"/cache/part.3mf",
+		"part.3mf",
+		bytes.NewReader(archive),
+		time.Now().UTC().Add(time.Hour),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1195,19 +1375,27 @@ func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
 	}
 	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		_, _ = io.Copy(io.Discard, request.Body)
-		return &http.Response{StatusCode: http.StatusServiceUnavailable, Status: "503 Service Unavailable", Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"code":"temporarily_unavailable"}`)), Request: request}, nil
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Status:     "503 Service Unavailable",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"code":"temporarily_unavailable"}`)),
+			Request:    request,
+		}, nil
 	})
 	runtime := &Runtime{client: client, store: store, logger: discardLogger()}
 	err = runtime.deliverArtifacts(ctx, Identity{CredentialSecret: "token"})
 	var coreErr *CoreError
-	if !errors.As(err, &coreErr) || coreErr.Status != http.StatusServiceUnavailable || coreErr.Code != "temporarily_unavailable" {
+	if !errors.As(err, &coreErr) || coreErr.Status != http.StatusServiceUnavailable ||
+		coreErr.Code != "temporarily_unavailable" {
 		t.Fatalf("transient failure lost its status and code: %v", err)
 	}
 	if _, err = os.Stat(transfer.StagedPath); err != nil {
 		t.Fatalf("transient failure removed the staged file: %v", err)
 	}
 	var state string
-	if err = store.db.QueryRowContext(ctx, `SELECT state FROM artifact_transfers WHERE id=?`, transfer.ID.String()).Scan(&state); err != nil || state != "pending" {
+	if err = store.db.QueryRowContext(ctx, `SELECT state FROM artifact_transfers WHERE id=?`, transfer.ID.String()).Scan(&state); err != nil ||
+		state != "pending" {
 		t.Fatalf("transient failure changed the transfer state: %q %v", state, err)
 	}
 }

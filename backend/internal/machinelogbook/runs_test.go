@@ -54,9 +54,17 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		for _, machineID := range []uuid.UUID{f.machine.ID, f.bareMachine.ID} {
-			_, _ = f.pool.Exec(cleanup, `DELETE FROM machine_runs WHERE machine_id = $1 AND source = 'manual'`, machineID)
+			_, _ = f.pool.Exec(
+				cleanup,
+				`DELETE FROM machine_runs WHERE machine_id = $1 AND source = 'manual'`,
+				machineID,
+			)
 			_, _ = f.pool.Exec(cleanup, `DELETE FROM machine_jobs WHERE machine_id = $1`, machineID)
-			_, _ = f.pool.Exec(cleanup, `UPDATE machine_runs SET reported_event_id = NULL WHERE machine_id = $1`, machineID)
+			_, _ = f.pool.Exec(
+				cleanup,
+				`UPDATE machine_runs SET reported_event_id = NULL WHERE machine_id = $1`,
+				machineID,
+			)
 			_, _ = f.pool.Exec(cleanup, `DELETE FROM printer_events WHERE machine_id = $1`, machineID)
 			_, _ = f.pool.Exec(cleanup, `DELETE FROM machine_runs WHERE machine_id = $1`, machineID)
 			_, _ = f.pool.Exec(cleanup, `DELETE FROM printer_connector_assignments WHERE machine_id = $1`, machineID)
@@ -83,12 +91,29 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 	// A filament material with one spool; its material type has the pricing rule.
 	diameter := "1.75"
 	var err error
-	h.material, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Prints PLA " + suffix, MaterialTypeID: f.materialType.ID, FilamentDiameterMM: &diameter}, &f.request)
+	h.material, err = f.s.CreateMaterial(
+		ctx,
+		f.p,
+		MaterialInput{Name: "Prints PLA " + suffix, MaterialTypeID: f.materialType.ID, FilamentDiameterMM: &diameter},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	total := "20"
-	h.spool, err = f.s.CreateFilamentSpool(ctx, f.p, FilamentSpoolInput{MaterialID: h.material.ID, InitialNetWeightG: "1000", StockMode: "new_acquisition", TotalPrice: &total, OccurredAt: f.now, ExpectedInventoryVersion: h.material.InventoryVersion}, &f.request)
+	h.spool, err = f.s.CreateFilamentSpool(
+		ctx,
+		f.p,
+		FilamentSpoolInput{
+			MaterialID:               h.material.ID,
+			InitialNetWeightG:        "1000",
+			StockMode:                "new_acquisition",
+			TotalPrice:               &total,
+			OccurredAt:               f.now,
+			ExpectedInventoryVersion: h.material.InventoryVersion,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +156,14 @@ func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 		t.Fatal(err)
 	}
 	if spec.grams != "" {
-		eventID := h.insertEvent(t, id, spec.machine, "consumption_report", last, `{"quantityGrams":"`+spec.grams+`","quantityBasis":"`+spec.basis+`"}`)
+		eventID := h.insertEvent(
+			t,
+			id,
+			spec.machine,
+			"consumption_report",
+			last,
+			`{"quantityGrams":"`+spec.grams+`","quantityBasis":"`+spec.basis+`"}`,
+		)
 		if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = $3, reported_spool_id = $4, reported_event_id = $5 WHERE id = $1`, id, spec.grams, spec.basis, spec.spool, eventID); err != nil {
 			t.Fatal(err)
 		}
@@ -139,7 +171,13 @@ func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 	return id
 }
 
-func (h *runHarness) insertEvent(t *testing.T, runID, machineID uuid.UUID, kind string, occurredAt time.Time, payload string) uuid.UUID {
+func (h *runHarness) insertEvent(
+	t *testing.T,
+	runID, machineID uuid.UUID,
+	kind string,
+	occurredAt time.Time,
+	payload string,
+) uuid.UUID {
 	t.Helper()
 	h.sequence++
 	id := uuid.Must(uuid.NewV7())
@@ -164,7 +202,14 @@ func (h *runHarness) insertEvent(t *testing.T, runID, machineID uuid.UUID, kind 
 func (h *runHarness) report(t *testing.T, runID, machineID uuid.UUID, grams string, revision int, spool uuid.UUID) {
 	t.Helper()
 	h.revision = revision
-	eventID := h.insertEvent(t, runID, machineID, "consumption_report", h.now, `{"quantityGrams":"`+grams+`","quantityBasis":"actual"}`)
+	eventID := h.insertEvent(
+		t,
+		runID,
+		machineID,
+		"consumption_report",
+		h.now,
+		`{"quantityGrams":"`+grams+`","quantityBasis":"actual"}`,
+	)
 	h.revision = 0
 	if _, err := h.pool.Exec(t.Context(), `UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = 'actual', reported_spool_id = $3, reported_event_id = $4 WHERE id = $1`, runID, grams, spool, eventID); err != nil {
 		t.Fatal(err)
@@ -226,7 +271,18 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	h := newRunHarness(t)
 	ctx := t.Context()
 	started, ended := at(h.now, -3*time.Hour), at(h.now, -90*time.Minute)
-	runID := h.insertRun(t, runSpec{machine: h.machine.ID, started: started, ended: ended, fileName: "benchy.gcode", grams: "100", basis: "actual", spool: &h.spool.ID})
+	runID := h.insertRun(
+		t,
+		runSpec{
+			machine:  h.machine.ID,
+			started:  started,
+			ended:    ended,
+			fileName: "benchy.gcode",
+			grams:    "100",
+			basis:    "actual",
+			spool:    &h.spool.ID,
+		},
+	)
 	h.finish(t, runID, "finished", *ended)
 
 	input := h.input(-8*time.Hour, time.Hour, "unknown")
@@ -237,42 +293,73 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 		t.Fatalf("manual calculated = %s", price(job.CalculatedPrice))
 	}
 	first := job.Runs[0]
-	if _, err := h.s.AttachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.ID, true, job.Version, &h.request); !apperror.IsCode(err, "permission_denied") {
+	if _, err := h.s.AttachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.ID, true, job.Version, &h.request); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("attach without edit: %v", err)
 	}
-	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, true, job.Version+1, &h.request); !apperror.IsCode(err, "stale_write") {
+	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, true, job.Version+1, &h.request); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale attach: %v", err)
 	}
 	other := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: started, ended: ended})
-	if _, err := h.s.AttachRun(ctx, h.p, other, job.ID, true, job.Version, &h.request); !apperror.IsCode(err, "run_machine_mismatch") {
+	if _, err := h.s.AttachRun(ctx, h.p, other, job.ID, true, job.Version, &h.request); !apperror.IsCode(
+		err,
+		"run_machine_mismatch",
+	) {
 		t.Fatalf("machine mismatch: %v", err)
 	}
-	if _, err := h.s.AttachRun(ctx, h.p, uuid.Must(uuid.NewV7()), job.ID, true, job.Version, &h.request); !apperror.IsCode(err, "not_found") {
+	if _, err := h.s.AttachRun(ctx, h.p, uuid.Must(uuid.NewV7()), job.ID, true, job.Version, &h.request); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("unknown run: %v", err)
 	}
 
 	linked := h.attach(t, runID, job, true)
-	if len(linked.Runs) != 2 || linked.Runs[0].ID != first.ID || linked.Runs[0].State != "replaced" || linked.Runs[1].ID != runID {
+	if len(linked.Runs) != 2 || linked.Runs[0].ID != first.ID || linked.Runs[0].State != "replaced" ||
+		linked.Runs[1].ID != runID {
 		t.Fatalf("runs after attach: %+v", linked.Runs)
 	}
-	if linked.StartedAt == nil || !linked.StartedAt.Equal(*started) || linked.EndedAt == nil || !linked.EndedAt.Equal(*ended) || linked.Outcome != "unknown" || linked.Status != "needs_outcome" {
-		t.Fatalf("job after attach: started=%v ended=%v outcome=%s status=%s", linked.StartedAt, linked.EndedAt, linked.Outcome, linked.Status)
+	if linked.StartedAt == nil || !linked.StartedAt.Equal(*started) || linked.EndedAt == nil ||
+		!linked.EndedAt.Equal(*ended) ||
+		linked.Outcome != "unknown" ||
+		linked.Status != "needs_outcome" {
+		t.Fatalf(
+			"job after attach: started=%v ended=%v outcome=%s status=%s",
+			linked.StartedAt,
+			linked.EndedAt,
+			linked.Outcome,
+			linked.Status,
+		)
 	}
 	// The recorded run has no automatic usage yet (no connector event ran), so only its runtime counts: 1.5 h.
 	if price(linked.CalculatedPrice) != "15" || price(linked.EffectivePrice) != "7.5" || len(linked.Usages) != 0 {
-		t.Fatalf("repriced calculated=%s effective=%s usages=%d", price(linked.CalculatedPrice), price(linked.EffectivePrice), len(linked.Usages))
+		t.Fatalf(
+			"repriced calculated=%s effective=%s usages=%d",
+			price(linked.CalculatedPrice),
+			price(linked.EffectivePrice),
+			len(linked.Usages),
+		)
 	}
 	if got := h.quantity(t, h.jobFixture.material.ID); got != "1000" {
 		t.Fatalf("manual material quantity = %s", got)
 	}
 	var compensations int
-	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 30`, h.jobFixture.material.ID).Scan(&compensations); err != nil || compensations != 1 {
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 30`, h.jobFixture.material.ID).Scan(&compensations); err != nil ||
+		compensations != 1 {
 		t.Fatalf("compensating transactions = %d err=%v", compensations, err)
 	}
 	if h.auditCount(t, "machine_job.run_attached", job.ID) != 1 {
 		t.Fatal("attach audit is missing")
 	}
-	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, false, linked.Version, &h.request); !apperror.IsCode(err, "run_already_assigned") {
+	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, false, linked.Version, &h.request); !apperror.IsCode(
+		err,
+		"run_already_assigned",
+	) {
 		t.Fatalf("second attach: %v", err)
 	}
 }
@@ -307,7 +394,14 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := h.run(t, runID)
-	if settled.Status != "successful" || settled.Version <= job.Version || run.Outcome == nil || *run.Outcome != "successful" || !run.OutcomeFromMachine || !run.UsagesFromMachine || len(run.Usages) != 1 || run.Usages[0].Quantity != "100" || run.Usages[0].SpoolID == nil || *run.Usages[0].SpoolID != h.spool.ID {
+	if settled.Status != "successful" || settled.Version <= job.Version || run.Outcome == nil ||
+		*run.Outcome != "successful" ||
+		!run.OutcomeFromMachine ||
+		!run.UsagesFromMachine ||
+		len(run.Usages) != 1 ||
+		run.Usages[0].Quantity != "100" ||
+		run.Usages[0].SpoolID == nil ||
+		*run.Usages[0].SpoolID != h.spool.ID {
 		t.Fatalf("settled: job=%s run=%+v", settled.Status, run)
 	}
 	// 1 h 50 m at 10/h plus 100 g at 0.1/g.
@@ -319,7 +413,9 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	}
 	var actorType string
 	var metadata string
-	if err = h.pool.QueryRow(ctx, `SELECT actor_type, metadata::text FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1`, job.ID).Scan(&actorType, &metadata); err != nil || actorType != "system" || !strings.Contains(metadata, h.connectorID.String()) {
+	if err = h.pool.QueryRow(ctx, `SELECT actor_type, metadata::text FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1`, job.ID).Scan(&actorType, &metadata); err != nil ||
+		actorType != "system" ||
+		!strings.Contains(metadata, h.connectorID.String()) {
 		t.Fatalf("connector audit: %q %q %v", actorType, metadata, err)
 	}
 	// A repeated event does not consume twice.
@@ -338,14 +434,31 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 		t.Fatalf("spool material quantity after the second report = %s", got)
 	}
 	// Staff corrections win over later reports and change outcomeFromMachine.
-	patched, err := h.s.UpdateRun(ctx, h.p, runID, run.Version, RunUpdate{Outcome: outcomePtr("partial_failure")}, &h.request)
+	patched, err := h.s.UpdateRun(
+		ctx,
+		h.p,
+		runID,
+		run.Version,
+		RunUpdate{Outcome: outcomePtr("partial_failure")},
+		&h.request,
+	)
 	if err != nil || patched.Run.OutcomeFromMachine || patched.Job.Outcome != "partial_failure" {
 		t.Fatalf("patched recorded run: %v %+v", err, patched.Run)
 	}
-	if _, err = h.s.UpdateRun(ctx, h.p, runID, patched.Run.Version, RunUpdate{StartsAt: &ended, EndsAt: &ended}, &h.request); !apperror.IsCode(err, "run_times_read_only") {
+	if _, err = h.s.UpdateRun(ctx, h.p, runID, patched.Run.Version, RunUpdate{StartsAt: &ended, EndsAt: &ended}, &h.request); !apperror.IsCode(
+		err,
+		"run_times_read_only",
+	) {
 		t.Fatalf("times of a recorded run: %v", err)
 	}
-	staff, err := h.s.ReplaceRunUsages(ctx, h.p, runID, patched.Run.Version, []UsageInput{{MaterialID: h.material.ID, SpoolID: &h.spool.ID, Quantity: "70"}}, &h.request)
+	staff, err := h.s.ReplaceRunUsages(
+		ctx,
+		h.p,
+		runID,
+		patched.Run.Version,
+		[]UsageInput{{MaterialID: h.material.ID, SpoolID: &h.spool.ID, Quantity: "70"}},
+		&h.request,
+	)
 	if err != nil || staff.Run.UsagesFromMachine {
 		t.Fatalf("staff usage: %v %+v", err, staff.Run)
 	}
@@ -363,8 +476,16 @@ func TestUnassignedRecordedRunConsumesAndCanBecomeAJob(t *testing.T) {
 	runID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: started, fileName: "x.gcode"})
 	// Create a job from the run while it still runs.
 	title := "From the machine"
-	in := RunJobInput{Title: &title, Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}
-	if _, err := h.s.CreateJobFromRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, in, &h.request); !apperror.IsCode(err, "permission_denied") {
+	in := RunJobInput{
+		Title:            &title,
+		Customer:         PartyReference{Kind: "person", ID: h.person},
+		OperatorPersonID: h.person,
+		PricingGroupID:   &h.group.ID,
+	}
+	if _, err := h.s.CreateJobFromRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, in, &h.request); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("create without permission: %v", err)
 	}
 	// Consumption also happens when the run has no job.
@@ -373,7 +494,8 @@ func TestUnassignedRecordedRunConsumesAndCanBecomeAJob(t *testing.T) {
 	h.finish(t, other, "finished", ended)
 	h.report(t, other, h.machine.ID, "40", 1, h.spool.ID)
 	h.apply(t, other, "terminal_outcome")
-	if run := h.run(t, other); len(run.Usages) != 1 || run.Usages[0].Quantity != "40" || !run.UsagesFromMachine || run.Job != nil {
+	if run := h.run(t, other); len(run.Usages) != 1 || run.Usages[0].Quantity != "40" || !run.UsagesFromMachine ||
+		run.Job != nil {
 		t.Fatalf("unassigned run: %+v", run)
 	}
 	if got := h.quantity(t, h.material.ID); got != "960" {
@@ -384,13 +506,17 @@ func TestUnassignedRecordedRunConsumesAndCanBecomeAJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if job.Status != "running" || len(job.Runs) != 1 || job.Runs[0].ID != runID || job.Machine.ID != h.machine.ID || job.Title == nil {
+	if job.Status != "running" || len(job.Runs) != 1 || job.Runs[0].ID != runID || job.Machine.ID != h.machine.ID ||
+		job.Title == nil {
 		t.Fatalf("job from running run: %+v", job)
 	}
 	if _, err = h.s.CreateJobFromRun(ctx, h.p, runID, in, &h.request); !apperror.IsCode(err, "run_already_assigned") {
 		t.Fatalf("second create: %v", err)
 	}
-	if _, err = h.s.CreateJobFromRun(ctx, h.p, uuid.Must(uuid.NewV7()), in, &h.request); !apperror.IsCode(err, "not_found") {
+	if _, err = h.s.CreateJobFromRun(ctx, h.p, uuid.Must(uuid.NewV7()), in, &h.request); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("unknown run: %v", err)
 	}
 }
@@ -399,23 +525,46 @@ func TestDetachRun(t *testing.T) {
 	h := newRunHarness(t)
 	ctx := t.Context()
 	started, ended := at(h.now, -3*time.Hour), at(h.now, -2*time.Hour)
-	runID := h.insertRun(t, runSpec{machine: h.machine.ID, started: started, ended: ended, grams: "100", basis: "actual", spool: &h.spool.ID})
+	runID := h.insertRun(
+		t,
+		runSpec{
+			machine: h.machine.ID,
+			started: started,
+			ended:   ended,
+			grams:   "100",
+			basis:   "actual",
+			spool:   &h.spool.ID,
+		},
+	)
 	h.finish(t, runID, "finished", *ended)
 	job := h.attach(t, runID, h.create(t, h.input(-8*time.Hour, time.Hour, "unknown")), true)
 	job = func() MachineJob {
-		j, err := h.s.UpdateRun(ctx, h.p, runID, h.run(t, runID).Version, RunUpdate{Outcome: outcomePtr("failed")}, &h.request)
+		j, err := h.s.UpdateRun(
+			ctx,
+			h.p,
+			runID,
+			h.run(t, runID).Version,
+			RunUpdate{Outcome: outcomePtr("failed")},
+			&h.request,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return *j.Job
 	}()
-	if _, err := h.s.DetachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.Version, &h.request); !apperror.IsCode(err, "permission_denied") {
+	if _, err := h.s.DetachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.Version, &h.request); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("detach without edit: %v", err)
 	}
 	if _, err := h.s.DetachRun(ctx, h.p, runID, job.Version+1, &h.request); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale detach: %v", err)
 	}
-	if _, err := h.s.DetachRun(ctx, h.p, job.Runs[0].ID, job.Version, &h.request); !apperror.IsCode(err, "run_not_recorded") {
+	if _, err := h.s.DetachRun(ctx, h.p, job.Runs[0].ID, job.Version, &h.request); !apperror.IsCode(
+		err,
+		"run_not_recorded",
+	) {
 		t.Fatalf("detach of a manual run: %v", err)
 	}
 	detached, err := h.s.DetachRun(ctx, h.p, runID, job.Version, &h.request)
@@ -429,7 +578,11 @@ func TestDetachRun(t *testing.T) {
 			manual = &detached.Runs[i]
 		}
 	}
-	if manual == nil || !manual.StartedAt.Equal(*started) || manual.EndedAt == nil || !manual.EndedAt.Equal(*ended) || manual.Outcome == nil || *manual.Outcome != "failed" || len(manual.Usages) != 0 || detached.Status != "failed" {
+	if manual == nil || !manual.StartedAt.Equal(*started) || manual.EndedAt == nil || !manual.EndedAt.Equal(*ended) ||
+		manual.Outcome == nil ||
+		*manual.Outcome != "failed" ||
+		len(manual.Usages) != 0 ||
+		detached.Status != "failed" {
 		t.Fatalf("manual copy: %+v job=%s", manual, detached.Status)
 	}
 	run := h.run(t, runID)
@@ -439,7 +592,10 @@ func TestDetachRun(t *testing.T) {
 	if h.auditCount(t, "machine_job.run_detached", job.ID) != 1 {
 		t.Fatal("detach audit is missing")
 	}
-	if _, err = h.s.DetachRun(ctx, h.p, runID, detached.Version, &h.request); !apperror.IsCode(err, "run_not_assigned") {
+	if _, err = h.s.DetachRun(ctx, h.p, runID, detached.Version, &h.request); !apperror.IsCode(
+		err,
+		"run_not_assigned",
+	) {
 		t.Fatalf("second detach: %v", err)
 	}
 }
@@ -448,9 +604,28 @@ func TestListAndGetRuns(t *testing.T) {
 	h := newRunHarness(t)
 	ctx := t.Context()
 	token := strings.ReplaceAll(h.connectorID.String(), "-", "")[:8]
-	finished := h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour), fileName: "gear_" + token + ".gcode", grams: "12.5", basis: "estimated", spool: &h.spool.ID})
+	finished := h.insertRun(
+		t,
+		runSpec{
+			machine:  h.machine.ID,
+			started:  at(h.now, -6*time.Hour),
+			ended:    at(h.now, -5*time.Hour),
+			fileName: "gear_" + token + ".gcode",
+			grams:    "12.5",
+			basis:    "estimated",
+			spool:    &h.spool.ID,
+		},
+	)
 	h.finish(t, finished, "finished", *at(h.now, -5*time.Hour))
-	running := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -time.Hour), fileName: "lid_" + token + ".gcode"})
+	running := h.insertRun(
+		t,
+		runSpec{
+			machine:  h.machine.ID,
+			state:    "running",
+			started:  at(h.now, -time.Hour),
+			fileName: "lid_" + token + ".gcode",
+		},
+	)
 	manual := h.create(t, h.input(-9*time.Hour, time.Hour, "successful"))
 	job := h.attach(t, finished, manual, false)
 
@@ -468,13 +643,19 @@ func TestListAndGetRuns(t *testing.T) {
 		t.Fatalf("newest first: %+v", items)
 	}
 	recorded, no, yes := "recorded", false, true
-	if items := list(RunFilters{Source: &recorded, Assigned: &no}); len(items) != 1 || items[0].ID != running || items[0].State != "running" {
+	if items := list(RunFilters{Source: &recorded, Assigned: &no}); len(items) != 1 || items[0].ID != running ||
+		items[0].State != "running" {
 		t.Fatalf("unassigned recorded = %+v", items)
 	}
 	if items := list(RunFilters{Assigned: &yes}); len(items) != 2 {
 		t.Fatalf("assigned = %d", len(items))
 	}
-	if items := list(RunFilters{States: []string{"finished"}, Source: &recorded}); len(items) != 1 || items[0].ID != finished || items[0].Job == nil || items[0].Job.ID != job.ID || items[0].ReportedUsage == nil || items[0].ReportedUsage.MaterialName == nil {
+	if items := list(RunFilters{States: []string{"finished"}, Source: &recorded}); len(items) != 1 ||
+		items[0].ID != finished ||
+		items[0].Job == nil ||
+		items[0].Job.ID != job.ID ||
+		items[0].ReportedUsage == nil ||
+		items[0].ReportedUsage.MaterialName == nil {
 		t.Fatalf("finished recorded = %+v", items)
 	}
 	if items := list(RunFilters{Search: "LID_" + token}); len(items) != 1 || items[0].ID != running {
@@ -483,13 +664,26 @@ func TestListAndGetRuns(t *testing.T) {
 	if items := list(RunFilters{Search: "%"}); len(items) != 0 {
 		t.Fatalf("wildcard matched %d runs", len(items))
 	}
-	if _, _, err := h.s.ListRuns(ctx, h.p, RunFilters{States: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(err, "validation_failed") {
+	if _, _, err := h.s.ListRuns(ctx, h.p, RunFilters{States: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("bogus state: %v", err)
 	}
-	if _, _, err := h.s.ListRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, RunFilters{Page: 1, PageSize: 10}); !apperror.IsCode(err, "permission_denied") {
+	if _, _, err := h.s.ListRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, RunFilters{Page: 1, PageSize: 10}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("list without read: %v", err)
 	}
-	h.insertEvent(t, finished, h.machine.ID, "terminal_outcome", *at(h.now, -5*time.Hour), `{"outcome":"completed","note":"SECRET-VALUE"}`)
+	h.insertEvent(
+		t,
+		finished,
+		h.machine.ID,
+		"terminal_outcome",
+		*at(h.now, -5*time.Hour),
+		`{"outcome":"completed","note":"SECRET-VALUE"}`,
+	)
 	detail, err := h.s.GetRun(ctx, h.p, finished)
 	if err != nil || len(detail.Events) != 2 {
 		t.Fatalf("events: %+v %v", detail.Events, err)
@@ -498,7 +692,10 @@ func TestListAndGetRuns(t *testing.T) {
 	if strings.Contains(string(encoded), "SECRET-VALUE") {
 		t.Fatalf("raw payload leaked: %s", encoded)
 	}
-	if _, err = h.s.GetRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, finished); !apperror.IsCode(err, "permission_denied") {
+	if _, err = h.s.GetRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, finished); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("get without read: %v", err)
 	}
 	if _, err = h.s.GetRun(ctx, h.p, uuid.Must(uuid.NewV7())); !apperror.IsCode(err, "not_found") {

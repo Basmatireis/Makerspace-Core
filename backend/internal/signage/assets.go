@@ -69,7 +69,17 @@ type OpenedAsset struct {
 }
 
 // assetFromRow maps a row; an empty createdByName (account deleted) becomes nil.
-func assetFromRow(id uuid.UUID, kind, name string, width, height, duration *int32, createdBy *uuid.UUID, createdByName string, createdAt time.Time, contentType string, size int64, digest []byte) Asset {
+func assetFromRow(
+	id uuid.UUID,
+	kind, name string,
+	width, height, duration *int32,
+	createdBy *uuid.UUID,
+	createdByName string,
+	createdAt time.Time,
+	contentType string,
+	size int64,
+	digest []byte,
+) Asset {
 	var uploader *string
 	if createdByName != "" {
 		uploader = &createdByName
@@ -94,7 +104,23 @@ func (s *Service) ListAssets(ctx context.Context, principal authorization.Princi
 	}
 	items := make([]Asset, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256))
+		items = append(
+			items,
+			assetFromRow(
+				row.ID,
+				row.Kind,
+				row.Name,
+				row.Width,
+				row.Height,
+				row.DurationMs,
+				row.CreatedByAccountID,
+				row.CreatedByName,
+				row.CreatedAt,
+				row.ContentType,
+				row.SizeBytes,
+				row.Sha256,
+			),
+		)
 	}
 	return items, nil
 }
@@ -115,7 +141,20 @@ func (s *Service) getAsset(ctx context.Context, q *signagedb.Queries, id uuid.UU
 	if err != nil {
 		return Asset{}, err
 	}
-	return assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), nil
+	return assetFromRow(
+		row.ID,
+		row.Kind,
+		row.Name,
+		row.Width,
+		row.Height,
+		row.DurationMs,
+		row.CreatedByAccountID,
+		row.CreatedByName,
+		row.CreatedAt,
+		row.ContentType,
+		row.SizeBytes,
+		row.Sha256,
+	), nil
 }
 
 // OpenAsset opens the asset bytes for an admin preview.
@@ -134,7 +173,23 @@ func (s *Service) OpenAsset(ctx context.Context, principal authorization.Princip
 	if err != nil {
 		return OpenedAsset{}, err
 	}
-	return OpenedAsset{Asset: assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), Reader: reader}, nil
+	return OpenedAsset{
+		Asset: assetFromRow(
+			row.ID,
+			row.Kind,
+			row.Name,
+			row.Width,
+			row.Height,
+			row.DurationMs,
+			row.CreatedByAccountID,
+			row.CreatedByName,
+			row.CreatedAt,
+			row.ContentType,
+			row.SizeBytes,
+			row.Sha256,
+		),
+		Reader: reader,
+	}, nil
 }
 
 func positiveHeader(value *int, max int, label string) error {
@@ -148,7 +203,12 @@ func positiveHeader(value *int, max int, label string) error {
 // the bytes) or an MP4 video (up to 200 MiB, dimensions and duration optional). The body is
 // spooled to a temporary file while hashing so large videos never sit in memory; the HTTP layer
 // does not buffer it either (raw binary routes skip OpenAPI body validation, see isRawBinaryUpload).
-func (s *Service) UploadAsset(ctx context.Context, principal authorization.Principal, input UploadInput, requestID *uuid.UUID) (Asset, error) {
+func (s *Service) UploadAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	input UploadInput,
+	requestID *uuid.UUID,
+) (Asset, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Asset{}, err
 	}
@@ -210,9 +270,14 @@ func (s *Service) UploadAsset(ctx context.Context, principal authorization.Princ
 		if err != nil || format != imageFormats[input.ContentType] {
 			return Asset{}, validation("the file is not a valid %s image", imageFormats[input.ContentType])
 		}
-		if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > maxImageSide || configuration.Height > maxImageSide ||
+		if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > maxImageSide ||
+			configuration.Height > maxImageSide ||
 			int64(configuration.Width)*int64(configuration.Height) > maxImagePixels {
-			return Asset{}, validation("image dimensions exceed %d pixels per side or %d megapixels", maxImageSide, maxImagePixels/1_000_000)
+			return Asset{}, validation(
+				"image dimensions exceed %d pixels per side or %d megapixels",
+				maxImageSide,
+				maxImagePixels/1_000_000,
+			)
 		}
 		w, h := configuration.Width, configuration.Height
 		width, height = &w, &h
@@ -235,7 +300,16 @@ func (s *Service) UploadAsset(ctx context.Context, principal authorization.Princ
 		return Asset{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	stored, cleanup, err := s.files.StoreReaderInTransaction(ctx, tx, principal, name, input.ContentType, spool, storage.Metadata{Size: size, SHA256: digest}, requestID)
+	stored, cleanup, err := s.files.StoreReaderInTransaction(
+		ctx,
+		tx,
+		principal,
+		name,
+		input.ContentType,
+		spool,
+		storage.Metadata{Size: size, SHA256: digest},
+		requestID,
+	)
 	if err != nil {
 		return Asset{}, err
 	}
@@ -270,7 +344,13 @@ func assetTooLarge(kind string) error {
 }
 
 // RenameAsset changes the display name of an asset.
-func (s *Service) RenameAsset(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, requestID *uuid.UUID) (Asset, error) {
+func (s *Service) RenameAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name string,
+	requestID *uuid.UUID,
+) (Asset, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Asset{}, err
 	}
@@ -300,7 +380,12 @@ func (s *Service) RenameAsset(ctx context.Context, principal authorization.Princ
 }
 
 // DeleteAsset removes an asset that no scene (background or widget) references.
-func (s *Service) DeleteAsset(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) DeleteAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if err := requireContentManage(principal); err != nil {
 		return err
 	}

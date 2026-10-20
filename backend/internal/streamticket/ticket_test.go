@@ -69,7 +69,11 @@ func TestTamperingAndWrongKeysAreRejected(t *testing.T) {
 
 	payloadText, signatureText, _ := strings.Cut(ticket, ".")
 	// Replace the payload with a different one signed by nobody.
-	forged := base64.RawURLEncoding.EncodeToString([]byte(`{"v":1,"displayId":"` + uuid.Nil.String() + `","machineId":"` + machine.String() + `","streamName":"cam-b","exp":99999999999,"kid":"` + kid + `"}`))
+	forged := base64.RawURLEncoding.EncodeToString(
+		[]byte(
+			`{"v":1,"displayId":"` + uuid.Nil.String() + `","machineId":"` + machine.String() + `","streamName":"cam-b","exp":99999999999,"kid":"` + kid + `"}`,
+		),
+	)
 	flipped := []byte(payloadText)
 	if flipped[5] == 'A' {
 		flipped[5] = 'B'
@@ -110,7 +114,10 @@ func TestUnknownFieldsAndVersionAreRejected(t *testing.T) {
 	}
 	id := uuid.Must(uuid.NewV7()).String()
 	now := time.Now().UTC()
-	base := `"displayId":"` + id + `","machineId":"` + id + `","streamName":"cam-a","exp":` + strconv.FormatInt(now.Add(time.Minute).Unix(), 10) + `,"kid":"` + kid + `"`
+	base := `"displayId":"` + id + `","machineId":"` + id + `","streamName":"cam-a","exp":` + strconv.FormatInt(
+		now.Add(time.Minute).Unix(),
+		10,
+	) + `,"kid":"` + kid + `"`
 	if _, err := Verify(sign(`{"v":1,`+base+`}`), Keys{kid: public}, now); err != nil {
 		t.Fatalf("well-formed signed payload: %v", err)
 	}

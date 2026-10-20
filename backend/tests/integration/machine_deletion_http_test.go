@@ -45,7 +45,14 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +62,15 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 
 	login := func(email, password string) (*http.Client, string) {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)
@@ -64,32 +79,88 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	member := func(suffix string, permissions ...string) (*http.Client, string) {
 		t.Helper()
 		email, password := "del-"+suffix+"@example.test", "Del "+suffix+" workshop password 77"
-		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{"firstName": "Del", "lastName": suffix, "email": "contact-" + email})
+		response := doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people",
+			origin,
+			adminCSRF,
+			map[string]any{"firstName": "Del", "lastName": suffix, "email": "contact-" + email},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var person openapi.Person
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{"loginEmail": email, "expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+			origin,
+			adminCSRF,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var account openapi.Account
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{"newPassword": password, "expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+			origin,
+			adminCSRF,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{"expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{"name": "Del " + suffix, "description": "Test role", "permissionGrants": grants})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/roles",
+			origin,
+			adminCSRF,
+			map[string]any{"name": "Del " + suffix, "description": "Test role", "permissionGrants": grants},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var role openapi.Role
 		decodeResponse(t, response, &role)
 		response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{"expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		return login(email, password)
@@ -119,7 +190,14 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	}
 	start := time.Now().UTC().Add(-8 * time.Hour).Truncate(time.Second)
 	newJob := func(offset time.Duration) machinelogbook.MachineJob {
-		input := machinelogbook.JobInput{MachineID: machine.ID, StartsAt: start.Add(offset), EndsAt: start.Add(offset + time.Hour), Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful"}
+		input := machinelogbook.JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         start.Add(offset),
+			EndsAt:           start.Add(offset + time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "person", ID: personID},
+			OperatorPersonID: personID,
+			Outcome:          "successful",
+		}
 		job, jobErr := logbook.CreateManualJob(ctx, master, input, nil)
 		if jobErr != nil {
 			t.Fatal(jobErr)
@@ -127,7 +205,15 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 		return job
 	}
 	free, ordered, protected := newJob(0), newJob(2*time.Hour), newJob(4*time.Hour)
-	order, err := orderService.Create(ctx, master, orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: "person", ID: personID}, FulfillmentMode: "deferred"}, nil)
+	order, err := orderService.Create(
+		ctx,
+		master,
+		orders.OrderDraftInput{
+			Customer:        &orders.OrderCustomer{Kind: "person", ID: personID},
+			FulfillmentMode: "deferred",
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,11 +230,27 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	}
 	jobPath := func(id uuid.UUID) string { return server.URL + "/api/v1/machine-jobs/" + id.String() }
 	// Editing is not deleting.
-	response := doJSON(t, editorClient, http.MethodDelete, jobPath(free.ID), origin, editorCSRF, deleteBody(free.Version))
+	response := doJSON(
+		t,
+		editorClient,
+		http.MethodDelete,
+		jobPath(free.ID),
+		origin,
+		editorCSRF,
+		deleteBody(free.Version),
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 	// A job on an order cannot be deleted.
-	response = doJSON(t, deleterClient, http.MethodDelete, jobPath(ordered.ID), origin, deleterCSRF, deleteBody(ordered.Version))
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodDelete,
+		jobPath(ordered.ID),
+		origin,
+		deleterCSRF,
+		deleteBody(ordered.Version),
+	)
 	assertStatus(t, response, http.StatusConflict)
 	var problem struct {
 		Code string `json:"code"`
@@ -158,38 +260,101 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 		t.Fatalf("error code = %q, want job_on_order", problem.Code)
 	}
 	// A manual run can be removed with machine_jobs.edit; the job keeps another run.
-	withTwo, err := logbook.AddManualRun(ctx, master, protected.ID, protected.Version, machinelogbook.ManualRunInput{StartsAt: start.Add(5 * time.Hour), EndsAt: start.Add(6 * time.Hour)}, nil)
+	withTwo, err := logbook.AddManualRun(
+		ctx,
+		master,
+		protected.ID,
+		protected.Version,
+		machinelogbook.ManualRunInput{StartsAt: start.Add(5 * time.Hour), EndsAt: start.Add(6 * time.Hour)},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	extra := withTwo.Runs[1]
-	response = doJSON(t, editorClient, http.MethodDelete, server.URL+"/api/v1/machine-runs/"+extra.ID.String(), origin, editorCSRF, map[string]any{"expectedVersion": extra.Version, "reverseConsumption": false})
+	response = doJSON(
+		t,
+		editorClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/machine-runs/"+extra.ID.String(),
+		origin,
+		editorCSRF,
+		map[string]any{"expectedVersion": extra.Version, "reverseConsumption": false},
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	// Recorded runs need machine_jobs.delete: edit-only is refused, delete succeeds.
 	recordedRun := insertRecordedRun(t, pool, machine.ID)
-	response = doJSON(t, editorClient, http.MethodDelete, server.URL+"/api/v1/machine-runs/"+recordedRun.id.String(), origin, editorCSRF, map[string]any{"expectedVersion": recordedRun.version, "reverseConsumption": false})
+	response = doJSON(
+		t,
+		editorClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/machine-runs/"+recordedRun.id.String(),
+		origin,
+		editorCSRF,
+		map[string]any{"expectedVersion": recordedRun.version, "reverseConsumption": false},
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	response = doJSON(t, deleterClient, http.MethodDelete, server.URL+"/api/v1/machine-runs/"+recordedRun.id.String(), origin, deleterCSRF, map[string]any{"expectedVersion": recordedRun.version, "reverseConsumption": false})
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/machine-runs/"+recordedRun.id.String(),
+		origin,
+		deleterCSRF,
+		map[string]any{"expectedVersion": recordedRun.version, "reverseConsumption": false},
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	// The only run of a job cannot be deleted.
-	response = doJSON(t, deleterClient, http.MethodDelete, server.URL+"/api/v1/machine-runs/"+protected.Runs[0].ID.String(), origin, deleterCSRF, map[string]any{"expectedVersion": protected.Runs[0].Version, "reverseConsumption": true})
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/machine-runs/"+protected.Runs[0].ID.String(),
+		origin,
+		deleterCSRF,
+		map[string]any{"expectedVersion": protected.Runs[0].Version, "reverseConsumption": true},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 	// Stale version.
-	response = doJSON(t, deleterClient, http.MethodDelete, jobPath(free.ID), origin, deleterCSRF, deleteBody(free.Version+5))
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodDelete,
+		jobPath(free.ID),
+		origin,
+		deleterCSRF,
+		deleteBody(free.Version+5),
+	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 	// Deleting works and the job is gone.
-	response = doJSON(t, deleterClient, http.MethodDelete, jobPath(free.ID), origin, deleterCSRF, deleteBody(free.Version))
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodDelete,
+		jobPath(free.ID),
+		origin,
+		deleterCSRF,
+		deleteBody(free.Version),
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	response = doJSON(t, deleterClient, http.MethodGet, jobPath(free.ID), "", "", nil)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
-	response = doJSON(t, deleterClient, http.MethodGet, server.URL+"/api/v1/machine-jobs?machineId="+machine.ID.String(), "", "", nil)
+	response = doJSON(
+		t,
+		deleterClient,
+		http.MethodGet,
+		server.URL+"/api/v1/machine-jobs?machineId="+machine.ID.String(),
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusOK)
 	var page struct {
 		Items []struct {
@@ -230,7 +395,15 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	if cleared.EventsClearedAt == nil || cleared.EventsClearedByName == nil {
 		t.Fatalf("cleared connector = %+v", cleared)
 	}
-	response = doJSON(t, managerClient, http.MethodGet, server.URL+"/api/v1/printer-connectors/"+created.ID.String()+"/events?includeCleared=true", "", "", nil)
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodGet,
+		server.URL+"/api/v1/printer-connectors/"+created.ID.String()+"/events?includeCleared=true",
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusOK)
 	response.Body.Close()
 }

@@ -147,7 +147,11 @@ func (s *Service) ListPeriods(ctx context.Context, principal authorization.Princ
 	return items, nil
 }
 
-func (s *Service) ListUpcomingAssignmentsForPerson(ctx context.Context, principal authorization.Principal, personID uuid.UUID) ([]PersonAssignmentSummary, error) {
+func (s *Service) ListUpcomingAssignmentsForPerson(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+) ([]PersonAssignmentSummary, error) {
 	if !principal.CanReadPerson(personID) || !principal.Has(authorization.OpenDaysReadAssignments) {
 		return nil, apperror.PermissionDenied
 	}
@@ -183,7 +187,13 @@ func (s *Service) GetPeriod(ctx context.Context, principal authorization.Princip
 	return s.periodFromRow(ctx, queries, principal, row)
 }
 
-func (s *Service) CreatePeriod(ctx context.Context, principal authorization.Principal, name string, startsOn, endsOn time.Time, requestID *uuid.UUID) (Period, error) {
+func (s *Service) CreatePeriod(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	startsOn, endsOn time.Time,
+	requestID *uuid.UUID,
+) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
@@ -198,7 +208,10 @@ func (s *Service) CreatePeriod(ctx context.Context, principal authorization.Prin
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := opendaysdb.New(tx)
 	id := uuid.Must(uuid.NewV7())
-	row, err := queries.CreatePeriod(ctx, opendaysdb.CreatePeriodParams{ID: id, Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn)})
+	row, err := queries.CreatePeriod(
+		ctx,
+		opendaysdb.CreatePeriodParams{ID: id, Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn)},
+	)
 	if err != nil {
 		return Period{}, databaseError(err)
 	}
@@ -211,7 +224,15 @@ func (s *Service) CreatePeriod(ctx context.Context, principal authorization.Prin
 	return periodBase(row), nil
 }
 
-func (s *Service) UpdatePeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, name string, startsOn, endsOn time.Time, requestID *uuid.UUID) (Period, error) {
+func (s *Service) UpdatePeriod(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	startsOn, endsOn time.Time,
+	requestID *uuid.UUID,
+) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
@@ -251,7 +272,16 @@ func (s *Service) UpdatePeriod(ctx context.Context, principal authorization.Prin
 			return Period{}, validation("period bounds must contain every Open Day")
 		}
 	}
-	row, err := queries.UpdatePeriod(ctx, opendaysdb.UpdatePeriodParams{Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn), ID: id, ExpectedVersion: expected})
+	row, err := queries.UpdatePeriod(
+		ctx,
+		opendaysdb.UpdatePeriodParams{
+			Name:            name,
+			StartsOn:        pgDate(startsOn),
+			EndsOn:          pgDate(endsOn),
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Period{}, apperror.StaleWrite
 	}
@@ -267,7 +297,13 @@ func (s *Service) UpdatePeriod(ctx context.Context, principal authorization.Prin
 	return periodBase(row), nil
 }
 
-func (s *Service) DeletePeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeletePeriod(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return apperror.PermissionDenied
 	}
@@ -290,7 +326,10 @@ func (s *Service) DeletePeriod(ctx context.Context, principal authorization.Prin
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeletePeriod(ctx, opendaysdb.DeletePeriodParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.DeletePeriod(ctx, opendaysdb.DeletePeriodParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return databaseError(err)
@@ -301,7 +340,14 @@ func (s *Service) DeletePeriod(ctx context.Context, principal authorization.Prin
 	return tx.Commit(ctx)
 }
 
-func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, target string, requestID *uuid.UUID) (Period, error) {
+func (s *Service) TransitionPeriod(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	target string,
+	requestID *uuid.UUID,
+) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
@@ -329,7 +375,10 @@ func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.
 	if !allowed[current.Status][target] {
 		return Period{}, conflict("invalid_period_transition", "Open Day period transition is not allowed")
 	}
-	row, err := q.TransitionPeriod(ctx, opendaysdb.TransitionPeriodParams{Status: target, ID: id, ExpectedVersion: expected})
+	row, err := q.TransitionPeriod(
+		ctx,
+		opendaysdb.TransitionPeriodParams{Status: target, ID: id, ExpectedVersion: expected},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Period{}, apperror.StaleWrite
 	}
@@ -345,7 +394,11 @@ func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.
 	return periodBase(row), nil
 }
 
-func (s *Service) GetSchedule(ctx context.Context, principal authorization.Principal, periodID uuid.UUID) (Schedule, error) {
+func (s *Service) GetSchedule(
+	ctx context.Context,
+	principal authorization.Principal,
+	periodID uuid.UUID,
+) (Schedule, error) {
 	period, err := s.GetPeriod(ctx, principal, periodID)
 	if err != nil {
 		return Schedule{}, err
@@ -388,12 +441,26 @@ func (s *Service) GetOpenDay(ctx context.Context, principal authorization.Princi
 	return s.dayFromRow(ctx, q, principal, row)
 }
 
-func (s *Service) CreateOpenDay(ctx context.Context, principal authorization.Principal, periodID uuid.UUID, expected int64, input ScheduleInput, requestID *uuid.UUID) (Schedule, error) {
+func (s *Service) CreateOpenDay(
+	ctx context.Context,
+	principal authorization.Principal,
+	periodID uuid.UUID,
+	expected int64,
+	input ScheduleInput,
+	requestID *uuid.UUID,
+) (Schedule, error) {
 	delta := ScheduleDelta{ExpectedPeriodVersion: expected, Creates: []ScheduleInput{input}}
 	return s.SaveSchedule(ctx, principal, periodID, delta, requestID)
 }
 
-func (s *Service) UpdateOpenDay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedPeriod int64, input ScheduleInput, requestID *uuid.UUID) (Schedule, error) {
+func (s *Service) UpdateOpenDay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedPeriod int64,
+	input ScheduleInput,
+	requestID *uuid.UUID,
+) (Schedule, error) {
 	q := opendaysdb.New(s.pool)
 	row, err := q.GetOpenDay(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -403,10 +470,22 @@ func (s *Service) UpdateOpenDay(ctx context.Context, principal authorization.Pri
 		return Schedule{}, err
 	}
 	input.ID = id
-	return s.SaveSchedule(ctx, principal, row.PeriodID, ScheduleDelta{ExpectedPeriodVersion: expectedPeriod, Updates: []ScheduleInput{input}}, requestID)
+	return s.SaveSchedule(
+		ctx,
+		principal,
+		row.PeriodID,
+		ScheduleDelta{ExpectedPeriodVersion: expectedPeriod, Updates: []ScheduleInput{input}},
+		requestID,
+	)
 }
 
-func (s *Service) RemoveOpenDay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedPeriod, expectedDay int64, requestID *uuid.UUID) (Schedule, error) {
+func (s *Service) RemoveOpenDay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedPeriod, expectedDay int64,
+	requestID *uuid.UUID,
+) (Schedule, error) {
 	q := opendaysdb.New(s.pool)
 	row, err := q.GetOpenDay(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -422,14 +501,35 @@ func (s *Service) RemoveOpenDay(ctx context.Context, principal authorization.Pri
 		}
 		expectedPeriod = period.Version
 	}
-	return s.SaveSchedule(ctx, principal, row.PeriodID, ScheduleDelta{ExpectedPeriodVersion: expectedPeriod, Removals: []RemovalInput{{ID: id, ExpectedVersion: expectedDay}}}, requestID)
+	return s.SaveSchedule(
+		ctx,
+		principal,
+		row.PeriodID,
+		ScheduleDelta{
+			ExpectedPeriodVersion: expectedPeriod,
+			Removals:              []RemovalInput{{ID: id, ExpectedVersion: expectedDay}},
+		},
+		requestID,
+	)
 }
 
-func (s *Service) CancelOpenDay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedPeriod, expectedDay int64, requestID *uuid.UUID) (Schedule, error) {
+func (s *Service) CancelOpenDay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedPeriod, expectedDay int64,
+	requestID *uuid.UUID,
+) (Schedule, error) {
 	return s.RemoveOpenDay(ctx, principal, id, expectedPeriod, expectedDay, requestID)
 }
 
-func (s *Service) SaveSchedule(ctx context.Context, principal authorization.Principal, periodID uuid.UUID, delta ScheduleDelta, requestID *uuid.UUID) (Schedule, error) {
+func (s *Service) SaveSchedule(
+	ctx context.Context,
+	principal authorization.Principal,
+	periodID uuid.UUID,
+	delta ScheduleDelta,
+	requestID *uuid.UUID,
+) (Schedule, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Schedule{}, apperror.PermissionDenied
 	}
@@ -550,7 +650,16 @@ func (s *Service) SaveSchedule(ctx context.Context, principal authorization.Prin
 		}
 	}
 	for _, input := range delta.Updates {
-		row, err := q.UpdateOpenDay(ctx, opendaysdb.UpdateOpenDayParams{StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), InternalNote: cleanNote(input.InternalNote), ID: input.ID, ExpectedVersion: input.ExpectedVersion})
+		row, err := q.UpdateOpenDay(
+			ctx,
+			opendaysdb.UpdateOpenDayParams{
+				StartsAt:        input.StartsAt.UTC(),
+				EndsAt:          input.EndsAt.UTC(),
+				InternalNote:    cleanNote(input.InternalNote),
+				ID:              input.ID,
+				ExpectedVersion: input.ExpectedVersion,
+			},
+		)
 		if err != nil {
 			return Schedule{}, databaseError(err)
 		}
@@ -563,7 +672,16 @@ func (s *Service) SaveSchedule(ctx context.Context, principal authorization.Prin
 	}
 	for _, input := range delta.Creates {
 		id := uuid.Must(uuid.NewV7())
-		row, err := q.CreateOpenDay(ctx, opendaysdb.CreateOpenDayParams{ID: id, PeriodID: periodID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), InternalNote: cleanNote(input.InternalNote)})
+		row, err := q.CreateOpenDay(
+			ctx,
+			opendaysdb.CreateOpenDayParams{
+				ID:           id,
+				PeriodID:     periodID,
+				StartsAt:     input.StartsAt.UTC(),
+				EndsAt:       input.EndsAt.UTC(),
+				InternalNote: cleanNote(input.InternalNote),
+			},
+		)
 		if err != nil {
 			return Schedule{}, databaseError(err)
 		}
@@ -575,7 +693,10 @@ func (s *Service) SaveSchedule(ctx context.Context, principal authorization.Prin
 		}
 	}
 	if len(delta.Creates)+len(delta.Updates)+len(delta.Removals) > 0 {
-		if _, err := q.BumpPeriodVersion(ctx, opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version}); errors.Is(err, pgx.ErrNoRows) {
+		if _, err := q.BumpPeriodVersion(ctx, opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version}); errors.Is(
+			err,
+			pgx.ErrNoRows,
+		) {
 			return Schedule{}, apperror.StaleWrite
 		} else if err != nil {
 			return Schedule{}, err
@@ -587,7 +708,12 @@ func (s *Service) SaveSchedule(ctx context.Context, principal authorization.Prin
 	return s.GetSchedule(ctx, principal, periodID)
 }
 
-func (s *Service) periodFromRow(ctx context.Context, q *opendaysdb.Queries, principal authorization.Principal, row opendaysdb.OpenDayPeriod) (Period, error) {
+func (s *Service) periodFromRow(
+	ctx context.Context,
+	q *opendaysdb.Queries,
+	principal authorization.Principal,
+	row opendaysdb.OpenDayPeriod,
+) (Period, error) {
 	result := periodBase(row)
 	days, err := q.ListOpenDaysByPeriod(ctx, row.ID)
 	if err != nil {
@@ -630,8 +756,23 @@ func (s *Service) periodFromRow(ctx context.Context, q *opendaysdb.Queries, prin
 	return result, nil
 }
 
-func (s *Service) dayFromRow(ctx context.Context, q *opendaysdb.Queries, principal authorization.Principal, row opendaysdb.OpenDay) (OpenDay, error) {
-	result := OpenDay{ID: row.ID, PeriodID: row.PeriodID, StartsAt: row.StartsAt, EndsAt: row.EndsAt, Status: row.Status, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Requirements: []Requirement{}}
+func (s *Service) dayFromRow(
+	ctx context.Context,
+	q *opendaysdb.Queries,
+	principal authorization.Principal,
+	row opendaysdb.OpenDay,
+) (OpenDay, error) {
+	result := OpenDay{
+		ID:           row.ID,
+		PeriodID:     row.PeriodID,
+		StartsAt:     row.StartsAt,
+		EndsAt:       row.EndsAt,
+		Status:       row.Status,
+		Version:      row.Version,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+		Requirements: []Requirement{},
+	}
 	if principal.Has(authorization.OpenDaysManage) {
 		result.InternalNote = row.InternalNote
 		result.InternalNoteVisible = true
@@ -646,7 +787,15 @@ func (s *Service) dayFromRow(ctx context.Context, q *opendaysdb.Queries, princip
 	}
 	byReq := map[uuid.UUID][]Assignment{}
 	for _, a := range assignments {
-		item := Assignment{ID: a.ID, OpenDayID: a.OpenDayID, RequirementID: a.RequirementID, PersonID: a.PersonID, DisplayName: strings.TrimSpace(a.FirstName + " " + a.LastName), IsCurrentUser: a.PersonID == principal.PersonID, CreatedAt: a.CreatedAt}
+		item := Assignment{
+			ID:            a.ID,
+			OpenDayID:     a.OpenDayID,
+			RequirementID: a.RequirementID,
+			PersonID:      a.PersonID,
+			DisplayName:   strings.TrimSpace(a.FirstName + " " + a.LastName),
+			IsCurrentUser: a.PersonID == principal.PersonID,
+			CreatedAt:     a.CreatedAt,
+		}
 		byReq[a.RequirementID] = append(byReq[a.RequirementID], item)
 		if item.IsCurrentUser {
 			copy := item
@@ -664,18 +813,33 @@ func (s *Service) dayFromRow(ctx context.Context, q *opendaysdb.Queries, princip
 				return OpenDay{}, err
 			}
 		}
-		item := Requirement{ID: req.ID, Kind: req.Kind, RequiredCount: int(req.RequiredCount), AssignedCount: len(byReq[req.ID]), EligibleRoleIDs: roles, EligibleRolesVisible: rolesVisible}
+		item := Requirement{
+			ID:                   req.ID,
+			Kind:                 req.Kind,
+			RequiredCount:        int(req.RequiredCount),
+			AssignedCount:        len(byReq[req.ID]),
+			EligibleRoleIDs:      roles,
+			EligibleRolesVisible: rolesVisible,
+		}
 		if principal.Has(authorization.OpenDaysReadAssignments) {
 			values := byReq[req.ID]
 			item.Assignments = &values
 		}
 		result.Requirements = append(result.Requirements, item)
 	}
-	sort.Slice(result.Requirements, func(i, j int) bool { return result.Requirements[i].Kind < result.Requirements[j].Kind })
+	sort.Slice(
+		result.Requirements,
+		func(i, j int) bool { return result.Requirements[i].Kind < result.Requirements[j].Kind },
+	)
 	return result, nil
 }
 
-func createRequirements(ctx context.Context, q *opendaysdb.Queries, openDayID uuid.UUID, inputs []RequirementInput) error {
+func createRequirements(
+	ctx context.Context,
+	q *opendaysdb.Queries,
+	openDayID uuid.UUID,
+	inputs []RequirementInput,
+) error {
 	for _, input := range inputs {
 		id := uuid.Must(uuid.NewV7())
 		if _, err := q.CreateRequirement(ctx, opendaysdb.CreateRequirementParams{ID: id, OpenDayID: openDayID, Kind: input.Kind, RequiredCount: int32(input.RequiredCount)}); err != nil {
@@ -690,7 +854,12 @@ func createRequirements(ctx context.Context, q *opendaysdb.Queries, openDayID uu
 	return nil
 }
 
-func replaceRequirements(ctx context.Context, q *opendaysdb.Queries, openDayID uuid.UUID, inputs []RequirementInput) error {
+func replaceRequirements(
+	ctx context.Context,
+	q *opendaysdb.Queries,
+	openDayID uuid.UUID,
+	inputs []RequirementInput,
+) error {
 	rows, err := q.ListRequirements(ctx, openDayID)
 	if err != nil {
 		return err
@@ -762,7 +931,8 @@ func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.
 	if err := s.validateSlotInstant(end); err != nil {
 		return err
 	}
-	if !dateWithin(start.In(s.location), period.StartsOn.Time, period.EndsOn.Time) || !dateWithin(end.Add(-time.Nanosecond).In(s.location), period.StartsOn.Time, period.EndsOn.Time) {
+	if !dateWithin(start.In(s.location), period.StartsOn.Time, period.EndsOn.Time) ||
+		!dateWithin(end.Add(-time.Nanosecond).In(s.location), period.StartsOn.Time, period.EndsOn.Time) {
 		return validation("Open Day must be within the period in the makerspace timezone")
 	}
 	return nil
@@ -779,7 +949,16 @@ func validatePeriod(name string, start, end time.Time) (string, error) {
 	return name, nil
 }
 func periodBase(r opendaysdb.OpenDayPeriod) Period {
-	return Period{ID: r.ID, Name: r.Name, StartsOn: r.StartsOn.Time, EndsOn: r.EndsOn.Time, Status: r.Status, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+	return Period{
+		ID:        r.ID,
+		Name:      r.Name,
+		StartsOn:  r.StartsOn.Time,
+		EndsOn:    r.EndsOn.Time,
+		Status:    r.Status,
+		Version:   r.Version,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+	}
 }
 func canRead(p authorization.Principal) bool {
 	return p.Has(authorization.OpenDaysRead) || p.Has(authorization.OpenDaysManage)
@@ -826,11 +1005,41 @@ func databaseError(err error) error {
 	}
 	return err
 }
-func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
+
+func writeAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields []string,
+) error {
 	return writeAuditWithMetadata(ctx, tx, p, action, resource, id, requestID, fields, nil)
 }
 
-func writeAuditWithMetadata(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string, metadata map[string]any) error {
+func writeAuditWithMetadata(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields []string,
+	metadata map[string]any,
+) error {
 	actor := p.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields, Metadata: metadata})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         action,
+			ResourceType:   resource,
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  fields,
+			Metadata:       metadata,
+		},
+	)
 }

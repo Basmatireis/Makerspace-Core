@@ -39,9 +39,17 @@ func (s *Service) requirements(ctx context.Context, q *db.Queries, org *uuid.UUI
 	if errors.Is(err, pgx.ErrNoRows) {
 		return InvoicingRequirements{}, nil
 	}
-	return InvoicingRequirements{RequirePurchaseOrderReference: r.RequirePurchaseOrderReference, Version: r.Version}, err
+	return InvoicingRequirements{
+		RequirePurchaseOrderReference: r.RequirePurchaseOrderReference,
+		Version:                       r.Version,
+	}, err
 }
-func (s *Service) GetRequirements(ctx context.Context, p authorization.Principal, id uuid.UUID) (InvoicingRequirements, error) {
+
+func (s *Service) GetRequirements(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+) (InvoicingRequirements, error) {
 	if err := require(p, authorization.OrdersRead); err != nil {
 		return InvoicingRequirements{}, err
 	}
@@ -51,7 +59,14 @@ func (s *Service) GetRequirements(ctx context.Context, p authorization.Principal
 	}
 	return s.requirements(ctx, q, &id)
 }
-func (s *Service) UpdateRequirements(ctx context.Context, p authorization.Principal, id uuid.UUID, input UpdateInvoicingRequirements, requestID *uuid.UUID) (InvoicingRequirements, error) {
+
+func (s *Service) UpdateRequirements(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input UpdateInvoicingRequirements,
+	requestID *uuid.UUID,
+) (InvoicingRequirements, error) {
 	if err := require(p, authorization.OrdersRead, authorization.OrganizationsManage); err != nil {
 		return InvoicingRequirements{}, err
 	}
@@ -74,16 +89,35 @@ func (s *Service) UpdateRequirements(ctx context.Context, p authorization.Princi
 	if old.Version != input.ExpectedVersion {
 		return old, apperror.StaleWrite
 	}
-	r, err := q.SaveRequirements(ctx, db.SaveRequirementsParams{OrganizationID: id, RequirePurchaseOrderReference: input.RequirePurchaseOrderReference, UpdatedByAccountID: &p.AccountID})
+	r, err := q.SaveRequirements(
+		ctx,
+		db.SaveRequirementsParams{
+			OrganizationID:                id,
+			RequirePurchaseOrderReference: input.RequirePurchaseOrderReference,
+			UpdatedByAccountID:            &p.AccountID,
+		},
+	)
 	if err != nil {
 		return InvoicingRequirements{}, err
 	}
 	if err = writeAudit(ctx, tx, p, "organization.invoicing_requirements_updated", "organization", id, requestID, "requirePurchaseOrderReference"); err != nil {
 		return InvoicingRequirements{}, err
 	}
-	return InvoicingRequirements{RequirePurchaseOrderReference: r.RequirePurchaseOrderReference, Version: r.Version}, tx.Commit(ctx)
+	return InvoicingRequirements{
+			RequirePurchaseOrderReference: r.RequirePurchaseOrderReference,
+			Version:                       r.Version,
+		}, tx.Commit(
+			ctx,
+		)
 }
-func (s *Service) saveDetails(ctx context.Context, q *db.Queries, r db.ExternalInvoiceRequest, input InvoiceRequestDetails, ready bool) error {
+
+func (s *Service) saveDetails(
+	ctx context.Context,
+	q *db.Queries,
+	r db.ExternalInvoiceRequest,
+	input InvoiceRequestDetails,
+	ready bool,
+) error {
 	old, err := q.GetRequestDetails(ctx, r.ID)
 	if err != nil {
 		return err
@@ -103,7 +137,17 @@ func (s *Service) saveDetails(ctx context.Context, q *db.Queries, r db.ExternalI
 	if start.Valid && end.Valid && start.Time.After(end.Time) {
 		return validation("Service period must be ordered")
 	}
-	fields := []string{input.RecipientName, input.AddressLine1, input.AddressLine2, input.PostalCode, input.Locality, input.Region, input.ContactName, input.ContactChannel, input.PurchaseOrderReference}
+	fields := []string{
+		input.RecipientName,
+		input.AddressLine1,
+		input.AddressLine2,
+		input.PostalCode,
+		input.Locality,
+		input.Region,
+		input.ContactName,
+		input.ContactChannel,
+		input.PurchaseOrderReference,
+	}
 	for _, v := range fields {
 		if len(v) > 200 {
 			return validation("Invoice recipient fields exceed their length limits")
@@ -133,9 +177,37 @@ func (s *Service) saveDetails(ctx context.Context, q *db.Queries, r db.ExternalI
 			return validation("This organization requires a purchase order reference")
 		}
 	}
-	return q.UpdateRequestDetails(ctx, db.UpdateRequestDetailsParams{RequestID: r.ID, RecipientName: strings.TrimSpace(input.RecipientName), AddressLine1: strings.TrimSpace(input.AddressLine1), AddressLine2: strings.TrimSpace(input.AddressLine2), PostalCode: strings.TrimSpace(input.PostalCode), Locality: strings.TrimSpace(input.Locality), Region: strings.TrimSpace(input.Region), CountryCode: strings.ToUpper(strings.TrimSpace(input.CountryCode)), ContactPersonID: input.ContactPersonID, ContactName: strings.TrimSpace(input.ContactName), ContactChannel: strings.TrimSpace(input.ContactChannel), ServiceStartsOn: start, ServiceEndsOn: end, ServiceDescription: strings.TrimSpace(input.ServiceDescription), PurchaseOrderReference: strings.TrimSpace(input.PurchaseOrderReference), RequirementsVersion: policy.Version, RequirePurchaseOrderReference: policy.RequirePurchaseOrderReference})
+	return q.UpdateRequestDetails(
+		ctx,
+		db.UpdateRequestDetailsParams{
+			RequestID:                     r.ID,
+			RecipientName:                 strings.TrimSpace(input.RecipientName),
+			AddressLine1:                  strings.TrimSpace(input.AddressLine1),
+			AddressLine2:                  strings.TrimSpace(input.AddressLine2),
+			PostalCode:                    strings.TrimSpace(input.PostalCode),
+			Locality:                      strings.TrimSpace(input.Locality),
+			Region:                        strings.TrimSpace(input.Region),
+			CountryCode:                   strings.ToUpper(strings.TrimSpace(input.CountryCode)),
+			ContactPersonID:               input.ContactPersonID,
+			ContactName:                   strings.TrimSpace(input.ContactName),
+			ContactChannel:                strings.TrimSpace(input.ContactChannel),
+			ServiceStartsOn:               start,
+			ServiceEndsOn:                 end,
+			ServiceDescription:            strings.TrimSpace(input.ServiceDescription),
+			PurchaseOrderReference:        strings.TrimSpace(input.PurchaseOrderReference),
+			RequirementsVersion:           policy.Version,
+			RequirePurchaseOrderReference: policy.RequirePurchaseOrderReference,
+		},
+	)
 }
-func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, id uuid.UUID, input CreateInvoiceRequest, requestID *uuid.UUID) (ExternalInvoiceRequest, error) {
+
+func (s *Service) CreateRequest(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input CreateInvoiceRequest,
+	requestID *uuid.UUID,
+) (ExternalInvoiceRequest, error) {
 	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead, authorization.ExternalInvoiceRequestsManage); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
@@ -163,14 +235,23 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 		return ExternalInvoiceRequest{}, err
 	}
 	if o.Status != "finalized" || o.CustomerKind == "anonymous" {
-		return ExternalInvoiceRequest{}, conflict("external_invoice_requires_customer", "External invoicing requires a finalized named-customer order")
+		return ExternalInvoiceRequest{}, conflict(
+			"external_invoice_requires_customer",
+			"External invoicing requires a finalized named-customer order",
+		)
 	}
 	if !d(o.TotalAmount).IsPositive() {
-		return ExternalInvoiceRequest{}, conflict("nothing_to_invoice", "An order that charges nothing cannot be invoiced")
+		return ExternalInvoiceRequest{}, conflict(
+			"nothing_to_invoice",
+			"An order that charges nothing cannot be invoiced",
+		)
 	}
 	active, e := q.ActiveRequest(ctx, &id)
 	if e == nil {
-		return ExternalInvoiceRequest{}, conflict("request_already_exists", "An active request already exists: "+active.Reference)
+		return ExternalInvoiceRequest{}, conflict(
+			"request_already_exists",
+			"An active request already exists: "+active.Reference,
+		)
 	}
 	if !errors.Is(e, pgx.ErrNoRows) {
 		return ExternalInvoiceRequest{}, e
@@ -186,7 +267,17 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return ExternalInvoiceRequest{}, e
 	}
-	r, err := q.CreateRequest(ctx, db.CreateRequestParams{ID: newID(), Reference: reference("W", n), OrderID: &id, OrderReference: o.Reference, RequestedAmount: o.TotalAmount, SupersedesRequestID: supersedes})
+	r, err := q.CreateRequest(
+		ctx,
+		db.CreateRequestParams{
+			ID:                  newID(),
+			Reference:           reference("W", n),
+			OrderID:             &id,
+			OrderReference:      o.Reference,
+			RequestedAmount:     o.TotalAmount,
+			SupersedesRequestID: supersedes,
+		},
+	)
 	if err != nil {
 		return ExternalInvoiceRequest{}, databaseError(err)
 	}
@@ -234,7 +325,22 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 	return v, databaseError(tx.Commit(ctx))
 }
 func detailsFromRow(d db.ExternalInvoiceRequestDetail) InvoiceRequestDetails {
-	return InvoiceRequestDetails{RecipientName: d.RecipientName, AddressLine1: d.AddressLine1, AddressLine2: d.AddressLine2, PostalCode: d.PostalCode, Locality: d.Locality, Region: d.Region, CountryCode: d.CountryCode, ContactPersonID: d.ContactPersonID, ContactName: d.ContactName, ContactChannel: d.ContactChannel, ServiceStartsOn: dateString(d.ServiceStartsOn), ServiceEndsOn: dateString(d.ServiceEndsOn), ServiceDescription: d.ServiceDescription, PurchaseOrderReference: d.PurchaseOrderReference}
+	return InvoiceRequestDetails{
+		RecipientName:          d.RecipientName,
+		AddressLine1:           d.AddressLine1,
+		AddressLine2:           d.AddressLine2,
+		PostalCode:             d.PostalCode,
+		Locality:               d.Locality,
+		Region:                 d.Region,
+		CountryCode:            d.CountryCode,
+		ContactPersonID:        d.ContactPersonID,
+		ContactName:            d.ContactName,
+		ContactChannel:         d.ContactChannel,
+		ServiceStartsOn:        dateString(d.ServiceStartsOn),
+		ServiceEndsOn:          dateString(d.ServiceEndsOn),
+		ServiceDescription:     d.ServiceDescription,
+		PurchaseOrderReference: d.PurchaseOrderReference,
+	}
 }
 func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) (ExternalInvoiceRequest, error) {
 	r, err := q.GetRequest(ctx, id)
@@ -245,7 +351,25 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	v := ExternalInvoiceRequest{ID: r.ID, Reference: r.Reference, OrderID: r.OrderID, OrderReference: r.OrderReference, Provider: r.Provider, State: r.State, Currency: r.Currency, RequestedAmount: money(r.RequestedAmount), AlreadyPaid: money(d.AlreadyPaid), Details: detailsFromRow(d), RequirePurchaseOrderReference: d.RequirePurchaseOrderReference, RequirementsVersion: d.RequirementsVersion, SupersedesRequestID: r.SupersedesRequestID, Version: r.Version, CreatedAt: r.CreatedAt, ItemSummary: []OrderItem{}, Events: []InvoiceRequestEvent{}}
+	v := ExternalInvoiceRequest{
+		ID:                            r.ID,
+		Reference:                     r.Reference,
+		OrderID:                       r.OrderID,
+		OrderReference:                r.OrderReference,
+		Provider:                      r.Provider,
+		State:                         r.State,
+		Currency:                      r.Currency,
+		RequestedAmount:               money(r.RequestedAmount),
+		AlreadyPaid:                   money(d.AlreadyPaid),
+		Details:                       detailsFromRow(d),
+		RequirePurchaseOrderReference: d.RequirePurchaseOrderReference,
+		RequirementsVersion:           d.RequirementsVersion,
+		SupersedesRequestID:           r.SupersedesRequestID,
+		Version:                       r.Version,
+		CreatedAt:                     r.CreatedAt,
+		ItemSummary:                   []OrderItem{},
+		Events:                        []InvoiceRequestEvent{},
+	}
 	if err = json.Unmarshal(d.ItemSummary, &v.ItemSummary); err != nil {
 		return v, err
 	}
@@ -254,7 +378,15 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 		return v, err
 	}
 	for _, e := range events {
-		event := InvoiceRequestEvent{ID: e.ID, Kind: e.Kind, ExternalReference: e.ExternalReference, ReconciliationKind: e.ReconciliationKind, Reason: e.Reason, EffectiveAt: e.EffectiveAt, RecordedAt: e.RecordedAt}
+		event := InvoiceRequestEvent{
+			ID:                 e.ID,
+			Kind:               e.Kind,
+			ExternalReference:  e.ExternalReference,
+			ReconciliationKind: e.ReconciliationKind,
+			Reason:             e.Reason,
+			EffectiveAt:        e.EffectiveAt,
+			RecordedAt:         e.RecordedAt,
+		}
 		if e.ActorPersonID != nil {
 			event.RecordedBy = &Actor{ID: *e.ActorPersonID, DisplayName: e.ActorName}
 		}
@@ -262,13 +394,25 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	}
 	return v, nil
 }
-func (s *Service) GetRequest(ctx context.Context, p authorization.Principal, id uuid.UUID) (ExternalInvoiceRequest, error) {
+
+func (s *Service) GetRequest(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+) (ExternalInvoiceRequest, error) {
 	if err := require(p, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	return s.loadRequest(ctx, db.New(s.pool), id)
 }
-func (s *Service) ListRequests(ctx context.Context, p authorization.Principal, search, status string, orderID *uuid.UUID, page, size int) (ExternalInvoiceRequestPage, error) {
+
+func (s *Service) ListRequests(
+	ctx context.Context,
+	p authorization.Principal,
+	search, status string,
+	orderID *uuid.UUID,
+	page, size int,
+) (ExternalInvoiceRequestPage, error) {
 	if err := require(p, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequestPage{}, err
 	}
@@ -277,7 +421,10 @@ func (s *Service) ListRequests(ctx context.Context, p authorization.Principal, s
 		return ExternalInvoiceRequestPage{}, err
 	}
 	q := db.New(s.pool)
-	rows, err := q.ListRequests(ctx, db.ListRequestsParams{Search: search, Status: status, OrderID: orderID, PageLimit: limit, PageOffset: offset})
+	rows, err := q.ListRequests(
+		ctx,
+		db.ListRequestsParams{Search: search, Status: status, OrderID: orderID, PageLimit: limit, PageOffset: offset},
+	)
 	if err != nil {
 		return ExternalInvoiceRequestPage{}, err
 	}
@@ -309,7 +456,14 @@ func lockRequest(ctx context.Context, q *db.Queries, id uuid.UUID) (db.ExternalI
 	}
 	return q.LockRequest(ctx, id)
 }
-func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, id uuid.UUID, input UpdateInvoiceRequest, requestID *uuid.UUID) (ExternalInvoiceRequest, error) {
+
+func (s *Service) UpdateRequest(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input UpdateInvoiceRequest,
+	requestID *uuid.UUID,
+) (ExternalInvoiceRequest, error) {
 	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
@@ -336,7 +490,10 @@ func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, 
 	case "submitted":
 		err = require(p, authorization.ExternalInvoiceRequestsApprove)
 	default:
-		err = conflict("request_frozen", "Recipient details can only change while the request is a draft or awaiting approval")
+		err = conflict(
+			"request_frozen",
+			"Recipient details can only change while the request is a draft or awaiting approval",
+		)
 	}
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
@@ -359,7 +516,15 @@ func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, 
 
 // settleByInvoice records the payment that an issued invoice stands for: method external, allocated to the
 // order for whatever is still open. Cash and card received earlier keep their own payments.
-func (s *Service) settleByInvoice(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, r db.ExternalInvoiceRequest, op uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) settleByInvoice(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	r db.ExternalInvoiceRequest,
+	op uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	q := db.New(tx)
 	allocated, err := q.SumAllocations(ctx, &o.ID)
 	if err != nil {
@@ -373,19 +538,54 @@ func (s *Service) settleByInvoice(ctx context.Context, tx pgx.Tx, p authorizatio
 	if err != nil {
 		return err
 	}
-	payment, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "receipt", Method: "external", Amount: numeric(open), OccurredAt: time.Now().UTC(), ActorAccountID: &p.AccountID, ExternalSource: "wiRef", ExternalReference: r.Reference, ExternalInvoiceRequestID: &r.ID})
+	payment, err := q.InsertPayment(
+		ctx,
+		db.InsertPaymentParams{
+			ID:                       newID(),
+			Reference:                reference("P", n),
+			EntryKind:                "receipt",
+			Method:                   "external",
+			Amount:                   numeric(open),
+			OccurredAt:               time.Now().UTC(),
+			ActorAccountID:           &p.AccountID,
+			ExternalSource:           "wiRef",
+			ExternalReference:        r.Reference,
+			ExternalInvoiceRequestID: &r.ID,
+		},
+	)
 	if err != nil {
 		return databaseError(err)
 	}
 	if err = s.allocate(ctx, q, p, payment, o, open, op); err != nil {
 		return err
 	}
-	return writeAudit(ctx, tx, p, "payment.recorded", "payment", payment.ID, requestID, "amount", "method", "allocations")
+	return writeAudit(
+		ctx,
+		tx,
+		p,
+		"payment.recorded",
+		"payment",
+		payment.ID,
+		requestID,
+		"amount",
+		"method",
+		"allocations",
+	)
 }
 
 // reverseInvoiceSettlement undoes the external payments that an invoice request settled, once wiRef confirmed
 // the cancellation. The balance of the order opens again.
-func (s *Service) reverseInvoiceSettlement(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, receipts []db.Payment, kind, externalReference string, effective time.Time, op uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) reverseInvoiceSettlement(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	receipts []db.Payment,
+	kind, externalReference string,
+	effective time.Time,
+	op uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	q := db.New(tx)
 	for _, original := range receipts {
 		n, err := q.NextPaymentReference(ctx)
@@ -393,7 +593,25 @@ func (s *Service) reverseInvoiceSettlement(ctx context.Context, tx pgx.Tx, p aut
 			return err
 		}
 		reasonKind := "external_correction"
-		reversal, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "reversal", Method: original.Method, Amount: original.Amount, OccurredAt: effective.UTC(), ActorAccountID: &p.AccountID, ReversesPaymentID: &original.ID, ReversedPaymentReference: &original.Reference, ReversalReasonKind: &reasonKind, Reason: "Invoice cancelled in wiRef (" + kind + ")", ExternalSource: original.ExternalSource, ExternalReference: externalReference, ExternalInvoiceRequestID: original.ExternalInvoiceRequestID})
+		reversal, err := q.InsertPayment(
+			ctx,
+			db.InsertPaymentParams{
+				ID:                       newID(),
+				Reference:                reference("P", n),
+				EntryKind:                "reversal",
+				Method:                   original.Method,
+				Amount:                   original.Amount,
+				OccurredAt:               effective.UTC(),
+				ActorAccountID:           &p.AccountID,
+				ReversesPaymentID:        &original.ID,
+				ReversedPaymentReference: &original.Reference,
+				ReversalReasonKind:       &reasonKind,
+				Reason:                   "Invoice cancelled in wiRef (" + kind + ")",
+				ExternalSource:           original.ExternalSource,
+				ExternalReference:        externalReference,
+				ExternalInvoiceRequestID: original.ExternalInvoiceRequestID,
+			},
+		)
 		if err != nil {
 			return databaseError(err)
 		}
@@ -407,7 +625,14 @@ func (s *Service) reverseInvoiceSettlement(ctx context.Context, tx pgx.Tx, p aut
 	return nil
 }
 
-func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal, id uuid.UUID, input InvoiceRequestCommand, action string, requestID *uuid.UUID) (ExternalInvoiceRequest, error) {
+func (s *Service) RequestCommand(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input InvoiceRequestCommand,
+	action string,
+	requestID *uuid.UUID,
+) (ExternalInvoiceRequest, error) {
 	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
@@ -475,7 +700,10 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 	switch action {
 	case "submit":
 		if r.State != "draft" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only drafts can be submitted for approval")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"Only drafts can be submitted for approval",
+			)
 		}
 		if order == nil || order.Status != "finalized" {
 			return ExternalInvoiceRequest{}, conflict("order_not_finalized", "The order is no longer finalized")
@@ -495,7 +723,10 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 		events = append(events, recorded{kind: "submitted"})
 	case "return":
 		if r.State != "submitted" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only requests that await approval can be returned")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"Only requests that await approval can be returned",
+			)
 		}
 		if input.Reason == "" {
 			return ExternalInvoiceRequest{}, validation("Say what has to be corrected")
@@ -504,7 +735,10 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 		events = append(events, recorded{kind: "returned", reason: input.Reason})
 	case "forward":
 		if r.State != "submitted" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only requests that await approval can be forwarded to wiRef")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"Only requests that await approval can be forwarded to wiRef",
+			)
 		}
 		if order == nil || order.Status != "finalized" {
 			return ExternalInvoiceRequest{}, conflict("order_not_finalized", "The order is no longer finalized")
@@ -541,13 +775,19 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 		events = append(events, recorded{kind: "cancelled", reason: input.Reason})
 	case "request-cancellation":
 		if r.State != "issued" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only issued requests require external cancellation")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"Only issued requests require external cancellation",
+			)
 		}
 		next = "cancellation_requested"
 		events = append(events, recorded{kind: "cancellation_requested", reason: input.Reason})
 	case "confirm-cancellation":
 		if r.State != "cancellation_requested" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Request external cancellation first")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"Request external cancellation first",
+			)
 		}
 		if input.ExternalReference == "" || input.ReconciliationKind == "" || input.EffectiveAt.IsZero() {
 			return ExternalInvoiceRequest{}, validation("External correction kind, reference and date are required")
@@ -558,9 +798,20 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 			return ExternalInvoiceRequest{}, validation("Unsupported external accounting procedure")
 		}
 		next = "cancelled"
-		events = append(events, recorded{kind: "cancelled", reference: input.ExternalReference, reconciliation: input.ReconciliationKind, reason: input.Reason})
+		events = append(
+			events,
+			recorded{
+				kind:           "cancelled",
+				reference:      input.ExternalReference,
+				reconciliation: input.ReconciliationKind,
+				reason:         input.Reason,
+			},
+		)
 		if order != nil {
-			receipts, e := q.ActiveRequestReceipts(ctx, db.ActiveRequestReceiptsParams{OrderID: &order.ID, ExternalInvoiceRequestID: &id})
+			receipts, e := q.ActiveRequestReceipts(
+				ctx,
+				db.ActiveRequestReceiptsParams{OrderID: &order.ID, ExternalInvoiceRequestID: &id},
+			)
 			if e != nil {
 				return ExternalInvoiceRequest{}, e
 			}
@@ -576,7 +827,10 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 		}
 	case "reference-corrections":
 		if r.State != "issued" && r.State != "cancellation_requested" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "A wiRef invoice number requires an issued invoice")
+			return ExternalInvoiceRequest{}, conflict(
+				"invalid_request_transition",
+				"A wiRef invoice number requires an issued invoice",
+			)
 		}
 		if input.ExternalReference == "" || input.EffectiveAt.IsZero() {
 			return ExternalInvoiceRequest{}, validation("Invoice number and date are required")
@@ -589,7 +843,10 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 			if input.Reason == "" {
 				return ExternalInvoiceRequest{}, validation("Say why the invoice number changes")
 			}
-			events = append(events, recorded{kind: "reference_corrected", reference: input.ExternalReference, reason: input.Reason})
+			events = append(
+				events,
+				recorded{kind: "reference_corrected", reference: input.ExternalReference, reason: input.Reason},
+			)
 		} else {
 			events = append(events, recorded{kind: "reference_added", reference: input.ExternalReference, reason: input.Reason})
 		}

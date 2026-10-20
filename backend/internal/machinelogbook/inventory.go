@@ -31,7 +31,29 @@ func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) string {
 func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 	q := decimalFromNumeric(row.Quantity)
 	assigned := decimalFromNumeric(row.AssignedQuantity)
-	return Material{ID: row.ID, Name: row.Name, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: row.MaterialTypeName, ColorName: row.ColorName, ColorHex: row.ColorHex, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Material{
+		ID:                 row.ID,
+		Name:               row.Name,
+		MaterialTypeID:     row.MaterialTypeID,
+		MaterialTypeName:   row.MaterialTypeName,
+		ColorName:          row.ColorName,
+		ColorHex:           row.ColorHex,
+		Unit:               row.Unit,
+		Active:             row.Active,
+		LowStockThreshold:  nullableDecimal(row.LowStockThreshold),
+		FilamentDiameterMM: nullableDecimal(row.DiameterMm),
+		Quantity:           q.String(),
+		AssignedQuantity:   assigned.String(),
+		UnassignedQuantity: q.Sub(assigned).String(),
+		InventoryValue:     decimalString(row.InventoryValue),
+		AverageUnitCost:    decimalString(row.AverageUnitCost),
+		RecentConsumption:  decimalString(row.RecentConsumption),
+		StockState:         stockState(q, row.LowStockThreshold),
+		Version:            row.Version,
+		InventoryVersion:   row.InventoryVersion,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
+	}
 }
 func materialFromList(row machinelogbookdb.ListMaterialsRow) Material {
 	return materialFromGet(machinelogbookdb.GetMaterialRow(row))
@@ -80,7 +102,11 @@ func validateMaterial(in MaterialInput) (validatedMaterial, error) {
 // materialUnit is the unit of the type; an explicitly given other unit is refused.
 func materialUnit(materialType machinelogbookdb.MaterialType, requested *string) (string, error) {
 	if requested != nil && *requested != materialType.Unit {
-		return "", apperror.New(422, "material_unit_mismatch", "The material unit must equal the unit of its material type")
+		return "", apperror.New(
+			422,
+			"material_unit_mismatch",
+			"The material unit must equal the unit of its material type",
+		)
 	}
 	return materialType.Unit, nil
 }
@@ -95,7 +121,15 @@ func (s *Service) GetMaterial(ctx context.Context, p authorization.Principal, id
 	}
 	return materialFromGet(row), nil
 }
-func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, search string, materialTypeID *uuid.UUID, state string, page, pageSize int) ([]Material, int64, string, error) {
+
+func (s *Service) ListMaterials(
+	ctx context.Context,
+	p authorization.Principal,
+	search string,
+	materialTypeID *uuid.UUID,
+	state string,
+	page, pageSize int,
+) ([]Material, int64, string, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, "", err
 	}
@@ -107,12 +141,25 @@ func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, 
 		return nil, 0, "", validation("invalid stock state")
 	}
 	q := machinelogbookdb.New(s.pool)
-	params := machinelogbookdb.ListMaterialsParams{Search: strings.TrimSpace(search), MaterialTypeID: materialTypeID, StockState: state, PageOffset: offset, PageLimit: limit}
+	params := machinelogbookdb.ListMaterialsParams{
+		Search:         strings.TrimSpace(search),
+		MaterialTypeID: materialTypeID,
+		StockState:     state,
+		PageOffset:     offset,
+		PageLimit:      limit,
+	}
 	rows, err := q.ListMaterials(ctx, params)
 	if err != nil {
 		return nil, 0, "", err
 	}
-	total, err := q.CountMaterials(ctx, machinelogbookdb.CountMaterialsParams{Search: params.Search, MaterialTypeID: params.MaterialTypeID, StockState: params.StockState})
+	total, err := q.CountMaterials(
+		ctx,
+		machinelogbookdb.CountMaterialsParams{
+			Search:         params.Search,
+			MaterialTypeID: params.MaterialTypeID,
+			StockState:     params.StockState,
+		},
+	)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -127,7 +174,12 @@ func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, 
 	return items, total, decimalString(value), nil
 }
 
-func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal, in MaterialInput, requestID *uuid.UUID) (Material, error) {
+func (s *Service) CreateMaterial(
+	ctx context.Context,
+	p authorization.Principal,
+	in MaterialInput,
+	requestID *uuid.UUID,
+) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
@@ -150,7 +202,18 @@ func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal,
 		return Material{}, err
 	}
 	id := newID()
-	_, err = q.CreateMaterial(ctx, machinelogbookdb.CreateMaterialParams{ID: id, Name: v.name, MaterialTypeID: materialType.ID, ColorName: v.colorName, ColorHex: v.colorHex, Unit: unit, LowStockThreshold: v.threshold})
+	_, err = q.CreateMaterial(
+		ctx,
+		machinelogbookdb.CreateMaterialParams{
+			ID:                id,
+			Name:              v.name,
+			MaterialTypeID:    materialType.ID,
+			ColorName:         v.colorName,
+			ColorHex:          v.colorHex,
+			Unit:              unit,
+			LowStockThreshold: v.threshold,
+		},
+	)
 	if err != nil {
 		return Material{}, databaseError(err)
 	}
@@ -179,7 +242,13 @@ func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal,
 	return materialFromGet(row), nil
 }
 
-func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID, in MaterialInput, requestID *uuid.UUID) (Material, error) {
+func (s *Service) UpdateMaterial(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	in MaterialInput,
+	requestID *uuid.UUID,
+) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
@@ -221,10 +290,26 @@ func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal,
 			return Material{}, fillErr
 		}
 		if fillCount > 0 {
-			return Material{}, conflict("material_unit_in_use", "Material unit cannot change while filament spools exist")
+			return Material{}, conflict(
+				"material_unit_in_use",
+				"Material unit cannot change while filament spools exist",
+			)
 		}
 	}
-	_, err = q.UpdateMaterial(ctx, machinelogbookdb.UpdateMaterialParams{Name: v.name, MaterialTypeID: materialType.ID, ColorName: v.colorName, ColorHex: v.colorHex, Unit: unit, Active: in.Active, LowStockThreshold: v.threshold, ID: id, ExpectedVersion: in.ExpectedVersion})
+	_, err = q.UpdateMaterial(
+		ctx,
+		machinelogbookdb.UpdateMaterialParams{
+			Name:              v.name,
+			MaterialTypeID:    materialType.ID,
+			ColorName:         v.colorName,
+			ColorHex:          v.colorHex,
+			Unit:              unit,
+			Active:            in.Active,
+			LowStockThreshold: v.threshold,
+			ID:                id,
+			ExpectedVersion:   in.ExpectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Material{}, apperror.StaleWrite
 	}
@@ -258,10 +343,58 @@ func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal,
 }
 
 func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTransaction {
-	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, FillNumber: row.FillNumber, FromSpoolID: row.FromSpoolID, FromSpoolDisplayID: row.FromSpoolDisplayID, FromFillNumber: row.FromFillNumber, ToSpoolID: row.ToSpoolID, ToSpoolDisplayID: row.ToSpoolDisplayID, ToFillNumber: row.ToFillNumber, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
+	return InventoryTransaction{
+		ID:                  row.ID,
+		MaterialID:          row.MaterialID,
+		Kind:                row.Kind,
+		QuantityDelta:       decimalString(row.QuantityDelta),
+		UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost),
+		InventoryValueDelta: decimalString(row.InventoryValueDelta),
+		TotalPurchasePrice:  nullableDecimal(row.TotalPurchasePrice),
+		OccurredAt:          row.OccurredAt,
+		Supplier:            row.Supplier,
+		Note:                row.Note,
+		AdjustmentReason:    row.AdjustmentReason,
+		SpoolID:             row.SpoolID,
+		SpoolDisplayID:      row.SpoolDisplayID,
+		FillNumber:          row.FillNumber,
+		FromSpoolID:         row.FromSpoolID,
+		FromSpoolDisplayID:  row.FromSpoolDisplayID,
+		FromFillNumber:      row.FromFillNumber,
+		ToSpoolID:           row.ToSpoolID,
+		ToSpoolDisplayID:    row.ToSpoolDisplayID,
+		ToFillNumber:        row.ToFillNumber,
+		TransferQuantity:    nullableDecimal(row.TransferQuantity),
+		CreatedAt:           row.CreatedAt,
+	}
 }
 func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) InventoryTransaction {
-	item := transactionFromRow(machinelogbookdb.InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: row.QuantityDelta, UnitAcquisitionCost: row.UnitAcquisitionCost, InventoryValueDelta: row.InventoryValueDelta, TotalPurchasePrice: row.TotalPurchasePrice, OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, FillNumber: row.FillNumber, FromSpoolID: row.FromSpoolID, FromSpoolDisplayID: row.FromSpoolDisplayID, FromFillNumber: row.FromFillNumber, ToSpoolID: row.ToSpoolID, ToSpoolDisplayID: row.ToSpoolDisplayID, ToFillNumber: row.ToFillNumber, TransferQuantity: row.TransferQuantity, CreatedAt: row.CreatedAt})
+	item := transactionFromRow(
+		machinelogbookdb.InventoryTransaction{
+			ID:                  row.ID,
+			MaterialID:          row.MaterialID,
+			Kind:                row.Kind,
+			QuantityDelta:       row.QuantityDelta,
+			UnitAcquisitionCost: row.UnitAcquisitionCost,
+			InventoryValueDelta: row.InventoryValueDelta,
+			TotalPurchasePrice:  row.TotalPurchasePrice,
+			OccurredAt:          row.OccurredAt,
+			Supplier:            row.Supplier,
+			Note:                row.Note,
+			AdjustmentReason:    row.AdjustmentReason,
+			SpoolID:             row.SpoolID,
+			SpoolDisplayID:      row.SpoolDisplayID,
+			FillNumber:          row.FillNumber,
+			FromSpoolID:         row.FromSpoolID,
+			FromSpoolDisplayID:  row.FromSpoolDisplayID,
+			FromFillNumber:      row.FromFillNumber,
+			ToSpoolID:           row.ToSpoolID,
+			ToSpoolDisplayID:    row.ToSpoolDisplayID,
+			ToFillNumber:        row.ToFillNumber,
+			TransferQuantity:    row.TransferQuantity,
+			CreatedAt:           row.CreatedAt,
+		},
+	)
 	item.MachineJobID, item.MachineJobDisplayID = row.MachineJobID, row.MachineJobDisplayID
 	if row.ActorFirstName != nil && row.ActorLastName != nil {
 		name := *row.ActorFirstName + " " + *row.ActorLastName
@@ -270,7 +403,12 @@ func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) Inve
 	return item
 }
 
-func (s *Service) ListMaterialTransactions(ctx context.Context, p authorization.Principal, id uuid.UUID, page, pageSize int) ([]InventoryTransaction, int64, error) {
+func (s *Service) ListMaterialTransactions(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	page, pageSize int,
+) ([]InventoryTransaction, int64, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
@@ -282,7 +420,10 @@ func (s *Service) ListMaterialTransactions(ctx context.Context, p authorization.
 	if _, err = q.GetMaterial(ctx, id); err != nil {
 		return nil, 0, noRows(err)
 	}
-	rows, err := q.ListInventoryTransactions(ctx, machinelogbookdb.ListInventoryTransactionsParams{MaterialID: id, PageOffset: offset, PageLimit: limit})
+	rows, err := q.ListInventoryTransactions(
+		ctx,
+		machinelogbookdb.ListInventoryTransactionsParams{MaterialID: id, PageOffset: offset, PageLimit: limit},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -315,7 +456,16 @@ type inventoryMutation struct {
 	KeepSpoolVersion bool
 }
 
-func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, id uuid.UUID, expected int64, m inventoryMutation, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) applyInventoryMutation(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	m inventoryMutation,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
 		return InventoryMutationResult{}, noRows(err)
@@ -342,13 +492,19 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 			return InventoryMutationResult{}, noRows(fillErr)
 		}
 		if fill.MaterialID != id {
-			return InventoryMutationResult{}, conflict("spool_material_mismatch", "Spool does not belong to the selected material")
+			return InventoryMutationResult{}, conflict(
+				"spool_material_mismatch",
+				"Spool does not belong to the selected material",
+			)
 		}
 		if fill.ClosedAt.Valid {
 			return InventoryMutationResult{}, conflict("spool_not_consumable", "The spool has no open fill")
 		}
 		if decimalFromNumeric(fill.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
-			return InventoryMutationResult{}, conflict("insufficient_spool_stock", "Spool inventory would become negative")
+			return InventoryMutationResult{}, conflict(
+				"insufficient_spool_stock",
+				"Spool inventory would become negative",
+			)
 		}
 		spoolVersion = spool.Version
 	} else if m.QuantityDelta.IsNegative() {
@@ -371,7 +527,16 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	if newQuantity.IsPositive() {
 		average = newValue.Div(newQuantity)
 	}
-	balance, err := q.UpdateMaterialBalance(ctx, machinelogbookdb.UpdateMaterialBalanceParams{Quantity: numericFromDecimal(newQuantity), InventoryValue: numericFromDecimal(newValue), AverageUnitCost: numericFromDecimal(average), MaterialID: id, ExpectedVersion: expected})
+	balance, err := q.UpdateMaterialBalance(
+		ctx,
+		machinelogbookdb.UpdateMaterialBalanceParams{
+			Quantity:        numericFromDecimal(newQuantity),
+			InventoryValue:  numericFromDecimal(newValue),
+			AverageUnitCost: numericFromDecimal(average),
+			MaterialID:      id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return InventoryMutationResult{}, apperror.StaleWrite
 	}
@@ -385,7 +550,28 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	actor := accountPointer(p)
 	var ledger machinelogbookdb.InventoryTransaction
 	if m.Fill != nil {
-		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor, SpoolID: &m.Fill.SpoolID, FillID: &m.Fill.FillID, SpoolDisplayID: &m.Fill.SpoolDisplayID, FillNumber: &m.Fill.FillNumber})
+		ledger, err = q.InsertSpoolInventoryTransaction(
+			ctx,
+			machinelogbookdb.InsertSpoolInventoryTransactionParams{
+				ID:                  newID(),
+				MaterialID:          id,
+				Kind:                m.Kind,
+				QuantityDelta:       numericFromDecimal(m.QuantityDelta),
+				UnitAcquisitionCost: numericFromDecimal(m.UnitCost),
+				InventoryValueDelta: numericFromDecimal(m.ValueDelta),
+				TotalPurchasePrice:  total,
+				OccurredAt:          m.OccurredAt.UTC(),
+				Supplier:            cleanOptional(m.Supplier),
+				Note:                cleanOptional(m.Note),
+				AdjustmentReason:    m.Reason,
+				RunUsageID:          m.UsageID,
+				ActorAccountID:      actor,
+				SpoolID:             &m.Fill.SpoolID,
+				FillID:              &m.Fill.FillID,
+				SpoolDisplayID:      &m.Fill.SpoolDisplayID,
+				FillNumber:          &m.Fill.FillNumber,
+			},
+		)
 	} else {
 		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor})
 	}
@@ -410,7 +596,16 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	return InventoryMutationResult{Material: material, Transaction: transactionFromRow(ledger)}, nil
 }
 
-func (s *Service) AddPurchase(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, quantity, totalPrice string, occurredAt time.Time, supplier, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) AddPurchase(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	quantity, totalPrice string,
+	occurredAt time.Time,
+	supplier, note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -430,7 +625,25 @@ func (s *Service) AddPurchase(ctx context.Context, p authorization.Principal, id
 		return InventoryMutationResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	result, err := s.applyInventoryMutation(ctx, tx, machinelogbookdb.New(tx), p, id, expected, inventoryMutation{Kind: "purchase", QuantityDelta: qty, UnitCost: price.Div(qty), ValueDelta: price, TotalPrice: &price, OccurredAt: occurredAt, Supplier: supplier, Note: note}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		machinelogbookdb.New(tx),
+		p,
+		id,
+		expected,
+		inventoryMutation{
+			Kind:          "purchase",
+			QuantityDelta: qty,
+			UnitCost:      price.Div(qty),
+			ValueDelta:    price,
+			TotalPrice:    &price,
+			OccurredAt:    occurredAt,
+			Supplier:      supplier,
+			Note:          note,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -440,7 +653,17 @@ func (s *Service) AddPurchase(ctx context.Context, p authorization.Principal, id
 	return result, nil
 }
 
-func (s *Service) RecordConsumption(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, quantity string, occurredAt time.Time, disposal bool, reason, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) RecordConsumption(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	quantity string,
+	occurredAt time.Time,
+	disposal bool,
+	reason, note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -469,7 +692,24 @@ func (s *Service) RecordConsumption(ctx context.Context, p authorization.Princip
 	if disposal {
 		kind = "disposal"
 	}
-	result, err := s.applyInventoryMutation(ctx, tx, q, p, id, expected, inventoryMutation{Kind: kind, QuantityDelta: qty.Neg(), UnitCost: average, ValueDelta: qty.Mul(average).Neg(), OccurredAt: occurredAt, Reason: cleanOptional(reason), Note: note}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		q,
+		p,
+		id,
+		expected,
+		inventoryMutation{
+			Kind:          kind,
+			QuantityDelta: qty.Neg(),
+			UnitCost:      average,
+			ValueDelta:    qty.Mul(average).Neg(),
+			OccurredAt:    occurredAt,
+			Reason:        cleanOptional(reason),
+			Note:          note,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -479,7 +719,18 @@ func (s *Service) RecordConsumption(ctx context.Context, p authorization.Princip
 	return result, nil
 }
 
-func (s *Service) CorrectStock(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, physicalQuantity string, acquisitionUnitCost *string, occurredAt time.Time, reason string, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) CorrectStock(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	physicalQuantity string,
+	acquisitionUnitCost *string,
+	occurredAt time.Time,
+	reason string,
+	note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -516,7 +767,9 @@ func (s *Service) CorrectStock(ctx context.Context, p authorization.Principal, i
 	unitCost := average
 	if delta.IsPositive() && average.IsZero() {
 		if acquisitionUnitCost == nil {
-			return InventoryMutationResult{}, validation("acquisitionUnitCost is required for positive stock without an average cost")
+			return InventoryMutationResult{}, validation(
+				"acquisitionUnitCost is required for positive stock without an average cost",
+			)
 		}
 		unitCost, err = parseDecimal(*acquisitionUnitCost, false)
 		if err != nil || unitCost.IsNegative() {
@@ -524,7 +777,24 @@ func (s *Service) CorrectStock(ctx context.Context, p authorization.Principal, i
 		}
 	}
 	valueDelta := delta.Mul(unitCost)
-	result, err := s.applyInventoryMutation(ctx, tx, q, p, id, expected, inventoryMutation{Kind: "adjustment", QuantityDelta: delta, UnitCost: unitCost, ValueDelta: valueDelta, OccurredAt: occurredAt, Reason: &reason, Note: note}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		q,
+		p,
+		id,
+		expected,
+		inventoryMutation{
+			Kind:          "adjustment",
+			QuantityDelta: delta,
+			UnitCost:      unitCost,
+			ValueDelta:    valueDelta,
+			OccurredAt:    occurredAt,
+			Reason:        &reason,
+			Note:          note,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -534,7 +804,15 @@ func (s *Service) CorrectStock(ctx context.Context, p authorization.Principal, i
 	return result, nil
 }
 
-func (s *Service) MarkEmpty(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, occurredAt time.Time, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) MarkEmpty(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	occurredAt time.Time,
+	note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -561,7 +839,24 @@ func (s *Service) MarkEmpty(ctx context.Context, p authorization.Principal, id u
 	value := decimalFromNumeric(current.InventoryValue)
 	average := decimalFromNumeric(current.AverageUnitCost)
 	reason := "mark_empty"
-	result, err := s.applyInventoryMutation(ctx, tx, q, p, id, expected, inventoryMutation{Kind: "adjustment", QuantityDelta: qty.Neg(), UnitCost: average, ValueDelta: value.Neg(), OccurredAt: occurredAt, Reason: &reason, Note: note}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		q,
+		p,
+		id,
+		expected,
+		inventoryMutation{
+			Kind:          "adjustment",
+			QuantityDelta: qty.Neg(),
+			UnitCost:      average,
+			ValueDelta:    value.Neg(),
+			OccurredAt:    occurredAt,
+			Reason:        &reason,
+			Note:          note,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}

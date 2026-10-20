@@ -13,7 +13,17 @@ import (
 )
 
 func completeDetails() InvoiceRequestDetails {
-	return InvoiceRequestDetails{RecipientName: "Billing recipient", AddressLine1: "Street 1", PostalCode: "8010", Locality: "Graz", CountryCode: "AT", ContactName: "Contact", ServiceStartsOn: "2026-10-01", ServiceEndsOn: "2026-10-06", ServiceDescription: "Machine service"}
+	return InvoiceRequestDetails{
+		RecipientName:      "Billing recipient",
+		AddressLine1:       "Street 1",
+		PostalCode:         "8010",
+		Locality:           "Graz",
+		CountryCode:        "AT",
+		ContactName:        "Contact",
+		ServiceStartsOn:    "2026-10-01",
+		ServiceEndsOn:      "2026-10-06",
+		ServiceDescription: "Machine service",
+	}
 }
 
 type invoiceActors struct{ staff, approver, finance authorization.Principal }
@@ -23,7 +33,14 @@ func (f *fixture) actors(t *testing.T) invoiceActors {
 	return invoiceActors{
 		staff:    f.principal(t, append(base, authorization.ExternalInvoiceRequestsManage)...),
 		approver: f.principal(t, append(base, authorization.ExternalInvoiceRequestsApprove)...),
-		finance:  f.principal(t, append(base, authorization.ExternalInvoiceRequestsManage, authorization.PaymentsRead, authorization.PaymentsReverse)...),
+		finance: f.principal(
+			t,
+			append(
+				base,
+				authorization.ExternalInvoiceRequestsManage,
+				authorization.PaymentsRead,
+				authorization.PaymentsReverse,
+			)...),
 	}
 }
 
@@ -39,7 +56,13 @@ func (f *fixture) finalized(t *testing.T, amount string) Order {
 
 func (f *fixture) pay(t *testing.T, o Order, method, amount string) Order {
 	t.Helper()
-	o, e := f.s.RecordPayment(t.Context(), f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt(method, amount)}, nil)
+	o, e := f.s.RecordPayment(
+		t.Context(),
+		f.p,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt(method, amount)},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -48,14 +71,25 @@ func (f *fixture) pay(t *testing.T, o Order, method, amount string) Order {
 
 func (f *fixture) newRequest(t *testing.T, who authorization.Principal, o Order) ExternalInvoiceRequest {
 	t.Helper()
-	r, e := f.s.CreateRequest(t.Context(), who, o.ID, CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()}, nil)
+	r, e := f.s.CreateRequest(
+		t.Context(),
+		who,
+		o.ID,
+		CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
 	return r
 }
 
-func (f *fixture) act(who authorization.Principal, r ExternalInvoiceRequest, action string, mod func(*InvoiceRequestCommand)) (ExternalInvoiceRequest, error) {
+func (f *fixture) act(
+	who authorization.Principal,
+	r ExternalInvoiceRequest,
+	action string,
+	mod func(*InvoiceRequestCommand),
+) (ExternalInvoiceRequest, error) {
 	c := InvoiceRequestCommand{OperationKey: newID(), ExpectedVersion: r.Version}
 	if mod != nil {
 		mod(&c)
@@ -63,7 +97,13 @@ func (f *fixture) act(who authorization.Principal, r ExternalInvoiceRequest, act
 	return f.s.RequestCommand(stdcontext.Background(), who, r.ID, c, action, nil)
 }
 
-func (f *fixture) ok(t *testing.T, who authorization.Principal, r ExternalInvoiceRequest, action string, mod func(*InvoiceRequestCommand)) ExternalInvoiceRequest {
+func (f *fixture) ok(
+	t *testing.T,
+	who authorization.Principal,
+	r ExternalInvoiceRequest,
+	action string,
+	mod func(*InvoiceRequestCommand),
+) ExternalInvoiceRequest {
 	t.Helper()
 	v, e := f.act(who, r, action, mod)
 	if e != nil {
@@ -96,18 +136,36 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 		t.Fatalf("new request %+v", r)
 	}
 	// Only staff with manage edit a draft; approvers do not.
-	_, e := f.s.UpdateRequest(ctx, a.approver, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()}, nil)
+	_, e := f.s.UpdateRequest(
+		ctx,
+		a.approver,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()},
+		nil,
+	)
 	denied(t, e)
 	// An incomplete checklist cannot be submitted.
 	incomplete := completeDetails()
 	incomplete.AddressLine1 = ""
-	r, e = f.s.UpdateRequest(ctx, a.staff, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: incomplete}, nil)
+	r, e = f.s.UpdateRequest(
+		ctx,
+		a.staff,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: incomplete},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
 	_, e = f.act(a.staff, r, "submit", nil)
 	wantCode(t, e, "validation_failed")
-	r, e = f.s.UpdateRequest(ctx, a.staff, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()}, nil)
+	r, e = f.s.UpdateRequest(
+		ctx,
+		a.staff,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -119,11 +177,23 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 		t.Fatal(r.State)
 	}
 	// While awaiting approval only approvers edit.
-	_, e = f.s.UpdateRequest(ctx, a.staff, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()}, nil)
+	_, e = f.s.UpdateRequest(
+		ctx,
+		a.staff,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()},
+		nil,
+	)
 	denied(t, e)
 	edited := completeDetails()
 	edited.ServiceDescription = "Edited by approver"
-	r, e = f.s.UpdateRequest(ctx, a.approver, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: edited}, nil)
+	r, e = f.s.UpdateRequest(
+		ctx,
+		a.approver,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: edited},
+		nil,
+	)
 	if e != nil || r.Details.ServiceDescription != "Edited by approver" || r.State != "submitted" {
 		t.Fatalf("approver edit %v %+v", e, r)
 	}
@@ -138,10 +208,17 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 	wantCode(t, e, "validation_failed")
 	r = f.ok(t, a.approver, r, "return", func(c *InvoiceRequestCommand) { c.Reason = "Add the purchase order" })
 	last := r.Events[len(r.Events)-1]
-	if r.State != "draft" || last.Kind != "returned" || last.Reason != "Add the purchase order" || last.RecordedBy == nil {
+	if r.State != "draft" || last.Kind != "returned" || last.Reason != "Add the purchase order" ||
+		last.RecordedBy == nil {
 		t.Fatalf("return %+v", r)
 	}
-	r, e = f.s.UpdateRequest(ctx, a.staff, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()}, nil)
+	r, e = f.s.UpdateRequest(
+		ctx,
+		a.staff,
+		r.ID,
+		UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: completeDetails()},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -161,25 +238,50 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 		t.Fatalf("not settled %v %+v", e, o)
 	}
 	payment, e := f.s.GetPayment(ctx, f.p, *o.Allocations[0].PaymentID)
-	if e != nil || payment.Method != "external" || payment.Amount != "10.00" || payment.ExternalSource != "wiRef" || payment.RecordedBy == nil || payment.RecordedBy.DisplayName == "" {
+	if e != nil || payment.Method != "external" || payment.Amount != "10.00" || payment.ExternalSource != "wiRef" ||
+		payment.RecordedBy == nil ||
+		payment.RecordedBy.DisplayName == "" {
 		t.Fatalf("settling payment %v %+v", e, payment)
 	}
 	if o.CreatedBy == nil || o.CreatedBy.DisplayName == "" {
 		t.Fatal("createdBy missing")
 	}
 	// A hand-recorded external payment is refused; so is cash on an issued invoice.
-	_, e = f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("external", "1")}, nil)
+	_, e = f.s.RecordPayment(
+		ctx,
+		f.p,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("external", "1")},
+		nil,
+	)
 	wantCode(t, e, "invoice_settles_balance")
-	_, e = f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")}, nil)
+	_, e = f.s.RecordPayment(
+		ctx,
+		f.p,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
+		nil,
+	)
 	wantCode(t, e, "invoice_amount_frozen")
 	_, e = f.act(a.approver, issued, "forward", nil)
 	wantCode(t, e, "invalid_request_transition")
 	// The invoice number is optional: add it later, then a correction needs a reason.
-	issued = f.ok(t, a.staff, issued, "reference-corrections", func(c *InvoiceRequestCommand) { c.ExternalReference = "RE-1"; c.EffectiveAt = time.Now() })
+	issued = f.ok(
+		t,
+		a.staff,
+		issued,
+		"reference-corrections",
+		func(c *InvoiceRequestCommand) { c.ExternalReference = "RE-1"; c.EffectiveAt = time.Now() },
+	)
 	if issued.Events[len(issued.Events)-1].Kind != "reference_added" {
 		t.Fatalf("%+v", issued.Events)
 	}
-	_, e = f.act(a.staff, issued, "reference-corrections", func(c *InvoiceRequestCommand) { c.ExternalReference = "RE-2"; c.EffectiveAt = time.Now() })
+	_, e = f.act(
+		a.staff,
+		issued,
+		"reference-corrections",
+		func(c *InvoiceRequestCommand) { c.ExternalReference = "RE-2"; c.EffectiveAt = time.Now() },
+	)
 	wantCode(t, e, "validation_failed")
 	issued = f.ok(t, a.staff, issued, "reference-corrections", func(c *InvoiceRequestCommand) {
 		c.ExternalReference = "RE-2"
@@ -204,7 +306,19 @@ func TestForwardWithOptionalInvoiceNumberAndConcurrentForward(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := f.s.RequestCommand(ctx, a.approver, r.ID, InvoiceRequestCommand{OperationKey: newID(), ExpectedVersion: r.Version, ExternalReference: "RE-7", EffectiveAt: time.Now()}, "forward", nil)
+			_, err := f.s.RequestCommand(
+				ctx,
+				a.approver,
+				r.ID,
+				InvoiceRequestCommand{
+					OperationKey:      newID(),
+					ExpectedVersion:   r.Version,
+					ExternalReference: "RE-7",
+					EffectiveAt:       time.Now(),
+				},
+				"forward",
+				nil,
+			)
 			results <- err
 		}()
 	}
@@ -226,7 +340,8 @@ func TestForwardWithOptionalInvoiceNumberAndConcurrentForward(t *testing.T) {
 		t.Fatalf("settling payments = %d %v", n, e)
 	}
 	got, _ := f.s.GetRequest(ctx, f.p, r.ID)
-	if got.Events[len(got.Events)-1].Kind != "reference_added" || got.Events[len(got.Events)-1].ExternalReference != "RE-7" {
+	if got.Events[len(got.Events)-1].Kind != "reference_added" ||
+		got.Events[len(got.Events)-1].ExternalReference != "RE-7" {
 		t.Fatalf("%+v", got.Events)
 	}
 }
@@ -253,10 +368,31 @@ func TestInvoiceForPartiallyPaidOrderFreezesPayments(t *testing.T) {
 		t.Fatal(r.AlreadyPaid)
 	}
 	o, _ = f.s.Get(ctx, f.p, o.ID)
-	_, e := f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")}, nil)
+	_, e := f.s.RecordPayment(
+		ctx,
+		f.p,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
+		nil,
+	)
 	wantCode(t, e, "invoice_amount_frozen")
 	cashID := *o.Allocations[0].PaymentID
-	_, e = f.s.ReversePayment(ctx, f.p, cashID, ReversePaymentCommand{OperationKey: newID(), ExpectedVersion: o.Version, Reversal: PaymentReversalInput{PaymentID: cashID, ReasonKind: "refund", Reason: "r", OccurredAt: time.Now()}}, nil)
+	_, e = f.s.ReversePayment(
+		ctx,
+		f.p,
+		cashID,
+		ReversePaymentCommand{
+			OperationKey:    newID(),
+			ExpectedVersion: o.Version,
+			Reversal: PaymentReversalInput{
+				PaymentID:  cashID,
+				ReasonKind: "refund",
+				Reason:     "r",
+				OccurredAt: time.Now(),
+			},
+		},
+		nil,
+	)
 	wantCode(t, e, "invoice_amount_frozen")
 	// Returned to the draft, payments are allowed again and the figure follows.
 	r = f.ok(t, a.approver, r, "return", func(c *InvoiceRequestCommand) { c.Reason = "fix" })
@@ -273,7 +409,8 @@ func TestInvoiceForPartiallyPaidOrderFreezesPayments(t *testing.T) {
 		t.Fatalf("%+v", o)
 	}
 	var external string
-	if e = f.pool.QueryRow(ctx, "SELECT amount::text FROM payments WHERE method='external'").Scan(&external); e != nil || external != "3.00" {
+	if e = f.pool.QueryRow(ctx, "SELECT amount::text FROM payments WHERE method='external'").Scan(&external); e != nil ||
+		external != "3.00" {
 		t.Fatalf("settled only the rest: %s %v", external, e)
 	}
 	// A fully paid order can be invoiced; forwarding then adds no payment.
@@ -320,7 +457,12 @@ func TestInvoiceCancellationReversesSettlement(t *testing.T) {
 	// The settling payment is reversed, which needs the payment reverse permission.
 	_, e = f.act(a.approver, r, "confirm-cancellation", confirm)
 	denied(t, e)
-	noReverse := f.principal(t, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead, authorization.ExternalInvoiceRequestsManage)
+	noReverse := f.principal(
+		t,
+		authorization.OrdersRead,
+		authorization.ExternalInvoiceRequestsRead,
+		authorization.ExternalInvoiceRequestsManage,
+	)
 	_, e = f.act(noReverse, r, "confirm-cancellation", confirm)
 	denied(t, e)
 	still, _ := f.s.GetRequest(ctx, f.p, r.ID)
@@ -354,12 +496,34 @@ func TestInvoiceRequestNeedsACharge(t *testing.T) {
 	f := newFixture(t)
 	a := f.actors(t)
 	o := f.finalized(t, "0")
-	_, e := f.s.CreateRequest(t.Context(), a.staff, o.ID, CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()}, nil)
+	_, e := f.s.CreateRequest(
+		t.Context(),
+		a.staff,
+		o.ID,
+		CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()},
+		nil,
+	)
 	wantCode(t, e, "nothing_to_invoice")
 }
 
-func (f *fixture) cashMove(who authorization.Principal, kind, amount, reason, note string, at time.Time) (CashMovement, error) {
-	return f.s.CreateCashMovement(stdcontext.Background(), who, CashMovementInput{OperationKey: newID(), Kind: kind, Amount: amount, Reason: reason, Note: note, OccurredAt: at}, nil)
+func (f *fixture) cashMove(
+	who authorization.Principal,
+	kind, amount, reason, note string,
+	at time.Time,
+) (CashMovement, error) {
+	return f.s.CreateCashMovement(
+		stdcontext.Background(),
+		who,
+		CashMovementInput{
+			OperationKey: newID(),
+			Kind:         kind,
+			Amount:       amount,
+			Reason:       reason,
+			Note:         note,
+			OccurredAt:   at,
+		},
+		nil,
+	)
 }
 
 func TestCashRegisterCountsOnlyCash(t *testing.T) {
@@ -414,7 +578,23 @@ func TestCashRegisterCountsOnlyCash(t *testing.T) {
 	rev := func(id uuid.UUID, ref string) {
 		t.Helper()
 		var e error
-		o, e = f.s.ReversePayment(ctx, f.p, id, ReversePaymentCommand{OperationKey: newID(), ExpectedVersion: o.Version, Reversal: PaymentReversalInput{PaymentID: id, ReasonKind: "refund", Reason: "r", OccurredAt: time.Now(), ExternalReference: ref}}, nil)
+		o, e = f.s.ReversePayment(
+			ctx,
+			f.p,
+			id,
+			ReversePaymentCommand{
+				OperationKey:    newID(),
+				ExpectedVersion: o.Version,
+				Reversal: PaymentReversalInput{
+					PaymentID:         id,
+					ReasonKind:        "refund",
+					Reason:            "r",
+					OccurredAt:        time.Now(),
+					ExternalReference: ref,
+				},
+			},
+			nil,
+		)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -470,7 +650,14 @@ func TestCashMovementRules(t *testing.T) {
 	_, e = f.cashMove(f.p, "withdrawal", "1", "safe", "", now.Add(-48*time.Hour))
 	wantCode(t, e, "insufficient_cash")
 	// Retries are idempotent; other input under the same key conflicts.
-	in := CashMovementInput{OperationKey: newID(), Kind: "withdrawal", Amount: "10", Reason: "other", Note: "coffee", OccurredAt: now}
+	in := CashMovementInput{
+		OperationKey: newID(),
+		Kind:         "withdrawal",
+		Amount:       "10",
+		Reason:       "other",
+		Note:         "coffee",
+		OccurredAt:   now,
+	}
 	first, e := f.s.CreateCashMovement(ctx, f.p, in, nil)
 	if e != nil || first.RecordedBy == nil || first.Reference == "" {
 		t.Fatalf("%v %+v", e, first)
@@ -633,7 +820,19 @@ func TestRolePricingGroupResolution(t *testing.T) {
 	}
 	// Real jobs are priced through the resolution.
 	start := time.Now().UTC().Add(-2 * time.Hour)
-	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "person", ID: onlyStudent}, OperatorPersonID: f.person, Outcome: "successful"}, nil)
+	job, e := f.jobs.CreateManualJob(
+		ctx,
+		f.p,
+		machinelogbook.JobInput{
+			MachineID:        f.machine,
+			StartsAt:         start,
+			EndsAt:           start.Add(time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "person", ID: onlyStudent},
+			OperatorPersonID: f.person,
+			Outcome:          "successful",
+		},
+		nil,
+	)
 	if e != nil || job.PricingSnapshot == nil || job.PricingSnapshot.PricingGroupName != "Students" {
 		t.Fatalf("job group %v %+v", e, job.PricingSnapshot)
 	}
@@ -699,7 +898,10 @@ func TestRolePricingGroupMappingRules(t *testing.T) {
 		t.Fatal(e)
 	}
 	// People no longer have a group of their own.
-	if _, e = f.jobs.SetPartyPricingGroup(ctx, f.p, machinelogbook.PartyReference{Kind: "person", ID: f.person}, &g.ID, 0, nil); !apperror.IsCode(e, "validation_failed") {
+	if _, e = f.jobs.SetPartyPricingGroup(ctx, f.p, machinelogbook.PartyReference{Kind: "person", ID: f.person}, &g.ID, 0, nil); !apperror.IsCode(
+		e,
+		"validation_failed",
+	) {
 		t.Fatal(e)
 	}
 }
@@ -712,18 +914,24 @@ func TestCancelledRequestsStayVisibleOnTheOrder(t *testing.T) {
 	first := f.newRequest(t, a.staff, o)
 	first = f.ok(t, a.staff, first, "cancel", func(c *InvoiceRequestCommand) { c.Reason = "wrong recipient" })
 	o, _ = f.s.Get(ctx, f.p, o.ID)
-	if o.ActiveExternalRequestID != nil || o.LatestExternalRequestID == nil || *o.LatestExternalRequestID != first.ID || *o.LatestExternalRequestState != "cancelled" || *o.LatestExternalRequestReference != first.Reference {
+	if o.ActiveExternalRequestID != nil || o.LatestExternalRequestID == nil || *o.LatestExternalRequestID != first.ID ||
+		*o.LatestExternalRequestState != "cancelled" ||
+		*o.LatestExternalRequestReference != first.Reference {
 		t.Fatalf("latest request not exposed after cancellation: %+v", o)
 	}
 	second := f.newRequest(t, a.staff, o)
 	o, _ = f.s.Get(ctx, f.p, o.ID)
-	if o.ActiveExternalRequestID == nil || *o.ActiveExternalRequestID != second.ID || *o.LatestExternalRequestID != second.ID {
+	if o.ActiveExternalRequestID == nil || *o.ActiveExternalRequestID != second.ID ||
+		*o.LatestExternalRequestID != second.ID {
 		t.Fatalf("active/latest %+v", o)
 	}
 	other := f.finalized(t, "4")
 	f.newRequest(t, a.staff, other)
 	page, e := f.s.ListRequests(ctx, a.staff, "", "", &o.ID, 1, 25)
-	if e != nil || page.Total != 2 || len(page.Items) != 2 || page.Items[0].ID != second.ID || page.Items[1].ID != first.ID || page.Items[1].State != "cancelled" || len(page.Items[1].Events) == 0 {
+	if e != nil || page.Total != 2 || len(page.Items) != 2 || page.Items[0].ID != second.ID ||
+		page.Items[1].ID != first.ID ||
+		page.Items[1].State != "cancelled" ||
+		len(page.Items[1].Events) == 0 {
 		t.Fatalf("order requests latest first: %v %+v", e, page)
 	}
 	// The order filter does not widen the permission: without the read permission the list stays denied.

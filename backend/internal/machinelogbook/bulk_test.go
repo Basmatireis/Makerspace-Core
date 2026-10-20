@@ -125,10 +125,16 @@ func TestBulkDeleteAuthorizationAndValidation(t *testing.T) {
 	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{}, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("empty request: %v", err)
 	}
-	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{{ID: job.ID}}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{{ID: job.ID}}}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("missing version: %v", err)
 	}
-	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(job)}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(job)}}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("duplicate item: %v", err)
 	}
 	// With machine_jobs.delete the same request goes through.
@@ -158,7 +164,12 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 	before := f.quantity(t, f.material.ID)
 
 	err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{
-		Jobs:               []BulkItem{f.item(good), f.item(onOrder), {ID: stale.ID, ExpectedVersion: stale.Version + 5}, {ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1}},
+		Jobs: []BulkItem{
+			f.item(good),
+			f.item(onOrder),
+			{ID: stale.ID, ExpectedVersion: stale.Version + 5},
+			{ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1},
+		},
 		Runs:               []BulkItem{free, {ID: owned.ID, ExpectedVersion: owned.ExpectedVersion + 1}},
 		ReverseConsumption: true,
 	}, &f.request)
@@ -190,7 +201,10 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 	}
 
 	// A stale unassigned run alone refuses too, and the run stays.
-	if err = f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Runs: []BulkItem{{ID: free.ID, ExpectedVersion: free.ExpectedVersion + 1}}}, &f.request); !hasBlocker(bulkBlockers(t, err), "run:stale_write") {
+	if err = f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Runs: []BulkItem{{ID: free.ID, ExpectedVersion: free.ExpectedVersion + 1}}}, &f.request); !hasBlocker(
+		bulkBlockers(t, err),
+		"run:stale_write",
+	) {
 		t.Fatalf("stale run: %v", err)
 	}
 }
@@ -206,7 +220,17 @@ func TestBulkDeleteDeletesJobsAndRunsWithOneAuditEventEach(t *testing.T) {
 	}
 	// A job with a recorded run, and an unassigned run with consumption.
 	held := h.unassigned(t, h.machine.ID, -8*time.Hour, "held.gcode")
-	withRun, err := h.s.CreateJobFromRun(ctx, h.p, held.ID, RunJobInput{Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}, &h.request)
+	withRun, err := h.s.CreateJobFromRun(
+		ctx,
+		h.p,
+		held.ID,
+		RunJobInput{
+			Customer:         PartyReference{Kind: "person", ID: h.person},
+			OperatorPersonID: h.person,
+			PricingGroupID:   &h.group.ID,
+		},
+		&h.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,10 +276,15 @@ func TestBulkDeleteDeletesJobsAndRunsWithOneAuditEventEach(t *testing.T) {
 		t.Fatal("the unassigned run must be deleted and audited")
 	}
 	if deleted, assigned := h.runAssigned(t, held.ID); deleted || assigned {
-		t.Fatalf("recorded run of a deleted job: deleted=%v assigned=%v (it must stay as an unassigned run)", deleted, assigned)
+		t.Fatalf(
+			"recorded run of a deleted job: deleted=%v assigned=%v (it must stay as an unassigned run)",
+			deleted,
+			assigned,
+		)
 	}
 	var fields []string
-	if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = 'machine_job.deleted' AND resource_id = $1`, withRun.ID).Scan(&fields); err != nil || !strings.Contains(strings.Join(fields, ","), "recordedRunsDetached") {
+	if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = 'machine_job.deleted' AND resource_id = $1`, withRun.ID).Scan(&fields); err != nil ||
+		!strings.Contains(strings.Join(fields, ","), "recordedRunsDetached") {
 		t.Fatalf("job audit fields = %v err=%v", fields, err)
 	}
 }
@@ -266,7 +295,17 @@ func TestBulkDeleteKeepsTheLedgerAndCanDeleteRecordedRuns(t *testing.T) {
 	ctx := t.Context()
 	job := f.manualJob(t, -10*time.Hour, "50")
 	held := h.unassigned(t, h.machine.ID, -8*time.Hour, "held.gcode")
-	withRun, err := h.s.CreateJobFromRun(ctx, h.p, held.ID, RunJobInput{Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}, &h.request)
+	withRun, err := h.s.CreateJobFromRun(
+		ctx,
+		h.p,
+		held.ID,
+		RunJobInput{
+			Customer:         PartyReference{Kind: "person", ID: h.person},
+			OperatorPersonID: h.person,
+			PricingGroupID:   &h.group.ID,
+		},
+		&h.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +317,8 @@ func TestBulkDeleteKeepsTheLedgerAndCanDeleteRecordedRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	var after int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&after); err != nil || after != ledger {
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&after); err != nil ||
+		after != ledger {
 		t.Fatalf("ledger rows %d -> %d err=%v", ledger, after, err)
 	}
 	if got := f.quantity(t, f.material.ID); got != "950" {
@@ -295,17 +335,28 @@ func TestBulkCreateJobsFromRuns(t *testing.T) {
 	late := h.unassigned(t, h.machine.ID, -3*time.Hour, "late.gcode")
 	early := h.unassigned(t, h.machine.ID, -6*time.Hour, "early.gcode")
 	otherMachine := h.unassigned(t, h.bareMachine.ID, -5*time.Hour, "bare.gcode")
-	input := BulkRunJobInput{Runs: []BulkItem{late, early, otherMachine}, Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}
+	input := BulkRunJobInput{
+		Runs:             []BulkItem{late, early, otherMachine},
+		Customer:         PartyReference{Kind: "person", ID: h.person},
+		OperatorPersonID: h.person,
+		PricingGroupID:   &h.group.ID,
+	}
 
 	for name, principal := range map[string]authorization.Principal{
 		"no permission":   {AccountID: h.p.AccountID},
 		"read, edit only": restrictedPrincipal(t, h.pool, authorization.MachineJobsRead, authorization.MachineJobsEdit, authorization.MachineJobsDelete),
 	} {
-		if _, err := h.s.BulkCreateJobsFromRuns(ctx, principal, input, &h.request); !apperror.IsCode(err, "permission_denied") {
+		if _, err := h.s.BulkCreateJobsFromRuns(ctx, principal, input, &h.request); !apperror.IsCode(
+			err,
+			"permission_denied",
+		) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
-	if _, err := h.s.BulkCreateJobsFromRuns(ctx, h.p, BulkRunJobInput{Customer: input.Customer, OperatorPersonID: h.person}, &h.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := h.s.BulkCreateJobsFromRuns(ctx, h.p, BulkRunJobInput{Customer: input.Customer, OperatorPersonID: h.person}, &h.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("no runs: %v", err)
 	}
 
@@ -345,17 +396,22 @@ func TestBulkCreateJobsFromRuns(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(detail.Runs) != 1 || detail.Runs[0].ID != order[i] || detail.Title != nil || detail.Customer == nil || detail.Customer.ID != h.person {
+		if len(detail.Runs) != 1 || detail.Runs[0].ID != order[i] || detail.Title != nil || detail.Customer == nil ||
+			detail.Customer.ID != h.person {
 			t.Fatalf("job %d: runs=%d title=%v customer=%v", i, len(detail.Runs), detail.Title, detail.Customer)
 		}
-		if h.auditCount(t, "machine_job.created", job.ID) != 1 || h.auditCount(t, "machine_run.assigned", order[i]) != 1 {
+		if h.auditCount(t, "machine_job.created", job.ID) != 1 ||
+			h.auditCount(t, "machine_run.assigned", order[i]) != 1 {
 			t.Fatalf("audit events of job %d are missing", i)
 		}
 	}
 	if created[0].DisplayID >= created[1].DisplayID || created[1].DisplayID >= created[2].DisplayID {
 		t.Fatalf("display IDs not ascending: %v", created)
 	}
-	if _, err = h.s.BulkCreateJobsFromRuns(ctx, h.p, input, &h.request); !hasBlocker(bulkBlockers(t, err), "run:run_already_assigned") {
+	if _, err = h.s.BulkCreateJobsFromRuns(ctx, h.p, input, &h.request); !hasBlocker(
+		bulkBlockers(t, err),
+		"run:run_already_assigned",
+	) {
 		t.Fatalf("second request: %v", err)
 	}
 }
@@ -368,9 +424,18 @@ func TestBulkCombineRuns(t *testing.T) {
 	c := h.unassigned(t, h.machine.ID, -2*time.Hour, "c.gcode")
 	elsewhere := h.unassigned(t, h.bareMachine.ID, -5*time.Hour, "bare.gcode")
 	title := "Combined"
-	input := BulkRunJobInput{Runs: []BulkItem{a, b, c}, Title: &title, Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}
+	input := BulkRunJobInput{
+		Runs:             []BulkItem{a, b, c},
+		Title:            &title,
+		Customer:         PartyReference{Kind: "person", ID: h.person},
+		OperatorPersonID: h.person,
+		PricingGroupID:   &h.group.ID,
+	}
 
-	if _, err := h.s.BulkCombineRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(err, "permission_denied") {
+	if _, err := h.s.BulkCombineRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("no permission: %v", err)
 	}
 	editor := restrictedPrincipal(t, h.pool, authorization.MachineJobsRead, authorization.MachineJobsEdit)
@@ -391,7 +456,10 @@ func TestBulkCombineRuns(t *testing.T) {
 	}
 	stale := input
 	stale.Runs = []BulkItem{a, {ID: b.ID, ExpectedVersion: b.ExpectedVersion + 1}}
-	if _, err := h.s.BulkCombineRuns(ctx, h.p, stale, &h.request); !hasBlocker(bulkBlockers(t, err), "run:stale_write") {
+	if _, err := h.s.BulkCombineRuns(ctx, h.p, stale, &h.request); !hasBlocker(
+		bulkBlockers(t, err),
+		"run:stale_write",
+	) {
 		t.Fatalf("stale run: %v", err)
 	}
 	if n := h.jobCount(t, h.machine.ID) + h.jobCount(t, h.bareMachine.ID); n != 0 {
@@ -402,7 +470,8 @@ func TestBulkCombineRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(job.Runs) != 3 || job.Machine.ID != h.machine.ID || job.Title == nil || *job.Title != title || job.Customer == nil {
+	if len(job.Runs) != 3 || job.Machine.ID != h.machine.ID || job.Title == nil || *job.Title != title ||
+		job.Customer == nil {
 		t.Fatalf("combined job: runs=%d title=%v", len(job.Runs), job.Title)
 	}
 	// 3 h of runtime at 10 per hour.
@@ -426,12 +495,26 @@ func TestBulkAttachRuns(t *testing.T) {
 	a := h.unassigned(t, h.machine.ID, -8*time.Hour, "a.gcode")
 	b := h.unassigned(t, h.machine.ID, -6*time.Hour, "b.gcode")
 	elsewhere := h.unassigned(t, h.bareMachine.ID, -5*time.Hour, "bare.gcode")
-	input := BulkAttachInput{JobID: manual.ID, ExpectedJobVersion: manual.Version, Runs: []BulkItem{a, b}, ReplaceManualRuns: true}
+	input := BulkAttachInput{
+		JobID:              manual.ID,
+		ExpectedJobVersion: manual.Version,
+		Runs:               []BulkItem{a, b},
+		ReplaceManualRuns:  true,
+	}
 
-	if _, err := h.s.BulkAttachRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(err, "permission_denied") {
+	if _, err := h.s.BulkAttachRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("no permission: %v", err)
 	}
-	creator := restrictedPrincipal(t, h.pool, authorization.MachineJobsRead, authorization.MachineJobsCreate, authorization.MachineJobsDelete)
+	creator := restrictedPrincipal(
+		t,
+		h.pool,
+		authorization.MachineJobsRead,
+		authorization.MachineJobsCreate,
+		authorization.MachineJobsDelete,
+	)
 	if _, err := h.s.BulkAttachRuns(ctx, creator, input, &h.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("create and delete only: %v", err)
 	}
@@ -440,20 +523,30 @@ func TestBulkAttachRuns(t *testing.T) {
 	if _, err := h.s.BulkAttachRuns(ctx, h.p, staleJob, &h.request); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale job: %v", err)
 	}
-	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: uuid.Must(uuid.NewV7()), ExpectedJobVersion: 1, Runs: input.Runs}, &h.request); !apperror.IsCode(err, "not_found") {
+	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: uuid.Must(uuid.NewV7()), ExpectedJobVersion: 1, Runs: input.Runs}, &h.request); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("unknown job: %v", err)
 	}
-	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: manual.ID, ExpectedJobVersion: manual.Version}, &h.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: manual.ID, ExpectedJobVersion: manual.Version}, &h.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("no runs: %v", err)
 	}
 	mixed := input
 	mixed.Runs = []BulkItem{a, elsewhere}
-	if _, err := h.s.BulkAttachRuns(ctx, h.p, mixed, &h.request); !hasBlocker(bulkBlockers(t, err), "run:run_machine_mismatch") {
+	if _, err := h.s.BulkAttachRuns(ctx, h.p, mixed, &h.request); !hasBlocker(
+		bulkBlockers(t, err),
+		"run:run_machine_mismatch",
+	) {
 		t.Fatalf("machine mismatch: %v", err)
 	}
 	// Nothing changed: the manual run still counts and its material is still booked.
 	untouched, err := h.s.GetJob(ctx, h.p, manual.ID)
-	if err != nil || len(untouched.Runs) != 1 || untouched.Version != manual.Version || h.quantity(t, h.jobFixture.material.ID) != "970" {
+	if err != nil || len(untouched.Runs) != 1 || untouched.Version != manual.Version ||
+		h.quantity(t, h.jobFixture.material.ID) != "970" {
 		t.Fatalf("job after refused requests: %v runs=%d version=%d", err, len(untouched.Runs), untouched.Version)
 	}
 
@@ -468,7 +561,8 @@ func TestBulkAttachRuns(t *testing.T) {
 	if price(job.CalculatedPrice) != "20" || h.quantity(t, h.jobFixture.material.ID) != "1000" {
 		t.Fatalf("price=%s quantity=%s", price(job.CalculatedPrice), h.quantity(t, h.jobFixture.material.ID))
 	}
-	if h.auditCount(t, "machine_job.run_attached", job.ID) != 1 || h.auditCount(t, "machine_run.assigned", a.ID) != 1 || h.auditCount(t, "machine_run.assigned", b.ID) != 1 {
+	if h.auditCount(t, "machine_job.run_attached", job.ID) != 1 || h.auditCount(t, "machine_run.assigned", a.ID) != 1 ||
+		h.auditCount(t, "machine_run.assigned", b.ID) != 1 {
 		t.Fatal("attach audit events are missing")
 	}
 	var metadata []byte
@@ -479,7 +573,10 @@ func TestBulkAttachRuns(t *testing.T) {
 	if err = json.Unmarshal(metadata, &decoded); err != nil || decoded["jobId"] != job.ID.String() {
 		t.Fatalf("assignment metadata = %s err=%v", metadata, err)
 	}
-	if _, err = h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: job.ID, ExpectedJobVersion: job.Version, Runs: []BulkItem{a}}, &h.request); !hasBlocker(bulkBlockers(t, err), "run:run_already_assigned") {
+	if _, err = h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: job.ID, ExpectedJobVersion: job.Version, Runs: []BulkItem{a}}, &h.request); !hasBlocker(
+		bulkBlockers(t, err),
+		"run:run_already_assigned",
+	) {
 		t.Fatalf("second attach: %v", err)
 	}
 }

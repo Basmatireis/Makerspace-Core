@@ -111,7 +111,20 @@ func (s *Service) artifactFromRow(ctx context.Context, q *db.Queries, row db.Get
 	if err := json.Unmarshal(row.Metadata, &metadata); err != nil {
 		return Artifact{}, fmt.Errorf("decode artifact metadata: %w", err)
 	}
-	result := Artifact{ID: row.ID, OriginalFileID: row.OriginalFileID, OriginalFilename: row.OriginalFilename, SHA256: hex.EncodeToString(row.Sha256), SizeBytes: row.SizeBytes, ParserStatus: row.ParserStatus, ParserVersion: row.ParserVersion, Metadata: metadata, PrimaryPreviewID: row.PrimaryPreviewID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Filaments: []Filament{}}
+	result := Artifact{
+		ID:               row.ID,
+		OriginalFileID:   row.OriginalFileID,
+		OriginalFilename: row.OriginalFilename,
+		SHA256:           hex.EncodeToString(row.Sha256),
+		SizeBytes:        row.SizeBytes,
+		ParserStatus:     row.ParserStatus,
+		ParserVersion:    row.ParserVersion,
+		Metadata:         metadata,
+		PrimaryPreviewID: row.PrimaryPreviewID,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+		Filaments:        []Filament{},
+	}
 	rows, err := q.ListArtifactFilaments(ctx, row.ID)
 	if err != nil {
 		return Artifact{}, err
@@ -122,12 +135,28 @@ func (s *Service) artifactFromRow(ctx context.Context, q *db.Queries, row db.Get
 			v := int(*item.Extruder)
 			extruder = &v
 		}
-		result.Filaments = append(result.Filaments, Filament{Key: item.FilamentKey, Type: stringValue(item.FilamentType), Color: stringValue(item.Color), Extruder: extruder, WeightGrams: numericString(item.PlannedWeightG), LengthMM: numericString(item.PlannedLengthMm), DensityGCM3: numericString(item.DensityGCm3), DiameterMM: numericString(item.DiameterMm)})
+		result.Filaments = append(
+			result.Filaments,
+			Filament{
+				Key:         item.FilamentKey,
+				Type:        stringValue(item.FilamentType),
+				Color:       stringValue(item.Color),
+				Extruder:    extruder,
+				WeightGrams: numericString(item.PlannedWeightG),
+				LengthMM:    numericString(item.PlannedLengthMm),
+				DensityGCM3: numericString(item.DensityGCm3),
+				DiameterMM:  numericString(item.DiameterMm),
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) Open(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Artifact, io.ReadCloser, error) {
+func (s *Service) Open(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (Artifact, io.ReadCloser, error) {
 	artifact, err := s.Get(ctx, principal, id)
 	if err != nil {
 		return Artifact{}, nil, err
@@ -136,7 +165,11 @@ func (s *Service) Open(ctx context.Context, principal authorization.Principal, i
 	return artifact, reader, err
 }
 
-func (s *Service) ListPreviews(ctx context.Context, principal authorization.Principal, artifactID uuid.UUID) ([]Preview, error) {
+func (s *Service) ListPreviews(
+	ctx context.Context,
+	principal authorization.Principal,
+	artifactID uuid.UUID,
+) ([]Preview, error) {
 	artifact, err := s.Get(ctx, principal, artifactID)
 	if err != nil {
 		return nil, err
@@ -152,12 +185,32 @@ func (s *Service) ListPreviews(ctx context.Context, principal authorization.Prin
 			v := int(*row.PlateNumber)
 			plate = &v
 		}
-		result = append(result, Preview{ID: row.ID, ArtifactID: row.ArtifactID, FileID: row.FileID, ArchivePath: row.ArchivePath, Role: row.Role, PlateNumber: plate, Width: int(row.Width), Height: int(row.Height), MIMEType: row.MimeType, SizeBytes: row.SizeBytes, SHA256: hex.EncodeToString(row.Sha256), Primary: artifact.PrimaryPreviewID != nil && *artifact.PrimaryPreviewID == row.ID})
+		result = append(
+			result,
+			Preview{
+				ID:          row.ID,
+				ArtifactID:  row.ArtifactID,
+				FileID:      row.FileID,
+				ArchivePath: row.ArchivePath,
+				Role:        row.Role,
+				PlateNumber: plate,
+				Width:       int(row.Width),
+				Height:      int(row.Height),
+				MIMEType:    row.MimeType,
+				SizeBytes:   row.SizeBytes,
+				SHA256:      hex.EncodeToString(row.Sha256),
+				Primary:     artifact.PrimaryPreviewID != nil && *artifact.PrimaryPreviewID == row.ID,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) OpenPreview(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Preview, io.ReadCloser, error) {
+func (s *Service) OpenPreview(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (Preview, io.ReadCloser, error) {
 	if !principal.Has(authorization.PrintArtifactsRead) {
 		return Preview{}, nil, apperror.PermissionDenied
 	}
@@ -181,19 +234,47 @@ func (s *Service) OpenPreview(ctx context.Context, principal authorization.Princ
 	if err != nil {
 		return Preview{}, nil, err
 	}
-	return Preview{ID: row.ID, ArtifactID: row.ArtifactID, FileID: row.FileID, ArchivePath: row.ArchivePath, Role: row.Role, PlateNumber: plate, Width: int(row.Width), Height: int(row.Height), MIMEType: row.MimeType, SizeBytes: row.SizeBytes, SHA256: hex.EncodeToString(row.Sha256), Primary: artifact.PrimaryPreviewID != nil && *artifact.PrimaryPreviewID == row.ID}, reader, nil
+	return Preview{
+		ID:          row.ID,
+		ArtifactID:  row.ArtifactID,
+		FileID:      row.FileID,
+		ArchivePath: row.ArchivePath,
+		Role:        row.Role,
+		PlateNumber: plate,
+		Width:       int(row.Width),
+		Height:      int(row.Height),
+		MIMEType:    row.MimeType,
+		SizeBytes:   row.SizeBytes,
+		SHA256:      hex.EncodeToString(row.Sha256),
+		Primary:     artifact.PrimaryPreviewID != nil && *artifact.PrimaryPreviewID == row.ID,
+	}, reader, nil
 }
 
-func (s *Service) Upload(ctx context.Context, connectorID, assignmentID, runID uuid.UUID, configurationVersion int64, filename, declaredSHA string, contentLength int64, body io.Reader, requestID *uuid.UUID) (UploadResult, error) {
+func (s *Service) Upload(
+	ctx context.Context,
+	connectorID, assignmentID, runID uuid.UUID,
+	configurationVersion int64,
+	filename, declaredSHA string,
+	contentLength int64,
+	body io.Reader,
+	requestID *uuid.UUID,
+) (UploadResult, error) {
 	filename = strings.TrimSpace(filename)
 	if filename == "" || len(filename) > 255 || contentLength < 1 || contentLength > MaxCompressedSize {
-		return UploadResult{}, validation("artifact_metadata_invalid", "Artifact filename and content length are invalid")
+		return UploadResult{}, validation(
+			"artifact_metadata_invalid",
+			"Artifact filename and content length are invalid",
+		)
 	}
 	digestBytes, err := hex.DecodeString(strings.ToLower(strings.TrimSpace(declaredSHA)))
 	if err != nil || len(digestBytes) != sha256.Size || configurationVersion < 1 {
-		return UploadResult{}, validation("artifact_metadata_invalid", "Artifact SHA-256 or configuration version is invalid")
+		return UploadResult{}, validation(
+			"artifact_metadata_invalid",
+			"Artifact SHA-256 or configuration version is invalid",
+		)
 	}
-	check, err := db.New(s.pool).CheckConnectorArtifactUploadTarget(ctx, db.CheckConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID})
+	check, err := db.New(s.pool).
+		CheckConnectorArtifactUploadTarget(ctx, db.CheckConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UploadResult{}, apperror.NotFound
 	}
@@ -219,7 +300,10 @@ func (s *Service) Upload(ctx context.Context, connectorID, assignmentID, runID u
 		return UploadResult{}, err
 	}
 	if written != contentLength || !bytes.Equal(hasher.Sum(nil), digestBytes) {
-		return UploadResult{}, validation("artifact_integrity_mismatch", "Uploaded bytes do not match the declared length and SHA-256")
+		return UploadResult{}, validation(
+			"artifact_integrity_mismatch",
+			"Uploaded bytes do not match the declared length and SHA-256",
+		)
 	}
 	if _, err = temp.Seek(0, io.SeekStart); err != nil {
 		return UploadResult{}, err
@@ -236,7 +320,20 @@ func (s *Service) Upload(ctx context.Context, connectorID, assignmentID, runID u
 	if err != nil {
 		return UploadResult{}, err
 	}
-	return s.persistUpload(ctx, connectorID, assignmentID, runID, configurationVersion, filename, contentLength, digestBytes, temp, parsed, metadata, requestID)
+	return s.persistUpload(
+		ctx,
+		connectorID,
+		assignmentID,
+		runID,
+		configurationVersion,
+		filename,
+		contentLength,
+		digestBytes,
+		temp,
+		parsed,
+		metadata,
+		requestID,
+	)
 }
 
 func normalizedMetadata(result parser.Result) ([]byte, error) {
@@ -285,7 +382,18 @@ func normalizedMetadata(result parser.Result) ([]byte, error) {
 	return encoded, nil
 }
 
-func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, runID uuid.UUID, configurationVersion int64, filename string, size int64, digest []byte, temp *os.File, parsed parser.Result, metadata []byte, requestID *uuid.UUID) (UploadResult, error) {
+func (s *Service) persistUpload(
+	ctx context.Context,
+	connectorID, assignmentID, runID uuid.UUID,
+	configurationVersion int64,
+	filename string,
+	size int64,
+	digest []byte,
+	temp *os.File,
+	parsed parser.Result,
+	metadata []byte,
+	requestID *uuid.UUID,
+) (UploadResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return UploadResult{}, err
@@ -301,7 +409,10 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 		}
 	}()
 	q := db.New(tx)
-	target, err := q.GetConnectorArtifactUploadTarget(ctx, db.GetConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID})
+	target, err := q.GetConnectorArtifactUploadTarget(
+		ctx,
+		db.GetConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UploadResult{}, apperror.NotFound
 	}
@@ -312,7 +423,18 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 		return UploadResult{}, conflict("configuration_version_mismatch", "Assignment configuration has changed")
 	}
 	if existing, getErr := q.GetArtifactBySHA256(ctx, digest); getErr == nil {
-		return s.attachExisting(ctx, tx, q, target, existing.ID, connectorID, assignmentID, runID, requestID, &committed)
+		return s.attachExisting(
+			ctx,
+			tx,
+			q,
+			target,
+			existing.ID,
+			connectorID,
+			assignmentID,
+			runID,
+			requestID,
+			&committed,
+		)
 	} else if !errors.Is(getErr, pgx.ErrNoRows) {
 		return UploadResult{}, getErr
 	}
@@ -322,7 +444,15 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 	var expected storage.Metadata
 	expected.Size = size
 	copy(expected.SHA256[:], digest)
-	file, cleanup, err := s.files.StoreSystemReaderInTransaction(ctx, tx, filename, "application/vnd.ms-package.3dmanufacturing-3dmodel+xml", temp, expected, requestID)
+	file, cleanup, err := s.files.StoreSystemReaderInTransaction(
+		ctx,
+		tx,
+		filename,
+		"application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+		temp,
+		expected,
+		requestID,
+	)
 	if err != nil {
 		return UploadResult{}, err
 	}
@@ -332,7 +462,17 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 	if parsed.Status == parser.StatusPartial {
 		status = "partial"
 	}
-	_, err = q.InsertArtifact(ctx, db.InsertArtifactParams{ID: artifactID, OriginalFileID: file.ID, Sha256: digest, ParserStatus: status, ParserVersion: parsed.ParserVersion, Metadata: metadata})
+	_, err = q.InsertArtifact(
+		ctx,
+		db.InsertArtifactParams{
+			ID:             artifactID,
+			OriginalFileID: file.ID,
+			Sha256:         digest,
+			ParserStatus:   status,
+			ParserVersion:  parsed.ParserVersion,
+			Metadata:       metadata,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = tx.Rollback(ctx)
 		for _, cleanup := range cleanups {
@@ -364,7 +504,15 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 		var previewExpected storage.Metadata
 		previewExpected.Size = preview.Size
 		copy(previewExpected.SHA256[:], previewDigest)
-		stored, previewCleanup, storeErr := s.files.StoreSystemReaderInTransaction(ctx, tx, filepath.Base(preview.ArchivePath), preview.MIMEType, bytes.NewReader(preview.Bytes), previewExpected, requestID)
+		stored, previewCleanup, storeErr := s.files.StoreSystemReaderInTransaction(
+			ctx,
+			tx,
+			filepath.Base(preview.ArchivePath),
+			preview.MIMEType,
+			bytes.NewReader(preview.Bytes),
+			previewExpected,
+			requestID,
+		)
 		if storeErr != nil {
 			return UploadResult{}, storeErr
 		}
@@ -379,7 +527,22 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 			plate = &v
 		}
 		previewID := uuid.Must(uuid.NewV7())
-		row, insertErr := q.InsertArtifactPreview(ctx, db.InsertArtifactPreviewParams{ID: previewID, ArtifactID: artifactID, FileID: stored.ID, ArchivePath: preview.ArchivePath, Role: &role, PlateNumber: plate, Width: int32(preview.Width), Height: int32(preview.Height), MimeType: preview.MIMEType, SizeBytes: preview.Size, Sha256: previewDigest})
+		row, insertErr := q.InsertArtifactPreview(
+			ctx,
+			db.InsertArtifactPreviewParams{
+				ID:          previewID,
+				ArtifactID:  artifactID,
+				FileID:      stored.ID,
+				ArchivePath: preview.ArchivePath,
+				Role:        &role,
+				PlateNumber: plate,
+				Width:       int32(preview.Width),
+				Height:      int32(preview.Height),
+				MimeType:    preview.MIMEType,
+				SizeBytes:   preview.Size,
+				Sha256:      previewDigest,
+			},
+		)
 		if errors.Is(insertErr, pgx.ErrNoRows) {
 			continue
 		}
@@ -412,7 +575,12 @@ func (s *Service) persistUpload(ctx context.Context, connectorID, assignmentID, 
 	return result, err
 }
 
-func (s *Service) attachExistingAfterRace(ctx context.Context, connectorID, assignmentID, runID uuid.UUID, digest []byte, requestID *uuid.UUID) (UploadResult, error) {
+func (s *Service) attachExistingAfterRace(
+	ctx context.Context,
+	connectorID, assignmentID, runID uuid.UUID,
+	digest []byte,
+	requestID *uuid.UUID,
+) (UploadResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return UploadResult{}, err
@@ -424,7 +592,10 @@ func (s *Service) attachExistingAfterRace(ctx context.Context, connectorID, assi
 		}
 	}()
 	q := db.New(tx)
-	target, err := q.GetConnectorArtifactUploadTarget(ctx, db.GetConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID})
+	target, err := q.GetConnectorArtifactUploadTarget(
+		ctx,
+		db.GetConnectorArtifactUploadTargetParams{AssignmentID: assignmentID, ConnectorID: connectorID, RunID: runID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return UploadResult{}, apperror.NotFound
 	}
@@ -441,7 +612,15 @@ func (s *Service) attachExistingAfterRace(ctx context.Context, connectorID, assi
 	return s.attachExisting(ctx, tx, q, target, existing.ID, connectorID, assignmentID, runID, requestID, &committed)
 }
 
-func (s *Service) attachExisting(ctx context.Context, tx pgx.Tx, q *db.Queries, target db.GetConnectorArtifactUploadTargetRow, artifactID, connectorID, assignmentID, runID uuid.UUID, requestID *uuid.UUID, committed *bool) (UploadResult, error) {
+func (s *Service) attachExisting(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *db.Queries,
+	target db.GetConnectorArtifactUploadTargetRow,
+	artifactID, connectorID, assignmentID, runID uuid.UUID,
+	requestID *uuid.UUID,
+	committed *bool,
+) (UploadResult, error) {
 	result, err := s.attachArtifact(ctx, tx, q, target, artifactID, connectorID, assignmentID, runID, requestID)
 	if err != nil {
 		return UploadResult{}, err
@@ -455,7 +634,14 @@ func (s *Service) attachExisting(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 	return result, err
 }
 
-func (s *Service) attachArtifact(ctx context.Context, tx pgx.Tx, q *db.Queries, target db.GetConnectorArtifactUploadTargetRow, artifactID, connectorID, assignmentID, runID uuid.UUID, requestID *uuid.UUID) (UploadResult, error) {
+func (s *Service) attachArtifact(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *db.Queries,
+	target db.GetConnectorArtifactUploadTargetRow,
+	artifactID, connectorID, assignmentID, runID uuid.UUID,
+	requestID *uuid.UUID,
+) (UploadResult, error) {
 	if target.ArtifactID != nil && *target.ArtifactID != artifactID {
 		return UploadResult{}, conflict("artifact_mismatch", "Run already references a different artifact")
 	}
@@ -469,12 +655,24 @@ func (s *Service) attachArtifact(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 	if target.JobID != nil {
 		return result, nil
 	}
-	jobs, err := q.FindPlannedJobsForArtifact(ctx, db.FindPlannedJobsForArtifactParams{MachineID: target.MachineID, ArtifactID: &artifactID})
+	jobs, err := q.FindPlannedJobsForArtifact(
+		ctx,
+		db.FindPlannedJobsForArtifactParams{MachineID: target.MachineID, ArtifactID: &artifactID},
+	)
 	if err != nil {
 		return UploadResult{}, err
 	}
 	if len(jobs) == 1 {
-		attached, attachErr := s.logbook.AttachPlannedRunSystem(ctx, tx, connectorID, assignmentID, runID, jobs[0], artifactID, requestID)
+		attached, attachErr := s.logbook.AttachPlannedRunSystem(
+			ctx,
+			tx,
+			connectorID,
+			assignmentID,
+			runID,
+			jobs[0],
+			artifactID,
+			requestID,
+		)
 		if attachErr != nil {
 			return UploadResult{}, attachErr
 		}
@@ -485,7 +683,13 @@ func (s *Service) attachArtifact(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 	return result, nil
 }
 
-func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.Principal, artifactID uuid.UUID, input PlannedJobInput, requestID *uuid.UUID) (machinelogbook.MachineJob, error) {
+func (s *Service) CreatePlannedJob(
+	ctx context.Context,
+	principal authorization.Principal,
+	artifactID uuid.UUID,
+	input PlannedJobInput,
+	requestID *uuid.UUID,
+) (machinelogbook.MachineJob, error) {
 	if !principal.Has(authorization.PrintArtifactsRead) || !principal.Has(authorization.MachineJobsCreate) {
 		return machinelogbook.MachineJob{}, apperror.PermissionDenied
 	}
@@ -519,7 +723,10 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 		return machinelogbook.MachineJob{}, err
 	}
 	if machine.Status == "retired" || !machine.ProfileEnabled {
-		return machinelogbook.MachineJob{}, conflict("printer_profile_disabled", "An enabled printer profile is required")
+		return machinelogbook.MachineJob{}, conflict(
+			"printer_profile_disabled",
+			"An enabled printer profile is required",
+		)
 	}
 	if ok, checkErr := q.OperatorExists(ctx, input.OperatorPersonID); checkErr != nil {
 		return machinelogbook.MachineJob{}, checkErr
@@ -545,7 +752,13 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 	default:
 		return machinelogbook.MachineJob{}, validation("validation_failed", "Customer must be a person or organization")
 	}
-	groupID, groupName, _, err := machinelogbook.ResolvePricingGroup(ctx, tx, personID, organizationID, input.PricingGroupID)
+	groupID, groupName, _, err := machinelogbook.ResolvePricingGroup(
+		ctx,
+		tx,
+		personID,
+		organizationID,
+		input.PricingGroupID,
+	)
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
@@ -555,7 +768,20 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 	}
 	jobID := uuid.Must(uuid.NewV7())
 	displayID := fmt.Sprintf("J-%04d-%06d", time.Now().UTC().Year(), sequence)
-	job, err := q.CreatePlannedMachineJob(ctx, db.CreatePlannedMachineJobParams{ID: jobID, DisplayID: displayID, MachineID: input.MachineID, CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Title: title, Notes: notes, ArtifactID: &artifactID})
+	job, err := q.CreatePlannedMachineJob(
+		ctx,
+		db.CreatePlannedMachineJobParams{
+			ID:                     jobID,
+			DisplayID:              displayID,
+			MachineID:              input.MachineID,
+			CustomerPersonID:       personID,
+			CustomerOrganizationID: organizationID,
+			OperatorPersonID:       &input.OperatorPersonID,
+			Title:                  title,
+			Notes:                  notes,
+			ArtifactID:             &artifactID,
+		},
+	)
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}

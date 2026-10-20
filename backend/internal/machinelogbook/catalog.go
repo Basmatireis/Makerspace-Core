@@ -29,7 +29,12 @@ func (s *Service) ListMachineTypes(ctx context.Context, p authorization.Principa
 	return items, nil
 }
 
-func (s *Service) CreateMachineType(ctx context.Context, p authorization.Principal, name, process string, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) CreateMachineType(
+	ctx context.Context,
+	p authorization.Principal,
+	name, process string,
+	requestID *uuid.UUID,
+) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -46,7 +51,8 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := newID()
-	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
+	row, err := machinelogbookdb.New(tx).
+		CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
@@ -59,7 +65,16 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	return machineTypeFromRow(row), nil
 }
 
-func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name *string, active *bool, process *string, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) UpdateMachineType(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name *string,
+	active *bool,
+	process *string,
+	requestID *uuid.UUID,
+) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -94,7 +109,16 @@ func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Princip
 		}
 		current.Process = *process
 	}
-	row, err := q.UpdateMachineType(ctx, machinelogbookdb.UpdateMachineTypeParams{Name: current.Name, Active: current.Active, Process: current.Process, ID: id, ExpectedVersion: expected})
+	row, err := q.UpdateMachineType(
+		ctx,
+		machinelogbookdb.UpdateMachineTypeParams{
+			Name:            current.Name,
+			Active:          current.Active,
+			Process:         current.Process,
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineType{}, apperror.StaleWrite
 	}
@@ -121,11 +145,55 @@ func validateMachine(status string, automatic bool, external *string) error {
 }
 
 func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Process: row.MachineTypeProcess, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{
+		ID: row.ID,
+		MachineType: MachineType{
+			ID:        row.MachineTypeID,
+			Name:      row.MachineTypeName,
+			Active:    row.MachineTypeActive,
+			Process:   row.MachineTypeProcess,
+			Version:   row.MachineTypeVersion,
+			CreatedAt: row.MachineTypeCreatedAt,
+			UpdatedAt: row.MachineTypeUpdatedAt,
+		},
+		Name:                       row.Name,
+		Status:                     row.Status,
+		ExternalIdentifier:         row.ExternalIdentifier,
+		AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
+		LastIngestedAt:             nullableTime(row.LastIngestedAt),
+		Version:                    row.Version,
+		JobCount:                   row.JobCount,
+		RuntimeSeconds:             row.RuntimeSeconds,
+		FailureRate:                decimalString(row.FailureRate),
+		CreatedAt:                  row.CreatedAt,
+		UpdatedAt:                  row.UpdatedAt,
+	}
 }
 
 func machineFromList(row machinelogbookdb.ListMachinesRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Process: row.MachineTypeProcess, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{
+		ID: row.ID,
+		MachineType: MachineType{
+			ID:        row.MachineTypeID,
+			Name:      row.MachineTypeName,
+			Active:    row.MachineTypeActive,
+			Process:   row.MachineTypeProcess,
+			Version:   row.MachineTypeVersion,
+			CreatedAt: row.MachineTypeCreatedAt,
+			UpdatedAt: row.MachineTypeUpdatedAt,
+		},
+		Name:                       row.Name,
+		Status:                     row.Status,
+		ExternalIdentifier:         row.ExternalIdentifier,
+		AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
+		LastIngestedAt:             nullableTime(row.LastIngestedAt),
+		Version:                    row.Version,
+		JobCount:                   row.JobCount,
+		RuntimeSeconds:             row.RuntimeSeconds,
+		FailureRate:                decimalString(row.FailureRate),
+		CreatedAt:                  row.CreatedAt,
+		UpdatedAt:                  row.UpdatedAt,
+	}
 }
 
 func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id uuid.UUID) (Machine, error) {
@@ -143,7 +211,13 @@ func (s *Service) loadMachine(ctx context.Context, id uuid.UUID) (Machine, error
 	return machineFromGet(row), nil
 }
 
-func (s *Service) ListMachines(ctx context.Context, p authorization.Principal, search string, status *string, page, pageSize int) ([]Machine, int64, error) {
+func (s *Service) ListMachines(
+	ctx context.Context,
+	p authorization.Principal,
+	search string,
+	status *string,
+	page, pageSize int,
+) ([]Machine, int64, error) {
 	if err := require(p, authorization.MachinesRead); err != nil {
 		return nil, 0, err
 	}
@@ -152,11 +226,22 @@ func (s *Service) ListMachines(ctx context.Context, p authorization.Principal, s
 		return nil, 0, err
 	}
 	q := machinelogbookdb.New(s.pool)
-	rows, err := q.ListMachines(ctx, machinelogbookdb.ListMachinesParams{Search: strings.TrimSpace(search), Status: status, PageOffset: offset, PageLimit: limit})
+	rows, err := q.ListMachines(
+		ctx,
+		machinelogbookdb.ListMachinesParams{
+			Search:     strings.TrimSpace(search),
+			Status:     status,
+			PageOffset: offset,
+			PageLimit:  limit,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountMachines(ctx, machinelogbookdb.CountMachinesParams{Search: strings.TrimSpace(search), Status: status})
+	total, err := q.CountMachines(
+		ctx,
+		machinelogbookdb.CountMachinesParams{Search: strings.TrimSpace(search), Status: status},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -167,7 +252,15 @@ func (s *Service) ListMachines(ctx context.Context, p authorization.Principal, s
 	return items, total, nil
 }
 
-func (s *Service) CreateMachine(ctx context.Context, p authorization.Principal, machineTypeID uuid.UUID, name, status string, external *string, automatic bool, requestID *uuid.UUID) (Machine, error) {
+func (s *Service) CreateMachine(
+	ctx context.Context,
+	p authorization.Principal,
+	machineTypeID uuid.UUID,
+	name, status string,
+	external *string,
+	automatic bool,
+	requestID *uuid.UUID,
+) (Machine, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Machine{}, err
 	}
@@ -194,7 +287,17 @@ func (s *Service) CreateMachine(ctx context.Context, p authorization.Principal, 
 		return Machine{}, conflict("machine_type_inactive", "Machine type is inactive")
 	}
 	id := newID()
-	_, err = q.CreateMachine(ctx, machinelogbookdb.CreateMachineParams{ID: id, MachineTypeID: machineTypeID, Name: name, Status: status, ExternalIdentifier: external, AutomaticCollectionEnabled: automatic})
+	_, err = q.CreateMachine(
+		ctx,
+		machinelogbookdb.CreateMachineParams{
+			ID:                         id,
+			MachineTypeID:              machineTypeID,
+			Name:                       name,
+			Status:                     status,
+			ExternalIdentifier:         external,
+			AutomaticCollectionEnabled: automatic,
+		},
+	)
 	if err != nil {
 		return Machine{}, databaseError(err)
 	}
@@ -207,7 +310,17 @@ func (s *Service) CreateMachine(ctx context.Context, p authorization.Principal, 
 	return s.loadMachine(ctx, id)
 }
 
-func (s *Service) UpdateMachine(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, machineTypeID uuid.UUID, name, status string, external *string, automatic bool, requestID *uuid.UUID) (Machine, error) {
+func (s *Service) UpdateMachine(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	machineTypeID uuid.UUID,
+	name, status string,
+	external *string,
+	automatic bool,
+	requestID *uuid.UUID,
+) (Machine, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Machine{}, err
 	}
@@ -243,7 +356,18 @@ func (s *Service) UpdateMachine(ctx context.Context, p authorization.Principal, 
 	if !typeRow.Active && machineTypeID != current.MachineTypeID {
 		return Machine{}, conflict("machine_type_inactive", "Machine type is inactive")
 	}
-	_, err = q.UpdateMachine(ctx, machinelogbookdb.UpdateMachineParams{MachineTypeID: machineTypeID, Name: name, Status: status, ExternalIdentifier: external, AutomaticCollectionEnabled: automatic, ID: id, ExpectedVersion: expected})
+	_, err = q.UpdateMachine(
+		ctx,
+		machinelogbookdb.UpdateMachineParams{
+			MachineTypeID:              machineTypeID,
+			Name:                       name,
+			Status:                     status,
+			ExternalIdentifier:         external,
+			AutomaticCollectionEnabled: automatic,
+			ID:                         id,
+			ExpectedVersion:            expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Machine{}, apperror.StaleWrite
 	}
@@ -262,7 +386,13 @@ func (s *Service) UpdateMachine(ctx context.Context, p authorization.Principal, 
 // DeleteMachine permanently deletes a machine that has no jobs or runs, with
 // its printer setup, connector assignments, diagnostics and the tombstones of
 // its deleted jobs and runs. Machines with history are retired instead.
-func (s *Service) DeleteMachine(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteMachine(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return err
 	}
@@ -328,7 +458,23 @@ func (s *Service) DeleteMachine(ctx context.Context, p authorization.Principal, 
 }
 
 func organizationFromRow(row machinelogbookdb.Organization) Organization {
-	return Organization{ID: row.ID, Name: row.Name, Kind: row.Kind, Active: row.Active, OrganizationDetails: OrganizationDetails{AddressLine: row.AddressLine, PostalCode: row.PostalCode, Locality: row.Locality, CountryCode: row.CountryCode, ContactName: row.ContactName, ContactEmail: row.ContactEmail}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Organization{
+		ID:     row.ID,
+		Name:   row.Name,
+		Kind:   row.Kind,
+		Active: row.Active,
+		OrganizationDetails: OrganizationDetails{
+			AddressLine:  row.AddressLine,
+			PostalCode:   row.PostalCode,
+			Locality:     row.Locality,
+			CountryCode:  row.CountryCode,
+			ContactName:  row.ContactName,
+			ContactEmail: row.ContactEmail,
+		},
+		Version:   row.Version,
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
+	}
 }
 func validateOrganizationKind(kind string) error {
 	if kind != "company" && kind != "institute" && kind != "association" && kind != "other" {
@@ -398,14 +544,36 @@ func changedOrganizationDetailFields(in OrganizationDetailsInput) []string {
 }
 
 func organizationDetailFromRow(row machinelogbookdb.GetOrganizationDetailRow) Organization {
-	item := Organization{ID: row.ID, Name: row.Name, Kind: row.Kind, Active: row.Active, OrganizationDetails: OrganizationDetails{AddressLine: row.AddressLine, PostalCode: row.PostalCode, Locality: row.Locality, CountryCode: row.CountryCode, ContactName: row.ContactName, ContactEmail: row.ContactEmail}, MemberCount: row.MemberCount, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	item := Organization{
+		ID:     row.ID,
+		Name:   row.Name,
+		Kind:   row.Kind,
+		Active: row.Active,
+		OrganizationDetails: OrganizationDetails{
+			AddressLine:  row.AddressLine,
+			PostalCode:   row.PostalCode,
+			Locality:     row.Locality,
+			CountryCode:  row.CountryCode,
+			ContactName:  row.ContactName,
+			ContactEmail: row.ContactEmail,
+		},
+		MemberCount:                   row.MemberCount,
+		PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
+		Version:                       row.Version,
+		CreatedAt:                     row.CreatedAt,
+		UpdatedAt:                     row.UpdatedAt,
+	}
 	if row.PricingGroupID != nil && row.PricingGroupName != nil {
 		item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
 	}
 	return item
 }
 
-func (s *Service) loadOrganization(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID) (Organization, error) {
+func (s *Service) loadOrganization(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+) (Organization, error) {
 	row, err := q.GetOrganizationDetail(ctx, id)
 	if err != nil {
 		return Organization{}, noRows(err)
@@ -420,7 +588,11 @@ func (s *Service) GetOrganization(ctx context.Context, p authorization.Principal
 	return s.loadOrganization(ctx, machinelogbookdb.New(s.pool), id)
 }
 
-func (s *Service) ListOrganizations(ctx context.Context, p authorization.Principal, f OrganizationFilters) ([]Organization, int64, error) {
+func (s *Service) ListOrganizations(
+	ctx context.Context,
+	p authorization.Principal,
+	f OrganizationFilters,
+) ([]Organization, int64, error) {
 	if err := require(p, authorization.OrganizationsRead); err != nil {
 		return nil, 0, err
 	}
@@ -435,11 +607,29 @@ func (s *Service) ListOrganizations(ctx context.Context, p authorization.Princip
 	}
 	q := machinelogbookdb.New(s.pool)
 	search := strings.TrimSpace(f.Search)
-	rows, err := q.ListOrganizations(ctx, machinelogbookdb.ListOrganizationsParams{Search: search, Active: f.Active, Kind: f.Kind, PricingGroupID: f.PricingGroupID, PageOffset: offset, PageLimit: limit})
+	rows, err := q.ListOrganizations(
+		ctx,
+		machinelogbookdb.ListOrganizationsParams{
+			Search:         search,
+			Active:         f.Active,
+			Kind:           f.Kind,
+			PricingGroupID: f.PricingGroupID,
+			PageOffset:     offset,
+			PageLimit:      limit,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountOrganizations(ctx, machinelogbookdb.CountOrganizationsParams{Search: search, Active: f.Active, Kind: f.Kind, PricingGroupID: f.PricingGroupID})
+	total, err := q.CountOrganizations(
+		ctx,
+		machinelogbookdb.CountOrganizationsParams{
+			Search:         search,
+			Active:         f.Active,
+			Kind:           f.Kind,
+			PricingGroupID: f.PricingGroupID,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -450,7 +640,13 @@ func (s *Service) ListOrganizations(ctx context.Context, p authorization.Princip
 	return items, total, nil
 }
 
-func (s *Service) CreateOrganization(ctx context.Context, p authorization.Principal, name, kind string, details OrganizationDetailsInput, requestID *uuid.UUID) (Organization, error) {
+func (s *Service) CreateOrganization(
+	ctx context.Context,
+	p authorization.Principal,
+	name, kind string,
+	details OrganizationDetailsInput,
+	requestID *uuid.UUID,
+) (Organization, error) {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return Organization{}, err
 	}
@@ -472,7 +668,8 @@ func (s *Service) CreateOrganization(ctx context.Context, p authorization.Princi
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := newID()
-	row, err := machinelogbookdb.New(tx).CreateOrganization(ctx, machinelogbookdb.CreateOrganizationParams{ID: id, Name: name, Kind: kind, AddressLine: merged.AddressLine, PostalCode: merged.PostalCode, Locality: merged.Locality, CountryCode: merged.CountryCode, ContactName: merged.ContactName, ContactEmail: merged.ContactEmail})
+	row, err := machinelogbookdb.New(tx).
+		CreateOrganization(ctx, machinelogbookdb.CreateOrganizationParams{ID: id, Name: name, Kind: kind, AddressLine: merged.AddressLine, PostalCode: merged.PostalCode, Locality: merged.Locality, CountryCode: merged.CountryCode, ContactName: merged.ContactName, ContactEmail: merged.ContactEmail})
 	if err != nil {
 		return Organization{}, databaseError(err)
 	}
@@ -489,7 +686,13 @@ func (s *Service) CreateOrganization(ctx context.Context, p authorization.Princi
 // Members, the pricing group assignment and invoicing requirements cascade; the
 // remaining foreign keys are ON DELETE SET NULL, so referenced organizations are
 // refused instead of silently losing history.
-func (s *Service) DeleteOrganization(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteOrganization(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return err
 	}
@@ -514,7 +717,10 @@ func (s *Service) DeleteOrganization(ctx context.Context, p authorization.Princi
 		return err
 	}
 	if referenced {
-		return conflict("organization_in_use", "The organization is referenced by jobs, orders or invoice requests and cannot be deleted; deactivate it instead")
+		return conflict(
+			"organization_in_use",
+			"The organization is referenced by jobs, orders or invoice requests and cannot be deleted; deactivate it instead",
+		)
 	}
 	rows, err := q.DeleteOrganization(ctx, machinelogbookdb.DeleteOrganizationParams{ID: id, ExpectedVersion: expected})
 	if err != nil {
@@ -529,7 +735,16 @@ func (s *Service) DeleteOrganization(ctx context.Context, p authorization.Princi
 	return tx.Commit(ctx)
 }
 
-func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, kind string, active bool, details OrganizationDetailsInput, requestID *uuid.UUID) (Organization, error) {
+func (s *Service) UpdateOrganization(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name, kind string,
+	active bool,
+	details OrganizationDetailsInput,
+	requestID *uuid.UUID,
+) (Organization, error) {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return Organization{}, err
 	}
@@ -561,7 +776,22 @@ func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return Organization{}, err
 	}
-	_, err = q.UpdateOrganization(ctx, machinelogbookdb.UpdateOrganizationParams{Name: name, Kind: kind, Active: active, AddressLine: merged.AddressLine, PostalCode: merged.PostalCode, Locality: merged.Locality, CountryCode: merged.CountryCode, ContactName: merged.ContactName, ContactEmail: merged.ContactEmail, ID: id, ExpectedVersion: expected})
+	_, err = q.UpdateOrganization(
+		ctx,
+		machinelogbookdb.UpdateOrganizationParams{
+			Name:            name,
+			Kind:            kind,
+			Active:          active,
+			AddressLine:     merged.AddressLine,
+			PostalCode:      merged.PostalCode,
+			Locality:        merged.Locality,
+			CountryCode:     merged.CountryCode,
+			ContactName:     merged.ContactName,
+			ContactEmail:    merged.ContactEmail,
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, apperror.StaleWrite
 	}
@@ -581,7 +811,11 @@ func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Princi
 	return result, nil
 }
 
-func (s *Service) ListOrganizationMembers(ctx context.Context, p authorization.Principal, organizationID uuid.UUID) ([]OrganizationMember, error) {
+func (s *Service) ListOrganizationMembers(
+	ctx context.Context,
+	p authorization.Principal,
+	organizationID uuid.UUID,
+) ([]OrganizationMember, error) {
 	if err := require(p, authorization.OrganizationsRead); err != nil {
 		return nil, err
 	}
@@ -595,14 +829,22 @@ func (s *Service) ListOrganizationMembers(ctx context.Context, p authorization.P
 	}
 	items := make([]OrganizationMember, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, OrganizationMember{PersonID: row.PersonID, DisplayName: row.DisplayName, AddedAt: row.AddedAt})
+		items = append(
+			items,
+			OrganizationMember{PersonID: row.PersonID, DisplayName: row.DisplayName, AddedAt: row.AddedAt},
+		)
 	}
 	return items, nil
 }
 
 // AddOrganizationMember associates a person with an organization. Membership
 // is informational: it never limits who may order for the organization.
-func (s *Service) AddOrganizationMember(ctx context.Context, p authorization.Principal, organizationID, personID uuid.UUID, requestID *uuid.UUID) (OrganizationMember, error) {
+func (s *Service) AddOrganizationMember(
+	ctx context.Context,
+	p authorization.Principal,
+	organizationID, personID uuid.UUID,
+	requestID *uuid.UUID,
+) (OrganizationMember, error) {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return OrganizationMember{}, err
 	}
@@ -622,7 +864,10 @@ func (s *Service) AddOrganizationMember(ctx context.Context, p authorization.Pri
 		}
 		return OrganizationMember{}, err
 	}
-	addedAt, err := q.AddOrganizationMember(ctx, machinelogbookdb.AddOrganizationMemberParams{OrganizationID: organizationID, PersonID: personID})
+	addedAt, err := q.AddOrganizationMember(
+		ctx,
+		machinelogbookdb.AddOrganizationMemberParams{OrganizationID: organizationID, PersonID: personID},
+	)
 	if err != nil {
 		return OrganizationMember{}, databaseError(err)
 	}
@@ -635,7 +880,12 @@ func (s *Service) AddOrganizationMember(ctx context.Context, p authorization.Pri
 	return OrganizationMember{PersonID: personID, DisplayName: person.DisplayName, AddedAt: addedAt}, nil
 }
 
-func (s *Service) RemoveOrganizationMember(ctx context.Context, p authorization.Principal, organizationID, personID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) RemoveOrganizationMember(
+	ctx context.Context,
+	p authorization.Principal,
+	organizationID, personID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return err
 	}
@@ -655,22 +905,36 @@ func (s *Service) RemoveOrganizationMember(ctx context.Context, p authorization.
 }
 
 func canLookupParties(p authorization.Principal) bool {
-	return p.Has(authorization.OrdersRead) || p.Has(authorization.MachineJobsCreate) || p.Has(authorization.OrganizationsRead)
+	return p.Has(authorization.OrdersRead) || p.Has(authorization.MachineJobsCreate) ||
+		p.Has(authorization.OrganizationsRead)
 }
-func (s *Service) SearchBillingParties(ctx context.Context, p authorization.Principal, search string, limit int) ([]BillingParty, error) {
+
+func (s *Service) SearchBillingParties(
+	ctx context.Context,
+	p authorization.Principal,
+	search string,
+	limit int,
+) ([]BillingParty, error) {
 	if !canLookupParties(p) {
 		return nil, apperror.PermissionDenied
 	}
 	if limit < 1 || limit > 50 {
 		return nil, validation("limit must be between 1 and 50")
 	}
-	rows, err := machinelogbookdb.New(s.pool).SearchBillingParties(ctx, machinelogbookdb.SearchBillingPartiesParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
+	rows, err := machinelogbookdb.New(s.pool).
+		SearchBillingParties(ctx, machinelogbookdb.SearchBillingPartiesParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
 	items := make([]BillingParty, 0, len(rows))
 	for _, row := range rows {
-		item := BillingParty{ID: row.PartyID, Kind: row.PartyKind, DisplayName: row.DisplayName, OrganizationKind: row.OrganizationKind, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
+		item := BillingParty{
+			ID:                            row.PartyID,
+			Kind:                          row.PartyKind,
+			DisplayName:                   row.DisplayName,
+			OrganizationKind:              row.OrganizationKind,
+			PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
+		}
 		if row.PricingGroupID != nil && row.PricingGroupName != nil {
 			item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
 		}
@@ -697,7 +961,10 @@ func (s *Service) attachMemberOrganizations(ctx context.Context, items []Billing
 	}
 	byPerson := map[uuid.UUID][]OrganizationReference{}
 	for _, row := range rows {
-		byPerson[row.PersonID] = append(byPerson[row.PersonID], OrganizationReference{ID: row.OrganizationID, Name: row.OrganizationName})
+		byPerson[row.PersonID] = append(
+			byPerson[row.PersonID],
+			OrganizationReference{ID: row.OrganizationID, Name: row.OrganizationName},
+		)
 	}
 	for i := range items {
 		if items[i].Kind == "person" {
@@ -706,14 +973,21 @@ func (s *Service) attachMemberOrganizations(ctx context.Context, items []Billing
 	}
 	return items, nil
 }
-func (s *Service) SearchOperators(ctx context.Context, p authorization.Principal, search string, limit int) ([]Operator, error) {
+
+func (s *Service) SearchOperators(
+	ctx context.Context,
+	p authorization.Principal,
+	search string,
+	limit int,
+) ([]Operator, error) {
 	if !canLookupParties(p) {
 		return nil, apperror.PermissionDenied
 	}
 	if limit < 1 || limit > 50 {
 		return nil, validation("limit must be between 1 and 50")
 	}
-	rows, err := machinelogbookdb.New(s.pool).SearchMachineJobOperators(ctx, machinelogbookdb.SearchMachineJobOperatorsParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
+	rows, err := machinelogbookdb.New(s.pool).
+		SearchMachineJobOperators(ctx, machinelogbookdb.SearchMachineJobOperatorsParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
@@ -725,16 +999,64 @@ func (s *Service) SearchOperators(ctx context.Context, p authorization.Principal
 }
 
 func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *string) PricingRule {
-	return PricingRule{ID: row.ID, PricingGroupID: row.PricingGroupID, Kind: row.Kind, MachineTypeID: row.MachineTypeID, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: materialTypeName, MaterialUnit: row.MaterialUnit, Measure: row.Measure, BlockSize: row.BlockSize, Rate: decimalString(row.Rate), Active: row.Active, Version: row.Version}
+	return PricingRule{
+		ID:               row.ID,
+		PricingGroupID:   row.PricingGroupID,
+		Kind:             row.Kind,
+		MachineTypeID:    row.MachineTypeID,
+		MaterialTypeID:   row.MaterialTypeID,
+		MaterialTypeName: materialTypeName,
+		MaterialUnit:     row.MaterialUnit,
+		Measure:          row.Measure,
+		BlockSize:        row.BlockSize,
+		Rate:             decimalString(row.Rate),
+		Active:           row.Active,
+		Version:          row.Version,
+	}
 }
-func (s *Service) pricingGroupFromRow(ctx context.Context, q *machinelogbookdb.Queries, row machinelogbookdb.PricingGroup) (PricingGroup, error) {
+
+func (s *Service) pricingGroupFromRow(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	row machinelogbookdb.PricingGroup,
+) (PricingGroup, error) {
 	rules, err := q.ListPricingRulesByGroup(ctx, row.ID)
 	if err != nil {
 		return PricingGroup{}, err
 	}
-	item := PricingGroup{ID: row.ID, Name: row.Name, Description: row.Description, Active: row.Active, IsDefault: row.IsDefault, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Rules: make([]PricingRule, 0, len(rules))}
+	item := PricingGroup{
+		ID:          row.ID,
+		Name:        row.Name,
+		Description: row.Description,
+		Active:      row.Active,
+		IsDefault:   row.IsDefault,
+		Version:     row.Version,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+		Rules:       make([]PricingRule, 0, len(rules)),
+	}
 	for _, r := range rules {
-		item.Rules = append(item.Rules, pricingRuleFromRow(machinelogbookdb.PricingRule{ID: r.ID, PricingGroupID: r.PricingGroupID, Kind: r.Kind, MachineTypeID: r.MachineTypeID, MaterialUnit: r.MaterialUnit, Measure: r.Measure, BlockSize: r.BlockSize, Rate: r.Rate, Active: r.Active, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, MaterialTypeID: r.MaterialTypeID}, r.MaterialTypeName))
+		item.Rules = append(
+			item.Rules,
+			pricingRuleFromRow(
+				machinelogbookdb.PricingRule{
+					ID:             r.ID,
+					PricingGroupID: r.PricingGroupID,
+					Kind:           r.Kind,
+					MachineTypeID:  r.MachineTypeID,
+					MaterialUnit:   r.MaterialUnit,
+					Measure:        r.Measure,
+					BlockSize:      r.BlockSize,
+					Rate:           r.Rate,
+					Active:         r.Active,
+					Version:        r.Version,
+					CreatedAt:      r.CreatedAt,
+					UpdatedAt:      r.UpdatedAt,
+					MaterialTypeID: r.MaterialTypeID,
+				},
+				r.MaterialTypeName,
+			),
+		)
 	}
 	return item, nil
 }
@@ -759,7 +1081,14 @@ func (s *Service) ListPricingGroups(ctx context.Context, p authorization.Princip
 	return items, nil
 }
 
-func (s *Service) CreatePricingGroup(ctx context.Context, p authorization.Principal, name string, description *string, isDefault bool, requestID *uuid.UUID) (PricingGroup, error) {
+func (s *Service) CreatePricingGroup(
+	ctx context.Context,
+	p authorization.Principal,
+	name string,
+	description *string,
+	isDefault bool,
+	requestID *uuid.UUID,
+) (PricingGroup, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingGroup{}, err
 	}
@@ -781,7 +1110,10 @@ func (s *Service) CreatePricingGroup(ctx context.Context, p authorization.Princi
 			return PricingGroup{}, err
 		}
 	}
-	row, err := q.CreatePricingGroup(ctx, machinelogbookdb.CreatePricingGroupParams{ID: id, Name: name, Description: description, IsDefault: isDefault})
+	row, err := q.CreatePricingGroup(
+		ctx,
+		machinelogbookdb.CreatePricingGroupParams{ID: id, Name: name, Description: description, IsDefault: isDefault},
+	)
 	if err != nil {
 		return PricingGroup{}, databaseError(err)
 	}
@@ -794,7 +1126,16 @@ func (s *Service) CreatePricingGroup(ctx context.Context, p authorization.Princi
 	return s.pricingGroupFromRow(ctx, machinelogbookdb.New(s.pool), row)
 }
 
-func (s *Service) UpdatePricingGroup(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name string, description *string, active, isDefault bool, requestID *uuid.UUID) (PricingGroup, error) {
+func (s *Service) UpdatePricingGroup(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	description *string,
+	active, isDefault bool,
+	requestID *uuid.UUID,
+) (PricingGroup, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingGroup{}, err
 	}
@@ -828,7 +1169,17 @@ func (s *Service) UpdatePricingGroup(ctx context.Context, p authorization.Princi
 			return PricingGroup{}, err
 		}
 	}
-	row, err := q.UpdatePricingGroup(ctx, machinelogbookdb.UpdatePricingGroupParams{Name: name, Description: description, Active: active, IsDefault: isDefault, ID: id, ExpectedVersion: expected})
+	row, err := q.UpdatePricingGroup(
+		ctx,
+		machinelogbookdb.UpdatePricingGroupParams{
+			Name:            name,
+			Description:     description,
+			Active:          active,
+			IsDefault:       isDefault,
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PricingGroup{}, apperror.StaleWrite
 	}
@@ -855,7 +1206,14 @@ type ruleTarget struct {
 // material rules it loads the material type whose unit the rule takes over; for
 // measure rules it checks the machine type's process supports the measure and
 // takes the block size of the measure.
-func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, requireActiveType bool) (ruleTarget, error) {
+func resolveRuleTarget(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	kind string,
+	machineTypeID, materialTypeID *uuid.UUID,
+	measure *string,
+	requireActiveType bool,
+) (ruleTarget, error) {
 	switch kind {
 	case "machine_runtime":
 		if machineTypeID == nil || materialTypeID != nil || measure != nil {
@@ -888,7 +1246,11 @@ func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind st
 			return ruleTarget{}, err
 		}
 		if !processSupportsMeasure(machineType.Process, definition.Key) {
-			return ruleTarget{}, apperror.New(422, "run_measure_unsupported", "The machine type's process does not record this measure")
+			return ruleTarget{}, apperror.New(
+				422,
+				"run_measure_unsupported",
+				"The machine type's process does not record this measure",
+			)
 		}
 		block := definition.BlockSize
 		return ruleTarget{Measure: &definition.Key, BlockSize: &block}, nil
@@ -896,7 +1258,16 @@ func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind st
 	return ruleTarget{}, validation("invalid pricing rule kind")
 }
 
-func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Principal, groupID uuid.UUID, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, rate string, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) CreatePricingRule(
+	ctx context.Context,
+	p authorization.Principal,
+	groupID uuid.UUID,
+	kind string,
+	machineTypeID, materialTypeID *uuid.UUID,
+	measure *string,
+	rate string,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
@@ -922,7 +1293,20 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 		return PricingRule{}, conflict("pricing_group_inactive", "Pricing group is inactive")
 	}
 	id := newID()
-	row, err := q.CreatePricingRule(ctx, machinelogbookdb.CreatePricingRuleParams{ID: id, PricingGroupID: groupID, Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: target.MaterialUnit, Measure: target.Measure, BlockSize: target.BlockSize, Rate: numeric})
+	row, err := q.CreatePricingRule(
+		ctx,
+		machinelogbookdb.CreatePricingRuleParams{
+			ID:             id,
+			PricingGroupID: groupID,
+			Kind:           kind,
+			MachineTypeID:  machineTypeID,
+			MaterialTypeID: materialTypeID,
+			MaterialUnit:   target.MaterialUnit,
+			Measure:        target.Measure,
+			BlockSize:      target.BlockSize,
+			Rate:           numeric,
+		},
+	)
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
@@ -935,7 +1319,18 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 	return pricingRuleFromRow(row, target.MaterialTypeName), nil
 }
 
-func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, rate string, active bool, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) UpdatePricingRule(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	kind string,
+	machineTypeID, materialTypeID *uuid.UUID,
+	measure *string,
+	rate string,
+	active bool,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
@@ -960,11 +1355,33 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 		return PricingRule{}, apperror.StaleWrite
 	}
 	// A rule may keep its deactivated type; choosing another type needs an active one.
-	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, !sameUUID(current.MaterialTypeID, materialTypeID))
+	target, err := resolveRuleTarget(
+		ctx,
+		q,
+		kind,
+		machineTypeID,
+		materialTypeID,
+		measure,
+		!sameUUID(current.MaterialTypeID, materialTypeID),
+	)
 	if err != nil {
 		return PricingRule{}, err
 	}
-	row, err := q.UpdatePricingRule(ctx, machinelogbookdb.UpdatePricingRuleParams{Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: target.MaterialUnit, Measure: target.Measure, BlockSize: target.BlockSize, Rate: numeric, Active: active, ID: id, ExpectedVersion: expected})
+	row, err := q.UpdatePricingRule(
+		ctx,
+		machinelogbookdb.UpdatePricingRuleParams{
+			Kind:            kind,
+			MachineTypeID:   machineTypeID,
+			MaterialTypeID:  materialTypeID,
+			MaterialUnit:    target.MaterialUnit,
+			Measure:         target.Measure,
+			BlockSize:       target.BlockSize,
+			Rate:            numeric,
+			Active:          active,
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PricingRule{}, apperror.StaleWrite
 	}
@@ -982,12 +1399,21 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 
 // SetPartyPricingGroup sets or clears the pricing group of an organization. People have no group of their own;
 // they are priced through the role mapping (see SetRolePricingGroups).
-func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Principal, party PartyReference, groupID *uuid.UUID, expected int64, requestID *uuid.UUID) (BillingParty, error) {
+func (s *Service) SetPartyPricingGroup(
+	ctx context.Context,
+	p authorization.Principal,
+	party PartyReference,
+	groupID *uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (BillingParty, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return BillingParty{}, err
 	}
 	if party.Kind != "organization" {
-		return BillingParty{}, validation("pricing groups are assigned to organizations; people are priced through their roles")
+		return BillingParty{}, validation(
+			"pricing groups are assigned to organizations; people are priced through their roles",
+		)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1004,7 +1430,15 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 			return BillingParty{}, conflict("pricing_group_inactive", "Pricing group is inactive")
 		}
 		actor := p.AccountID
-		_, err = q.UpsertOrganizationPricingAssignment(ctx, machinelogbookdb.UpsertOrganizationPricingAssignmentParams{OrganizationID: party.ID, PricingGroupID: *groupID, AssignedByAccountID: &actor, ExpectedVersion: expected})
+		_, err = q.UpsertOrganizationPricingAssignment(
+			ctx,
+			machinelogbookdb.UpsertOrganizationPricingAssignmentParams{
+				OrganizationID:      party.ID,
+				PricingGroupID:      *groupID,
+				AssignedByAccountID: &actor,
+				ExpectedVersion:     expected,
+			},
+		)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return BillingParty{}, apperror.StaleWrite
 		}
@@ -1024,7 +1458,13 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 	if loadErr != nil {
 		return BillingParty{}, noRows(loadErr)
 	}
-	item := BillingParty{ID: row.ID, Kind: "organization", DisplayName: row.DisplayName, OrganizationKind: &row.OrganizationKind, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
+	item := BillingParty{
+		ID:                            row.ID,
+		Kind:                          "organization",
+		DisplayName:                   row.DisplayName,
+		OrganizationKind:              &row.OrganizationKind,
+		PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
+	}
 	if row.PricingGroupID != nil && row.PricingGroupName != nil {
 		item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
 	}
@@ -1068,14 +1508,28 @@ func listRolePricingGroups(ctx context.Context, q *machinelogbookdb.Queries) ([]
 	}
 	items := make([]RolePricingGroup, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, RolePricingGroup{RoleID: row.RoleID, RoleName: row.RoleName, PricingGroupID: row.PricingGroupID, PricingGroupName: row.PricingGroupName, Priority: row.Priority})
+		items = append(
+			items,
+			RolePricingGroup{
+				RoleID:           row.RoleID,
+				RoleName:         row.RoleName,
+				PricingGroupID:   row.PricingGroupID,
+				PricingGroupName: row.PricingGroupName,
+				Priority:         row.Priority,
+			},
+		)
 	}
 	return items, nil
 }
 
 // SetRolePricingGroups replaces the whole role mapping atomically. Every role appears at most once, priorities are
 // unique, and every group must exist and be active.
-func (s *Service) SetRolePricingGroups(ctx context.Context, p authorization.Principal, input []RolePricingGroupInput, requestID *uuid.UUID) ([]RolePricingGroup, error) {
+func (s *Service) SetRolePricingGroups(
+	ctx context.Context,
+	p authorization.Principal,
+	input []RolePricingGroupInput,
+	requestID *uuid.UUID,
+) ([]RolePricingGroup, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return nil, err
 	}

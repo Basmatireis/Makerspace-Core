@@ -16,7 +16,9 @@ import (
 	"time"
 )
 
-var passiveResponsePattern = regexp.MustCompile(`\(([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3})\)`)
+var passiveResponsePattern = regexp.MustCompile(
+	`\(([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3})\)`,
+)
 
 type FTPEntry struct {
 	Name    string
@@ -52,7 +54,10 @@ func SelectArtifactCandidate(reportedPath string, listings map[string][]FTPEntry
 	for _, directory := range []string{"/cache", "/"} {
 		for _, entry := range listings[directory] {
 			if !entry.IsDir && entry.Name == name {
-				matches = append(matches, ArtifactCandidate{RemotePath: path.Join(directory, name), Name: name, Size: entry.Size})
+				matches = append(
+					matches,
+					ArtifactCandidate{RemotePath: path.Join(directory, name), Name: name, Size: entry.Size},
+				)
 			}
 		}
 	}
@@ -94,14 +99,23 @@ func NewBambuFTPSClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (*Ba
 	if err != nil {
 		return nil, err
 	}
-	return &BambuFTPSClient{settings: settings, secrets: secrets, tls: tlsConfig, dialer: net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}}, nil
+	return &BambuFTPSClient{
+		settings: settings,
+		secrets:  secrets,
+		tls:      tlsConfig,
+		dialer:   net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second},
+	}, nil
 }
 
 func (c *BambuFTPSClient) Connect(ctx context.Context) error {
 	if c.conn != nil {
 		return errors.New("Bambu FTPS client is already connected")
 	}
-	raw, err := c.dialer.DialContext(ctx, "tcp", net.JoinHostPort(c.settings.IPAddress.String(), strconv.Itoa(bambuFTPPort)))
+	raw, err := c.dialer.DialContext(
+		ctx,
+		"tcp",
+		net.JoinHostPort(c.settings.IPAddress.String(), strconv.Itoa(bambuFTPPort)),
+	)
 	if err != nil {
 		return fmt.Errorf("connect to Bambu FTPS: %w", err)
 	}
@@ -287,7 +301,10 @@ func parseFTPList(data []byte) ([]FTPEntry, error) {
 		if name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
 			continue
 		}
-		result = append(result, FTPEntry{Name: name, Size: size, IsDir: strings.HasPrefix(fields[0], "d"), RawLine: line})
+		result = append(
+			result,
+			FTPEntry{Name: name, Size: size, IsDir: strings.HasPrefix(fields[0], "d"), RawLine: line},
+		)
 	}
 	return result, scanner.Err()
 }

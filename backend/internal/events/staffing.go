@@ -16,7 +16,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func (s *Service) ListRequirements(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]Requirement, error) {
+func (s *Service) ListRequirements(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]Requirement, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -28,7 +32,19 @@ func (s *Service) ListRequirements(ctx context.Context, principal authorization.
 	showRoles := principal.Has(authorization.EventsStaffingManage) || principal.Has(authorization.EventsAssign)
 	result := make([]Requirement, 0, len(rows))
 	for _, row := range rows {
-		item := Requirement{ID: row.ID, EventID: row.EventID, ShiftID: row.ShiftID, Name: row.Name, Description: row.Description, RequiredCount: int(row.RequiredCount), FilledCount: int(row.FilledCount), EligibilityMode: row.EligibilityMode, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		item := Requirement{
+			ID:              row.ID,
+			EventID:         row.EventID,
+			ShiftID:         row.ShiftID,
+			Name:            row.Name,
+			Description:     row.Description,
+			RequiredCount:   int(row.RequiredCount),
+			FilledCount:     int(row.FilledCount),
+			EligibilityMode: row.EligibilityMode,
+			Version:         int64(row.Version),
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+		}
 		if showRoles {
 			item.EligibleRoleIDs, err = q.ListEventRequirementRoleIDs(ctx, row.ID)
 			if err != nil {
@@ -40,7 +56,13 @@ func (s *Service) ListRequirements(ctx context.Context, principal authorization.
 	return result, nil
 }
 
-func (s *Service) CreateRequirement(ctx context.Context, principal authorization.Principal, eventID, shiftID uuid.UUID, input RequirementInput, requestID *uuid.UUID) (Requirement, error) {
+func (s *Service) CreateRequirement(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, shiftID uuid.UUID,
+	input RequirementInput,
+	requestID *uuid.UUID,
+) (Requirement, error) {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return Requirement{}, apperror.PermissionDenied
 	}
@@ -57,13 +79,27 @@ func (s *Service) CreateRequirement(ctx context.Context, principal authorization
 	if err = requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Requirement{}, err
 	}
-	if _, err = q.GetEventShift(ctx, eventsdb.GetEventShiftParams{ID: shiftID, EventID: eventID}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.GetEventShift(ctx, eventsdb.GetEventShiftParams{ID: shiftID, EventID: eventID}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Requirement{}, apperror.NotFound
 	} else if err != nil {
 		return Requirement{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateEventRequirement(ctx, eventsdb.CreateEventRequirementParams{ID: id, EventID: eventID, ShiftID: shiftID, Name: input.Name, Description: input.Description, RequiredCount: int32(input.RequiredCount), EligibilityMode: input.EligibilityMode})
+	row, err := q.CreateEventRequirement(
+		ctx,
+		eventsdb.CreateEventRequirementParams{
+			ID:              id,
+			EventID:         eventID,
+			ShiftID:         shiftID,
+			Name:            input.Name,
+			Description:     input.Description,
+			RequiredCount:   int32(input.RequiredCount),
+			EligibilityMode: input.EligibilityMode,
+		},
+	)
 	if err != nil {
 		return Requirement{}, databaseError(err)
 	}
@@ -80,7 +116,13 @@ func (s *Service) CreateRequirement(ctx context.Context, principal authorization
 	return requirementFromRow(row, input.EligibleRoleIDs, 0), nil
 }
 
-func (s *Service) UpdateRequirement(ctx context.Context, principal authorization.Principal, eventID, shiftID, id uuid.UUID, input RequirementInput, requestID *uuid.UUID) (Requirement, error) {
+func (s *Service) UpdateRequirement(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, shiftID, id uuid.UUID,
+	input RequirementInput,
+	requestID *uuid.UUID,
+) (Requirement, error) {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return Requirement{}, apperror.PermissionDenied
 	}
@@ -100,7 +142,10 @@ func (s *Service) UpdateRequirement(ctx context.Context, principal authorization
 	if err = requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Requirement{}, err
 	}
-	current, err := q.GetEventRequirementForUpdate(ctx, eventsdb.GetEventRequirementForUpdateParams{ID: id, ShiftID: shiftID, EventID: eventID})
+	current, err := q.GetEventRequirementForUpdate(
+		ctx,
+		eventsdb.GetEventRequirementForUpdateParams{ID: id, ShiftID: shiftID, EventID: eventID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Requirement{}, apperror.NotFound
 	}
@@ -117,7 +162,19 @@ func (s *Service) UpdateRequirement(ctx context.Context, principal authorization
 	if int64(input.RequiredCount) < count {
 		return Requirement{}, validation("requiredCount cannot be below active assignments")
 	}
-	row, err := q.UpdateEventRequirement(ctx, eventsdb.UpdateEventRequirementParams{Name: input.Name, Description: input.Description, RequiredCount: int32(input.RequiredCount), EligibilityMode: input.EligibilityMode, ID: id, ShiftID: shiftID, EventID: eventID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventRequirement(
+		ctx,
+		eventsdb.UpdateEventRequirementParams{
+			Name:            input.Name,
+			Description:     input.Description,
+			RequiredCount:   int32(input.RequiredCount),
+			EligibilityMode: input.EligibilityMode,
+			ID:              id,
+			ShiftID:         shiftID,
+			EventID:         eventID,
+			ExpectedVersion: int32(input.ExpectedVersion),
+		},
+	)
 	if err != nil {
 		return Requirement{}, databaseError(err)
 	}
@@ -134,7 +191,13 @@ func (s *Service) UpdateRequirement(ctx context.Context, principal authorization
 	return requirementFromRow(row, input.EligibleRoleIDs, int(count)), nil
 }
 
-func (s *Service) DeleteRequirement(ctx context.Context, principal authorization.Principal, eventID, shiftID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteRequirement(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, shiftID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return apperror.PermissionDenied
 	}
@@ -150,7 +213,10 @@ func (s *Service) DeleteRequirement(ctx context.Context, principal authorization
 	if err = requireEventWritable(ctx, q, eventID, false); err != nil {
 		return err
 	}
-	current, err := q.GetEventRequirementForUpdate(ctx, eventsdb.GetEventRequirementForUpdateParams{ID: id, ShiftID: shiftID, EventID: eventID})
+	current, err := q.GetEventRequirementForUpdate(
+		ctx,
+		eventsdb.GetEventRequirementForUpdateParams{ID: id, ShiftID: shiftID, EventID: eventID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
@@ -177,7 +243,11 @@ func (s *Service) DeleteRequirement(ctx context.Context, principal authorization
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ListAssignments(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]Assignment, error) {
+func (s *Service) ListAssignments(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]Assignment, error) {
 	if !canViewPII(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -187,12 +257,39 @@ func (s *Service) ListAssignments(ctx context.Context, principal authorization.P
 	}
 	result := make([]Assignment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, Assignment{ID: row.ID, EventID: row.EventID, ShiftID: row.ShiftID, RequirementID: row.RequirementID, PersonID: row.PersonID, FirstName: row.FirstNameSnapshot, LastName: row.LastNameSnapshot, Email: row.EmailSnapshot, Phone: row.PhoneSnapshot, Source: row.Source, Status: row.Status, ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID, CancelledAt: pgTime(row.CancelledAt), PersonalDataErasedAt: pgTime(row.PersonalDataErasedAt), Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		result = append(
+			result,
+			Assignment{
+				ID:                            row.ID,
+				EventID:                       row.EventID,
+				ShiftID:                       row.ShiftID,
+				RequirementID:                 row.RequirementID,
+				PersonID:                      row.PersonID,
+				FirstName:                     row.FirstNameSnapshot,
+				LastName:                      row.LastNameSnapshot,
+				Email:                         row.EmailSnapshot,
+				Phone:                         row.PhoneSnapshot,
+				Source:                        row.Source,
+				Status:                        row.Status,
+				ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID,
+				CancelledAt:                   pgTime(row.CancelledAt),
+				PersonalDataErasedAt:          pgTime(row.PersonalDataErasedAt),
+				Version:                       int64(row.Version),
+				CreatedAt:                     row.CreatedAt,
+				UpdatedAt:                     row.UpdatedAt,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) CreateStaffAssignment(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, input AssignmentInput, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) CreateStaffAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	input AssignmentInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.EventsAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
@@ -200,14 +297,26 @@ func (s *Service) CreateStaffAssignment(ctx context.Context, principal authoriza
 	return result, err
 }
 
-func (s *Service) CancelAssignment(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) CancelAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.EventsAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
 	return s.cancelAssignment(ctx, &principal, nil, eventID, id, expected, requestID)
 }
 
-func (s *Service) LinkAssignmentPerson(ctx context.Context, principal authorization.Principal, eventID, id, personID uuid.UUID, expected int64, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) LinkAssignmentPerson(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id, personID uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.EventsAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
@@ -223,7 +332,10 @@ func (s *Service) LinkAssignmentPerson(ctx context.Context, principal authorizat
 	if err = requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Assignment{}, err
 	}
-	assignment, err := q.GetEventAssignmentForUpdate(ctx, eventsdb.GetEventAssignmentForUpdateParams{ID: id, EventID: eventID})
+	assignment, err := q.GetEventAssignmentForUpdate(
+		ctx,
+		eventsdb.GetEventAssignmentForUpdateParams{ID: id, EventID: eventID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Assignment{}, apperror.NotFound
 	}
@@ -243,7 +355,10 @@ func (s *Service) LinkAssignmentPerson(ctx context.Context, principal authorizat
 	if shift.Status == "cancelled" {
 		return Assignment{}, apperror.New(409, "shift_cancelled", "Cancelled shifts cannot be linked")
 	}
-	eligible, err := q.PersonEligibleForEventRequirement(ctx, eventsdb.PersonEligibleForEventRequirementParams{PersonID: personID, RequirementID: req.ID})
+	eligible, err := q.PersonEligibleForEventRequirement(
+		ctx,
+		eventsdb.PersonEligibleForEventRequirementParams{PersonID: personID, RequirementID: req.ID},
+	)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -253,14 +368,25 @@ func (s *Service) LinkAssignmentPerson(ctx context.Context, principal authorizat
 	if _, err = q.LockPersonForEventAssignment(ctx, personID); err != nil {
 		return Assignment{}, databaseError(err)
 	}
-	conflicts, err := q.FindPersonEventShiftConflicts(ctx, eventsdb.FindPersonEventShiftConflictsParams{PersonID: &personID, ExcludeAssignmentID: id, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+	conflicts, err := q.FindPersonEventShiftConflicts(
+		ctx,
+		eventsdb.FindPersonEventShiftConflictsParams{
+			PersonID:            &personID,
+			ExcludeAssignmentID: id,
+			EndsAt:              shift.EndsAt,
+			StartsAt:            shift.StartsAt,
+		},
+	)
 	if err != nil {
 		return Assignment{}, err
 	}
 	if len(conflicts) != 0 {
 		return Assignment{}, apperror.New(409, "assignment_conflict", "Person has an overlapping Event assignment")
 	}
-	row, err := q.LinkEventAssignmentPerson(ctx, eventsdb.LinkEventAssignmentPersonParams{PersonID: &personID, ID: id, ExpectedVersion: int32(expected)})
+	row, err := q.LinkEventAssignmentPerson(
+		ctx,
+		eventsdb.LinkEventAssignmentPersonParams{PersonID: &personID, ID: id, ExpectedVersion: int32(expected)},
+	)
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -274,14 +400,32 @@ func (s *Service) LinkAssignmentPerson(ctx context.Context, principal authorizat
 	return assignmentFromRow(row), nil
 }
 
-func (s *Service) MoveAssignment(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, input AssignmentUpdateInput, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) MoveAssignment(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	input AssignmentUpdateInput,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !principal.Has(authorization.EventsAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
 	if input.ShiftID == nil || input.RequirementID == nil {
 		return Assignment{}, validation("shiftId and requirementId are required")
 	}
-	return s.moveAssignment(ctx, &principal, nil, eventID, id, *input.ShiftID, *input.RequirementID, input.ExpectedVersion, input.OverrideConflict, false, requestID)
+	return s.moveAssignment(
+		ctx,
+		&principal,
+		nil,
+		eventID,
+		id,
+		*input.ShiftID,
+		*input.RequirementID,
+		input.ExpectedVersion,
+		input.OverrideConflict,
+		false,
+		requestID,
+	)
 }
 
 func (s *Service) ListEligibilityRoles(ctx context.Context, principal authorization.Principal) ([]Role, error) {
@@ -298,7 +442,12 @@ func (s *Service) ListEligibilityRoles(ctx context.Context, principal authorizat
 	}
 	return result, nil
 }
-func (s *Service) FindPeople(ctx context.Context, principal authorization.Principal, search string) ([]PersonOption, error) {
+
+func (s *Service) FindPeople(
+	ctx context.Context,
+	principal authorization.Principal,
+	search string,
+) ([]PersonOption, error) {
 	if !principal.Has(authorization.EventsAssign) && !principal.Has(authorization.EventsManage) {
 		return nil, apperror.PermissionDenied
 	}
@@ -306,7 +455,8 @@ func (s *Service) FindPeople(ctx context.Context, principal authorization.Princi
 	if len([]rune(search)) > 200 {
 		return nil, validation("search is too long")
 	}
-	rows, err := eventsdb.New(s.pool).FindEventPeople(ctx, eventsdb.FindEventPeopleParams{Search: search, PageLimit: 50})
+	rows, err := eventsdb.New(s.pool).
+		FindEventPeople(ctx, eventsdb.FindEventPeopleParams{Search: search, PageLimit: 50})
 	if err != nil {
 		return nil, err
 	}
@@ -320,29 +470,53 @@ func (s *Service) FindPeople(ctx context.Context, principal authorization.Princi
 	}
 	return result, nil
 }
-func (s *Service) FindAssignmentPersonMatches(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID) ([]PersonOption, error) {
+
+func (s *Service) FindAssignmentPersonMatches(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+) ([]PersonOption, error) {
 	if !principal.Has(authorization.EventsAssign) {
 		return nil, apperror.PermissionDenied
 	}
-	assignment, err := eventsdb.New(s.pool).GetEventAssignment(ctx, eventsdb.GetEventAssignmentParams{ID: id, EventID: eventID})
+	assignment, err := eventsdb.New(s.pool).
+		GetEventAssignment(ctx, eventsdb.GetEventAssignmentParams{ID: id, EventID: eventID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := eventsdb.New(s.pool).FindEventPeopleByExactContact(ctx, eventsdb.FindEventPeopleByExactContactParams{EmailNormalized: assignment.EmailNormalized, PhoneNormalized: assignment.PhoneNormalized})
+	rows, err := eventsdb.New(s.pool).
+		FindEventPeopleByExactContact(ctx, eventsdb.FindEventPeopleByExactContactParams{EmailNormalized: assignment.EmailNormalized, PhoneNormalized: assignment.PhoneNormalized})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]PersonOption, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, PersonOption{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email, Phone: row.Phone})
+		result = append(
+			result,
+			PersonOption{
+				ID:        row.ID,
+				FirstName: row.FirstName,
+				LastName:  row.LastName,
+				Email:     row.Email,
+				Phone:     row.Phone,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) createAssignment(ctx context.Context, principal *authorization.Principal, eventID uuid.UUID, input AssignmentInput, source string, publicFlow, issueToken bool, requestID *uuid.UUID) (Assignment, *string, error) {
+func (s *Service) createAssignment(
+	ctx context.Context,
+	principal *authorization.Principal,
+	eventID uuid.UUID,
+	input AssignmentInput,
+	source string,
+	publicFlow, issueToken bool,
+	requestID *uuid.UUID,
+) (Assignment, *string, error) {
 	firstName, lastName := input.FirstName, input.LastName
 	email, phone := input.Email, input.Phone
 	if input.PersonID != nil && source != "authenticated_self" {
@@ -400,7 +574,10 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 		if input.PersonID == nil {
 			return Assignment{}, nil, signupUnavailable()
 		}
-		eligible, eligibilityErr := q.PersonEligibleForEventRequirement(ctx, eventsdb.PersonEligibleForEventRequirementParams{PersonID: *input.PersonID, RequirementID: req.ID})
+		eligible, eligibilityErr := q.PersonEligibleForEventRequirement(
+			ctx,
+			eventsdb.PersonEligibleForEventRequirementParams{PersonID: *input.PersonID, RequirementID: req.ID},
+		)
 		if eligibilityErr != nil {
 			return Assignment{}, nil, eligibilityErr
 		}
@@ -408,7 +585,11 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 			if publicFlow {
 				return Assignment{}, nil, signupUnavailable()
 			}
-			return Assignment{}, nil, apperror.New(409, "person_not_eligible", "Person is not eligible for this requirement")
+			return Assignment{}, nil, apperror.New(
+				409,
+				"person_not_eligible",
+				"Person is not eligible for this requirement",
+			)
 		}
 	}
 	count, err := q.CountActiveEventRequirementAssignments(ctx, req.ID)
@@ -426,7 +607,15 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 		if _, err = q.LockPersonForEventAssignment(ctx, *input.PersonID); err != nil {
 			return Assignment{}, nil, databaseError(err)
 		}
-		rows, err := q.FindPersonEventShiftConflicts(ctx, eventsdb.FindPersonEventShiftConflictsParams{PersonID: input.PersonID, ExcludeAssignmentID: uuid.Nil, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+		rows, err := q.FindPersonEventShiftConflicts(
+			ctx,
+			eventsdb.FindPersonEventShiftConflictsParams{
+				PersonID:            input.PersonID,
+				ExcludeAssignmentID: uuid.Nil,
+				EndsAt:              shift.EndsAt,
+				StartsAt:            shift.StartsAt,
+			},
+		)
 		if err != nil {
 			return Assignment{}, nil, err
 		}
@@ -449,7 +638,11 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 			if publicFlow {
 				return Assignment{}, nil, signupUnavailable()
 			}
-			return Assignment{}, nil, apperror.New(409, "assignment_conflict", "Helper has an overlapping Event assignment")
+			return Assignment{}, nil, apperror.New(
+				409,
+				"assignment_conflict",
+				"Helper has an overlapping Event assignment",
+			)
 		}
 		if principal == nil || !principal.Has(authorization.EventsAssign) {
 			return Assignment{}, nil, apperror.PermissionDenied
@@ -469,7 +662,26 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 		creator = &principal.AccountID
 	}
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateEventAssignment(ctx, eventsdb.CreateEventAssignmentParams{ID: id, EventID: eventID, ShiftID: input.ShiftID, RequirementID: input.RequirementID, PersonID: input.PersonID, FirstNameSnapshot: &firstName, LastNameSnapshot: &lastName, EmailSnapshot: emailDisplay, EmailNormalized: emailNormalized, PhoneSnapshot: phoneDisplay, PhoneNormalized: phoneNormalized, Source: source, CreatedByAccountID: creator, ManagementTokenDigest: digest, ConflictOverriddenByAccountID: overrideActor})
+	row, err := q.CreateEventAssignment(
+		ctx,
+		eventsdb.CreateEventAssignmentParams{
+			ID:                            id,
+			EventID:                       eventID,
+			ShiftID:                       input.ShiftID,
+			RequirementID:                 input.RequirementID,
+			PersonID:                      input.PersonID,
+			FirstNameSnapshot:             &firstName,
+			LastNameSnapshot:              &lastName,
+			EmailSnapshot:                 emailDisplay,
+			EmailNormalized:               emailNormalized,
+			PhoneSnapshot:                 phoneDisplay,
+			PhoneNormalized:               phoneNormalized,
+			Source:                        source,
+			CreatedByAccountID:            creator,
+			ManagementTokenDigest:         digest,
+			ConflictOverriddenByAccountID: overrideActor,
+		},
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if publicFlow && errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -500,7 +712,11 @@ func (s *Service) createAssignment(ctx context.Context, principal *authorization
 	return assignmentFromRow(row), managementURL, nil
 }
 
-func lockAssignmentTarget(ctx context.Context, q *eventsdb.Queries, eventID, shiftID, requirementID uuid.UUID) (eventsdb.GetEventShiftRow, eventsdb.EventShiftRequirement, error) {
+func lockAssignmentTarget(
+	ctx context.Context,
+	q *eventsdb.Queries,
+	eventID, shiftID, requirementID uuid.UUID,
+) (eventsdb.GetEventShiftRow, eventsdb.EventShiftRequirement, error) {
 	shift, err := q.GetEventShift(ctx, eventsdb.GetEventShiftParams{ID: shiftID, EventID: eventID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return shift, eventsdb.EventShiftRequirement{}, apperror.NotFound
@@ -508,7 +724,10 @@ func lockAssignmentTarget(ctx context.Context, q *eventsdb.Queries, eventID, shi
 	if err != nil {
 		return shift, eventsdb.EventShiftRequirement{}, err
 	}
-	req, err := q.GetEventRequirementForUpdate(ctx, eventsdb.GetEventRequirementForUpdateParams{ID: requirementID, ShiftID: shiftID, EventID: eventID})
+	req, err := q.GetEventRequirementForUpdate(
+		ctx,
+		eventsdb.GetEventRequirementForUpdateParams{ID: requirementID, ShiftID: shiftID, EventID: eventID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return shift, eventsdb.EventShiftRequirement{}, apperror.NotFound
 	}
@@ -516,7 +735,9 @@ func lockAssignmentTarget(ctx context.Context, q *eventsdb.Queries, eventID, shi
 }
 func isEffectivePublicSignup(event eventsdb.Event, shift eventsdb.GetEventShiftRow) bool {
 	now := time.Now().UTC()
-	if !event.IsPublic || !event.PublicSignupEnabled || (event.Status != "planning" && event.Status != "confirmed") || !shift.IsPublic || shift.Status != "open" {
+	if !event.IsPublic || !event.PublicSignupEnabled || (event.Status != "planning" && event.Status != "confirmed") ||
+		!shift.IsPublic ||
+		shift.Status != "open" {
 		return false
 	}
 	if shift.SessionStatus != nil && *shift.SessionStatus == "cancelled" {
@@ -554,7 +775,14 @@ func validateRequirementInput(input RequirementInput) (RequirementInput, error) 
 	}
 	return input, nil
 }
-func replaceRequirementRoles(ctx context.Context, q *eventsdb.Queries, id uuid.UUID, mode string, roleIDs []uuid.UUID) error {
+
+func replaceRequirementRoles(
+	ctx context.Context,
+	q *eventsdb.Queries,
+	id uuid.UUID,
+	mode string,
+	roleIDs []uuid.UUID,
+) error {
 	if err := q.ReplaceEventRequirementRoles(ctx, id); err != nil {
 		return err
 	}
@@ -574,8 +802,39 @@ func replaceRequirementRoles(ctx context.Context, q *eventsdb.Queries, id uuid.U
 	return nil
 }
 func requirementFromRow(row eventsdb.EventShiftRequirement, roles []uuid.UUID, filled int) Requirement {
-	return Requirement{ID: row.ID, EventID: row.EventID, ShiftID: row.ShiftID, Name: row.Name, Description: row.Description, RequiredCount: int(row.RequiredCount), FilledCount: filled, EligibilityMode: row.EligibilityMode, EligibleRoleIDs: roles, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Requirement{
+		ID:              row.ID,
+		EventID:         row.EventID,
+		ShiftID:         row.ShiftID,
+		Name:            row.Name,
+		Description:     row.Description,
+		RequiredCount:   int(row.RequiredCount),
+		FilledCount:     filled,
+		EligibilityMode: row.EligibilityMode,
+		EligibleRoleIDs: roles,
+		Version:         int64(row.Version),
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+	}
 }
 func assignmentFromRow(row eventsdb.EventShiftAssignment) Assignment {
-	return Assignment{ID: row.ID, EventID: row.EventID, ShiftID: row.ShiftID, RequirementID: row.RequirementID, PersonID: row.PersonID, FirstName: row.FirstNameSnapshot, LastName: row.LastNameSnapshot, Email: row.EmailSnapshot, Phone: row.PhoneSnapshot, Source: row.Source, Status: row.Status, ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID, CancelledAt: pgTime(row.CancelledAt), PersonalDataErasedAt: pgTime(row.PersonalDataErasedAt), Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Assignment{
+		ID:                            row.ID,
+		EventID:                       row.EventID,
+		ShiftID:                       row.ShiftID,
+		RequirementID:                 row.RequirementID,
+		PersonID:                      row.PersonID,
+		FirstName:                     row.FirstNameSnapshot,
+		LastName:                      row.LastNameSnapshot,
+		Email:                         row.EmailSnapshot,
+		Phone:                         row.PhoneSnapshot,
+		Source:                        row.Source,
+		Status:                        row.Status,
+		ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID,
+		CancelledAt:                   pgTime(row.CancelledAt),
+		PersonalDataErasedAt:          pgTime(row.PersonalDataErasedAt),
+		Version:                       int64(row.Version),
+		CreatedAt:                     row.CreatedAt,
+		UpdatedAt:                     row.UpdatedAt,
+	}
 }

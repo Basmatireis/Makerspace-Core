@@ -25,14 +25,30 @@ type lastScan struct {
 }
 
 func NewBroker() *Broker {
-	return &Broker{notify: make(chan struct{}), lastScans: make(map[string]lastScan), duplicateIn: 1500 * time.Millisecond}
+	return &Broker{
+		notify:      make(chan struct{}),
+		lastScans:   make(map[string]lastScan),
+		duplicateIn: 1500 * time.Millisecond,
+	}
 }
 
 func (b *Broker) Publish(raw RawEvent) (Event, error) {
 	now := time.Now().UTC()
-	event := Event{ProtocolVersion: ProtocolVersion, Kind: raw.Kind, Source: raw.Source, OccurredAt: now, State: raw.State, ErrorCode: raw.ErrorCode}
+	event := Event{
+		ProtocolVersion: ProtocolVersion,
+		Kind:            raw.Kind,
+		Source:          raw.Source,
+		OccurredAt:      now,
+		State:           raw.State,
+		ErrorCode:       raw.ErrorCode,
+	}
 	if raw.ReaderID != "" || raw.ReaderName != "" {
-		event.Reader = &ReaderMetadata{ID: raw.ReaderID, Name: raw.ReaderName, Protocol: raw.Protocol, ATR: strings.ToUpper(raw.ATR)}
+		event.Reader = &ReaderMetadata{
+			ID:       raw.ReaderID,
+			Name:     raw.ReaderName,
+			Protocol: raw.Protocol,
+			ATR:      strings.ToUpper(raw.ATR),
+		}
 	}
 	if raw.Kind == "nfc_scan" {
 		uid, err := normalizeUID(raw.UID)

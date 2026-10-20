@@ -50,9 +50,17 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	expectPostgresCode(t, err, "23514")
 	_, err = pool.Exec(ctx, `DELETE FROM roles WHERE id = $1`, masterRoleID)
 	expectPostgresCode(t, err, "23514")
-	_, err = pool.Exec(ctx, `INSERT INTO roles (id, name, system_key) VALUES ($1, 'master', 'master')`, uuid.Must(uuid.NewV7()))
+	_, err = pool.Exec(
+		ctx,
+		`INSERT INTO roles (id, name, system_key) VALUES ($1, 'master', 'master')`,
+		uuid.Must(uuid.NewV7()),
+	)
 	expectPostgresCode(t, err, "23514")
-	_, err = pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.all')`, masterRoleID)
+	_, err = pool.Exec(
+		ctx,
+		`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.all')`,
+		masterRoleID,
+	)
 	expectPostgresCode(t, err, "23514")
 
 	account := seedAccount(t, pool, "cascade", false)
@@ -102,7 +110,12 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if actorType != "user" || actorID != nil || resourceID == nil || *resourceID != account.accountID {
-		t.Fatalf("minimized audit reference mismatch: actor_type=%q actor=%v resource=%v", actorType, actorID, resourceID)
+		t.Fatalf(
+			"minimized audit reference mismatch: actor_type=%q actor=%v resource=%v",
+			actorType,
+			actorID,
+			resourceID,
+		)
 	}
 
 	remaining := seedAccount(t, pool, "role-cascade", false)
@@ -185,12 +198,27 @@ func TestConcurrentMasterDestructiveOperationsPreserveEnabledMaster(t *testing.T
 			run := func(kind string, subject seededAccount) error {
 				switch kind {
 				case "role":
-					_, err := peopleService.ChangeRole(context.Background(), principal, subject.personID, masterID, 1, false, nil)
+					_, err := peopleService.ChangeRole(
+						context.Background(),
+						principal,
+						subject.personID,
+						masterID,
+						1,
+						false,
+						nil,
+					)
 					return err
 				case "person":
 					return peopleService.Delete(context.Background(), principal, subject.personID, 1, nil)
 				case "disable":
-					_, err := accountService.SetStatus(context.Background(), principal, subject.accountID, "disabled", 1, nil)
+					_, err := accountService.SetStatus(
+						context.Background(),
+						principal,
+						subject.accountID,
+						"disabled",
+						1,
+						nil,
+					)
 					return err
 				case "account":
 					return accountService.Delete(context.Background(), principal, subject.accountID, 1, nil)
@@ -246,7 +274,14 @@ func TestAccountServiceDeletionPreservesPersonRoles(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, target.accountID)
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, target.personID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, target.personID, roleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		1,
+		target.personID,
+		roleID,
+	)
 }
 
 func TestRoleAssignmentReadLockSerializesPermissionMutation(t *testing.T) {
@@ -407,51 +442,122 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actor.Master || !actor.Has(authorization.RolesManage) || !actor.Has(authorization.PeopleRolesAssign) || !actor.Has(authorization.PeopleReadSelf) {
+	if actor.Master || !actor.Has(authorization.RolesManage) || !actor.Has(authorization.PeopleRolesAssign) ||
+		!actor.Has(authorization.PeopleReadSelf) {
 		t.Fatalf("unexpected non-master permissions: master=%v permissions=%v", actor.Master, actor.PermissionIDs())
 	}
 	if actor.Has(authorization.PeopleDelete) {
 		t.Fatal("non-master actor unexpectedly has people.delete")
 	}
 
-	_, err = roleService.Create(ctx, actor, "forbidden-elevated-role", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
+	_, err = roleService.Create(
+		ctx,
+		actor,
+		"forbidden-elevated-role",
+		nil,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	expectAppCode(t, err, "permission_denied")
 	assertCount(t, pool, `SELECT count(*) FROM roles WHERE name = 'forbidden-elevated-role'`, 0)
 
-	elevatedRole, err := roleService.Create(ctx, master, "elevated-role", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
+	elevatedRole, err := roleService.Create(
+		ctx,
+		master,
+		"elevated-role",
+		nil,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, elevatedRole.ID, elevatedRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
+	_, err = roleService.ReplacePermissions(
+		ctx,
+		actor,
+		elevatedRole.ID,
+		elevatedRole.Version,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	expectAppCode(t, err, "permission_denied")
 	assertRoleVersion(t, pool, elevatedRole.ID, elevatedRole.Version)
 
-	subsetRole, err := roleService.Create(ctx, actor, "self-reader", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
+	subsetRole, err := roleService.Create(
+		ctx,
+		actor,
+		"self-reader",
+		nil,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if subsetRole.Version != 1 {
 		t.Fatalf("new subset role version = %d, want 1", subsetRole.Version)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
+	_, err = roleService.ReplacePermissions(
+		ctx,
+		actor,
+		subsetRole.ID,
+		subsetRole.Version,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	expectAppCode(t, err, "permission_denied")
 	assertRoleVersion(t, pool, subsetRole.ID, 1)
 
-	configuredSubsetRole, err := roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
+	configuredSubsetRole, err := roleService.ReplacePermissions(
+		ctx,
+		actor,
+		subsetRole.ID,
+		subsetRole.Version,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if configuredSubsetRole.Version != 2 {
 		t.Fatalf("configured subset role version = %d, want 2", configuredSubsetRole.Version)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
+	_, err = roleService.ReplacePermissions(
+		ctx,
+		actor,
+		subsetRole.ID,
+		subsetRole.Version,
+		[]authorization.PermissionGrant{
+			{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+		},
+		nil,
+	)
 	expectAppCode(t, err, "stale_write")
 	assertRoleVersion(t, pool, subsetRole.ID, 2)
 
 	_, err = peopleService.ChangeRole(ctx, actor, targetAccount.personID, elevatedRole.ID, 1, true, nil)
 	expectAppCode(t, err, "permission_denied")
 	assertPersonVersion(t, pool, targetAccount.personID, 1)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 0, targetAccount.personID, elevatedRole.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`,
+		0,
+		targetAccount.personID,
+		elevatedRole.ID,
+	)
 
 	targetView, err := peopleService.ChangeRole(ctx, actor, targetAccount.personID, subsetRole.ID, 1, true, nil)
 	if err != nil {
@@ -460,12 +566,26 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	if targetView.Version != 2 {
 		t.Fatalf("target person version = %d, want 2 after subset assignment", targetView.Version)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, targetAccount.personID, subsetRole.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`,
+		1,
+		targetAccount.personID,
+		subsetRole.ID,
+	)
 
 	_, err = peopleService.ChangeRole(ctx, actor, targetAccount.personID, subsetRole.ID, 1, false, nil)
 	expectAppCode(t, err, "stale_write")
 	assertPersonVersion(t, pool, targetAccount.personID, 2)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, targetAccount.personID, subsetRole.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`,
+		1,
+		targetAccount.personID,
+		subsetRole.ID,
+	)
 }
 
 func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T) {
@@ -493,8 +613,22 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		t.Fatalf("assigned Person = %#v", assigned)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE person_id=$1`, 0, personID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, personID, roleID, actor.accountID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_type='person' AND resource_id=$1`, 1, personID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`,
+		1,
+		personID,
+		roleID,
+		actor.accountID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_type='person' AND resource_id=$1`,
+		1,
+		personID,
+	)
 	required, err := service.RequiresProfileImage(ctx, personID)
 	if err != nil || !required {
 		t.Fatalf("accountless profile-image requirement = %v, %v", required, err)
@@ -507,7 +641,11 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, readerRoleID, reader.personID); err != nil {
 		t.Fatal(err)
 	}
-	readerPrincipal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID})
+	readerPrincipal, err := authorization.LoadPermissionsFrom(
+		ctx,
+		pool,
+		authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +659,11 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if _, err := pool.Exec(ctx, `DELETE FROM person_roles WHERE person_id=$1 AND role_id=$2`, reader.personID, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
-	reloadedReader, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID})
+	reloadedReader, err := authorization.LoadPermissionsFrom(
+		ctx,
+		pool,
+		authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,8 +675,17 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if err != nil || idempotent.Version != 2 {
 		t.Fatalf("idempotent assignment = %#v, %v", idempotent, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_id=$1`, 1, personID)
-	if _, err := service.ChangeRole(ctx, principal, personID, roleID, 1, false, nil); !apperror.IsCode(err, "stale_write") {
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_id=$1`,
+		1,
+		personID,
+	)
+	if _, err := service.ChangeRole(ctx, principal, personID, roleID, 1, false, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale removal error = %v", err)
 	}
 	removed, err := service.ChangeRole(ctx, principal, personID, roleID, 2, false, nil)
@@ -544,8 +695,21 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if removed.Version != 3 || len(removed.Roles) != 0 {
 		t.Fatalf("removed Person = %#v", removed)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_removed' AND resource_type='person' AND resource_id=$1`, 1, personID)
-	assertCount(t, pool, `SELECT count(*) FROM role_pricing_groups WHERE role_id=$1 AND pricing_group_id=$2`, 1, roleID, pricingGroupID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.role_removed' AND resource_type='person' AND resource_id=$1`,
+		1,
+		personID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM role_pricing_groups WHERE role_id=$1 AND pricing_group_id=$2`,
+		1,
+		roleID,
+		pricingGroupID,
+	)
 }
 
 func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
@@ -565,32 +729,73 @@ func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
 	}
 	roleService := roles.NewService(pool)
 	role, err := roleService.Create(ctx, master, "context-reader", nil, []authorization.PermissionGrant{
-		{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere, MinimumAssurance: authorization.AssuranceLow},
-		{PermissionID: authorization.PeopleReadAll, Scope: authorization.GrantSelectedDeviceTypes, DeviceTypeIDs: []uuid.UUID{deviceTypeID}, MinimumAssurance: authorization.AssuranceNormal},
+		{
+			PermissionID:     authorization.PeopleReadSelf,
+			Scope:            authorization.GrantEverywhere,
+			MinimumAssurance: authorization.AssuranceLow,
+		},
+		{
+			PermissionID:     authorization.PeopleReadAll,
+			Scope:            authorization.GrantSelectedDeviceTypes,
+			DeviceTypeIDs:    []uuid.UUID{deviceTypeID},
+			MinimumAssurance: authorization.AssuranceNormal,
+		},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	unmanaged, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal})
+	unmanaged, err := roleService.EvaluatePermissions(
+		ctx,
+		master,
+		authorization.EvaluationContext{Assurance: authorization.AssuranceNormal},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertEvaluatedPermissions(t, unmanaged, role.ID, role.Version, []authorization.Permission{authorization.PeopleReadSelf})
-	managed, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal, DeviceTypeID: &deviceTypeID})
+	assertEvaluatedPermissions(
+		t,
+		unmanaged,
+		role.ID,
+		role.Version,
+		[]authorization.Permission{authorization.PeopleReadSelf},
+	)
+	managed, err := roleService.EvaluatePermissions(
+		ctx,
+		master,
+		authorization.EvaluationContext{Assurance: authorization.AssuranceNormal, DeviceTypeID: &deviceTypeID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertEvaluatedPermissions(t, managed, role.ID, role.Version, []authorization.Permission{authorization.PeopleReadAll, authorization.PeopleReadSelf})
-	if _, err := roleService.EvaluatePermissions(ctx, authorization.Principal{}, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal}); !apperror.IsCode(err, "permission_denied") {
+	assertEvaluatedPermissions(
+		t,
+		managed,
+		role.ID,
+		role.Version,
+		[]authorization.Permission{authorization.PeopleReadAll, authorization.PeopleReadSelf},
+	)
+	if _, err := roleService.EvaluatePermissions(ctx, authorization.Principal{}, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("unauthorized evaluation error = %v, want permission_denied", err)
 	}
-	if _, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.Assurance("invalid")}); !apperror.IsCode(err, "invalid_request") {
+	if _, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.Assurance("invalid")}); !apperror.IsCode(
+		err,
+		"invalid_request",
+	) {
 		t.Fatalf("invalid assurance error = %v, want invalid_request", err)
 	}
 }
 
-func assertEvaluatedPermissions(t *testing.T, evaluations []roles.EffectivePermissionEvaluation, roleID uuid.UUID, roleVersion int64, want []authorization.Permission) {
+func assertEvaluatedPermissions(
+	t *testing.T,
+	evaluations []roles.EffectivePermissionEvaluation,
+	roleID uuid.UUID,
+	roleVersion int64,
+	want []authorization.Permission,
+) {
 	t.Helper()
 	for _, evaluation := range evaluations {
 		if evaluation.RoleID != roleID {
@@ -702,7 +907,12 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 		}
 		var insertErr error
 		if personRolesAvailable {
-			_, insertErr = pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, personID, masterRoleID)
+			_, insertErr = pool.Exec(
+				ctx,
+				`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+				personID,
+				masterRoleID,
+			)
 		} else {
 			_, insertErr = pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, accountID, masterRoleID)
 		}

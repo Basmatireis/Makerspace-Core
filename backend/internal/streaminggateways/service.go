@@ -240,7 +240,9 @@ var hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 // IPv6 literals are rejected: the host is spliced into https:// and wss:// URLs.
 func NormalizePublicHost(raw string) (string, error) {
 	host := strings.ToLower(strings.TrimSpace(raw))
-	invalid := validation("publicHost must be a hostname or IPv4 address with an optional port, for example signage-gw.example.org:8443")
+	invalid := validation(
+		"publicHost must be a hostname or IPv4 address with an optional port, for example signage-gw.example.org:8443",
+	)
 	if host == "" || len(host) > 260 {
 		return "", invalid
 	}
@@ -277,7 +279,10 @@ func databaseError(err error) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23505":
-			return conflict("streaming_gateway_conflict", "A gateway with this name or a camera for this machine already exists")
+			return conflict(
+				"streaming_gateway_conflict",
+				"A gateway with this name or a camera for this machine already exists",
+			)
 		case "23503":
 			return apperror.NotFound
 		}
@@ -285,7 +290,12 @@ func databaseError(err error) error {
 	return err
 }
 
-func (s *Service) Create(ctx context.Context, principal authorization.Principal, name, publicHost string, requestID *uuid.UUID) (Gateway, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	principal authorization.Principal,
+	name, publicHost string,
+	requestID *uuid.UUID,
+) (Gateway, error) {
 	if err := requireManage(principal); err != nil {
 		return Gateway{}, err
 	}
@@ -358,7 +368,15 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 }
 
 // Update renames a gateway, changes its public host and enables or disables it.
-func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, name, publicHost string, enabled bool, expected int64, requestID *uuid.UUID) (Gateway, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name, publicHost string,
+	enabled bool,
+	expected int64,
+	requestID *uuid.UUID,
+) (Gateway, error) {
 	if err := requireManage(principal); err != nil {
 		return Gateway{}, err
 	}
@@ -399,7 +417,17 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 		now := s.now()
 		disabledAt = &now
 	}
-	row, err := q.UpdateGateway(ctx, db.UpdateGatewayParams{Name: name, PublicHost: publicHost, Lifecycle: lifecycle, DisabledAt: timestamptz(disabledAt), ID: id, ExpectedVersion: expected})
+	row, err := q.UpdateGateway(
+		ctx,
+		db.UpdateGatewayParams{
+			Name:            name,
+			PublicHost:      publicHost,
+			Lifecycle:       lifecycle,
+			DisabledAt:      timestamptz(disabledAt),
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Gateway{}, apperror.StaleWrite
 	}
@@ -417,7 +445,13 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 }
 
 // Delete removes a gateway with its credentials, enrollments and camera assignments.
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireManage(principal); err != nil {
 		return err
 	}
@@ -447,7 +481,12 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 }
 
 // IssueEnrollment creates the one-time enrollment secret of a pending gateway.
-func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (EnrollmentIssue, error) {
+func (s *Service) IssueEnrollment(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) (EnrollmentIssue, error) {
 	if err := requireManage(principal); err != nil {
 		return EnrollmentIssue{}, err
 	}
@@ -498,12 +537,19 @@ func validOpaqueToken(raw string) bool {
 
 // Enroll exchanges a gateway-generated credential for the one-time enrollment secret. Replaying the
 // same exchange (same credential) is idempotent so a lost response can be retried.
-func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentialID uuid.UUID, credentialSecret, softwareVersion string, protocolVersion int) (EnrollmentResult, error) {
+func (s *Service) Enroll(
+	ctx context.Context,
+	enrollmentSecret string,
+	credentialID uuid.UUID,
+	credentialSecret, softwareVersion string,
+	protocolVersion int,
+) (EnrollmentResult, error) {
 	if !validOpaqueToken(enrollmentSecret) || !validOpaqueToken(credentialSecret) {
 		return EnrollmentResult{}, apperror.Unauthenticated
 	}
 	softwareVersion = strings.TrimSpace(softwareVersion)
-	if softwareVersion == "" || len(softwareVersion) > 80 || protocolVersion != ProtocolVersion || credentialID == uuid.Nil {
+	if softwareVersion == "" || len(softwareVersion) > 80 || protocolVersion != ProtocolVersion ||
+		credentialID == uuid.Nil {
 		return EnrollmentResult{}, validation("unsupported gateway identity or protocol version")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -525,14 +571,22 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	fingerprintBytes := sha256.Sum256([]byte(credentialSecret))
 	fingerprint := hex.EncodeToString(fingerprintBytes[:])
 	if enrollment.ConsumedAt.Valid {
-		if enrollment.CredentialFingerprint == nil || *enrollment.CredentialFingerprint != fingerprint || enrollment.AcceptedCredentialID == nil || *enrollment.AcceptedCredentialID != credentialID {
-			return EnrollmentResult{}, conflict("enrollment_replay_conflict", "Enrollment was already consumed with different credentials")
+		if enrollment.CredentialFingerprint == nil || *enrollment.CredentialFingerprint != fingerprint ||
+			enrollment.AcceptedCredentialID == nil ||
+			*enrollment.AcceptedCredentialID != credentialID {
+			return EnrollmentResult{}, conflict(
+				"enrollment_replay_conflict",
+				"Enrollment was already consumed with different credentials",
+			)
 		}
 		row, getErr := q.GetGateway(ctx, enrollment.GatewayID)
 		if getErr != nil {
 			return EnrollmentResult{}, getErr
 		}
-		credential, credentialErr := q.GetGatewayCredential(ctx, db.GetGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID})
+		credential, credentialErr := q.GetGatewayCredential(
+			ctx,
+			db.GetGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID},
+		)
 		if credentialErr != nil {
 			return EnrollmentResult{}, credentialErr
 		}
@@ -551,7 +605,10 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		return EnrollmentResult{}, err
 	}
 	if current.Lifecycle == "revoked" {
-		return EnrollmentResult{}, conflict("streaming_gateway_revoked", "Gateway cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict(
+			"streaming_gateway_revoked",
+			"Gateway cannot be enrolled in its current state",
+		)
 	}
 	reenroll := current.Lifecycle != "pending"
 	if reenroll {
@@ -575,7 +632,10 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		row, err = q.ActivateGateway(ctx, enrollment.GatewayID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EnrollmentResult{}, conflict("streaming_gateway_revoked", "Gateway cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict(
+			"streaming_gateway_revoked",
+			"Gateway cannot be enrolled in its current state",
+		)
 	}
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -609,7 +669,13 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*Context, error
 }
 
 // Revoke ends the gateway's credentials and open enrollment immediately.
-func (s *Service) Revoke(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Gateway, error) {
+func (s *Service) Revoke(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Gateway, error) {
 	if err := requireManage(principal); err != nil {
 		return Gateway{}, err
 	}
@@ -653,7 +719,12 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 }
 
 // RotateCredential replaces the gateway's credential; the previous one stays valid for 24 hours.
-func (s *Service) RotateCredential(ctx context.Context, gateway Context, credentialID uuid.UUID, credentialSecret string) (time.Time, error) {
+func (s *Service) RotateCredential(
+	ctx context.Context,
+	gateway Context,
+	credentialID uuid.UUID,
+	credentialSecret string,
+) (time.Time, error) {
 	if gateway.Lifecycle != "active" || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
 		return time.Time{}, validation("valid gateway credentials are required")
 	}
@@ -663,10 +734,16 @@ func (s *Service) RotateCredential(ctx context.Context, gateway Context, credent
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
-	existing, existingErr := q.GetGatewayCredential(ctx, db.GetGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID})
+	existing, existingErr := q.GetGatewayCredential(
+		ctx,
+		db.GetGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID},
+	)
 	if existingErr == nil {
 		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || existing.State == "revoked" {
-			return time.Time{}, conflict("credential_rotation_conflict", "Credential identifier was reused with different credentials")
+			return time.Time{}, conflict(
+				"credential_rotation_conflict",
+				"Credential identifier was reused with different credentials",
+			)
 		}
 		if err = tx.Commit(ctx); err != nil {
 			return time.Time{}, err
@@ -705,7 +782,10 @@ type CameraCandidate struct {
 
 // ListCameraCandidates lists machines with an active Bambu printer assignment and no camera yet.
 // It needs local_services.manage only, so the assign dialog works without machines.read.
-func (s *Service) ListCameraCandidates(ctx context.Context, principal authorization.Principal) ([]CameraCandidate, error) {
+func (s *Service) ListCameraCandidates(
+	ctx context.Context,
+	principal authorization.Principal,
+) ([]CameraCandidate, error) {
 	if err := requireManage(principal); err != nil {
 		return nil, err
 	}
@@ -721,12 +801,54 @@ func (s *Service) ListCameraCandidates(ctx context.Context, principal authorizat
 }
 
 func cameraFrom(row db.GetCameraViewRow, now time.Time) Camera {
-	return buildCamera(row.ID, row.GatewayID, row.MachineID, row.GatewayName, row.GatewayLifecycle, row.MachineName, row.Enabled, row.Health, row.Viewers, row.Codec, row.Width, row.Height, row.Fps, row.ReportedAt, row.Version, row.CreatedAt, row.UpdatedAt, now)
+	return buildCamera(
+		row.ID,
+		row.GatewayID,
+		row.MachineID,
+		row.GatewayName,
+		row.GatewayLifecycle,
+		row.MachineName,
+		row.Enabled,
+		row.Health,
+		row.Viewers,
+		row.Codec,
+		row.Width,
+		row.Height,
+		row.Fps,
+		row.ReportedAt,
+		row.Version,
+		row.CreatedAt,
+		row.UpdatedAt,
+		now,
+	)
 }
 
-func buildCamera(id, gatewayID, machineID uuid.UUID, gatewayName, gatewayLifecycle, machineName string, enabled bool, health *string, viewers *int32, codec *string, width, height *int32, fps *float64, reportedAt pgtype.Timestamptz, version int64, createdAt, updatedAt, now time.Time) Camera {
-	camera := Camera{ID: id, GatewayID: gatewayID, MachineID: machineID, GatewayName: gatewayName, GatewayLifecycle: gatewayLifecycle,
-		MachineName: machineName, Enabled: enabled, Health: "unknown", Version: version, CreatedAt: createdAt, UpdatedAt: updatedAt}
+func buildCamera(
+	id, gatewayID, machineID uuid.UUID,
+	gatewayName, gatewayLifecycle, machineName string,
+	enabled bool,
+	health *string,
+	viewers *int32,
+	codec *string,
+	width, height *int32,
+	fps *float64,
+	reportedAt pgtype.Timestamptz,
+	version int64,
+	createdAt, updatedAt, now time.Time,
+) Camera {
+	camera := Camera{
+		ID:               id,
+		GatewayID:        gatewayID,
+		MachineID:        machineID,
+		GatewayName:      gatewayName,
+		GatewayLifecycle: gatewayLifecycle,
+		MachineName:      machineName,
+		Enabled:          enabled,
+		Health:           "unknown",
+		Version:          version,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+	}
 	reported := nullableTime(reportedAt)
 	if health == nil || reported == nil || now.Sub(*reported) > cameraStatusStaleAfter || gatewayLifecycle != "active" {
 		return camera
@@ -748,7 +870,11 @@ func buildCamera(id, gatewayID, machineID uuid.UUID, gatewayName, gatewayLifecyc
 }
 
 // ListCameras lists a gateway's cameras with their last reported health.
-func (s *Service) ListCameras(ctx context.Context, principal authorization.Principal, gatewayID uuid.UUID) ([]Camera, error) {
+func (s *Service) ListCameras(
+	ctx context.Context,
+	principal authorization.Principal,
+	gatewayID uuid.UUID,
+) ([]Camera, error) {
 	if err := requireManage(principal); err != nil {
 		return nil, err
 	}
@@ -777,14 +903,42 @@ func (s *Service) listCameras(ctx context.Context, q *db.Queries, gatewayID *uui
 	now := s.now()
 	result := make([]Camera, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, buildCamera(row.ID, row.GatewayID, row.MachineID, row.GatewayName, row.GatewayLifecycle, row.MachineName, row.Enabled, row.Health, row.Viewers, row.Codec, row.Width, row.Height, row.Fps, row.ReportedAt, row.Version, row.CreatedAt, row.UpdatedAt, now))
+		result = append(
+			result,
+			buildCamera(
+				row.ID,
+				row.GatewayID,
+				row.MachineID,
+				row.GatewayName,
+				row.GatewayLifecycle,
+				row.MachineName,
+				row.Enabled,
+				row.Health,
+				row.Viewers,
+				row.Codec,
+				row.Width,
+				row.Height,
+				row.Fps,
+				row.ReportedAt,
+				row.Version,
+				row.CreatedAt,
+				row.UpdatedAt,
+				now,
+			),
+		)
 	}
 	return result, nil
 }
 
 // AssignCamera binds a machine's printer camera to a gateway. The machine must exist and have an
 // active Bambu printer assignment, because the stream source comes from that assignment.
-func (s *Service) AssignCamera(ctx context.Context, principal authorization.Principal, gatewayID, machineID uuid.UUID, enabled bool, requestID *uuid.UUID) (Camera, error) {
+func (s *Service) AssignCamera(
+	ctx context.Context,
+	principal authorization.Principal,
+	gatewayID, machineID uuid.UUID,
+	enabled bool,
+	requestID *uuid.UUID,
+) (Camera, error) {
 	if err := requireManage(principal); err != nil {
 		return Camera{}, err
 	}
@@ -812,7 +966,9 @@ func (s *Service) AssignCamera(ctx context.Context, principal authorization.Prin
 		return Camera{}, validation("machineId does not refer to an existing machine")
 	}
 	if _, err = q.ActiveBambuAssignmentForMachine(ctx, machineID); errors.Is(err, pgx.ErrNoRows) {
-		return Camera{}, validation("the machine needs an active Bambu printer assignment (H2D or X1 Carbon) before its camera can be streamed")
+		return Camera{}, validation(
+			"the machine needs an active Bambu printer assignment (H2D or X1 Carbon) before its camera can be streamed",
+		)
 	} else if err != nil {
 		return Camera{}, err
 	}
@@ -842,7 +998,14 @@ func (s *Service) AssignCamera(ctx context.Context, principal authorization.Prin
 }
 
 // UpdateCamera enables or disables a camera.
-func (s *Service) UpdateCamera(ctx context.Context, principal authorization.Principal, gatewayID, cameraID uuid.UUID, enabled bool, expected int64, requestID *uuid.UUID) (Camera, error) {
+func (s *Service) UpdateCamera(
+	ctx context.Context,
+	principal authorization.Principal,
+	gatewayID, cameraID uuid.UUID,
+	enabled bool,
+	expected int64,
+	requestID *uuid.UUID,
+) (Camera, error) {
 	if err := requireManage(principal); err != nil {
 		return Camera{}, err
 	}
@@ -852,12 +1015,18 @@ func (s *Service) UpdateCamera(ctx context.Context, principal authorization.Prin
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
-	if _, err = q.GetCameraForUpdate(ctx, db.GetCameraForUpdateParams{ID: cameraID, GatewayID: gatewayID}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.GetCameraForUpdate(ctx, db.GetCameraForUpdateParams{ID: cameraID, GatewayID: gatewayID}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Camera{}, apperror.NotFound
 	} else if err != nil {
 		return Camera{}, err
 	}
-	if _, err = q.UpdateCameraEnabled(ctx, db.UpdateCameraEnabledParams{Enabled: enabled, ID: cameraID, GatewayID: gatewayID, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.UpdateCameraEnabled(ctx, db.UpdateCameraEnabledParams{Enabled: enabled, ID: cameraID, GatewayID: gatewayID, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Camera{}, apperror.StaleWrite
 	} else if err != nil {
 		return Camera{}, err
@@ -880,7 +1049,12 @@ func (s *Service) UpdateCamera(ctx context.Context, principal authorization.Prin
 }
 
 // DeleteCamera unassigns a camera.
-func (s *Service) DeleteCamera(ctx context.Context, principal authorization.Principal, gatewayID, cameraID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) DeleteCamera(
+	ctx context.Context,
+	principal authorization.Principal,
+	gatewayID, cameraID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if err := requireManage(principal); err != nil {
 		return err
 	}
@@ -913,7 +1087,12 @@ func (s *Service) DeleteCamera(ctx context.Context, principal authorization.Prin
 // RTSPS without certificate verification, which Bambu's self-signed printer certificate needs.
 // Verify the path and port on real hardware; see docs/streaming-gateway.md.
 func BuildSourceURL(ip, accessCode string) string {
-	source := url.URL{Scheme: "rtspx", User: url.UserPassword("bblp", accessCode), Host: ip + ":322", Path: "/streaming/live/1"}
+	source := url.URL{
+		Scheme: "rtspx",
+		User:   url.UserPassword("bblp", accessCode),
+		Host:   ip + ":322",
+		Path:   "/streaming/live/1",
+	}
 	return source.String()
 }
 
@@ -939,7 +1118,15 @@ func (s *Service) Configuration(ctx context.Context, gateway Context) (Configura
 	if err != nil {
 		return Configuration{}, err
 	}
-	result := Configuration{SessionEpoch: epoch, RevokedDisplays: revoked, Revision: row.ConfigurationRevision, ProtocolVersion: ProtocolVersion, PublicHost: row.PublicHost, TicketPublicKeys: keys, Cameras: []ConfigCamera{}}
+	result := Configuration{
+		SessionEpoch:     epoch,
+		RevokedDisplays:  revoked,
+		Revision:         row.ConfigurationRevision,
+		ProtocolVersion:  ProtocolVersion,
+		PublicHost:       row.PublicHost,
+		TicketPublicKeys: keys,
+		Cameras:          []ConfigCamera{},
+	}
 	if gateway.Lifecycle == "disabled" {
 		return result, nil
 	}
@@ -965,14 +1152,25 @@ func (s *Service) Configuration(ctx context.Context, gateway Context) (Configura
 		if s.keyring == nil {
 			return Configuration{}, conflict("encryption_not_configured", "Printer credentials cannot be decrypted")
 		}
-		plain, decryptErr := s.keyring.Decrypt(camera.EncryptedSecrets, "printer-connector-assignment:"+camera.AssignmentID.String())
+		plain, decryptErr := s.keyring.Decrypt(
+			camera.EncryptedSecrets,
+			"printer-connector-assignment:"+camera.AssignmentID.String(),
+		)
 		if decryptErr != nil {
 			return Configuration{}, decryptErr
 		}
 		if json.Unmarshal(plain, &secrets) != nil || secrets["lanAccessCode"] == "" {
 			continue
 		}
-		result.Cameras = append(result.Cameras, ConfigCamera{MachineID: camera.MachineID, Name: camera.MachineName, StreamName: StreamName(camera.MachineID), SourceURL: BuildSourceURL(addr.String(), secrets["lanAccessCode"])})
+		result.Cameras = append(
+			result.Cameras,
+			ConfigCamera{
+				MachineID:  camera.MachineID,
+				Name:       camera.MachineName,
+				StreamName: StreamName(camera.MachineID),
+				SourceURL:  BuildSourceURL(addr.String(), secrets["lanAccessCode"]),
+			},
+		)
 	}
 	return result, nil
 }
@@ -995,17 +1193,23 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 		return Gateway{}, apperror.New(403, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
-	if input.SoftwareVersion == "" || !plainText(input.SoftwareVersion, 80) || input.ProtocolVersion != ProtocolVersion ||
-		(input.HealthState != "connected" && input.HealthState != "degraded") || input.AppliedConfigurationRevision < 0 || len(input.Cameras) > 100 {
+	if input.SoftwareVersion == "" || !plainText(input.SoftwareVersion, 80) ||
+		input.ProtocolVersion != ProtocolVersion ||
+		(input.HealthState != "connected" && input.HealthState != "degraded") ||
+		input.AppliedConfigurationRevision < 0 ||
+		len(input.Cameras) > 100 {
 		return Gateway{}, validation("invalid heartbeat")
 	}
 	if input.HealthSummary != nil && !plainText(*input.HealthSummary, 500) {
 		return Gateway{}, validation("invalid heartbeat")
 	}
 	for _, camera := range input.Cameras {
-		if (camera.Health != "live" && camera.Health != "idle" && camera.Health != "unavailable") || camera.Viewers < 0 || camera.Viewers > 100000 ||
+		if (camera.Health != "live" && camera.Health != "idle" && camera.Health != "unavailable") ||
+			camera.Viewers < 0 ||
+			camera.Viewers > 100000 ||
 			(camera.Codec != nil && (*camera.Codec == "" || !plainText(*camera.Codec, 40))) ||
-			(camera.Width != nil && (*camera.Width < 1 || *camera.Width > 16384)) || (camera.Height != nil && (*camera.Height < 1 || *camera.Height > 16384)) ||
+			(camera.Width != nil && (*camera.Width < 1 || *camera.Width > 16384)) ||
+			(camera.Height != nil && (*camera.Height < 1 || *camera.Height > 16384)) ||
 			(camera.FPS != nil && (*camera.FPS < 0 || *camera.FPS > 1000)) {
 			return Gateway{}, validation("invalid camera health")
 		}
@@ -1017,7 +1221,17 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	protocol := int32(input.ProtocolVersion)
-	row, err := q.RecordGatewayHeartbeat(ctx, db.RecordGatewayHeartbeatParams{SoftwareVersion: &input.SoftwareVersion, ProtocolVersion: &protocol, AppliedConfigurationRevision: input.AppliedConfigurationRevision, HealthState: &input.HealthState, HealthSummary: input.HealthSummary, ID: gateway.ID})
+	row, err := q.RecordGatewayHeartbeat(
+		ctx,
+		db.RecordGatewayHeartbeatParams{
+			SoftwareVersion:              &input.SoftwareVersion,
+			ProtocolVersion:              &protocol,
+			AppliedConfigurationRevision: input.AppliedConfigurationRevision,
+			HealthState:                  &input.HealthState,
+			HealthSummary:                input.HealthSummary,
+			ID:                           gateway.ID,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Gateway{}, apperror.New(403, "streaming_gateway_inactive", "Gateway is not active")
 	}

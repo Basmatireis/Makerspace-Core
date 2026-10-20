@@ -91,7 +91,14 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, authService *auth.Service
 			return nil, err
 		}
 	}
-	return &Service{pool: pool, config: cfg, keyring: keyring, auth: authService, newProvider: coreoidc.NewProvider, now: func() time.Time { return time.Now().UTC() }}, nil
+	return &Service{
+		pool:        pool,
+		config:      cfg,
+		keyring:     keyring,
+		auth:        authService,
+		newProvider: coreoidc.NewProvider,
+		now:         func() time.Time { return time.Now().UTC() },
+	}, nil
 }
 
 func (s *Service) ValidateConfiguration(ctx context.Context) error {
@@ -150,7 +157,12 @@ func (s *Service) ListLoginProviders(ctx context.Context) ([]LoginProvider, erro
 	return result, nil
 }
 
-func (s *Service) CreateProvider(ctx context.Context, principal authorization.Principal, input ProviderInput, requestID *uuid.UUID) (Provider, error) {
+func (s *Service) CreateProvider(
+	ctx context.Context,
+	principal authorization.Principal,
+	input ProviderInput,
+	requestID *uuid.UUID,
+) (Provider, error) {
 	if !principal.Has(authorization.OIDCManage) {
 		return Provider{}, apperror.PermissionDenied
 	}
@@ -189,7 +201,13 @@ func (s *Service) CreateProvider(ctx context.Context, principal authorization.Pr
 	return providerFromRow(row)
 }
 
-func (s *Service) UpdateProvider(ctx context.Context, principal authorization.Principal, id uuid.UUID, input ProviderInput, requestID *uuid.UUID) (Provider, error) {
+func (s *Service) UpdateProvider(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	input ProviderInput,
+	requestID *uuid.UUID,
+) (Provider, error) {
 	if !principal.Has(authorization.OIDCManage) {
 		return Provider{}, apperror.PermissionDenied
 	}
@@ -274,7 +292,10 @@ func (s *Service) ReencryptProviderSecrets(ctx context.Context) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		rows, err := queries.RotateProviderSecret(ctx, oidcdb.RotateProviderSecretParams{EncryptedClientSecret: ciphertext, ID: provider.ID})
+		rows, err := queries.RotateProviderSecret(
+			ctx,
+			oidcdb.RotateProviderSecretParams{EncryptedClientSecret: ciphertext, ID: provider.ID},
+		)
 		if err != nil {
 			return 0, err
 		}
@@ -301,7 +322,11 @@ func (s *Service) StartLogin(ctx context.Context, slug string) (FlowStart, error
 	return s.startFlow(ctx, provider, "login", nil, nil)
 }
 
-func (s *Service) StartLink(ctx context.Context, principal authorization.Principal, slug, password string) (FlowStart, error) {
+func (s *Service) StartLink(
+	ctx context.Context,
+	principal authorization.Principal,
+	slug, password string,
+) (FlowStart, error) {
 	if password != "" {
 		var err error
 		principal, err = s.auth.ReauthenticatePassword(ctx, principal, password, nil)
@@ -336,7 +361,11 @@ func (s *Service) StartLink(ctx context.Context, principal authorization.Princip
 
 // Reauthentication is bound to an existing session and an already-linked
 // provider. Its callback cannot provision, link, or switch to another account.
-func (s *Service) StartReauthentication(ctx context.Context, principal authorization.Principal, slug string) (FlowStart, error) {
+func (s *Service) StartReauthentication(
+	ctx context.Context,
+	principal authorization.Principal,
+	slug string,
+) (FlowStart, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return FlowStart{}, err
@@ -353,7 +382,10 @@ func (s *Service) StartReauthentication(ctx context.Context, principal authoriza
 	if err != nil {
 		return FlowStart{}, err
 	}
-	linked, err := queries.HasLinkedProvider(ctx, oidcdb.HasLinkedProviderParams{AccountID: principal.AccountID, ProviderID: &provider.ID})
+	linked, err := queries.HasLinkedProvider(
+		ctx,
+		oidcdb.HasLinkedProviderParams{AccountID: principal.AccountID, ProviderID: &provider.ID},
+	)
 	if err != nil {
 		return FlowStart{}, err
 	}
@@ -366,7 +398,12 @@ func (s *Service) StartReauthentication(ctx context.Context, principal authoriza
 	return s.startFlow(ctx, provider, "reauthenticate", &principal.AccountID, &principal.SessionID)
 }
 
-func (s *Service) startFlow(ctx context.Context, provider oidcdb.OidcProvider, kind string, accountID, sessionID *uuid.UUID) (FlowStart, error) {
+func (s *Service) startFlow(
+	ctx context.Context,
+	provider oidcdb.OidcProvider,
+	kind string,
+	accountID, sessionID *uuid.UUID,
+) (FlowStart, error) {
 	if s.keyring == nil {
 		return FlowStart{}, oidcNotConfigured()
 	}
@@ -422,8 +459,14 @@ func (s *Service) startFlow(ctx context.Context, provider oidcdb.OidcProvider, k
 	}, nil
 }
 
-func (s *Service) Complete(ctx context.Context, state, code, browserToken string, principal authorization.Principal, requestID *uuid.UUID) (Completion, error) {
-	if s.keyring == nil || strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" || strings.TrimSpace(browserToken) == "" {
+func (s *Service) Complete(
+	ctx context.Context,
+	state, code, browserToken string,
+	principal authorization.Principal,
+	requestID *uuid.UUID,
+) (Completion, error) {
+	if s.keyring == nil || strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" ||
+		strings.TrimSpace(browserToken) == "" {
 		return Completion{}, invalidRequest("OIDC callback state is invalid")
 	}
 	stateDigest := sha256.Sum256([]byte(state))
@@ -434,7 +477,10 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := oidcdb.New(tx)
-	contextFlow, err := queries.GetFlowContext(ctx, oidcdb.GetFlowContextParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]})
+	contextFlow, err := queries.GetFlowContext(
+		ctx,
+		oidcdb.GetFlowContextParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Completion{}, invalidRequest("OIDC callback state is invalid or expired")
 	}
@@ -442,7 +488,9 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 		return Completion{}, err
 	}
 	if contextFlow.Kind != "login" {
-		if contextFlow.SessionID == nil || contextFlow.AccountID == nil || *contextFlow.SessionID != principal.SessionID || *contextFlow.AccountID != principal.AccountID {
+		if contextFlow.SessionID == nil || contextFlow.AccountID == nil ||
+			*contextFlow.SessionID != principal.SessionID ||
+			*contextFlow.AccountID != principal.AccountID {
 			return Completion{}, apperror.Unauthenticated
 		}
 		principal, err = s.auth.SessionForSensitiveOperation(ctx, tx, principal, contextFlow.Kind == "link")
@@ -453,7 +501,10 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 			return Completion{}, apperror.PermissionDenied
 		}
 	}
-	flow, err := queries.GetFlowForCallback(ctx, oidcdb.GetFlowForCallbackParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]})
+	flow, err := queries.GetFlowForCallback(
+		ctx,
+		oidcdb.GetFlowForCallbackParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Completion{}, invalidRequest("OIDC callback state is invalid or expired")
 	}
@@ -588,7 +639,14 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	}
 	result := Completion{Kind: flow.Kind}
 	if flow.Kind == "login" {
-		session, err := s.auth.CreateOIDCSession(ctx, tx, accountID, identityID, assurance, time.Unix(claims.AuthTime, 0).UTC())
+		session, err := s.auth.CreateOIDCSession(
+			ctx,
+			tx,
+			accountID,
+			identityID,
+			assurance,
+			time.Unix(claims.AuthTime, 0).UTC(),
+		)
 		if err != nil {
 			return Completion{}, err
 		}
@@ -603,7 +661,12 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	return result, nil
 }
 
-func (s *Service) Unlink(ctx context.Context, principal authorization.Principal, identityID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) Unlink(
+	ctx context.Context,
+	principal authorization.Principal,
+	identityID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -653,7 +716,19 @@ func providerFromRow(row oidcdb.OidcProvider) (Provider, error) {
 	for acr, assurance := range raw {
 		mappings[acr] = authorization.Assurance(assurance)
 	}
-	return Provider{ID: row.ID, Slug: row.Slug, DisplayName: row.DisplayName, Issuer: row.Issuer, ClientID: row.ClientID, Enabled: row.Enabled, JITEnabled: row.JitEnabled, ACRAssuranceMappings: mappings, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return Provider{
+		ID:                   row.ID,
+		Slug:                 row.Slug,
+		DisplayName:          row.DisplayName,
+		Issuer:               row.Issuer,
+		ClientID:             row.ClientID,
+		Enabled:              row.Enabled,
+		JITEnabled:           row.JitEnabled,
+		ACRAssuranceMappings: mappings,
+		Version:              row.Version,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}, nil
 }
 
 func validateProviderInput(input ProviderInput, requireSecret bool) (ProviderInput, []byte, error) {
@@ -661,13 +736,18 @@ func validateProviderInput(input ProviderInput, requireSecret bool) (ProviderInp
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.ClientID = strings.TrimSpace(input.ClientID)
 	issuerURL, err := url.Parse(strings.TrimSpace(input.Issuer))
-	if err != nil || issuerURL.Host == "" || issuerURL.User != nil || issuerURL.RawQuery != "" || issuerURL.Fragment != "" || (issuerURL.Scheme != "https" && !(issuerURL.Scheme == "http" && (issuerURL.Hostname() == "localhost" || issuerURL.Hostname() == "127.0.0.1" || issuerURL.Hostname() == "::1"))) {
+	if err != nil || issuerURL.Host == "" || issuerURL.User != nil || issuerURL.RawQuery != "" ||
+		issuerURL.Fragment != "" ||
+		(issuerURL.Scheme != "https" && !(issuerURL.Scheme == "http" && (issuerURL.Hostname() == "localhost" || issuerURL.Hostname() == "127.0.0.1" || issuerURL.Hostname() == "::1"))) {
 		return ProviderInput{}, nil, validationError("issuer must be a canonical HTTPS URL")
 	}
 	issuerURL.Path = strings.TrimSuffix(issuerURL.Path, "/")
 	issuerURL.RawPath = ""
 	input.Issuer = issuerURL.String()
-	if (requireSecret && !providerSlugPattern.MatchString(input.Slug)) || input.DisplayName == "" || len([]rune(input.DisplayName)) > 100 || input.ClientID == "" || len(input.ClientID) > 512 {
+	if (requireSecret && !providerSlugPattern.MatchString(input.Slug)) || input.DisplayName == "" ||
+		len([]rune(input.DisplayName)) > 100 ||
+		input.ClientID == "" ||
+		len(input.ClientID) > 512 {
 		return ProviderInput{}, nil, validationError("provider fields are invalid")
 	}
 	if requireSecret && (input.ClientSecret == nil || *input.ClientSecret == "") {
@@ -679,7 +759,8 @@ func validateProviderInput(input ProviderInput, requireSecret bool) (ProviderInp
 	raw := make(map[string]string, len(input.ACRAssuranceMappings))
 	for acr, assurance := range input.ACRAssuranceMappings {
 		acr = strings.TrimSpace(acr)
-		if acr == "" || len(acr) > 512 || (assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA) {
+		if acr == "" || len(acr) > 512 ||
+			(assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA) {
 			return ProviderInput{}, nil, validationError("ACR assurance mapping is invalid")
 		}
 		raw[acr] = string(assurance)
@@ -712,7 +793,11 @@ func jitPersonFields(claims tokenClaims) (string, string, *string, *string, erro
 		phone = &value
 	}
 	if email == nil && phone == nil {
-		return "", "", nil, nil, apperror.New(403, "oidc_contact_required", "OIDC provisioning requires a verified email or usable phone claim")
+		return "", "", nil, nil, apperror.New(
+			403,
+			"oidc_contact_required",
+			"OIDC provisioning requires a verified email or usable phone claim",
+		)
 	}
 	firstName, lastName := strings.TrimSpace(claims.GivenName), strings.TrimSpace(claims.FamilyName)
 	if firstName == "" || lastName == "" {
@@ -749,14 +834,21 @@ func assuranceForClaims(encoded []byte, acr string) (authorization.Assurance, er
 		return authorization.AssuranceNormal, nil
 	}
 	assurance := authorization.Assurance(value)
-	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA {
+	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong &&
+		assurance != authorization.AssuranceStrongMFA {
 		return "", errors.New("stored OIDC ACR assurance mapping is invalid")
 	}
 	return assurance, nil
 }
 
 func oauthConfig(provider *coreoidc.Provider, row oidcdb.OidcProvider, clientSecret, callbackURL string) oauth2.Config {
-	return oauth2.Config{ClientID: row.ClientID, ClientSecret: clientSecret, Endpoint: provider.Endpoint(), RedirectURL: callbackURL, Scopes: []string{coreoidc.ScopeOpenID, "profile", "email", "phone"}}
+	return oauth2.Config{
+		ClientID:     row.ClientID,
+		ClientSecret: clientSecret,
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  callbackURL,
+		Scopes:       []string{coreoidc.ScopeOpenID, "profile", "email", "phone"},
+	}
 }
 
 func (s *Service) callbackURL() string {

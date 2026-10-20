@@ -69,10 +69,25 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 	if _, err := pool.Exec(ctx, down); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, target.accountID, roleID, actor.accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`,
+		1,
+		target.accountID,
+		roleID,
+		actor.accountID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE permission_id='accounts.roles.assign'`, 1)
 	if _, err := pool.Exec(ctx, up); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, target.personID, roleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		1,
+		target.personID,
+		roleID,
+	)
 }

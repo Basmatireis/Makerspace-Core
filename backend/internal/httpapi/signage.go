@@ -16,7 +16,10 @@ import (
 
 const signageAssetCSP = "default-src 'none'; style-src 'none'; sandbox"
 
-func (s *Server) ListSignageLayouts(ctx context.Context, _ openapi.ListSignageLayoutsRequestObject) (openapi.ListSignageLayoutsResponseObject, error) {
+func (s *Server) ListSignageLayouts(
+	ctx context.Context,
+	_ openapi.ListSignageLayoutsRequestObject,
+) (openapi.ListSignageLayoutsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -29,16 +32,38 @@ func (s *Server) ListSignageLayouts(ctx context.Context, _ openapi.ListSignageLa
 	for _, layout := range layouts {
 		zones := make([]openapi.SignageLayoutZone, 0, len(layout.Zones))
 		for _, zone := range layout.Zones {
-			zones = append(zones, openapi.SignageLayoutZone{Id: zone.ID, Label: zone.Label, Col: zone.Col, Row: zone.Row, ColSpan: zone.ColSpan, RowSpan: zone.RowSpan})
+			zones = append(
+				zones,
+				openapi.SignageLayoutZone{
+					Id:      zone.ID,
+					Label:   zone.Label,
+					Col:     zone.Col,
+					Row:     zone.Row,
+					ColSpan: zone.ColSpan,
+					RowSpan: zone.RowSpan,
+				},
+			)
 		}
-		items = append(items, openapi.SignageLayout{Id: openapi.SignageLayoutId(layout.ID), Name: layout.Name, Columns: layout.Columns, Rows: layout.Rows, Zones: zones})
+		items = append(
+			items,
+			openapi.SignageLayout{
+				Id:      openapi.SignageLayoutId(layout.ID),
+				Name:    layout.Name,
+				Columns: layout.Columns,
+				Rows:    layout.Rows,
+				Zones:   zones,
+			},
+		)
 	}
 	return openapi.ListSignageLayouts200JSONResponse{Items: items}, nil
 }
 
 // Machines ----------------------------------------------------------------------------------------------------
 
-func (s *Server) ListSignageMachines(ctx context.Context, _ openapi.ListSignageMachinesRequestObject) (openapi.ListSignageMachinesResponseObject, error) {
+func (s *Server) ListSignageMachines(
+	ctx context.Context,
+	_ openapi.ListSignageMachinesRequestObject,
+) (openapi.ListSignageMachinesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -49,7 +74,15 @@ func (s *Server) ListSignageMachines(ctx context.Context, _ openapi.ListSignageM
 	}
 	items := make([]openapi.SignageMachine, 0, len(machines))
 	for _, machine := range machines {
-		items = append(items, openapi.SignageMachine{Id: machine.ID, Name: machine.Name, Kind: machine.Kind, HasCamera: machine.HasCamera})
+		items = append(
+			items,
+			openapi.SignageMachine{
+				Id:        machine.ID,
+				Name:      machine.Name,
+				Kind:      machine.Kind,
+				HasCamera: machine.HasCamera,
+			},
+		)
 	}
 	return openapi.ListSignageMachines200JSONResponse{Items: items}, nil
 }
@@ -59,7 +92,9 @@ func (s *Server) ListSignageMachines(ctx context.Context, _ openapi.ListSignageM
 func signageAssetDTO(asset signage.Asset) openapi.SignageAsset {
 	result := openapi.SignageAsset{
 		Id: asset.ID, Kind: openapi.SignageAssetKind(asset.Kind), Name: asset.Name,
-		Width: nullableValue(asset.Width), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
+		Width: nullableValue(
+			asset.Width,
+		), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
 		ContentType: asset.ContentType, SizeBytes: asset.SizeBytes, Sha256: asset.SHA256, CreatedAt: asset.CreatedAt,
 	}
 	if asset.CreatedByAccountID != nil {
@@ -69,7 +104,10 @@ func signageAssetDTO(asset signage.Asset) openapi.SignageAsset {
 	return result
 }
 
-func (s *Server) ListSignageAssets(ctx context.Context, r openapi.ListSignageAssetsRequestObject) (openapi.ListSignageAssetsResponseObject, error) {
+func (s *Server) ListSignageAssets(
+	ctx context.Context,
+	r openapi.ListSignageAssetsRequestObject,
+) (openapi.ListSignageAssetsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -90,7 +128,10 @@ func (s *Server) ListSignageAssets(ctx context.Context, r openapi.ListSignageAss
 	return openapi.ListSignageAssets200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) UploadSignageAsset(ctx context.Context, r openapi.UploadSignageAssetRequestObject) (openapi.UploadSignageAssetResponseObject, error) {
+func (s *Server) UploadSignageAsset(
+	ctx context.Context,
+	r openapi.UploadSignageAssetRequestObject,
+) (openapi.UploadSignageAssetResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -112,7 +153,10 @@ func (s *Server) UploadSignageAsset(ctx context.Context, r openapi.UploadSignage
 	return openapi.UploadSignageAsset201JSONResponse(signageAssetDTO(asset)), nil
 }
 
-func (s *Server) GetSignageAsset(ctx context.Context, r openapi.GetSignageAssetRequestObject) (openapi.GetSignageAssetResponseObject, error) {
+func (s *Server) GetSignageAsset(
+	ctx context.Context,
+	r openapi.GetSignageAssetRequestObject,
+) (openapi.GetSignageAssetResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -124,7 +168,10 @@ func (s *Server) GetSignageAsset(ctx context.Context, r openapi.GetSignageAssetR
 	return openapi.GetSignageAsset200JSONResponse(signageAssetDTO(asset)), nil
 }
 
-func (s *Server) RenameSignageAsset(ctx context.Context, r openapi.RenameSignageAssetRequestObject) (openapi.RenameSignageAssetResponseObject, error) {
+func (s *Server) RenameSignageAsset(
+	ctx context.Context,
+	r openapi.RenameSignageAssetRequestObject,
+) (openapi.RenameSignageAssetResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -139,7 +186,10 @@ func (s *Server) RenameSignageAsset(ctx context.Context, r openapi.RenameSignage
 	return openapi.RenameSignageAsset200JSONResponse(signageAssetDTO(asset)), nil
 }
 
-func (s *Server) DeleteSignageAsset(ctx context.Context, r openapi.DeleteSignageAssetRequestObject) (openapi.DeleteSignageAssetResponseObject, error) {
+func (s *Server) DeleteSignageAsset(
+	ctx context.Context,
+	r openapi.DeleteSignageAssetRequestObject,
+) (openapi.DeleteSignageAssetResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -150,7 +200,10 @@ func (s *Server) DeleteSignageAsset(ctx context.Context, r openapi.DeleteSignage
 	return openapi.DeleteSignageAsset204Response{}, nil
 }
 
-func (s *Server) DownloadSignageAsset(ctx context.Context, r openapi.DownloadSignageAssetRequestObject) (openapi.DownloadSignageAssetResponseObject, error) {
+func (s *Server) DownloadSignageAsset(
+	ctx context.Context,
+	r openapi.DownloadSignageAssetRequestObject,
+) (openapi.DownloadSignageAssetResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -164,16 +217,36 @@ func (s *Server) DownloadSignageAsset(ctx context.Context, r openapi.DownloadSig
 	if r.Params.V != nil && *r.Params.V == opened.Asset.SHA256 {
 		cacheControl = "private, max-age=31536000, immutable"
 	}
-	headers := openapi.DownloadSignageAsset200ResponseHeaders{CacheControl: cacheControl, XContentTypeOptions: "nosniff", ContentSecurityPolicy: signageAssetCSP}
+	headers := openapi.DownloadSignageAsset200ResponseHeaders{
+		CacheControl:          cacheControl,
+		XContentTypeOptions:   "nosniff",
+		ContentSecurityPolicy: signageAssetCSP,
+	}
 	switch opened.Asset.ContentType {
 	case "image/png":
-		return openapi.DownloadSignageAsset200ImagepngResponse{Body: opened.Reader, ContentLength: opened.Asset.SizeBytes, Headers: headers}, nil
+		return openapi.DownloadSignageAsset200ImagepngResponse{
+			Body:          opened.Reader,
+			ContentLength: opened.Asset.SizeBytes,
+			Headers:       headers,
+		}, nil
 	case "image/jpeg":
-		return openapi.DownloadSignageAsset200ImagejpegResponse{Body: opened.Reader, ContentLength: opened.Asset.SizeBytes, Headers: headers}, nil
+		return openapi.DownloadSignageAsset200ImagejpegResponse{
+			Body:          opened.Reader,
+			ContentLength: opened.Asset.SizeBytes,
+			Headers:       headers,
+		}, nil
 	case "image/webp":
-		return openapi.DownloadSignageAsset200ImagewebpResponse{Body: opened.Reader, ContentLength: opened.Asset.SizeBytes, Headers: headers}, nil
+		return openapi.DownloadSignageAsset200ImagewebpResponse{
+			Body:          opened.Reader,
+			ContentLength: opened.Asset.SizeBytes,
+			Headers:       headers,
+		}, nil
 	case "video/mp4":
-		return openapi.DownloadSignageAsset200Videomp4Response{Body: opened.Reader, ContentLength: opened.Asset.SizeBytes, Headers: headers}, nil
+		return openapi.DownloadSignageAsset200Videomp4Response{
+			Body:          opened.Reader,
+			ContentLength: opened.Asset.SizeBytes,
+			Headers:       headers,
+		}, nil
 	default:
 		_ = opened.Reader.Close()
 		return nil, apperror.New(500, "internal_error", "Stored asset content type is invalid")
@@ -214,7 +287,10 @@ func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
 	}, nil
 }
 
-func (s *Server) ListSignageScenes(ctx context.Context, _ openapi.ListSignageScenesRequestObject) (openapi.ListSignageScenesResponseObject, error) {
+func (s *Server) ListSignageScenes(
+	ctx context.Context,
+	_ openapi.ListSignageScenesRequestObject,
+) (openapi.ListSignageScenesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -234,7 +310,10 @@ func (s *Server) ListSignageScenes(ctx context.Context, _ openapi.ListSignageSce
 	return openapi.ListSignageScenes200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateSignageScene(ctx context.Context, r openapi.CreateSignageSceneRequestObject) (openapi.CreateSignageSceneResponseObject, error) {
+func (s *Server) CreateSignageScene(
+	ctx context.Context,
+	r openapi.CreateSignageSceneRequestObject,
+) (openapi.CreateSignageSceneResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -248,7 +327,9 @@ func (s *Server) CreateSignageScene(ctx context.Context, r openapi.CreateSignage
 	}
 	scene, err := s.signage.CreateScene(ctx, p, signage.SceneInput{
 		Name: r.Body.Name, Orientation: string(r.Body.Orientation), LayoutID: string(r.Body.LayoutId), BackgroundColor: r.Body.BackgroundColor,
-		BackgroundAssetID: uuidNullable(r.Body.BackgroundAssetId), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
+		BackgroundAssetID: uuidNullable(
+			r.Body.BackgroundAssetId,
+		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
 		Theme: string(r.Body.Theme), Zones: zones,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -261,7 +342,10 @@ func (s *Server) CreateSignageScene(ctx context.Context, r openapi.CreateSignage
 	return openapi.CreateSignageScene201JSONResponse(dto), nil
 }
 
-func (s *Server) GetSignageScene(ctx context.Context, r openapi.GetSignageSceneRequestObject) (openapi.GetSignageSceneResponseObject, error) {
+func (s *Server) GetSignageScene(
+	ctx context.Context,
+	r openapi.GetSignageSceneRequestObject,
+) (openapi.GetSignageSceneResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -277,7 +361,10 @@ func (s *Server) GetSignageScene(ctx context.Context, r openapi.GetSignageSceneR
 	return openapi.GetSignageScene200JSONResponse(dto), nil
 }
 
-func (s *Server) UpdateSignageScene(ctx context.Context, r openapi.UpdateSignageSceneRequestObject) (openapi.UpdateSignageSceneResponseObject, error) {
+func (s *Server) UpdateSignageScene(
+	ctx context.Context,
+	r openapi.UpdateSignageSceneRequestObject,
+) (openapi.UpdateSignageSceneResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -291,7 +378,9 @@ func (s *Server) UpdateSignageScene(ctx context.Context, r openapi.UpdateSignage
 	}
 	scene, err := s.signage.UpdateScene(ctx, p, r.SceneId, r.Body.ExpectedVersion, signage.SceneInput{
 		Name: r.Body.Name, Orientation: string(r.Body.Orientation), LayoutID: string(r.Body.LayoutId), BackgroundColor: r.Body.BackgroundColor,
-		BackgroundAssetID: uuidNullable(r.Body.BackgroundAssetId), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
+		BackgroundAssetID: uuidNullable(
+			r.Body.BackgroundAssetId,
+		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
 		Theme: string(r.Body.Theme), Zones: zones,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -304,7 +393,10 @@ func (s *Server) UpdateSignageScene(ctx context.Context, r openapi.UpdateSignage
 	return openapi.UpdateSignageScene200JSONResponse(dto), nil
 }
 
-func (s *Server) DeleteSignageScene(ctx context.Context, r openapi.DeleteSignageSceneRequestObject) (openapi.DeleteSignageSceneResponseObject, error) {
+func (s *Server) DeleteSignageScene(
+	ctx context.Context,
+	r openapi.DeleteSignageSceneRequestObject,
+) (openapi.DeleteSignageSceneResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -323,20 +415,40 @@ func (s *Server) DeleteSignageScene(ctx context.Context, r openapi.DeleteSignage
 func signagePlaylistDTO(playlist signage.Playlist) openapi.SignagePlaylist {
 	items := make([]openapi.SignagePlaylistItem, 0, len(playlist.Items))
 	for _, item := range playlist.Items {
-		items = append(items, openapi.SignagePlaylistItem{SceneId: item.SceneID, Seconds: item.Seconds, Transition: openapi.SignageTransition(item.Transition)})
+		items = append(
+			items,
+			openapi.SignagePlaylistItem{
+				SceneId:    item.SceneID,
+				Seconds:    item.Seconds,
+				Transition: openapi.SignageTransition(item.Transition),
+			},
+		)
 	}
-	return openapi.SignagePlaylist{Id: playlist.ID, Name: playlist.Name, Items: items, Version: playlist.Version, CreatedAt: playlist.CreatedAt, UpdatedAt: playlist.UpdatedAt}
+	return openapi.SignagePlaylist{
+		Id:        playlist.ID,
+		Name:      playlist.Name,
+		Items:     items,
+		Version:   playlist.Version,
+		CreatedAt: playlist.CreatedAt,
+		UpdatedAt: playlist.UpdatedAt,
+	}
 }
 
 func signagePlaylistItems(items []openapi.SignagePlaylistItem) []signage.PlaylistItem {
 	result := make([]signage.PlaylistItem, 0, len(items))
 	for _, item := range items {
-		result = append(result, signage.PlaylistItem{SceneID: item.SceneId, Seconds: item.Seconds, Transition: string(item.Transition)})
+		result = append(
+			result,
+			signage.PlaylistItem{SceneID: item.SceneId, Seconds: item.Seconds, Transition: string(item.Transition)},
+		)
 	}
 	return result
 }
 
-func (s *Server) ListSignagePlaylists(ctx context.Context, _ openapi.ListSignagePlaylistsRequestObject) (openapi.ListSignagePlaylistsResponseObject, error) {
+func (s *Server) ListSignagePlaylists(
+	ctx context.Context,
+	_ openapi.ListSignagePlaylistsRequestObject,
+) (openapi.ListSignagePlaylistsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -352,7 +464,10 @@ func (s *Server) ListSignagePlaylists(ctx context.Context, _ openapi.ListSignage
 	return openapi.ListSignagePlaylists200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateSignagePlaylist(ctx context.Context, r openapi.CreateSignagePlaylistRequestObject) (openapi.CreateSignagePlaylistResponseObject, error) {
+func (s *Server) CreateSignagePlaylist(
+	ctx context.Context,
+	r openapi.CreateSignagePlaylistRequestObject,
+) (openapi.CreateSignagePlaylistResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -360,14 +475,22 @@ func (s *Server) CreateSignagePlaylist(ctx context.Context, r openapi.CreateSign
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	playlist, err := s.signage.CreatePlaylist(ctx, p, signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)}, requestIDPointer(ctx))
+	playlist, err := s.signage.CreatePlaylist(
+		ctx,
+		p,
+		signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)},
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateSignagePlaylist201JSONResponse(signagePlaylistDTO(playlist)), nil
 }
 
-func (s *Server) GetSignagePlaylist(ctx context.Context, r openapi.GetSignagePlaylistRequestObject) (openapi.GetSignagePlaylistResponseObject, error) {
+func (s *Server) GetSignagePlaylist(
+	ctx context.Context,
+	r openapi.GetSignagePlaylistRequestObject,
+) (openapi.GetSignagePlaylistResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -379,7 +502,10 @@ func (s *Server) GetSignagePlaylist(ctx context.Context, r openapi.GetSignagePla
 	return openapi.GetSignagePlaylist200JSONResponse(signagePlaylistDTO(playlist)), nil
 }
 
-func (s *Server) UpdateSignagePlaylist(ctx context.Context, r openapi.UpdateSignagePlaylistRequestObject) (openapi.UpdateSignagePlaylistResponseObject, error) {
+func (s *Server) UpdateSignagePlaylist(
+	ctx context.Context,
+	r openapi.UpdateSignagePlaylistRequestObject,
+) (openapi.UpdateSignagePlaylistResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -387,14 +513,24 @@ func (s *Server) UpdateSignagePlaylist(ctx context.Context, r openapi.UpdateSign
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	playlist, err := s.signage.UpdatePlaylist(ctx, p, r.PlaylistId, r.Body.ExpectedVersion, signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)}, requestIDPointer(ctx))
+	playlist, err := s.signage.UpdatePlaylist(
+		ctx,
+		p,
+		r.PlaylistId,
+		r.Body.ExpectedVersion,
+		signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)},
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSignagePlaylist200JSONResponse(signagePlaylistDTO(playlist)), nil
 }
 
-func (s *Server) DeleteSignagePlaylist(ctx context.Context, r openapi.DeleteSignagePlaylistRequestObject) (openapi.DeleteSignagePlaylistResponseObject, error) {
+func (s *Server) DeleteSignagePlaylist(
+	ctx context.Context,
+	r openapi.DeleteSignagePlaylistRequestObject,
+) (openapi.DeleteSignagePlaylistResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -435,7 +571,10 @@ func signageTemplateFields(fields []openapi.SignageTemplateField) []signage.Temp
 	return result
 }
 
-func (s *Server) ListSignageAnnouncementTemplates(ctx context.Context, _ openapi.ListSignageAnnouncementTemplatesRequestObject) (openapi.ListSignageAnnouncementTemplatesResponseObject, error) {
+func (s *Server) ListSignageAnnouncementTemplates(
+	ctx context.Context,
+	_ openapi.ListSignageAnnouncementTemplatesRequestObject,
+) (openapi.ListSignageAnnouncementTemplatesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -451,7 +590,10 @@ func (s *Server) ListSignageAnnouncementTemplates(ctx context.Context, _ openapi
 	return openapi.ListSignageAnnouncementTemplates200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateSignageAnnouncementTemplate(ctx context.Context, r openapi.CreateSignageAnnouncementTemplateRequestObject) (openapi.CreateSignageAnnouncementTemplateResponseObject, error) {
+func (s *Server) CreateSignageAnnouncementTemplate(
+	ctx context.Context,
+	r openapi.CreateSignageAnnouncementTemplateRequestObject,
+) (openapi.CreateSignageAnnouncementTemplateResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -468,7 +610,10 @@ func (s *Server) CreateSignageAnnouncementTemplate(ctx context.Context, r openap
 	return openapi.CreateSignageAnnouncementTemplate201JSONResponse(signageTemplateDTO(template)), nil
 }
 
-func (s *Server) GetSignageAnnouncementTemplate(ctx context.Context, r openapi.GetSignageAnnouncementTemplateRequestObject) (openapi.GetSignageAnnouncementTemplateResponseObject, error) {
+func (s *Server) GetSignageAnnouncementTemplate(
+	ctx context.Context,
+	r openapi.GetSignageAnnouncementTemplateRequestObject,
+) (openapi.GetSignageAnnouncementTemplateResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -480,7 +625,10 @@ func (s *Server) GetSignageAnnouncementTemplate(ctx context.Context, r openapi.G
 	return openapi.GetSignageAnnouncementTemplate200JSONResponse(signageTemplateDTO(template)), nil
 }
 
-func (s *Server) UpdateSignageAnnouncementTemplate(ctx context.Context, r openapi.UpdateSignageAnnouncementTemplateRequestObject) (openapi.UpdateSignageAnnouncementTemplateResponseObject, error) {
+func (s *Server) UpdateSignageAnnouncementTemplate(
+	ctx context.Context,
+	r openapi.UpdateSignageAnnouncementTemplateRequestObject,
+) (openapi.UpdateSignageAnnouncementTemplateResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -497,7 +645,10 @@ func (s *Server) UpdateSignageAnnouncementTemplate(ctx context.Context, r openap
 	return openapi.UpdateSignageAnnouncementTemplate200JSONResponse(signageTemplateDTO(template)), nil
 }
 
-func (s *Server) DeleteSignageAnnouncementTemplate(ctx context.Context, r openapi.DeleteSignageAnnouncementTemplateRequestObject) (openapi.DeleteSignageAnnouncementTemplateResponseObject, error) {
+func (s *Server) DeleteSignageAnnouncementTemplate(
+	ctx context.Context,
+	r openapi.DeleteSignageAnnouncementTemplateRequestObject,
+) (openapi.DeleteSignageAnnouncementTemplateResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -519,14 +670,21 @@ func signageAnnouncementDTO(item signage.Announcement) openapi.SignageAnnounceme
 	return openapi.SignageAnnouncement{
 		Id: item.ID, TemplateId: item.TemplateID, Values: item.Values, AllDisplays: item.AllDisplays, DisplayIds: displayIDs,
 		StartsAt: item.StartsAt, EndsAt: nullableValue(item.EndsAt), Status: openapi.SignageAnnouncementStatus(item.Status),
-		Rendered: openapi.SignageRenderedMessage{Title: item.Rendered.Title, Body: item.Rendered.Body, Tone: openapi.SignageTone(item.Rendered.Tone)},
-		Version:  item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		Rendered: openapi.SignageRenderedMessage{
+			Title: item.Rendered.Title,
+			Body:  item.Rendered.Body,
+			Tone:  openapi.SignageTone(item.Rendered.Tone),
+		},
+		Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }
 
 func uuidSlice(ids []openapi.UUIDv7) []uuid.UUID { return append([]uuid.UUID{}, ids...) }
 
-func (s *Server) ListSignageAnnouncements(ctx context.Context, _ openapi.ListSignageAnnouncementsRequestObject) (openapi.ListSignageAnnouncementsResponseObject, error) {
+func (s *Server) ListSignageAnnouncements(
+	ctx context.Context,
+	_ openapi.ListSignageAnnouncementsRequestObject,
+) (openapi.ListSignageAnnouncementsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -542,7 +700,10 @@ func (s *Server) ListSignageAnnouncements(ctx context.Context, _ openapi.ListSig
 	return openapi.ListSignageAnnouncements200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) StartSignageAnnouncement(ctx context.Context, r openapi.StartSignageAnnouncementRequestObject) (openapi.StartSignageAnnouncementResponseObject, error) {
+func (s *Server) StartSignageAnnouncement(
+	ctx context.Context,
+	r openapi.StartSignageAnnouncementRequestObject,
+) (openapi.StartSignageAnnouncementResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -560,7 +721,10 @@ func (s *Server) StartSignageAnnouncement(ctx context.Context, r openapi.StartSi
 	return openapi.StartSignageAnnouncement201JSONResponse(signageAnnouncementDTO(item)), nil
 }
 
-func (s *Server) GetSignageAnnouncement(ctx context.Context, r openapi.GetSignageAnnouncementRequestObject) (openapi.GetSignageAnnouncementResponseObject, error) {
+func (s *Server) GetSignageAnnouncement(
+	ctx context.Context,
+	r openapi.GetSignageAnnouncementRequestObject,
+) (openapi.GetSignageAnnouncementResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -572,7 +736,10 @@ func (s *Server) GetSignageAnnouncement(ctx context.Context, r openapi.GetSignag
 	return openapi.GetSignageAnnouncement200JSONResponse(signageAnnouncementDTO(item)), nil
 }
 
-func (s *Server) UpdateSignageAnnouncement(ctx context.Context, r openapi.UpdateSignageAnnouncementRequestObject) (openapi.UpdateSignageAnnouncementResponseObject, error) {
+func (s *Server) UpdateSignageAnnouncement(
+	ctx context.Context,
+	r openapi.UpdateSignageAnnouncementRequestObject,
+) (openapi.UpdateSignageAnnouncementResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -581,16 +748,26 @@ func (s *Server) UpdateSignageAnnouncement(ctx context.Context, r openapi.Update
 		return nil, invalidRequest("request body is required")
 	}
 	startsAt := r.Body.StartsAt
-	item, err := s.signage.UpdateAnnouncement(ctx, p, r.AnnouncementId, r.Body.ExpectedVersion, signage.AnnouncementInput{
-		Values: r.Body.Values, AllDisplays: r.Body.AllDisplays, DisplayIDs: uuidSlice(r.Body.DisplayIds), StartsAt: &startsAt, EndsAt: nullableTime(r.Body.EndsAt),
-	}, requestIDPointer(ctx))
+	item, err := s.signage.UpdateAnnouncement(
+		ctx,
+		p,
+		r.AnnouncementId,
+		r.Body.ExpectedVersion,
+		signage.AnnouncementInput{
+			Values: r.Body.Values, AllDisplays: r.Body.AllDisplays, DisplayIDs: uuidSlice(r.Body.DisplayIds), StartsAt: &startsAt, EndsAt: nullableTime(r.Body.EndsAt),
+		},
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSignageAnnouncement200JSONResponse(signageAnnouncementDTO(item)), nil
 }
 
-func (s *Server) StopSignageAnnouncement(ctx context.Context, r openapi.StopSignageAnnouncementRequestObject) (openapi.StopSignageAnnouncementResponseObject, error) {
+func (s *Server) StopSignageAnnouncement(
+	ctx context.Context,
+	r openapi.StopSignageAnnouncementRequestObject,
+) (openapi.StopSignageAnnouncementResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err

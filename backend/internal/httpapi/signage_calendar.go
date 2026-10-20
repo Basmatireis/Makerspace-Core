@@ -15,7 +15,11 @@ type publicCalendar struct {
 	events   *events.Service
 }
 
-func (c publicCalendar) UpcomingOpenDays(ctx context.Context, now time.Time, limit int) ([]signage.PublicOpenDay, error) {
+func (c publicCalendar) UpcomingOpenDays(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]signage.PublicOpenDay, error) {
 	days, err := c.openDays.ListPublic(ctx)
 	if err != nil {
 		return nil, err
@@ -26,7 +30,10 @@ func (c publicCalendar) UpcomingOpenDays(ctx context.Context, now time.Time, lim
 			break
 		}
 		if day.EndsAt.After(now) {
-			result = append(result, signage.PublicOpenDay{StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: day.Status})
+			result = append(
+				result,
+				signage.PublicOpenDay{StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: day.Status},
+			)
 		}
 	}
 	return result, nil
@@ -39,7 +46,10 @@ func (c publicCalendar) UpcomingEvents(ctx context.Context, now time.Time, limit
 	}
 	result := make([]signage.PublicEvent, 0, len(upcoming))
 	for _, event := range upcoming {
-		result = append(result, signage.PublicEvent{Title: event.Title, StartsAt: event.StartsAt, Location: event.Location})
+		result = append(
+			result,
+			signage.PublicEvent{Title: event.Title, StartsAt: event.StartsAt, Location: event.Location},
+		)
 	}
 	return result, nil
 }

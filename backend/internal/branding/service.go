@@ -140,7 +140,14 @@ func (s *Service) get(ctx context.Context) (Configuration, error) {
 	}
 	for _, override := range overrides {
 		slot := Slot(override.Slot)
-		asset := Asset{Slot: slot, Mode: override.Mode, OriginalFilename: override.OriginalFilename, ContentType: override.ContentType, Size: override.SizeBytes, UpdatedAt: &override.UpdatedAt}
+		asset := Asset{
+			Slot:             slot,
+			Mode:             override.Mode,
+			OriginalFilename: override.OriginalFilename,
+			ContentType:      override.ContentType,
+			Size:             override.SizeBytes,
+			UpdatedAt:        &override.UpdatedAt,
+		}
 		if override.Mode == "custom" {
 			digest := hex.EncodeToString(override.Sha256)
 			value := fmt.Sprintf("/api/v1/public/branding/assets/%s/%s", slot, digest)
@@ -159,7 +166,12 @@ func (s *Service) ApplicationName(ctx context.Context) string {
 	return row.ApplicationName
 }
 
-func (s *Service) Update(ctx context.Context, principal authorization.Principal, input ConfigurationInput, requestID *uuid.UUID) (Configuration, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
@@ -209,7 +221,15 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	return assets, nil
 }
 
-func (s *Service) PutAsset(ctx context.Context, principal authorization.Principal, slot Slot, expectedVersion int64, filename string, reader io.Reader, requestID *uuid.UUID) (Configuration, error) {
+func (s *Service) PutAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	slot Slot,
+	expectedVersion int64,
+	filename string,
+	reader io.Reader,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
@@ -241,7 +261,13 @@ func (s *Service) PutAsset(ctx context.Context, principal authorization.Principa
 	return s.get(ctx)
 }
 
-func (s *Service) RemoveAsset(ctx context.Context, principal authorization.Principal, slot Slot, expectedVersion int64, requestID *uuid.UUID) (Configuration, error) {
+func (s *Service) RemoveAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	slot Slot,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
@@ -255,7 +281,13 @@ func (s *Service) RemoveAsset(ctx context.Context, principal authorization.Princ
 	return s.get(ctx)
 }
 
-func (s *Service) RestoreDefaultAsset(ctx context.Context, principal authorization.Principal, slot Slot, expectedVersion int64, requestID *uuid.UUID) (Configuration, error) {
+func (s *Service) RestoreDefaultAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	slot Slot,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
@@ -269,7 +301,15 @@ func (s *Service) RestoreDefaultAsset(ctx context.Context, principal authorizati
 	return s.get(ctx)
 }
 
-func (s *Service) mutateAsset(ctx context.Context, principal authorization.Principal, slot Slot, expectedVersion int64, mode string, fileID *uuid.UUID, requestID *uuid.UUID) (*uuid.UUID, error) {
+func (s *Service) mutateAsset(
+	ctx context.Context,
+	principal authorization.Principal,
+	slot Slot,
+	expectedVersion int64,
+	mode string,
+	fileID *uuid.UUID,
+	requestID *uuid.UUID,
+) (*uuid.UUID, error) {
 	if _, err := ParseSlot(string(slot)); err != nil {
 		return nil, err
 	}
@@ -302,9 +342,15 @@ func (s *Service) mutateAsset(ctx context.Context, principal authorization.Princ
 		if fileID == nil {
 			return nil, errors.New("custom branding asset requires a file")
 		}
-		_, err = queries.UpsertCustomAsset(ctx, brandingdb.UpsertCustomAssetParams{Slot: string(slot), FileID: fileID, UpdatedByAccountID: &actor})
+		_, err = queries.UpsertCustomAsset(
+			ctx,
+			brandingdb.UpsertCustomAssetParams{Slot: string(slot), FileID: fileID, UpdatedByAccountID: &actor},
+		)
 	case "none":
-		_, err = queries.UpsertRemovedAsset(ctx, brandingdb.UpsertRemovedAssetParams{Slot: string(slot), UpdatedByAccountID: &actor})
+		_, err = queries.UpsertRemovedAsset(
+			ctx,
+			brandingdb.UpsertRemovedAssetParams{Slot: string(slot), UpdatedByAccountID: &actor},
+		)
 	case "default":
 		err = queries.DeleteAssetOverride(ctx, string(slot))
 	default:
@@ -313,7 +359,10 @@ func (s *Service) mutateAsset(ctx context.Context, principal authorization.Princ
 	if err != nil {
 		return nil, err
 	}
-	if _, err := queries.BumpConfigurationVersion(ctx, brandingdb.BumpConfigurationVersionParams{UpdatedByAccountID: &actor, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpConfigurationVersion(ctx, brandingdb.BumpConfigurationVersionParams{UpdatedByAccountID: &actor, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return nil, apperror.StaleWrite
 	} else if err != nil {
 		return nil, err
@@ -364,7 +413,8 @@ func (s *Service) OpenPublicAsset(ctx context.Context, slot Slot, digest string)
 	if _, err := ParseSlot(string(slot)); err != nil || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(digest) {
 		return PublicAsset{}, apperror.NotFound
 	}
-	row, err := brandingdb.New(s.pool).GetPublicAssetByDigest(ctx, brandingdb.GetPublicAssetByDigestParams{Slot: string(slot), Digest: digest})
+	row, err := brandingdb.New(s.pool).
+		GetPublicAssetByDigest(ctx, brandingdb.GetPublicAssetByDigestParams{Slot: string(slot), Digest: digest})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PublicAsset{}, apperror.NotFound
 	}
@@ -380,11 +430,21 @@ func (s *Service) OpenPublicAsset(ctx context.Context, slot Slot, digest string)
 
 func fromRow(row brandingdb.BrandingConfiguration, assets map[Slot]Asset) Configuration {
 	return Configuration{
-		Identity: Identity{LegalOrganizationName: row.LegalOrganizationName, DisplayName: row.DisplayName, ApplicationName: row.ApplicationName, Tagline: row.Tagline},
-		Colors:   Colors{Primary: row.PrimaryColor, Secondary: row.SecondaryColor, Accent: row.AccentColor, Background: row.BackgroundColor},
-		Imprint:  Legal{Mode: row.ImprintMode, Markdown: row.ImprintMarkdown, ExternalURL: row.ImprintExternalUrl},
-		Privacy:  Legal{Mode: row.PrivacyMode, Markdown: row.PrivacyMarkdown, ExternalURL: row.PrivacyExternalUrl},
-		Assets:   assets, Version: row.Version, UpdatedAt: row.UpdatedAt,
+		Identity: Identity{
+			LegalOrganizationName: row.LegalOrganizationName,
+			DisplayName:           row.DisplayName,
+			ApplicationName:       row.ApplicationName,
+			Tagline:               row.Tagline,
+		},
+		Colors: Colors{
+			Primary:    row.PrimaryColor,
+			Secondary:  row.SecondaryColor,
+			Accent:     row.AccentColor,
+			Background: row.BackgroundColor,
+		},
+		Imprint: Legal{Mode: row.ImprintMode, Markdown: row.ImprintMarkdown, ExternalURL: row.ImprintExternalUrl},
+		Privacy: Legal{Mode: row.PrivacyMode, Markdown: row.PrivacyMarkdown, ExternalURL: row.PrivacyExternalUrl},
+		Assets:  assets, Version: row.Version, UpdatedAt: row.UpdatedAt,
 	}
 }
 
@@ -402,7 +462,13 @@ func validateConfiguration(input *ConfigurationInput) error {
 			input.Identity.Tagline = &value
 		}
 	}
-	if input.ExpectedVersion < 1 || input.Identity.LegalOrganizationName == "" || utf8.RuneCountInString(input.Identity.LegalOrganizationName) > 200 || input.Identity.DisplayName == "" || utf8.RuneCountInString(input.Identity.DisplayName) > 100 || input.Identity.ApplicationName == "" || utf8.RuneCountInString(input.Identity.ApplicationName) > 150 || (input.Identity.Tagline != nil && utf8.RuneCountInString(*input.Identity.Tagline) > 240) {
+	if input.ExpectedVersion < 1 || input.Identity.LegalOrganizationName == "" ||
+		utf8.RuneCountInString(input.Identity.LegalOrganizationName) > 200 ||
+		input.Identity.DisplayName == "" ||
+		utf8.RuneCountInString(input.Identity.DisplayName) > 100 ||
+		input.Identity.ApplicationName == "" ||
+		utf8.RuneCountInString(input.Identity.ApplicationName) > 150 ||
+		(input.Identity.Tagline != nil && utf8.RuneCountInString(*input.Identity.Tagline) > 240) {
 		return validation("organization identity is invalid")
 	}
 	colors := []*string{&input.Colors.Primary, &input.Colors.Secondary, &input.Colors.Accent, &input.Colors.Background}
@@ -433,7 +499,8 @@ func validateLegal(value Legal) error {
 	}
 	if value.ExternalURL != "" {
 		parsed, err := url.Parse(value.ExternalURL)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" ||
+			parsed.User != nil {
 			return validation("external legal URL must be an absolute HTTP(S) URL without credentials")
 		}
 	}
@@ -474,7 +541,9 @@ func validateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
 	if err != nil || (format != "png" && format != "webp" && (!background || format != "jpeg")) {
 		return nil, "", validation("asset must be a valid PNG, WebP, or safe SVG; backgrounds also accept JPEG")
 	}
-	if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > 4096 || configuration.Height > 4096 || int64(configuration.Width)*int64(configuration.Height) > 16_000_000 {
+	if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > 4096 ||
+		configuration.Height > 4096 ||
+		int64(configuration.Width)*int64(configuration.Height) > 16_000_000 {
 		return nil, "", validation("asset dimensions exceed 4096x4096 or 16 megapixels")
 	}
 	if _, _, err := image.Decode(bytes.NewReader(raw)); err != nil {
@@ -485,16 +554,40 @@ func validateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
 }
 
 var svgElements = map[string]map[string]bool{
-	"svg": {"xmlns": true, "width": true, "height": true, "viewBox": true, "preserveAspectRatio": true, "version": true},
-	"g":   {}, "defs": {}, "title": {}, "desc": {},
+	"svg": {
+		"xmlns":               true,
+		"width":               true,
+		"height":              true,
+		"viewBox":             true,
+		"preserveAspectRatio": true,
+		"version":             true,
+	},
+	"g": {}, "defs": {}, "title": {}, "desc": {},
 	"path": {"d": true}, "rect": {"x": true, "y": true, "width": true, "height": true, "rx": true, "ry": true},
 	"circle": {"cx": true, "cy": true, "r": true}, "ellipse": {"cx": true, "cy": true, "rx": true, "ry": true},
 	"line": {"x1": true, "y1": true, "x2": true, "y2": true}, "polyline": {"points": true}, "polygon": {"points": true},
-	"clipPath": {"clipPathUnits": true}, "mask": {"maskUnits": true, "x": true, "y": true, "width": true, "height": true},
-	"linearGradient": {"x1": true, "y1": true, "x2": true, "y2": true, "gradientUnits": true, "gradientTransform": true},
-	"radialGradient": {"cx": true, "cy": true, "r": true, "fx": true, "fy": true, "gradientUnits": true, "gradientTransform": true},
-	"stop":           {"offset": true, "stop-color": true, "stop-opacity": true},
-	"use":            {"href": true, "x": true, "y": true, "width": true, "height": true},
+	"clipPath": {
+		"clipPathUnits": true,
+	}, "mask": {"maskUnits": true, "x": true, "y": true, "width": true, "height": true},
+	"linearGradient": {
+		"x1":                true,
+		"y1":                true,
+		"x2":                true,
+		"y2":                true,
+		"gradientUnits":     true,
+		"gradientTransform": true,
+	},
+	"radialGradient": {
+		"cx":                true,
+		"cy":                true,
+		"r":                 true,
+		"fx":                true,
+		"fy":                true,
+		"gradientUnits":     true,
+		"gradientTransform": true,
+	},
+	"stop": {"offset": true, "stop-color": true, "stop-opacity": true},
+	"use":  {"href": true, "x": true, "y": true, "width": true, "height": true},
 }
 
 var svgGlobalAttributes = map[string]bool{
@@ -589,7 +682,13 @@ func sanitizeSVG(raw []byte) ([]byte, error) {
 
 func safeSVGValue(name, value string) bool {
 	lower := strings.ToLower(strings.TrimSpace(value))
-	if strings.ContainsAny(value, "<>\x00") || strings.Contains(lower, "javascript:") || strings.Contains(lower, "data:") || strings.Contains(lower, "@import") || strings.Contains(lower, "expression(") || strings.Contains(lower, "http:") || strings.Contains(lower, "https:") || strings.HasPrefix(lower, "//") {
+	if strings.ContainsAny(value, "<>\x00") || strings.Contains(lower, "javascript:") ||
+		strings.Contains(lower, "data:") ||
+		strings.Contains(lower, "@import") ||
+		strings.Contains(lower, "expression(") ||
+		strings.Contains(lower, "http:") ||
+		strings.Contains(lower, "https:") ||
+		strings.HasPrefix(lower, "//") {
 		return false
 	}
 	if name == "href" {

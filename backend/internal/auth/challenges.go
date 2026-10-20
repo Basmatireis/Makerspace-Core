@@ -80,7 +80,11 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 	return nil
 }
 
-func (s *Service) CompletePasswordResetCode(ctx context.Context, email, code, newPassword, sourceKey string, requestID *uuid.UUID) error {
+func (s *Service) CompletePasswordResetCode(
+	ctx context.Context,
+	email, code, newPassword, sourceKey string,
+	requestID *uuid.UUID,
+) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return validationError(err.Error())
 	}
@@ -116,7 +120,10 @@ func (s *Service) CompletePasswordResetCode(ctx context.Context, email, code, ne
 	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
 		return err
 	}
-	challenge, err := queries.GetActiveAuthChallengeForUpdate(ctx, authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "password_reset"})
+	challenge, err := queries.GetActiveAuthChallengeForUpdate(
+		ctx,
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "password_reset"},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
 	}
@@ -124,7 +131,8 @@ func (s *Service) CompletePasswordResetCode(ctx context.Context, email, code, ne
 		return err
 	}
 	if !s.challengeValid(challenge, code) {
-		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 || !challenge.ExpiresAt.After(time.Now().UTC()) {
+		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 ||
+			!challenge.ExpiresAt.After(time.Now().UTC()) {
 			return invalidChallenge()
 		}
 		if err := queries.IncrementAuthChallengeFailure(ctx, challenge.ID); err != nil {
@@ -157,12 +165,21 @@ func (s *Service) CompletePasswordResetCode(ctx context.Context, email, code, ne
 		return err
 	}
 	if s.notifier != nil && target.DeliveryAddress != nil {
-		_ = s.notifier.SendSecurityNotice(ctx, *target.DeliveryAddress, "Makerspace password reset", "Your Makerspace password was reset. If this was not you, contact an administrator immediately.")
+		_ = s.notifier.SendSecurityNotice(
+			ctx,
+			*target.DeliveryAddress,
+			"Makerspace password reset",
+			"Your Makerspace password was reset. If this was not you, contact an administrator immediately.",
+		)
 	}
 	return nil
 }
 
-func (s *Service) CompleteInvitation(ctx context.Context, email, code, newPassword, sourceKey string, requestID *uuid.UUID) error {
+func (s *Service) CompleteInvitation(
+	ctx context.Context,
+	email, code, newPassword, sourceKey string,
+	requestID *uuid.UUID,
+) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return validationError(err.Error())
 	}
@@ -198,7 +215,10 @@ func (s *Service) CompleteInvitation(ctx context.Context, email, code, newPasswo
 	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
 		return err
 	}
-	challenge, err := queries.GetActiveAuthChallengeForUpdate(ctx, authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "invitation"})
+	challenge, err := queries.GetActiveAuthChallengeForUpdate(
+		ctx,
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "invitation"},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
 	}
@@ -206,7 +226,8 @@ func (s *Service) CompleteInvitation(ctx context.Context, email, code, newPasswo
 		return err
 	}
 	if !s.challengeValid(challenge, code) {
-		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 || !challenge.ExpiresAt.After(time.Now().UTC()) {
+		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 ||
+			!challenge.ExpiresAt.After(time.Now().UTC()) {
 			return invalidChallenge()
 		}
 		if err := queries.IncrementAuthChallengeFailure(ctx, challenge.ID); err != nil {
@@ -245,12 +266,21 @@ func (s *Service) CompleteInvitation(ctx context.Context, email, code, newPasswo
 		return err
 	}
 	if s.notifier != nil && target.DeliveryAddress != nil {
-		_ = s.notifier.SendSecurityNotice(ctx, *target.DeliveryAddress, "Makerspace account activated", "Your Makerspace invitation was completed and your password was set.")
+		_ = s.notifier.SendSecurityNotice(
+			ctx,
+			*target.DeliveryAddress,
+			"Makerspace account activated",
+			"Your Makerspace invitation was completed and your password was set.",
+		)
 	}
 	return nil
 }
 
-func (s *Service) RequestOwnEmailVerification(ctx context.Context, principal authorization.Principal, requestID *uuid.UUID) error {
+func (s *Service) RequestOwnEmailVerification(
+	ctx context.Context,
+	principal authorization.Principal,
+	requestID *uuid.UUID,
+) error {
 	if s.notifier == nil {
 		return apperror.New(503, "mail_unavailable", "Email verification delivery is unavailable")
 	}
@@ -259,7 +289,11 @@ func (s *Service) RequestOwnEmailVerification(ctx context.Context, principal aut
 		return err
 	}
 	if !allowed {
-		return apperror.RateLimited("verification_rate_limited", "Too many verification requests; try again later", challengeRateWindow)
+		return apperror.RateLimited(
+			"verification_rate_limited",
+			"Too many verification requests; try again later",
+			challengeRateWindow,
+		)
 	}
 	code, err := security.NewChallengeCode()
 	if err != nil {
@@ -313,7 +347,11 @@ func (s *Service) RequestOwnEmailVerification(ctx context.Context, principal aut
 	return nil
 }
 
-func (s *Service) CompleteEmailVerification(ctx context.Context, email, code, sourceKey string, requestID *uuid.UUID) error {
+func (s *Service) CompleteEmailVerification(
+	ctx context.Context,
+	email, code, sourceKey string,
+	requestID *uuid.UUID,
+) error {
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	allowed, err := s.consumeChallengeLimit(ctx, "email_verification_verify_source", sourceKey, 10)
 	if err != nil {
@@ -342,7 +380,10 @@ func (s *Service) CompleteEmailVerification(ctx context.Context, email, code, so
 	if err := lockPasswordChallengeTarget(ctx, queries, target.AccountID, target.AuthIdentityID, normalized); err != nil {
 		return err
 	}
-	challenge, err := queries.GetActiveAuthChallengeForUpdate(ctx, authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "email_verification"})
+	challenge, err := queries.GetActiveAuthChallengeForUpdate(
+		ctx,
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "email_verification"},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
 	}
@@ -350,7 +391,8 @@ func (s *Service) CompleteEmailVerification(ctx context.Context, email, code, so
 		return err
 	}
 	if !s.challengeValid(challenge, code) {
-		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 || !challenge.ExpiresAt.After(time.Now().UTC()) {
+		if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 ||
+			!challenge.ExpiresAt.After(time.Now().UTC()) {
 			return invalidChallenge()
 		}
 		if err := queries.IncrementAuthChallengeFailure(ctx, challenge.ID); err != nil {
@@ -382,7 +424,12 @@ func (s *Service) CompleteEmailVerification(ctx context.Context, email, code, so
 // Use the same account-first lock order as login and administrative credential
 // changes. Re-read the identifier after waiting so an old email cannot authorize
 // a challenge for an identity that has since changed.
-func lockPasswordChallengeTarget(ctx context.Context, queries *authdb.Queries, accountID, identityID uuid.UUID, normalized string) error {
+func lockPasswordChallengeTarget(
+	ctx context.Context,
+	queries *authdb.Queries,
+	accountID, identityID uuid.UUID,
+	normalized string,
+) error {
 	if _, err := queries.GetAccountForAuthentication(ctx, accountID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return invalidChallenge()
@@ -403,7 +450,8 @@ func lockPasswordChallengeTarget(ctx context.Context, queries *authdb.Queries, a
 }
 
 func (s *Service) challengeValid(challenge authdb.AuthChallenge, code string) bool {
-	if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 || !challenge.ExpiresAt.After(time.Now().UTC()) {
+	if challenge.UsedAt.Valid || challenge.CancelledAt.Valid || challenge.AttemptCount >= 5 ||
+		!challenge.ExpiresAt.After(time.Now().UTC()) {
 		return false
 	}
 	normalized := strings.ToUpper(strings.TrimSpace(code))
@@ -423,7 +471,8 @@ func (s *Service) consumeChallengeLimit(ctx context.Context, action, value strin
 	_, _ = io.WriteString(mac, action)
 	_, _ = mac.Write([]byte{0})
 	_, _ = io.WriteString(mac, value)
-	allowed, err := authdb.New(s.pool).ConsumeAuthRateLimit(ctx, authdb.ConsumeAuthRateLimitParams{Action: action, KeyDigest: mac.Sum(nil), MaxAttempts: maximum})
+	allowed, err := authdb.New(s.pool).
+		ConsumeAuthRateLimit(ctx, authdb.ConsumeAuthRateLimitParams{Action: action, KeyDigest: mac.Sum(nil), MaxAttempts: maximum})
 	return err == nil && allowed != nil && *allowed, err
 }
 
@@ -435,7 +484,8 @@ func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, del
 		code := "provider_error"
 		failureCode = &code
 	}
-	_ = authdb.New(s.pool).SetAuthChallengeDelivery(ctx, authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	_ = authdb.New(s.pool).
+		SetAuthChallengeDelivery(ctx, authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 }
 
 func invalidChallenge() error {

@@ -69,9 +69,14 @@ func (s *Service) displayFromView(row viewRow) Display {
 	now := s.now()
 	display := Display{
 		ID: row.ID, ManagedDeviceID: row.ManagedDeviceID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
-		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
+		Resolution: Resolution{
+			Width:  int(row.ResolutionWidth),
+			Height: int(row.ResolutionHeight),
+		}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 		DefaultPlaylistID: row.DefaultPlaylistID, LastHeartbeatAt: fromPgTime(row.LastHeartbeatAt), PendingChanges: []PendingChange{},
-		ReportedRevision: intPointer(row.ReportedRevision), CurrentRule: row.CurrentRule, CurrentSceneID: row.CurrentSceneID,
+		ReportedRevision: intPointer(
+			row.ReportedRevision,
+		), CurrentRule: row.CurrentRule, CurrentSceneID: row.CurrentSceneID,
 		PlayerVersion: row.PlayerVersion, CacheUsedBytes: row.CacheUsedBytes, CacheQuotaBytes: row.CacheQuotaBytes, Errors: []string{},
 		Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: "offline",
 	}
@@ -150,7 +155,11 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 }
 
 // buildManifests loads the content the drafts reach and assembles one revision-less manifest each.
-func (s *Service) buildManifests(ctx context.Context, q *signagedb.Queries, drafts []displayDraft) (map[uuid.UUID]Manifest, error) {
+func (s *Service) buildManifests(
+	ctx context.Context,
+	q *signagedb.Queries,
+	drafts []displayDraft,
+) (map[uuid.UUID]Manifest, error) {
 	result := make(map[uuid.UUID]Manifest, len(drafts))
 	if len(drafts) == 0 {
 		return result, nil
@@ -169,7 +178,11 @@ func (s *Service) buildManifests(ctx context.Context, q *signagedb.Queries, draf
 			}
 		}
 	}
-	content := manifestContent{scenes: map[uuid.UUID]ManifestScene{}, playlists: map[uuid.UUID]ManifestPlaylist{}, assets: map[uuid.UUID]ManifestAsset{}}
+	content := manifestContent{
+		scenes:    map[uuid.UUID]ManifestScene{},
+		playlists: map[uuid.UUID]ManifestPlaylist{},
+		assets:    map[uuid.UUID]ManifestAsset{},
+	}
 	playlistRows, err := q.ListSignagePlaylistsByIDs(ctx, uuidStrings(sortedIDs(playlistSet)))
 	if err != nil {
 		return nil, err
@@ -182,7 +195,10 @@ func (s *Service) buildManifests(ctx context.Context, q *signagedb.Queries, draf
 	for _, row := range playlistRows {
 		playlist := ManifestPlaylist{ID: row.ID, Name: row.Name, Items: []ManifestPlaylistItem{}, Version: row.Version}
 		for _, item := range items[row.ID] {
-			playlist.Items = append(playlist.Items, ManifestPlaylistItem{SceneID: item.SceneID, Seconds: item.Seconds, Transition: item.Transition})
+			playlist.Items = append(
+				playlist.Items,
+				ManifestPlaylistItem{SceneID: item.SceneID, Seconds: item.Seconds, Transition: item.Transition},
+			)
 			sceneSet[item.SceneID] = struct{}{}
 		}
 		content.playlists[row.ID] = playlist
@@ -221,7 +237,20 @@ func (s *Service) buildManifests(ctx context.Context, q *signagedb.Queries, draf
 			return nil, err
 		}
 		for _, row := range assetRows {
-			asset := assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, "", time.Time{}, row.ContentType, row.SizeBytes, row.Sha256)
+			asset := assetFromRow(
+				row.ID,
+				row.Kind,
+				row.Name,
+				row.Width,
+				row.Height,
+				row.DurationMs,
+				nil,
+				"",
+				time.Time{},
+				row.ContentType,
+				row.SizeBytes,
+				row.Sha256,
+			)
 			content.assets[row.ID] = ManifestAsset{
 				ID: row.ID, Kind: row.Kind, Name: row.Name, ContentType: row.ContentType, SHA256: asset.SHA256, SizeBytes: row.SizeBytes,
 				Width: asset.Width, Height: asset.Height, DurationMs: asset.DurationMs,
@@ -306,7 +335,8 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	if input.Orientation != "portrait" && input.Orientation != "landscape" {
 		return input, validation("orientation must be portrait or landscape")
 	}
-	if input.Resolution.Width < 320 || input.Resolution.Width > 16384 || input.Resolution.Height < 320 || input.Resolution.Height > 16384 {
+	if input.Resolution.Width < 320 || input.Resolution.Width > 16384 || input.Resolution.Height < 320 ||
+		input.Resolution.Height > 16384 {
 		return input, validation("resolution width and height must be between 320 and 16384")
 	}
 	if input.DefaultPlaylistID == uuid.Nil {
@@ -317,7 +347,14 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 }
 
 // UpdateDisplay changes the draft settings of a display.
-func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, input DisplayInput, requestID *uuid.UUID) (Display, error) {
+func (s *Service) UpdateDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input DisplayInput,
+	requestID *uuid.UUID,
+) (Display, error) {
 	if err := requireManage(principal); err != nil {
 		return Display{}, err
 	}
@@ -353,12 +390,18 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 		return Display{}, err
 	}
 	if current.Orientation != checked.Orientation {
-		mismatched, err := q.CountSceneRulesWithOtherOrientation(ctx, signagedb.CountSceneRulesWithOtherOrientationParams{DisplayID: id, Orientation: checked.Orientation})
+		mismatched, err := q.CountSceneRulesWithOtherOrientation(
+			ctx,
+			signagedb.CountSceneRulesWithOtherOrientationParams{DisplayID: id, Orientation: checked.Orientation},
+		)
 		if err != nil {
 			return Display{}, err
 		}
 		if mismatched > 0 {
-			return Display{}, validation("%d rule(s) show a scene with another orientation; change those rules first", mismatched)
+			return Display{}, validation(
+				"%d rule(s) show a scene with another orientation; change those rules first",
+				mismatched,
+			)
 		}
 	}
 	allowOutside := current.AllowCameraOutside
@@ -384,7 +427,8 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 	if current.Orientation != checked.Orientation {
 		changed = append(changed, "orientation")
 	}
-	if int(current.ResolutionWidth) != checked.Resolution.Width || int(current.ResolutionHeight) != checked.Resolution.Height {
+	if int(current.ResolutionWidth) != checked.Resolution.Width ||
+		int(current.ResolutionHeight) != checked.Resolution.Height {
 		changed = append(changed, "resolution")
 	}
 	if current.VisibleFromOutside != checked.VisibleFromOutside {
@@ -398,7 +442,8 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 	}
 	// Camera tickets stop at once when the display loses the right to show cameras to the outside;
 	// running sessions are dropped through the gateways' session epoch.
-	if cameraAllowed(current.VisibleFromOutside, current.AllowCameraOutside) && !cameraAllowed(checked.VisibleFromOutside, allowOutside) {
+	if cameraAllowed(current.VisibleFromOutside, current.AllowCameraOutside) &&
+		!cameraAllowed(checked.VisibleFromOutside, allowOutside) {
 		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
 			return Display{}, err
 		}
@@ -415,7 +460,13 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 
 // RevokeDisplay revokes the display and its managed device in one transaction. The player's
 // credential stops working at once; the display row stays until it is deleted.
-func (s *Service) RevokeDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Display, error) {
+func (s *Service) RevokeDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Display, error) {
 	if err := requireManage(principal); err != nil {
 		return Display{}, err
 	}
@@ -461,7 +512,13 @@ func (s *Service) RevokeDisplay(ctx context.Context, principal authorization.Pri
 }
 
 // DeleteDisplay removes a display in any state (revoking its device first), its rules, publications, state and managed device.
-func (s *Service) DeleteDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := requireManage(principal); err != nil {
 		return err
 	}
@@ -488,7 +545,10 @@ func (s *Service) DeleteDisplay(ctx context.Context, principal authorization.Pri
 	if err := manageddevices.RevokeSignagePlayerDeviceTx(ctx, tx, principal, current.ManagedDeviceID, requestID); err != nil {
 		return err
 	}
-	deviceID, err := q.DeleteSignageDisplay(ctx, signagedb.DeleteSignageDisplayParams{ID: id, ExpectedVersion: expected})
+	deviceID, err := q.DeleteSignageDisplay(
+		ctx,
+		signagedb.DeleteSignageDisplayParams{ID: id, ExpectedVersion: expected},
+	)
 	if err != nil {
 		return databaseError(err)
 	}

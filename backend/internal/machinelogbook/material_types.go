@@ -21,8 +21,18 @@ func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processes [
 	if processes == nil {
 		processes = []string{}
 	}
-	return MaterialType{ID: row.ID, Name: row.Name, Unit: row.Unit, Processes: processes, Active: row.Active, MaterialCount: row.MaterialCount, PricingRuleCount: row.PricingRuleCount,
-		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return MaterialType{
+		ID:               row.ID,
+		Name:             row.Name,
+		Unit:             row.Unit,
+		Processes:        processes,
+		Active:           row.Active,
+		MaterialCount:    row.MaterialCount,
+		PricingRuleCount: row.PricingRuleCount,
+		Version:          row.Version,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}
 }
 
 func validateMaterialTypeName(name string) (string, error) {
@@ -56,7 +66,11 @@ func validateProcesses(processes []string) ([]string, error) {
 }
 
 // materialTypeProcesses loads the processes of the given types.
-func materialTypeProcesses(ctx context.Context, q *machinelogbookdb.Queries, ids []uuid.UUID) (map[uuid.UUID][]string, error) {
+func materialTypeProcesses(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	ids []uuid.UUID,
+) (map[uuid.UUID][]string, error) {
 	rows, err := q.ListMaterialTypeProcesses(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -80,7 +94,12 @@ func processRank(process string) int {
 	return len(machineProcesses)
 }
 
-func replaceMaterialTypeProcesses(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID, processes []string) error {
+func replaceMaterialTypeProcesses(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+	processes []string,
+) error {
 	if err := q.DeleteMaterialTypeProcesses(ctx, id); err != nil {
 		return err
 	}
@@ -141,7 +160,13 @@ func (s *Service) GetMaterialType(ctx context.Context, p authorization.Principal
 	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes[id]), nil
 }
 
-func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Principal, name, unit string, processes []string, requestID *uuid.UUID) (MaterialType, error) {
+func (s *Service) CreateMaterialType(
+	ctx context.Context,
+	p authorization.Principal,
+	name, unit string,
+	processes []string,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -186,7 +211,16 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 // only change while no material or pricing rule uses the type, because those
 // keep the unit of their type. Nil processes keeps the current ones; a given
 // list replaces them and must not be empty.
-func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, unit string, processes []string, active bool, requestID *uuid.UUID) (MaterialType, error) {
+func (s *Service) UpdateMaterialType(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name, unit string,
+	processes []string,
+	active bool,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -225,7 +259,10 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 			return MaterialType{}, refErr
 		}
 		if referenced {
-			return MaterialType{}, conflict("material_type_unit_in_use", "The unit cannot change while materials or pricing rules use this material type")
+			return MaterialType{}, conflict(
+				"material_type_unit_in_use",
+				"The unit cannot change while materials or pricing rules use this material type",
+			)
 		}
 	}
 	if _, err = q.UpdateMaterialType(ctx, machinelogbookdb.UpdateMaterialTypeParams{Name: name, Unit: unit, Active: active, ID: id, ExpectedVersion: expected}); err != nil {
@@ -258,7 +295,13 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 
 // DeleteMaterialType hard-deletes a type that no material or pricing rule uses.
 // Referenced types answer 409 material_type_in_use; deactivate those instead.
-func (s *Service) DeleteMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteMaterialType(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return err
 	}
@@ -283,7 +326,10 @@ func (s *Service) DeleteMaterialType(ctx context.Context, p authorization.Princi
 		return err
 	}
 	if referenced {
-		return conflict("material_type_in_use", "Materials or pricing rules use this material type and it cannot be deleted; deactivate it instead")
+		return conflict(
+			"material_type_in_use",
+			"Materials or pricing rules use this material type and it cannot be deleted; deactivate it instead",
+		)
 	}
 	rows, err := q.DeleteMaterialType(ctx, machinelogbookdb.DeleteMaterialTypeParams{ID: id, ExpectedVersion: expected})
 	if err != nil {
@@ -300,7 +346,12 @@ func (s *Service) DeleteMaterialType(ctx context.Context, p authorization.Princi
 
 // resolveMaterialType loads the type a material or pricing rule points at and
 // returns its unit. requireActive refuses deactivated types for new choices.
-func resolveMaterialType(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID, requireActive bool) (machinelogbookdb.MaterialType, error) {
+func resolveMaterialType(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+	requireActive bool,
+) (machinelogbookdb.MaterialType, error) {
 	row, err := q.GetMaterialTypeForShare(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return row, validation("materialTypeId does not refer to a material type")

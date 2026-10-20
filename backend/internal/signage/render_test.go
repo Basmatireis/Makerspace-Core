@@ -57,13 +57,22 @@ func TestRenderAnnouncementVectors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			template := RenderTemplate{Title: vector.Template.Title, Body: vector.Template.Body, Tone: vector.Template.Tone}
+			template := RenderTemplate{
+				Title: vector.Template.Title,
+				Body:  vector.Template.Body,
+				Tone:  vector.Template.Tone,
+			}
 			for _, field := range vector.Template.Fields {
 				template.Fields = append(template.Fields, RenderField{Key: field.Key, Type: field.Type})
 			}
-			got := RenderAnnouncement(template, vector.Values, RenderTiming{StartsAt: vector.StartsAt, EndsAt: vector.EndsAt}, RenderContext{
-				Now: vector.Now, TimeZone: zone, DisplayName: vector.DisplayName, Location: vector.Location, MachineNames: vector.Machines,
-			})
+			got := RenderAnnouncement(
+				template,
+				vector.Values,
+				RenderTiming{StartsAt: vector.StartsAt, EndsAt: vector.EndsAt},
+				RenderContext{
+					Now: vector.Now, TimeZone: zone, DisplayName: vector.DisplayName, Location: vector.Location, MachineNames: vector.Machines,
+				},
+			)
 			want := Rendered{Title: vector.Expected.Title, Body: vector.Expected.Body, Tone: vector.Expected.Tone}
 			if got != want {
 				t.Fatalf("rendered %#v, want %#v", got, want)

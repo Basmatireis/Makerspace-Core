@@ -80,7 +80,8 @@ func parseAmount(v string, scale int32, positive bool) (decimal.Decimal, error) 
 		return decimal.Zero, validation("A nonnegative decimal string is required")
 	}
 	x, e := decimal.NewFromString(v)
-	if e != nil || x.Exponent() < -scale || x.GreaterThanOrEqual(decimal.New(1, 20-scale)) || (positive && !x.IsPositive()) {
+	if e != nil || x.Exponent() < -scale || x.GreaterThanOrEqual(decimal.New(1, 20-scale)) ||
+		(positive && !x.IsPositive()) {
 		return decimal.Zero, validation("Amount exceeds supported precision or must be positive")
 	}
 	return x, nil
@@ -97,8 +98,28 @@ func pageBounds(page, size int) (int32, int32, error) {
 	}
 	return int32(size), int32((page - 1) * size), nil
 }
-func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields ...string) error {
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &p.AccountID, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields})
+
+func writeAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields ...string,
+) error {
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &p.AccountID,
+			Action:         action,
+			ResourceType:   resource,
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  fields,
+		},
+	)
 }
 func checkVersion(o db.Order, expected int64) error {
 	if expected < 1 {
@@ -117,7 +138,14 @@ func draft(o db.Order) error {
 }
 
 // beginOperation serializes retries before checking versions. No request payload is persisted.
-func beginOperation(ctx context.Context, q *db.Queries, p authorization.Principal, key uuid.UUID, kind string, input any) (*db.OrderOperation, []byte, error) {
+func beginOperation(
+	ctx context.Context,
+	q *db.Queries,
+	p authorization.Principal,
+	key uuid.UUID,
+	kind string,
+	input any,
+) (*db.OrderOperation, []byte, error) {
 	if key == uuid.Nil {
 		return nil, nil, validation("operationKey is required")
 	}
@@ -145,10 +173,35 @@ func beginOperation(ctx context.Context, q *db.Queries, p authorization.Principa
 	}
 	return &op, sum[:], nil
 }
-func finishOperation(ctx context.Context, q *db.Queries, p authorization.Principal, key uuid.UUID, kind string, hash []byte, orderID, requestID *uuid.UUID) error {
-	return q.SaveOperation(ctx, db.SaveOperationParams{ID: newID(), OperationKey: key, Kind: kind, RequestFingerprint: hash, ActorAccountID: &p.AccountID, OrderID: orderID, RequestID: requestID})
+
+func finishOperation(
+	ctx context.Context,
+	q *db.Queries,
+	p authorization.Principal,
+	key uuid.UUID,
+	kind string,
+	hash []byte,
+	orderID, requestID *uuid.UUID,
+) error {
+	return q.SaveOperation(
+		ctx,
+		db.SaveOperationParams{
+			ID:                 newID(),
+			OperationKey:       key,
+			Kind:               kind,
+			RequestFingerprint: hash,
+			ActorAccountID:     &p.AccountID,
+			OrderID:            orderID,
+			RequestID:          requestID,
+		},
+	)
 }
-func (s *Service) validateCustomer(ctx context.Context, q *db.Queries, c *OrderCustomer) (string, *uuid.UUID, *uuid.UUID, string, *string, error) {
+
+func (s *Service) validateCustomer(
+	ctx context.Context,
+	q *db.Queries,
+	c *OrderCustomer,
+) (string, *uuid.UUID, *uuid.UUID, string, *string, error) {
 	if c == nil {
 		return "anonymous", nil, nil, "", nil, nil
 	}
@@ -168,7 +221,15 @@ func (s *Service) validateCustomer(ctx context.Context, q *db.Queries, c *OrderC
 	}
 	return "", nil, nil, "", nil, validation("Invalid customer")
 }
-func (s *Service) create(ctx context.Context, tx pgx.Tx, p authorization.Principal, input OrderDraftInput, original *db.Order, requestID *uuid.UUID) (db.Order, error) {
+
+func (s *Service) create(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input OrderDraftInput,
+	original *db.Order,
+	requestID *uuid.UUID,
+) (db.Order, error) {
 	q := db.New(tx)
 	kind, person, org, _, _, err := s.validateCustomer(ctx, q, input.Customer)
 	if err != nil {
@@ -181,7 +242,15 @@ func (s *Service) create(ctx context.Context, tx pgx.Tx, p authorization.Princip
 	if err != nil {
 		return db.Order{}, err
 	}
-	params := db.CreateOrderParams{ID: newID(), Reference: reference("O", n), CustomerKind: kind, CustomerPersonID: person, CustomerOrganizationID: org, FulfillmentMode: input.FulfillmentMode, CreatedByAccountID: &p.AccountID}
+	params := db.CreateOrderParams{
+		ID:                     newID(),
+		Reference:              reference("O", n),
+		CustomerKind:           kind,
+		CustomerPersonID:       person,
+		CustomerOrganizationID: org,
+		FulfillmentMode:        input.FulfillmentMode,
+		CreatedByAccountID:     &p.AccountID,
+	}
 	if original != nil {
 		params.ReplacesOrderID = &original.ID
 		params.ReplacesOrderReference = &original.Reference
@@ -192,7 +261,13 @@ func (s *Service) create(ctx context.Context, tx pgx.Tx, p authorization.Princip
 	}
 	return o, writeAudit(ctx, tx, p, "order.created", "order", o.ID, requestID, "customer", "fulfillmentMode")
 }
-func (s *Service) Create(ctx context.Context, p authorization.Principal, input OrderDraftInput, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) Create(
+	ctx context.Context,
+	p authorization.Principal,
+	input OrderDraftInput,
+	requestID *uuid.UUID,
+) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.OrdersWrite); err != nil {
 		return Order{}, err
 	}
@@ -211,7 +286,14 @@ func (s *Service) Create(ctx context.Context, p authorization.Principal, input O
 	}
 	return result, databaseError(tx.Commit(ctx))
 }
-func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid.UUID, input UpdateOrderDraftInput, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) Update(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input UpdateOrderDraftInput,
+	requestID *uuid.UUID,
+) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.OrdersWrite); err != nil {
 		return Order{}, err
 	}
@@ -242,7 +324,16 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	if input.FulfillmentMode != "immediate" && input.FulfillmentMode != "deferred" {
 		return Order{}, validation("Invalid fulfillment mode")
 	}
-	_, err = q.UpdateDraft(ctx, db.UpdateDraftParams{ID: id, CustomerKind: kind, CustomerPersonID: person, CustomerOrganizationID: org, FulfillmentMode: input.FulfillmentMode})
+	_, err = q.UpdateDraft(
+		ctx,
+		db.UpdateDraftParams{
+			ID:                     id,
+			CustomerKind:           kind,
+			CustomerPersonID:       person,
+			CustomerOrganizationID: org,
+			FulfillmentMode:        input.FulfillmentMode,
+		},
+	)
 	if err == nil {
 		err = writeAudit(ctx, tx, p, "order.updated", "order", id, requestID, "customer", "fulfillmentMode")
 	}
@@ -271,14 +362,39 @@ func (s *Service) actor(ctx context.Context, q *db.Queries, account *uuid.UUID) 
 	return &Actor{ID: row.ID, DisplayName: row.DisplayName}, nil
 }
 func allocation(v db.PaymentAllocation) OrderAllocation {
-	return OrderAllocation{ID: v.ID, PaymentID: v.PaymentID, PaymentReference: v.PaymentReference, OrderID: v.OrderID, OrderReference: v.OrderReference, Amount: d(v.Amount).StringFixed(2), OperationID: v.OperationID, CreatedAt: v.CreatedAt}
+	return OrderAllocation{
+		ID:               v.ID,
+		PaymentID:        v.PaymentID,
+		PaymentReference: v.PaymentReference,
+		OrderID:          v.OrderID,
+		OrderReference:   v.OrderReference,
+		Amount:           d(v.Amount).StringFixed(2),
+		OperationID:      v.OperationID,
+		CreatedAt:        v.CreatedAt,
+	}
 }
 func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order, error) {
 	o, err := q.GetOrder(ctx, id)
 	if err != nil {
 		return Order{}, databaseError(err)
 	}
-	v := Order{ID: o.ID, Reference: o.Reference, Status: o.Status, Currency: o.Currency, CustomerKind: o.CustomerKind, FulfillmentMode: o.FulfillmentMode, TotalAmount: money(o.TotalAmount), ReplacesOrderID: o.ReplacesOrderID, ReplacesOrderReference: o.ReplacesOrderReference, Version: o.Version, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt, Items: []OrderItem{}, Allocations: []OrderAllocation{}, Adjustments: []OrderAdjustment{}}
+	v := Order{
+		ID:                     o.ID,
+		Reference:              o.Reference,
+		Status:                 o.Status,
+		Currency:               o.Currency,
+		CustomerKind:           o.CustomerKind,
+		FulfillmentMode:        o.FulfillmentMode,
+		TotalAmount:            money(o.TotalAmount),
+		ReplacesOrderID:        o.ReplacesOrderID,
+		ReplacesOrderReference: o.ReplacesOrderReference,
+		Version:                o.Version,
+		CreatedAt:              o.CreatedAt,
+		UpdatedAt:              o.UpdatedAt,
+		Items:                  []OrderItem{},
+		Allocations:            []OrderAllocation{},
+		Adjustments:            []OrderAdjustment{},
+	}
 	if o.CustomerPersonID != nil {
 		v.Customer = &OrderCustomer{Kind: "person", ID: *o.CustomerPersonID}
 	}
@@ -327,7 +443,20 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	}
 	total := decimal.Zero
 	for _, i := range items {
-		item := OrderItem{ID: i.ID, Position: int64(i.Position), Kind: i.Kind, Description: i.Description, Quantity: d(i.Quantity).String(), Unit: i.Unit, UnitPrice: d(i.UnitPrice).String(), Amount: money(i.Amount), SourceMachineJobID: i.SourceMachineJobID, SourceJobVersion: i.SourceJobVersion, CreatedAt: i.CreatedAt, RemovedAt: timePointer(i.RemovedAt)}
+		item := OrderItem{
+			ID:                 i.ID,
+			Position:           int64(i.Position),
+			Kind:               i.Kind,
+			Description:        i.Description,
+			Quantity:           d(i.Quantity).String(),
+			Unit:               i.Unit,
+			UnitPrice:          d(i.UnitPrice).String(),
+			Amount:             money(i.Amount),
+			SourceMachineJobID: i.SourceMachineJobID,
+			SourceJobVersion:   i.SourceJobVersion,
+			CreatedAt:          i.CreatedAt,
+			RemovedAt:          timePointer(i.RemovedAt),
+		}
 		if i.CurrentJobVersion != nil && i.SourceJobVersion != nil {
 			item.SourceChanged = *i.CurrentJobVersion != *i.SourceJobVersion
 		}
@@ -352,7 +481,16 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	}
 	for _, a := range adjustments {
 		total = total.Sub(d(a.Amount))
-		v.Adjustments = append(v.Adjustments, OrderAdjustment{ID: a.ID, Reference: a.Reference, Amount: money(a.Amount), Reason: a.Reason, CreatedAt: a.CreatedAt})
+		v.Adjustments = append(
+			v.Adjustments,
+			OrderAdjustment{
+				ID:        a.ID,
+				Reference: a.Reference,
+				Amount:    money(a.Amount),
+				Reason:    a.Reason,
+				CreatedAt: a.CreatedAt,
+			},
+		)
 	}
 	entries, e := q.ListAllocations(ctx, &id)
 	if e != nil {
@@ -382,7 +520,13 @@ func (s *Service) Get(ctx context.Context, p authorization.Principal, id uuid.UU
 	}
 	return s.load(ctx, db.New(s.pool), id)
 }
-func (s *Service) List(ctx context.Context, p authorization.Principal, search, status string, page, size int) (OrderPage, error) {
+
+func (s *Service) List(
+	ctx context.Context,
+	p authorization.Principal,
+	search, status string,
+	page, size int,
+) (OrderPage, error) {
 	if err := require(p, authorization.OrdersRead); err != nil {
 		return OrderPage{}, err
 	}
@@ -391,7 +535,10 @@ func (s *Service) List(ctx context.Context, p authorization.Principal, search, s
 		return OrderPage{}, err
 	}
 	q := db.New(s.pool)
-	rows, err := q.ListOrders(ctx, db.ListOrdersParams{Search: search, Status: status, PageLimit: limit, PageOffset: offset})
+	rows, err := q.ListOrders(
+		ctx,
+		db.ListOrdersParams{Search: search, Status: status, PageLimit: limit, PageOffset: offset},
+	)
 	if err != nil {
 		return OrderPage{}, err
 	}

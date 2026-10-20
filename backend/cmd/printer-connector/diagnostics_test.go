@@ -20,7 +20,8 @@ func TestInspect3MFCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("inspect-3mf: %v", err)
 	}
-	if !handled || !strings.Contains(output.String(), `"parserVersion": "bambu-3mf-v1"`) || strings.Contains(output.String(), "Bytes") {
+	if !handled || !strings.Contains(output.String(), `"parserVersion": "bambu-3mf-v1"`) ||
+		strings.Contains(output.String(), "Bytes") {
 		t.Fatalf("output = %s", output.String())
 	}
 }
@@ -42,7 +43,8 @@ func TestCalculateConsumptionCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("calculate-consumption: %v", err)
 	}
-	if !handled || !strings.Contains(output.String(), `"resolved": true`) || !strings.Contains(output.String(), `"embeddedProgress": 50`) {
+	if !handled || !strings.Contains(output.String(), `"resolved": true`) ||
+		!strings.Contains(output.String(), `"embeddedProgress": 50`) {
 		t.Fatalf("output = %s", output.String())
 	}
 }
@@ -58,7 +60,8 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 	if err := os.WriteFile(rawPath, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if handled, err := runOfflineCommand([]string{"sanitize-mqtt", "--input", rawPath, "--output", sanitizedPath}, &bytes.Buffer{}); err != nil || !handled {
+	if handled, err := runOfflineCommand([]string{"sanitize-mqtt", "--input", rawPath, "--output", sanitizedPath}, &bytes.Buffer{}); err != nil ||
+		!handled {
 		t.Fatalf("sanitize-mqtt handled=%v err=%v", handled, err)
 	}
 	info, err := os.Stat(sanitizedPath)
@@ -76,7 +79,8 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 		t.Fatalf("sanitized = %s", sanitized)
 	}
 	var replay bytes.Buffer
-	if handled, err := runOfflineCommand([]string{"replay-mqtt", "--input", sanitizedPath, "--adapter", "bambu_x1c"}, &replay); err != nil || !handled {
+	if handled, err := runOfflineCommand([]string{"replay-mqtt", "--input", sanitizedPath, "--adapter", "bambu_x1c"}, &replay); err != nil ||
+		!handled {
 		t.Fatalf("replay-mqtt handled=%v err=%v", handled, err)
 	}
 	if !strings.Contains(replay.String(), `"ready":true`) || !strings.Contains(replay.String(), `"kind":"progress"`) {
@@ -114,7 +118,11 @@ func writeDiagnosticArchive(t *testing.T, fileName string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = metadata.Write([]byte(`{"project_name":"synthetic","filament_id":["3"],"filament_type":["PLA"],"filament_diameter":["1.75"],"filament_density":["1.24"]}`))
+	_, _ = metadata.Write(
+		[]byte(
+			`{"project_name":"synthetic","filament_id":["3"],"filament_type":["PLA"],"filament_diameter":["1.75"],"filament_density":["1.24"]}`,
+		),
+	)
 	gcode, err := writer.Create("Metadata/plate_1.gcode")
 	if err != nil {
 		t.Fatal(err)

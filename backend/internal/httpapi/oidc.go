@@ -11,7 +11,10 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 )
 
-func (s *Server) ListOIDCLoginProviders(ctx context.Context, _ openapi.ListOIDCLoginProvidersRequestObject) (openapi.ListOIDCLoginProvidersResponseObject, error) {
+func (s *Server) ListOIDCLoginProviders(
+	ctx context.Context,
+	_ openapi.ListOIDCLoginProvidersRequestObject,
+) (openapi.ListOIDCLoginProvidersResponseObject, error) {
 	providers, err := s.oidc.ListLoginProviders(ctx)
 	if err != nil {
 		return nil, err
@@ -23,7 +26,10 @@ func (s *Server) ListOIDCLoginProviders(ctx context.Context, _ openapi.ListOIDCL
 	return openapi.ListOIDCLoginProviders200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) ListOIDCProviders(ctx context.Context, _ openapi.ListOIDCProvidersRequestObject) (openapi.ListOIDCProvidersResponseObject, error) {
+func (s *Server) ListOIDCProviders(
+	ctx context.Context,
+	_ openapi.ListOIDCProvidersRequestObject,
+) (openapi.ListOIDCProvidersResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -39,7 +45,10 @@ func (s *Server) ListOIDCProviders(ctx context.Context, _ openapi.ListOIDCProvid
 	return openapi.ListOIDCProviders200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateOIDCProvider(ctx context.Context, request openapi.CreateOIDCProviderRequestObject) (openapi.CreateOIDCProviderResponseObject, error) {
+func (s *Server) CreateOIDCProvider(
+	ctx context.Context,
+	request openapi.CreateOIDCProviderRequestObject,
+) (openapi.CreateOIDCProviderResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -58,7 +67,10 @@ func (s *Server) CreateOIDCProvider(ctx context.Context, request openapi.CreateO
 	return openapi.CreateOIDCProvider201JSONResponse(oidcProviderDTO(provider)), nil
 }
 
-func (s *Server) UpdateOIDCProvider(ctx context.Context, request openapi.UpdateOIDCProviderRequestObject) (openapi.UpdateOIDCProviderResponseObject, error) {
+func (s *Server) UpdateOIDCProvider(
+	ctx context.Context,
+	request openapi.UpdateOIDCProviderRequestObject,
+) (openapi.UpdateOIDCProviderResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -69,7 +81,9 @@ func (s *Server) UpdateOIDCProvider(ctx context.Context, request openapi.UpdateO
 	provider, err := s.oidc.UpdateProvider(ctx, principal, request.OidcProviderId, oidc.ProviderInput{
 		DisplayName: request.Body.DisplayName, Issuer: request.Body.Issuer, ClientID: request.Body.ClientId,
 		ClientSecret: request.Body.ClientSecret, Enabled: request.Body.Enabled, JITEnabled: request.Body.JitEnabled,
-		ACRAssuranceMappings: assuranceMappings(request.Body.AcrAssuranceMappings), ExpectedVersion: request.Body.ExpectedVersion,
+		ACRAssuranceMappings: assuranceMappings(
+			request.Body.AcrAssuranceMappings,
+		), ExpectedVersion: request.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -77,7 +91,10 @@ func (s *Server) UpdateOIDCProvider(ctx context.Context, request openapi.UpdateO
 	return openapi.UpdateOIDCProvider200JSONResponse(oidcProviderDTO(provider)), nil
 }
 
-func (s *Server) StartOIDCLogin(ctx context.Context, request openapi.StartOIDCLoginRequestObject) (openapi.StartOIDCLoginResponseObject, error) {
+func (s *Server) StartOIDCLogin(
+	ctx context.Context,
+	request openapi.StartOIDCLoginRequestObject,
+) (openapi.StartOIDCLoginResponseObject, error) {
 	flow, err := s.oidc.StartLogin(ctx, request.ProviderSlug)
 	if err != nil {
 		return nil, err
@@ -87,7 +104,10 @@ func (s *Server) StartOIDCLogin(ctx context.Context, request openapi.StartOIDCLo
 	}}, nil
 }
 
-func (s *Server) StartOIDCLink(ctx context.Context, request openapi.StartOIDCLinkRequestObject) (openapi.StartOIDCLinkResponseObject, error) {
+func (s *Server) StartOIDCLink(
+	ctx context.Context,
+	request openapi.StartOIDCLinkRequestObject,
+) (openapi.StartOIDCLinkResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -101,15 +121,27 @@ func (s *Server) StartOIDCLink(ctx context.Context, request openapi.StartOIDCLin
 		return nil, err
 	}
 	return openapi.StartOIDCLink200JSONResponse{
-		Body:    openapi.OIDCFlowStart{AuthorizationUrl: flow.AuthorizationURL},
-		Headers: openapi.StartOIDCLink200ResponseHeaders{SetCookie: s.oidcFlowCookie(flow.BrowserToken, flow.ExpiresAt).String()},
+		Body: openapi.OIDCFlowStart{AuthorizationUrl: flow.AuthorizationURL},
+		Headers: openapi.StartOIDCLink200ResponseHeaders{
+			SetCookie: s.oidcFlowCookie(flow.BrowserToken, flow.ExpiresAt).String(),
+		},
 	}, nil
 }
 
-func (s *Server) CompleteOIDCCallback(ctx context.Context, request openapi.CompleteOIDCCallbackRequestObject) (openapi.CompleteOIDCCallbackResponseObject, error) {
+func (s *Server) CompleteOIDCCallback(
+	ctx context.Context,
+	request openapi.CompleteOIDCCallbackRequestObject,
+) (openapi.CompleteOIDCCallbackResponseObject, error) {
 	browserToken, _ := ctx.Value(oidcFlowTokenContextKey).(string)
 	principal, _ := requirePrincipal(ctx)
-	result, err := s.oidc.Complete(ctx, request.Params.State, request.Params.Code, browserToken, principal, requestIDPointer(ctx))
+	result, err := s.oidc.Complete(
+		ctx,
+		request.Params.State,
+		request.Params.Code,
+		browserToken,
+		principal,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +154,10 @@ func (s *Server) CompleteOIDCCallback(ctx context.Context, request openapi.Compl
 	return oidcCallbackResponse{server: s, session: result.Session, location: location}, nil
 }
 
-func (s *Server) UnlinkOwnOIDCIdentity(ctx context.Context, request openapi.UnlinkOwnOIDCIdentityRequestObject) (openapi.UnlinkOwnOIDCIdentityResponseObject, error) {
+func (s *Server) UnlinkOwnOIDCIdentity(
+	ctx context.Context,
+	request openapi.UnlinkOwnOIDCIdentityRequestObject,
+) (openapi.UnlinkOwnOIDCIdentityResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -138,7 +173,19 @@ func oidcProviderDTO(provider oidc.Provider) openapi.OIDCProvider {
 	for acr, assurance := range provider.ACRAssuranceMappings {
 		mappings[acr] = openapi.AuthenticationAssurance(assurance)
 	}
-	return openapi.OIDCProvider{Id: provider.ID, Slug: provider.Slug, DisplayName: provider.DisplayName, Issuer: provider.Issuer, ClientId: provider.ClientID, Enabled: provider.Enabled, JitEnabled: provider.JITEnabled, AcrAssuranceMappings: mappings, Version: provider.Version, CreatedAt: provider.CreatedAt, UpdatedAt: provider.UpdatedAt}
+	return openapi.OIDCProvider{
+		Id:                   provider.ID,
+		Slug:                 provider.Slug,
+		DisplayName:          provider.DisplayName,
+		Issuer:               provider.Issuer,
+		ClientId:             provider.ClientID,
+		Enabled:              provider.Enabled,
+		JitEnabled:           provider.JITEnabled,
+		AcrAssuranceMappings: mappings,
+		Version:              provider.Version,
+		CreatedAt:            provider.CreatedAt,
+		UpdatedAt:            provider.UpdatedAt,
+	}
 }
 
 func assuranceMappings(values map[string]openapi.AuthenticationAssurance) map[string]authorization.Assurance {
@@ -154,7 +201,16 @@ func (s *Server) oidcFlowCookie(value string, expires time.Time) *http.Cookie {
 	if maxAge < 1 {
 		maxAge = 1
 	}
-	return &http.Cookie{Name: s.config.OIDCFlowCookieName, Value: value, Path: "/", Expires: expires, MaxAge: maxAge, HttpOnly: true, Secure: s.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode}
+	return &http.Cookie{
+		Name:     s.config.OIDCFlowCookieName,
+		Value:    value,
+		Path:     "/",
+		Expires:  expires,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   s.config.SessionCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	}
 }
 
 type oidcCallbackResponse struct {
@@ -168,20 +224,59 @@ type oidcCallbackResponse struct {
 func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Location", response.location)
-	http.SetCookie(w, &http.Cookie{Name: response.server.config.OIDCFlowCookieName, Value: "", Path: "/", Expires: time.Unix(1, 0).UTC(), MaxAge: -1, HttpOnly: true, Secure: response.server.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(
+		w,
+		&http.Cookie{
+			Name:     response.server.config.OIDCFlowCookieName,
+			Value:    "",
+			Path:     "/",
+			Expires:  time.Unix(1, 0).UTC(),
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   response.server.config.SessionCookieSecure,
+			SameSite: http.SameSiteLaxMode,
+		},
+	)
 	if response.session != nil {
 		maxAge := int(time.Until(response.session.AbsoluteExpiry).Seconds())
 		if maxAge < 1 {
 			maxAge = 1
 		}
-		http.SetCookie(w, &http.Cookie{Name: response.server.config.SessionCookieName, Value: response.session.Token, Path: "/", Expires: response.session.AbsoluteExpiry, MaxAge: maxAge, HttpOnly: true, Secure: response.server.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode})
-		http.SetCookie(w, &http.Cookie{Name: response.server.config.CSRFCookieName, Value: response.session.CSRFToken, Path: "/", Expires: response.session.AbsoluteExpiry, MaxAge: maxAge, HttpOnly: false, Secure: response.server.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode})
+		http.SetCookie(
+			w,
+			&http.Cookie{
+				Name:     response.server.config.SessionCookieName,
+				Value:    response.session.Token,
+				Path:     "/",
+				Expires:  response.session.AbsoluteExpiry,
+				MaxAge:   maxAge,
+				HttpOnly: true,
+				Secure:   response.server.config.SessionCookieSecure,
+				SameSite: http.SameSiteLaxMode,
+			},
+		)
+		http.SetCookie(
+			w,
+			&http.Cookie{
+				Name:     response.server.config.CSRFCookieName,
+				Value:    response.session.CSRFToken,
+				Path:     "/",
+				Expires:  response.session.AbsoluteExpiry,
+				MaxAge:   maxAge,
+				HttpOnly: false,
+				Secure:   response.server.config.SessionCookieSecure,
+				SameSite: http.SameSiteLaxMode,
+			},
+		)
 	}
 	w.WriteHeader(http.StatusFound)
 	return nil
 }
 
-func (s *Server) StartOIDCReauthentication(ctx context.Context, request openapi.StartOIDCReauthenticationRequestObject) (openapi.StartOIDCReauthenticationResponseObject, error) {
+func (s *Server) StartOIDCReauthentication(
+	ctx context.Context,
+	request openapi.StartOIDCReauthenticationRequestObject,
+) (openapi.StartOIDCReauthenticationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -190,5 +285,10 @@ func (s *Server) StartOIDCReauthentication(ctx context.Context, request openapi.
 	if err != nil {
 		return nil, err
 	}
-	return openapi.StartOIDCReauthentication200JSONResponse{Body: openapi.OIDCFlowStart{AuthorizationUrl: flow.AuthorizationURL}, Headers: openapi.StartOIDCReauthentication200ResponseHeaders{SetCookie: s.oidcFlowCookie(flow.BrowserToken, flow.ExpiresAt).String()}}, nil
+	return openapi.StartOIDCReauthentication200JSONResponse{
+		Body: openapi.OIDCFlowStart{AuthorizationUrl: flow.AuthorizationURL},
+		Headers: openapi.StartOIDCReauthentication200ResponseHeaders{
+			SetCookie: s.oidcFlowCookie(flow.BrowserToken, flow.ExpiresAt).String(),
+		},
+	}, nil
 }

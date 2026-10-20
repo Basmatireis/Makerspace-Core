@@ -39,7 +39,16 @@ func bulkBlockedError(blockers []BulkBlocker) error {
 	err := apperror.New(409, "bulk_blocked", "Some items cannot be processed; nothing was changed")
 	items := make([]map[string]any, 0, len(blockers))
 	for _, b := range blockers {
-		items = append(items, map[string]any{"kind": b.Kind, "id": b.ID.String(), "displayId": b.DisplayID, "code": b.Code, "message": b.Message})
+		items = append(
+			items,
+			map[string]any{
+				"kind":      b.Kind,
+				"id":        b.ID.String(),
+				"displayId": b.DisplayID,
+				"code":      b.Code,
+				"message":   b.Message,
+			},
+		)
 	}
 	err.Details["items"] = items
 	return err
@@ -92,7 +101,12 @@ type BulkDeleteInput struct {
 // the runs of those jobs, then the listed runs, each in ID order, and the
 // consumed materials are locked in ID order before any is restored. If any
 // item is blocked, nothing is deleted (409 bulk_blocked).
-func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, input BulkDeleteInput, requestID *uuid.UUID) error {
+func (s *Service) BulkDelete(
+	ctx context.Context,
+	p authorization.Principal,
+	input BulkDeleteInput,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.MachineJobsDelete); err != nil {
 		return err
 	}
@@ -124,13 +138,25 @@ func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, inp
 		job, err := q.GetMachineJobForUpdate(ctx, item.ID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				blockers = append(blockers, BulkBlocker{Kind: "job", ID: item.ID, Code: "not_found", Message: "The job no longer exists"})
+				blockers = append(
+					blockers,
+					BulkBlocker{Kind: "job", ID: item.ID, Code: "not_found", Message: "The job no longer exists"},
+				)
 				continue
 			}
 			return err
 		}
 		if job.Version != item.ExpectedVersion {
-			blockers = append(blockers, BulkBlocker{Kind: "job", ID: item.ID, DisplayID: job.DisplayID, Code: "stale_write", Message: job.DisplayID + " changed; reload the list and try again"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "job",
+					ID:        item.ID,
+					DisplayID: job.DisplayID,
+					Code:      "stale_write",
+					Message:   job.DisplayID + " changed; reload the list and try again",
+				},
+			)
 			continue
 		}
 		onOrder, err := q.JobIsOnOrder(ctx, item.ID)
@@ -138,7 +164,16 @@ func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, inp
 			return err
 		}
 		if onOrder {
-			blockers = append(blockers, BulkBlocker{Kind: "job", ID: item.ID, DisplayID: job.DisplayID, Code: "job_on_order", Message: job.DisplayID + " is on an order and cannot be deleted"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "job",
+					ID:        item.ID,
+					DisplayID: job.DisplayID,
+					Code:      "job_on_order",
+					Message:   job.DisplayID + " is on an order and cannot be deleted",
+				},
+			)
 			continue
 		}
 		runs, err := q.ListJobRunsForUpdate(ctx, &item.ID)
@@ -152,16 +187,37 @@ func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, inp
 		run, err := q.GetRunForUpdate(ctx, item.ID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, Code: "not_found", Message: "The run no longer exists"})
+				blockers = append(
+					blockers,
+					BulkBlocker{Kind: "run", ID: item.ID, Code: "not_found", Message: "The run no longer exists"},
+				)
 				continue
 			}
 			return err
 		}
 		switch {
 		case run.JobID != nil:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, DisplayID: run.DisplayID, Code: "run_assigned", Message: run.DisplayID + " belongs to a job; delete or edit the job instead"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        item.ID,
+					DisplayID: run.DisplayID,
+					Code:      "run_assigned",
+					Message:   run.DisplayID + " belongs to a job; delete or edit the job instead",
+				},
+			)
 		case run.Version != item.ExpectedVersion:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, DisplayID: run.DisplayID, Code: "stale_write", Message: run.DisplayID + " changed; reload the list and try again"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        item.ID,
+					DisplayID: run.DisplayID,
+					Code:      "stale_write",
+					Message:   run.DisplayID + " changed; reload the list and try again",
+				},
+			)
 		default:
 			standalone = append(standalone, run)
 		}
@@ -200,7 +256,11 @@ func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, inp
 // lockRunMaterials locks every material the active usages of the runs
 // consumed, in ID order, so concurrent bulk operations restore material in one
 // consistent lock order.
-func (s *Service) lockRunMaterials(ctx context.Context, q *machinelogbookdb.Queries, runs []machinelogbookdb.MachineRun) error {
+func (s *Service) lockRunMaterials(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	runs []machinelogbookdb.MachineRun,
+) error {
 	materialIDs := map[uuid.UUID]bool{}
 	for _, run := range runs {
 		active, err := q.ListActiveRunUsagesForUpdate(ctx, run.ID)
@@ -241,23 +301,48 @@ type CreatedJob struct {
 
 // lockUnassignedRuns locks the runs in ID order. It reports runs that are gone, changed or already assigned as
 // blockers.
-func (s *Service) lockUnassignedRuns(ctx context.Context, q *machinelogbookdb.Queries, items []BulkItem) ([]machinelogbookdb.MachineRun, []BulkBlocker, error) {
+func (s *Service) lockUnassignedRuns(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	items []BulkItem,
+) ([]machinelogbookdb.MachineRun, []BulkBlocker, error) {
 	var runs []machinelogbookdb.MachineRun
 	var blockers []BulkBlocker
 	for _, item := range items {
 		run, err := q.GetRunForUpdate(ctx, item.ID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, Code: "not_found", Message: "The run no longer exists"})
+				blockers = append(
+					blockers,
+					BulkBlocker{Kind: "run", ID: item.ID, Code: "not_found", Message: "The run no longer exists"},
+				)
 				continue
 			}
 			return nil, nil, err
 		}
 		switch {
 		case run.JobID != nil:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, DisplayID: run.DisplayID, Code: "run_already_assigned", Message: run.DisplayID + " already belongs to a job"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        item.ID,
+					DisplayID: run.DisplayID,
+					Code:      "run_already_assigned",
+					Message:   run.DisplayID + " already belongs to a job",
+				},
+			)
 		case run.Version != item.ExpectedVersion:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: item.ID, DisplayID: run.DisplayID, Code: "stale_write", Message: run.DisplayID + " changed; reload the list and try again"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        item.ID,
+					DisplayID: run.DisplayID,
+					Code:      "stale_write",
+					Message:   run.DisplayID + " changed; reload the list and try again",
+				},
+			)
 		default:
 			runs = append(runs, run)
 		}
@@ -267,7 +352,12 @@ func (s *Service) lockUnassignedRuns(ctx context.Context, q *machinelogbookdb.Qu
 
 // lockActiveMachines locks the machines of the runs in ID order and reports
 // the runs of retired machines as blockers.
-func (s *Service) lockActiveMachines(ctx context.Context, q *machinelogbookdb.Queries, runs []machinelogbookdb.MachineRun, retiredMessage string) ([]BulkBlocker, error) {
+func (s *Service) lockActiveMachines(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	runs []machinelogbookdb.MachineRun,
+	retiredMessage string,
+) ([]BulkBlocker, error) {
 	machineIDs := map[uuid.UUID]bool{}
 	for _, run := range runs {
 		machineIDs[run.MachineID] = true
@@ -288,14 +378,38 @@ func (s *Service) lockActiveMachines(ctx context.Context, q *machinelogbookdb.Qu
 	var blockers []BulkBlocker
 	for _, run := range runs {
 		if retired[run.MachineID] {
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: run.ID, DisplayID: run.DisplayID, Code: "machine_retired", Message: run.DisplayID + ": " + retiredMessage})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        run.ID,
+					DisplayID: run.DisplayID,
+					Code:      "machine_retired",
+					Message:   run.DisplayID + ": " + retiredMessage,
+				},
+			)
 		}
 	}
 	return blockers, nil
 }
 
-func auditRunAssigned(ctx context.Context, tx pgx.Tx, p authorization.Principal, run machinelogbookdb.MachineRun, jobID uuid.UUID, requestID *uuid.UUID) error {
-	event := audit.Event{ActorAccountID: accountPointer(p), Action: "machine_run.assigned", ResourceType: "machine_run", ResourceID: &run.ID, RequestID: requestID, ChangedFields: []string{"jobId"}, Metadata: map[string]any{"jobId": jobID.String()}}
+func auditRunAssigned(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	run machinelogbookdb.MachineRun,
+	jobID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
+	event := audit.Event{
+		ActorAccountID: accountPointer(p),
+		Action:         "machine_run.assigned",
+		ResourceType:   "machine_run",
+		ResourceID:     &run.ID,
+		RequestID:      requestID,
+		ChangedFields:  []string{"jobId"},
+		Metadata:       map[string]any{"jobId": jobID.String()},
+	}
 	if event.ActorAccountID == nil {
 		event.ActorType = "system"
 	}
@@ -304,7 +418,11 @@ func auditRunAssigned(ctx context.Context, tx pgx.Tx, p authorization.Principal,
 
 // bulkJobSettings validates the shared customer, operator and pricing group of
 // a bulk job creation once.
-func (s *Service) bulkJobSettings(ctx context.Context, q *machinelogbookdb.Queries, input BulkRunJobInput) (personID, organizationID *uuid.UUID, group machinelogbookdb.PricingGroup, err error) {
+func (s *Service) bulkJobSettings(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	input BulkRunJobInput,
+) (personID, organizationID *uuid.UUID, group machinelogbookdb.PricingGroup, err error) {
 	personID, organizationID, err = validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
 	if err != nil {
 		return nil, nil, group, err
@@ -317,7 +435,12 @@ func (s *Service) bulkJobSettings(ctx context.Context, q *machinelogbookdb.Queri
 // rules of CreateJobFromRun. Customer, operator, notes and pricing group are
 // shared; every job is named after its run's file. Jobs are created in the
 // order the runs started. All-or-nothing.
-func (s *Service) BulkCreateJobsFromRuns(ctx context.Context, p authorization.Principal, input BulkRunJobInput, requestID *uuid.UUID) ([]CreatedJob, error) {
+func (s *Service) BulkCreateJobsFromRuns(
+	ctx context.Context,
+	p authorization.Principal,
+	input BulkRunJobInput,
+	requestID *uuid.UUID,
+) ([]CreatedJob, error) {
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return nil, err
 	}
@@ -358,7 +481,17 @@ func (s *Service) BulkCreateJobsFromRuns(ctx context.Context, p authorization.Pr
 	})
 	created := make([]CreatedJob, 0, len(runs))
 	for _, run := range runs {
-		job, err := s.insertJob(ctx, q, s.now(), run.MachineID, personID, organizationID, input.OperatorPersonID, nil, notes)
+		job, err := s.insertJob(
+			ctx,
+			q,
+			s.now(),
+			run.MachineID,
+			personID,
+			organizationID,
+			input.OperatorPersonID,
+			nil,
+			notes,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -388,7 +521,12 @@ func (s *Service) BulkCreateJobsFromRuns(ctx context.Context, p authorization.Pr
 // BulkCombineRuns creates one job that contains all the unassigned recorded
 // runs. A job has one machine, so the runs must all be on the same machine
 // (422 runs_on_different_machines).
-func (s *Service) BulkCombineRuns(ctx context.Context, p authorization.Principal, input BulkRunJobInput, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) BulkCombineRuns(
+	ctx context.Context,
+	p authorization.Principal,
+	input BulkRunJobInput,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return MachineJob{}, err
 	}
@@ -422,14 +560,28 @@ func (s *Service) BulkCombineRuns(ctx context.Context, p authorization.Principal
 	}
 	for _, run := range runs[1:] {
 		if run.MachineID != runs[0].MachineID {
-			return MachineJob{}, apperror.New(422, "runs_on_different_machines", "A job has one machine; the runs were recorded on different machines")
+			return MachineJob{}, apperror.New(
+				422,
+				"runs_on_different_machines",
+				"A job has one machine; the runs were recorded on different machines",
+			)
 		}
 	}
 	personID, organizationID, group, err := s.bulkJobSettings(ctx, q, input)
 	if err != nil {
 		return MachineJob{}, err
 	}
-	job, err := s.insertJob(ctx, q, s.now(), runs[0].MachineID, personID, organizationID, input.OperatorPersonID, title, cleanOptional(input.Notes))
+	job, err := s.insertJob(
+		ctx,
+		q,
+		s.now(),
+		runs[0].MachineID,
+		personID,
+		organizationID,
+		input.OperatorPersonID,
+		title,
+		cleanOptional(input.Notes),
+	)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -468,7 +620,12 @@ type BulkAttachInput struct {
 
 // BulkAttachRuns attaches the runs to a job on the same machine with the rules
 // of AttachRun: one version check of the job, the job is repriced once.
-func (s *Service) BulkAttachRuns(ctx context.Context, p authorization.Principal, input BulkAttachInput, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) BulkAttachRuns(
+	ctx context.Context,
+	p authorization.Principal,
+	input BulkAttachInput,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
@@ -502,9 +659,27 @@ func (s *Service) BulkAttachRuns(ctx context.Context, p authorization.Principal,
 	for _, run := range runs {
 		switch {
 		case job.MachineID != run.MachineID:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: run.ID, DisplayID: run.DisplayID, Code: "run_machine_mismatch", Message: run.DisplayID + " was recorded on another machine than " + job.DisplayID})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        run.ID,
+					DisplayID: run.DisplayID,
+					Code:      "run_machine_mismatch",
+					Message:   run.DisplayID + " was recorded on another machine than " + job.DisplayID,
+				},
+			)
 		case job.ArtifactID != nil && run.ArtifactID != nil && *job.ArtifactID != *run.ArtifactID:
-			blockers = append(blockers, BulkBlocker{Kind: "run", ID: run.ID, DisplayID: run.DisplayID, Code: "artifact_mismatch", Message: run.DisplayID + " and " + job.DisplayID + " reference different print artifacts"})
+			blockers = append(
+				blockers,
+				BulkBlocker{
+					Kind:      "run",
+					ID:        run.ID,
+					DisplayID: run.DisplayID,
+					Code:      "artifact_mismatch",
+					Message:   run.DisplayID + " and " + job.DisplayID + " reference different print artifacts",
+				},
+			)
 		}
 	}
 	if len(blockers) > 0 {

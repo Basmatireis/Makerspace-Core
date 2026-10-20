@@ -24,7 +24,15 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 			principal := authorization.Principal{AccountID: operator.accountID, Master: true}
 			providerID := insertSCIMOIDCProvider(t, pool, "https://last-master.example.test")
 			service := scim.NewService(pool)
-			issue, err := service.CreateConnector(ctx, principal, "Master lifecycle", &providerID, true, time.Now().Add(time.Hour), nil)
+			issue, err := service.CreateConnector(
+				ctx,
+				principal,
+				"Master lifecycle",
+				&providerID,
+				true,
+				time.Now().Add(time.Hour),
+				nil,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,7 +68,13 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 				t.Fatalf("last master deprovisioning returned %v", err)
 			}
 			assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, accountID)
-			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND disabled_at IS NULL`, 1, accountID)
+			assertCount(
+				t,
+				pool,
+				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND disabled_at IS NULL`,
+				1,
+				accountID,
+			)
 			assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1`, 1, user.ID)
 			seedAccount(t, pool, "second-master", true)
 			if err := deprovision(); err != nil {
@@ -78,7 +92,15 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 	principal := authorization.Principal{AccountID: target.accountID, Master: true}
 	providerID := insertSCIMOIDCProvider(t, pool, "https://reconcile-master.example.test")
 	service := scim.NewService(pool)
-	issue, err := service.CreateConnector(ctx, principal, "Reconcile master", &providerID, true, time.Now().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		principal,
+		"Reconcile master",
+		&providerID,
+		true,
+		time.Now().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +126,8 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := service.Reconcile(ctx, principal, sourceID, target.accountID, nil)
-	if err != nil || report.CanReconcile || report.Completed || len(report.Conflicts) != 1 || report.Conflicts[0].Code != "master_role_transfer" {
+	if err != nil || report.CanReconcile || report.Completed || len(report.Conflicts) != 1 ||
+		report.Conflicts[0].Code != "master_role_transfer" {
 		t.Fatalf("last-master reconciliation = %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
@@ -117,7 +140,14 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatalf("master transfer accepted: %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 0, target.personID, masterRoleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		0,
+		target.personID,
+		masterRoleID,
+	)
 }
 
 func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
@@ -133,7 +163,15 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 	providerID := insertSCIMOIDCProvider(t, pool, "https://identity.example.test")
 	principal := authorization.Principal{AccountID: masterID, Master: true}
 	service := scim.NewService(pool)
-	issue, err := service.CreateConnector(ctx, principal, "Authentik", &providerID, true, time.Now().UTC().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		principal,
+		"Authentik",
+		&providerID,
+		true,
+		time.Now().UTC().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +207,14 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 		t.Fatalf("provisioned state source=%q status=%q firstAuthenticated=%v", source, status, firstAuthenticated)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, personID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND provider_id=$2 AND subject='authentik-subject-42'`, 1, accountID, providerID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND provider_id=$2 AND subject='authentik-subject-42'`,
+		1,
+		accountID,
+		providerID,
+	)
 	page, err := service.ListUsers(ctx, connector, `externalId eq "authentik-subject-42"`, 1, 100)
 	if err != nil || page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != user.ID {
 		t.Fatalf("filtered SCIM list=%#v err=%v", page, err)
@@ -179,7 +224,13 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='disabled'`, 1, accountID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND disabled_at IS NOT NULL`, 1, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND disabled_at IS NOT NULL`,
+		1,
+		accountID,
+	)
 	user.Input.Active = true
 	if _, err := service.ReplaceUser(ctx, connector, user.ID, user.Input, nil); err != nil {
 		t.Fatal(err)
@@ -205,7 +256,15 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	providerID := insertSCIMOIDCProvider(t, pool, "https://reconcile.example.test")
 	principal := authorization.Principal{AccountID: targetAccountID, Master: true}
 	service := scim.NewService(pool)
-	issue, err := service.CreateConnector(ctx, principal, "Reconciliation", &providerID, true, time.Now().UTC().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		principal,
+		"Reconciliation",
+		&providerID,
+		true,
+		time.Now().UTC().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,9 +286,15 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, targetAccountID).Scan(&targetPersonID); err != nil {
 		t.Fatal(err)
 	}
-	openDayID, sourceRequirementID, targetRequirementID := insertConflictingSCIMAssignments(t, pool, sourcePersonID, targetPersonID)
+	openDayID, sourceRequirementID, targetRequirementID := insertConflictingSCIMAssignments(
+		t,
+		pool,
+		sourcePersonID,
+		targetPersonID,
+	)
 	report, err := service.PreflightReconciliation(ctx, principal, sourceAccountID, targetAccountID)
-	if err != nil || report.CanReconcile || len(report.Conflicts) != 1 || report.Conflicts[0].Code != "open_day_assignment_conflict" {
+	if err != nil || report.CanReconcile || len(report.Conflicts) != 1 ||
+		report.Conflicts[0].Code != "open_day_assignment_conflict" {
 		t.Fatalf("preflight report=%#v err=%v", report, err)
 	}
 	report, err = service.Reconcile(ctx, principal, sourceAccountID, targetAccountID, nil)
@@ -247,9 +312,31 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, sourceAccountID)
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 0, sourcePersonID)
-	assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2 AND person_id=$3`, 1, user.ID, targetAccountID, targetPersonID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND subject='stable-subject'`, 1, targetAccountID)
-	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id=$1 AND person_id=$2 AND requirement_id=$3`, 1, openDayID, targetPersonID, sourceRequirementID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2 AND person_id=$3`,
+		1,
+		user.ID,
+		targetAccountID,
+		targetPersonID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND subject='stable-subject'`,
+		1,
+		targetAccountID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM open_day_assignments WHERE open_day_id=$1 AND person_id=$2 AND requirement_id=$3`,
+		1,
+		openDayID,
+		targetPersonID,
+		sourceRequirementID,
+	)
 	var firstName, lastName string
 	if err := pool.QueryRow(ctx, `SELECT first_name,last_name FROM people WHERE id=$1`, targetPersonID).Scan(&firstName, &lastName); err != nil {
 		t.Fatal(err)
@@ -268,7 +355,11 @@ func insertSCIMOIDCProvider(t *testing.T, pool *pgxpool.Pool, issuer string) uui
 	return id
 }
 
-func insertConflictingSCIMAssignments(t *testing.T, pool *pgxpool.Pool, sourcePersonID, targetPersonID uuid.UUID) (uuid.UUID, uuid.UUID, uuid.UUID) {
+func insertConflictingSCIMAssignments(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	sourcePersonID, targetPersonID uuid.UUID,
+) (uuid.UUID, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := testContext(t)
 	periodID, openDayID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
@@ -303,7 +394,15 @@ func TestPersonDeletionExplainsSCIMProvisioning(t *testing.T) {
 	providerID := insertSCIMOIDCProvider(t, pool, "https://identity.example.test")
 	principal := authorization.Principal{AccountID: masterID, Master: true}
 	service := scim.NewService(pool)
-	issue, err := service.CreateConnector(ctx, principal, "Authentik", &providerID, true, time.Now().UTC().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		principal,
+		"Authentik",
+		&providerID,
+		true,
+		time.Now().UTC().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,5 +434,11 @@ func TestPersonDeletionExplainsSCIMProvisioning(t *testing.T) {
 		t.Fatalf("single blocker details = %#v", appErr.Details)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, personID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`, 0, personID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`,
+		0,
+		personID,
+	)
 }

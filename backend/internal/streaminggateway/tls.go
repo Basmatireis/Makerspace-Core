@@ -53,7 +53,8 @@ func (r *certReloader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, e
 		r.checkedAt = r.now()
 		certInfo, certErr := os.Stat(r.certFile)
 		keyInfo, keyErr := os.Stat(r.keyFile)
-		if certErr == nil && keyErr == nil && (!certInfo.ModTime().Equal(r.certMod) || !keyInfo.ModTime().Equal(r.keyMod)) {
+		if certErr == nil && keyErr == nil &&
+			(!certInfo.ModTime().Equal(r.certMod) || !keyInfo.ModTime().Equal(r.keyMod)) {
 			_ = r.reload() // keep serving the previous certificate if the new pair is unreadable
 		}
 	}

@@ -16,7 +16,10 @@ type permissionsStub struct {
 	rows []authorizationdb.GetPrincipalRolePermissionsRow
 }
 
-func (s permissionsStub) GetPrincipalRolePermissions(context.Context, uuid.UUID) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
+func (s permissionsStub) GetPrincipalRolePermissions(
+	context.Context,
+	uuid.UUID,
+) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
 	return s.rows, nil
 }
 
@@ -33,7 +36,11 @@ func principalWithPermissions(t *testing.T, permissions ...authorization.Permiss
 			Scope: &scope, MinimumAssurance: &minimum,
 		})
 	}
-	principal, err := authorization.LoadPermissions(t.Context(), permissionsStub{rows: rows}, authorization.Principal{AccountID: uuid.Must(uuid.NewV7())})
+	principal, err := authorization.LoadPermissions(
+		t.Context(),
+		permissionsStub{rows: rows},
+		authorization.Principal{AccountID: uuid.Must(uuid.NewV7())},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +80,8 @@ func TestFromRowRequiresDedicatedMatriculationReadPermission(t *testing.T) {
 		t.Fatal("matriculation was not independently redacted")
 	}
 	withSensitivePermission := fromRow(row, true, true)
-	if withSensitivePermission.MatriculationNumber == nil || *withSensitivePermission.MatriculationNumber != matriculation {
+	if withSensitivePermission.MatriculationNumber == nil ||
+		*withSensitivePermission.MatriculationNumber != matriculation {
 		t.Fatal("authorized matriculation was not returned")
 	}
 }

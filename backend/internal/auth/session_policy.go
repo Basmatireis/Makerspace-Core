@@ -47,7 +47,11 @@ func (s *Service) effectiveSessionPolicy(ctx context.Context, queries *authdb.Qu
 		PostSessionDestination: row.PostSessionDestination, ManagedDeviceID: deviceID}, nil
 }
 
-func (s *Service) sessionDeadlines(ctx context.Context, queries *authdb.Queries, now time.Time) (effectiveSessionPolicy, time.Time, time.Time, error) {
+func (s *Service) sessionDeadlines(
+	ctx context.Context,
+	queries *authdb.Queries,
+	now time.Time,
+) (effectiveSessionPolicy, time.Time, time.Time, error) {
 	policy, err := s.effectiveSessionPolicy(ctx, queries)
 	if err != nil {
 		return policy, time.Time{}, time.Time{}, err

@@ -61,14 +61,16 @@ func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(dashboard.Periods) != 1 || dashboard.Periods[0].ID != periodID || dashboard.Periods[0].SupervisorAssignments != 1 {
+	if len(dashboard.Periods) != 1 || dashboard.Periods[0].ID != periodID ||
+		dashboard.Periods[0].SupervisorAssignments != 1 {
 		t.Fatalf("periods = %#v, want one period with one supervisor assignment", dashboard.Periods)
 	}
 	if len(dashboard.Supervisors) != 1 || dashboard.Supervisors[0].PersonID != member.personID {
 		t.Fatalf("supervisors = %#v, want dashboard member", dashboard.Supervisors)
 	}
 	counts := dashboard.Supervisors[0].AssignmentCounts
-	if len(counts) != 1 || counts[0].PeriodID != periodID || counts[0].SupervisorCount != 1 || counts[0].TraineeCount != 1 {
+	if len(counts) != 1 || counts[0].PeriodID != periodID || counts[0].SupervisorCount != 1 ||
+		counts[0].TraineeCount != 1 {
 		t.Fatalf("assignment counts = %#v, want one supervisor and one trainee assignment", counts)
 	}
 }

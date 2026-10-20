@@ -26,19 +26,47 @@ var layouts = []Layout{
 		cell("header", "Header", 1, 1, 1, 1), cell("main", "Main", 1, 2, 1, 1), cell("footer", "Footer", 1, 3, 1, 1),
 	}},
 	{ID: "stack4", Name: "Header, main, info, footer", Columns: "1fr", Rows: "10fr 52fr 24fr 14fr", Zones: []Zone{
-		cell("header", "Header", 1, 1, 1, 1), cell("main", "Main", 1, 2, 1, 1), cell("info", "Info", 1, 3, 1, 1), cell("footer", "Footer", 1, 4, 1, 1),
+		cell(
+			"header",
+			"Header",
+			1,
+			1,
+			1,
+			1,
+		), cell("main", "Main", 1, 2, 1, 1), cell("info", "Info", 1, 3, 1, 1), cell("footer", "Footer", 1, 4, 1, 1),
 	}},
 	{ID: "split", Name: "Two columns", Columns: "1fr 1fr", Rows: "1fr", Zones: []Zone{
 		cell("left", "Left", 1, 1, 1, 1), cell("right", "Right", 2, 1, 1, 1),
 	}},
 	{ID: "grid2x2", Name: "Four quarters", Columns: "1fr 1fr", Rows: "1fr 1fr", Zones: []Zone{
-		cell("tl", "Top left", 1, 1, 1, 1), cell("tr", "Top right", 2, 1, 1, 1), cell("bl", "Bottom left", 1, 2, 1, 1), cell("br", "Bottom right", 2, 2, 1, 1),
+		cell(
+			"tl",
+			"Top left",
+			1,
+			1,
+			1,
+			1,
+		), cell("tr", "Top right", 2, 1, 1, 1), cell("bl", "Bottom left", 1, 2, 1, 1), cell("br", "Bottom right", 2, 2, 1, 1),
 	}},
 	{ID: "quad_banner", Name: "Four quarters with banner", Columns: "1fr 1fr", Rows: "44fr 44fr 12fr", Zones: []Zone{
-		cell("tl", "Top left", 1, 1, 1, 1), cell("tr", "Top right", 2, 1, 1, 1), cell("bl", "Bottom left", 1, 2, 1, 1), cell("br", "Bottom right", 2, 2, 1, 1), cell("banner", "Banner", 1, 3, 2, 1),
+		cell(
+			"tl",
+			"Top left",
+			1,
+			1,
+			1,
+			1,
+		), cell("tr", "Top right", 2, 1, 1, 1), cell("bl", "Bottom left", 1, 2, 1, 1), cell("br", "Bottom right", 2, 2, 1, 1), cell("banner", "Banner", 1, 3, 2, 1),
 	}},
 	{ID: "main_side", Name: "Main with sidebar", Columns: "2fr 1fr", Rows: "1fr 1fr", Zones: []Zone{
-		cell("main", "Main", 1, 1, 1, 2), cell("side_top", "Sidebar top", 2, 1, 1, 1), cell("side_bottom", "Sidebar bottom", 2, 2, 1, 1),
+		cell(
+			"main",
+			"Main",
+			1,
+			1,
+			1,
+			2,
+		), cell("side_top", "Sidebar top", 2, 1, 1, 1), cell("side_bottom", "Sidebar bottom", 2, 2, 1, 1),
 	}},
 	{ID: "main_footer", Name: "Main and footer banner", Columns: "1fr", Rows: "92fr 8fr", Zones: []Zone{
 		cell("main", "Main", 1, 1, 1, 1), cell("footer", "Footer", 1, 2, 1, 1),

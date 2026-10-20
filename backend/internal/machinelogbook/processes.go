@@ -20,7 +20,14 @@ const (
 	ProcessOther        = "other"
 )
 
-var machineProcesses = []string{ProcessFDMPrinting, ProcessEmbroidery, ProcessUVPrinting, ProcessLaserCutting, ProcessVinylCutting, ProcessOther}
+var machineProcesses = []string{
+	ProcessFDMPrinting,
+	ProcessEmbroidery,
+	ProcessUVPrinting,
+	ProcessLaserCutting,
+	ProcessVinylCutting,
+	ProcessOther,
+}
 
 func validProcess(process string) bool {
 	for _, candidate := range machineProcesses {
@@ -126,7 +133,13 @@ func storeRunMeasures(ctx context.Context, q *machinelogbookdb.Queries, runID uu
 // requireMaterialsForProcess refuses new makerspace usages of materials whose
 // type is not usable for the process. Materials in keep are already used by
 // the run and stay allowed, so a correction never fails on old material.
-func requireMaterialsForProcess(ctx context.Context, q *machinelogbookdb.Queries, process string, items []parsedUsage, keep map[uuid.UUID]bool) error {
+func requireMaterialsForProcess(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	process string,
+	items []parsedUsage,
+	keep map[uuid.UUID]bool,
+) error {
 	ids := make([]uuid.UUID, 0, len(items))
 	for _, item := range items {
 		if item.Ownership == "makerspace" && item.MaterialID != nil && !keep[*item.MaterialID] {
@@ -136,12 +149,19 @@ func requireMaterialsForProcess(ctx context.Context, q *machinelogbookdb.Queries
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, err := q.ListMaterialsOutsideProcess(ctx, machinelogbookdb.ListMaterialsOutsideProcessParams{MaterialIds: ids, Process: process})
+	rows, err := q.ListMaterialsOutsideProcess(
+		ctx,
+		machinelogbookdb.ListMaterialsOutsideProcessParams{MaterialIds: ids, Process: process},
+	)
 	if err != nil {
 		return err
 	}
 	if len(rows) > 0 {
-		return apperror.New(422, "material_process_mismatch", "The material \""+rows[0].Name+"\" cannot be used on a machine with this process")
+		return apperror.New(
+			422,
+			"material_process_mismatch",
+			"The material \""+rows[0].Name+"\" cannot be used on a machine with this process",
+		)
 	}
 	return nil
 }

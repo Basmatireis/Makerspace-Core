@@ -22,7 +22,10 @@ const (
 	scimListSchema  = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 )
 
-func (s *Server) ListSCIMConnectors(ctx context.Context, _ openapi.ListSCIMConnectorsRequestObject) (openapi.ListSCIMConnectorsResponseObject, error) {
+func (s *Server) ListSCIMConnectors(
+	ctx context.Context,
+	_ openapi.ListSCIMConnectorsRequestObject,
+) (openapi.ListSCIMConnectorsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -38,7 +41,10 @@ func (s *Server) ListSCIMConnectors(ctx context.Context, _ openapi.ListSCIMConne
 	return openapi.ListSCIMConnectors200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) CreateSCIMConnector(ctx context.Context, request openapi.CreateSCIMConnectorRequestObject) (openapi.CreateSCIMConnectorResponseObject, error) {
+func (s *Server) CreateSCIMConnector(
+	ctx context.Context,
+	request openapi.CreateSCIMConnectorRequestObject,
+) (openapi.CreateSCIMConnectorResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -46,15 +52,29 @@ func (s *Server) CreateSCIMConnector(ctx context.Context, request openapi.Create
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	issue, err := s.scim.CreateConnector(ctx, principal, request.Body.Name, nullableUUID(request.Body.OidcProviderId), request.Body.Enabled, request.Body.TokenExpiresAt, requestIDPointer(ctx))
+	issue, err := s.scim.CreateConnector(
+		ctx,
+		principal,
+		request.Body.Name,
+		nullableUUID(request.Body.OidcProviderId),
+		request.Body.Enabled,
+		request.Body.TokenExpiresAt,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	token := issue.BearerToken
-	return openapi.CreateSCIMConnector201JSONResponse{Body: openapi.SCIMConnectorTokenIssue{Connector: scimConnectorDTO(issue.Connector), BearerToken: &token}, Headers: openapi.CreateSCIMConnector201ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.CreateSCIMConnector201JSONResponse{
+		Body:    openapi.SCIMConnectorTokenIssue{Connector: scimConnectorDTO(issue.Connector), BearerToken: &token},
+		Headers: openapi.CreateSCIMConnector201ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) UpdateSCIMConnector(ctx context.Context, request openapi.UpdateSCIMConnectorRequestObject) (openapi.UpdateSCIMConnectorResponseObject, error) {
+func (s *Server) UpdateSCIMConnector(
+	ctx context.Context,
+	request openapi.UpdateSCIMConnectorRequestObject,
+) (openapi.UpdateSCIMConnectorResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -62,14 +82,26 @@ func (s *Server) UpdateSCIMConnector(ctx context.Context, request openapi.Update
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	connector, err := s.scim.UpdateConnector(ctx, principal, request.ScimConnectorId, request.Body.Name, nullableUUID(request.Body.OidcProviderId), request.Body.Enabled, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	connector, err := s.scim.UpdateConnector(
+		ctx,
+		principal,
+		request.ScimConnectorId,
+		request.Body.Name,
+		nullableUUID(request.Body.OidcProviderId),
+		request.Body.Enabled,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSCIMConnector200JSONResponse(scimConnectorDTO(connector)), nil
 }
 
-func (s *Server) RotateSCIMConnectorToken(ctx context.Context, request openapi.RotateSCIMConnectorTokenRequestObject) (openapi.RotateSCIMConnectorTokenResponseObject, error) {
+func (s *Server) RotateSCIMConnectorToken(
+	ctx context.Context,
+	request openapi.RotateSCIMConnectorTokenRequestObject,
+) (openapi.RotateSCIMConnectorTokenResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -77,15 +109,28 @@ func (s *Server) RotateSCIMConnectorToken(ctx context.Context, request openapi.R
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	issue, err := s.scim.RotateToken(ctx, principal, request.ScimConnectorId, request.Body.ExpiresAt, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	issue, err := s.scim.RotateToken(
+		ctx,
+		principal,
+		request.ScimConnectorId,
+		request.Body.ExpiresAt,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	token := issue.BearerToken
-	return openapi.RotateSCIMConnectorToken201JSONResponse{Body: openapi.SCIMConnectorTokenIssue{Connector: scimConnectorDTO(issue.Connector), BearerToken: &token}, Headers: openapi.RotateSCIMConnectorToken201ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.RotateSCIMConnectorToken201JSONResponse{
+		Body:    openapi.SCIMConnectorTokenIssue{Connector: scimConnectorDTO(issue.Connector), BearerToken: &token},
+		Headers: openapi.RotateSCIMConnectorToken201ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) RevokeSCIMConnectorToken(ctx context.Context, request openapi.RevokeSCIMConnectorTokenRequestObject) (openapi.RevokeSCIMConnectorTokenResponseObject, error) {
+func (s *Server) RevokeSCIMConnectorToken(
+	ctx context.Context,
+	request openapi.RevokeSCIMConnectorTokenRequestObject,
+) (openapi.RevokeSCIMConnectorTokenResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -93,14 +138,23 @@ func (s *Server) RevokeSCIMConnectorToken(ctx context.Context, request openapi.R
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	connector, err := s.scim.RevokeToken(ctx, principal, request.ScimConnectorId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	connector, err := s.scim.RevokeToken(
+		ctx,
+		principal,
+		request.ScimConnectorId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.RevokeSCIMConnectorToken200JSONResponse(scimConnectorDTO(connector)), nil
 }
 
-func (s *Server) PreflightSCIMReconciliation(ctx context.Context, request openapi.PreflightSCIMReconciliationRequestObject) (openapi.PreflightSCIMReconciliationResponseObject, error) {
+func (s *Server) PreflightSCIMReconciliation(
+	ctx context.Context,
+	request openapi.PreflightSCIMReconciliationRequestObject,
+) (openapi.PreflightSCIMReconciliationResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -108,14 +162,22 @@ func (s *Server) PreflightSCIMReconciliation(ctx context.Context, request openap
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	report, err := s.scim.PreflightReconciliation(ctx, principal, request.Body.ProvisionalAccountId, request.Body.TargetAccountId)
+	report, err := s.scim.PreflightReconciliation(
+		ctx,
+		principal,
+		request.Body.ProvisionalAccountId,
+		request.Body.TargetAccountId,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.PreflightSCIMReconciliation200JSONResponse(scimReconciliationDTO(report)), nil
 }
 
-func (s *Server) ReconcileSCIMAccount(ctx context.Context, request openapi.ReconcileSCIMAccountRequestObject) (openapi.ReconcileSCIMAccountResponseObject, error) {
+func (s *Server) ReconcileSCIMAccount(
+	ctx context.Context,
+	request openapi.ReconcileSCIMAccountRequestObject,
+) (openapi.ReconcileSCIMAccountResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -123,7 +185,13 @@ func (s *Server) ReconcileSCIMAccount(ctx context.Context, request openapi.Recon
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	report, err := s.scim.Reconcile(ctx, principal, request.Body.ProvisionalAccountId, request.Body.TargetAccountId, requestIDPointer(ctx))
+	report, err := s.scim.Reconcile(
+		ctx,
+		principal,
+		request.Body.ProvisionalAccountId,
+		request.Body.TargetAccountId,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +202,16 @@ func (s *Server) ReconcileSCIMAccount(ctx context.Context, request openapi.Recon
 	return openapi.ReconcileSCIMAccount200JSONResponse(dto), nil
 }
 
-func (s *Server) GetSCIMServiceProviderConfig(ctx context.Context, _ openapi.GetSCIMServiceProviderConfigRequestObject) (openapi.GetSCIMServiceProviderConfigResponseObject, error) {
+func (s *Server) GetSCIMServiceProviderConfig(
+	ctx context.Context,
+	_ openapi.GetSCIMServiceProviderConfigRequestObject,
+) (openapi.GetSCIMServiceProviderConfigResponseObject, error) {
 	if _, err := requireSCIMConnector(ctx); err != nil {
 		return nil, err
 	}
-	result := openapi.SCIMServiceProviderConfig{Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"}}
+	result := openapi.SCIMServiceProviderConfig{
+		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"},
+	}
 	result.Patch.Supported = true
 	result.Bulk.Supported = false
 	result.Filter.Supported, result.Filter.MaxResults = true, 100
@@ -148,23 +221,55 @@ func (s *Server) GetSCIMServiceProviderConfig(ctx context.Context, _ openapi.Get
 	return openapi.GetSCIMServiceProviderConfig200ApplicationScimPlusJSONResponse(result), nil
 }
 
-func (s *Server) ListSCIMResourceTypes(ctx context.Context, _ openapi.ListSCIMResourceTypesRequestObject) (openapi.ListSCIMResourceTypesResponseObject, error) {
+func (s *Server) ListSCIMResourceTypes(
+	ctx context.Context,
+	_ openapi.ListSCIMResourceTypesRequestObject,
+) (openapi.ListSCIMResourceTypesResponseObject, error) {
 	if _, err := requireSCIMConnector(ctx); err != nil {
 		return nil, err
 	}
-	resource := map[string]any{"id": "User", "name": "User", "endpoint": "/Users", "schema": scimservice.UserSchema(), "schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"}}
-	return openapi.ListSCIMResourceTypes200ApplicationScimPlusJSONResponse{Schemas: []string{scimListSchema}, TotalResults: 1, StartIndex: 1, ItemsPerPage: 1, Resources: []map[string]any{resource}}, nil
+	resource := map[string]any{
+		"id":       "User",
+		"name":     "User",
+		"endpoint": "/Users",
+		"schema":   scimservice.UserSchema(),
+		"schemas":  []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"},
+	}
+	return openapi.ListSCIMResourceTypes200ApplicationScimPlusJSONResponse{
+		Schemas:      []string{scimListSchema},
+		TotalResults: 1,
+		StartIndex:   1,
+		ItemsPerPage: 1,
+		Resources:    []map[string]any{resource},
+	}, nil
 }
 
-func (s *Server) ListSCIMSchemas(ctx context.Context, _ openapi.ListSCIMSchemasRequestObject) (openapi.ListSCIMSchemasResponseObject, error) {
+func (s *Server) ListSCIMSchemas(
+	ctx context.Context,
+	_ openapi.ListSCIMSchemasRequestObject,
+) (openapi.ListSCIMSchemasResponseObject, error) {
 	if _, err := requireSCIMConnector(ctx); err != nil {
 		return nil, err
 	}
-	resource := map[string]any{"id": scimservice.UserSchema(), "name": "User", "description": "Makerspace Core SCIM User", "schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:Schema"}}
-	return openapi.ListSCIMSchemas200ApplicationScimPlusJSONResponse{Schemas: []string{scimListSchema}, TotalResults: 1, StartIndex: 1, ItemsPerPage: 1, Resources: []map[string]any{resource}}, nil
+	resource := map[string]any{
+		"id":          scimservice.UserSchema(),
+		"name":        "User",
+		"description": "Makerspace Core SCIM User",
+		"schemas":     []string{"urn:ietf:params:scim:schemas:core:2.0:Schema"},
+	}
+	return openapi.ListSCIMSchemas200ApplicationScimPlusJSONResponse{
+		Schemas:      []string{scimListSchema},
+		TotalResults: 1,
+		StartIndex:   1,
+		ItemsPerPage: 1,
+		Resources:    []map[string]any{resource},
+	}, nil
 }
 
-func (s *Server) ListSCIMUsers(ctx context.Context, request openapi.ListSCIMUsersRequestObject) (openapi.ListSCIMUsersResponseObject, error) {
+func (s *Server) ListSCIMUsers(
+	ctx context.Context,
+	request openapi.ListSCIMUsersRequestObject,
+) (openapi.ListSCIMUsersResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
@@ -190,16 +295,29 @@ func (s *Server) ListSCIMUsers(ctx context.Context, request openapi.ListSCIMUser
 	for _, user := range page.Items {
 		resources = append(resources, scimUserDTO(user))
 	}
-	return openapi.ListSCIMUsers200ApplicationScimPlusJSONResponse{Schemas: []string{scimListSchema}, TotalResults: int(page.Total), StartIndex: page.StartIndex, ItemsPerPage: len(resources), Resources: resources}, nil
+	return openapi.ListSCIMUsers200ApplicationScimPlusJSONResponse{
+		Schemas:      []string{scimListSchema},
+		TotalResults: int(page.Total),
+		StartIndex:   page.StartIndex,
+		ItemsPerPage: len(resources),
+		Resources:    resources,
+	}, nil
 }
 
-func (s *Server) CreateSCIMUser(ctx context.Context, request openapi.CreateSCIMUserRequestObject) (openapi.CreateSCIMUserResponseObject, error) {
+func (s *Server) CreateSCIMUser(
+	ctx context.Context,
+	request openapi.CreateSCIMUserRequestObject,
+) (openapi.CreateSCIMUserResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if request.Body == nil {
-		return openapi.CreateSCIMUser400ApplicationScimPlusJSONResponse(scimErrorDTO(&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"})), nil
+		return openapi.CreateSCIMUser400ApplicationScimPlusJSONResponse(
+			scimErrorDTO(
+				&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"},
+			),
+		), nil
 	}
 	user, err := s.scim.CreateUser(ctx, connector, scimInput(*request.Body), requestIDPointer(ctx))
 	if err != nil {
@@ -214,7 +332,10 @@ func (s *Server) CreateSCIMUser(ctx context.Context, request openapi.CreateSCIMU
 	return openapi.CreateSCIMUser201ApplicationScimPlusJSONResponse(scimUserDTO(user)), nil
 }
 
-func (s *Server) GetSCIMUser(ctx context.Context, request openapi.GetSCIMUserRequestObject) (openapi.GetSCIMUserResponseObject, error) {
+func (s *Server) GetSCIMUser(
+	ctx context.Context,
+	request openapi.GetSCIMUserRequestObject,
+) (openapi.GetSCIMUserResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
@@ -229,13 +350,20 @@ func (s *Server) GetSCIMUser(ctx context.Context, request openapi.GetSCIMUserReq
 	return openapi.GetSCIMUser200ApplicationScimPlusJSONResponse(scimUserDTO(user)), nil
 }
 
-func (s *Server) ReplaceSCIMUser(ctx context.Context, request openapi.ReplaceSCIMUserRequestObject) (openapi.ReplaceSCIMUserResponseObject, error) {
+func (s *Server) ReplaceSCIMUser(
+	ctx context.Context,
+	request openapi.ReplaceSCIMUserRequestObject,
+) (openapi.ReplaceSCIMUserResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if request.Body == nil {
-		return openapi.ReplaceSCIMUser400ApplicationScimPlusJSONResponse(scimErrorDTO(&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"})), nil
+		return openapi.ReplaceSCIMUser400ApplicationScimPlusJSONResponse(
+			scimErrorDTO(
+				&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"},
+			),
+		), nil
 	}
 	user, err := s.scim.ReplaceUser(ctx, connector, request.ScimUserId, scimInput(*request.Body), requestIDPointer(ctx))
 	if err != nil {
@@ -254,13 +382,20 @@ func (s *Server) ReplaceSCIMUser(ctx context.Context, request openapi.ReplaceSCI
 	return openapi.ReplaceSCIMUser200ApplicationScimPlusJSONResponse(scimUserDTO(user)), nil
 }
 
-func (s *Server) PatchSCIMUser(ctx context.Context, request openapi.PatchSCIMUserRequestObject) (openapi.PatchSCIMUserResponseObject, error) {
+func (s *Server) PatchSCIMUser(
+	ctx context.Context,
+	request openapi.PatchSCIMUserRequestObject,
+) (openapi.PatchSCIMUserResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if request.Body == nil {
-		return openapi.PatchSCIMUser400ApplicationScimPlusJSONResponse(scimErrorDTO(&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"})), nil
+		return openapi.PatchSCIMUser400ApplicationScimPlusJSONResponse(
+			scimErrorDTO(
+				&scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "Request body is required"},
+			),
+		), nil
 	}
 	current, err := s.scim.GetUser(ctx, connector, request.ScimUserId)
 	if err != nil {
@@ -290,7 +425,10 @@ func (s *Server) PatchSCIMUser(ctx context.Context, request openapi.PatchSCIMUse
 	return openapi.PatchSCIMUser200ApplicationScimPlusJSONResponse(scimUserDTO(user)), nil
 }
 
-func (s *Server) DeleteSCIMUser(ctx context.Context, request openapi.DeleteSCIMUserRequestObject) (openapi.DeleteSCIMUserResponseObject, error) {
+func (s *Server) DeleteSCIMUser(
+	ctx context.Context,
+	request openapi.DeleteSCIMUserRequestObject,
+) (openapi.DeleteSCIMUserResponseObject, error) {
 	connector, err := requireSCIMConnector(ctx)
 	if err != nil {
 		return nil, err
@@ -310,21 +448,47 @@ func (s *Server) DeleteSCIMUser(ctx context.Context, request openapi.DeleteSCIMU
 func requireSCIMConnector(ctx context.Context) (scimservice.ConnectorContext, error) {
 	connector, ok := ctx.Value(scimConnectorContextKey).(scimservice.ConnectorContext)
 	if !ok {
-		return scimservice.ConnectorContext{}, &scimservice.ProtocolError{Status: 401, Detail: "A valid SCIM bearer token is required"}
+		return scimservice.ConnectorContext{}, &scimservice.ProtocolError{
+			Status: 401,
+			Detail: "A valid SCIM bearer token is required",
+		}
 	}
 	return connector, nil
 }
 
 func scimConnectorDTO(connector scimservice.Connector) openapi.SCIMConnector {
-	return openapi.SCIMConnector{Id: connector.ID, Name: connector.Name, OidcProviderId: nullablePointer(connector.OIDCProviderID, func(id uuid.UUID) openapi.UUIDv7 { return id }), Enabled: connector.Enabled, TokenExpiresAt: nullablePointer(connector.TokenExpiresAt, func(v time.Time) time.Time { return v }), TokenRevokedAt: nullablePointer(connector.TokenRevokedAt, func(v time.Time) time.Time { return v }), Version: connector.Version, CreatedAt: connector.CreatedAt, UpdatedAt: connector.UpdatedAt}
+	return openapi.SCIMConnector{
+		Id:             connector.ID,
+		Name:           connector.Name,
+		OidcProviderId: nullablePointer(connector.OIDCProviderID, func(id uuid.UUID) openapi.UUIDv7 { return id }),
+		Enabled:        connector.Enabled,
+		TokenExpiresAt: nullablePointer(connector.TokenExpiresAt, func(v time.Time) time.Time { return v }),
+		TokenRevokedAt: nullablePointer(connector.TokenRevokedAt, func(v time.Time) time.Time { return v }),
+		Version:        connector.Version,
+		CreatedAt:      connector.CreatedAt,
+		UpdatedAt:      connector.UpdatedAt,
+	}
 }
 
 func scimReconciliationDTO(report scimservice.ReconciliationReport) openapi.SCIMReconciliationReport {
 	conflicts := make([]openapi.SCIMReconciliationConflict, 0, len(report.Conflicts))
 	for _, conflict := range report.Conflicts {
-		conflicts = append(conflicts, openapi.SCIMReconciliationConflict{Code: conflict.Code, Message: conflict.Message, ResourceId: nullablePointer(conflict.ResourceID, func(id uuid.UUID) openapi.UUIDv7 { return id })})
+		conflicts = append(
+			conflicts,
+			openapi.SCIMReconciliationConflict{
+				Code:       conflict.Code,
+				Message:    conflict.Message,
+				ResourceId: nullablePointer(conflict.ResourceID, func(id uuid.UUID) openapi.UUIDv7 { return id }),
+			},
+		)
 	}
-	return openapi.SCIMReconciliationReport{CanReconcile: report.CanReconcile, Completed: report.Completed, ProvisionalAccountId: report.ProvisionalAccountID, TargetAccountId: report.TargetAccountID, Conflicts: conflicts}
+	return openapi.SCIMReconciliationReport{
+		CanReconcile:         report.CanReconcile,
+		Completed:            report.Completed,
+		ProvisionalAccountId: report.ProvisionalAccountID,
+		TargetAccountId:      report.TargetAccountID,
+		Conflicts:            conflicts,
+	}
 }
 
 func scimInput(input openapi.SCIMUserWrite) scimservice.UserInput {
@@ -333,7 +497,15 @@ func scimInput(input openapi.SCIMUserWrite) scimservice.UserInput {
 		value := input.ExternalId.GetOrEmpty()
 		externalID = &value
 	}
-	return scimservice.UserInput{UserName: input.UserName, ExternalID: externalID, Active: input.Active, GivenName: input.Name.GivenName, FamilyName: input.Name.FamilyName, Emails: scimMultiValues(input.Emails), PhoneNumbers: scimMultiValues(input.PhoneNumbers)}
+	return scimservice.UserInput{
+		UserName:     input.UserName,
+		ExternalID:   externalID,
+		Active:       input.Active,
+		GivenName:    input.Name.GivenName,
+		FamilyName:   input.Name.FamilyName,
+		Emails:       scimMultiValues(input.Emails),
+		PhoneNumbers: scimMultiValues(input.PhoneNumbers),
+	}
 }
 
 func scimMultiValues(values *[]openapi.SCIMMultiValue) []scimservice.MultiValue {
@@ -383,7 +555,23 @@ func scimUserDTO(user scimservice.User) openapi.SCIMUser {
 		}
 		phones = append(phones, item)
 	}
-	return openapi.SCIMUser{Id: user.ID, Schemas: []string{scimservice.UserSchema()}, UserName: user.Input.UserName, ExternalId: externalID, Active: user.Input.Active, Name: openapi.SCIMName{GivenName: user.Input.GivenName, FamilyName: user.Input.FamilyName}, Emails: &emails, PhoneNumbers: &phones, Meta: openapi.SCIMMeta{ResourceType: openapi.User, Created: user.CreatedAt, LastModified: user.UpdatedAt, Location: "/api/v1/scim/v2/Users/" + user.ID.String(), Version: fmt.Sprintf("W/\"%d\"", user.Version)}}
+	return openapi.SCIMUser{
+		Id:           user.ID,
+		Schemas:      []string{scimservice.UserSchema()},
+		UserName:     user.Input.UserName,
+		ExternalId:   externalID,
+		Active:       user.Input.Active,
+		Name:         openapi.SCIMName{GivenName: user.Input.GivenName, FamilyName: user.Input.FamilyName},
+		Emails:       &emails,
+		PhoneNumbers: &phones,
+		Meta: openapi.SCIMMeta{
+			ResourceType: openapi.User,
+			Created:      user.CreatedAt,
+			LastModified: user.UpdatedAt,
+			Location:     "/api/v1/scim/v2/Users/" + user.ID.String(),
+			Version:      fmt.Sprintf("W/\"%d\"", user.Version),
+		},
+	}
 }
 
 func nullableUUID(value nullable.Nullable[openapi.UUIDv7]) *uuid.UUID {
@@ -402,7 +590,11 @@ func protocolError(err error) *scimservice.ProtocolError {
 	return nil
 }
 func scimErrorDTO(err *scimservice.ProtocolError) openapi.SCIMError {
-	result := openapi.SCIMError{Schemas: []string{scimErrorSchema}, Status: strconv.Itoa(err.Status), Detail: err.Detail}
+	result := openapi.SCIMError{
+		Schemas: []string{scimErrorSchema},
+		Status:  strconv.Itoa(err.Status),
+		Detail:  err.Detail,
+	}
 	if err.SCIMType != "" {
 		result.ScimType = &err.SCIMType
 	}
@@ -410,12 +602,24 @@ func scimErrorDTO(err *scimservice.ProtocolError) openapi.SCIMError {
 }
 
 func writeSCIMAuthenticationError(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
-	writeSCIMServiceError(w, r, &scimservice.ProtocolError{Status: 401, Detail: "A valid SCIM bearer token is required"}, logger)
+	writeSCIMServiceError(
+		w,
+		r,
+		&scimservice.ProtocolError{Status: 401, Detail: "A valid SCIM bearer token is required"},
+		logger,
+	)
 }
 func writeSCIMServiceError(w http.ResponseWriter, r *http.Request, err error, logger *slog.Logger) {
 	protocol := protocolError(err)
 	if protocol == nil {
-		logger.ErrorContext(r.Context(), "SCIM request failed", "request_id", requestIDString(r.Context()), "error_type", fmt.Sprintf("%T", err))
+		logger.ErrorContext(
+			r.Context(),
+			"SCIM request failed",
+			"request_id",
+			requestIDString(r.Context()),
+			"error_type",
+			fmt.Sprintf("%T", err),
+		)
 		protocol = &scimservice.ProtocolError{Status: 500, Detail: "An internal error occurred"}
 	}
 	w.Header().Set("Content-Type", "application/scim+json")
@@ -423,7 +627,10 @@ func writeSCIMServiceError(w http.ResponseWriter, r *http.Request, err error, lo
 	_ = json.NewEncoder(w).Encode(scimErrorDTO(protocol))
 }
 
-func applySCIMPatch(input scimservice.UserInput, operations []openapi.SCIMPatchOperation) (scimservice.UserInput, error) {
+func applySCIMPatch(
+	input scimservice.UserInput,
+	operations []openapi.SCIMPatchOperation,
+) (scimservice.UserInput, error) {
 	for _, operation := range operations {
 		path := ""
 		if operation.Path != nil {
@@ -432,7 +639,11 @@ func applySCIMPatch(input scimservice.UserInput, operations []openapi.SCIMPatchO
 		if path == "" {
 			values, ok := operation.Value.(map[string]any)
 			if !ok {
-				return input, &scimservice.ProtocolError{Status: 400, SCIMType: "invalidSyntax", Detail: "A patch without path requires an object value"}
+				return input, &scimservice.ProtocolError{
+					Status:   400,
+					SCIMType: "invalidSyntax",
+					Detail:   "A patch without path requires an object value",
+				}
 			}
 			for key, value := range values {
 				var err error
@@ -452,7 +663,12 @@ func applySCIMPatch(input scimservice.UserInput, operations []openapi.SCIMPatchO
 	return input, nil
 }
 
-func applySCIMPatchValue(input scimservice.UserInput, path string, operation openapi.SCIMPatchOperationOp, value any) (scimservice.UserInput, error) {
+func applySCIMPatchValue(
+	input scimservice.UserInput,
+	path string,
+	operation openapi.SCIMPatchOperationOp,
+	value any,
+) (scimservice.UserInput, error) {
 	remove := operation == openapi.Remove
 	decode := func(target any) error {
 		encoded, err := json.Marshal(value)
@@ -527,7 +743,11 @@ func applySCIMPatchValue(input scimservice.UserInput, path string, operation ope
 			input.PhoneNumbers = scimMultiValues(&values)
 		}
 	default:
-		return input, &scimservice.ProtocolError{Status: 400, SCIMType: "invalidPath", Detail: "The patch path is not supported"}
+		return input, &scimservice.ProtocolError{
+			Status:   400,
+			SCIMType: "invalidPath",
+			Detail:   "The patch path is not supported",
+		}
 	}
 	return input, nil
 }

@@ -53,14 +53,26 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 	f.upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
-		f.seen = append(f.seen, upstreamRequest{Method: r.Method, Path: r.URL.Path, URI: r.RequestURI, RawQuery: r.URL.RawQuery, Header: r.Header.Clone(), Body: string(body)})
+		f.seen = append(
+			f.seen,
+			upstreamRequest{
+				Method:   r.Method,
+				Path:     r.URL.Path,
+				URI:      r.RequestURI,
+				RawQuery: r.URL.RawQuery,
+				Header:   r.Header.Clone(),
+				Body:     string(body),
+			},
+		)
 		f.mu.Unlock()
 		w.Header().Set("Access-Control-Allow-Origin", "*") // go2rtc style; must be replaced
 		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			hijacker := w.(http.Hijacker)
 			conn, buffer, _ := hijacker.Hijack()
 			defer conn.Close()
-			_, _ = buffer.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\nhello")
+			_, _ = buffer.WriteString(
+				"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\nhello",
+			)
 			_ = buffer.Flush()
 			if f.holdWS {
 				_, _ = io.Copy(io.Discard, conn) // stay open until the proxy closes the connection
@@ -75,7 +87,13 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 		TicketPublicKeys: []TicketKey{{KeyID: f.kid, PublicKey: base64.RawURLEncoding.EncodeToString(public)}},
 	})
 	target, _ := url.Parse(f.upstream.URL)
-	f.proxy = NewProxy(func() *Snapshot { return f.snapshot }, target, testOrigin, UpstreamAuth{Username: "gwuser", Password: "gwpass"}, func() time.Time { return f.now })
+	f.proxy = NewProxy(
+		func() *Snapshot { return f.snapshot },
+		target,
+		testOrigin,
+		UpstreamAuth{Username: "gwuser", Password: "gwpass"},
+		func() time.Time { return f.now },
+	)
 	f.server = httptest.NewServer(f.proxy)
 	t.Cleanup(f.server.Close)
 	return f
@@ -117,7 +135,12 @@ func (f *proxyFixture) upstreamCount() int {
 func TestProxyForwardsWebRTCOfferWithValidTicketOnly(t *testing.T) {
 	f := newProxyFixture(t)
 	ticket := f.ticket(f.stream(), f.now)
-	response := f.do(http.MethodPost, "/api/webrtc?src="+f.stream()+"&ticket="+ticket+"&dst=evil", "v=0 offer", map[string]string{"Origin": testOrigin, "Cookie": "session=x", "Authorization": "Bearer other"})
+	response := f.do(
+		http.MethodPost,
+		"/api/webrtc?src="+f.stream()+"&ticket="+ticket+"&dst=evil",
+		"v=0 offer",
+		map[string]string{"Origin": testOrigin, "Cookie": "session=x", "Authorization": "Bearer other"},
+	)
 	body, _ := io.ReadAll(response.Body)
 	response.Body.Close()
 	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "answer") {
@@ -133,7 +156,8 @@ func TestProxyForwardsWebRTCOfferWithValidTicketOnly(t *testing.T) {
 		t.Fatalf("upstream calls = %d", f.upstreamCount())
 	}
 	seen := f.seen[0]
-	if seen.Method != http.MethodPost || seen.Path != "/api/webrtc" || seen.RawQuery != "src="+f.stream() || seen.Body != "v=0 offer" {
+	if seen.Method != http.MethodPost || seen.Path != "/api/webrtc" || seen.RawQuery != "src="+f.stream() ||
+		seen.Body != "v=0 offer" {
 		t.Fatalf("upstream request = %+v", seen)
 	}
 	for _, header := range []string{"Cookie", "Origin"} {
@@ -142,7 +166,9 @@ func TestProxyForwardsWebRTCOfferWithValidTicketOnly(t *testing.T) {
 		}
 	}
 	// The client's Authorization is dropped and replaced by the gateway's go2rtc API credentials.
-	if user, pass, ok := (&http.Request{Header: seen.Header}).BasicAuth(); !ok || user != "gwuser" || pass != "gwpass" || strings.Contains(seen.Header.Get("Authorization"), "other") {
+	if user, pass, ok := (&http.Request{Header: seen.Header}).BasicAuth(); !ok || user != "gwuser" ||
+		pass != "gwpass" ||
+		strings.Contains(seen.Header.Get("Authorization"), "other") {
 		t.Errorf("Authorization at go2rtc = %q", seen.Header.Get("Authorization"))
 	}
 	if strings.Contains(seen.RawQuery, ticket) {
@@ -152,7 +178,12 @@ func TestProxyForwardsWebRTCOfferWithValidTicketOnly(t *testing.T) {
 
 func TestProxyAcceptsBearerTicket(t *testing.T) {
 	f := newProxyFixture(t)
-	response := f.do(http.MethodPost, "/api/webrtc?src="+f.stream(), "offer", map[string]string{"Authorization": "Bearer " + f.ticket(f.stream(), f.now)})
+	response := f.do(
+		http.MethodPost,
+		"/api/webrtc?src="+f.stream(),
+		"offer",
+		map[string]string{"Authorization": "Bearer " + f.ticket(f.stream(), f.now)},
+	)
 	response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
@@ -177,10 +208,16 @@ func TestProxyRejectsMissingBadAndMismatchedTickets(t *testing.T) {
 		"ticket for other src":  {"src=" + f.stream() + "&ticket=" + f.ticket(other, f.now), http.StatusUnauthorized},
 		"wrong signing key":     {"src=" + f.stream() + "&ticket=" + forged, http.StatusUnauthorized},
 		"valid ticket, unknown": {"src=" + other + "&ticket=" + f.ticket(other, f.now), http.StatusNotFound},
-		"url as src":            {"src=rtsp://10.0.0.1/x&ticket=" + f.ticket("rtsp://10.0.0.1/x", f.now), http.StatusNotFound},
-		"exec as src":           {"src=exec:id&ticket=" + f.ticket("exec:id", f.now), http.StatusNotFound},
-		"two src values":        {"src=" + f.stream() + "&src=" + other + "&ticket=" + f.ticket(f.stream(), f.now), http.StatusNotFound},
-		"no src":                {"ticket=" + f.ticket(f.stream(), f.now), http.StatusNotFound},
+		"url as src": {
+			"src=rtsp://10.0.0.1/x&ticket=" + f.ticket("rtsp://10.0.0.1/x", f.now),
+			http.StatusNotFound,
+		},
+		"exec as src": {"src=exec:id&ticket=" + f.ticket("exec:id", f.now), http.StatusNotFound},
+		"two src values": {
+			"src=" + f.stream() + "&src=" + other + "&ticket=" + f.ticket(f.stream(), f.now),
+			http.StatusNotFound,
+		},
+		"no src": {"ticket=" + f.ticket(f.stream(), f.now), http.StatusNotFound},
 	}
 	for name, c := range cases {
 		before := f.upstreamCount()
@@ -202,7 +239,8 @@ func TestProxyExposesNothingElse(t *testing.T) {
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
 			response := f.do(method, path, "x", nil)
 			response.Body.Close()
-			if response.StatusCode != http.StatusNotFound && response.StatusCode != http.StatusMovedPermanently && response.StatusCode != http.StatusMethodNotAllowed {
+			if response.StatusCode != http.StatusNotFound && response.StatusCode != http.StatusMovedPermanently &&
+				response.StatusCode != http.StatusMethodNotAllowed {
 				t.Errorf("%s %s = %d", method, path, response.StatusCode)
 			}
 		}
@@ -226,17 +264,34 @@ func TestProxyExposesNothingElse(t *testing.T) {
 func TestProxyCORS(t *testing.T) {
 	f := newProxyFixture(t)
 	ticket := f.ticket(f.stream(), f.now)
-	response := f.do(http.MethodOptions, "/api/webrtc?src="+f.stream(), "", map[string]string{"Origin": testOrigin, "Access-Control-Request-Method": "POST"})
+	response := f.do(
+		http.MethodOptions,
+		"/api/webrtc?src="+f.stream(),
+		"",
+		map[string]string{"Origin": testOrigin, "Access-Control-Request-Method": "POST"},
+	)
 	response.Body.Close()
-	if response.StatusCode != http.StatusNoContent || response.Header.Get("Access-Control-Allow-Origin") != testOrigin || !strings.Contains(response.Header.Get("Access-Control-Allow-Methods"), "POST") {
+	if response.StatusCode != http.StatusNoContent ||
+		response.Header.Get("Access-Control-Allow-Origin") != testOrigin ||
+		!strings.Contains(response.Header.Get("Access-Control-Allow-Methods"), "POST") {
 		t.Fatalf("preflight = %d %v", response.StatusCode, response.Header)
 	}
-	foreign := f.do(http.MethodOptions, "/api/webrtc?src="+f.stream(), "", map[string]string{"Origin": "https://evil.example"})
+	foreign := f.do(
+		http.MethodOptions,
+		"/api/webrtc?src="+f.stream(),
+		"",
+		map[string]string{"Origin": "https://evil.example"},
+	)
 	foreign.Body.Close()
 	if foreign.StatusCode != http.StatusForbidden || foreign.Header.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("foreign preflight = %d", foreign.StatusCode)
 	}
-	post := f.do(http.MethodPost, "/api/webrtc?src="+f.stream()+"&ticket="+ticket, "offer", map[string]string{"Origin": "https://evil.example"})
+	post := f.do(
+		http.MethodPost,
+		"/api/webrtc?src="+f.stream()+"&ticket="+ticket,
+		"offer",
+		map[string]string{"Origin": "https://evil.example"},
+	)
 	post.Body.Close()
 	if post.StatusCode != http.StatusForbidden || f.upstreamCount() != 0 {
 		t.Fatalf("foreign origin POST = %d", post.StatusCode)
@@ -270,11 +325,17 @@ func TestProxyUpgradesWebSocketWithoutTheTicket(t *testing.T) {
 	if response.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
-	if f.upstreamCount() != 1 || f.seen[0].Path != "/api/ws" || f.seen[0].RawQuery != "src="+f.stream() || f.seen[0].Header.Get("Origin") != "" {
+	if f.upstreamCount() != 1 || f.seen[0].Path != "/api/ws" || f.seen[0].RawQuery != "src="+f.stream() ||
+		f.seen[0].Header.Get("Origin") != "" {
 		t.Fatalf("upstream = %+v", f.seen)
 	}
 	// Without a ticket the upgrade is refused before it reaches go2rtc.
-	bare := f.do(http.MethodGet, "/api/ws?src="+f.stream(), "", map[string]string{"Upgrade": "websocket", "Connection": "Upgrade"})
+	bare := f.do(
+		http.MethodGet,
+		"/api/ws?src="+f.stream(),
+		"",
+		map[string]string{"Upgrade": "websocket", "Connection": "Upgrade"},
+	)
 	bare.Body.Close()
 	if bare.StatusCode != http.StatusUnauthorized || f.upstreamCount() != 1 {
 		t.Fatalf("ticketless upgrade = %d", bare.StatusCode)
@@ -397,7 +458,12 @@ func TestNormalizeOrigin(t *testing.T) {
 	}
 	f := newProxyFixture(t)
 	f.proxy.allowedOrigin = NormalizeOrigin("https://MAKERSPACE.example.org:443")
-	response := f.do(http.MethodOptions, "/api/webrtc?src="+f.stream(), "", map[string]string{"Origin": "https://makerspace.example.org"})
+	response := f.do(
+		http.MethodOptions,
+		"/api/webrtc?src="+f.stream(),
+		"",
+		map[string]string{"Origin": "https://makerspace.example.org"},
+	)
 	response.Body.Close()
 	if response.StatusCode != http.StatusNoContent {
 		t.Fatalf("default-port origin = %d", response.StatusCode)

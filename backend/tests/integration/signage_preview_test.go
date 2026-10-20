@@ -20,7 +20,11 @@ func TestSignageDisplayPreview(t *testing.T) {
 	watched.report("printing", time.Now().UTC())
 
 	input := sceneInput("Preview scene", "full")
-	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`)}
+	input.Zones = map[string]json.RawMessage{
+		"main": json.RawMessage(
+			`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
+		),
+	}
 	scene, err := svc.CreateScene(ctx, admin, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +35,12 @@ func TestSignageDisplayPreview(t *testing.T) {
 	displayID := display["id"].(string)
 	path := "/signage/displays/" + displayID + "/preview"
 
-	template, err := svc.CreateTemplate(ctx, admin, signage.TemplateInput{Name: "Notice", Tone: "info", Title: "Hello {display}", Body: ""}, nil)
+	template, err := svc.CreateTemplate(
+		ctx,
+		admin,
+		signage.TemplateInput{Name: "Notice", Tone: "info", Title: "Hello {display}", Body: ""},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +62,11 @@ func TestSignageDisplayPreview(t *testing.T) {
 			e.expectCode(e.as(denied, http.MethodGet, path, nil), http.StatusForbidden, "permission_denied")
 		})
 	}
-	e.expectCode(e.as(reader, http.MethodGet, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/preview", nil), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.as(reader, http.MethodGet, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/preview", nil),
+		http.StatusNotFound,
+		"not_found",
+	)
 
 	// Never published: no manifest, but the announcements in force for this display (not the other's).
 	response := e.as(reader, http.MethodGet, path, nil)
@@ -79,7 +92,8 @@ func TestSignageDisplayPreview(t *testing.T) {
 	}
 	live = body["live"].(map[string]any)
 	machines := live["machines"].([]any)
-	if live["revision"] != float64(1) || len(machines) != 1 || machines[0].(map[string]any)["state"] != "printing" || machines[0].(map[string]any)["name"] != "Preview printer" {
+	if live["revision"] != float64(1) || len(machines) != 1 || machines[0].(map[string]any)["state"] != "printing" ||
+		machines[0].(map[string]any)["name"] != "Preview printer" {
 		t.Fatalf("live = %v", live)
 	}
 }

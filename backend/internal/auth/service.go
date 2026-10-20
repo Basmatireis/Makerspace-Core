@@ -66,7 +66,14 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...Notificat
 	if len(notification) > 0 {
 		notifier = notification[0]
 	}
-	return &Service{pool: pool, config: cfg, dummyHash: dummyHash, dummyPINHash: dummyPINHash, limits: newLoginLimits(), notifier: notifier}, nil
+	return &Service{
+		pool:         pool,
+		config:       cfg,
+		dummyHash:    dummyHash,
+		dummyPINHash: dummyPINHash,
+		limits:       newLoginLimits(),
+		notifier:     notifier,
+	}, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password, sourceKey string, requestID *uuid.UUID) (Session, error) {
@@ -183,7 +190,8 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 		return Authenticated{}, err
 	}
 	currentDevice := managedDeviceFromContext(ctx)
-	if (row.ManagedDeviceID == nil) != (currentDevice == nil) || (row.ManagedDeviceID != nil && currentDevice != nil && *row.ManagedDeviceID != *currentDevice) {
+	if (row.ManagedDeviceID == nil) != (currentDevice == nil) ||
+		(row.ManagedDeviceID != nil && currentDevice != nil && *row.ManagedDeviceID != *currentDevice) {
 		return Authenticated{}, apperror.Unauthenticated
 	}
 	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod,
@@ -191,7 +199,11 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 		PostSessionDestination: row.PostSessionDestination}, nil
 }
 
-func (s *Service) unauthenticatedWithDestination(ctx context.Context, queries *authdb.Queries, tokenDigest []byte) error {
+func (s *Service) unauthenticatedWithDestination(
+	ctx context.Context,
+	queries *authdb.Queries,
+	tokenDigest []byte,
+) error {
 	destination, err := queries.GetSessionPostDestinationByDigest(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.Unauthenticated
@@ -216,7 +228,11 @@ func (s *Service) RecordActivity(ctx context.Context, principal authorization.Pr
 		AbsoluteExpiry: row.AbsoluteExpiresAt, PostSessionDestination: row.PostSessionDestination}, nil
 }
 
-func (s *Service) WithDevice(ctx context.Context, authenticated Authenticated, device *authorization.ManagedDevice) (Authenticated, error) {
+func (s *Service) WithDevice(
+	ctx context.Context,
+	authenticated Authenticated,
+	device *authorization.ManagedDevice,
+) (Authenticated, error) {
 	principal := authenticated.Principal
 	principal.Device = device
 	principal, err := authorization.LoadPermissionsFrom(ctx, s.pool, principal)
@@ -228,7 +244,8 @@ func (s *Service) WithDevice(ctx context.Context, authenticated Authenticated, d
 }
 
 func ValidateCSRF(authenticated Authenticated, cookieToken, headerToken string) error {
-	if cookieToken == "" || headerToken == "" || subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
+	if cookieToken == "" || headerToken == "" ||
+		subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
 		return apperror.New(403, "csrf_invalid", "CSRF validation failed")
 	}
 	digest := security.DigestToken(headerToken)
@@ -254,7 +271,12 @@ func (s *Service) Logout(ctx context.Context, principal authorization.Principal,
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ChangePassword(ctx context.Context, principal authorization.Principal, currentPassword, newPassword string, requestID *uuid.UUID) (Session, error) {
+func (s *Service) ChangePassword(
+	ctx context.Context,
+	principal authorization.Principal,
+	currentPassword, newPassword string,
+	requestID *uuid.UUID,
+) (Session, error) {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return Session{}, validationError(err.Error())
 	}
@@ -311,7 +333,12 @@ func (s *Service) ChangePassword(ctx context.Context, principal authorization.Pr
 	return session, nil
 }
 
-func (s *Service) RemovePassword(ctx context.Context, principal authorization.Principal, currentPassword string, requestID *uuid.UUID) error {
+func (s *Service) RemovePassword(
+	ctx context.Context,
+	principal authorization.Principal,
+	currentPassword string,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.AccountsPasswordRemoveSelf) {
 		return apperror.PermissionDenied
 	}
@@ -403,7 +430,11 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword
 	return tx.Commit(ctx)
 }
 
-func (s *Service) createSession(ctx context.Context, queries *authdb.Queries, accountID, identityID uuid.UUID) (Session, error) {
+func (s *Service) createSession(
+	ctx context.Context,
+	queries *authdb.Queries,
+	accountID, identityID uuid.UUID,
+) (Session, error) {
 	token, tokenDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		return Session{}, err
@@ -427,11 +458,25 @@ func (s *Service) createSession(ctx context.Context, queries *authdb.Queries, ac
 	}); err != nil {
 		return Session{}, err
 	}
-	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute, PostSessionDestination: policy.PostSessionDestination}, nil
+	return Session{
+		ID:                     id,
+		Token:                  token,
+		CSRFToken:              csrf,
+		IdleExpiresAt:          idle,
+		AbsoluteExpiry:         absolute,
+		PostSessionDestination: policy.PostSessionDestination,
+	}, nil
 }
 
-func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, accountID, identityID uuid.UUID, assurance authorization.Assurance, authenticatedAt time.Time) (Session, error) {
-	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA {
+func (s *Service) CreateOIDCSession(
+	ctx context.Context,
+	db authdb.DBTX,
+	accountID, identityID uuid.UUID,
+	assurance authorization.Assurance,
+	authenticatedAt time.Time,
+) (Session, error) {
+	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong &&
+		assurance != authorization.AssuranceStrongMFA {
 		return Session{}, errors.New("invalid OIDC assurance")
 	}
 	queries := authdb.New(db)
@@ -445,7 +490,10 @@ func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, account
 	if account.Status != "enabled" {
 		return Session{}, apperror.Unauthenticated
 	}
-	usable, err := queries.OIDCIdentityUsable(ctx, authdb.OIDCIdentityUsableParams{ID: identityID, AccountID: accountID})
+	usable, err := queries.OIDCIdentityUsable(
+		ctx,
+		authdb.OIDCIdentityUsableParams{ID: identityID, AccountID: accountID},
+	)
 	if err != nil {
 		return Session{}, err
 	}
@@ -477,7 +525,14 @@ func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, account
 	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{AuthIdentityID: identityID, AccountID: accountID}); err != nil {
 		return Session{}, err
 	}
-	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute, PostSessionDestination: policy.PostSessionDestination}, nil
+	return Session{
+		ID:                     id,
+		Token:                  token,
+		CSRFToken:              csrf,
+		IdleExpiresAt:          idle,
+		AbsoluteExpiry:         absolute,
+		PostSessionDestination: policy.PostSessionDestination,
+	}, nil
 }
 
 func validationError(message string) *apperror.Error {

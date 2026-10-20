@@ -21,7 +21,12 @@ const retainedPublications = 5
 // scene, playlist and asset they reach) into the next immutable publication. The snapshot is read in a
 // repeatable-read transaction so all content comes from one consistent point; revisions are
 // assigned under the display row lock. Older publications beyond the latest five are pruned.
-func (s *Service) PublishDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Display, error) {
+func (s *Service) PublishDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) (Display, error) {
 	display, err := s.publishDisplay(ctx, principal, id, requestID)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "40001" {
@@ -32,7 +37,12 @@ func (s *Service) PublishDisplay(ctx context.Context, principal authorization.Pr
 	return display, err
 }
 
-func (s *Service) publishDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Display, error) {
+func (s *Service) publishDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) (Display, error) {
 	if !principal.Has(authorization.SignagePublish) {
 		return Display{}, apperror.PermissionDenied
 	}

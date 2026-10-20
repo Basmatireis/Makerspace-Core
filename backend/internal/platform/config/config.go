@@ -59,8 +59,13 @@ func Load() (Config, error) {
 	}
 
 	base, err := url.Parse(envOr("PUBLIC_BASE_URL", "http://localhost:5173"))
-	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.Path != "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
-		return Config{}, errors.New("PUBLIC_BASE_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
+	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.Path != "" ||
+		base.User != nil ||
+		base.RawQuery != "" ||
+		base.Fragment != "" {
+		return Config{}, errors.New(
+			"PUBLIC_BASE_URL must be an HTTP(S) origin without credentials, path, query, or fragment",
+		)
 	}
 	if environment == "production" && base.Scheme != "https" {
 		return Config{}, errors.New("PUBLIC_BASE_URL must use HTTPS in production")
@@ -142,7 +147,8 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse S3_DISABLE_TLS: %w", err)
 	}
-	if storageBackend == "s3" && (strings.TrimSpace(os.Getenv("S3_REGION")) == "" || strings.TrimSpace(os.Getenv("S3_BUCKET")) == "") {
+	if storageBackend == "s3" &&
+		(strings.TrimSpace(os.Getenv("S3_REGION")) == "" || strings.TrimSpace(os.Getenv("S3_BUCKET")) == "") {
 		return Config{}, errors.New("S3_REGION and S3_BUCKET are required for S3 storage")
 	}
 	if environment == "production" && storageBackend == "s3" && s3DisableTLS {
@@ -155,8 +161,11 @@ func Load() (Config, error) {
 			endpoint = "https://" + endpoint
 		}
 		parsed, err := url.Parse(endpoint)
-		if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-			return Config{}, errors.New("S3_ENDPOINT must be an HTTP(S) endpoint without credentials, query, or fragment")
+		if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+			(parsed.Scheme != "https" && parsed.Scheme != "http") {
+			return Config{}, errors.New(
+				"S3_ENDPOINT must be an HTTP(S) endpoint without credentials, query, or fragment",
+			)
 		}
 		if environment == "production" && parsed.Scheme != "https" {
 			return Config{}, errors.New("S3_ENDPOINT must use HTTPS in production")

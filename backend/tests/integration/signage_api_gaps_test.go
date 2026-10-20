@@ -18,7 +18,17 @@ func TestSignageAssetCreatedByNameAndEncodedFileNames(t *testing.T) {
 	}
 	image := signageJPEG(t, 32, 32)
 	upload := func(name string) *http.Response {
-		return e.doRaw(editor.client, editor.csrf, http.MethodPost, "/signage/assets", image, "X-File-Name", name, "X-File-Content-Type", "image/jpeg")
+		return e.doRaw(
+			editor.client,
+			editor.csrf,
+			http.MethodPost,
+			"/signage/assets",
+			image,
+			"X-File-Name",
+			name,
+			"X-File-Content-Type",
+			"image/jpeg",
+		)
 	}
 
 	// Percent-encoded UTF-8 is decoded; ASCII names keep working.
@@ -109,10 +119,16 @@ func TestSignageAssetContentCacheHeaders(t *testing.T) {
 			t.Fatalf("%q: Cache-Control = %q", query, cache)
 		}
 	}
-	e.expect(e.as(viewer, http.MethodGet, "/signage/assets/"+asset.ID.String()+"/content?v=nothex", nil), http.StatusBadRequest)
+	e.expect(
+		e.as(viewer, http.MethodGet, "/signage/assets/"+asset.ID.String()+"/content?v=nothex", nil),
+		http.StatusBadRequest,
+	)
 	// Permissions are unchanged: a matching digest never bypasses authorization.
 	nobody := e.staff("cache-nobody", authorization.SignageContentManage)
-	e.expect(e.as(nobody, http.MethodGet, "/signage/assets/"+asset.ID.String()+"/content?v="+asset.SHA256, nil), http.StatusForbidden)
+	e.expect(
+		e.as(nobody, http.MethodGet, "/signage/assets/"+asset.ID.String()+"/content?v="+asset.SHA256, nil),
+		http.StatusForbidden,
+	)
 }
 
 func TestPublicConfigurationExposesMakerspaceTimeZone(t *testing.T) {

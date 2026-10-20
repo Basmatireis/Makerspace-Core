@@ -14,7 +14,11 @@ import (
 )
 
 // restrictedPrincipal is a non-master account holding exactly the given permissions.
-func restrictedPrincipal(t *testing.T, pool *pgxpool.Pool, permissions ...authorization.Permission) authorization.Principal {
+func restrictedPrincipal(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	permissions ...authorization.Permission,
+) authorization.Principal {
 	t.Helper()
 	ctx := t.Context()
 	person, account, role := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
@@ -45,7 +49,11 @@ func restrictedPrincipal(t *testing.T, pool *pgxpool.Pool, permissions ...author
 			t.Fatal(err)
 		}
 	}
-	p, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: account, PersonID: person})
+	p, err := authorization.LoadPermissionsFrom(
+		ctx,
+		pool,
+		authorization.Principal{AccountID: account, PersonID: person},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +82,15 @@ func newWorkItemFixture(t *testing.T) *workItemFixture {
 	recorded.Usages = []UsageInput{{MaterialID: h.jobFixture.material.ID, Quantity: "30"}}
 	w.recorded = h.create(t, recorded)
 
-	w.linkedRun = h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour), fileName: "benchy.gcode"})
+	w.linkedRun = h.insertRun(
+		t,
+		runSpec{
+			machine:  h.machine.ID,
+			started:  at(h.now, -20*time.Hour),
+			ended:    at(h.now, -19*time.Hour),
+			fileName: "benchy.gcode",
+		},
+	)
 	h.finish(t, w.linkedRun, "finished", *at(h.now, -19*time.Hour))
 	manual := h.input(-30*time.Hour, time.Hour, "unknown")
 	w.linked = h.attach(t, w.linkedRun, h.create(t, manual), true)
@@ -88,8 +104,28 @@ func newWorkItemFixture(t *testing.T) *workItemFixture {
 	w.noPrice = h.create(t, noPrice)
 
 	percent := 40
-	w.printing = h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "running", started: at(h.now, -30*time.Minute), fileName: "vase.gcode", percent: &percent})
-	w.ended = h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour), fileName: "lid.gcode", grams: "10", basis: "actual", spool: &h.spool.ID})
+	w.printing = h.insertRun(
+		t,
+		runSpec{
+			machine:  h.bareMachine.ID,
+			state:    "running",
+			started:  at(h.now, -30*time.Minute),
+			fileName: "vase.gcode",
+			percent:  &percent,
+		},
+	)
+	w.ended = h.insertRun(
+		t,
+		runSpec{
+			machine:  h.bareMachine.ID,
+			started:  at(h.now, -6*time.Hour),
+			ended:    at(h.now, -5*time.Hour),
+			fileName: "lid.gcode",
+			grams:    "10",
+			basis:    "actual",
+			spool:    &h.spool.ID,
+		},
+	)
 	h.finish(t, w.ended, "finished", *at(h.now, -5*time.Hour))
 	return w
 }
@@ -133,7 +169,18 @@ func TestWorkItemsUnifyJobsAndUnassignedRuns(t *testing.T) {
 	if total != 7 {
 		t.Fatalf("total = %d", total)
 	}
-	sameIDs(t, "all", items, w.running.ID, w.needsOutcome.ID, w.recorded.ID, w.linked.ID, w.noPrice.ID, w.printing, w.ended)
+	sameIDs(
+		t,
+		"all",
+		items,
+		w.running.ID,
+		w.needsOutcome.ID,
+		w.recorded.ID,
+		w.linked.ID,
+		w.noPrice.ID,
+		w.printing,
+		w.ended,
+	)
 	byID := map[uuid.UUID]WorkItem{}
 	for _, item := range items {
 		byID[item.ID] = item
@@ -156,20 +203,27 @@ func TestWorkItemsUnifyJobsAndUnassignedRuns(t *testing.T) {
 		t.Fatalf("linked job run data = %+v", linked)
 	}
 	printing := byID[w.printing]
-	if printing.ProgressPercent == nil || *printing.ProgressPercent != 40 || printing.Customer != nil || printing.Operator != nil || printing.Billing != nil || printing.EffectivePrice != nil || printing.Title != nil {
+	if printing.ProgressPercent == nil || *printing.ProgressPercent != 40 || printing.Customer != nil ||
+		printing.Operator != nil ||
+		printing.Billing != nil ||
+		printing.EffectivePrice != nil ||
+		printing.Title != nil {
 		t.Fatalf("printing print = %+v", printing)
 	}
 	if ended := byID[w.ended]; ended.EndsAt == nil || ended.Billing != nil {
 		t.Fatalf("ended print = %+v", ended)
 	}
 	job := byID[w.recorded.ID]
-	if job.Customer == nil || job.Customer.ID != w.person || job.Operator == nil || job.Operator.PersonID != w.person || job.EffectivePrice == nil || job.Billing == nil {
+	if job.Customer == nil || job.Customer.ID != w.person || job.Operator == nil || job.Operator.PersonID != w.person ||
+		job.EffectivePrice == nil ||
+		job.Billing == nil {
 		t.Fatalf("job = %+v", job)
 	}
 	if job.Billing.State != "not_on_order" || job.Billing.OrderID != nil {
 		t.Fatalf("recorded billing = %+v", job.Billing)
 	}
-	if got := byID[w.noPrice.ID].Billing; got == nil || got.State != "price_incomplete" || byID[w.noPrice.ID].EffectivePrice != nil {
+	if got := byID[w.noPrice.ID].Billing; got == nil || got.State != "price_incomplete" ||
+		byID[w.noPrice.ID].EffectivePrice != nil {
 		t.Fatalf("incomplete billing = %+v", got)
 	}
 }
@@ -188,19 +242,42 @@ func TestWorkItemFilters(t *testing.T) {
 	only("status unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, w.ended)
 	only("status needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
 	only("machine", WorkItemFilters{MachineIDs: []uuid.UUID{w.bareMachine.ID}}, w.noPrice.ID, w.printing, w.ended)
-	only("source manual", WorkItemFilters{Sources: []string{"manual"}}, w.running.ID, w.needsOutcome.ID, w.recorded.ID, w.noPrice.ID)
+	only(
+		"source manual",
+		WorkItemFilters{Sources: []string{"manual"}},
+		w.running.ID,
+		w.needsOutcome.ID,
+		w.recorded.ID,
+		w.noPrice.ID,
+	)
 	only("source recorded", WorkItemFilters{Sources: []string{"recorded"}}, w.linked.ID, w.printing, w.ended)
 	only("job material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.jobFixture.material.ID}}, w.recorded.ID)
 	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.runHarness.material.ID}}, w.ended)
 	only("billing excludes prints", WorkItemFilters{Billing: []string{"price_incomplete"}}, w.noPrice.ID)
 	only("billing none match", WorkItemFilters{Billing: []string{"on_order", "order_outdated"}})
-	only("customer excludes prints", WorkItemFilters{CustomerID: &w.person, Statuses: []string{"successful"}}, w.recorded.ID, w.linked.ID, w.noPrice.ID)
-	only("operator", WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unassigned", "running_unassigned", "running"}}, w.running.ID)
+	only(
+		"customer excludes prints",
+		WorkItemFilters{CustomerID: &w.person, Statuses: []string{"successful"}},
+		w.recorded.ID,
+		w.linked.ID,
+		w.noPrice.ID,
+	)
+	only(
+		"operator",
+		WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unassigned", "running_unassigned", "running"}},
+		w.running.ID,
+	)
 	stranger := uuid.Must(uuid.NewV7())
 	only("unknown customer", WorkItemFilters{CustomerID: &stranger})
 
 	from, to := *w.recorded.StartedAt, *w.running.StartedAt
-	only("from inclusive to exclusive", WorkItemFilters{From: &from, To: &to}, w.recorded.ID, w.needsOutcome.ID, w.ended)
+	only(
+		"from inclusive to exclusive",
+		WorkItemFilters{From: &from, To: &to},
+		w.recorded.ID,
+		w.needsOutcome.ID,
+		w.ended,
+	)
 	only("from is inclusive", WorkItemFilters{From: &to, To: ptr(to.Add(time.Microsecond))}, w.running.ID)
 	only("to is exclusive", WorkItemFilters{From: ptr(to.Add(-time.Microsecond)), To: &to})
 
@@ -211,7 +288,11 @@ func TestWorkItemFilters(t *testing.T) {
 	only("search file name", WorkItemFilters{Search: "BENCHY"}, w.linked.ID)
 	only("search unlinked file name", WorkItemFilters{Search: "vase"}, w.printing)
 	only("search job display id", WorkItemFilters{Search: w.needsOutcome.DisplayID}, w.needsOutcome.ID)
-	only("search run display id of a job", WorkItemFilters{Search: w.linked.Runs[len(w.linked.Runs)-1].DisplayID}, w.linked.ID)
+	only(
+		"search run display id of a job",
+		WorkItemFilters{Search: w.linked.Runs[len(w.linked.Runs)-1].DisplayID},
+		w.linked.ID,
+	)
 	only("search unassigned run display id", WorkItemFilters{Search: w.printingDisplayID(t)}, w.printing)
 }
 
@@ -323,7 +404,10 @@ func TestWorkItemSortingAndPagination(t *testing.T) {
 	if len(items) != 0 || total != 7 {
 		t.Fatalf("page past the end: %d items, total %d", len(items), total)
 	}
-	if _, _, err := w.s.ListWorkItems(t.Context(), w.p, WorkItemFilters{Sort: "bogus", Page: 1, PageSize: 10}); !apperror.IsCode(err, "validation_failed") {
+	if _, _, err := w.s.ListWorkItems(t.Context(), w.p, WorkItemFilters{Sort: "bogus", Page: 1, PageSize: 10}); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("unknown sort: %v", err)
 	}
 }
@@ -331,7 +415,10 @@ func TestWorkItemSortingAndPagination(t *testing.T) {
 func TestWorkItemsAndActivityRequireTheirPermissions(t *testing.T) {
 	w := newWorkItemFixture(t)
 	machinesOnly := restrictedPrincipal(t, w.pool, authorization.MachinesRead)
-	if _, _, err := w.s.ListWorkItems(t.Context(), machinesOnly, WorkItemFilters{Page: 1, PageSize: 10}); !apperror.IsCode(err, "permission_denied") {
+	if _, _, err := w.s.ListWorkItems(t.Context(), machinesOnly, WorkItemFilters{Page: 1, PageSize: 10}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("work items without machine_jobs.read: %v", err)
 	}
 	jobsOnly := restrictedPrincipal(t, w.pool, authorization.MachineJobsRead)
@@ -348,7 +435,16 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	ctx := t.Context()
 	extra := func(name, status string) Machine {
 		t.Helper()
-		m, err := h.s.CreateMachine(ctx, h.p, h.machine.MachineType.ID, name+" "+h.machine.ID.String()[:8], status, nil, false, &h.request)
+		m, err := h.s.CreateMachine(
+			ctx,
+			h.p,
+			h.machine.MachineType.ID,
+			name+" "+h.machine.ID.String()[:8],
+			status,
+			nil,
+			false,
+			&h.request,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -361,9 +457,24 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		})
 		return m
 	}
-	retired, maintenance, future, free := extra("Retired", "active"), extra("Maintenance", "maintenance"), extra("Future", "active"), extra("Free", "active")
+	retired, maintenance, future, free := extra(
+		"Retired",
+		"active",
+	), extra(
+		"Maintenance",
+		"maintenance",
+	), extra(
+		"Future",
+		"active",
+	), extra(
+		"Free",
+		"active",
+	)
 	// h.machine has a printing print, h.bareMachine a running manual job.
-	printID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -time.Hour), fileName: "live.gcode"})
+	printID := h.insertRun(
+		t,
+		runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -time.Hour), fileName: "live.gcode"},
+	)
 	estimated := h.now.Truncate(time.Second).Add(2 * time.Hour)
 	if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`, printID, estimated); err != nil {
 		t.Fatal(err)
@@ -410,14 +521,26 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		}
 	}
 	printing := all[h.machine.ID]
-	if printing.Current == nil || printing.Current.Kind != "run" || printing.Current.ID != printID || printing.Current.FileName == nil || *printing.Current.FileName != "live.gcode" || printing.Current.EndsAt == nil || !printing.Current.EndsAt.Equal(estimated) {
+	if printing.Current == nil || printing.Current.Kind != "run" || printing.Current.ID != printID ||
+		printing.Current.FileName == nil ||
+		*printing.Current.FileName != "live.gcode" ||
+		printing.Current.EndsAt == nil ||
+		!printing.Current.EndsAt.Equal(estimated) {
 		t.Fatalf("printing current = %+v", printing.Current)
 	}
-	if c := printing.Connector; c == nil || c.RuntimeState == nil || *c.RuntimeState != "degraded" || c.RuntimeErrorCode == nil || *c.RuntimeErrorCode != "auth_failed" || c.LastHeartbeatAt == nil || !c.LastHeartbeatAt.Equal(heartbeat) {
+	if c := printing.Connector; c == nil || c.RuntimeState == nil || *c.RuntimeState != "degraded" ||
+		c.RuntimeErrorCode == nil ||
+		*c.RuntimeErrorCode != "auth_failed" ||
+		c.LastHeartbeatAt == nil ||
+		!c.LastHeartbeatAt.Equal(heartbeat) {
 		t.Fatalf("connector = %+v", printing.Connector)
 	}
 	manual := all[h.bareMachine.ID]
-	if manual.Current == nil || manual.Current.Kind != "job" || manual.Current.ID != running.ID || manual.Current.Title == nil || *manual.Current.Title != title || manual.Current.EndsAt == nil || !manual.Current.EndsAt.Equal(*running.ExpectedEndAt) {
+	if manual.Current == nil || manual.Current.Kind != "job" || manual.Current.ID != running.ID ||
+		manual.Current.Title == nil ||
+		*manual.Current.Title != title ||
+		manual.Current.EndsAt == nil ||
+		!manual.Current.EndsAt.Equal(*running.ExpectedEndAt) {
 		t.Fatalf("running job current = %+v", manual.Current)
 	}
 	if manual.LastJobStartedAt == nil || !manual.LastJobStartedAt.Equal(*running.StartedAt) {
@@ -464,9 +587,28 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	bare.MachineID = h.bareMachine.ID
 	bare.Customer = PartyReference{Kind: "person", ID: h.person}
 	incomplete := h.create(t, bare)
-	printing := h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "running", started: at(h.now, -30*time.Minute), fileName: "vase.gcode"})
-	ended := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour), fileName: "lid.gcode"})
-	linkedRun := h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour)})
+	printing := h.insertRun(
+		t,
+		runSpec{
+			machine:  h.bareMachine.ID,
+			state:    "running",
+			started:  at(h.now, -30*time.Minute),
+			fileName: "vase.gcode",
+		},
+	)
+	ended := h.insertRun(
+		t,
+		runSpec{
+			machine:  h.bareMachine.ID,
+			started:  at(h.now, -6*time.Hour),
+			ended:    at(h.now, -5*time.Hour),
+			fileName: "lid.gcode",
+		},
+	)
+	linkedRun := h.insertRun(
+		t,
+		runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour)},
+	)
 	h.attach(t, linkedRun, h.create(t, h.input(-30*time.Hour, time.Hour, "unknown")), true)
 	_ = w
 
@@ -504,7 +646,11 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	scoped("needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome"}}, 2)
 	scoped("unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, 1)
 	scoped("billing issues", WorkItemFilters{Billing: []string{"price_incomplete", "order_outdated"}}, 1)
-	scoped("active", WorkItemFilters{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}}, 5)
+	scoped(
+		"active",
+		WorkItemFilters{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}},
+		5,
+	)
 	for _, name := range []string{h.machine.Name, h.bareMachine.Name} {
 		if !slices.Contains(after.RunningMachineNames, name) {
 			t.Fatalf("running machine names %v lack %s", after.RunningMachineNames, name)
@@ -521,8 +667,16 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 		}
 		if i > 0 {
 			prev := after.ActiveItems[i-1]
-			if rank[prev.Status] > rank[item.Status] || (rank[prev.Status] == rank[item.Status] && prev.StartedAt.Before(item.StartedAt)) {
-				t.Fatalf("active items out of order at %d: %s/%v then %s/%v", i, prev.Status, prev.StartedAt, item.Status, item.StartedAt)
+			if rank[prev.Status] > rank[item.Status] ||
+				(rank[prev.Status] == rank[item.Status] && prev.StartedAt.Before(item.StartedAt)) {
+				t.Fatalf(
+					"active items out of order at %d: %s/%v then %s/%v",
+					i,
+					prev.Status,
+					prev.StartedAt,
+					item.Status,
+					item.StartedAt,
+				)
 			}
 		}
 		if slices.Contains([]uuid.UUID{running.ID, printing, ended, needs.ID}, item.ID) {
@@ -538,7 +692,11 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 
 	// The new fields are hidden from a caller who may only read statistics.
 	statsOnly := read(restrictedPrincipal(t, h.pool, authorization.StatisticsRead))
-	if statsOnly.RunningNow != nil || statsOnly.NeedsOutcome != nil || statsOnly.UnassignedRuns != nil || statsOnly.BillingIssues != nil || statsOnly.ActiveTotal != nil || statsOnly.ActiveItems != nil || statsOnly.RunningMachineNames != nil {
+	if statsOnly.RunningNow != nil || statsOnly.NeedsOutcome != nil || statsOnly.UnassignedRuns != nil ||
+		statsOnly.BillingIssues != nil ||
+		statsOnly.ActiveTotal != nil ||
+		statsOnly.ActiveItems != nil ||
+		statsOnly.RunningMachineNames != nil {
 		t.Fatalf("statistics-only overview exposes work items: %+v", statsOnly)
 	}
 	if statsOnly.JobsThisWeek < 0 {

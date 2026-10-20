@@ -97,7 +97,13 @@ type liveError struct {
 }
 
 func newLiveSnapshot(state string) liveSnapshot {
-	return liveSnapshot{State: state, Temperatures: liveTemperatures{Extruders: []liveExtruderTemperature{}}, Nozzles: []liveNozzle{}, Units: []liveUnit{}, Errors: []liveError{}}
+	return liveSnapshot{
+		State:        state,
+		Temperatures: liveTemperatures{Extruders: []liveExtruderTemperature{}},
+		Nozzles:      []liveNozzle{},
+		Units:        []liveUnit{},
+		Errors:       []liveError{},
+	}
 }
 
 type liveEntry struct {
@@ -155,7 +161,10 @@ func (h *liveStatusHub) Due(connected func(uuid.UUID) bool) []liveDue {
 			continue
 		}
 		if entry.changed || (connected(id) && now.Sub(entry.lastSuccess) >= liveStatusKeepAlive) {
-			due = append(due, liveDue{AssignmentID: id, ConfigurationVersion: entry.configurationVersion, Snapshot: entry.snapshot})
+			due = append(
+				due,
+				liveDue{AssignmentID: id, ConfigurationVersion: entry.configurationVersion, Snapshot: entry.snapshot},
+			)
 			// Claim the slot before the request so a slow Core is not hammered.
 			entry.lastAttempt = now
 		}

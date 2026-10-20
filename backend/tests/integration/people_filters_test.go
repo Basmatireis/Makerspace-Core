@@ -108,7 +108,13 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 func assertPeoplePageIDs(t *testing.T, page people.Page, expected ...uuid.UUID) {
 	t.Helper()
 	if page.Total != int64(len(expected)) || len(page.Items) != len(expected) {
-		t.Fatalf("people page has total/items %d/%d, want %d: %#v", page.Total, len(page.Items), len(expected), page.Items)
+		t.Fatalf(
+			"people page has total/items %d/%d, want %d: %#v",
+			page.Total,
+			len(page.Items),
+			len(expected),
+			page.Items,
+		)
 	}
 	remaining := make(map[uuid.UUID]struct{}, len(expected))
 	for _, id := range expected {

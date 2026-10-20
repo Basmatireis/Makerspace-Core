@@ -52,22 +52,67 @@ func spoolStatus(lifecycle, kind string, hasOpenFill bool) string {
 	}
 }
 
-func spoolMount(machineID *uuid.UUID, machineName *string, inputUnit *string, slotID *uuid.UUID, slotName *string) *SpoolMount {
+func spoolMount(
+	machineID *uuid.UUID,
+	machineName *string,
+	inputUnit *string,
+	slotID *uuid.UUID,
+	slotName *string,
+) *SpoolMount {
 	if machineID == nil || machineName == nil || slotID == nil || slotName == nil {
 		return nil
 	}
-	return &SpoolMount{MachineID: *machineID, MachineName: *machineName, InputUnitName: inputUnit, SlotID: *slotID, SlotName: *slotName}
+	return &SpoolMount{
+		MachineID:     *machineID,
+		MachineName:   *machineName,
+		InputUnitName: inputUnit,
+		SlotID:        *slotID,
+		SlotName:      *slotName,
+	}
 }
 
 func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
-	return FilamentSpool{MountedOn: spoolMount(row.MountMachineID, row.MountMachineName, row.MountInputUnitName, row.MountSlotID, row.MountSlotName), ID: row.ID, DisplayID: row.DisplayID, Kind: row.Kind, Label: row.Label,
-		Status: spoolStatus(row.Lifecycle, row.Kind, row.FillID != nil), FillNumber: row.FillNumber, FillID: row.FillID,
-		FilledAt: nullableTime(row.FilledAt), ArchivedAt: nullableTime(row.ArchivedAt), MaterialID: row.MaterialID,
-		MaterialName: row.MaterialName, MaterialTypeName: row.MaterialTypeName, ColorName: row.ColorName, ColorHex: row.ColorHex, Unit: row.Unit, ProductID: row.ProductID,
-		Manufacturer: row.Manufacturer, ProductName: row.ProductName, InitialNetWeightG: nullableDecimal(row.InitialNetWeightG),
-		RemainingQuantity: decimalString(row.RemainingQuantity), TareWeightG: nullableDecimal(row.TareWeightG),
-		AcquiredOn: spoolDate(row.AcquiredOn), AcquisitionReference: row.AcquisitionReference, StorageLocation: row.StorageLocation,
-		Notes: row.Notes, Lifecycle: row.Lifecycle, Mounted: row.Mounted, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return FilamentSpool{
+		MountedOn: spoolMount(
+			row.MountMachineID,
+			row.MountMachineName,
+			row.MountInputUnitName,
+			row.MountSlotID,
+			row.MountSlotName,
+		),
+		ID:                row.ID,
+		DisplayID:         row.DisplayID,
+		Kind:              row.Kind,
+		Label:             row.Label,
+		Status:            spoolStatus(row.Lifecycle, row.Kind, row.FillID != nil),
+		FillNumber:        row.FillNumber,
+		FillID:            row.FillID,
+		FilledAt:          nullableTime(row.FilledAt),
+		ArchivedAt:        nullableTime(row.ArchivedAt),
+		MaterialID:        row.MaterialID,
+		MaterialName:      row.MaterialName,
+		MaterialTypeName:  row.MaterialTypeName,
+		ColorName:         row.ColorName,
+		ColorHex:          row.ColorHex,
+		Unit:              row.Unit,
+		ProductID:         row.ProductID,
+		Manufacturer:      row.Manufacturer,
+		ProductName:       row.ProductName,
+		InitialNetWeightG: nullableDecimal(row.InitialNetWeightG),
+		RemainingQuantity: decimalString(row.RemainingQuantity),
+		TareWeightG:       nullableDecimal(row.TareWeightG),
+		AcquiredOn: spoolDate(
+			row.AcquiredOn,
+		),
+		AcquisitionReference: row.AcquisitionReference,
+		StorageLocation:      row.StorageLocation,
+		Notes:                row.Notes,
+		Lifecycle:            row.Lifecycle,
+		Mounted:              row.Mounted,
+		Version:              row.Version,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
 }
 
 func spoolFromList(row machinelogbookdb.ListFilamentSpoolsRow) FilamentSpool {
@@ -86,7 +131,12 @@ func identifiersFromRows(rows []machinelogbookdb.FilamentSpoolIdentifier) []Fila
 	return items
 }
 
-func (s *Service) loadSpool(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID, withFills bool) (FilamentSpool, error) {
+func (s *Service) loadSpool(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+	withFills bool,
+) (FilamentSpool, error) {
 	row, err := q.GetFilamentSpool(ctx, id)
 	if err != nil {
 		return FilamentSpool{}, noRows(err)
@@ -122,15 +172,36 @@ func (s *Service) loadSpool(ctx context.Context, q *machinelogbookdb.Queries, id
 		if fill.LeftoverOutcome != nil {
 			outcome = *fill.LeftoverOutcome
 		}
-		item.Fills = append(item.Fills, FilamentSpoolFill{ID: fill.ID, MaterialID: fill.MaterialID, ProductID: fill.ProductID, FillNumber: fill.FillNumber,
-			MaterialName: fill.MaterialName, Manufacturer: fill.Manufacturer, ProductName: fill.ProductName,
-			InitialNetWeightG: decimalString(fill.InitialNetWeightG), UsedG: decimalString(fill.UsedG), LeftoverG: decimalString(fill.LeftoverG),
-			Outcome: outcome, FilledAt: fill.FilledAt, ClosedAt: fill.ClosedAt.Time, Identifiers: identifiers})
+		item.Fills = append(
+			item.Fills,
+			FilamentSpoolFill{
+				ID:           fill.ID,
+				MaterialID:   fill.MaterialID,
+				ProductID:    fill.ProductID,
+				FillNumber:   fill.FillNumber,
+				MaterialName: fill.MaterialName,
+				Manufacturer: fill.Manufacturer,
+				ProductName:  fill.ProductName,
+				InitialNetWeightG: decimalString(
+					fill.InitialNetWeightG,
+				),
+				UsedG:       decimalString(fill.UsedG),
+				LeftoverG:   decimalString(fill.LeftoverG),
+				Outcome:     outcome,
+				FilledAt:    fill.FilledAt,
+				ClosedAt:    fill.ClosedAt.Time,
+				Identifiers: identifiers,
+			},
+		)
 	}
 	return item, nil
 }
 
-func (s *Service) GetFilamentSpool(ctx context.Context, p authorization.Principal, id uuid.UUID) (FilamentSpool, error) {
+func (s *Service) GetFilamentSpool(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+) (FilamentSpool, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return FilamentSpool{}, err
 	}
@@ -141,7 +212,11 @@ func validSpoolStatus(status string) bool {
 	return status == "loaded" || status == "needs_refill" || status == "active" || status == "archived"
 }
 
-func (s *Service) ListFilamentSpools(ctx context.Context, p authorization.Principal, f SpoolFilters) ([]FilamentSpool, int64, error) {
+func (s *Service) ListFilamentSpools(
+	ctx context.Context,
+	p authorization.Principal,
+	f SpoolFilters,
+) ([]FilamentSpool, int64, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
@@ -163,16 +238,41 @@ func (s *Service) ListFilamentSpools(ctx context.Context, p authorization.Princi
 		return nil, 0, err
 	}
 	q := machinelogbookdb.New(s.pool)
-	params := machinelogbookdb.ListFilamentSpoolsParams{Search: strings.TrimSpace(f.Search), MaterialID: f.MaterialID, Lifecycle: f.Lifecycle,
-		Location: strings.TrimSpace(f.Location), Kind: f.Kind, Statuses: statuses, Mounted: f.Mounted, ProductID: f.ProductID,
-		Manufacturer: strings.TrimSpace(f.Manufacturer), Consumable: f.Consumable, PageOffset: offset, PageLimit: limit}
+	params := machinelogbookdb.ListFilamentSpoolsParams{
+		Search:     strings.TrimSpace(f.Search),
+		MaterialID: f.MaterialID,
+		Lifecycle:  f.Lifecycle,
+		Location: strings.TrimSpace(
+			f.Location,
+		),
+		Kind:         f.Kind,
+		Statuses:     statuses,
+		Mounted:      f.Mounted,
+		ProductID:    f.ProductID,
+		Manufacturer: strings.TrimSpace(f.Manufacturer),
+		Consumable:   f.Consumable,
+		PageOffset:   offset,
+		PageLimit:    limit,
+	}
 	rows, err := q.ListFilamentSpools(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountFilamentSpools(ctx, machinelogbookdb.CountFilamentSpoolsParams{Search: params.Search, MaterialID: params.MaterialID, Lifecycle: params.Lifecycle,
-		Location: params.Location, Kind: params.Kind, Statuses: params.Statuses, Mounted: params.Mounted, ProductID: params.ProductID,
-		Manufacturer: params.Manufacturer, Consumable: params.Consumable})
+	total, err := q.CountFilamentSpools(
+		ctx,
+		machinelogbookdb.CountFilamentSpoolsParams{
+			Search:       params.Search,
+			MaterialID:   params.MaterialID,
+			Lifecycle:    params.Lifecycle,
+			Location:     params.Location,
+			Kind:         params.Kind,
+			Statuses:     params.Statuses,
+			Mounted:      params.Mounted,
+			ProductID:    params.ProductID,
+			Manufacturer: params.Manufacturer,
+			Consumable:   params.Consumable,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -189,14 +289,19 @@ func (s *Service) ListFilamentSpools(ctx context.Context, p authorization.Princi
 	return items, total, nil
 }
 
-func (s *Service) LookupFilamentSpool(ctx context.Context, p authorization.Principal, kind, value string) (FilamentSpool, error) {
+func (s *Service) LookupFilamentSpool(
+	ctx context.Context,
+	p authorization.Principal,
+	kind, value string,
+) (FilamentSpool, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return FilamentSpool{}, err
 	}
 	if kind != "barcode" && kind != "qr" && kind != "nfc" {
 		return FilamentSpool{}, validation("invalid identifier kind")
 	}
-	id, err := machinelogbookdb.New(s.pool).FindFilamentSpoolByIdentifier(ctx, machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: kind, Value: strings.TrimSpace(value)})
+	id, err := machinelogbookdb.New(s.pool).
+		FindFilamentSpoolByIdentifier(ctx, machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: kind, Value: strings.TrimSpace(value)})
 	if err != nil {
 		return FilamentSpool{}, noRows(err)
 	}
@@ -213,7 +318,12 @@ func validateOptionalText(value *string, field string, max int) (*string, error)
 	return value, nil
 }
 
-func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Principal, input FilamentSpoolInput, requestID *uuid.UUID) (FilamentSpool, error) {
+func (s *Service) CreateFilamentSpool(
+	ctx context.Context,
+	p authorization.Principal,
+	input FilamentSpoolInput,
+	requestID *uuid.UUID,
+) (FilamentSpool, error) {
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
@@ -232,7 +342,10 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	}
 	empty := input.StockMode == "empty"
 	if empty && kind != "reusable" {
-		return FilamentSpool{}, unprocessable("empty_requires_reusable", "Only reusable spools can be registered without a fill")
+		return FilamentSpool{}, unprocessable(
+			"empty_requires_reusable",
+			"Only reusable spools can be registered without a fill",
+		)
 	}
 	var weight decimal.Decimal
 	if !empty {
@@ -244,7 +357,9 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 			return FilamentSpool{}, parseErr
 		}
 		if input.ExpectedInventoryVersion < 1 {
-			return FilamentSpool{}, validation("expectedInventoryVersion is required unless the spool is registered empty")
+			return FilamentSpool{}, validation(
+				"expectedInventoryVersion is required unless the spool is registered empty",
+			)
 		}
 	}
 	supplier, err := validateOptionalText(input.Supplier, "supplier", 200)
@@ -286,7 +401,14 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 		if material.InventoryVersion != input.ExpectedInventoryVersion {
 			return FilamentSpool{}, apperror.StaleWrite
 		}
-		manufacturer, productName, err = s.checkFillMaterialAndProduct(ctx, q, input.MaterialID, input.ProductID, manufacturer, productName)
+		manufacturer, productName, err = s.checkFillMaterialAndProduct(
+			ctx,
+			q,
+			input.MaterialID,
+			input.ProductID,
+			manufacturer,
+			productName,
+		)
 		if err != nil {
 			return FilamentSpool{}, err
 		}
@@ -300,13 +422,41 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 		return FilamentSpool{}, err
 	}
 	id := newID()
-	spool, err := q.CreateFilamentSpool(ctx, machinelogbookdb.CreateFilamentSpoolParams{ID: id, DisplayID: fmt.Sprintf("S-%04d-%06d", s.now().UTC().Year(), sequence), Kind: kind, Label: label, TareWeightG: tare,
-		AcquiredOn: pgDate(input.AcquiredOn), AcquisitionReference: cleanOptional(input.AcquisitionReference), StorageLocation: cleanOptional(input.StorageLocation), Notes: cleanOptional(input.Notes)})
+	spool, err := q.CreateFilamentSpool(
+		ctx,
+		machinelogbookdb.CreateFilamentSpoolParams{
+			ID:          id,
+			DisplayID:   fmt.Sprintf("S-%04d-%06d", s.now().UTC().Year(), sequence),
+			Kind:        kind,
+			Label:       label,
+			TareWeightG: tare,
+			AcquiredOn: pgDate(
+				input.AcquiredOn,
+			),
+			AcquisitionReference: cleanOptional(input.AcquisitionReference),
+			StorageLocation:      cleanOptional(input.StorageLocation),
+			Notes:                cleanOptional(input.Notes),
+		},
+	)
 	if err != nil {
 		return FilamentSpool{}, databaseError(err)
 	}
 	if !empty {
-		err = s.fillNewSpool(ctx, tx, q, p, input, spool, material, detail, weight, manufacturer, productName, supplier, requestID)
+		err = s.fillNewSpool(
+			ctx,
+			tx,
+			q,
+			p,
+			input,
+			spool,
+			material,
+			detail,
+			weight,
+			manufacturer,
+			productName,
+			supplier,
+			requestID,
+		)
 		if err != nil {
 			return FilamentSpool{}, err
 		}
@@ -322,13 +472,43 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 
 // fillNewSpool opens the first fill of a freshly created spool and books the
 // matching inventory movement (purchase or transfer from loose stock).
-func (s *Service) fillNewSpool(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, input FilamentSpoolInput, spool machinelogbookdb.FilamentSpool, material machinelogbookdb.GetMaterialForUpdateRow, detail machinelogbookdb.GetMaterialRow, weight decimal.Decimal, manufacturer, productName, supplier *string, requestID *uuid.UUID) error {
-	fill, err := q.InsertFilamentSpoolFill(ctx, machinelogbookdb.InsertFilamentSpoolFillParams{ID: newID(), SpoolID: spool.ID, FillNumber: 1, MaterialID: input.MaterialID, ProductID: input.ProductID,
-		Manufacturer: manufacturer, ProductName: productName, InitialNetWeightG: numericFromDecimal(weight), FilledAt: input.OccurredAt.UTC()})
+func (s *Service) fillNewSpool(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	input FilamentSpoolInput,
+	spool machinelogbookdb.FilamentSpool,
+	material machinelogbookdb.GetMaterialForUpdateRow,
+	detail machinelogbookdb.GetMaterialRow,
+	weight decimal.Decimal,
+	manufacturer, productName, supplier *string,
+	requestID *uuid.UUID,
+) error {
+	fill, err := q.InsertFilamentSpoolFill(
+		ctx,
+		machinelogbookdb.InsertFilamentSpoolFillParams{
+			ID:                newID(),
+			SpoolID:           spool.ID,
+			FillNumber:        1,
+			MaterialID:        input.MaterialID,
+			ProductID:         input.ProductID,
+			Manufacturer:      manufacturer,
+			ProductName:       productName,
+			InitialNetWeightG: numericFromDecimal(weight),
+			FilledAt:          input.OccurredAt.UTC(),
+		},
+	)
 	if err != nil {
 		return databaseError(err)
 	}
-	ref := fillRef{SpoolID: spool.ID, FillID: fill.ID, SpoolDisplayID: spool.DisplayID, FillNumber: fill.FillNumber, MaterialID: input.MaterialID}
+	ref := fillRef{
+		SpoolID:        spool.ID,
+		FillID:         fill.ID,
+		SpoolDisplayID: spool.DisplayID,
+		FillNumber:     fill.FillNumber,
+		MaterialID:     input.MaterialID,
+	}
 	if input.StockMode == "new_acquisition" {
 		if input.TotalPrice == nil {
 			return validation("totalPrice is required for a new acquisition")
@@ -337,7 +517,26 @@ func (s *Service) fillNewSpool(ctx context.Context, tx pgx.Tx, q *machinelogbook
 		if parseErr != nil || price.IsNegative() {
 			return validation("totalPrice must be non-negative")
 		}
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, input.MaterialID, input.ExpectedInventoryVersion, inventoryMutation{Kind: "purchase", QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price, TotalPrice: &price, OccurredAt: input.OccurredAt, Supplier: supplier, Note: input.Notes, Fill: &ref}, requestID)
+		_, err = s.applyInventoryMutation(
+			ctx,
+			tx,
+			q,
+			p,
+			input.MaterialID,
+			input.ExpectedInventoryVersion,
+			inventoryMutation{
+				Kind:          "purchase",
+				QuantityDelta: weight,
+				UnitCost:      price.Div(weight),
+				ValueDelta:    price,
+				TotalPrice:    &price,
+				OccurredAt:    input.OccurredAt,
+				Supplier:      supplier,
+				Note:          input.Notes,
+				Fill:          &ref,
+			},
+			requestID,
+		)
 	} else {
 		unassigned := decimalFromNumeric(material.Quantity).Sub(decimalFromNumeric(detail.AssignedQuantity))
 		if unassigned.LessThan(weight) {
@@ -351,11 +550,18 @@ func (s *Service) fillNewSpool(ctx context.Context, tx pgx.Tx, q *machinelogbook
 	return databaseError(err)
 }
 
-func (s *Service) UpdateFilamentSpool(ctx context.Context, p authorization.Principal, id uuid.UUID, in FilamentSpoolUpdate, requestID *uuid.UUID) (FilamentSpool, error) {
+func (s *Service) UpdateFilamentSpool(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	in FilamentSpoolUpdate,
+	requestID *uuid.UUID,
+) (FilamentSpool, error) {
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if in.ExpectedVersion < 1 || (in.Lifecycle != "active" && in.Lifecycle != "archived") || (in.Kind != nil && !validSpoolKind(*in.Kind)) {
+	if in.ExpectedVersion < 1 || (in.Lifecycle != "active" && in.Lifecycle != "archived") ||
+		(in.Kind != nil && !validSpoolKind(*in.Kind)) {
 		return FilamentSpool{}, validation("invalid spool update")
 	}
 	tare, err := pgNullableNumeric(in.TareWeightG, false)
@@ -413,8 +619,24 @@ func (s *Service) UpdateFilamentSpool(ctx context.Context, p authorization.Princ
 		}
 		archivedAt = pgtype.Timestamptz{}
 	}
-	_, err = q.UpdateFilamentSpool(ctx, machinelogbookdb.UpdateFilamentSpoolParams{Kind: kind, Label: label, TareWeightG: tare, AcquiredOn: pgDate(in.AcquiredOn), AcquisitionReference: cleanOptional(in.AcquisitionReference),
-		StorageLocation: cleanOptional(in.StorageLocation), Notes: cleanOptional(in.Notes), Lifecycle: in.Lifecycle, ArchivedAt: archivedAt, ID: id, ExpectedVersion: in.ExpectedVersion})
+	_, err = q.UpdateFilamentSpool(
+		ctx,
+		machinelogbookdb.UpdateFilamentSpoolParams{
+			Kind:                 kind,
+			Label:                label,
+			TareWeightG:          tare,
+			AcquiredOn:           pgDate(in.AcquiredOn),
+			AcquisitionReference: cleanOptional(in.AcquisitionReference),
+			StorageLocation: cleanOptional(
+				in.StorageLocation,
+			),
+			Notes:           cleanOptional(in.Notes),
+			Lifecycle:       in.Lifecycle,
+			ArchivedAt:      archivedAt,
+			ID:              id,
+			ExpectedVersion: in.ExpectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FilamentSpool{}, apperror.StaleWrite
 	}
@@ -435,7 +657,13 @@ func (s *Service) UpdateFilamentSpool(ctx context.Context, p authorization.Princ
 	return s.loadSpool(ctx, machinelogbookdb.New(s.pool), id, false)
 }
 
-func (s *Service) AddFilamentSpoolIdentifier(ctx context.Context, p authorization.Principal, spoolID uuid.UUID, kind, value string, requestID *uuid.UUID) (FilamentSpoolIdentifier, error) {
+func (s *Service) AddFilamentSpoolIdentifier(
+	ctx context.Context,
+	p authorization.Principal,
+	spoolID uuid.UUID,
+	kind, value string,
+	requestID *uuid.UUID,
+) (FilamentSpoolIdentifier, error) {
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpoolIdentifier{}, err
 	}
@@ -459,7 +687,16 @@ func (s *Service) AddFilamentSpoolIdentifier(ctx context.Context, p authorizatio
 	if err != nil {
 		return FilamentSpoolIdentifier{}, err
 	}
-	row, err := q.AddFilamentSpoolIdentifier(ctx, machinelogbookdb.AddFilamentSpoolIdentifierParams{ID: newID(), SpoolID: spoolID, FillID: open.ID, Kind: kind, Value: value})
+	row, err := q.AddFilamentSpoolIdentifier(
+		ctx,
+		machinelogbookdb.AddFilamentSpoolIdentifierParams{
+			ID:      newID(),
+			SpoolID: spoolID,
+			FillID:  open.ID,
+			Kind:    kind,
+			Value:   value,
+		},
+	)
 	if err != nil {
 		return FilamentSpoolIdentifier{}, databaseError(err)
 	}
@@ -472,7 +709,12 @@ func (s *Service) AddFilamentSpoolIdentifier(ctx context.Context, p authorizatio
 	return identifierFromRow(row), nil
 }
 
-func (s *Service) DeleteFilamentSpoolIdentifier(ctx context.Context, p authorization.Principal, spoolID, identifierID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) DeleteFilamentSpoolIdentifier(
+	ctx context.Context,
+	p authorization.Principal,
+	spoolID, identifierID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return err
 	}
@@ -482,7 +724,10 @@ func (s *Service) DeleteFilamentSpoolIdentifier(ctx context.Context, p authoriza
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
-	rows, err := q.DeleteFilamentSpoolIdentifier(ctx, machinelogbookdb.DeleteFilamentSpoolIdentifierParams{ID: identifierID, SpoolID: spoolID})
+	rows, err := q.DeleteFilamentSpoolIdentifier(
+		ctx,
+		machinelogbookdb.DeleteFilamentSpoolIdentifierParams{ID: identifierID, SpoolID: spoolID},
+	)
 	if err != nil {
 		return err
 	}
@@ -495,7 +740,17 @@ func (s *Service) DeleteFilamentSpoolIdentifier(ctx context.Context, p authoriza
 	return tx.Commit(ctx)
 }
 
-func (s *Service) TransferSpoolStock(ctx context.Context, p authorization.Principal, materialID uuid.UUID, expected int64, fromID, toID *uuid.UUID, quantity string, occurredAt time.Time, note *string, requestID *uuid.UUID) (InventoryTransaction, error) {
+func (s *Service) TransferSpoolStock(
+	ctx context.Context,
+	p authorization.Principal,
+	materialID uuid.UUID,
+	expected int64,
+	fromID, toID *uuid.UUID,
+	quantity string,
+	occurredAt time.Time,
+	note *string,
+	requestID *uuid.UUID,
+) (InventoryTransaction, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryTransaction{}, err
 	}
@@ -538,15 +793,22 @@ func (s *Service) TransferSpoolStock(ctx context.Context, p authorization.Princi
 			return InventoryTransaction{}, spoolErr
 		}
 		if ref.MaterialID != materialID {
-			return InventoryTransaction{}, conflict("spool_material_mismatch", "Spools must belong to the selected material")
+			return InventoryTransaction{}, conflict(
+				"spool_material_mismatch",
+				"Spools must belong to the selected material",
+			)
 		}
 		refs[spoolID] = ref
 		versions[spoolID] = spool.Version
 		if fromID != nil && spoolID == *fromID && remaining.LessThan(qty) {
-			return InventoryTransaction{}, conflict("insufficient_spool_stock", "Source spool does not contain enough stock")
+			return InventoryTransaction{}, conflict(
+				"insufficient_spool_stock",
+				"Source spool does not contain enough stock",
+			)
 		}
 	}
-	if fromID == nil && decimalFromNumeric(material.Quantity).Sub(decimalFromNumeric(detail.AssignedQuantity)).LessThan(qty) {
+	if fromID == nil &&
+		decimalFromNumeric(material.Quantity).Sub(decimalFromNumeric(detail.AssignedQuantity)).LessThan(qty) {
 		return InventoryTransaction{}, conflict("insufficient_unassigned_stock", "Not enough unassigned stock")
 	}
 	var from, to *fillRef
@@ -576,7 +838,17 @@ func (s *Service) TransferSpoolStock(ctx context.Context, p authorization.Princi
 	return transactionFromRow(row), nil
 }
 
-func (s *Service) ConsumeFilamentSpool(ctx context.Context, p authorization.Principal, spoolID uuid.UUID, expectedInventory, expectedSpool int64, quantity string, occurredAt time.Time, disposal bool, reason, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) ConsumeFilamentSpool(
+	ctx context.Context,
+	p authorization.Principal,
+	spoolID uuid.UUID,
+	expectedInventory, expectedSpool int64,
+	quantity string,
+	occurredAt time.Time,
+	disposal bool,
+	reason, note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -609,7 +881,25 @@ func (s *Service) ConsumeFilamentSpool(ctx context.Context, p authorization.Prin
 		kind = "disposal"
 	}
 	average := decimalFromNumeric(material.AverageUnitCost)
-	result, err := s.applyInventoryMutation(ctx, tx, q, p, ref.MaterialID, expectedInventory, inventoryMutation{Kind: kind, QuantityDelta: qty.Neg(), UnitCost: average, ValueDelta: qty.Mul(average).Neg(), OccurredAt: occurredAt, Reason: cleanOptional(reason), Note: note, Fill: &ref}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		q,
+		p,
+		ref.MaterialID,
+		expectedInventory,
+		inventoryMutation{
+			Kind:          kind,
+			QuantityDelta: qty.Neg(),
+			UnitCost:      average,
+			ValueDelta:    qty.Mul(average).Neg(),
+			OccurredAt:    occurredAt,
+			Reason:        cleanOptional(reason),
+			Note:          note,
+			Fill:          &ref,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -619,7 +909,18 @@ func (s *Service) ConsumeFilamentSpool(ctx context.Context, p authorization.Prin
 	return result, nil
 }
 
-func (s *Service) CorrectFilamentSpoolStock(ctx context.Context, p authorization.Principal, spoolID uuid.UUID, expectedInventory, expectedSpool int64, physical string, acquisitionCost *string, occurredAt time.Time, reason string, note *string, requestID *uuid.UUID) (InventoryMutationResult, error) {
+func (s *Service) CorrectFilamentSpoolStock(
+	ctx context.Context,
+	p authorization.Principal,
+	spoolID uuid.UUID,
+	expectedInventory, expectedSpool int64,
+	physical string,
+	acquisitionCost *string,
+	occurredAt time.Time,
+	reason string,
+	note *string,
+	requestID *uuid.UUID,
+) (InventoryMutationResult, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -662,7 +963,25 @@ func (s *Service) CorrectFilamentSpoolStock(ctx context.Context, p authorization
 		}
 	}
 	reason = strings.TrimSpace(reason)
-	result, err := s.applyInventoryMutation(ctx, tx, q, p, ref.MaterialID, expectedInventory, inventoryMutation{Kind: "adjustment", QuantityDelta: delta, UnitCost: unitCost, ValueDelta: delta.Mul(unitCost), OccurredAt: occurredAt, Reason: &reason, Note: note, Fill: &ref}, requestID)
+	result, err := s.applyInventoryMutation(
+		ctx,
+		tx,
+		q,
+		p,
+		ref.MaterialID,
+		expectedInventory,
+		inventoryMutation{
+			Kind:          "adjustment",
+			QuantityDelta: delta,
+			UnitCost:      unitCost,
+			ValueDelta:    delta.Mul(unitCost),
+			OccurredAt:    occurredAt,
+			Reason:        &reason,
+			Note:          note,
+			Fill:          &ref,
+		},
+		requestID,
+	)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
@@ -676,7 +995,12 @@ func transactionFromSpoolList(row machinelogbookdb.ListFilamentSpoolTransactions
 	return transactionFromList(machinelogbookdb.ListInventoryTransactionsRow(row))
 }
 
-func (s *Service) ListFilamentSpoolTransactions(ctx context.Context, p authorization.Principal, id uuid.UUID, page, pageSize int) ([]InventoryTransaction, int64, error) {
+func (s *Service) ListFilamentSpoolTransactions(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	page, pageSize int,
+) ([]InventoryTransaction, int64, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
@@ -688,7 +1012,10 @@ func (s *Service) ListFilamentSpoolTransactions(ctx context.Context, p authoriza
 	if _, err = q.GetFilamentSpool(ctx, id); err != nil {
 		return nil, 0, noRows(err)
 	}
-	rows, err := q.ListFilamentSpoolTransactions(ctx, machinelogbookdb.ListFilamentSpoolTransactionsParams{SpoolID: &id, PageOffset: offset, PageLimit: limit})
+	rows, err := q.ListFilamentSpoolTransactions(
+		ctx,
+		machinelogbookdb.ListFilamentSpoolTransactionsParams{SpoolID: &id, PageOffset: offset, PageLimit: limit},
+	)
 	if err != nil {
 		return nil, 0, err
 	}

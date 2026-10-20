@@ -89,7 +89,14 @@ type Gateway struct {
 
 // New builds the gateway. The proxy serves nothing until a configuration is applied.
 func New(store *Store, core Core, g2r Go2RTC, options Options, logger *slog.Logger) *Gateway {
-	g := &Gateway{store: store, core: core, g2r: g2r, options: options, logger: logger, now: func() time.Time { return time.Now().UTC() }}
+	g := &Gateway{
+		store:   store,
+		core:    core,
+		g2r:     g2r,
+		options: options,
+		logger:  logger,
+		now:     func() time.Time { return time.Now().UTC() },
+	}
 	g.snapshot.Store(&Snapshot{Streams: map[string]struct{}{}})
 	g.appliedEpoch = store.AppliedEpoch()
 	return g
@@ -168,15 +175,25 @@ func (g *Gateway) reenrollIfNewSecret(ctx context.Context, current Identity) Ide
 		if errors.As(err, &coreErr) {
 			attrs = append(attrs, "status", coreErr.Status, "code", safeCode(coreErr.Code))
 		}
-		g.logger.Error("the new STREAM_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Add a new gateway or issue a new enrollment secret in Core (Settings > Local services), update .env and restart", attrs...)
+		g.logger.Error(
+			"the new STREAM_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Add a new gateway or issue a new enrollment secret in Core (Settings > Local services), update .env and restart",
+			attrs...)
 		return current
 	}
 	enrolled.EnrollmentDigest = digest
 	if err = g.store.SaveIdentity(enrolled); err != nil {
-		g.logger.Error("re-enrollment succeeded but the new identity could not be saved; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		g.logger.Error(
+			"re-enrollment succeeded but the new identity could not be saved; keeping the current identity",
+			"error_type",
+			fmt.Sprintf("%T", err),
+		)
 		return current
 	}
-	g.logger.Info("enrolled with the new STREAM_ENROLLMENT_SECRET; the previous identity was replaced", "gateway_id", enrolled.GatewayID.String())
+	g.logger.Info(
+		"enrolled with the new STREAM_ENROLLMENT_SECRET; the previous identity was replaced",
+		"gateway_id",
+		enrolled.GatewayID.String(),
+	)
 	return enrolled
 }
 
@@ -187,7 +204,9 @@ func (g *Gateway) enrollmentSecret() (string, error) {
 		return secret, nil
 	}
 	if g.options.EnrollmentFile == "" {
-		return "", errors.New("not enrolled and STREAM_ENROLLMENT_SECRET is not set: in Makerspace Core open Settings > Local services, add a gateway, copy its one-time enrollment secret into STREAM_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the gateway again")
+		return "", errors.New(
+			"not enrolled and STREAM_ENROLLMENT_SECRET is not set: in Makerspace Core open Settings > Local services, add a gateway, copy its one-time enrollment secret into STREAM_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the gateway again",
+		)
 	}
 	raw, err := os.ReadFile(g.options.EnrollmentFile)
 	if err != nil {
@@ -244,7 +263,11 @@ func (g *Gateway) Apply(ctx context.Context, configuration Configuration) {
 	if hash != g.appliedHash {
 		if err := WriteFileAtomic(g.options.ConfigFile, rendered); err != nil {
 			if errors.Is(err, fs.ErrPermission) {
-				g.logger.Error("go2rtc configuration could not be written: permission denied; the go2rtc configuration volume must belong to uid 10001 (the go2rtc-config-init service sets this)", "path", filepath.Dir(g.options.ConfigFile))
+				g.logger.Error(
+					"go2rtc configuration could not be written: permission denied; the go2rtc configuration volume must belong to uid 10001 (the go2rtc-config-init service sets this)",
+					"path",
+					filepath.Dir(g.options.ConfigFile),
+				)
 			} else {
 				g.logger.Error("go2rtc configuration could not be written", "error_type", fmt.Sprintf("%T", err))
 			}
@@ -308,7 +331,8 @@ func (g *Gateway) Sync(ctx context.Context, identity Identity) error {
 	if configuration.ProtocolVersion != ProtocolVersion {
 		return fmt.Errorf("unsupported configuration protocol version %d", configuration.ProtocolVersion)
 	}
-	if g.options.ExpectedPublicHost != "" && !strings.EqualFold(g.options.ExpectedPublicHost, configuration.PublicHost) {
+	if g.options.ExpectedPublicHost != "" &&
+		!strings.EqualFold(g.options.ExpectedPublicHost, configuration.PublicHost) {
 		g.logger.Warn("STREAM_PUBLIC_HOST differs from the public host configured in Core")
 	}
 	g.mu.Lock()
@@ -331,7 +355,12 @@ func sameConfiguration(a, b Configuration) bool {
 }
 
 func (g *Gateway) shutOff(ctx context.Context) {
-	empty := Configuration{ProtocolVersion: ProtocolVersion, Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}, RevokedDisplayIDs: []uuid.UUID{}}
+	empty := Configuration{
+		ProtocolVersion:   ProtocolVersion,
+		Cameras:           []Camera{},
+		TicketPublicKeys:  []TicketKey{},
+		RevokedDisplayIDs: []uuid.UUID{},
+	}
 	g.mu.Lock()
 	if g.current != nil {
 		empty.SessionEpoch = g.current.SessionEpoch
@@ -353,7 +382,13 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 	sort.Slice(cameras, func(i, j int) bool { return cameras[i].StreamName < cameras[j].StreamName })
 
 	statuses, streamsErr := g.g2r.Streams(ctx)
-	heartbeat := Heartbeat{SoftwareVersion: Version, ProtocolVersion: ProtocolVersion, AppliedConfigurationRevision: revision, HealthState: "connected", Cameras: []CameraHealth{}}
+	heartbeat := Heartbeat{
+		SoftwareVersion:              Version,
+		ProtocolVersion:              ProtocolVersion,
+		AppliedConfigurationRevision: revision,
+		HealthState:                  "connected",
+		Cameras:                      []CameraHealth{},
+	}
 	var summary string
 	switch {
 	case streamsErr != nil:
@@ -375,7 +410,15 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 		if streamsErr != nil {
 			known = false
 		}
-		entry := CameraHealth{MachineID: camera.MachineID, Health: HealthFor(status, known), Viewers: status.Consumers, Codec: status.Codec, Width: status.Width, Height: status.Height, FPS: status.FPS}
+		entry := CameraHealth{
+			MachineID: camera.MachineID,
+			Health:    HealthFor(status, known),
+			Viewers:   status.Consumers,
+			Codec:     status.Codec,
+			Width:     status.Width,
+			Height:    status.Height,
+			FPS:       status.FPS,
+		}
 		heartbeat.Cameras = append(heartbeat.Cameras, entry)
 	}
 	return heartbeat
@@ -424,7 +467,8 @@ func CheckHealth(dataDir string) error {
 		Status    string    `json:"status"`
 		UpdatedAt time.Time `json:"updatedAt"`
 	}
-	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" || time.Since(status.UpdatedAt) > healthStaleAfter {
+	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" ||
+		time.Since(status.UpdatedAt) > healthStaleAfter {
 		return errors.New("gateway health is stale")
 	}
 	return nil
@@ -492,8 +536,14 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 	origin := g.options.AllowedOrigin
 	server := &http.Server{
-		Addr:              g.options.ListenAddr,
-		Handler:           NewProxy(g.Snapshot, g.go2rtcURL(), origin, UpstreamAuth{Username: credentials.Username, Password: credentials.Password}, g.now),
+		Addr: g.options.ListenAddr,
+		Handler: NewProxy(
+			g.Snapshot,
+			g.go2rtcURL(),
+			origin,
+			UpstreamAuth{Username: credentials.Username, Password: credentials.Password},
+			g.now,
+		),
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,

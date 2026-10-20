@@ -72,11 +72,18 @@ func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (Pla
 	}
 	return PlayerDisplay{
 		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
-		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
+		Resolution: Resolution{
+			Width:  int(row.ResolutionWidth),
+			Height: int(row.ResolutionHeight),
+		}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 	}, nil
 }
 
-func (s *Service) latestManifest(ctx context.Context, q *signagedb.Queries, displayID uuid.UUID) (Manifest, bool, error) {
+func (s *Service) latestManifest(
+	ctx context.Context,
+	q *signagedb.Queries,
+	displayID uuid.UUID,
+) (Manifest, bool, error) {
 	row, err := q.GetLatestSignagePublication(ctx, displayID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Manifest{}, false, nil
@@ -93,13 +100,21 @@ func (s *Service) latestManifest(ctx context.Context, q *signagedb.Queries, disp
 
 // PlayerManifest returns the display's latest publication, or unchanged when the player already
 // runs revision known. A display that was never published answers 404 signage_not_published.
-func (s *Service) PlayerManifest(ctx context.Context, display PlayerDisplay, known *int) (manifest Manifest, unchanged bool, err error) {
+func (s *Service) PlayerManifest(
+	ctx context.Context,
+	display PlayerDisplay,
+	known *int,
+) (manifest Manifest, unchanged bool, err error) {
 	latest, ok, err := s.latestManifest(ctx, signagedb.New(s.pool), display.ID)
 	if err != nil {
 		return Manifest{}, false, err
 	}
 	if !ok {
-		return Manifest{}, false, apperror.New(404, "signage_not_published", "No content has been published for this display yet")
+		return Manifest{}, false, apperror.New(
+			404,
+			"signage_not_published",
+			"No content has been published for this display yet",
+		)
 	}
 	if known != nil && *known == latest.Revision {
 		return Manifest{}, true, nil
@@ -115,7 +130,12 @@ type PlayerAssetFile struct {
 
 // OpenPlayerAsset opens an asset's bytes, but only when the display's latest publication lists the
 // asset with exactly this checksum; everything else is 404.
-func (s *Service) OpenPlayerAsset(ctx context.Context, display PlayerDisplay, assetID uuid.UUID, sha256 string) (PlayerAssetFile, error) {
+func (s *Service) OpenPlayerAsset(
+	ctx context.Context,
+	display PlayerDisplay,
+	assetID uuid.UUID,
+	sha256 string,
+) (PlayerAssetFile, error) {
 	q := signagedb.New(s.pool)
 	manifest, ok, err := s.latestManifest(ctx, q, display.ID)
 	if err != nil {
@@ -140,7 +160,20 @@ func (s *Service) OpenPlayerAsset(ctx context.Context, display PlayerDisplay, as
 	if err != nil {
 		return PlayerAssetFile{}, err
 	}
-	if assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, "", time.Time{}, row.ContentType, row.SizeBytes, row.Sha256).SHA256 != sha256 {
+	if assetFromRow(
+		row.ID,
+		row.Kind,
+		row.Name,
+		row.Width,
+		row.Height,
+		row.DurationMs,
+		nil,
+		"",
+		time.Time{},
+		row.ContentType,
+		row.SizeBytes,
+		row.Sha256,
+	).SHA256 != sha256 {
 		return PlayerAssetFile{}, apperror.NotFound
 	}
 	_, reader, err := s.files.Open(ctx, row.FileID)
@@ -196,7 +229,14 @@ type LiveData struct {
 	Streams       []Stream
 }
 
-var knownLiveStates = map[string]struct{}{"idle": {}, "preparing": {}, "printing": {}, "paused": {}, "finished": {}, "failed": {}}
+var knownLiveStates = map[string]struct{}{
+	"idle":      {},
+	"preparing": {},
+	"printing":  {},
+	"paused":    {},
+	"finished":  {},
+	"failed":    {},
+}
 
 type liveSnapshot struct {
 	State string `json:"state"`
@@ -208,7 +248,12 @@ type liveSnapshot struct {
 
 // liveMachineFrom reduces a printer snapshot to the few fields a screen may show. Snapshots older
 // than machineStaleAfter (or missing) become state unknown without progress.
-func liveMachineFrom(id uuid.UUID, name string, status *signagedb.ListSignageLiveStatusesRow, now time.Time) LiveMachine {
+func liveMachineFrom(
+	id uuid.UUID,
+	name string,
+	status *signagedb.ListSignageLiveStatusesRow,
+	now time.Time,
+) LiveMachine {
 	machine := LiveMachine{MachineID: id, Name: name, State: "unknown", Stale: true}
 	if status == nil {
 		return machine
@@ -227,7 +272,8 @@ func liveMachineFrom(id uuid.UUID, name string, status *signagedb.ListSignageLiv
 	if _, ok := knownLiveStates[snapshot.State]; ok {
 		machine.State = snapshot.State
 	}
-	if snapshot.Job != nil && (machine.State == "printing" || machine.State == "paused" || machine.State == "preparing") {
+	if snapshot.Job != nil &&
+		(machine.State == "printing" || machine.State == "paused" || machine.State == "preparing") {
 		machine.ProgressPercent, machine.RemainingMinutes = snapshot.Job.ProgressPercent, snapshot.Job.RemainingMinutes
 	}
 	return machine
@@ -243,7 +289,14 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	s.sweepExpiredThrottled(ctx)
 	now := s.now()
 	q := signagedb.New(s.pool)
-	live := LiveData{ServerTime: now, Machines: []LiveMachine{}, Announcements: []LiveAnnouncement{}, OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}, Streams: []Stream{}}
+	live := LiveData{
+		ServerTime:    now,
+		Machines:      []LiveMachine{},
+		Announcements: []LiveAnnouncement{},
+		OpenDays:      []PublicOpenDay{},
+		Events:        []PublicEvent{},
+		Streams:       []Stream{},
+	}
 	manifest, published, err := s.latestManifest(ctx, q, display.ID)
 	if err != nil {
 		return LiveData{}, err
@@ -262,7 +315,8 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			cameraIDs = distinct(append(cameraIDs, every...))
 			machineIDs = distinct(append(machineIDs, every...))
 		}
-		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) && len(cameraIDs) > 0 {
+		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) &&
+			len(cameraIDs) > 0 {
 			if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, cameraIDs); err != nil {
 				return LiveData{}, err
 			}
@@ -281,11 +335,17 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 				byMachine[statuses[index].MachineID] = &statuses[index]
 			}
 			for _, machine := range names {
-				live.Machines = append(live.Machines, liveMachineFrom(machine.ID, machine.Name, byMachine[machine.ID], now))
+				live.Machines = append(
+					live.Machines,
+					liveMachineFrom(machine.ID, machine.Name, byMachine[machine.ID], now),
+				)
 			}
 		}
 	}
-	rows, err := q.ListLiveSignageAnnouncementsForDisplay(ctx, signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID})
+	rows, err := q.ListLiveSignageAnnouncementsForDisplay(
+		ctx,
+		signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID},
+	)
 	if err != nil {
 		return LiveData{}, err
 	}
@@ -318,7 +378,11 @@ type DisplayPreview struct {
 }
 
 // PreviewDisplay assembles the preview of one display for staff with signage.read.
-func (s *Service) PreviewDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID) (DisplayPreview, error) {
+func (s *Service) PreviewDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (DisplayPreview, error) {
 	if err := requireRead(principal); err != nil {
 		return DisplayPreview{}, err
 	}
@@ -372,7 +436,8 @@ func ValidateHeartbeat(h Heartbeat) (Heartbeat, error) {
 	if h.Revision != nil && (*h.Revision < 1 || *h.Revision > 1_000_000_000) {
 		return h, validation("revision must be a positive publication revision")
 	}
-	if h.CurrentRule != nil && (*h.CurrentRule == "" || !shortText(*h.CurrentRule, 64) || strings.ContainsAny(*h.CurrentRule, " \t")) {
+	if h.CurrentRule != nil &&
+		(*h.CurrentRule == "" || !shortText(*h.CurrentRule, 64) || strings.ContainsAny(*h.CurrentRule, " \t")) {
 		return h, validation("currentRule must be a rule id or default")
 	}
 	if h.PlayerVersion != nil && (*h.PlayerVersion == "" || !shortText(*h.PlayerVersion, maxHeartbeatVersionRune)) {

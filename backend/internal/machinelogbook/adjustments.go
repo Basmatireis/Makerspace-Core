@@ -110,7 +110,14 @@ func effectivePriceForRow(job machinelogbookdb.MachineJob, calculated pgtype.Num
 	return numericFromDecimal(*result)
 }
 
-func (s *Service) SetJobPriceAdjustment(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind, value, reason string, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) SetJobPriceAdjustment(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	kind, value, reason string,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsOverridePrice); err != nil {
 		return MachineJob{}, err
 	}
@@ -145,7 +152,19 @@ func (s *Service) SetJobPriceAdjustment(ctx context.Context, p authorization.Pri
 	current.PriceAdjustmentKind = &kind
 	current.PriceAdjustmentValue = numericFromDecimal(amount)
 	actor := p.AccountID
-	_, err = q.SetMachineJobPriceAdjustment(ctx, machinelogbookdb.SetMachineJobPriceAdjustmentParams{Kind: &kind, Value: numericFromDecimal(amount), Reason: &reason, ActorAccountID: &actor, AdjustedAt: pgtype.Timestamptz{Time: s.now(), Valid: true}, EffectivePrice: effectivePriceForRow(current, current.CalculatedPrice), ID: id, ExpectedVersion: expected})
+	_, err = q.SetMachineJobPriceAdjustment(
+		ctx,
+		machinelogbookdb.SetMachineJobPriceAdjustmentParams{
+			Kind:            &kind,
+			Value:           numericFromDecimal(amount),
+			Reason:          &reason,
+			ActorAccountID:  &actor,
+			AdjustedAt:      pgtype.Timestamptz{Time: s.now(), Valid: true},
+			EffectivePrice:  effectivePriceForRow(current, current.CalculatedPrice),
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineJob{}, apperror.StaleWrite
 	}
@@ -161,7 +180,13 @@ func (s *Service) SetJobPriceAdjustment(ctx context.Context, p authorization.Pri
 	return s.loadJob(ctx, id)
 }
 
-func (s *Service) ClearJobPriceAdjustment(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) ClearJobPriceAdjustment(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsOverridePrice); err != nil {
 		return MachineJob{}, err
 	}

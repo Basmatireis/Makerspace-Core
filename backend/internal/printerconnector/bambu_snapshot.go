@@ -128,13 +128,20 @@ func bambuLiveTray(ref bambuTrayRef, existBits string) liveTray {
 	}
 	empty := materialType == nil && !rfid
 	if !ref.external {
-		if present, known := bambuTrayExistBit(existBits, ref.unitID, ref.trayID); known && !present && materialType == nil {
+		if present, known := bambuTrayExistBit(existBits, ref.unitID, ref.trayID); known && !present &&
+			materialType == nil {
 			empty = true
 		} else if known && present {
 			empty = false
 		}
 	}
-	result := liveTray{ExternalID: ref.trayID, MaterialType: materialType, SubBrand: boundedText(stringAt(tray, "tray_sub_brands"), 80), RFID: rfid, Empty: empty}
+	result := liveTray{
+		ExternalID:   ref.trayID,
+		MaterialType: materialType,
+		SubBrand:     boundedText(stringAt(tray, "tray_sub_brands"), 80),
+		RFID:         rfid,
+		Empty:        empty,
+	}
 	if !empty {
 		result.ColorHex = bambuColorHex(stringAt(tray, "tray_color"))
 		// remain is a percentage; -1 and 0 mean the printer does not know.
@@ -180,7 +187,17 @@ func bambuLiveUnits(printState map[string]any) []liveUnit {
 				label = "AMS HT " + unitID
 			}
 			index[unitID] = len(units)
-			units = append(units, liveUnit{ExternalID: unitID, Kind: kind, Label: label, HumidityPercent: boundedIntPointer(unit["humidity_raw"], 0, 100), TemperatureC: boundedFloat(unit["temp"], -50, 200), Trays: []liveTray{}})
+			units = append(
+				units,
+				liveUnit{
+					ExternalID:      unitID,
+					Kind:            kind,
+					Label:           label,
+					HumidityPercent: boundedIntPointer(unit["humidity_raw"], 0, 100),
+					TemperatureC:    boundedFloat(unit["temp"], -50, 200),
+					Trays:           []liveTray{},
+				},
+			)
 		}
 	}
 	for _, ref := range refs {
@@ -191,7 +208,15 @@ func bambuLiveUnits(printState map[string]any) []liveUnit {
 			}
 			index[ref.unitID] = len(units)
 			position = len(units)
-			units = append(units, liveUnit{ExternalID: ref.unitID, Kind: "external", Label: "External spool " + ref.unitID, Trays: []liveTray{}})
+			units = append(
+				units,
+				liveUnit{
+					ExternalID: ref.unitID,
+					Kind:       "external",
+					Label:      "External spool " + ref.unitID,
+					Trays:      []liveTray{},
+				},
+			)
 		}
 		if len(units[position].Trays) < 8 {
 			units[position].Trays = append(units[position].Trays, bambuLiveTray(ref, existBits))
@@ -213,10 +238,21 @@ func bambuLiveTemperatures(printState map[string]any) liveTemperatures {
 			if !ok || len(result.Extruders) >= 8 {
 				continue
 			}
-			result.Extruders = append(result.Extruders, liveExtruderTemperature{ExtruderID: id, Side: bambuExtruderSide(id), CurrentC: boundedFloat(entry["temp"], -50, 1000), TargetC: boundedFloat(entry["htar"], 0, 1000)})
+			result.Extruders = append(
+				result.Extruders,
+				liveExtruderTemperature{
+					ExtruderID: id,
+					Side:       bambuExtruderSide(id),
+					CurrentC:   boundedFloat(entry["temp"], -50, 1000),
+					TargetC:    boundedFloat(entry["htar"], 0, 1000),
+				},
+			)
 		}
 	}
-	sort.Slice(result.Extruders, func(i, j int) bool { return result.Extruders[i].ExtruderID < result.Extruders[j].ExtruderID })
+	sort.Slice(
+		result.Extruders,
+		func(i, j int) bool { return result.Extruders[i].ExtruderID < result.Extruders[j].ExtruderID },
+	)
 	result.BedC = boundedFloat(printState["bed_temper"], -50, 500)
 	result.BedTargetC = boundedFloat(printState["bed_target_temper"], 0, 500)
 	result.ChamberC = boundedFloat(objectAt(objectAt(device, "ctc"), "info")["temp"], -50, 500)
@@ -250,7 +286,15 @@ func bambuLiveNozzles(printState map[string]any) []liveNozzle {
 		if !ok || len(result) >= 8 {
 			continue
 		}
-		result = append(result, liveNozzle{ExtruderID: id, Side: bambuExtruderSide(id), DiameterMm: boundedFloat(entry["diameter"], 0.05, 5), Type: boundedText(stringAt(entry, "type"), 40)})
+		result = append(
+			result,
+			liveNozzle{
+				ExtruderID: id,
+				Side:       bambuExtruderSide(id),
+				DiameterMm: boundedFloat(entry["diameter"], 0.05, 5),
+				Type:       boundedText(stringAt(entry, "type"), 40),
+			},
+		)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ExtruderID < result[j].ExtruderID })
 	return result
@@ -286,7 +330,8 @@ func bambuLiveJob(printState map[string]any, state string) *liveJob {
 		TotalLayers:      boundedIntPointer(printState["total_layer_num"], 0, math.MaxInt32),
 		RemainingMinutes: boundedIntPointer(printState["mc_remaining_time"], 0, 10*365*24*60),
 	}
-	if job.FileName == nil && job.ProgressPercent == nil && job.Layer == nil && job.TotalLayers == nil && job.RemainingMinutes == nil {
+	if job.FileName == nil && job.ProgressPercent == nil && job.Layer == nil && job.TotalLayers == nil &&
+		job.RemainingMinutes == nil {
 		return nil
 	}
 	return job
@@ -352,7 +397,12 @@ func buildBambuLiveSnapshot(document map[string]any, errorSince map[string]time.
 	return buildBambuLiveSnapshotFor(bambuH2DAdapterKind, document, errorSince, now)
 }
 
-func buildBambuLiveSnapshotFor(adapterKind string, document map[string]any, errorSince map[string]time.Time, now time.Time) liveSnapshot {
+func buildBambuLiveSnapshotFor(
+	adapterKind string,
+	document map[string]any,
+	errorSince map[string]time.Time,
+	now time.Time,
+) liveSnapshot {
 	printState := objectAt(document, "print")
 	if printState == nil {
 		printState = document

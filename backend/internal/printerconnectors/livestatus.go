@@ -39,7 +39,9 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 		return apperror.New(403, "printer_connector_inactive", "Connector is not active")
 	}
 	now := time.Now().UTC()
-	if input.AssignmentID == uuid.Nil || input.ProtocolVersion != 1 || input.ConfigurationVersion < 1 || input.ObservedAt.IsZero() || input.ObservedAt.After(now.Add(5*time.Minute)) {
+	if input.AssignmentID == uuid.Nil || input.ProtocolVersion != 1 || input.ConfigurationVersion < 1 ||
+		input.ObservedAt.IsZero() ||
+		input.ObservedAt.After(now.Add(5*time.Minute)) {
 		return validation("invalid live status report")
 	}
 	if len(input.Snapshot) == 0 || len(input.Snapshot) > maximumLiveStatusBytes {
@@ -50,7 +52,10 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 		return validation("live status snapshot must be a JSON object")
 	}
 	q := db.New(s.pool)
-	assignment, err := q.GetAssignmentForLiveStatus(ctx, db.GetAssignmentForLiveStatusParams{ID: input.AssignmentID, ConnectorID: connector.ID})
+	assignment, err := q.GetAssignmentForLiveStatus(
+		ctx,
+		db.GetAssignmentForLiveStatusParams{ID: input.AssignmentID, ConnectorID: connector.ID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
@@ -66,11 +71,25 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 	if !assignment.Enabled || assignment.ConfigurationVersion != input.ConfigurationVersion {
 		return conflict("configuration_version_mismatch", "The assignment configuration changed; discard this snapshot")
 	}
-	return q.UpsertPrinterLiveStatus(ctx, db.UpsertPrinterLiveStatusParams{AssignmentID: assignment.ID, MachineID: assignment.MachineID, ObservedAt: input.ObservedAt.UTC(), ReceivedAt: now, ConfigurationVersion: input.ConfigurationVersion, Snapshot: input.Snapshot})
+	return q.UpsertPrinterLiveStatus(
+		ctx,
+		db.UpsertPrinterLiveStatusParams{
+			AssignmentID:         assignment.ID,
+			MachineID:            assignment.MachineID,
+			ObservedAt:           input.ObservedAt.UTC(),
+			ReceivedAt:           now,
+			ConfigurationVersion: input.ConfigurationVersion,
+			Snapshot:             input.Snapshot,
+		},
+	)
 }
 
 // LiveStatus returns the latest snapshot of the machine's active assignment.
-func (s *Service) LiveStatus(ctx context.Context, principal authorization.Principal, machineID uuid.UUID) (LiveStatus, error) {
+func (s *Service) LiveStatus(
+	ctx context.Context,
+	principal authorization.Principal,
+	machineID uuid.UUID,
+) (LiveStatus, error) {
 	if !principal.Has(authorization.MachinesRead) {
 		return LiveStatus{}, apperror.PermissionDenied
 	}
@@ -81,5 +100,11 @@ func (s *Service) LiveStatus(ctx context.Context, principal authorization.Princi
 	if err != nil {
 		return LiveStatus{}, err
 	}
-	return LiveStatus{MachineID: row.MachineID, AssignmentID: row.AssignmentID, ReceivedAt: row.ReceivedAt, ObservedAt: row.ObservedAt, Snapshot: row.Snapshot}, nil
+	return LiveStatus{
+		MachineID:    row.MachineID,
+		AssignmentID: row.AssignmentID,
+		ReceivedAt:   row.ReceivedAt,
+		ObservedAt:   row.ObservedAt,
+		Snapshot:     row.Snapshot,
+	}, nil
 }

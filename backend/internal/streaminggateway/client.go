@@ -104,7 +104,13 @@ func NewClient(rawURL string, allowHTTP bool) (*Client, error) {
 	if base.Scheme != "https" && !(allowHTTP && base.Scheme == "http") {
 		return nil, errors.New("CORE_URL must use HTTPS outside explicit development mode")
 	}
-	return &Client{base: base, http: &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Client{
+		base: base,
+		http: &http.Client{
+			Timeout:       25 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+	}, nil
 }
 
 func (c *Client) do(ctx context.Context, method, path, token string, input, output any) error {
@@ -144,8 +150,18 @@ func (c *Client) do(ctx context.Context, method, path, token string, input, outp
 	return nil
 }
 
-func (c *Client) Enroll(ctx context.Context, enrollmentSecret string, identity Identity, version string) (Identity, error) {
-	input := map[string]any{"credentialId": identity.CredentialID, "credentialSecret": identity.CredentialSecret, "softwareVersion": version, "protocolVersion": ProtocolVersion}
+func (c *Client) Enroll(
+	ctx context.Context,
+	enrollmentSecret string,
+	identity Identity,
+	version string,
+) (Identity, error) {
+	input := map[string]any{
+		"credentialId":     identity.CredentialID,
+		"credentialSecret": identity.CredentialSecret,
+		"softwareVersion":  version,
+		"protocolVersion":  ProtocolVersion,
+	}
 	var output struct {
 		GatewayID           uuid.UUID `json:"gatewayId"`
 		CredentialExpiresAt time.Time `json:"credentialExpiresAt"`

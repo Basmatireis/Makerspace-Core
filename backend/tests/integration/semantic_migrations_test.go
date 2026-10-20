@@ -43,7 +43,15 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 		sessionID, actor.accountID, identity, sessionDigest, csrfDigest); err != nil {
 		t.Fatal(err)
 	}
-	deviceType, device, contextID, flowID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	deviceType, device, contextID, flowID := uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	)
 	digest := security.DigestToken("disposable migration fixture")
 	if _, err := pool.Exec(ctx, `INSERT INTO device_types(id,name) VALUES($1,'Migration terminal'); INSERT INTO managed_devices(id,name,device_type_id,token_digest) VALUES($2,'Migration terminal',$1,$3); INSERT INTO visitor_enrollment_contexts(id,managed_device_id,token_digest,csrf_digest,expires_at) VALUES($4,$2,$3,$3,now()+interval '15 minutes')`, deviceType, device, digest, contextID); err != nil {
 		t.Fatal(err)
@@ -52,19 +60,49 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 		t.Fatal(err)
 	}
 	applyMigrationFiles(t, pool, paths[15:17])
-	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND lab_rules_version_id IS NULL`, 1, contextID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND lab_rules_version_id IS NULL`,
+		1,
+		contextID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM oidc_flows WHERE id=$1`, 0, flowID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, actor.accountID, masterRoleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`,
+		1,
+		actor.accountID,
+		masterRoleID,
+	)
 	applyMigrationFiles(t, pool, paths[17:])
 	authenticated, err := service.Authenticate(ctx, sessionToken)
 	if err != nil {
 		t.Fatalf("migration revoked login: %v", err)
 	}
-	if authenticated.Principal.HasFreshAssurance(authorization.AssuranceNormal, auth.SensitiveAuthenticationAge, time.Now()) {
+	if authenticated.Principal.HasFreshAssurance(
+		authorization.AssuranceNormal,
+		auth.SensitiveAuthenticationAge,
+		time.Now(),
+	) {
 		t.Fatal("unverified old OIDC timestamp retained sensitive capability")
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND subject='preserved-subject'`, 1, identity)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, actor.personID, masterRoleID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE id=$1 AND subject='preserved-subject'`,
+		1,
+		identity,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		1,
+		actor.personID,
+		masterRoleID,
+	)
 	var stored []byte
 	if err := pool.QueryRow(ctx, `SELECT token_digest FROM sessions WHERE id=$1`, sessionID).Scan(&stored); err != nil {
 		t.Fatal(err)

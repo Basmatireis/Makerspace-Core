@@ -26,7 +26,10 @@ func TestCameraCandidatesRequireLocalServicesManage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ListCameraCandidates(t.Context(), authorization.Principal{}); !apperror.IsCode(err, "permission_denied") {
+	if _, err = service.ListCameraCandidates(t.Context(), authorization.Principal{}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("expected permission_denied, got %v", err)
 	}
 }
@@ -61,7 +64,16 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	newMachine := func(name string, profile bool, adapter string, connectorID uuid.UUID) uuid.UUID {
-		machine, createErr := logbook.CreateMachine(ctx, master, machineType.ID, name+" "+suffix, "active", nil, false, &requestID)
+		machine, createErr := logbook.CreateMachine(
+			ctx,
+			master,
+			machineType.ID,
+			name+" "+suffix,
+			"active",
+			nil,
+			false,
+			&requestID,
+		)
 		if createErr != nil {
 			t.Fatal(createErr)
 		}
@@ -103,8 +115,13 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Gateway.CredentialExpiresAt == nil || !result.Gateway.CredentialExpiresAt.Equal(result.CredentialExpiresAt) {
-		t.Fatalf("enrollment gateway expiry = %v, want %v", result.Gateway.CredentialExpiresAt, result.CredentialExpiresAt)
+	if result.Gateway.CredentialExpiresAt == nil ||
+		!result.Gateway.CredentialExpiresAt.Equal(result.CredentialExpiresAt) {
+		t.Fatalf(
+			"enrollment gateway expiry = %v, want %v",
+			result.Gateway.CredentialExpiresAt,
+			result.CredentialExpiresAt,
+		)
 	}
 	if left := time.Until(result.CredentialExpiresAt); left < 89*24*time.Hour || left > 91*24*time.Hour {
 		t.Fatalf("credential lifetime = %v", left)
@@ -152,7 +169,10 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 			t.Fatalf("non-Bambu machine offered: %+v", candidate)
 		}
 	}
-	if _, err = service.ListCameraCandidates(ctx, authorization.Principal{AccountID: accountID, PersonID: personID}); !apperror.IsCode(err, "permission_denied") {
+	if _, err = service.ListCameraCandidates(ctx, authorization.Principal{AccountID: accountID, PersonID: personID}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("expected permission_denied without local_services.manage, got %v", err)
 	}
 }
@@ -188,7 +208,13 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	newGateway := func(name string) (Gateway, string, uuid.UUID) {
-		gateway, createErr := service.Create(ctx, master, name+" "+suffix, strings.ToLower(name)+"-"+suffix+".example.test", &requestID)
+		gateway, createErr := service.Create(
+			ctx,
+			master,
+			name+" "+suffix,
+			strings.ToLower(name)+"-"+suffix+".example.test",
+			&requestID,
+		)
 		if createErr != nil {
 			t.Fatal(createErr)
 		}
@@ -203,7 +229,16 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		if _, createErr = service.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), secret, "test", ProtocolVersion); createErr != nil {
 			t.Fatal(createErr)
 		}
-		machine, createErr := logbook.CreateMachine(ctx, master, machineType.ID, name+" printer "+suffix, "active", nil, false, &requestID)
+		machine, createErr := logbook.CreateMachine(
+			ctx,
+			master,
+			machineType.ID,
+			name+" printer "+suffix,
+			"active",
+			nil,
+			false,
+			&requestID,
+		)
 		if createErr != nil {
 			t.Fatal(createErr)
 		}
@@ -274,7 +309,16 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	disabledGateway, _, _ := newGateway("Disabled")
-	disabled, err := service.Update(ctx, master, disabledGateway.ID, disabledGateway.Name, disabledGateway.PublicHost, false, disabledGateway.Version, nil)
+	disabled, err := service.Update(
+		ctx,
+		master,
+		disabledGateway.ID,
+		disabledGateway.Name,
+		disabledGateway.PublicHost,
+		false,
+		disabledGateway.Version,
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

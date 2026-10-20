@@ -40,7 +40,14 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +57,15 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	login := func(email, password string) (*http.Client, string) {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)
@@ -59,32 +74,88 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	member := func(suffix string, permissions ...string) (*http.Client, string) {
 		t.Helper()
 		email, password := "orgs-"+suffix+"@example.test", "Orgs "+suffix+" workshop password 77"
-		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{"firstName": "Runs", "lastName": suffix, "email": "contact-" + email})
+		response := doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people",
+			origin,
+			adminCSRF,
+			map[string]any{"firstName": "Runs", "lastName": suffix, "email": "contact-" + email},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var person openapi.Person
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{"loginEmail": email, "expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+			origin,
+			adminCSRF,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var account openapi.Account
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{"newPassword": password, "expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+			origin,
+			adminCSRF,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{"expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{"name": "Orgs " + suffix, "description": "Test role", "permissionGrants": grants})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/roles",
+			origin,
+			adminCSRF,
+			map[string]any{"name": "Orgs " + suffix, "description": "Test role", "permissionGrants": grants},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var role openapi.Role
 		decodeResponse(t, response, &role)
 		response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{"expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		return login(email, password)
@@ -100,7 +171,16 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	creatorClient, creatorCSRF := member("creator", "machine_jobs.create")
 
 	// Only organizations.manage may create; the refused calls leave nothing behind.
-	create := map[string]any{"name": "Atelier GmbH", "kind": "company", "addressLine": " Hauptstr. 1 ", "postalCode": "1010", "locality": "Wien", "countryCode": "at", "contactName": "Erika Muster", "contactEmail": "erika@atelier.example.test"}
+	create := map[string]any{
+		"name":         "Atelier GmbH",
+		"kind":         "company",
+		"addressLine":  " Hauptstr. 1 ",
+		"postalCode":   "1010",
+		"locality":     "Wien",
+		"countryCode":  "at",
+		"contactName":  "Erika Muster",
+		"contactEmail": "erika@atelier.example.test",
+	}
 	for name, who := range map[string]struct {
 		client *http.Client
 		csrf   string
@@ -113,18 +193,33 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM organizations`, 0)
 
-	response := doJSON(t, managerClient, http.MethodPost, server.URL+"/api/v1/organizations", origin, managerCSRF, create)
+	response := doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		server.URL+"/api/v1/organizations",
+		origin,
+		managerCSRF,
+		create,
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var organization openapi.Organization
 	decodeResponse(t, response, &organization)
-	if organization.AddressLine != "Hauptstr. 1" || organization.CountryCode != "AT" || organization.ContactEmail != "erika@atelier.example.test" || organization.MemberCount != 0 {
+	if organization.AddressLine != "Hauptstr. 1" || organization.CountryCode != "AT" ||
+		organization.ContactEmail != "erika@atelier.example.test" ||
+		organization.MemberCount != 0 {
 		t.Fatalf("created organization = %+v", organization)
 	}
 	orgPath := "/api/v1/organizations/" + organization.Id.String()
 
 	// Invalid details are rejected before anything is stored.
 	for _, bad := range []map[string]any{{"countryCode": "A1"}, {"contactEmail": "Erika <erika@atelier.example.test>"}, {"contactEmail": "not-an-email"}} {
-		payload := map[string]any{"expectedVersion": organization.Version, "name": "Atelier GmbH", "kind": "company", "active": true}
+		payload := map[string]any{
+			"expectedVersion": organization.Version,
+			"name":            "Atelier GmbH",
+			"kind":            "company",
+			"active":          true,
+		}
 		for k, v := range bad {
 			payload[k] = v
 		}
@@ -151,7 +246,17 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		name, method, path string
 		body               any
 	}{
-		{"update", http.MethodPatch, orgPath, map[string]any{"expectedVersion": organization.Version, "name": "Renamed", "kind": "company", "active": true}},
+		{
+			"update",
+			http.MethodPatch,
+			orgPath,
+			map[string]any{
+				"expectedVersion": organization.Version,
+				"name":            "Renamed",
+				"kind":            "company",
+				"active":          true,
+			},
+		},
 		{"add member", http.MethodPost, orgPath + "/members", memberBody},
 		{"remove member", http.MethodDelete, orgPath + "/members/" + personID.String(), nil},
 	}
@@ -177,7 +282,15 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response = doJSON(t, managerClient, http.MethodPost, server.URL+orgPath+"/members", origin, managerCSRF, memberBody)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
-	response = doJSON(t, managerClient, http.MethodPost, server.URL+orgPath+"/members", origin, managerCSRF, map[string]any{"personId": uuid.Must(uuid.NewV7()).String()})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		server.URL+orgPath+"/members",
+		origin,
+		managerCSRF,
+		map[string]any{"personId": uuid.Must(uuid.NewV7()).String()},
+	)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
 	response = doJSON(t, readerClient, http.MethodGet, server.URL+orgPath+"/members", "", "", nil)
@@ -203,7 +316,8 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	found := false
 	for _, party := range parties.Items {
 		if party.Id == personID {
-			found = party.MemberOrganizations != nil && len(*party.MemberOrganizations) == 1 && (*party.MemberOrganizations)[0].Id == organization.Id
+			found = party.MemberOrganizations != nil && len(*party.MemberOrganizations) == 1 &&
+				(*party.MemberOrganizations)[0].Id == organization.Id
 		}
 	}
 	if !found {
@@ -218,7 +332,15 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if page.Total != 0 {
 		t.Fatalf("kind filter total = %d", page.Total)
 	}
-	response = doJSON(t, readerClient, http.MethodGet, server.URL+"/api/v1/organizations?kind=company&pricingGroupId="+uuid.Must(uuid.NewV7()).String(), "", "", nil)
+	response = doJSON(
+		t,
+		readerClient,
+		http.MethodGet,
+		server.URL+"/api/v1/organizations?kind=company&pricingGroupId="+uuid.Must(uuid.NewV7()).String(),
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &page)
 	if page.Total != 0 {
@@ -226,41 +348,108 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	}
 
 	// Omitted detail fields stay unchanged on update; an empty string clears.
-	response = doJSON(t, managerClient, http.MethodPatch, server.URL+orgPath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version, "name": "Atelier GmbH", "kind": "company", "active": true, "contactName": ""})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPatch,
+		server.URL+orgPath,
+		origin,
+		managerCSRF,
+		map[string]any{
+			"expectedVersion": organization.Version,
+			"name":            "Atelier GmbH",
+			"kind":            "company",
+			"active":          true,
+			"contactName":     "",
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &organization)
 	if organization.ContactName != "" || organization.Locality != "Wien" || organization.Version != 2 {
 		t.Fatalf("updated organization = %+v", organization)
 	}
 	// A stale version is refused.
-	response = doJSON(t, managerClient, http.MethodPatch, server.URL+orgPath, origin, managerCSRF, map[string]any{"expectedVersion": 1, "name": "Atelier GmbH", "kind": "company", "active": true})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPatch,
+		server.URL+orgPath,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": 1, "name": "Atelier GmbH", "kind": "company", "active": true},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 
 	// Removal, then 404 for a non-member.
-	response = doJSON(t, managerClient, http.MethodDelete, server.URL+orgPath+"/members/"+personID.String(), origin, managerCSRF, nil)
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		server.URL+orgPath+"/members/"+personID.String(),
+		origin,
+		managerCSRF,
+		nil,
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
-	response = doJSON(t, managerClient, http.MethodDelete, server.URL+orgPath+"/members/"+personID.String(), origin, managerCSRF, nil)
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		server.URL+orgPath+"/members/"+personID.String(),
+		origin,
+		managerCSRF,
+		nil,
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
-	response = doJSON(t, readerClient, http.MethodGet, server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(), "", "", nil)
+	response = doJSON(
+		t,
+		readerClient,
+		http.MethodGet,
+		server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(),
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
 
 	// Every mutation wrote exactly one audit event in its transaction, and no
 	// event carries personal values.
 	for action, want := range map[string]int{"organization.created": 1, "organization.updated": 1, "organization.member_added": 1, "organization.member_removed": 1} {
-		assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, want, action, organization.Id)
+		assertCount(
+			t,
+			pool,
+			`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`,
+			want,
+			action,
+			organization.Id,
+		)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND metadata::text ILIKE '%atelier%'`, 0, organization.Id)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id = $1 AND metadata::text ILIKE '%atelier%'`,
+		0,
+		organization.Id,
+	)
 
 	// Deleting a person removes memberships; deleting an organization too.
 	var otherID uuid.UUID
 	if err = pool.QueryRow(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Member', 'Cascade', 'cascade@example.test') RETURNING id`, uuid.Must(uuid.NewV7())).Scan(&otherID); err != nil {
 		t.Fatal(err)
 	}
-	response = doJSON(t, managerClient, http.MethodPost, server.URL+orgPath+"/members", origin, managerCSRF, map[string]any{"personId": otherID.String()})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		server.URL+orgPath+"/members",
+		origin,
+		managerCSRF,
+		map[string]any{"personId": otherID.String()},
+	)
 	assertStatus(t, response, http.StatusCreated)
 	response.Body.Close()
 	if _, err = pool.Exec(ctx, `DELETE FROM people WHERE id = $1`, otherID); err != nil {
@@ -275,17 +464,41 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		client *http.Client
 		csrf   string
 	}{"reader": {readerClient, readerCSRF}, "nobody": {nobodyClient, nobodyCSRF}, "creator": {creatorClient, creatorCSRF}} {
-		response = doJSON(t, who.client, http.MethodDelete, deletePath, origin, who.csrf, map[string]any{"expectedVersion": organization.Version})
+		response = doJSON(
+			t,
+			who.client,
+			http.MethodDelete,
+			deletePath,
+			origin,
+			who.csrf,
+			map[string]any{"expectedVersion": organization.Version},
+		)
 		if response.StatusCode != http.StatusForbidden {
 			t.Errorf("delete as %s = %d, want 403", name, response.StatusCode)
 		}
 		response.Body.Close()
 	}
 	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
-	response = doJSON(t, managerClient, http.MethodDelete, server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(), origin, managerCSRF, map[string]any{"expectedVersion": 1})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(),
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": 1},
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
-	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version - 1})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		deletePath,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": organization.Version - 1},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
@@ -302,7 +515,15 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, customer_organization_id) VALUES ($1, 'J-2026-900001', $2, $3)`, jobID, machineID, organization.Id); err != nil {
 		t.Fatal(err)
 	}
-	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		deletePath,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": organization.Version},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	var problem struct {
 		Code string `json:"code"`
@@ -312,7 +533,14 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		t.Fatalf("code = %q, want organization_in_use", problem.Code)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
-	assertCount(t, pool, `SELECT count(*) FROM machine_jobs WHERE id = $1 AND customer_organization_id = $2`, 1, jobID, organization.Id)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM machine_jobs WHERE id = $1 AND customer_organization_id = $2`,
+		1,
+		jobID,
+		organization.Id,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'organization.deleted'`, 0)
 	if _, err = pool.Exec(ctx, `DELETE FROM machine_jobs WHERE id = $1`, jobID); err != nil {
 		t.Fatal(err)
@@ -333,14 +561,42 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response = doJSON(t, managerClient, http.MethodGet, server.URL+orgPath, "", "", nil)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &organization)
-	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		deletePath,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": organization.Version},
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 0, organization.Id)
 	assertCount(t, pool, `SELECT count(*) FROM organization_members WHERE organization_id = $1`, 0, organization.Id)
-	assertCount(t, pool, `SELECT count(*) FROM organization_pricing_group_assignments WHERE organization_id = $1`, 0, organization.Id)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'organization.deleted' AND resource_id = $1 AND metadata::text NOT ILIKE '%atelier%'`, 1, organization.Id)
-	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM organization_pricing_group_assignments WHERE organization_id = $1`,
+		0,
+		organization.Id,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action = 'organization.deleted' AND resource_id = $1 AND metadata::text NOT ILIKE '%atelier%'`,
+		1,
+		organization.Id,
+	)
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		deletePath,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": organization.Version},
+	)
 	assertStatus(t, response, http.StatusNotFound)
 	response.Body.Close()
 }

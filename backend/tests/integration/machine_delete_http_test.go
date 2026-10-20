@@ -42,7 +42,14 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +63,15 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	}
 	login := func(email, password string) session {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return session{client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)}
@@ -80,19 +95,69 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		t.Helper()
 		email, password := "mdel-"+suffix+"@example.test", "Mdel "+suffix+" workshop password 77"
 		var person openapi.Person
-		api(root, http.MethodPost, "/people", http.StatusCreated, map[string]any{"firstName": "Mdel", "lastName": suffix, "email": "contact-" + email}, &person)
+		api(
+			root,
+			http.MethodPost,
+			"/people",
+			http.StatusCreated,
+			map[string]any{"firstName": "Mdel", "lastName": suffix, "email": "contact-" + email},
+			&person,
+		)
 		var account openapi.Account
-		api(root, http.MethodPost, "/people/"+person.Id.String()+"/account", http.StatusCreated, map[string]any{"loginEmail": email, "expectedVersion": person.Version}, &account)
-		api(root, http.MethodPut, "/accounts/"+account.Id.String()+"/password", http.StatusOK, map[string]any{"newPassword": password, "expectedVersion": account.Version}, &account)
-		api(root, http.MethodPost, "/accounts/"+account.Id.String()+"/enable", http.StatusOK, map[string]any{"expectedVersion": account.Version}, nil)
+		api(
+			root,
+			http.MethodPost,
+			"/people/"+person.Id.String()+"/account",
+			http.StatusCreated,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+			&account,
+		)
+		api(
+			root,
+			http.MethodPut,
+			"/accounts/"+account.Id.String()+"/password",
+			http.StatusOK,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+			&account,
+		)
+		api(
+			root,
+			http.MethodPost,
+			"/accounts/"+account.Id.String()+"/enable",
+			http.StatusOK,
+			map[string]any{"expectedVersion": account.Version},
+			nil,
+		)
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
 		var role openapi.Role
-		api(root, http.MethodPost, "/roles", http.StatusCreated, map[string]any{"name": "Mdel " + suffix, "description": "Test role", "permissionGrants": grants}, &role)
+		api(
+			root,
+			http.MethodPost,
+			"/roles",
+			http.StatusCreated,
+			map[string]any{"name": "Mdel " + suffix, "description": "Test role", "permissionGrants": grants},
+			&role,
+		)
 		api(root, http.MethodGet, "/people/"+person.Id.String(), http.StatusOK, nil, &person)
-		api(root, http.MethodPut, "/people/"+person.Id.String()+"/roles/"+role.Id.String(), http.StatusOK, map[string]any{"expectedVersion": person.Version}, nil)
+		api(
+			root,
+			http.MethodPut,
+			"/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			http.StatusOK,
+			map[string]any{"expectedVersion": person.Version},
+			nil,
+		)
 		return login(email, password)
 	}
 	reader := member("reader", "machines.read")
@@ -112,7 +177,19 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	newMachine := func(name string) openapi.Machine {
 		t.Helper()
 		var machine openapi.Machine
-		api(manager, http.MethodPost, "/machines", http.StatusCreated, map[string]any{"name": name, "machineTypeId": machineType.ID, "status": "active", "automaticCollectionEnabled": false}, &machine)
+		api(
+			manager,
+			http.MethodPost,
+			"/machines",
+			http.StatusCreated,
+			map[string]any{
+				"name":                       name,
+				"machineTypeId":              machineType.ID,
+				"status":                     "active",
+				"automaticCollectionEnabled": false,
+			},
+			&machine,
+		)
 		return machine
 	}
 	version := func(machine openapi.Machine) map[string]any {
@@ -125,21 +202,37 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 
 	// Updating a machine passes request validation (expectedVersion used to be rejected by the closed allOf base).
 	plain := newMachine("Plain printer")
-	update := map[string]any{"name": "Plain printer renamed", "machineTypeId": machineType.ID, "status": "maintenance", "automaticCollectionEnabled": true, "externalIdentifier": "SN-1", "expectedVersion": plain.Version}
+	update := map[string]any{
+		"name":                       "Plain printer renamed",
+		"machineTypeId":              machineType.ID,
+		"status":                     "maintenance",
+		"automaticCollectionEnabled": true,
+		"externalIdentifier":         "SN-1",
+		"expectedVersion":            plain.Version,
+	}
 	api(reader, http.MethodPatch, "/machines/"+plain.Id.String(), http.StatusForbidden, update, nil)
 	api(manager, http.MethodPatch, "/machines/"+plain.Id.String(), http.StatusOK, update, &plain)
-	if plain.Name != "Plain printer renamed" || plain.Status != "maintenance" || plain.ExternalIdentifier.MustGet() != "SN-1" {
+	if plain.Name != "Plain printer renamed" || plain.Status != "maintenance" ||
+		plain.ExternalIdentifier.MustGet() != "SN-1" {
 		t.Fatalf("updated machine: %+v", plain)
 	}
 	api(manager, http.MethodPatch, "/machines/"+plain.Id.String(), http.StatusConflict, update, nil)
 
 	// A machine without history is deleted by machines.manage, with optimistic concurrency and an audit event.
 	api(reader, http.MethodDelete, "/machines/"+plain.Id.String(), http.StatusForbidden, version(plain), nil)
-	api(manager, http.MethodDelete, "/machines/"+plain.Id.String(), http.StatusConflict, map[string]any{"expectedVersion": plain.Version - 1}, nil)
+	api(
+		manager,
+		http.MethodDelete,
+		"/machines/"+plain.Id.String(),
+		http.StatusConflict,
+		map[string]any{"expectedVersion": plain.Version - 1},
+		nil,
+	)
 	api(manager, http.MethodDelete, "/machines/"+plain.Id.String(), http.StatusNoContent, version(plain), nil)
 	gone(plain)
 	var audits int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine.deleted' AND resource_id = $1`, plain.Id).Scan(&audits); err != nil || audits != 1 {
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine.deleted' AND resource_id = $1`, plain.Id).Scan(&audits); err != nil ||
+		audits != 1 {
 		t.Fatalf("machine.deleted audit events = %d, %v", audits, err)
 	}
 
@@ -149,7 +242,19 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-4 * time.Hour).Truncate(time.Second)
-	job, err := logbook.CreateManualJob(ctx, master, machinelogbook.JobInput{MachineID: worked.Id, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful"}, nil)
+	job, err := logbook.CreateManualJob(
+		ctx,
+		master,
+		machinelogbook.JobInput{
+			MachineID:        worked.Id,
+			StartsAt:         start,
+			EndsAt:           start.Add(time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "person", ID: personID},
+			OperatorPersonID: personID,
+			Outcome:          "successful",
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,14 +269,22 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	api(manager, http.MethodDelete, "/machines/"+worked.Id.String(), http.StatusNoContent, version(worked), nil)
 	gone(worked)
 	var jobs int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM machine_jobs WHERE id = $1`, job.ID).Scan(&jobs); err != nil || jobs != 0 {
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM machine_jobs WHERE id = $1`, job.ID).Scan(&jobs); err != nil ||
+		jobs != 0 {
 		t.Fatalf("job tombstones left = %d, %v", jobs, err)
 	}
 
 	// A connected machine also needs printer_connectors.manage; its connector is told to drop the assignment.
 	connected := newMachine("Connected printer")
 	run := insertRecordedRun(t, pool, connected.Id)
-	api(connectorManager, http.MethodDelete, "/machines/"+connected.Id.String(), http.StatusConflict, version(connected), &problem)
+	api(
+		connectorManager,
+		http.MethodDelete,
+		"/machines/"+connected.Id.String(),
+		http.StatusConflict,
+		version(connected),
+		&problem,
+	)
 	if problem["code"] != "machine_in_use" {
 		t.Fatalf("recorded run problem: %+v", problem)
 	}
@@ -184,7 +297,14 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	api(manager, http.MethodDelete, "/machines/"+connected.Id.String(), http.StatusForbidden, version(connected), nil)
-	api(connectorManager, http.MethodDelete, "/machines/"+connected.Id.String(), http.StatusNoContent, version(connected), nil)
+	api(
+		connectorManager,
+		http.MethodDelete,
+		"/machines/"+connected.Id.String(),
+		http.StatusNoContent,
+		version(connected),
+		nil,
+	)
 	gone(connected)
 	var after int64
 	var assignments int
@@ -202,16 +322,42 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 			Id uuid.UUID `json:"id"`
 		} `json:"slots"`
 	}
-	api(root, http.MethodPut, "/machines/"+loaded.Id.String()+"/printer/setup", http.StatusOK, map[string]any{"expectedVersion": nil, "enabled": true, "model": "bambu_h2d", "inputUnits": []any{
-		map[string]any{"name": "AMS", "nozzle": "left", "externalIdentifier": "0", "slots": []any{map[string]any{"name": "Slot 1", "status": "available", "externalIdentifier": "0"}}},
-	}}, &profile)
+	api(
+		root,
+		http.MethodPut,
+		"/machines/"+loaded.Id.String()+"/printer/setup",
+		http.StatusOK,
+		map[string]any{"expectedVersion": nil, "enabled": true, "model": "bambu_h2d", "inputUnits": []any{
+			map[string]any{
+				"name":               "AMS",
+				"nozzle":             "left",
+				"externalIdentifier": "0",
+				"slots": []any{
+					map[string]any{"name": "Slot 1", "status": "available", "externalIdentifier": "0"},
+				},
+			},
+		}},
+		&profile,
+	)
 	if len(profile.Slots) != 1 {
 		t.Fatalf("profile slots: %+v", profile)
 	}
 	var spool struct {
 		Id uuid.UUID `json:"id"`
 	}
-	api(root, http.MethodPost, "/filament-spools", http.StatusCreated, map[string]any{"kind": "reusable", "label": "Mdel spool", "stockMode": "empty", "occurredAt": time.Now().UTC().Format(time.RFC3339)}, &spool)
+	api(
+		root,
+		http.MethodPost,
+		"/filament-spools",
+		http.StatusCreated,
+		map[string]any{
+			"kind":       "reusable",
+			"label":      "Mdel spool",
+			"stockMode":  "empty",
+			"occurredAt": time.Now().UTC().Format(time.RFC3339),
+		},
+		&spool,
+	)
 	slotPath := "/printer-slots/" + profile.Slots[0].Id.String()
 	// Stored the way a mount leaves it; mounting over the API needs a spool with an open fill.
 	if _, err = pool.Exec(ctx, `INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, now() - interval '1 hour', 'manual')`, uuid.Must(uuid.NewV7()), profile.Slots[0].Id, spool.Id); err != nil {

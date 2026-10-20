@@ -9,7 +9,8 @@ func TestBlockedSingleReasonKeepsStatusAndCode(t *testing.T) {
 		t.Fatalf("unexpected error %+v", err)
 	}
 	reasons, ok := err.Details["reasons"].([]map[string]any)
-	if !ok || len(reasons) != 1 || reasons[0]["code"] != "last_master_required" || reasons[0]["message"] != "keep one master" {
+	if !ok || len(reasons) != 1 || reasons[0]["code"] != "last_master_required" ||
+		reasons[0]["message"] != "keep one master" {
 		t.Fatalf("unexpected reasons %#v", err.Details["reasons"])
 	}
 }
@@ -20,7 +21,8 @@ func TestBlockedMultipleReasonsUseCombinedCode(t *testing.T) {
 		t.Fatalf("unexpected error %+v", err)
 	}
 	reasons, ok := err.Details["reasons"].([]map[string]any)
-	if !ok || len(reasons) != 2 || reasons[0]["code"] != "a" || reasons[1]["code"] != "b" || reasons[1]["message"] != "second" {
+	if !ok || len(reasons) != 2 || reasons[0]["code"] != "a" || reasons[1]["code"] != "b" ||
+		reasons[1]["message"] != "second" {
 		t.Fatalf("unexpected reasons %#v", err.Details["reasons"])
 	}
 }

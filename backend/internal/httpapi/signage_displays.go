@@ -30,22 +30,35 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 	pending := make([]openapi.SignagePendingChange, 0, len(display.PendingChanges))
 	for _, change := range display.PendingChanges {
 		pending = append(pending, openapi.SignagePendingChange{
-			Kind: openapi.SignagePendingChangeKind(change.Kind), Name: change.Name, Change: openapi.SignagePendingChangeType(change.Change),
+			Kind: openapi.SignagePendingChangeKind(
+				change.Kind,
+			), Name: change.Name, Change: openapi.SignagePendingChangeType(change.Change),
 		})
 	}
 	return openapi.SignageDisplay{
 		Id: display.ID, ManagedDeviceId: display.ManagedDeviceID, Name: display.Name, Location: display.Location,
-		Orientation: openapi.SignageOrientation(display.Orientation), Resolution: openapi.SignageResolution{Width: display.Resolution.Width, Height: display.Resolution.Height},
+		Orientation: openapi.SignageOrientation(
+			display.Orientation,
+		), Resolution: openapi.SignageResolution{Width: display.Resolution.Width, Height: display.Resolution.Height},
 		VisibleFromOutside: display.VisibleFromOutside, AllowCameraOutside: display.AllowCameraOutside, DefaultPlaylistId: display.DefaultPlaylistID, Status: openapi.SignageDisplayStatus(display.Status),
 		RevokedAt: nullableTimeValue(display.RevokedAt), LastHeartbeatAt: nullableTimeValue(display.LastHeartbeatAt),
-		PublishedRevision: nullableValue(display.PublishedRevision), PublishedAt: nullableTimeValue(display.PublishedAt), PendingChanges: pending,
-		ReportedRevision: nullableValue(display.ReportedRevision), CurrentRule: nullableValue(display.CurrentRule), CurrentSceneId: nullableUUIDValue(display.CurrentSceneID),
-		PlayerVersion: nullableValue(display.PlayerVersion), CacheUsedBytes: nullableValue(display.CacheUsedBytes), CacheQuotaBytes: nullableValue(display.CacheQuotaBytes),
+		PublishedRevision: nullableValue(
+			display.PublishedRevision,
+		), PublishedAt: nullableTimeValue(display.PublishedAt), PendingChanges: pending,
+		ReportedRevision: nullableValue(
+			display.ReportedRevision,
+		), CurrentRule: nullableValue(display.CurrentRule), CurrentSceneId: nullableUUIDValue(display.CurrentSceneID),
+		PlayerVersion: nullableValue(
+			display.PlayerVersion,
+		), CacheUsedBytes: nullableValue(display.CacheUsedBytes), CacheQuotaBytes: nullableValue(display.CacheQuotaBytes),
 		Errors: display.Errors, Version: display.Version, CreatedAt: display.CreatedAt, UpdatedAt: display.UpdatedAt,
 	}
 }
 
-func (s *Server) ListSignageDisplays(ctx context.Context, _ openapi.ListSignageDisplaysRequestObject) (openapi.ListSignageDisplaysResponseObject, error) {
+func (s *Server) ListSignageDisplays(
+	ctx context.Context,
+	_ openapi.ListSignageDisplaysRequestObject,
+) (openapi.ListSignageDisplaysResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -61,7 +74,10 @@ func (s *Server) ListSignageDisplays(ctx context.Context, _ openapi.ListSignageD
 	return openapi.ListSignageDisplays200JSONResponse{Items: items}, nil
 }
 
-func (s *Server) GetSignageDisplay(ctx context.Context, r openapi.GetSignageDisplayRequestObject) (openapi.GetSignageDisplayResponseObject, error) {
+func (s *Server) GetSignageDisplay(
+	ctx context.Context,
+	r openapi.GetSignageDisplayRequestObject,
+) (openapi.GetSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -73,7 +89,10 @@ func (s *Server) GetSignageDisplay(ctx context.Context, r openapi.GetSignageDisp
 	return openapi.GetSignageDisplay200JSONResponse(signageDisplayDTO(display)), nil
 }
 
-func (s *Server) PairSignageDisplay(ctx context.Context, r openapi.PairSignageDisplayRequestObject) (openapi.PairSignageDisplayResponseObject, error) {
+func (s *Server) PairSignageDisplay(
+	ctx context.Context,
+	r openapi.PairSignageDisplayRequestObject,
+) (openapi.PairSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +102,10 @@ func (s *Server) PairSignageDisplay(ctx context.Context, r openapi.PairSignageDi
 	}
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
-		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
+		Resolution: signage.Resolution{
+			Width:  r.Body.Resolution.Width,
+			Height: r.Body.Resolution.Height,
+		}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -92,7 +114,10 @@ func (s *Server) PairSignageDisplay(ctx context.Context, r openapi.PairSignageDi
 	return openapi.PairSignageDisplay201JSONResponse(signageDisplayDTO(display)), nil
 }
 
-func (s *Server) UpdateSignageDisplay(ctx context.Context, r openapi.UpdateSignageDisplayRequestObject) (openapi.UpdateSignageDisplayResponseObject, error) {
+func (s *Server) UpdateSignageDisplay(
+	ctx context.Context,
+	r openapi.UpdateSignageDisplayRequestObject,
+) (openapi.UpdateSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +127,10 @@ func (s *Server) UpdateSignageDisplay(ctx context.Context, r openapi.UpdateSigna
 	}
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
-		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
+		Resolution: signage.Resolution{
+			Width:  r.Body.Resolution.Width,
+			Height: r.Body.Resolution.Height,
+		}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -111,7 +139,10 @@ func (s *Server) UpdateSignageDisplay(ctx context.Context, r openapi.UpdateSigna
 	return openapi.UpdateSignageDisplay200JSONResponse(signageDisplayDTO(display)), nil
 }
 
-func (s *Server) DeleteSignageDisplay(ctx context.Context, r openapi.DeleteSignageDisplayRequestObject) (openapi.DeleteSignageDisplayResponseObject, error) {
+func (s *Server) DeleteSignageDisplay(
+	ctx context.Context,
+	r openapi.DeleteSignageDisplayRequestObject,
+) (openapi.DeleteSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -125,7 +156,10 @@ func (s *Server) DeleteSignageDisplay(ctx context.Context, r openapi.DeleteSigna
 	return openapi.DeleteSignageDisplay204Response{}, nil
 }
 
-func (s *Server) RevokeSignageDisplay(ctx context.Context, r openapi.RevokeSignageDisplayRequestObject) (openapi.RevokeSignageDisplayResponseObject, error) {
+func (s *Server) RevokeSignageDisplay(
+	ctx context.Context,
+	r openapi.RevokeSignageDisplayRequestObject,
+) (openapi.RevokeSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -140,7 +174,10 @@ func (s *Server) RevokeSignageDisplay(ctx context.Context, r openapi.RevokeSigna
 	return openapi.RevokeSignageDisplay200JSONResponse(signageDisplayDTO(display)), nil
 }
 
-func (s *Server) PublishSignageDisplay(ctx context.Context, r openapi.PublishSignageDisplayRequestObject) (openapi.PublishSignageDisplayResponseObject, error) {
+func (s *Server) PublishSignageDisplay(
+	ctx context.Context,
+	r openapi.PublishSignageDisplayRequestObject,
+) (openapi.PublishSignageDisplayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -181,12 +218,19 @@ func signageRuleInput(body *openapi.SignageRuleRequest) signage.RuleInput {
 	}
 	return signage.RuleInput{
 		Enabled: body.Enabled, ConditionKind: string(body.ConditionKind), Weekdays: derefSlice(body.Weekdays), TimeFrom: body.TimeFrom, TimeTo: body.TimeTo,
-		MachineIDs: derefSlice(body.MachineIds), MachineMatch: match, AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
-		TargetKind: string(body.TargetKind), TargetID: body.TargetId, MinSeconds: body.MinSeconds, MultiMode: string(body.MultiMode), AlternateSeconds: body.AlternateSeconds,
+		MachineIDs: derefSlice(
+			body.MachineIds,
+		), MachineMatch: match, AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
+		TargetKind: string(
+			body.TargetKind,
+		), TargetID: body.TargetId, MinSeconds: body.MinSeconds, MultiMode: string(body.MultiMode), AlternateSeconds: body.AlternateSeconds,
 	}
 }
 
-func (s *Server) ListSignageRules(ctx context.Context, r openapi.ListSignageRulesRequestObject) (openapi.ListSignageRulesResponseObject, error) {
+func (s *Server) ListSignageRules(
+	ctx context.Context,
+	r openapi.ListSignageRulesRequestObject,
+) (openapi.ListSignageRulesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -198,7 +242,10 @@ func (s *Server) ListSignageRules(ctx context.Context, r openapi.ListSignageRule
 	return openapi.ListSignageRules200JSONResponse(signageRuleListDTO(list)), nil
 }
 
-func (s *Server) CreateSignageRule(ctx context.Context, r openapi.CreateSignageRuleRequestObject) (openapi.CreateSignageRuleResponseObject, error) {
+func (s *Server) CreateSignageRule(
+	ctx context.Context,
+	r openapi.CreateSignageRuleRequestObject,
+) (openapi.CreateSignageRuleResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -206,14 +253,24 @@ func (s *Server) CreateSignageRule(ctx context.Context, r openapi.CreateSignageR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	list, err := s.signage.CreateRule(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signageRuleInput(r.Body), requestIDPointer(ctx))
+	list, err := s.signage.CreateRule(
+		ctx,
+		p,
+		r.DisplayId,
+		r.Body.ExpectedVersion,
+		signageRuleInput(r.Body),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateSignageRule201JSONResponse(signageRuleListDTO(list)), nil
 }
 
-func (s *Server) UpdateSignageRule(ctx context.Context, r openapi.UpdateSignageRuleRequestObject) (openapi.UpdateSignageRuleResponseObject, error) {
+func (s *Server) UpdateSignageRule(
+	ctx context.Context,
+	r openapi.UpdateSignageRuleRequestObject,
+) (openapi.UpdateSignageRuleResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -221,14 +278,25 @@ func (s *Server) UpdateSignageRule(ctx context.Context, r openapi.UpdateSignageR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	list, err := s.signage.UpdateRule(ctx, p, r.DisplayId, r.RuleId, r.Body.ExpectedVersion, signageRuleInput(r.Body), requestIDPointer(ctx))
+	list, err := s.signage.UpdateRule(
+		ctx,
+		p,
+		r.DisplayId,
+		r.RuleId,
+		r.Body.ExpectedVersion,
+		signageRuleInput(r.Body),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateSignageRule200JSONResponse(signageRuleListDTO(list)), nil
 }
 
-func (s *Server) SetSignageRuleEnabled(ctx context.Context, r openapi.SetSignageRuleEnabledRequestObject) (openapi.SetSignageRuleEnabledResponseObject, error) {
+func (s *Server) SetSignageRuleEnabled(
+	ctx context.Context,
+	r openapi.SetSignageRuleEnabledRequestObject,
+) (openapi.SetSignageRuleEnabledResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -236,14 +304,25 @@ func (s *Server) SetSignageRuleEnabled(ctx context.Context, r openapi.SetSignage
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	list, err := s.signage.SetRuleEnabled(ctx, p, r.DisplayId, r.RuleId, r.Body.ExpectedVersion, r.Body.Enabled, requestIDPointer(ctx))
+	list, err := s.signage.SetRuleEnabled(
+		ctx,
+		p,
+		r.DisplayId,
+		r.RuleId,
+		r.Body.ExpectedVersion,
+		r.Body.Enabled,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.SetSignageRuleEnabled200JSONResponse(signageRuleListDTO(list)), nil
 }
 
-func (s *Server) DeleteSignageRule(ctx context.Context, r openapi.DeleteSignageRuleRequestObject) (openapi.DeleteSignageRuleResponseObject, error) {
+func (s *Server) DeleteSignageRule(
+	ctx context.Context,
+	r openapi.DeleteSignageRuleRequestObject,
+) (openapi.DeleteSignageRuleResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -258,7 +337,10 @@ func (s *Server) DeleteSignageRule(ctx context.Context, r openapi.DeleteSignageR
 	return openapi.DeleteSignageRule200JSONResponse(signageRuleListDTO(list)), nil
 }
 
-func (s *Server) ReorderSignageRules(ctx context.Context, r openapi.ReorderSignageRulesRequestObject) (openapi.ReorderSignageRulesResponseObject, error) {
+func (s *Server) ReorderSignageRules(
+	ctx context.Context,
+	r openapi.ReorderSignageRulesRequestObject,
+) (openapi.ReorderSignageRulesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -266,7 +348,14 @@ func (s *Server) ReorderSignageRules(ctx context.Context, r openapi.ReorderSigna
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	list, err := s.signage.ReorderRules(ctx, p, r.DisplayId, r.Body.ExpectedVersion, r.Body.RuleIds, requestIDPointer(ctx))
+	list, err := s.signage.ReorderRules(
+		ctx,
+		p,
+		r.DisplayId,
+		r.Body.ExpectedVersion,
+		r.Body.RuleIds,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +394,10 @@ func (s *Server) pollSecret(ctx context.Context) string {
 	return ""
 }
 
-func (s *Server) StartSignagePairing(ctx context.Context, _ openapi.StartSignagePairingRequestObject) (openapi.StartSignagePairingResponseObject, error) {
+func (s *Server) StartSignagePairing(
+	ctx context.Context,
+	_ openapi.StartSignagePairingRequestObject,
+) (openapi.StartSignagePairingResponseObject, error) {
 	start, err := s.signage.StartPairing(ctx, sourceAddress(ctx), s.pollSecret(ctx))
 	if err != nil {
 		return nil, err
@@ -334,7 +426,10 @@ func (response signagePairingPollResponse) VisitPollSignagePairingResponse(w htt
 	return json.NewEncoder(w).Encode(openapi.SignagePairingPoll{Status: response.status})
 }
 
-func (s *Server) PollSignagePairing(ctx context.Context, _ openapi.PollSignagePairingRequestObject) (openapi.PollSignagePairingResponseObject, error) {
+func (s *Server) PollSignagePairing(
+	ctx context.Context,
+	_ openapi.PollSignagePairingRequestObject,
+) (openapi.PollSignagePairingResponseObject, error) {
 	poll, err := s.signage.PollPairing(ctx, sourceAddress(ctx), s.pollSecret(ctx))
 	if err != nil {
 		return nil, err
@@ -344,8 +439,16 @@ func (s *Server) PollSignagePairing(ctx context.Context, _ openapi.PollSignagePa
 		expires := time.Now().UTC().AddDate(10, 0, 0)
 		response.cookies = []*http.Cookie{
 			// Same attributes as the browser binding of the generic managed-device endpoints.
-			{Name: s.config.ManagedDeviceCookieName, Value: poll.DeviceToken, Path: "/", HttpOnly: true, Secure: s.config.SessionCookieSecure,
-				SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: 10 * 365 * 24 * 60 * 60},
+			{
+				Name:     s.config.ManagedDeviceCookieName,
+				Value:    poll.DeviceToken,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   s.config.SessionCookieSecure,
+				SameSite: http.SameSiteStrictMode,
+				Expires:  expires,
+				MaxAge:   10 * 365 * 24 * 60 * 60,
+			},
 			s.signagePairingCookie("", -1),
 		}
 	}
@@ -400,30 +503,53 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 	for _, playlist := range manifest.Playlists {
 		items := make([]openapi.SignagePlaylistItem, 0, len(playlist.Items))
 		for _, item := range playlist.Items {
-			items = append(items, openapi.SignagePlaylistItem{SceneId: item.SceneID, Seconds: item.Seconds, Transition: openapi.SignageTransition(item.Transition)})
+			items = append(
+				items,
+				openapi.SignagePlaylistItem{
+					SceneId:    item.SceneID,
+					Seconds:    item.Seconds,
+					Transition: openapi.SignageTransition(item.Transition),
+				},
+			)
 		}
-		playlists = append(playlists, openapi.SignagePlayerPlaylist{Id: playlist.ID, Name: playlist.Name, Items: items, Version: playlist.Version})
+		playlists = append(
+			playlists,
+			openapi.SignagePlayerPlaylist{
+				Id:      playlist.ID,
+				Name:    playlist.Name,
+				Items:   items,
+				Version: playlist.Version,
+			},
+		)
 	}
 	assets := make([]openapi.SignagePlayerAsset, 0, len(manifest.Assets))
 	for _, asset := range manifest.Assets {
 		assets = append(assets, openapi.SignagePlayerAsset{
 			Id: asset.ID, Kind: openapi.SignageAssetKind(asset.Kind), Name: asset.Name, ContentType: asset.ContentType, Sha256: asset.SHA256, SizeBytes: asset.SizeBytes,
-			Width: nullableValue(asset.Width), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
+			Width: nullableValue(
+				asset.Width,
+			), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
 			Url: apiBasePath + "/signage/player/assets/" + asset.ID.String() + "/" + asset.SHA256,
 		})
 	}
 	return openapi.SignagePlayerManifest{
 		Revision: manifest.Revision, DefaultPlaylistId: manifest.DefaultPlaylistID, LayoutsVersion: manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
-			Orientation:        openapi.SignageOrientation(manifest.Display.Orientation),
-			Resolution:         openapi.SignageResolution{Width: manifest.Display.Resolution.Width, Height: manifest.Display.Resolution.Height},
+			Orientation: openapi.SignageOrientation(manifest.Display.Orientation),
+			Resolution: openapi.SignageResolution{
+				Width:  manifest.Display.Resolution.Width,
+				Height: manifest.Display.Resolution.Height,
+			},
 			VisibleFromOutside: manifest.Display.VisibleFromOutside,
 		},
 		Rules: rules, Scenes: scenes, Playlists: playlists, Assets: assets,
 	}, nil
 }
 
-func (s *Server) GetSignagePlayerManifest(ctx context.Context, r openapi.GetSignagePlayerManifestRequestObject) (openapi.GetSignagePlayerManifestResponseObject, error) {
+func (s *Server) GetSignagePlayerManifest(
+	ctx context.Context,
+	r openapi.GetSignagePlayerManifestRequestObject,
+) (openapi.GetSignagePlayerManifestResponseObject, error) {
 	display, err := s.signagePlayerDisplay(ctx)
 	if err != nil {
 		return nil, err
@@ -434,13 +560,19 @@ func (s *Server) GetSignagePlayerManifest(ctx context.Context, r openapi.GetSign
 	}
 	headers := openapi.GetSignagePlayerManifest200ResponseHeaders{CacheControl: "no-store"}
 	if unchanged {
-		return openapi.GetSignagePlayerManifest200JSONResponse{Body: openapi.SignagePlayerManifestResponse{Unchanged: true}, Headers: headers}, nil
+		return openapi.GetSignagePlayerManifest200JSONResponse{
+			Body:    openapi.SignagePlayerManifestResponse{Unchanged: true},
+			Headers: headers,
+		}, nil
 	}
 	dto, err := signagePlayerManifestDTO(manifest)
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetSignagePlayerManifest200JSONResponse{Body: openapi.SignagePlayerManifestResponse{Unchanged: false, Manifest: &dto}, Headers: headers}, nil
+	return openapi.GetSignagePlayerManifest200JSONResponse{
+		Body:    openapi.SignagePlayerManifestResponse{Unchanged: false, Manifest: &dto},
+		Headers: headers,
+	}, nil
 }
 
 // signagePlayerAssetResponse serves content-addressed asset bytes. Storage that can seek (local
@@ -470,7 +602,10 @@ func (response signagePlayerAssetResponse) VisitGetSignagePlayerAssetResponse(w 
 	return err
 }
 
-func (s *Server) GetSignagePlayerAsset(ctx context.Context, r openapi.GetSignagePlayerAssetRequestObject) (openapi.GetSignagePlayerAssetResponseObject, error) {
+func (s *Server) GetSignagePlayerAsset(
+	ctx context.Context,
+	r openapi.GetSignagePlayerAssetRequestObject,
+) (openapi.GetSignagePlayerAssetResponseObject, error) {
 	display, err := s.signagePlayerDisplay(ctx)
 	if err != nil {
 		return nil, err
@@ -482,10 +617,16 @@ func (s *Server) GetSignagePlayerAsset(ctx context.Context, r openapi.GetSignage
 	return signagePlayerAssetResponse{file: file, request: httpRequest(ctx)}, nil
 }
 
-func signageCalendarDTO(days []signage.PublicOpenDay, upcoming []signage.PublicEvent) ([]openapi.SignagePlayerOpenDay, []openapi.SignagePlayerEvent) {
+func signageCalendarDTO(
+	days []signage.PublicOpenDay,
+	upcoming []signage.PublicEvent,
+) ([]openapi.SignagePlayerOpenDay, []openapi.SignagePlayerEvent) {
 	openDays := make([]openapi.SignagePlayerOpenDay, 0, len(days))
 	for _, day := range days {
-		openDays = append(openDays, openapi.SignagePlayerOpenDay{StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status})
+		openDays = append(
+			openDays,
+			openapi.SignagePlayerOpenDay{StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status},
+		)
 	}
 	events := make([]openapi.SignagePlayerEvent, 0, len(upcoming))
 	for _, event := range upcoming {
@@ -494,7 +635,10 @@ func signageCalendarDTO(days []signage.PublicOpenDay, upcoming []signage.PublicE
 			value := event.Location
 			location = &value
 		}
-		events = append(events, openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)})
+		events = append(
+			events,
+			openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)},
+		)
 	}
 	return openDays, events
 }
@@ -504,7 +648,9 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	for _, machine := range live.Machines {
 		machines = append(machines, openapi.SignagePlayerLiveMachine{
 			MachineId: machine.MachineID, Name: machine.Name, State: openapi.SignagePlayerMachineState(machine.State), ProgressPercent: nullableValue(machine.ProgressPercent),
-			RemainingMinutes: nullableValue(machine.RemainingMinutes), ObservedAt: nullableTimeValue(machine.ObservedAt), Stale: machine.Stale,
+			RemainingMinutes: nullableValue(
+				machine.RemainingMinutes,
+			), ObservedAt: nullableTimeValue(machine.ObservedAt), Stale: machine.Stale,
 		})
 	}
 	announcements := make([]openapi.SignagePlayerLiveAnnouncement, 0, len(live.Announcements))
@@ -517,7 +663,16 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	openDays, events := signageCalendarDTO(live.OpenDays, live.Events)
 	streams := make([]openapi.SignagePlayerStream, 0, len(live.Streams))
 	for _, stream := range live.Streams {
-		streams = append(streams, openapi.SignagePlayerStream{MachineId: stream.MachineID, WebrtcUrl: stream.WebRTCURL, MseUrl: stream.MSEURL, Ticket: stream.Ticket, ExpiresAt: stream.ExpiresAt})
+		streams = append(
+			streams,
+			openapi.SignagePlayerStream{
+				MachineId: stream.MachineID,
+				WebrtcUrl: stream.WebRTCURL,
+				MseUrl:    stream.MSEURL,
+				Ticket:    stream.Ticket,
+				ExpiresAt: stream.ExpiresAt,
+			},
+		)
 	}
 	return openapi.SignagePlayerLive{
 		ServerTime: live.ServerTime, Revision: nullableValue(live.Revision), Machines: machines, Announcements: announcements,
@@ -525,7 +680,10 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	}
 }
 
-func (s *Server) GetSignagePlayerLive(ctx context.Context, _ openapi.GetSignagePlayerLiveRequestObject) (openapi.GetSignagePlayerLiveResponseObject, error) {
+func (s *Server) GetSignagePlayerLive(
+	ctx context.Context,
+	_ openapi.GetSignagePlayerLiveRequestObject,
+) (openapi.GetSignagePlayerLiveResponseObject, error) {
 	display, err := s.signagePlayerDisplay(ctx)
 	if err != nil {
 		return nil, err
@@ -534,10 +692,16 @@ func (s *Server) GetSignagePlayerLive(ctx context.Context, _ openapi.GetSignageP
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetSignagePlayerLive200JSONResponse{Body: signagePlayerLiveDTO(live), Headers: openapi.GetSignagePlayerLive200ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.GetSignagePlayerLive200JSONResponse{
+		Body:    signagePlayerLiveDTO(live),
+		Headers: openapi.GetSignagePlayerLive200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) GetSignageDisplayPreview(ctx context.Context, r openapi.GetSignageDisplayPreviewRequestObject) (openapi.GetSignageDisplayPreviewResponseObject, error) {
+func (s *Server) GetSignageDisplayPreview(
+	ctx context.Context,
+	r openapi.GetSignageDisplayPreviewRequestObject,
+) (openapi.GetSignageDisplayPreviewResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -546,7 +710,10 @@ func (s *Server) GetSignageDisplayPreview(ctx context.Context, r openapi.GetSign
 	if err != nil {
 		return nil, err
 	}
-	body := openapi.SignageDisplayPreview{Live: signagePlayerLiveDTO(preview.Live), Manifest: nullableValue[openapi.SignagePlayerManifest](nil)}
+	body := openapi.SignageDisplayPreview{
+		Live:     signagePlayerLiveDTO(preview.Live),
+		Manifest: nullableValue[openapi.SignagePlayerManifest](nil),
+	}
 	if preview.Manifest != nil {
 		dto, err := signagePlayerManifestDTO(*preview.Manifest)
 		if err != nil {
@@ -554,10 +721,16 @@ func (s *Server) GetSignageDisplayPreview(ctx context.Context, r openapi.GetSign
 		}
 		body.Manifest = nullableValue(&dto)
 	}
-	return openapi.GetSignageDisplayPreview200JSONResponse{Body: body, Headers: openapi.GetSignageDisplayPreview200ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.GetSignageDisplayPreview200JSONResponse{
+		Body:    body,
+		Headers: openapi.GetSignageDisplayPreview200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) PostSignagePlayerHeartbeat(ctx context.Context, r openapi.PostSignagePlayerHeartbeatRequestObject) (openapi.PostSignagePlayerHeartbeatResponseObject, error) {
+func (s *Server) PostSignagePlayerHeartbeat(
+	ctx context.Context,
+	r openapi.PostSignagePlayerHeartbeatRequestObject,
+) (openapi.PostSignagePlayerHeartbeatResponseObject, error) {
 	display, err := s.signagePlayerDisplay(ctx)
 	if err != nil {
 		return nil, err
@@ -572,10 +745,15 @@ func (s *Server) PostSignagePlayerHeartbeat(ctx context.Context, r openapi.PostS
 	}); err != nil {
 		return nil, err
 	}
-	return openapi.PostSignagePlayerHeartbeat204Response{Headers: openapi.PostSignagePlayerHeartbeat204ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.PostSignagePlayerHeartbeat204Response{
+		Headers: openapi.PostSignagePlayerHeartbeat204ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
-func (s *Server) GetSignageCalendar(ctx context.Context, _ openapi.GetSignageCalendarRequestObject) (openapi.GetSignageCalendarResponseObject, error) {
+func (s *Server) GetSignageCalendar(
+	ctx context.Context,
+	_ openapi.GetSignageCalendarRequestObject,
+) (openapi.GetSignageCalendarResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -585,5 +763,8 @@ func (s *Server) GetSignageCalendar(ctx context.Context, _ openapi.GetSignageCal
 		return nil, err
 	}
 	openDays, events := signageCalendarDTO(calendar.OpenDays, calendar.Events)
-	return openapi.GetSignageCalendar200JSONResponse{Body: openapi.SignageCalendar{OpenDays: openDays, Events: events}, Headers: openapi.GetSignageCalendar200ResponseHeaders{CacheControl: "no-store"}}, nil
+	return openapi.GetSignageCalendar200JSONResponse{
+		Body:    openapi.SignageCalendar{OpenDays: openDays, Events: events},
+		Headers: openapi.GetSignageCalendar200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }

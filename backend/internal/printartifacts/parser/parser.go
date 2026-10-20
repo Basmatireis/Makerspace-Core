@@ -157,14 +157,26 @@ func OpenValidated(r io.ReaderAt, compressedSize int64, limits Limits) (*zip.Rea
 			return nil, err
 		}
 		if f.Flags&0x1 != 0 {
-			return nil, &ValidationError{Code: "encrypted_entry", Path: f.Name, Reason: "encrypted entries are not accepted"}
+			return nil, &ValidationError{
+				Code:   "encrypted_entry",
+				Path:   f.Name,
+				Reason: "encrypted entries are not accepted",
+			}
 		}
 		mode := f.Mode()
 		if !mode.IsRegular() && !mode.IsDir() {
-			return nil, &ValidationError{Code: "unsafe_entry_type", Path: f.Name, Reason: "links and special files are not accepted"}
+			return nil, &ValidationError{
+				Code:   "unsafe_entry_type",
+				Path:   f.Name,
+				Reason: "links and special files are not accepted",
+			}
 		}
 		if f.UncompressedSize64 > limits.MaxEntrySize {
-			return nil, &ValidationError{Code: "entry_size", Path: f.Name, Reason: "expanded entry exceeds the configured limit"}
+			return nil, &ValidationError{
+				Code:   "entry_size",
+				Path:   f.Name,
+				Reason: "expanded entry exceeds the configured limit",
+			}
 		}
 		if ^uint64(0)-declaredTotal < f.UncompressedSize64 {
 			return nil, &ValidationError{Code: "expanded_size", Reason: "expanded archive size overflow"}
@@ -193,14 +205,22 @@ func OpenValidated(r io.ReaderAt, compressedSize int64, limits Limits) (*zip.Rea
 			return nil, &ValidationError{Code: "entry_crc", Path: f.Name, Reason: closeErr.Error()}
 		}
 		if n < 0 || uint64(n) > limits.MaxEntrySize {
-			return nil, &ValidationError{Code: "entry_size", Path: f.Name, Reason: "expanded entry exceeds the configured limit"}
+			return nil, &ValidationError{
+				Code:   "entry_size",
+				Path:   f.Name,
+				Reason: "expanded entry exceeds the configured limit",
+			}
 		}
 		actualTotal += uint64(n)
 		if actualTotal > limits.MaxExpandedSize {
 			return nil, &ValidationError{Code: "expanded_size", Reason: "expanded archive exceeds the configured limit"}
 		}
 		if uint64(n) != f.UncompressedSize64 {
-			return nil, &ValidationError{Code: "entry_size_mismatch", Path: f.Name, Reason: "expanded size does not match the ZIP directory"}
+			return nil, &ValidationError{
+				Code:   "entry_size_mismatch",
+				Path:   f.Name,
+				Reason: "expanded size does not match the ZIP directory",
+			}
 		}
 	}
 	return zr, nil
@@ -338,13 +358,19 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 			result.addWarning("G-code entry could not be opened: " + f.Name)
 			continue
 		}
-		estimate, estimateErr := EstimateGCode(rc, GCodeOptions{Filaments: filamentOptions, PhysicalExtruder: physicalExtruder})
+		estimate, estimateErr := EstimateGCode(
+			rc,
+			GCodeOptions{Filaments: filamentOptions, PhysicalExtruder: physicalExtruder},
+		)
 		_ = rc.Close()
 		if estimateErr != nil {
 			result.addWarning("G-code entry could not be estimated: " + f.Name)
 			continue
 		}
-		result.GCode = append(result.GCode, GCodeFile{ArchivePath: f.Name, PlateNumber: plateNumberFromPath(f.Name), Estimate: estimate})
+		result.GCode = append(
+			result.GCode,
+			GCodeFile{ArchivePath: f.Name, PlateNumber: plateNumberFromPath(f.Name), Estimate: estimate},
+		)
 	}
 	if len(result.Warnings) > 0 {
 		result.Status = StatusPartial
@@ -355,7 +381,12 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 // EstimateArchiveGCode applies a printer checkpoint to every G-code entry in
 // a validated archive. Callers use this for interrupted prints; it deliberately
 // does not scale a complete-file estimate by an observed percentage.
-func EstimateArchiveGCode(r io.ReaderAt, compressedSize int64, limits Limits, options GCodeOptions) ([]GCodeFile, error) {
+func EstimateArchiveGCode(
+	r io.ReaderAt,
+	compressedSize int64,
+	limits Limits,
+	options GCodeOptions,
+) ([]GCodeFile, error) {
 	zr, err := OpenValidated(r, compressedSize, limits)
 	if err != nil {
 		return nil, err
@@ -379,7 +410,10 @@ func EstimateArchiveGCode(r io.ReaderAt, compressedSize int64, limits Limits, op
 		if closeErr != nil {
 			return nil, fmt.Errorf("close G-code entry %q: %w", file.Name, closeErr)
 		}
-		result = append(result, GCodeFile{ArchivePath: file.Name, PlateNumber: plateNumberFromPath(file.Name), Estimate: estimate})
+		result = append(
+			result,
+			GCodeFile{ArchivePath: file.Name, PlateNumber: plateNumberFromPath(file.Name), Estimate: estimate},
+		)
 	}
 	return result, nil
 }
@@ -392,7 +426,8 @@ func (r *Result) addWarning(warning string) {
 }
 
 func isMetadataDocument(name string) bool {
-	return strings.HasPrefix(name, "metadata/") && (strings.HasSuffix(name, ".xml") || strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".config"))
+	return strings.HasPrefix(name, "metadata/") &&
+		(strings.HasSuffix(name, ".xml") || strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".config"))
 }
 
 func readBoundedZipFile(f *zip.File, limit int64) ([]byte, error) {
@@ -513,7 +548,8 @@ func selectPrimaryPreview(previews []Preview, references []string) {
 		currentIsPlate := previews[i].Role == PreviewRolePlate
 		bestPixels := int64(previews[best].Width) * int64(previews[best].Height)
 		currentPixels := int64(previews[i].Width) * int64(previews[i].Height)
-		if (currentIsPlate && !bestIsPlate) || (currentIsPlate == bestIsPlate && (currentPixels > bestPixels || (currentPixels == bestPixels && previews[i].ArchivePath < previews[best].ArchivePath))) {
+		if (currentIsPlate && !bestIsPlate) ||
+			(currentIsPlate == bestIsPlate && (currentPixels > bestPixels || (currentPixels == bestPixels && previews[i].ArchivePath < previews[best].ArchivePath))) {
 			best = i
 		}
 	}
@@ -613,7 +649,8 @@ func (c *metadataCollector) addValue(key, value string) {
 func looksLikePreviewReference(value string) bool {
 	lower := strings.ToLower(value)
 	ext := path.Ext(lower)
-	return (ext == ".png" || ext == ".jpg" || ext == ".jpeg") && (strings.Contains(lower, "plate") || strings.Contains(lower, "thumbnail") || strings.Contains(lower, "preview"))
+	return (ext == ".png" || ext == ".jpg" || ext == ".jpeg") &&
+		(strings.Contains(lower, "plate") || strings.Contains(lower, "thumbnail") || strings.Contains(lower, "preview"))
 }
 
 func (c *metadataCollector) addJSON(data []byte) error {
@@ -760,13 +797,22 @@ func (c *metadataCollector) ensureFilament(id string) *Filament {
 
 func (c *metadataCollector) finish() (Metadata, []Filament) {
 	metadata := Metadata{
-		JobName:        firstValue(c.values, "job_name", "project_name", "print_name", "title"),
-		SlicerName:     firstValue(c.values, "slicer_name", "slicer"),
-		SlicerVersion:  firstValue(c.values, "slicer_version", "version"),
-		PrinterProfile: firstValue(c.values, "printer_profile", "printer_settings_id", "print_settings_id", "printer_model"),
-		BuildPlate:     firstValue(c.values, "build_plate", "plate_type", "bed_type", "curr_bed_type"),
+		JobName:       firstValue(c.values, "job_name", "project_name", "print_name", "title"),
+		SlicerName:    firstValue(c.values, "slicer_name", "slicer"),
+		SlicerVersion: firstValue(c.values, "slicer_version", "version"),
+		PrinterProfile: firstValue(
+			c.values,
+			"printer_profile",
+			"printer_settings_id",
+			"print_settings_id",
+			"printer_model",
+		),
+		BuildPlate: firstValue(c.values, "build_plate", "plate_type", "bed_type", "curr_bed_type"),
 	}
-	setFloat(&metadata.EstimatedDurationSeconds, firstValue(c.values, "estimated_duration_seconds", "estimated_print_time", "print_time", "duration"))
+	setFloat(
+		&metadata.EstimatedDurationSeconds,
+		firstValue(c.values, "estimated_duration_seconds", "estimated_print_time", "print_time", "duration"),
+	)
 	setInt(&metadata.LayerCount, firstValue(c.values, "total_layer_count", "layer_count"))
 	setInt(&metadata.FilamentChanges, firstValue(c.values, "filament_changes", "filament_change_count"))
 	setFloat(&metadata.PurgeWeightGrams, firstValue(c.values, "purge_weight_g", "flush_weight_g", "purge_weight_grams"))

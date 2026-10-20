@@ -33,7 +33,12 @@ func newFillFixture(t *testing.T) *fillFixture {
 	pool := integrationPool(t)
 	ctx := t.Context()
 	person, account := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	f := &fillFixture{pool: pool, request: uuid.Must(uuid.NewV7()), now: fillsClock, suffix: strings.ReplaceAll(person.String(), "-", "")[:12]}
+	f := &fillFixture{
+		pool:    pool,
+		request: uuid.Must(uuid.NewV7()),
+		now:     fillsClock,
+		suffix:  strings.ReplaceAll(person.String(), "-", "")[:12],
+	}
 	f.s = NewService(pool, WithClock(func() time.Time { return f.now }))
 	f.p = authorization.Principal{AccountID: account, PersonID: person, Master: true}
 	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Fill', 'Tester', $2)`, person, "fills-"+f.suffix+"@example.test"); err != nil {
@@ -50,7 +55,14 @@ func newFillFixture(t *testing.T) *fillFixture {
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, account)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
-	materialType, err := f.s.CreateMaterialType(ctx, f.p, "Fill PLA "+f.suffix, "g", []string{"fdm_printing", "other"}, &f.request)
+	materialType, err := f.s.CreateMaterialType(
+		ctx,
+		f.p,
+		"Fill PLA "+f.suffix,
+		"g",
+		[]string{"fdm_printing", "other"},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +79,12 @@ func (f *fillFixture) unique(prefix string) string {
 func (f *fillFixture) material(t *testing.T, stock string) Material {
 	t.Helper()
 	diameter := "1.75"
-	m, err := f.s.CreateMaterial(t.Context(), f.p, MaterialInput{Name: f.unique("Fill PLA"), MaterialTypeID: f.typeID, FilamentDiameterMM: &diameter}, &f.request)
+	m, err := f.s.CreateMaterial(
+		t.Context(),
+		f.p,
+		MaterialInput{Name: f.unique("Fill PLA"), MaterialTypeID: f.typeID, FilamentDiameterMM: &diameter},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +96,18 @@ func (f *fillFixture) material(t *testing.T, stock string) Material {
 
 func (f *fillFixture) purchase(t *testing.T, m Material, quantity, total string) Material {
 	t.Helper()
-	result, err := f.s.AddPurchase(t.Context(), f.p, m.ID, f.refresh(t, m).InventoryVersion, quantity, total, f.now, nil, nil, &f.request)
+	result, err := f.s.AddPurchase(
+		t.Context(),
+		f.p,
+		m.ID,
+		f.refresh(t, m).InventoryVersion,
+		quantity,
+		total,
+		f.now,
+		nil,
+		nil,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +125,16 @@ func (f *fillFixture) refresh(t *testing.T, m Material) Material {
 
 func (f *fillFixture) spoolInput(m Material, kind, weight string) FilamentSpoolInput {
 	tare := "200"
-	return FilamentSpoolInput{Kind: kind, Label: f.unique("Label"), MaterialID: m.ID, InitialNetWeightG: weight, StockMode: "existing_stock", TareWeightG: &tare, OccurredAt: f.now, ExpectedInventoryVersion: f.refresh2(m)}
+	return FilamentSpoolInput{
+		Kind:                     kind,
+		Label:                    f.unique("Label"),
+		MaterialID:               m.ID,
+		InitialNetWeightG:        weight,
+		StockMode:                "existing_stock",
+		TareWeightG:              &tare,
+		OccurredAt:               f.now,
+		ExpectedInventoryVersion: f.refresh2(m),
+	}
 }
 
 func (f *fillFixture) refresh2(m Material) int64 {
@@ -151,10 +188,26 @@ func (f *fillFixture) newFill(m Material, weight string) NewFillInput {
 	return NewFillInput{MaterialID: m.ID, NetWeightG: weight, Source: "loose_stock"}
 }
 
-func (f *fillFixture) change(t *testing.T, spoolID uuid.UUID, leftover *LeftoverInput, fill NewFillInput) (FilamentSpool, error) {
+func (f *fillFixture) change(
+	t *testing.T,
+	spoolID uuid.UUID,
+	leftover *LeftoverInput,
+	fill NewFillInput,
+) (FilamentSpool, error) {
 	t.Helper()
 	current := f.get(t, spoolID)
-	return f.s.ChangeFilamentSpoolFill(t.Context(), f.p, spoolID, ChangeFillInput{Leftover: leftover, Fill: fill, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: current.Version}, &f.request)
+	return f.s.ChangeFilamentSpoolFill(
+		t.Context(),
+		f.p,
+		spoolID,
+		ChangeFillInput{
+			Leftover:        leftover,
+			Fill:            fill,
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: current.Version,
+		},
+		&f.request,
+	)
 }
 
 type ledgerLine struct {
@@ -167,9 +220,13 @@ type ledgerLine struct {
 
 func (f *fillFixture) ledger(t *testing.T, materialID uuid.UUID) []ledgerLine {
 	t.Helper()
-	rows, err := f.pool.Query(t.Context(), `SELECT kind, COALESCE(adjustment_reason, ''), quantity_delta::text, COALESCE(transfer_quantity::text, ''), spool_id, fill_id,
+	rows, err := f.pool.Query(
+		t.Context(),
+		`SELECT kind, COALESCE(adjustment_reason, ''), quantity_delta::text, COALESCE(transfer_quantity::text, ''), spool_id, fill_id,
 		spool_display_id, fill_number, from_spool_id, from_fill_id, from_spool_display_id, from_fill_number, to_spool_id, to_fill_id, to_spool_display_id, to_fill_number
-		FROM inventory_transactions WHERE material_id = $1 ORDER BY created_at, id`, materialID)
+		FROM inventory_transactions WHERE material_id = $1 ORDER BY created_at, id`,
+		materialID,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +259,12 @@ func place(display *string, fill *int32) string {
 // String summarizes a ledger row: "kind[/reason] delta place" or "transfer qty from->to".
 func (l ledgerLine) String() string {
 	if l.kind == "spool_transfer" {
-		return fmt.Sprintf("transfer %s %s->%s", norm(l.transfer), place(l.fromDisplay, l.fromFill), place(l.toDisplay, l.toFill))
+		return fmt.Sprintf(
+			"transfer %s %s->%s",
+			norm(l.transfer),
+			place(l.fromDisplay, l.fromFill),
+			place(l.toDisplay, l.toFill),
+		)
 	}
 	reason := ""
 	if l.reason != "" {
@@ -233,7 +295,15 @@ func assertLines(t *testing.T, got []ledgerLine, from int, want ...string) {
 func assertMaterial(t *testing.T, m Material, quantity, assigned, unassigned string) {
 	t.Helper()
 	if m.Quantity != quantity || m.AssignedQuantity != assigned || m.UnassignedQuantity != unassigned {
-		t.Fatalf("material quantity/assigned/unassigned = %s/%s/%s, want %s/%s/%s", m.Quantity, m.AssignedQuantity, m.UnassignedQuantity, quantity, assigned, unassigned)
+		t.Fatalf(
+			"material quantity/assigned/unassigned = %s/%s/%s, want %s/%s/%s",
+			m.Quantity,
+			m.AssignedQuantity,
+			m.UnassignedQuantity,
+			quantity,
+			assigned,
+			unassigned,
+		)
 	}
 }
 
@@ -242,7 +312,12 @@ func TestNewSpoolHasFillOneAndKeepsMaterialTotals(t *testing.T) {
 	m := f.material(t, "2000")
 	assertMaterial(t, f.refresh(t, m), "2000", "0", "2000")
 	spool := f.spool(t, m, "", "1000")
-	if spool.Kind != "single_use" || spool.Status != "active" || spool.FillNumber != 1 || spool.FillID == nil || spool.RemainingQuantity != "1000" || spool.InitialNetWeightG == nil || *spool.InitialNetWeightG != "1000" || spool.MaterialID == nil || *spool.MaterialID != m.ID {
+	if spool.Kind != "single_use" || spool.Status != "active" || spool.FillNumber != 1 || spool.FillID == nil ||
+		spool.RemainingQuantity != "1000" ||
+		spool.InitialNetWeightG == nil ||
+		*spool.InitialNetWeightG != "1000" ||
+		spool.MaterialID == nil ||
+		*spool.MaterialID != m.ID {
 		t.Fatalf("new spool: %+v", spool)
 	}
 	assertMaterial(t, f.refresh(t, m), "2000", "1000", "1000")
@@ -253,7 +328,13 @@ func TestNewSpoolHasFillOneAndKeepsMaterialTotals(t *testing.T) {
 	}
 	assertMaterial(t, f.refresh(t, m), "1750", "750", "1000")
 	lines := f.ledger(t, m.ID)
-	assertLines(t, lines, 1, fmt.Sprintf("transfer 1000 loose->%s#1", spool.DisplayID), fmt.Sprintf("manual_consumption -250 %s#1", spool.DisplayID))
+	assertLines(
+		t,
+		lines,
+		1,
+		fmt.Sprintf("transfer 1000 loose->%s#1", spool.DisplayID),
+		fmt.Sprintf("manual_consumption -250 %s#1", spool.DisplayID),
+	)
 
 	// A new acquisition buys the fill: stock grows by the fill weight.
 	total := "30"
@@ -282,14 +363,32 @@ func TestChangeFilamentLeftoverBasisAndDisposition(t *testing.T) {
 			func(d string) []string { return []string{fmt.Sprintf("transfer 600 %s#1->loose", d)} }, "returned_to_stock", "600", "1600"},
 		{"system disposed", LeftoverInput{Basis: "system", Disposition: ptr("disposed")},
 			func(d string) []string { return []string{fmt.Sprintf("disposal/disposed -600 %s#1", d)} }, "disposed", "600", "1000"},
-		{"weighed below system returned", LeftoverInput{Basis: "weighed", GrossWeightG: ptr("700"), Disposition: ptr("returned_to_stock")},
+		{
+			"weighed below system returned",
+			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("700"), Disposition: ptr("returned_to_stock")},
 			func(d string) []string {
-				return []string{fmt.Sprintf("adjustment/inventory_count -100 %s#1", d), fmt.Sprintf("transfer 500 %s#1->loose", d)}
-			}, "returned_to_stock", "500", "1500"},
-		{"weighed above system disposed", LeftoverInput{Basis: "weighed", GrossWeightG: ptr("900"), Disposition: ptr("disposed")},
+				return []string{
+					fmt.Sprintf("adjustment/inventory_count -100 %s#1", d),
+					fmt.Sprintf("transfer 500 %s#1->loose", d),
+				}
+			},
+			"returned_to_stock",
+			"500",
+			"1500",
+		},
+		{
+			"weighed above system disposed",
+			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("900"), Disposition: ptr("disposed")},
 			func(d string) []string {
-				return []string{fmt.Sprintf("adjustment/inventory_count 100 %s#1", d), fmt.Sprintf("disposal/disposed -700 %s#1", d)}
-			}, "disposed", "700", "1000"},
+				return []string{
+					fmt.Sprintf("adjustment/inventory_count 100 %s#1", d),
+					fmt.Sprintf("disposal/disposed -700 %s#1", d),
+				}
+			},
+			"disposed",
+			"700",
+			"1000",
+		},
 		{"none writes the rest off", LeftoverInput{Basis: "none"},
 			func(d string) []string { return []string{fmt.Sprintf("adjustment/mark_empty -600 %s#1", d)} }, "used_up", "0", "1000"},
 		{"weighed below tare clamps to used up", LeftoverInput{Basis: "weighed", GrossWeightG: ptr("150")},
@@ -306,7 +405,9 @@ func TestChangeFilamentLeftoverBasisAndDisposition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if changed.FillNumber != 2 || changed.Status != "loaded" || changed.RemainingQuantity != "300" || changed.InitialNetWeightG == nil || *changed.InitialNetWeightG != "300" {
+			if changed.FillNumber != 2 || changed.Status != "loaded" || changed.RemainingQuantity != "300" ||
+				changed.InitialNetWeightG == nil ||
+				*changed.InitialNetWeightG != "300" {
 				t.Fatalf("changed spool: %+v", changed)
 			}
 			want := append(test.wantClosing(spool.DisplayID), fmt.Sprintf("transfer 300 loose->%s#2", spool.DisplayID))
@@ -314,7 +415,10 @@ func TestChangeFilamentLeftoverBasisAndDisposition(t *testing.T) {
 			loose := decimal.RequireFromString(test.wantTotal).Sub(decimal.NewFromInt(300))
 			assertMaterial(t, f.refresh(t, m), test.wantTotal, "300", loose.String())
 			history := f.get(t, spool.ID).Fills
-			if len(history) != 1 || history[0].FillNumber != 1 || history[0].Outcome != test.wantOutcome || history[0].LeftoverG != test.wantLeftover || history[0].UsedG != "400" || history[0].InitialNetWeightG != "1000" {
+			if len(history) != 1 || history[0].FillNumber != 1 || history[0].Outcome != test.wantOutcome ||
+				history[0].LeftoverG != test.wantLeftover ||
+				history[0].UsedG != "400" ||
+				history[0].InitialNetWeightG != "1000" {
 				t.Fatalf("fill history: %+v", history)
 			}
 			if changed.Version != spool.Version+2 && changed.Version <= spool.Version {
@@ -329,7 +433,12 @@ func TestChangeFilamentToAnotherMaterialMovesOnlyThroughLedgerRows(t *testing.T)
 	oldMaterial := f.material(t, "1000")
 	newMaterial := f.material(t, "800")
 	spool := f.spool(t, oldMaterial, "reusable", "500")
-	changed, err := f.change(t, spool.ID, &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, f.newFill(newMaterial, "400"))
+	changed, err := f.change(
+		t,
+		spool.ID,
+		&LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+		f.newFill(newMaterial, "400"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,21 +478,53 @@ func TestChangeFilamentValidationAndPurchase(t *testing.T) {
 	expectNoChange("leftover required", err, "leftover_required")
 	_, err = f.change(t, spool.ID, &LeftoverInput{Basis: "system"}, f.newFill(m, "10"))
 	expectNoChange("disposition required", err, "disposition_required")
-	_, err = f.change(t, spool.ID, &LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")}, f.newFill(m, "10"))
+	_, err = f.change(
+		t,
+		spool.ID,
+		&LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")},
+		f.newFill(m, "10"),
+	)
 	if err != nil {
 		t.Fatalf("weighed leftover with tare: %v", err)
 	}
 
 	// A purchase needs a price and adds stock instead of moving loose stock.
-	purchaseFill := NewFillInput{MaterialID: m.ID, NetWeightG: "250", Source: "purchase", Supplier: ptr("Filament Shop")}
+	purchaseFill := NewFillInput{
+		MaterialID: m.ID,
+		NetWeightG: "250",
+		Source:     "purchase",
+		Supplier:   ptr("Filament Shop"),
+	}
 	current := f.get(t, spool.ID)
-	_, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: &LeftoverInput{Basis: "none"}, Fill: purchaseFill, OccurredAt: f.now.Add(2 * time.Hour), ExpectedVersion: current.Version}, &f.request)
+	_, err = f.s.ChangeFilamentSpoolFill(
+		ctx,
+		f.p,
+		spool.ID,
+		ChangeFillInput{
+			Leftover:        &LeftoverInput{Basis: "none"},
+			Fill:            purchaseFill,
+			OccurredAt:      f.now.Add(2 * time.Hour),
+			ExpectedVersion: current.Version,
+		},
+		&f.request,
+	)
 	if !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("purchase without price: %v", err)
 	}
 	before := len(f.ledger(t, m.ID))
 	purchaseFill.TotalPrice = ptr("12.5")
-	bought, err := f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: &LeftoverInput{Basis: "none"}, Fill: purchaseFill, OccurredAt: f.now.Add(2 * time.Hour), ExpectedVersion: current.Version}, &f.request)
+	bought, err := f.s.ChangeFilamentSpoolFill(
+		ctx,
+		f.p,
+		spool.ID,
+		ChangeFillInput{
+			Leftover:        &LeftoverInput{Basis: "none"},
+			Fill:            purchaseFill,
+			OccurredAt:      f.now.Add(2 * time.Hour),
+			ExpectedVersion: current.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,27 +532,69 @@ func TestChangeFilamentValidationAndPurchase(t *testing.T) {
 		t.Fatalf("bought fill: %+v", bought)
 	}
 	lines := f.ledger(t, m.ID)
-	assertLines(t, lines, before, fmt.Sprintf("adjustment/mark_empty -10 %s#2", spool.DisplayID), fmt.Sprintf("purchase 250 %s#3", spool.DisplayID))
+	assertLines(
+		t,
+		lines,
+		before,
+		fmt.Sprintf("adjustment/mark_empty -10 %s#2", spool.DisplayID),
+		fmt.Sprintf("purchase 250 %s#3", spool.DisplayID),
+	)
 	var supplier string
 	var price string
-	if err = f.pool.QueryRow(ctx, `SELECT supplier, total_purchase_price::text FROM inventory_transactions WHERE id = (SELECT id FROM inventory_transactions WHERE material_id = $1 AND kind = 'purchase' AND fill_number = 3)`, m.ID).Scan(&supplier, &price); err != nil || supplier != "Filament Shop" || norm(price) != "12.5" {
+	if err = f.pool.QueryRow(ctx, `SELECT supplier, total_purchase_price::text FROM inventory_transactions WHERE id = (SELECT id FROM inventory_transactions WHERE material_id = $1 AND kind = 'purchase' AND fill_number = 3)`, m.ID).Scan(&supplier, &price); err != nil ||
+		supplier != "Filament Shop" ||
+		norm(price) != "12.5" {
 		t.Fatalf("purchase row supplier=%q price=%q err=%v", supplier, price, err)
 	}
 	assertMaterial(t, f.refresh(t, m), "640", "250", "390")
 
 	// A spool that needs a refill takes a new fill without any leftover.
-	finished, err := f.s.FinishFilamentSpool(ctx, f.p, spool.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(3 * time.Hour), ExpectedVersion: bought.Version}, &f.request)
+	finished, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		spool.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "none"},
+			OccurredAt:      f.now.Add(3 * time.Hour),
+			ExpectedVersion: bought.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finished.Status != "needs_refill" || finished.FillID != nil || finished.MaterialID != nil || finished.RemainingQuantity != "0" || finished.FillNumber != 3 || finished.Lifecycle != "active" {
+	if finished.Status != "needs_refill" || finished.FillID != nil || finished.MaterialID != nil ||
+		finished.RemainingQuantity != "0" ||
+		finished.FillNumber != 3 ||
+		finished.Lifecycle != "active" {
 		t.Fatalf("finished reusable spool: %+v", finished)
 	}
-	_, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "100"), OccurredAt: f.now.Add(4 * time.Hour), ExpectedVersion: finished.Version}, &f.request)
+	_, err = f.s.ChangeFilamentSpoolFill(
+		ctx,
+		f.p,
+		spool.ID,
+		ChangeFillInput{
+			Leftover:        leftover,
+			Fill:            f.newFill(m, "100"),
+			OccurredAt:      f.now.Add(4 * time.Hour),
+			ExpectedVersion: finished.Version,
+		},
+		&f.request,
+	)
 	if !apperror.IsCode(err, "leftover_not_allowed") {
 		t.Fatalf("leftover on a spool without fill: %v", err)
 	}
-	refilled, err := f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Fill: f.newFill(m, "100"), OccurredAt: f.now.Add(4 * time.Hour), ExpectedVersion: finished.Version}, &f.request)
+	refilled, err := f.s.ChangeFilamentSpoolFill(
+		ctx,
+		f.p,
+		spool.ID,
+		ChangeFillInput{
+			Fill:            f.newFill(m, "100"),
+			OccurredAt:      f.now.Add(4 * time.Hour),
+			ExpectedVersion: finished.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +611,20 @@ func TestChangeFilamentProductRules(t *testing.T) {
 	m := f.material(t, "1000")
 	other := f.material(t, "")
 	ctx := t.Context()
-	product, err := f.s.CreateFilamentProduct(ctx, f.p, FilamentProductInput{Manufacturer: "Prusa " + f.suffix, Name: "PLA Galaxy", MaterialID: m.ID, NetWeightG: "1000", DefaultPrice: ptr("19.9"), Packaging: "refill", Active: true}, &f.request)
+	product, err := f.s.CreateFilamentProduct(
+		ctx,
+		f.p,
+		FilamentProductInput{
+			Manufacturer: "Prusa " + f.suffix,
+			Name:         "PLA Galaxy",
+			MaterialID:   m.ID,
+			NetWeightG:   "1000",
+			DefaultPrice: ptr("19.9"),
+			Packaging:    "refill",
+			Active:       true,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +637,10 @@ func TestChangeFilamentProductRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if changed.ProductID == nil || *changed.ProductID != product.ID || changed.Manufacturer == nil || *changed.Manufacturer != product.Manufacturer || changed.ProductName == nil || *changed.ProductName != "PLA Galaxy" {
+	if changed.ProductID == nil || *changed.ProductID != product.ID || changed.Manufacturer == nil ||
+		*changed.Manufacturer != product.Manufacturer ||
+		changed.ProductName == nil ||
+		*changed.ProductName != "PLA Galaxy" {
 		t.Fatalf("product snapshot not defaulted: %+v", changed)
 	}
 	count := func() int64 {
@@ -456,7 +655,21 @@ func TestChangeFilamentProductRules(t *testing.T) {
 	}
 
 	// Editing the product never touches the fill's snapshot.
-	edited, err := f.s.UpdateFilamentProduct(ctx, f.p, product.ID, FilamentProductInput{Manufacturer: product.Manufacturer, Name: "PLA Galaxy 2", MaterialID: m.ID, NetWeightG: "1000", Packaging: "refill", Active: true, ExpectedVersion: product.Version}, &f.request)
+	edited, err := f.s.UpdateFilamentProduct(
+		ctx,
+		f.p,
+		product.ID,
+		FilamentProductInput{
+			Manufacturer:    product.Manufacturer,
+			Name:            "PLA Galaxy 2",
+			MaterialID:      m.ID,
+			NetWeightG:      "1000",
+			Packaging:       "refill",
+			Active:          true,
+			ExpectedVersion: product.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,20 +739,40 @@ func TestChangeFilamentIdentifiers(t *testing.T) {
 	leftover := &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
 	run := func(keep []uuid.UUID, fresh []NewSpoolIdentifier) (FilamentSpool, error) {
 		current := f.get(t, spool.ID)
-		return f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "100"), KeepIdentifierIDs: keep, NewIdentifiers: fresh, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: current.Version}, &f.request)
+		return f.s.ChangeFilamentSpoolFill(
+			ctx,
+			f.p,
+			spool.ID,
+			ChangeFillInput{
+				Leftover:          leftover,
+				Fill:              f.newFill(m, "100"),
+				KeepIdentifierIDs: keep,
+				NewIdentifiers:    fresh,
+				OccurredAt:        f.now.Add(time.Hour),
+				ExpectedVersion:   current.Version,
+			},
+			&f.request,
+		)
 	}
 
 	// Clashes and foreign identifiers roll everything back.
-	if _, err = run(nil, []NewSpoolIdentifier{{Kind: "qr", Value: "qr-" + f.suffix}}); !apperror.IsCode(err, "identifier_in_use") {
+	if _, err = run(nil, []NewSpoolIdentifier{{Kind: "qr", Value: "qr-" + f.suffix}}); !apperror.IsCode(
+		err,
+		"identifier_in_use",
+	) {
 		t.Fatalf("clash with another spool: %v", err)
 	}
 	if _, err = run([]uuid.UUID{foreign.ID}, nil); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("keeping a foreign identifier: %v", err)
 	}
-	if _, err = run([]uuid.UUID{nfc.ID}, []NewSpoolIdentifier{{Kind: "nfc", Value: tag("nfc")}}); !apperror.IsCode(err, "identifier_in_use") {
+	if _, err = run([]uuid.UUID{nfc.ID}, []NewSpoolIdentifier{{Kind: "nfc", Value: tag("nfc")}}); !apperror.IsCode(
+		err,
+		"identifier_in_use",
+	) {
 		t.Fatalf("keeping and adding the same tag: %v", err)
 	}
-	if untouched := f.get(t, spool.ID); untouched.FillNumber != 1 || len(untouched.Identifiers) != 2 || untouched.RemainingQuantity != "300" {
+	if untouched := f.get(t, spool.ID); untouched.FillNumber != 1 || len(untouched.Identifiers) != 2 ||
+		untouched.RemainingQuantity != "300" {
 		t.Fatalf("failed changes were not rolled back: %+v", untouched)
 	}
 
@@ -591,7 +824,17 @@ func TestChangeFilamentRefusalsAndPermissions(t *testing.T) {
 	}
 
 	archived := f.spool(t, m, "reusable", "100")
-	archived, err := f.s.FinishFilamentSpool(ctx, f.p, archived.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: archived.Version}, &f.request)
+	archived, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		archived.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: archived.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,15 +850,30 @@ func TestChangeFilamentRefusalsAndPermissions(t *testing.T) {
 	}
 
 	spool := f.spool(t, m, "reusable", "100")
-	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "50"), OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version + 5}, &f.request); !apperror.IsCode(err, "stale_write") {
+	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "50"), OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version + 5}, &f.request); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale version: %v", err)
 	}
-	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "50"), OccurredAt: f.now.Add(-100 * 24 * time.Hour), ExpectedVersion: spool.Version}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "50"), OccurredAt: f.now.Add(-100 * 24 * time.Hour), ExpectedVersion: spool.Version}, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("change before the fill started: %v", err)
 	}
 
-	input := ChangeFillInput{Leftover: leftover, Fill: f.newFill(m, "50"), OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}
-	finishInput := FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}
+	input := ChangeFillInput{
+		Leftover:        leftover,
+		Fill:            f.newFill(m, "50"),
+		OccurredAt:      f.now.Add(time.Hour),
+		ExpectedVersion: spool.Version,
+	}
+	finishInput := FinishSpoolInput{
+		Leftover:        LeftoverInput{Basis: "none"},
+		OccurredAt:      f.now.Add(time.Hour),
+		ExpectedVersion: spool.Version,
+	}
 	for name, permissions := range map[string][]authorization.Permission{
 		"spools only":     {authorization.FilamentSpoolsManage},
 		"inventory only":  {authorization.InventoryManage},
@@ -624,13 +882,22 @@ func TestChangeFilamentRefusalsAndPermissions(t *testing.T) {
 		"spools and read": {authorization.FilamentSpoolsManage, authorization.InventoryRead},
 	} {
 		denied := restrictedPrincipal(t, f.pool, permissions...)
-		if _, err = f.s.ChangeFilamentSpoolFill(ctx, denied, spool.ID, input, nil); !apperror.IsCode(err, "permission_denied") {
+		if _, err = f.s.ChangeFilamentSpoolFill(ctx, denied, spool.ID, input, nil); !apperror.IsCode(
+			err,
+			"permission_denied",
+		) {
 			t.Fatalf("change fill with %s: %v", name, err)
 		}
-		if _, err = f.s.FinishFilamentSpool(ctx, denied, spool.ID, finishInput, nil); !apperror.IsCode(err, "permission_denied") {
+		if _, err = f.s.FinishFilamentSpool(ctx, denied, spool.ID, finishInput, nil); !apperror.IsCode(
+			err,
+			"permission_denied",
+		) {
 			t.Fatalf("finish with %s: %v", name, err)
 		}
-		if _, _, err = f.s.CleanUpFilamentSpools(ctx, denied, 3, true, nil, nil); !apperror.IsCode(err, "permission_denied") {
+		if _, _, err = f.s.CleanUpFilamentSpools(ctx, denied, 3, true, nil, nil); !apperror.IsCode(
+			err,
+			"permission_denied",
+		) {
 			t.Fatalf("cleanup with %s: %v", name, err)
 		}
 	}
@@ -654,7 +921,16 @@ func TestFinishFilamentSpool(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		machine, err := f.s.CreateMachine(ctx, f.p, typ.ID, f.unique("Finish machine"), "active", nil, false, &f.request)
+		machine, err := f.s.CreateMachine(
+			ctx,
+			f.p,
+			typ.ID,
+			f.unique("Finish machine"),
+			"active",
+			nil,
+			false,
+			&f.request,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -680,15 +956,32 @@ func TestFinishFilamentSpool(t *testing.T) {
 	if !f.get(t, single.ID).Mounted {
 		t.Fatal("spool is not mounted")
 	}
-	finished, err := f.s.FinishFilamentSpool(ctx, f.p, single.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: single.Version}, &f.request)
+	finished, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		single.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: single.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finished.Status != "archived" || finished.Lifecycle != "archived" || finished.ArchivedAt == nil || !finished.ArchivedAt.Equal(f.now) || finished.Mounted || finished.FillID != nil || finished.RemainingQuantity != "0" {
+	if finished.Status != "archived" || finished.Lifecycle != "archived" || finished.ArchivedAt == nil ||
+		!finished.ArchivedAt.Equal(f.now) ||
+		finished.Mounted ||
+		finished.FillID != nil ||
+		finished.RemainingQuantity != "0" {
 		t.Fatalf("finished single-use spool: %+v", finished)
 	}
 	assertMaterial(t, f.refresh(t, m), "2000", "0", "2000")
-	if _, err = f.s.FinishFilamentSpool(ctx, f.p, single.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(2 * time.Hour), ExpectedVersion: finished.Version}, &f.request); !apperror.IsCode(err, "no_open_fill") {
+	if _, err = f.s.FinishFilamentSpool(ctx, f.p, single.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(2 * time.Hour), ExpectedVersion: finished.Version}, &f.request); !apperror.IsCode(
+		err,
+		"no_open_fill",
+	) {
 		t.Fatalf("finishing twice: %v", err)
 	}
 
@@ -696,7 +989,10 @@ func TestFinishFilamentSpool(t *testing.T) {
 	mount(reusable)
 	f.consume(t, reusable, m, "100")
 	reusable = f.get(t, reusable.ID)
-	if _, err = f.s.FinishFilamentSpool(ctx, f.p, reusable.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: reusable.Version}, &f.request); !apperror.IsCode(err, "disposition_required") {
+	if _, err = f.s.FinishFilamentSpool(ctx, f.p, reusable.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: reusable.Version}, &f.request); !apperror.IsCode(
+		err,
+		"disposition_required",
+	) {
 		t.Fatalf("leftover without disposition: %v", err)
 	}
 	noTare := f.spoolInput(m, "reusable", "100")
@@ -705,22 +1001,40 @@ func TestFinishFilamentSpool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.s.FinishFilamentSpool(ctx, f.p, untared.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: untared.Version}, &f.request); !apperror.IsCode(err, "tare_required") {
+	if _, err = f.s.FinishFilamentSpool(ctx, f.p, untared.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: untared.Version}, &f.request); !apperror.IsCode(
+		err,
+		"tare_required",
+	) {
 		t.Fatalf("weighing without tare: %v", err)
 	}
-	waiting, err := f.s.FinishFilamentSpool(ctx, f.p, reusable.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("450"), Disposition: ptr("disposed")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: reusable.Version}, &f.request)
+	waiting, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		reusable.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "weighed", GrossWeightG: ptr("450"), Disposition: ptr("disposed")},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: reusable.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if waiting.Status != "needs_refill" || waiting.Lifecycle != "active" || waiting.Mounted || waiting.ArchivedAt != nil {
+	if waiting.Status != "needs_refill" || waiting.Lifecycle != "active" || waiting.Mounted ||
+		waiting.ArchivedAt != nil {
 		t.Fatalf("finished reusable spool: %+v", waiting)
 	}
 	history := f.get(t, reusable.ID).Fills
-	if len(history) != 1 || history[0].LeftoverG != "250" || history[0].Outcome != "disposed" || history[0].UsedG != "100" {
+	if len(history) != 1 || history[0].LeftoverG != "250" || history[0].Outcome != "disposed" ||
+		history[0].UsedG != "100" {
 		t.Fatalf("history: %+v", history)
 	}
 	// Spool-level stock movements are refused without an open fill.
-	if _, err = f.s.ConsumeFilamentSpool(ctx, f.p, reusable.ID, f.refresh(t, m).InventoryVersion, waiting.Version, "1", f.now, false, nil, nil, &f.request); !apperror.IsCode(err, "spool_not_consumable") {
+	if _, err = f.s.ConsumeFilamentSpool(ctx, f.p, reusable.ID, f.refresh(t, m).InventoryVersion, waiting.Version, "1", f.now, false, nil, nil, &f.request); !apperror.IsCode(
+		err,
+		"spool_not_consumable",
+	) {
 		t.Fatalf("consume without fill: %v", err)
 	}
 }
@@ -731,18 +1045,37 @@ func TestSpoolMovementsRequireAnOpenFill(t *testing.T) {
 	ctx := t.Context()
 	healthy := f.spool(t, m, "reusable", "300")
 	empty := f.spool(t, m, "reusable", "300")
-	empty, err := f.s.FinishFilamentSpool(ctx, f.p, empty.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: empty.Version}, &f.request)
+	empty, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		empty.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: empty.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	version := f.refresh(t, m).InventoryVersion
-	if _, err = f.s.CorrectFilamentSpoolStock(ctx, f.p, empty.ID, version, empty.Version, "10", nil, f.now, "inventory_count", nil, &f.request); !apperror.IsCode(err, "spool_not_consumable") {
+	if _, err = f.s.CorrectFilamentSpoolStock(ctx, f.p, empty.ID, version, empty.Version, "10", nil, f.now, "inventory_count", nil, &f.request); !apperror.IsCode(
+		err,
+		"spool_not_consumable",
+	) {
 		t.Fatalf("correct without fill: %v", err)
 	}
-	if _, err = f.s.TransferSpoolStock(ctx, f.p, m.ID, version, nil, &empty.ID, "10", f.now, nil, &f.request); !apperror.IsCode(err, "spool_not_consumable") {
+	if _, err = f.s.TransferSpoolStock(ctx, f.p, m.ID, version, nil, &empty.ID, "10", f.now, nil, &f.request); !apperror.IsCode(
+		err,
+		"spool_not_consumable",
+	) {
 		t.Fatalf("transfer to a spool without fill: %v", err)
 	}
-	if _, err = f.s.TransferSpoolStock(ctx, f.p, m.ID, version, &empty.ID, nil, "10", f.now, nil, &f.request); !apperror.IsCode(err, "spool_not_consumable") {
+	if _, err = f.s.TransferSpoolStock(ctx, f.p, m.ID, version, &empty.ID, nil, "10", f.now, nil, &f.request); !apperror.IsCode(
+		err,
+		"spool_not_consumable",
+	) {
 		t.Fatalf("transfer from a spool without fill: %v", err)
 	}
 	// Transfers, corrections and consumption work against the open fill and carry snapshots.
@@ -750,15 +1083,32 @@ func TestSpoolMovementsRequireAnOpenFill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tx.ToSpoolDisplayID == nil || *tx.ToSpoolDisplayID != healthy.DisplayID || tx.ToFillNumber == nil || *tx.ToFillNumber != 1 || tx.FromSpoolID != nil {
+	if tx.ToSpoolDisplayID == nil || *tx.ToSpoolDisplayID != healthy.DisplayID || tx.ToFillNumber == nil ||
+		*tx.ToFillNumber != 1 ||
+		tx.FromSpoolID != nil {
 		t.Fatalf("transfer snapshots: %+v", tx)
 	}
 	current := f.get(t, healthy.ID)
-	corrected, err := f.s.CorrectFilamentSpoolStock(ctx, f.p, healthy.ID, f.refresh(t, m).InventoryVersion, current.Version, "320", nil, f.now, "inventory_count", nil, &f.request)
+	corrected, err := f.s.CorrectFilamentSpoolStock(
+		ctx,
+		f.p,
+		healthy.ID,
+		f.refresh(t, m).InventoryVersion,
+		current.Version,
+		"320",
+		nil,
+		f.now,
+		"inventory_count",
+		nil,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if corrected.Transaction.SpoolDisplayID == nil || *corrected.Transaction.SpoolDisplayID != healthy.DisplayID || corrected.Transaction.FillNumber == nil || *corrected.Transaction.FillNumber != 1 || corrected.Transaction.QuantityDelta != "-30" {
+	if corrected.Transaction.SpoolDisplayID == nil || *corrected.Transaction.SpoolDisplayID != healthy.DisplayID ||
+		corrected.Transaction.FillNumber == nil ||
+		*corrected.Transaction.FillNumber != 1 ||
+		corrected.Transaction.QuantityDelta != "-30" {
 		t.Fatalf("correction: %+v", corrected.Transaction)
 	}
 	// The spool's own history includes transfers.
@@ -780,7 +1130,17 @@ func TestSpoolListFiltersAndStatus(t *testing.T) {
 	reusable := f.spool(t, m, "reusable", "100")
 	single := f.spool(t, m, "single_use", "100")
 	waiting := f.spool(t, m, "reusable", "100")
-	waiting, err := f.s.FinishFilamentSpool(ctx, f.p, waiting.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: waiting.Version}, &f.request)
+	waiting, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		waiting.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "none"},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: waiting.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -824,12 +1184,19 @@ func TestSpoolListFiltersAndStatus(t *testing.T) {
 	check("lifecycle archived", SpoolFilters{Lifecycle: "archived"}, gone.ID)
 	check("not mounted", SpoolFilters{Mounted: ptr(false)}, reusable.ID, single.ID, waiting.ID, gone.ID)
 	check("mounted", SpoolFilters{Mounted: ptr(true)})
-	if _, _, err = f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Statuses: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(err, "validation_failed") {
+	if _, _, err = f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Statuses: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("invalid status: %v", err)
 	}
 	withMaterial, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{MaterialID: &m.ID, Page: 1, PageSize: 100})
 	if err != nil || len(withMaterial) != 2 {
-		t.Fatalf("material filter matches only spools with an open fill of that material: %d %v", len(withMaterial), err)
+		t.Fatalf(
+			"material filter matches only spools with an open fill of that material: %d %v",
+			len(withMaterial),
+			err,
+		)
 	}
 }
 
@@ -839,7 +1206,17 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 	ctx := t.Context()
 	finish := func(spool FilamentSpool) FilamentSpool {
 		t.Helper()
-		done, err := f.s.FinishFilamentSpool(ctx, f.p, spool.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(time.Minute), ExpectedVersion: spool.Version}, &f.request)
+		done, err := f.s.FinishFilamentSpool(
+			ctx,
+			f.p,
+			spool.ID,
+			FinishSpoolInput{
+				Leftover:        LeftoverInput{Basis: "none"},
+				OccurredAt:      f.now.Add(time.Minute),
+				ExpectedVersion: spool.Version,
+			},
+			&f.request,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -854,7 +1231,13 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 	retiredOpen := f.purchasedSpool(t, m, "single_use", "100")
 	f.consume(t, retiredOpen, m, "100")
 	retiredOpen = f.get(t, retiredOpen.ID)
-	retiredOpen, err := f.s.UpdateFilamentSpool(ctx, f.p, retiredOpen.ID, FilamentSpoolUpdate{ExpectedVersion: retiredOpen.Version, Lifecycle: "archived"}, &f.request)
+	retiredOpen, err := f.s.UpdateFilamentSpool(
+		ctx,
+		f.p,
+		retiredOpen.ID,
+		FilamentSpoolUpdate{ExpectedVersion: retiredOpen.Version, Lifecycle: "archived"},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -879,15 +1262,36 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 	if _, err = f.s.GetFilamentSpool(ctx, f.p, old.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = f.s.CleanUpFilamentSpools(ctx, f.p, 3, false, nil, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, _, err = f.s.CleanUpFilamentSpools(ctx, f.p, 3, false, nil, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("delete without ids: %v", err)
 	}
-	if _, _, err = f.s.CleanUpFilamentSpools(ctx, f.p, 2, true, nil, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, _, err = f.s.CleanUpFilamentSpools(ctx, f.p, 2, true, nil, &f.request); !apperror.IsCode(
+		err,
+		"validation_failed",
+	) {
 		t.Fatalf("invalid months: %v", err)
 	}
 
 	ledgerBefore := len(f.ledger(t, m.ID))
-	items, deleted, err := f.s.CleanUpFilamentSpools(ctx, f.p, 3, false, []uuid.UUID{old.ID, oldWithHistory.ID, reusable.ID, active.ID, retiredOpen.ID, recent.ID, uuid.Must(uuid.NewV7())}, &f.request)
+	items, deleted, err := f.s.CleanUpFilamentSpools(
+		ctx,
+		f.p,
+		3,
+		false,
+		[]uuid.UUID{
+			old.ID,
+			oldWithHistory.ID,
+			reusable.ID,
+			active.ID,
+			retiredOpen.ID,
+			recent.ID,
+			uuid.Must(uuid.NewV7()),
+		},
+		&f.request,
+	)
 	if err != nil || !deleted || len(items) != 2 {
 		t.Fatalf("delete: items=%v deleted=%v err=%v", items, deleted, err)
 	}
@@ -915,7 +1319,8 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 					t.Fatalf("ledger row of a deleted spool: %+v", l)
 				}
 			}
-			if l.toDisplay != nil && *l.toDisplay == spool.DisplayID && (l.toSpoolID != nil || l.toFillID != nil || l.toFill == nil) {
+			if l.toDisplay != nil && *l.toDisplay == spool.DisplayID &&
+				(l.toSpoolID != nil || l.toFillID != nil || l.toFill == nil) {
 				t.Fatalf("transfer row of a deleted spool: %+v", l)
 			}
 		}
@@ -929,7 +1334,9 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 	}
 	snapshots := 0
 	for _, item := range history {
-		if item.SpoolDisplayID != nil && (*item.SpoolDisplayID == old.DisplayID || *item.SpoolDisplayID == oldWithHistory.DisplayID) && item.SpoolID == nil {
+		if item.SpoolDisplayID != nil &&
+			(*item.SpoolDisplayID == old.DisplayID || *item.SpoolDisplayID == oldWithHistory.DisplayID) &&
+			item.SpoolID == nil {
 			snapshots++
 		}
 	}
@@ -937,18 +1344,28 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 		t.Fatal("deleted spools lost their snapshots in the API view")
 	}
 	var audits int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'filament_spool.deleted' AND resource_id = ANY($2)`, f.request, []uuid.UUID{old.ID, oldWithHistory.ID}).Scan(&audits); err != nil || audits != 2 {
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'filament_spool.deleted' AND resource_id = ANY($2)`, f.request, []uuid.UUID{old.ID, oldWithHistory.ID}).Scan(&audits); err != nil ||
+		audits != 2 {
 		t.Fatalf("delete audit events = %d err=%v", audits, err)
 	}
 	var survivors int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'filament_spool.deleted' AND resource_id <> ALL($2)`, f.request, []uuid.UUID{old.ID, oldWithHistory.ID}).Scan(&survivors); err != nil || survivors != 0 {
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE request_id = $1 AND action = 'filament_spool.deleted' AND resource_id <> ALL($2)`, f.request, []uuid.UUID{old.ID, oldWithHistory.ID}).Scan(&survivors); err != nil ||
+		survivors != 0 {
 		t.Fatalf("unexpected delete audits = %d err=%v", survivors, err)
 	}
 }
 
 func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	jf := newJobFixture(t)
-	f := &fillFixture{pool: jf.pool, s: jf.s, p: jf.p, request: jf.request, now: jf.now, suffix: strings.ReplaceAll(jf.person.String(), "-", "")[:12], typeID: jf.materialType.ID}
+	f := &fillFixture{
+		pool:    jf.pool,
+		s:       jf.s,
+		p:       jf.p,
+		request: jf.request,
+		now:     jf.now,
+		suffix:  strings.ReplaceAll(jf.person.String(), "-", "")[:12],
+		typeID:  jf.materialType.ID,
+	}
 	ctx := t.Context()
 	m := f.material(t, "2000")
 	refill := f.spool(t, m, "reusable", "500")
@@ -956,7 +1373,10 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 
 	job := jf.create(t, func() JobInput {
 		in := jf.input(-4*time.Hour, time.Hour, "successful")
-		in.Usages = []UsageInput{{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "100"}, {MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"}}
+		in.Usages = []UsageInput{
+			{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "100"},
+			{MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"},
+		}
 		return in
 	}())
 	if len(job.Usages) != 2 {
@@ -973,7 +1393,17 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	// A usage that names a spool without an open fill is refused.
 	f.now = jf.now
 	emptied := f.spool(t, m, "reusable", "100")
-	emptied, err := f.s.FinishFilamentSpool(ctx, f.p, emptied.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, OccurredAt: f.now.Add(time.Minute), ExpectedVersion: emptied.Version}, &f.request)
+	emptied, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		emptied.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			OccurredAt:      f.now.Add(time.Minute),
+			ExpectedVersion: emptied.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -999,7 +1429,17 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	}
 	// Correcting the job returns the old usage to stock and takes the new one from fill 2.
 	before := len(f.ledger(t, m.ID))
-	correctedResult, err := jf.s.ReplaceRunUsages(ctx, jf.p, reloaded.Runs[0].ID, reloaded.Runs[0].Version, []UsageInput{{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "30"}, {MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"}}, &jf.request)
+	correctedResult, err := jf.s.ReplaceRunUsages(
+		ctx,
+		jf.p,
+		reloaded.Runs[0].ID,
+		reloaded.Runs[0].Version,
+		[]UsageInput{
+			{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "30"},
+			{MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"},
+		},
+		&jf.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1082,7 +1522,13 @@ func TestCleanUpKeepsTransferRowsOfDeletedSpools(t *testing.T) {
 	if err != nil || len(items) != 1 {
 		t.Fatalf("cleanup of a spool with transfers: %v %v", items, err)
 	}
-	assertLines(t, f.ledger(t, m.ID), 1, fmt.Sprintf("transfer 300 loose->%s#1", spool.DisplayID), fmt.Sprintf("transfer 300 %s#1->loose", spool.DisplayID))
+	assertLines(
+		t,
+		f.ledger(t, m.ID),
+		1,
+		fmt.Sprintf("transfer 300 loose->%s#1", spool.DisplayID),
+		fmt.Sprintf("transfer 300 %s#1->loose", spool.DisplayID),
+	)
 	for _, l := range f.ledger(t, m.ID) {
 		if l.toSpoolID != nil || l.fromSpoolID != nil || l.toFillID != nil || l.fromFillID != nil {
 			t.Fatalf("transfer still references the deleted spool: %+v", l)
@@ -1096,12 +1542,24 @@ func TestFilamentProductsCatalog(t *testing.T) {
 	m := f.material(t, "")
 	other := f.material(t, "")
 	ctx := t.Context()
-	input := FilamentProductInput{Manufacturer: "Maker " + f.suffix, Name: "Silk PLA", MaterialID: m.ID, NetWeightG: "1000", DefaultPrice: ptr("21.5"), Packaging: "spool", Notes: ptr("note"), Active: true}
+	input := FilamentProductInput{
+		Manufacturer: "Maker " + f.suffix,
+		Name:         "Silk PLA",
+		MaterialID:   m.ID,
+		NetWeightG:   "1000",
+		DefaultPrice: ptr("21.5"),
+		Packaging:    "spool",
+		Notes:        ptr("note"),
+		Active:       true,
+	}
 	product, err := f.s.CreateFilamentProduct(ctx, f.p, input, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if product.Version != 1 || !product.Active || product.InUseCount != 0 || product.MaterialName == "" || product.NetWeightG != "1000" || product.DefaultPrice == nil || *product.DefaultPrice != "21.5" {
+	if product.Version != 1 || !product.Active || product.InUseCount != 0 || product.MaterialName == "" ||
+		product.NetWeightG != "1000" ||
+		product.DefaultPrice == nil ||
+		*product.DefaultPrice != "21.5" {
 		t.Fatalf("product: %+v", product)
 	}
 	dup := input
@@ -1128,12 +1586,18 @@ func TestFilamentProductsCatalog(t *testing.T) {
 	// Renaming into a collision is a conflict, a stale version is stale.
 	collide := input
 	collide.Name, collide.ExpectedVersion = "matte pla", product.Version
-	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, collide, &f.request); !apperror.IsCode(err, "product_exists") {
+	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, collide, &f.request); !apperror.IsCode(
+		err,
+		"product_exists",
+	) {
 		t.Fatalf("rename into collision: %v", err)
 	}
 	stale := input
 	stale.ExpectedVersion = 9
-	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, stale, &f.request); !apperror.IsCode(err, "stale_write") {
+	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, stale, &f.request); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale update: %v", err)
 	}
 	// In-use counts follow open fills of non-archived spools.
@@ -1168,7 +1632,11 @@ func TestFilamentProductsCatalog(t *testing.T) {
 		t.Fatalf("deactivate: %+v %v", updated, err)
 	}
 	list := func(includeInactive bool) map[uuid.UUID]bool {
-		items, _, err := f.s.ListFilamentProducts(ctx, f.p, FilamentProductFilters{Search: f.suffix, IncludeInactive: includeInactive, Page: 1, PageSize: 50})
+		items, _, err := f.s.ListFilamentProducts(
+			ctx,
+			f.p,
+			FilamentProductFilters{Search: f.suffix, IncludeInactive: includeInactive, Page: 1, PageSize: 50},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1184,7 +1652,11 @@ func TestFilamentProductsCatalog(t *testing.T) {
 	if got := list(true); !got[product.ID] || !got[other2.ID] {
 		t.Fatalf("list with inactive: %v", got)
 	}
-	filtered, total, err := f.s.ListFilamentProducts(ctx, f.p, FilamentProductFilters{MaterialID: &other.ID, IncludeInactive: true, Page: 1, PageSize: 10})
+	filtered, total, err := f.s.ListFilamentProducts(
+		ctx,
+		f.p,
+		FilamentProductFilters{MaterialID: &other.ID, IncludeInactive: true, Page: 1, PageSize: 10},
+	)
 	if err != nil || total != 0 || len(filtered) != 0 {
 		t.Fatalf("material filter: %d %v", total, err)
 	}

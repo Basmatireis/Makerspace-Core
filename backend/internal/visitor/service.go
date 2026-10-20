@@ -112,7 +112,13 @@ type Service struct {
 	notifier InvitationNotifier
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Service, labRules *laborordnung.Service, notifier InvitationNotifier) *Service {
+func NewService(
+	pool *pgxpool.Pool,
+	cfg config.Config,
+	fileService *files.Service,
+	labRules *laborordnung.Service,
+	notifier InvitationNotifier,
+) *Service {
 	return &Service{pool: pool, config: cfg, files: fileService, labRules: labRules, notifier: notifier}
 }
 
@@ -123,13 +129,21 @@ func (s *Service) GetConfiguration(ctx context.Context, principal authorization.
 	return s.loadConfiguration(ctx, visitordb.New(s.pool))
 }
 
-func (s *Service) UpdateConfiguration(ctx context.Context, principal authorization.Principal, input ConfigurationInput, requestID *uuid.UUID) (Configuration, error) {
+func (s *Service) UpdateConfiguration(
+	ctx context.Context,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (Configuration, error) {
 	if !principal.Has(authorization.VisitorEnrollmentManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
 	methods, err := normalizeMethods(input.AllowedMethods)
-	if err != nil || input.ExpectedVersion < 1 || (input.Enabled && (input.InitialRoleID == nil || len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
-		return Configuration{}, validation("enabled enrollment requires an initial Role, at least one Device Type, and at least one authentication method")
+	if err != nil || input.ExpectedVersion < 1 ||
+		(input.Enabled && (input.InitialRoleID == nil || len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
+		return Configuration{}, validation(
+			"enabled enrollment requires an initial Role, at least one Device Type, and at least one authentication method",
+		)
 	}
 	deviceTypes, err := uniqueUUIDs(input.DeviceTypeIDs)
 	if err != nil {
@@ -156,7 +170,16 @@ func (s *Service) UpdateConfiguration(ctx context.Context, principal authorizati
 		}
 	}
 	actor := principal.AccountID
-	row, err := queries.UpdateConfiguration(ctx, visitordb.UpdateConfigurationParams{Enabled: input.Enabled, InitialRoleID: input.InitialRoleID, AllowedMethods: methods, UpdatedByAccountID: &actor, ExpectedVersion: input.ExpectedVersion})
+	row, err := queries.UpdateConfiguration(
+		ctx,
+		visitordb.UpdateConfigurationParams{
+			Enabled:            input.Enabled,
+			InitialRoleID:      input.InitialRoleID,
+			AllowedMethods:     methods,
+			UpdatedByAccountID: &actor,
+			ExpectedVersion:    input.ExpectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Configuration{}, apperror.StaleWrite
 	}
@@ -177,7 +200,14 @@ func (s *Service) UpdateConfiguration(ctx context.Context, principal authorizati
 	if err := tx.Commit(ctx); err != nil {
 		return Configuration{}, err
 	}
-	return Configuration{Enabled: row.Enabled, InitialRoleID: row.InitialRoleID, DeviceTypeIDs: deviceTypes, AllowedMethods: row.AllowedMethods, Version: row.Version, UpdatedAt: row.UpdatedAt}, nil
+	return Configuration{
+		Enabled:        row.Enabled,
+		InitialRoleID:  row.InitialRoleID,
+		DeviceTypeIDs:  deviceTypes,
+		AllowedMethods: row.AllowedMethods,
+		Version:        row.Version,
+		UpdatedAt:      row.UpdatedAt,
+	}, nil
 }
 
 func (s *Service) Begin(ctx context.Context, device manageddevices.DeviceContext) (ContextIssue, error) {
@@ -227,11 +257,17 @@ func (s *Service) AuthenticateContext(ctx context.Context, raw string) (Context,
 	if err != nil {
 		return Context{}, err
 	}
-	return Context{ID: row.ID, ManagedDeviceID: row.ManagedDeviceID, CSRFTokenDigest: row.CsrfDigest, ExpiresAt: row.ExpiresAt}, nil
+	return Context{
+		ID:              row.ID,
+		ManagedDeviceID: row.ManagedDeviceID,
+		CSRFTokenDigest: row.CsrfDigest,
+		ExpiresAt:       row.ExpiresAt,
+	}, nil
 }
 
 func ValidateCSRF(context Context, cookie, header string) error {
-	if cookie == "" || header == "" || cookie != header || !hmac.Equal(context.CSRFTokenDigest, security.DigestToken(cookie)) {
+	if cookie == "" || header == "" || cookie != header ||
+		!hmac.Equal(context.CSRFTokenDigest, security.DigestToken(cookie)) {
 		return apperror.New(403, "csrf_invalid", "CSRF validation failed")
 	}
 	return nil
@@ -246,7 +282,11 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 	if err != nil {
 		return EnrollmentState{}, err
 	}
-	return EnrollmentState{AllowedMethods: configuration.AllowedMethods, CurrentLabRules: version, ExpiresAt: enrollment.ExpiresAt}, nil
+	return EnrollmentState{
+		AllowedMethods:  configuration.AllowedMethods,
+		CurrentLabRules: version,
+		ExpiresAt:       enrollment.ExpiresAt,
+	}, nil
 }
 
 func (s *Service) OpenLabRules(ctx context.Context, enrollment Context) (files.File, io.ReadCloser, error) {
@@ -260,7 +300,12 @@ func (s *Service) OpenLabRules(ctx context.Context, enrollment Context) (files.F
 	return s.files.Open(ctx, version.PdfFileID)
 }
 
-func (s *Service) Submit(ctx context.Context, enrollment Context, input SubmissionInput, requestID *uuid.UUID) (SubmissionResult, error) {
+func (s *Service) Submit(
+	ctx context.Context,
+	enrollment Context,
+	input SubmissionInput,
+	requestID *uuid.UUID,
+) (SubmissionResult, error) {
 	clean, pinDisplay, pinNormalized, pinHash, imageBytes, err := s.validateSubmission(input)
 	if err != nil {
 		return SubmissionResult{}, err
@@ -330,7 +375,15 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 	var challengeID *uuid.UUID
 	if contains(clean.AuthMethods, "password") {
 		display, normalized, _ := security.NormalizeEmail(*clean.Email)
-		identity, err := queries.CreateVisitorPasswordIdentity(ctx, visitordb.CreateVisitorPasswordIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
+		identity, err := queries.CreateVisitorPasswordIdentity(
+			ctx,
+			visitordb.CreateVisitorPasswordIdentityParams{
+				ID:                   uuid.Must(uuid.NewV7()),
+				AccountID:            accountID,
+				IdentifierDisplay:    &display,
+				IdentifierNormalized: &normalized,
+			},
+		)
 		if err != nil {
 			return SubmissionResult{}, databaseError(err)
 		}
@@ -341,7 +394,15 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 		challengeID = &id
 	}
 	if contains(clean.AuthMethods, "pin") {
-		identity, err := queries.CreateVisitorPINIdentity(ctx, visitordb.CreateVisitorPINIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: &pinDisplay, IdentifierNormalized: &pinNormalized})
+		identity, err := queries.CreateVisitorPINIdentity(
+			ctx,
+			visitordb.CreateVisitorPINIdentityParams{
+				ID:                   uuid.Must(uuid.NewV7()),
+				AccountID:            accountID,
+				IdentifierDisplay:    &pinDisplay,
+				IdentifierNormalized: &pinNormalized,
+			},
+		)
 		if err != nil {
 			return SubmissionResult{}, databaseError(err)
 		}
@@ -356,12 +417,23 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 	if role.LaborordnungMode != "not_required" {
 		current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return SubmissionResult{}, apperror.New(409, "lab_rules_unavailable", "No Lab Rules version was presented; restart visitor enrollment")
+			return SubmissionResult{}, apperror.New(
+				409,
+				"lab_rules_unavailable",
+				"No Lab Rules version was presented; restart visitor enrollment",
+			)
 		}
 		if err != nil {
 			return SubmissionResult{}, err
 		}
-		requestRow, err := queries.CreateLabRulesRequest(ctx, visitordb.CreateLabRulesRequestParams{ID: uuid.Must(uuid.NewV7()), PersonID: personID, RequiredVersionID: current.ID})
+		requestRow, err := queries.CreateLabRulesRequest(
+			ctx,
+			visitordb.CreateLabRulesRequestParams{
+				ID:                uuid.Must(uuid.NewV7()),
+				PersonID:          personID,
+				RequiredVersionID: current.ID,
+			},
+		)
 		if err != nil {
 			return SubmissionResult{}, err
 		}
@@ -390,19 +462,25 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 	if challengeID != nil {
 		delivery := "failed"
 		var deliveryFailure *string
-		if s.notifier != nil && s.notifier.SendInvitation(ctx, *clean.Email, invitationCode, invitationExpiresAt) == nil {
+		if s.notifier != nil &&
+			s.notifier.SendInvitation(ctx, *clean.Email, invitationCode, invitationExpiresAt) == nil {
 			delivery = "sent"
 		} else {
 			value := "provider_error"
 			deliveryFailure = &value
 		}
-		_ = visitordb.New(s.pool).SetChallengeDelivery(ctx, visitordb.SetChallengeDeliveryParams{ID: *challengeID, DeliveryStatus: delivery, DeliveryFailureCode: deliveryFailure})
+		_ = visitordb.New(s.pool).
+			SetChallengeDelivery(ctx, visitordb.SetChallengeDeliveryParams{ID: *challengeID, DeliveryStatus: delivery, DeliveryFailureCode: deliveryFailure})
 		result.InvitationDelivery = &delivery
 	}
 	return result, nil
 }
 
-func (s *Service) Admission(ctx context.Context, principal authorization.Principal, requestID *uuid.UUID) (AdmissionResult, error) {
+func (s *Service) Admission(
+	ctx context.Context,
+	principal authorization.Principal,
+	requestID *uuid.UUID,
+) (AdmissionResult, error) {
 	if principal.Device == nil {
 		return AdmissionResult{}, apperror.PermissionDenied
 	}
@@ -440,7 +518,8 @@ func (s *Service) Admission(ctx context.Context, principal authorization.Princip
 
 func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, string, string, string, []byte, error) {
 	input.FirstName, input.LastName = strings.TrimSpace(input.FirstName), strings.TrimSpace(input.LastName)
-	if input.FirstName == "" || input.LastName == "" || len([]rune(input.FirstName)) > 100 || len([]rune(input.LastName)) > 100 {
+	if input.FirstName == "" || input.LastName == "" || len([]rune(input.FirstName)) > 100 ||
+		len([]rune(input.LastName)) > 100 {
 		return SubmissionInput{}, "", "", "", nil, validation("firstName and lastName are required")
 	}
 	input.Email = cleanOptional(input.Email)
@@ -460,7 +539,9 @@ func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, st
 	}
 	methods, err := normalizeMethods(input.AuthMethods)
 	if err != nil || len(methods) == 0 {
-		return SubmissionInput{}, "", "", "", nil, validation("at least one supported authentication method is required")
+		return SubmissionInput{}, "", "", "", nil, validation(
+			"at least one supported authentication method is required",
+		)
 	}
 	input.AuthMethods = methods
 	if contains(methods, "password") && input.Email == nil {
@@ -499,10 +580,21 @@ func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Quer
 	if err != nil {
 		return Configuration{}, err
 	}
-	return Configuration{Enabled: row.Enabled, InitialRoleID: row.InitialRoleID, DeviceTypeIDs: deviceTypes, AllowedMethods: row.AllowedMethods, Version: row.Version, UpdatedAt: row.UpdatedAt}, nil
+	return Configuration{
+		Enabled:        row.Enabled,
+		InitialRoleID:  row.InitialRoleID,
+		DeviceTypeIDs:  deviceTypes,
+		AllowedMethods: row.AllowedMethods,
+		Version:        row.Version,
+		UpdatedAt:      row.UpdatedAt,
+	}, nil
 }
 
-func (s *Service) pinnedLabRules(ctx context.Context, queries *visitordb.Queries, contextID uuid.UUID) (*LabRulesVersion, error) {
+func (s *Service) pinnedLabRules(
+	ctx context.Context,
+	queries *visitordb.Queries,
+	contextID uuid.UUID,
+) (*LabRulesVersion, error) {
 	row, err := queries.GetPinnedLabRulesVersion(ctx, contextID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -510,10 +602,20 @@ func (s *Service) pinnedLabRules(ctx context.Context, queries *visitordb.Queries
 	if err != nil {
 		return nil, err
 	}
-	return &LabRulesVersion{ID: row.ID, HumanRevision: row.HumanRevision, PDFFileID: row.PdfFileID, EffectiveAt: row.EffectiveAt.Time}, nil
+	return &LabRulesVersion{
+		ID:            row.ID,
+		HumanRevision: row.HumanRevision,
+		PDFFileID:     row.PdfFileID,
+		EffectiveAt:   row.EffectiveAt.Time,
+	}, nil
 }
 
-func authorizeRole(ctx context.Context, queries *visitordb.Queries, principal authorization.Principal, roleID uuid.UUID) error {
+func authorizeRole(
+	ctx context.Context,
+	queries *visitordb.Queries,
+	principal authorization.Principal,
+	roleID uuid.UUID,
+) error {
 	role, err := queries.GetAssignableRole(ctx, roleID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -538,7 +640,11 @@ func authorizeRole(ctx context.Context, queries *visitordb.Queries, principal au
 			return apperror.PermissionDenied
 		}
 		grant := grants[row.ID]
-		grant.ID, grant.PermissionID, grant.Scope, grant.MinimumAssurance = row.ID, permission, authorization.GrantScope(row.Scope), authorization.Assurance(row.MinimumAssurance)
+		grant.ID, grant.PermissionID, grant.Scope, grant.MinimumAssurance = row.ID, permission, authorization.GrantScope(
+			row.Scope,
+		), authorization.Assurance(
+			row.MinimumAssurance,
+		)
 		if row.DeviceTypeID != nil {
 			grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *row.DeviceTypeID)
 		}
@@ -609,7 +715,11 @@ func cleanOptional(value *string) *string {
 func databaseError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return apperror.New(409, "authentication_identifier_exists", "This login identifier already belongs to an Account; use returning-user login")
+		return apperror.New(
+			409,
+			"authentication_identifier_exists",
+			"This login identifier already belongs to an Account; use returning-user login",
+		)
 	}
 	return err
 }

@@ -9,7 +9,16 @@ import (
 // Check the adjacent zone intervals rather than letting time.Date normalize a
 // spring gap or choose one of the two occurrences in an autumn overlap.
 func (s *Service) resolveWallTime(wall time.Time) (time.Time, error) {
-	naive := time.Date(wall.Year(), wall.Month(), wall.Day(), wall.Hour(), wall.Minute(), wall.Second(), wall.Nanosecond(), time.UTC)
+	naive := time.Date(
+		wall.Year(),
+		wall.Month(),
+		wall.Day(),
+		wall.Hour(),
+		wall.Minute(),
+		wall.Second(),
+		wall.Nanosecond(),
+		time.UTC,
+	)
 	offsets := map[int]bool{}
 	for cursor, limit := naive.Add(-48*time.Hour), naive.Add(48*time.Hour); !cursor.After(limit); {
 		zoned := cursor.In(s.location)
@@ -25,7 +34,16 @@ func (s *Service) resolveWallTime(wall time.Time) (time.Time, error) {
 	for offset := range offsets {
 		candidate := naive.Add(-time.Duration(offset) * time.Second)
 		local := candidate.In(s.location)
-		represented := time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), local.Minute(), local.Second(), local.Nanosecond(), time.UTC)
+		represented := time.Date(
+			local.Year(),
+			local.Month(),
+			local.Day(),
+			local.Hour(),
+			local.Minute(),
+			local.Second(),
+			local.Nanosecond(),
+			time.UTC,
+		)
 		if represented.Equal(naive) {
 			matches = append(matches, candidate)
 		}
@@ -37,7 +55,14 @@ func (s *Service) resolveWallTime(wall time.Time) (time.Time, error) {
 	if len(matches) > 1 {
 		reason = "is ambiguous"
 	}
-	return time.Time{}, validation(fmt.Sprintf("Local time %s %s in %s because of a clock change; choose a different time", naive.Format("02.01.2006 15:04"), reason, s.location))
+	return time.Time{}, validation(
+		fmt.Sprintf(
+			"Local time %s %s in %s because of a clock change; choose a different time",
+			naive.Format("02.01.2006 15:04"),
+			reason,
+			s.location,
+		),
+	)
 }
 
 func (s *Service) validateSlotInstant(instant time.Time) error {
@@ -48,7 +73,9 @@ func (s *Service) validateSlotInstant(instant time.Time) error {
 	// must match the configured zone; otherwise a gap could be disguised as an
 	// instant by retaining the pre-transition offset.
 	if suppliedOffset != 0 && suppliedOffset != localOffset {
-		return validation("The supplied local time offset does not match the makerspace timezone; choose a valid local time or send UTC")
+		return validation(
+			"The supplied local time offset does not match the makerspace timezone; choose a valid local time or send UTC",
+		)
 	}
 	_, err := s.resolveWallTime(local)
 	return err

@@ -112,12 +112,33 @@ func (s *Service) ListConnectors(ctx context.Context, principal authorization.Pr
 	}
 	result := make([]Connector, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, connectorFrom(row.ID, row.Name, row.OidcProviderID, row.Enabled, row.TokenExpiresAt, row.TokenRevokedAt, row.Version, row.CreatedAt, row.UpdatedAt))
+		result = append(
+			result,
+			connectorFrom(
+				row.ID,
+				row.Name,
+				row.OidcProviderID,
+				row.Enabled,
+				row.TokenExpiresAt,
+				row.TokenRevokedAt,
+				row.Version,
+				row.CreatedAt,
+				row.UpdatedAt,
+			),
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) CreateConnector(ctx context.Context, principal authorization.Principal, name string, providerID *uuid.UUID, enabled bool, expiresAt time.Time, requestID *uuid.UUID) (TokenIssue, error) {
+func (s *Service) CreateConnector(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	providerID *uuid.UUID,
+	enabled bool,
+	expiresAt time.Time,
+	requestID *uuid.UUID,
+) (TokenIssue, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return TokenIssue{}, apperror.PermissionDenied
 	}
@@ -153,7 +174,16 @@ func (s *Service) CreateConnector(ctx context.Context, principal authorization.P
 	return TokenIssue{Connector: connector, BearerToken: raw}, err
 }
 
-func (s *Service) UpdateConnector(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, providerID *uuid.UUID, enabled bool, expectedVersion int64, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) UpdateConnector(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	name string,
+	providerID *uuid.UUID,
+	enabled bool,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -183,10 +213,23 @@ func (s *Service) UpdateConnector(ctx context.Context, principal authorization.P
 			return Connector{}, err
 		}
 		if count > 0 {
-			return Connector{}, apperror.New(409, "scim_connector_in_use", "The OIDC binding cannot change while SCIM users exist")
+			return Connector{}, apperror.New(
+				409,
+				"scim_connector_in_use",
+				"The OIDC binding cannot change while SCIM users exist",
+			)
 		}
 	}
-	row, err := queries.UpdateConnector(ctx, scimdb.UpdateConnectorParams{Name: name, OidcProviderID: providerID, Enabled: enabled, ID: id, ExpectedVersion: expectedVersion})
+	row, err := queries.UpdateConnector(
+		ctx,
+		scimdb.UpdateConnectorParams{
+			Name:            name,
+			OidcProviderID:  providerID,
+			Enabled:         enabled,
+			ID:              id,
+			ExpectedVersion: expectedVersion,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Connector{}, apperror.StaleWrite
 	}
@@ -203,7 +246,14 @@ func (s *Service) UpdateConnector(ctx context.Context, principal authorization.P
 	return s.getConnector(ctx, row.ID)
 }
 
-func (s *Service) RotateToken(ctx context.Context, principal authorization.Principal, id uuid.UUID, expiresAt time.Time, expectedVersion int64, requestID *uuid.UUID) (TokenIssue, error) {
+func (s *Service) RotateToken(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expiresAt time.Time,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (TokenIssue, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return TokenIssue{}, apperror.PermissionDenied
 	}
@@ -220,7 +270,10 @@ func (s *Service) RotateToken(ctx context.Context, principal authorization.Princ
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return TokenIssue{}, apperror.StaleWrite
 	} else if err != nil {
 		return TokenIssue{}, err
@@ -242,7 +295,13 @@ func (s *Service) RotateToken(ctx context.Context, principal authorization.Princ
 	return TokenIssue{Connector: connector, BearerToken: raw}, err
 }
 
-func (s *Service) RevokeToken(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (Connector, error) {
+func (s *Service) RevokeToken(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Connector, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return Connector{}, apperror.PermissionDenied
 	}
@@ -252,7 +311,10 @@ func (s *Service) RevokeToken(ctx context.Context, principal authorization.Princ
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Connector{}, apperror.StaleWrite
 	} else if err != nil {
 		return Connector{}, err
@@ -286,7 +348,12 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (ConnectorContex
 	return ConnectorContext{ID: row.ID, Name: row.Name, OIDCProviderID: row.OidcProviderID, Issuer: row.Issuer}, nil
 }
 
-func (s *Service) CreateUser(ctx context.Context, connector ConnectorContext, input UserInput, requestID *uuid.UUID) (User, error) {
+func (s *Service) CreateUser(
+	ctx context.Context,
+	connector ConnectorContext,
+	input UserInput,
+	requestID *uuid.UUID,
+) (User, error) {
 	input, email, phone, err := normalizeUser(input, connector.OIDCProviderID != nil)
 	if err != nil {
 		return User{}, err
@@ -311,13 +378,20 @@ func (s *Service) CreateUser(ctx context.Context, connector ConnectorContext, in
 	}
 	if connector.OIDCProviderID != nil {
 		if connector.Issuer == nil || input.ExternalID == nil {
-			return User{}, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "externalId is required for an OIDC-bound connector"}
+			return User{}, &ProtocolError{
+				Status:   400,
+				SCIMType: "invalidValue",
+				Detail:   "externalId is required for an OIDC-bound connector",
+			}
 		}
 		if _, err := queries.CreateBoundOIDCIdentity(ctx, scimdb.CreateBoundOIDCIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, ProviderID: connector.OIDCProviderID, Issuer: connector.Issuer, Subject: input.ExternalID}); err != nil {
 			return User{}, protocolDatabaseError(err)
 		}
 		if !input.Active {
-			ids, err := queries.DisableConnectorOIDCIdentity(ctx, scimdb.DisableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID})
+			ids, err := queries.DisableConnectorOIDCIdentity(
+				ctx,
+				scimdb.DisableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID},
+			)
 			if err != nil {
 				return User{}, err
 			}
@@ -326,7 +400,18 @@ func (s *Service) CreateUser(ctx context.Context, connector ConnectorContext, in
 			}
 		}
 	}
-	row, err := queries.CreateSCIMUser(ctx, scimdb.CreateSCIMUserParams{ID: userID, ConnectorID: connector.ID, PersonID: personID, AccountID: accountID, ExternalID: input.ExternalID, UserName: input.UserName, ProvisioningData: string(encoded)})
+	row, err := queries.CreateSCIMUser(
+		ctx,
+		scimdb.CreateSCIMUserParams{
+			ID:               userID,
+			ConnectorID:      connector.ID,
+			PersonID:         personID,
+			AccountID:        accountID,
+			ExternalID:       input.ExternalID,
+			UserName:         input.UserName,
+			ProvisioningData: string(encoded),
+		},
+	)
 	if err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
@@ -350,7 +435,12 @@ func (s *Service) GetUser(ctx context.Context, connector ConnectorContext, id uu
 	return userFromJSON(row.ID, row.ProvisioningData, row.Version, row.CreatedAt, row.UpdatedAt)
 }
 
-func (s *Service) ListUsers(ctx context.Context, connector ConnectorContext, filter string, startIndex, count int) (Page, error) {
+func (s *Service) ListUsers(
+	ctx context.Context,
+	connector ConnectorContext,
+	filter string,
+	startIndex, count int,
+) (Page, error) {
 	attribute, value, err := parseFilter(filter)
 	if err != nil {
 		return Page{}, err
@@ -362,11 +452,23 @@ func (s *Service) ListUsers(ctx context.Context, connector ConnectorContext, fil
 		return Page{}, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "count must be between 0 and 100"}
 	}
 	queries := scimdb.New(s.pool)
-	total, err := queries.CountSCIMUsers(ctx, scimdb.CountSCIMUsersParams{ConnectorID: connector.ID, FilterAttribute: attribute, FilterValue: value})
+	total, err := queries.CountSCIMUsers(
+		ctx,
+		scimdb.CountSCIMUsersParams{ConnectorID: connector.ID, FilterAttribute: attribute, FilterValue: value},
+	)
 	if err != nil {
 		return Page{}, err
 	}
-	rows, err := queries.ListSCIMUsers(ctx, scimdb.ListSCIMUsersParams{ConnectorID: connector.ID, FilterAttribute: attribute, FilterValue: value, PageOffset: int32(startIndex - 1), PageLimit: int32(count)})
+	rows, err := queries.ListSCIMUsers(
+		ctx,
+		scimdb.ListSCIMUsersParams{
+			ConnectorID:     connector.ID,
+			FilterAttribute: attribute,
+			FilterValue:     value,
+			PageOffset:      int32(startIndex - 1),
+			PageLimit:       int32(count),
+		},
+	)
 	if err != nil {
 		return Page{}, err
 	}
@@ -381,7 +483,13 @@ func (s *Service) ListUsers(ctx context.Context, connector ConnectorContext, fil
 	return Page{Items: items, Total: total, StartIndex: startIndex}, nil
 }
 
-func (s *Service) ReplaceUser(ctx context.Context, connector ConnectorContext, id uuid.UUID, input UserInput, requestID *uuid.UUID) (User, error) {
+func (s *Service) ReplaceUser(
+	ctx context.Context,
+	connector ConnectorContext,
+	id uuid.UUID,
+	input UserInput,
+	requestID *uuid.UUID,
+) (User, error) {
 	input, email, phone, err := normalizeUser(input, connector.OIDCProviderID != nil)
 	if err != nil {
 		return User{}, err
@@ -400,8 +508,13 @@ func (s *Service) ReplaceUser(ctx context.Context, connector ConnectorContext, i
 	if err != nil {
 		return User{}, err
 	}
-	if connector.OIDCProviderID != nil && (current.ExternalID == nil || input.ExternalID == nil || *current.ExternalID != *input.ExternalID) {
-		return User{}, &ProtocolError{Status: 409, SCIMType: "mutability", Detail: "externalId is the immutable subject of the linked OIDC identity"}
+	if connector.OIDCProviderID != nil &&
+		(current.ExternalID == nil || input.ExternalID == nil || *current.ExternalID != *input.ExternalID) {
+		return User{}, &ProtocolError{
+			Status:   409,
+			SCIMType: "mutability",
+			Detail:   "externalId is the immutable subject of the linked OIDC identity",
+		}
 	}
 	if current.ProvisioningSource == "scim" && !current.FirstAuthenticatedAt.Valid {
 		if err := queries.UpdateProvisionedPerson(ctx, scimdb.UpdateProvisionedPersonParams{FirstName: input.GivenName, LastName: input.FamilyName, Email: email, Phone: phone, ID: current.PersonID}); err != nil {
@@ -411,7 +524,16 @@ func (s *Service) ReplaceUser(ctx context.Context, connector ConnectorContext, i
 	if err := s.applyActiveState(ctx, tx, connector, current.AccountID, input.Active); err != nil {
 		return User{}, err
 	}
-	row, err := queries.UpdateSCIMMapping(ctx, scimdb.UpdateSCIMMappingParams{ExternalID: input.ExternalID, UserName: input.UserName, ProvisioningData: string(encoded), ConnectorID: connector.ID, ID: id})
+	row, err := queries.UpdateSCIMMapping(
+		ctx,
+		scimdb.UpdateSCIMMappingParams{
+			ExternalID:       input.ExternalID,
+			UserName:         input.UserName,
+			ProvisioningData: string(encoded),
+			ConnectorID:      connector.ID,
+			ID:               id,
+		},
+	)
 	if err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
@@ -424,7 +546,12 @@ func (s *Service) ReplaceUser(ctx context.Context, connector ConnectorContext, i
 	return User{ID: row.ID, Input: input, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
 }
 
-func (s *Service) DeleteUser(ctx context.Context, connector ConnectorContext, id uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) DeleteUser(
+	ctx context.Context,
+	connector ConnectorContext,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -474,7 +601,13 @@ func lockProvisionedUser(ctx context.Context, tx pgx.Tx, connectorID, id uuid.UU
 	return locked, nil
 }
 
-func (s *Service) applyActiveState(ctx context.Context, tx pgx.Tx, connector ConnectorContext, accountID uuid.UUID, active bool) error {
+func (s *Service) applyActiveState(
+	ctx context.Context,
+	tx pgx.Tx,
+	connector ConnectorContext,
+	accountID uuid.UUID,
+	active bool,
+) error {
 	queries := scimdb.New(tx)
 	if active {
 		if connector.OIDCProviderID != nil {
@@ -485,7 +618,10 @@ func (s *Service) applyActiveState(ctx context.Context, tx pgx.Tx, connector Con
 		return queries.EnableSCIMAccountUnlessAdminDisabled(ctx, accountID)
 	}
 	if connector.OIDCProviderID != nil {
-		ids, err := queries.DisableConnectorOIDCIdentity(ctx, scimdb.DisableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID})
+		ids, err := queries.DisableConnectorOIDCIdentity(
+			ctx,
+			scimdb.DisableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID},
+		)
 		if err != nil {
 			return err
 		}
@@ -495,7 +631,13 @@ func (s *Service) applyActiveState(ctx context.Context, tx pgx.Tx, connector Con
 			}
 		}
 	}
-	independent, err := queries.CountIndependentUsableIdentities(ctx, scimdb.CountIndependentUsableIdentitiesParams{AccountID: accountID, ExcludedProviderID: connector.OIDCProviderID})
+	independent, err := queries.CountIndependentUsableIdentities(
+		ctx,
+		scimdb.CountIndependentUsableIdentitiesParams{
+			AccountID:          accountID,
+			ExcludedProviderID: connector.OIDCProviderID,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -509,12 +651,19 @@ func (s *Service) applyActiveState(ctx context.Context, tx pgx.Tx, connector Con
 		if err := queries.SetProvisionedAccountStatus(ctx, scimdb.SetProvisionedAccountStatusParams{Status: "disabled", ID: accountID}); err != nil {
 			return err
 		}
-		return queries.RevokeSessionsForAccount(ctx, scimdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: stringPointer("scim_deprovisioned")})
+		return queries.RevokeSessionsForAccount(
+			ctx,
+			scimdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: stringPointer("scim_deprovisioned")},
+		)
 	}
 	return nil
 }
 
-func (s *Service) PreflightReconciliation(ctx context.Context, principal authorization.Principal, provisionalID, targetID uuid.UUID) (ReconciliationReport, error) {
+func (s *Service) PreflightReconciliation(
+	ctx context.Context,
+	principal authorization.Principal,
+	provisionalID, targetID uuid.UUID,
+) (ReconciliationReport, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return ReconciliationReport{}, apperror.PermissionDenied
 	}
@@ -526,7 +675,12 @@ func (s *Service) PreflightReconciliation(ctx context.Context, principal authori
 	return analyzeReconciliation(ctx, tx, principal, provisionalID, targetID)
 }
 
-func (s *Service) Reconcile(ctx context.Context, principal authorization.Principal, provisionalID, targetID uuid.UUID, requestID *uuid.UUID) (ReconciliationReport, error) {
+func (s *Service) Reconcile(
+	ctx context.Context,
+	principal authorization.Principal,
+	provisionalID, targetID uuid.UUID,
+	requestID *uuid.UUID,
+) (ReconciliationReport, error) {
 	if !principal.Has(authorization.SCIMManage) {
 		return ReconciliationReport{}, apperror.PermissionDenied
 	}
@@ -575,7 +729,10 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	if err := accounts.ProtectProvisionedAccountDeactivation(ctx, tx, provisionalID); err != nil {
 		if apperror.IsCode(err, "last_master_required") {
 			report.CanReconcile = false
-			report.Conflicts = append(report.Conflicts, Conflict{Code: "last_master", Message: "Reconciliation must retain an enabled master Account."})
+			report.Conflicts = append(
+				report.Conflicts,
+				Conflict{Code: "last_master", Message: "Reconciliation must retain an enabled master Account."},
+			)
 			return report, nil
 		}
 		return report, err
@@ -606,8 +763,17 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	return report, nil
 }
 
-func analyzeReconciliation(ctx context.Context, tx pgx.Tx, principal authorization.Principal, provisionalID, targetID uuid.UUID) (ReconciliationReport, error) {
-	report := ReconciliationReport{ProvisionalAccountID: provisionalID, TargetAccountID: targetID, Conflicts: []Conflict{}}
+func analyzeReconciliation(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	provisionalID, targetID uuid.UUID,
+) (ReconciliationReport, error) {
+	report := ReconciliationReport{
+		ProvisionalAccountID: provisionalID,
+		TargetAccountID:      targetID,
+		Conflicts:            []Conflict{},
+	}
 	if provisionalID == targetID {
 		return report, apperror.Validation
 	}
@@ -638,11 +804,23 @@ func analyzeReconciliation(ctx context.Context, tx pgx.Tx, principal authorizati
 		return report, err
 	}
 	if source.ProvisioningSource != "scim" || source.FirstAuthenticatedAt.Valid {
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_not_provisional", Message: "Only a SCIM Account that has never authenticated can be reconciled."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:    "source_not_provisional",
+				Message: "Only a SCIM Account that has never authenticated can be reconciled.",
+			},
+		)
 	}
 	if err := people.ValidateProvisionedRoleTransfer(ctx, tx, principal, source.PersonID); err != nil {
 		if apperror.IsCode(err, "master_role_transfer") {
-			report.Conflicts = append(report.Conflicts, Conflict{Code: "master_role_transfer", Message: "The master role must never be transferred by SCIM reconciliation."})
+			report.Conflicts = append(
+				report.Conflicts,
+				Conflict{
+					Code:    "master_role_transfer",
+					Message: "The master role must never be transferred by SCIM reconciliation.",
+				},
+			)
 		} else if apperror.IsCode(err, "permission_denied") {
 			report.Conflicts = append(report.Conflicts, Conflict{Code: "role_transfer_forbidden", Message: "Role transfer requires people.roles.assign and authority to delegate every source role."})
 		} else {
@@ -654,41 +832,91 @@ func analyzeReconciliation(ctx context.Context, tx pgx.Tx, principal authorizati
 		return report, err
 	}
 	if mappings == 0 {
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_mapping_missing", Message: "The source Account has no SCIM mapping."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{Code: "source_mapping_missing", Message: "The source Account has no SCIM mapping."},
+		)
 	}
 	locals, err := queries.CountLocalIdentitiesForAccount(ctx, provisionalID)
 	if err != nil {
 		return report, err
 	}
 	if locals > 0 {
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_local_authentication", Message: "The provisional Account has local password or PIN methods that cannot be transferred safely."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:    "source_local_authentication",
+				Message: "The provisional Account has local password or PIN methods that cannot be transferred safely.",
+			},
+		)
 	}
-	if source.ProfileImageFileID != nil && target.ProfileImageFileID != nil && *source.ProfileImageFileID != *target.ProfileImageFileID {
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "profile_image_conflict", ResourceID: source.ProfileImageFileID, Message: "Both People have different profile images."})
+	if source.ProfileImageFileID != nil && target.ProfileImageFileID != nil &&
+		*source.ProfileImageFileID != *target.ProfileImageFileID {
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:       "profile_image_conflict",
+				ResourceID: source.ProfileImageFileID,
+				Message:    "Both People have different profile images.",
+			},
+		)
 	}
-	connectorConflicts, err := queries.ListSCIMMappingConnectorConflicts(ctx, scimdb.ListSCIMMappingConnectorConflictsParams{SourceAccountID: provisionalID, TargetAccountID: targetID})
+	connectorConflicts, err := queries.ListSCIMMappingConnectorConflicts(
+		ctx,
+		scimdb.ListSCIMMappingConnectorConflictsParams{SourceAccountID: provisionalID, TargetAccountID: targetID},
+	)
 	if err != nil {
 		return report, err
 	}
 	for _, id := range connectorConflicts {
 		id := id
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "connector_mapping_conflict", ResourceID: &id, Message: "Both Accounts have a mapping for the same SCIM connector."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:       "connector_mapping_conflict",
+				ResourceID: &id,
+				Message:    "Both Accounts have a mapping for the same SCIM connector.",
+			},
+		)
 	}
-	openDays, err := queries.ListOpenDayReconciliationConflicts(ctx, scimdb.ListOpenDayReconciliationConflictsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID})
+	openDays, err := queries.ListOpenDayReconciliationConflicts(
+		ctx,
+		scimdb.ListOpenDayReconciliationConflictsParams{
+			SourcePersonID: source.PersonID,
+			TargetPersonID: target.PersonID,
+		},
+	)
 	if err != nil {
 		return report, err
 	}
 	for _, id := range openDays {
 		id := id
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "open_day_assignment_conflict", ResourceID: &id, Message: "The People hold different positions on the same Open Day."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:       "open_day_assignment_conflict",
+				ResourceID: &id,
+				Message:    "The People hold different positions on the same Open Day.",
+			},
+		)
 	}
-	labRules, err := queries.ListPendingLabRuleConflicts(ctx, scimdb.ListPendingLabRuleConflictsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID})
+	labRules, err := queries.ListPendingLabRuleConflicts(
+		ctx,
+		scimdb.ListPendingLabRuleConflictsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID},
+	)
 	if err != nil {
 		return report, err
 	}
 	for _, id := range labRules {
 		id := id
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "lab_rules_request_conflict", ResourceID: &id, Message: "The People have pending requests for different Lab Rules versions."})
+		report.Conflicts = append(
+			report.Conflicts,
+			Conflict{
+				Code:       "lab_rules_request_conflict",
+				ResourceID: &id,
+				Message:    "The People have pending requests for different Lab Rules versions.",
+			},
+		)
 	}
 	report.CanReconcile = len(report.Conflicts) == 0
 	return report, nil
@@ -702,8 +930,15 @@ func normalizeUser(input UserInput, requireExternalID bool) (UserInput, *string,
 		trimmed := strings.TrimSpace(*input.ExternalID)
 		input.ExternalID = &trimmed
 	}
-	if input.UserName == "" || len(input.UserName) > 255 || input.GivenName == "" || len(input.GivenName) > 100 || input.FamilyName == "" || len(input.FamilyName) > 100 || (requireExternalID && (input.ExternalID == nil || *input.ExternalID == "")) {
-		return UserInput{}, nil, nil, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "userName, name, and the connector-required externalId must be valid"}
+	if input.UserName == "" || len(input.UserName) > 255 || input.GivenName == "" || len(input.GivenName) > 100 ||
+		input.FamilyName == "" ||
+		len(input.FamilyName) > 100 ||
+		(requireExternalID && (input.ExternalID == nil || *input.ExternalID == "")) {
+		return UserInput{}, nil, nil, &ProtocolError{
+			Status:   400,
+			SCIMType: "invalidValue",
+			Detail:   "userName, name, and the connector-required externalId must be valid",
+		}
 	}
 	emailValue := primaryValue(input.Emails)
 	phoneValue := primaryValue(input.PhoneNumbers)
@@ -711,18 +946,30 @@ func normalizeUser(input UserInput, requireExternalID bool) (UserInput, *string,
 	if emailValue != "" {
 		parsed, err := mail.ParseAddress(emailValue)
 		if err != nil || parsed.Address != emailValue {
-			return UserInput{}, nil, nil, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "The primary email is invalid"}
+			return UserInput{}, nil, nil, &ProtocolError{
+				Status:   400,
+				SCIMType: "invalidValue",
+				Detail:   "The primary email is invalid",
+			}
 		}
 		email = &emailValue
 	}
 	if phoneValue != "" {
 		if len(phoneValue) > 64 {
-			return UserInput{}, nil, nil, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "The primary phone number is invalid"}
+			return UserInput{}, nil, nil, &ProtocolError{
+				Status:   400,
+				SCIMType: "invalidValue",
+				Detail:   "The primary phone number is invalid",
+			}
 		}
 		phone = &phoneValue
 	}
 	if email == nil && phone == nil {
-		return UserInput{}, nil, nil, &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "A primary email or phone number is required"}
+		return UserInput{}, nil, nil, &ProtocolError{
+			Status:   400,
+			SCIMType: "invalidValue",
+			Detail:   "A primary email or phone number is required",
+		}
 	}
 	return input, email, phone, nil
 }
@@ -749,7 +996,11 @@ func parseFilter(filter string) (string, string, error) {
 	}
 	matches := filterPattern.FindStringSubmatch(filter)
 	if len(matches) != 3 {
-		return "", "", &ProtocolError{Status: 400, SCIMType: "invalidFilter", Detail: "Only userName eq and externalId eq filters are supported"}
+		return "", "", &ProtocolError{
+			Status:   400,
+			SCIMType: "invalidFilter",
+			Detail:   "Only userName eq and externalId eq filters are supported",
+		}
 	}
 	attribute := matches[1]
 	if strings.EqualFold(attribute, "username") {
@@ -776,10 +1027,29 @@ func (s *Service) getConnector(ctx context.Context, id uuid.UUID) (Connector, er
 	if err != nil {
 		return Connector{}, err
 	}
-	return connectorFrom(row.ID, row.Name, row.OidcProviderID, row.Enabled, row.TokenExpiresAt, row.TokenRevokedAt, row.Version, row.CreatedAt, row.UpdatedAt), nil
+	return connectorFrom(
+		row.ID,
+		row.Name,
+		row.OidcProviderID,
+		row.Enabled,
+		row.TokenExpiresAt,
+		row.TokenRevokedAt,
+		row.Version,
+		row.CreatedAt,
+		row.UpdatedAt,
+	), nil
 }
 
-func connectorFrom(id uuid.UUID, name string, providerID *uuid.UUID, enabled bool, tokenExpires time.Time, tokenRevoked pgtype.Timestamptz, version int64, createdAt, updatedAt time.Time) Connector {
+func connectorFrom(
+	id uuid.UUID,
+	name string,
+	providerID *uuid.UUID,
+	enabled bool,
+	tokenExpires time.Time,
+	tokenRevoked pgtype.Timestamptz,
+	version int64,
+	createdAt, updatedAt time.Time,
+) Connector {
 	var expires, revoked *time.Time
 	if !tokenExpires.Equal(time.Unix(0, 0).UTC()) {
 		value := tokenExpires.UTC()
@@ -789,7 +1059,17 @@ func connectorFrom(id uuid.UUID, name string, providerID *uuid.UUID, enabled boo
 		value := tokenRevoked.Time.UTC()
 		revoked = &value
 	}
-	return Connector{ID: id, Name: name, OIDCProviderID: providerID, Enabled: enabled, TokenExpiresAt: expires, TokenRevokedAt: revoked, Version: version, CreatedAt: createdAt, UpdatedAt: updatedAt}
+	return Connector{
+		ID:             id,
+		Name:           name,
+		OIDCProviderID: providerID,
+		Enabled:        enabled,
+		TokenExpiresAt: expires,
+		TokenRevokedAt: revoked,
+		Version:        version,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
+	}
 }
 
 func databaseError(err error) error {
@@ -806,7 +1086,11 @@ func databaseError(err error) error {
 func protocolDatabaseError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return &ProtocolError{Status: 409, SCIMType: "uniqueness", Detail: "A connector-scoped identifier or external identity is already in use"}
+		return &ProtocolError{
+			Status:   409,
+			SCIMType: "uniqueness",
+			Detail:   "A connector-scoped identifier or external identity is already in use",
+		}
 	}
 	if errors.As(err, &postgresError) && (postgresError.Code == "23503" || postgresError.Code == "23514") {
 		return &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "The supplied User data is invalid"}

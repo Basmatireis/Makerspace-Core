@@ -37,7 +37,15 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eventService, err := events.NewService(e.pool, config.Config{MakerspaceTimeZone: "Europe/Vienna", PublicBaseURL: baseURL, ChallengeHMACKey: []byte("calendar-limiter-key")}, files.NewService(e.pool, store))
+	eventService, err := events.NewService(
+		e.pool,
+		config.Config{
+			MakerspaceTimeZone: "Europe/Vienna",
+			PublicBaseURL:      baseURL,
+			ChallengeHMACKey:   []byte("calendar-limiter-key"),
+		},
+		files.NewService(e.pool, store),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +70,10 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		start := today.AddDate(0, 0, days).Add(16 * time.Hour)
 		return start, start.Add(3 * time.Hour)
 	}
-	requirements := []opendays.RequirementInput{{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}}, {Kind: "trainee", RequiredCount: 0}}
+	requirements := []opendays.RequirementInput{
+		{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+		{Kind: "trainee", RequiredCount: 0},
+	}
 	var schedule opendays.Schedule
 	version := period.Version
 	for _, offset := range []int{9, 3, 5, 7, 4, 8, 6} { // created out of order on purpose
@@ -77,7 +88,9 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Staffing is not public yet.
-	if got := e.expect(e.as(staff, http.MethodGet, "/signage/calendar", nil), http.StatusOK)["openDays"].([]any); len(got) != 0 {
+	if got := e.expect(e.as(staff, http.MethodGet, "/signage/calendar", nil), http.StatusOK)["openDays"].([]any); len(
+		got,
+	) != 0 {
 		t.Fatalf("period in staffing is visible: %v", got)
 	}
 	published, err := openDays.TransitionPeriod(ctx, admin, period.ID, staffing.Version, "published", nil)
@@ -112,7 +125,12 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		}
 	}
 	for index := 0; index < 7; index++ {
-		makeEvent(fmt.Sprintf("Internal %d", index), fmt.Sprintf("Public event %d", index), 30+index*10-(index%2)*5, true)
+		makeEvent(
+			fmt.Sprintf("Internal %d", index),
+			fmt.Sprintf("Public event %d", index),
+			30+index*10-(index%2)*5,
+			true,
+		)
 	}
 	makeEvent("Unpublished", "Not public", 24, false)
 
@@ -138,7 +156,8 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		previous := ""
 		for _, raw := range list {
 			entry := raw.(map[string]any)
-			if len(entry) != 3 || entry["location"] != "Workshop floor" || entry["title"] == "Not public" || entry["title"] == nil {
+			if len(entry) != 3 || entry["location"] != "Workshop floor" || entry["title"] == "Not public" ||
+				entry["title"] == nil {
 				t.Fatalf("%s: event = %v", source, entry)
 			}
 			if starts := entry["startsAt"].(string); starts < previous {
@@ -203,7 +222,11 @@ func TestSignageCalendarPermissions(t *testing.T) {
 		"local":    e.staff("cal-local", authorization.LocalServicesManage),
 	} {
 		t.Run("denied "+name, func(t *testing.T) {
-			e.expectCode(e.as(session, http.MethodGet, "/signage/calendar", nil), http.StatusForbidden, "permission_denied")
+			e.expectCode(
+				e.as(session, http.MethodGet, "/signage/calendar", nil),
+				http.StatusForbidden,
+				"permission_denied",
+			)
 		})
 	}
 	t.Run("anonymous", func(t *testing.T) {

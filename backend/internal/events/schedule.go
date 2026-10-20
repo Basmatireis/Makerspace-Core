@@ -12,7 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *Service) ListSessions(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]Session, error) {
+func (s *Service) ListSessions(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]Session, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -32,7 +36,13 @@ func (s *Service) ListSessions(ctx context.Context, principal authorization.Prin
 	return result, nil
 }
 
-func (s *Service) CreateSession(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, input SessionInput, requestID *uuid.UUID) (Session, error) {
+func (s *Service) CreateSession(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	input SessionInput,
+	requestID *uuid.UUID,
+) (Session, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Session{}, apperror.PermissionDenied
 	}
@@ -50,7 +60,20 @@ func (s *Service) CreateSession(ctx context.Context, principal authorization.Pri
 		return Session{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateEventSession(ctx, eventsdb.CreateEventSessionParams{ID: id, EventID: eventID, Name: input.Name, Location: input.Location, Description: input.Description, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), IsPublic: input.IsPublic, Status: input.Status})
+	row, err := q.CreateEventSession(
+		ctx,
+		eventsdb.CreateEventSessionParams{
+			ID:          id,
+			EventID:     eventID,
+			Name:        input.Name,
+			Location:    input.Location,
+			Description: input.Description,
+			StartsAt:    input.StartsAt.UTC(),
+			EndsAt:      input.EndsAt.UTC(),
+			IsPublic:    input.IsPublic,
+			Status:      input.Status,
+		},
+	)
 	if err != nil {
 		return Session{}, databaseError(err)
 	}
@@ -64,7 +87,13 @@ func (s *Service) CreateSession(ctx context.Context, principal authorization.Pri
 	return sessionFromRow(row), nil
 }
 
-func (s *Service) UpdateSession(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, input SessionInput, requestID *uuid.UUID) (Session, error) {
+func (s *Service) UpdateSession(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	input SessionInput,
+	requestID *uuid.UUID,
+) (Session, error) {
 	if !principal.Has(authorization.EventsManage) {
 		return Session{}, apperror.PermissionDenied
 	}
@@ -94,7 +123,21 @@ func (s *Service) UpdateSession(ctx context.Context, principal authorization.Pri
 	if int64(current.Version) != input.ExpectedVersion {
 		return Session{}, apperror.StaleWrite
 	}
-	row, err := q.UpdateEventSession(ctx, eventsdb.UpdateEventSessionParams{Name: input.Name, Location: input.Location, Description: input.Description, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), IsPublic: input.IsPublic, Status: input.Status, ID: id, EventID: eventID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventSession(
+		ctx,
+		eventsdb.UpdateEventSessionParams{
+			Name:            input.Name,
+			Location:        input.Location,
+			Description:     input.Description,
+			StartsAt:        input.StartsAt.UTC(),
+			EndsAt:          input.EndsAt.UTC(),
+			IsPublic:        input.IsPublic,
+			Status:          input.Status,
+			ID:              id,
+			EventID:         eventID,
+			ExpectedVersion: int32(input.ExpectedVersion),
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, apperror.StaleWrite
 	}
@@ -111,7 +154,13 @@ func (s *Service) UpdateSession(ctx context.Context, principal authorization.Pri
 	return sessionFromRow(row), nil
 }
 
-func (s *Service) DeleteSession(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteSession(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsManage) {
 		return apperror.PermissionDenied
 	}
@@ -147,7 +196,11 @@ func (s *Service) DeleteSession(ctx context.Context, principal authorization.Pri
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ListShifts(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]Shift, error) {
+func (s *Service) ListShifts(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+) ([]Shift, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
@@ -162,12 +215,37 @@ func (s *Service) ListShifts(ctx context.Context, principal authorization.Princi
 	}
 	result := make([]Shift, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, Shift{ID: row.ID, EventID: row.EventID, SessionID: row.SessionID, Name: row.Name, Description: row.Description, StartsAt: row.StartsAt, EndsAt: row.EndsAt, SignupOpensAt: pgTime(row.SignupOpensAt), SignupClosesAt: pgTime(row.SignupClosesAt), IsPublic: row.IsPublic, Status: row.Status, LinkedSessionStatus: row.SessionStatus, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		result = append(
+			result,
+			Shift{
+				ID:                  row.ID,
+				EventID:             row.EventID,
+				SessionID:           row.SessionID,
+				Name:                row.Name,
+				Description:         row.Description,
+				StartsAt:            row.StartsAt,
+				EndsAt:              row.EndsAt,
+				SignupOpensAt:       pgTime(row.SignupOpensAt),
+				SignupClosesAt:      pgTime(row.SignupClosesAt),
+				IsPublic:            row.IsPublic,
+				Status:              row.Status,
+				LinkedSessionStatus: row.SessionStatus,
+				Version:             int64(row.Version),
+				CreatedAt:           row.CreatedAt,
+				UpdatedAt:           row.UpdatedAt,
+			},
+		)
 	}
 	return result, nil
 }
 
-func (s *Service) CreateShift(ctx context.Context, principal authorization.Principal, eventID uuid.UUID, input ShiftInput, requestID *uuid.UUID) (Shift, error) {
+func (s *Service) CreateShift(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	input ShiftInput,
+	requestID *uuid.UUID,
+) (Shift, error) {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return Shift{}, apperror.PermissionDenied
 	}
@@ -185,7 +263,22 @@ func (s *Service) CreateShift(ctx context.Context, principal authorization.Princ
 		return Shift{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateEventShift(ctx, eventsdb.CreateEventShiftParams{ID: id, EventID: eventID, SessionID: input.SessionID, Name: input.Name, Description: input.Description, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), SignupOpensAt: toPGTime(input.SignupOpensAt), SignupClosesAt: toPGTime(input.SignupClosesAt), IsPublic: input.IsPublic, Status: input.Status})
+	row, err := q.CreateEventShift(
+		ctx,
+		eventsdb.CreateEventShiftParams{
+			ID:             id,
+			EventID:        eventID,
+			SessionID:      input.SessionID,
+			Name:           input.Name,
+			Description:    input.Description,
+			StartsAt:       input.StartsAt.UTC(),
+			EndsAt:         input.EndsAt.UTC(),
+			SignupOpensAt:  toPGTime(input.SignupOpensAt),
+			SignupClosesAt: toPGTime(input.SignupClosesAt),
+			IsPublic:       input.IsPublic,
+			Status:         input.Status,
+		},
+	)
 	if err != nil {
 		return Shift{}, databaseError(err)
 	}
@@ -199,7 +292,13 @@ func (s *Service) CreateShift(ctx context.Context, principal authorization.Princ
 	return shiftFromRow(row), nil
 }
 
-func (s *Service) UpdateShift(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, input ShiftInput, requestID *uuid.UUID) (Shift, error) {
+func (s *Service) UpdateShift(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	input ShiftInput,
+	requestID *uuid.UUID,
+) (Shift, error) {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return Shift{}, apperror.PermissionDenied
 	}
@@ -229,7 +328,23 @@ func (s *Service) UpdateShift(ctx context.Context, principal authorization.Princ
 	if int64(current.Version) != input.ExpectedVersion {
 		return Shift{}, apperror.StaleWrite
 	}
-	row, err := q.UpdateEventShift(ctx, eventsdb.UpdateEventShiftParams{SessionID: input.SessionID, Name: input.Name, Description: input.Description, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), SignupOpensAt: toPGTime(input.SignupOpensAt), SignupClosesAt: toPGTime(input.SignupClosesAt), IsPublic: input.IsPublic, Status: input.Status, ID: id, EventID: eventID, ExpectedVersion: int32(input.ExpectedVersion)})
+	row, err := q.UpdateEventShift(
+		ctx,
+		eventsdb.UpdateEventShiftParams{
+			SessionID:       input.SessionID,
+			Name:            input.Name,
+			Description:     input.Description,
+			StartsAt:        input.StartsAt.UTC(),
+			EndsAt:          input.EndsAt.UTC(),
+			SignupOpensAt:   toPGTime(input.SignupOpensAt),
+			SignupClosesAt:  toPGTime(input.SignupClosesAt),
+			IsPublic:        input.IsPublic,
+			Status:          input.Status,
+			ID:              id,
+			EventID:         eventID,
+			ExpectedVersion: int32(input.ExpectedVersion),
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Shift{}, apperror.StaleWrite
 	}
@@ -246,7 +361,13 @@ func (s *Service) UpdateShift(ctx context.Context, principal authorization.Princ
 	return shiftFromRow(row), nil
 }
 
-func (s *Service) DeleteShift(ctx context.Context, principal authorization.Principal, eventID, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+func (s *Service) DeleteShift(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.EventsStaffingManage) {
 		return apperror.PermissionDenied
 	}
@@ -330,10 +451,38 @@ func validateShiftInput(input ShiftInput) (ShiftInput, error) {
 }
 
 func sessionFromRow(row eventsdb.EventSession) Session {
-	return Session{ID: row.ID, EventID: row.EventID, Name: row.Name, Location: row.Location, Description: row.Description, StartsAt: row.StartsAt, EndsAt: row.EndsAt, IsPublic: row.IsPublic, Status: row.Status, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Session{
+		ID:          row.ID,
+		EventID:     row.EventID,
+		Name:        row.Name,
+		Location:    row.Location,
+		Description: row.Description,
+		StartsAt:    row.StartsAt,
+		EndsAt:      row.EndsAt,
+		IsPublic:    row.IsPublic,
+		Status:      row.Status,
+		Version:     int64(row.Version),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
 }
 func shiftFromRow(row eventsdb.EventShift) Shift {
-	return Shift{ID: row.ID, EventID: row.EventID, SessionID: row.SessionID, Name: row.Name, Description: row.Description, StartsAt: row.StartsAt, EndsAt: row.EndsAt, SignupOpensAt: pgTime(row.SignupOpensAt), SignupClosesAt: pgTime(row.SignupClosesAt), IsPublic: row.IsPublic, Status: row.Status, Version: int64(row.Version), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Shift{
+		ID:             row.ID,
+		EventID:        row.EventID,
+		SessionID:      row.SessionID,
+		Name:           row.Name,
+		Description:    row.Description,
+		StartsAt:       row.StartsAt,
+		EndsAt:         row.EndsAt,
+		SignupOpensAt:  pgTime(row.SignupOpensAt),
+		SignupClosesAt: pgTime(row.SignupClosesAt),
+		IsPublic:       row.IsPublic,
+		Status:         row.Status,
+		Version:        int64(row.Version),
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	}
 }
 
 func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid.UUID, postEventWork bool) error {

@@ -62,10 +62,13 @@ func TestParseSyntheticBambuArchive(t *testing.T) {
 	if result.Metadata.LayerCount == nil || *result.Metadata.LayerCount != 42 {
 		t.Fatalf("layer count = %v", result.Metadata.LayerCount)
 	}
-	if len(result.Filaments) != 3 || result.Filaments[0].ID != "3" || result.Filaments[1].ID != "7" || result.Filaments[2].ID != "11" {
+	if len(result.Filaments) != 3 || result.Filaments[0].ID != "3" || result.Filaments[1].ID != "7" ||
+		result.Filaments[2].ID != "11" {
 		t.Fatalf("filaments = %+v", result.Filaments)
 	}
-	if result.Filaments[0].NozzleDiameter == nil || *result.Filaments[0].NozzleDiameter != 0.4 || len(result.Filaments[0].Extruders) != 1 || result.Filaments[0].Extruders[0] != 0 {
+	if result.Filaments[0].NozzleDiameter == nil || *result.Filaments[0].NozzleDiameter != 0.4 ||
+		len(result.Filaments[0].Extruders) != 1 ||
+		result.Filaments[0].Extruders[0] != 0 {
 		t.Fatalf("filament mapping = %+v", result.Filaments[0])
 	}
 	if len(result.Previews) != 2 {
@@ -90,7 +93,10 @@ func TestParseH2DFilamentRoutesAndSequence(t *testing.T) {
 			<nozzle id="0" extruder_id="1"/><nozzle id="1" extruder_id="0"/>
 			<filament id="1" used_g="2.5"/><filament id="5" used_g="4.5"/>
 		</config>`)},
-		{name: "Metadata/filament_sequence.json", data: []byte(`{"plate_1":{"nozzle_sequence":[0,1],"sequence":[5,1,5]}}`)},
+		{
+			name: "Metadata/filament_sequence.json",
+			data: []byte(`{"plate_1":{"nozzle_sequence":[0,1],"sequence":[5,1,5]}}`),
+		},
 	})
 	result, err := Parse(bytes.NewReader(archive), int64(len(archive)), Limits{})
 	if err != nil {
@@ -140,8 +146,18 @@ func TestOpenValidatedRejectsUnsafeArchives(t *testing.T) {
 	}{
 		{name: "parent traversal", entry: zipEntry{name: "../secret", data: []byte("x")}, wantCode: "unsafe_path"},
 		{name: "windows path", entry: zipEntry{name: `C:\\secret`, data: []byte("x")}, wantCode: "unsafe_path"},
-		{name: "entry too large", entry: zipEntry{name: "large", data: []byte("12")}, limits: Limits{MaxEntrySize: 1}, wantCode: "entry_size"},
-		{name: "expanded total", entry: zipEntry{name: "large", data: []byte("12")}, limits: Limits{MaxExpandedSize: 1}, wantCode: "expanded_size"},
+		{
+			name:     "entry too large",
+			entry:    zipEntry{name: "large", data: []byte("12")},
+			limits:   Limits{MaxEntrySize: 1},
+			wantCode: "entry_size",
+		},
+		{
+			name:     "expanded total",
+			entry:    zipEntry{name: "large", data: []byte("12")},
+			limits:   Limits{MaxExpandedSize: 1},
+			wantCode: "expanded_size",
+		},
 	}
 	for _, test := range tests {
 		test := test
@@ -157,7 +173,10 @@ func TestOpenValidatedRejectsUnsafeArchives(t *testing.T) {
 func TestOpenValidatedRejectsSymlinkAndEncryptedFlag(t *testing.T) {
 	t.Parallel()
 
-	symlinkArchive := makeZIP(t, []zipEntry{{name: "Metadata/link", data: []byte("target"), mode: 0o777 | fs.ModeSymlink}})
+	symlinkArchive := makeZIP(
+		t,
+		[]zipEntry{{name: "Metadata/link", data: []byte("target"), mode: 0o777 | fs.ModeSymlink}},
+	)
 	_, err := OpenValidated(bytes.NewReader(symlinkArchive), int64(len(symlinkArchive)), Limits{})
 	assertValidationCode(t, err, "unsafe_entry_type")
 
@@ -173,7 +192,11 @@ func TestOpenValidatedRejectsCompressedSizeAndEntryCount(t *testing.T) {
 	_, err := OpenValidated(bytes.NewReader(archive), int64(len(archive)), Limits{MaxEntries: 1})
 	assertValidationCode(t, err, "entry_count")
 
-	_, err = OpenValidated(bytes.NewReader(archive), int64(len(archive)), Limits{MaxCompressedSize: int64(len(archive) - 1)})
+	_, err = OpenValidated(
+		bytes.NewReader(archive),
+		int64(len(archive)),
+		Limits{MaxCompressedSize: int64(len(archive) - 1)},
+	)
 	assertValidationCode(t, err, "compressed_size")
 }
 

@@ -28,7 +28,12 @@ type S3 struct {
 func NewS3(ctx context.Context, config S3Config) (*S3, error) {
 	options := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(config.Region)}
 	if config.AccessKeyID != "" || config.SecretAccessKey != "" {
-		options = append(options, awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(config.AccessKeyID, config.SecretAccessKey, "")))
+		options = append(
+			options,
+			awsconfig.WithCredentialsProvider(
+				credentials.NewStaticCredentialsProvider(config.AccessKeyID, config.SecretAccessKey, ""),
+			),
+		)
 	}
 	awsConfig, err := awsconfig.LoadDefaultConfig(ctx, options...)
 	if err != nil {

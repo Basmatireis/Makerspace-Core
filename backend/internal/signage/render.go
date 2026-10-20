@@ -103,7 +103,16 @@ func parseLocal(value string) (time.Time, bool) {
 		parsed, _ := strconv.Atoi(text)
 		return parsed
 	}
-	return time.Date(number(match[1]), time.Month(number(match[2])), number(match[3]), number(match[4]), number(match[5]), 0, 0, time.UTC), true
+	return time.Date(
+		number(match[1]),
+		time.Month(number(match[2])),
+		number(match[3]),
+		number(match[4]),
+		number(match[5]),
+		0,
+		0,
+		time.UTC,
+	), true
 }
 
 func formatFieldValue(field RenderField, value string, now time.Time, machines map[string]string) string {
@@ -174,7 +183,12 @@ func UnknownPlaceholders(fieldKeys []string, title, body string) []string {
 // RenderAnnouncement fills a template. Missing optional values become empty and unknown
 // placeholders stay visible as typed. Go is authoritative; the TypeScript copy in the admin
 // preview runs the same vectors (api/testdata/signage-announcement-render.json).
-func RenderAnnouncement(template RenderTemplate, values map[string]string, timing RenderTiming, context RenderContext) Rendered {
+func RenderAnnouncement(
+	template RenderTemplate,
+	values map[string]string,
+	timing RenderTiming,
+	context RenderContext,
+) Rendered {
 	zone := context.TimeZone
 	if zone == nil {
 		zone = time.UTC
@@ -192,7 +206,14 @@ func RenderAnnouncement(template RenderTemplate, values map[string]string, timin
 	}
 	if timing.EndsAt != nil {
 		endsAt := timing.EndsAt.In(zone)
-		lookup["ends_at"], lookup["ends_on"], lookup["ends"] = formatTime(endsAt), formatDate(endsAt), describeMoment(endsAt, now)
+		lookup["ends_at"], lookup["ends_on"], lookup["ends"] = formatTime(
+			endsAt,
+		), formatDate(
+			endsAt,
+		), describeMoment(
+			endsAt,
+			now,
+		)
 	}
 	for _, field := range template.Fields {
 		lookup[field.Key] = formatFieldValue(field, values[field.Key], now, context.MachineNames)

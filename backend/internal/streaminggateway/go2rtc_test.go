@@ -48,7 +48,10 @@ func TestRenderGo2RTCContents(t *testing.T) {
 }
 
 func TestRenderGo2RTCIsDeterministicAndEmptyIsValid(t *testing.T) {
-	cameras := []Camera{{StreamName: "cam-a", SourceURL: "rtspx://bblp:1@10.0.0.1:322/streaming/live/1"}, {StreamName: "cam-b", SourceURL: "rtspx://bblp:2@10.0.0.2:322/streaming/live/1"}}
+	cameras := []Camera{
+		{StreamName: "cam-a", SourceURL: "rtspx://bblp:1@10.0.0.1:322/streaming/live/1"},
+		{StreamName: "cam-b", SourceURL: "rtspx://bblp:2@10.0.0.2:322/streaming/live/1"},
+	}
 	reversed := []Camera{cameras[1], cameras[0]}
 	options := DefaultRenderOptions()
 	if RenderGo2RTC(cameras, options) != RenderGo2RTC(reversed, options) {
@@ -61,7 +64,10 @@ func TestRenderGo2RTCIsDeterministicAndEmptyIsValid(t *testing.T) {
 }
 
 func TestRenderQuotesHostileValues(t *testing.T) {
-	rendered := RenderGo2RTC([]Camera{{StreamName: "cam-x", SourceURL: "rtspx://u:p\"\nstreams:\n  evil: [exec:id]@10.0.0.1:322/x"}}, DefaultRenderOptions())
+	rendered := RenderGo2RTC(
+		[]Camera{{StreamName: "cam-x", SourceURL: "rtspx://u:p\"\nstreams:\n  evil: [exec:id]@10.0.0.1:322/x"}},
+		DefaultRenderOptions(),
+	)
 	if strings.Contains(rendered, "\n  evil") {
 		t.Fatalf("a source value escaped its YAML scalar:\n%s", rendered)
 	}
@@ -78,10 +84,15 @@ func TestParseStreamsNeverReadsProducerURLs(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := streams["cam-a"]
-	if a.Consumers != 2 || a.Receivers != 1 || a.Codec == nil || *a.Codec != "h264" || a.Width == nil || *a.Width != 1920 || a.FPS == nil || *a.FPS != 30 {
+	if a.Consumers != 2 || a.Receivers != 1 || a.Codec == nil || *a.Codec != "h264" || a.Width == nil ||
+		*a.Width != 1920 ||
+		a.FPS == nil ||
+		*a.FPS != 30 {
 		t.Fatalf("cam-a = %+v", a)
 	}
-	if HealthFor(a, true) != "live" || HealthFor(streams["cam-b"], true) != "idle" || HealthFor(streams["cam-c"], true) != "unavailable" || HealthFor(StreamStatus{}, false) != "unavailable" {
+	if HealthFor(a, true) != "live" || HealthFor(streams["cam-b"], true) != "idle" ||
+		HealthFor(streams["cam-c"], true) != "unavailable" ||
+		HealthFor(StreamStatus{}, false) != "unavailable" {
 		t.Fatal("unexpected health mapping")
 	}
 }

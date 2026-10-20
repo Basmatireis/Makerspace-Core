@@ -21,21 +21,37 @@ type EligibilityRole struct {
 	Name string
 }
 
-func (s *Service) Join(ctx context.Context, p authorization.Principal, openDayID, requirementID uuid.UUID, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) Join(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID, requirementID uuid.UUID,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !p.Has(authorization.OpenDaysSignup) {
 		return Assignment{}, apperror.PermissionDenied
 	}
 	return s.assign(ctx, p, openDayID, requirementID, p.PersonID, requestID, "open_day.self_joined")
 }
 
-func (s *Service) Assign(ctx context.Context, p authorization.Principal, openDayID, requirementID, personID uuid.UUID, requestID *uuid.UUID) (Assignment, error) {
+func (s *Service) Assign(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID, requirementID, personID uuid.UUID,
+	requestID *uuid.UUID,
+) (Assignment, error) {
 	if !p.Has(authorization.OpenDaysAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
 	return s.assign(ctx, p, openDayID, requirementID, personID, requestID, "open_day.person_assigned")
 }
 
-func (s *Service) assign(ctx context.Context, p authorization.Principal, openDayID, requirementID, personID uuid.UUID, requestID *uuid.UUID, action string) (Assignment, error) {
+func (s *Service) assign(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID, requirementID, personID uuid.UUID,
+	requestID *uuid.UUID,
+	action string,
+) (Assignment, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Assignment{}, err
@@ -68,9 +84,15 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 		return Assignment{}, apperror.NotFound
 	}
 	if day.Status != "scheduled" || (period.Status != "staffing" && period.Status != "published") {
-		return Assignment{}, conflict("assignment_closed", "Assignments are open only for scheduled Open Days in staffing or published periods")
+		return Assignment{}, conflict(
+			"assignment_closed",
+			"Assignments are open only for scheduled Open Days in staffing or published periods",
+		)
 	}
-	eligible, err := q.PersonEligibleForRequirement(ctx, opendaysdb.PersonEligibleForRequirementParams{PersonID: personID, RequirementID: requirementID})
+	eligible, err := q.PersonEligibleForRequirement(
+		ctx,
+		opendaysdb.PersonEligibleForRequirementParams{PersonID: personID, RequirementID: requirementID},
+	)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -86,7 +108,16 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 	}
 	id := uuid.Must(uuid.NewV7())
 	actor := p.AccountID
-	row, err := q.CreateAssignment(ctx, opendaysdb.CreateAssignmentParams{ID: id, OpenDayID: openDayID, RequirementID: requirementID, PersonID: personID, CreatedByAccountID: &actor})
+	row, err := q.CreateAssignment(
+		ctx,
+		opendaysdb.CreateAssignmentParams{
+			ID:                 id,
+			OpenDayID:          openDayID,
+			RequirementID:      requirementID,
+			PersonID:           personID,
+			CreatedByAccountID: &actor,
+		},
+	)
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -103,15 +134,31 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 	if err := tx.Commit(ctx); err != nil {
 		return Assignment{}, err
 	}
-	return Assignment{ID: row.ID, OpenDayID: row.OpenDayID, RequirementID: row.RequirementID, PersonID: row.PersonID, DisplayName: name, IsCurrentUser: personID == p.PersonID, CreatedAt: row.CreatedAt}, nil
+	return Assignment{
+		ID:            row.ID,
+		OpenDayID:     row.OpenDayID,
+		RequirementID: row.RequirementID,
+		PersonID:      row.PersonID,
+		DisplayName:   name,
+		IsCurrentUser: personID == p.PersonID,
+		CreatedAt:     row.CreatedAt,
+	}, nil
 }
 
-func (s *Service) Leave(ctx context.Context, p authorization.Principal, openDayID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) Leave(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.OpenDaysSignup) {
 		return apperror.PermissionDenied
 	}
 	q := opendaysdb.New(s.pool)
-	assignment, err := q.GetPersonOpenDayAssignment(ctx, opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: openDayID, PersonID: p.PersonID})
+	assignment, err := q.GetPersonOpenDayAssignment(
+		ctx,
+		opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: openDayID, PersonID: p.PersonID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
@@ -121,14 +168,25 @@ func (s *Service) Leave(ctx context.Context, p authorization.Principal, openDayI
 	return s.removeAssignment(ctx, p, openDayID, assignment.ID, true, requestID)
 }
 
-func (s *Service) RemoveAssignment(ctx context.Context, p authorization.Principal, openDayID, assignmentID uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) RemoveAssignment(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID, assignmentID uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.OpenDaysAssign) {
 		return apperror.PermissionDenied
 	}
 	return s.removeAssignment(ctx, p, openDayID, assignmentID, false, requestID)
 }
 
-func (s *Service) removeAssignment(ctx context.Context, p authorization.Principal, openDayID, assignmentID uuid.UUID, self bool, requestID *uuid.UUID) error {
+func (s *Service) removeAssignment(
+	ctx context.Context,
+	p authorization.Principal,
+	openDayID, assignmentID uuid.UUID,
+	self bool,
+	requestID *uuid.UUID,
+) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -175,7 +233,12 @@ func (s *Service) removeAssignment(ctx context.Context, p authorization.Principa
 	return tx.Commit(ctx)
 }
 
-func (s *Service) EligiblePeople(ctx context.Context, p authorization.Principal, requirementID uuid.UUID, search string) ([]MinimalPerson, error) {
+func (s *Service) EligiblePeople(
+	ctx context.Context,
+	p authorization.Principal,
+	requirementID uuid.UUID,
+	search string,
+) ([]MinimalPerson, error) {
 	if !p.Has(authorization.OpenDaysAssign) {
 		return nil, apperror.PermissionDenied
 	}
@@ -185,13 +248,23 @@ func (s *Service) EligiblePeople(ctx context.Context, p authorization.Principal,
 	} else if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListEligiblePeople(ctx, opendaysdb.ListEligiblePeopleParams{RequirementID: requirementID, Search: strings.TrimSpace(search), PageLimit: 50})
+	rows, err := q.ListEligiblePeople(
+		ctx,
+		opendaysdb.ListEligiblePeopleParams{
+			RequirementID: requirementID,
+			Search:        strings.TrimSpace(search),
+			PageLimit:     50,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 	items := make([]MinimalPerson, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, MinimalPerson{PersonID: row.ID, DisplayName: strings.TrimSpace(row.FirstName + " " + row.LastName)})
+		items = append(
+			items,
+			MinimalPerson{PersonID: row.ID, DisplayName: strings.TrimSpace(row.FirstName + " " + row.LastName)},
+		)
 	}
 	return items, nil
 }

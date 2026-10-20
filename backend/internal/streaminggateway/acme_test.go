@@ -25,8 +25,13 @@ func testCertificate(t *testing.T, domain string, notBefore, notAfter time.Time)
 	if err != nil {
 		t.Fatal(err)
 	}
-	template := &x509.Certificate{SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: domain},
-		DNSNames: []string{domain}, NotBefore: notBefore, NotAfter: notAfter}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: domain},
+		DNSNames:     []string{domain},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +40,11 @@ func testCertificate(t *testing.T, domain string, notBefore, notAfter time.Time)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return pem.EncodeToMemory(
+			&pem.Block{Type: "CERTIFICATE", Bytes: der},
+		), pem.EncodeToMemory(
+			&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER},
+		)
 }
 
 type fakeObtainer struct {
@@ -104,7 +113,8 @@ func TestSelectTLSMode(t *testing.T) {
 		t.Fatalf("want message listing both options, got %v", err)
 	}
 	// Only one ACME setting.
-	if _, err = SelectTLSMode(cert, key, host, "a@example.org", ""); err == nil || !strings.Contains(err.Error(), "CLOUDFLARE_DNS_API_TOKEN") {
+	if _, err = SelectTLSMode(cert, key, host, "a@example.org", ""); err == nil ||
+		!strings.Contains(err.Error(), "CLOUDFLARE_DNS_API_TOKEN") {
 		t.Fatalf("want error about the missing token, got %v", err)
 	}
 	// ACME mode.
@@ -215,7 +225,12 @@ func TestCertManagerReusesStoredCertificate(t *testing.T) {
 	first.Step(context.Background())
 
 	// A new manager (restart) with the same directory serves immediately and does not obtain again.
-	second, err := NewCertManager(first.dir, "signage-gw.example.org", obtainer, slog.New(slog.NewTextHandler(&logs, nil)))
+	second, err := NewCertManager(
+		first.dir,
+		"signage-gw.example.org",
+		obtainer,
+		slog.New(slog.NewTextHandler(&logs, nil)),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +256,11 @@ func TestCertManagerReusesStoredCertificate(t *testing.T) {
 func TestCertManagerBackoffAndNoSecretsInLogs(t *testing.T) {
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	var logs bytes.Buffer
-	obtainer := &fakeObtainer{t: t, domain: "signage-gw.example.org", err: errors.New("cloudflare rejected token " + testToken)}
+	obtainer := &fakeObtainer{
+		t:      t,
+		domain: "signage-gw.example.org",
+		err:    errors.New("cloudflare rejected token " + testToken),
+	}
 	m := newTestManager(t, obtainer, &logs)
 	m.now = func() time.Time { return now }
 
@@ -249,7 +268,14 @@ func TestCertManagerBackoffAndNoSecretsInLogs(t *testing.T) {
 	for range 6 {
 		waits = append(waits, m.Step(context.Background()))
 	}
-	want := []time.Duration{10 * time.Minute, 20 * time.Minute, 40 * time.Minute, 80 * time.Minute, 160 * time.Minute, 320 * time.Minute}
+	want := []time.Duration{
+		10 * time.Minute,
+		20 * time.Minute,
+		40 * time.Minute,
+		80 * time.Minute,
+		160 * time.Minute,
+		320 * time.Minute,
+	}
 	for i := range want {
 		if waits[i] != want[i] {
 			t.Fatalf("backoff %d = %v, want %v", i, waits[i], want[i])
@@ -301,7 +327,12 @@ func TestCertManagerRenewalFailingStatus(t *testing.T) {
 
 func TestCertManagerRunStopsWithContext(t *testing.T) {
 	var logs bytes.Buffer
-	obtainer := &fakeObtainer{t: t, domain: "signage-gw.example.org", validity: 90 * 24 * time.Hour, startedAt: time.Now()}
+	obtainer := &fakeObtainer{
+		t:         t,
+		domain:    "signage-gw.example.org",
+		validity:  90 * 24 * time.Hour,
+		startedAt: time.Now(),
+	}
 	m := newTestManager(t, obtainer, &logs)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

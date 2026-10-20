@@ -15,9 +15,24 @@ import (
 )
 
 func productFromGet(row machinelogbookdb.GetFilamentProductRow) FilamentProduct {
-	return FilamentProduct{ID: row.ID, Manufacturer: row.Manufacturer, Name: row.Name, MaterialID: row.MaterialID, MaterialName: row.MaterialName,
-		NetWeightG: decimalString(row.NetWeightG), DefaultPrice: nullableDecimal(row.DefaultPrice), Packaging: row.Packaging, Notes: row.Notes,
-		Active: row.Active, InUseCount: row.InUseCount, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return FilamentProduct{
+		ID:           row.ID,
+		Manufacturer: row.Manufacturer,
+		Name:         row.Name,
+		MaterialID:   row.MaterialID,
+		MaterialName: row.MaterialName,
+		NetWeightG: decimalString(
+			row.NetWeightG,
+		),
+		DefaultPrice: nullableDecimal(row.DefaultPrice),
+		Packaging:    row.Packaging,
+		Notes:        row.Notes,
+		Active:       row.Active,
+		InUseCount:   row.InUseCount,
+		Version:      row.Version,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
 }
 
 func productFromList(row machinelogbookdb.ListFilamentProductsRow) FilamentProduct {
@@ -48,7 +63,8 @@ func validateProduct(in FilamentProductInput) (validatedProduct, error) {
 	if v.netWeight, err = numericFromString(in.NetWeightG, true); err != nil {
 		return v, validation("netWeightG must be positive")
 	}
-	if v.defaultPrice, err = pgNullableNumeric(in.DefaultPrice, false); err != nil || (v.defaultPrice.Valid && decimalFromNumeric(v.defaultPrice).IsNegative()) {
+	if v.defaultPrice, err = pgNullableNumeric(in.DefaultPrice, false); err != nil ||
+		(v.defaultPrice.Valid && decimalFromNumeric(v.defaultPrice).IsNegative()) {
 		return v, validation("defaultPrice must be non-negative")
 	}
 	if v.notes, err = validateOptionalText(in.Notes, "notes", 2000); err != nil {
@@ -65,7 +81,11 @@ func productConflict(err error) error {
 	return databaseError(err)
 }
 
-func (s *Service) GetFilamentProduct(ctx context.Context, p authorization.Principal, id uuid.UUID) (FilamentProduct, error) {
+func (s *Service) GetFilamentProduct(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+) (FilamentProduct, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return FilamentProduct{}, err
 	}
@@ -76,7 +96,11 @@ func (s *Service) GetFilamentProduct(ctx context.Context, p authorization.Princi
 	return productFromGet(row), nil
 }
 
-func (s *Service) ListFilamentProducts(ctx context.Context, p authorization.Principal, f FilamentProductFilters) ([]FilamentProduct, int64, error) {
+func (s *Service) ListFilamentProducts(
+	ctx context.Context,
+	p authorization.Principal,
+	f FilamentProductFilters,
+) ([]FilamentProduct, int64, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
@@ -89,11 +113,31 @@ func (s *Service) ListFilamentProducts(ctx context.Context, p authorization.Prin
 	}
 	q := machinelogbookdb.New(s.pool)
 	search, manufacturer := strings.TrimSpace(f.Search), strings.TrimSpace(f.Manufacturer)
-	rows, err := q.ListFilamentProducts(ctx, machinelogbookdb.ListFilamentProductsParams{Search: search, MaterialID: f.MaterialID, Manufacturer: manufacturer, Packaging: f.Packaging, IncludeInactive: f.IncludeInactive, PageOffset: offset, PageLimit: limit})
+	rows, err := q.ListFilamentProducts(
+		ctx,
+		machinelogbookdb.ListFilamentProductsParams{
+			Search:          search,
+			MaterialID:      f.MaterialID,
+			Manufacturer:    manufacturer,
+			Packaging:       f.Packaging,
+			IncludeInactive: f.IncludeInactive,
+			PageOffset:      offset,
+			PageLimit:       limit,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountFilamentProducts(ctx, machinelogbookdb.CountFilamentProductsParams{Search: search, MaterialID: f.MaterialID, Manufacturer: manufacturer, Packaging: f.Packaging, IncludeInactive: f.IncludeInactive})
+	total, err := q.CountFilamentProducts(
+		ctx,
+		machinelogbookdb.CountFilamentProductsParams{
+			Search:          search,
+			MaterialID:      f.MaterialID,
+			Manufacturer:    manufacturer,
+			Packaging:       f.Packaging,
+			IncludeInactive: f.IncludeInactive,
+		},
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -104,7 +148,12 @@ func (s *Service) ListFilamentProducts(ctx context.Context, p authorization.Prin
 	return items, total, nil
 }
 
-func (s *Service) CreateFilamentProduct(ctx context.Context, p authorization.Principal, in FilamentProductInput, requestID *uuid.UUID) (FilamentProduct, error) {
+func (s *Service) CreateFilamentProduct(
+	ctx context.Context,
+	p authorization.Principal,
+	in FilamentProductInput,
+	requestID *uuid.UUID,
+) (FilamentProduct, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return FilamentProduct{}, err
 	}
@@ -140,7 +189,13 @@ func (s *Service) CreateFilamentProduct(ctx context.Context, p authorization.Pri
 
 // UpdateFilamentProduct edits or deactivates a product. Spools and fills keep
 // their own snapshots, so the update never touches them.
-func (s *Service) UpdateFilamentProduct(ctx context.Context, p authorization.Principal, id uuid.UUID, in FilamentProductInput, requestID *uuid.UUID) (FilamentProduct, error) {
+func (s *Service) UpdateFilamentProduct(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	in FilamentProductInput,
+	requestID *uuid.UUID,
+) (FilamentProduct, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return FilamentProduct{}, err
 	}

@@ -8,7 +8,9 @@ import (
 
 func TestBrokerNormalizesUIDAndMarksDuplicatesUntilRemoval(t *testing.T) {
 	broker := NewBroker()
-	first, err := broker.Publish(RawEvent{Kind: "nfc_scan", Source: "simulator", ReaderID: "reader", UID: "04:a7-31 0b"})
+	first, err := broker.Publish(
+		RawEvent{Kind: "nfc_scan", Source: "simulator", ReaderID: "reader", UID: "04:a7-31 0b"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,12 @@ func TestBrokerDebouncesReadersIndependently(t *testing.T) {
 	other, _ := broker.Publish(RawEvent{Kind: "nfc_scan", Source: "simulator", ReaderID: "reader-b", UID: "04A7"})
 	again, _ := broker.Publish(RawEvent{Kind: "nfc_scan", Source: "simulator", ReaderID: "reader-a", UID: "04A7"})
 	if first.Duplicate || other.Duplicate || !again.Duplicate {
-		t.Fatalf("reader-local duplicate state was not preserved: first=%v other=%v again=%v", first.Duplicate, other.Duplicate, again.Duplicate)
+		t.Fatalf(
+			"reader-local duplicate state was not preserved: first=%v other=%v again=%v",
+			first.Duplicate,
+			other.Duplicate,
+			again.Duplicate,
+		)
 	}
 	_, _ = broker.Publish(RawEvent{Kind: "nfc_removed", Source: "simulator", ReaderID: "reader-b"})
 	again, _ = broker.Publish(RawEvent{Kind: "nfc_scan", Source: "simulator", ReaderID: "reader-a", UID: "04A7"})

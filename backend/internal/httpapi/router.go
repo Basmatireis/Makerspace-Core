@@ -80,21 +80,30 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 		logger = slog.Default()
 	}
 
-	strict := openapi.NewStrictHandlerWithOptions(server, []openapi.StrictMiddlewareFunc{captureOperation}, openapi.StrictHTTPServerOptions{
-		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			writeAPIError(w, r, invalidRequest("request could not be decoded"), logger)
+	strict := openapi.NewStrictHandlerWithOptions(
+		server,
+		[]openapi.StrictMiddlewareFunc{captureOperation},
+		openapi.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+				writeAPIError(w, r, invalidRequest("request could not be decoded"), logger)
+			},
+			ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+				writeAPIError(w, r, err, logger)
+			},
 		},
-		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			writeAPIError(w, r, err, logger)
-		},
-	})
+	)
 
 	router := chi.NewRouter()
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, apperror.NotFound, logger)
 	})
 	router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		writeAPIError(w, r, apperror.New(http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed"), logger)
+		writeAPIError(
+			w,
+			r,
+			apperror.New(http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed"),
+			logger,
+		)
 	})
 	generated := openapi.HandlerWithOptions(strict, openapi.ChiServerOptions{
 		BaseURL:    apiBasePath,
@@ -212,7 +221,16 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		if isStreamingGatewayPath(r.URL.Path) {
 			failureKey := ratelimit.KeyForIP(sourceAddress(r.Context()))
 			if s.gatewayFailures.Blocked(failureKey, time.Now().UTC()) {
-				writeAPIError(w, r, apperror.RateLimited("rate_limited", "Too many failed gateway authentications; try again later", gatewayFailureWindow), logger)
+				writeAPIError(
+					w,
+					r,
+					apperror.RateLimited(
+						"rate_limited",
+						"Too many failed gateway authentications; try again later",
+						gatewayFailureWindow,
+					),
+					logger,
+				)
 				return
 			}
 			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
@@ -266,7 +284,16 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				browserToken = cookie.Value
 			}
 			if headerToken != "" && browserToken != "" {
-				writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
+				writeAPIError(
+					w,
+					r,
+					apperror.New(
+						http.StatusBadRequest,
+						"managed_device_credentials_conflict",
+						"Use either native or browser managed-device credentials, not both",
+					),
+					logger,
+				)
 				return
 			}
 			token := headerToken
@@ -283,7 +310,16 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 			if device.IsSignagePlayer() {
-				writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device may only run the signage player"), logger)
+				writeAPIError(
+					w,
+					r,
+					apperror.New(
+						http.StatusForbidden,
+						"device_mode_denied",
+						"This managed device may only run the signage player",
+					),
+					logger,
+				)
 				return
 			}
 			ctx := context.WithValue(r.Context(), visitorDeviceContextKey, *device)
@@ -303,8 +339,18 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				}
 				if isUnsafeMethod(r.Method) {
 					csrfCookie, cookieErr := r.Cookie(s.config.EnrollmentCSRFName)
-					if cookieErr != nil || visitor.ValidateCSRF(enrollment, cookieValue(csrfCookie), r.Header.Get("X-Enrollment-CSRF-Token")) != nil {
-						writeAPIError(w, r, apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed"), logger)
+					if cookieErr != nil ||
+						visitor.ValidateCSRF(
+							enrollment,
+							cookieValue(csrfCookie),
+							r.Header.Get("X-Enrollment-CSRF-Token"),
+						) != nil {
+						writeAPIError(
+							w,
+							r,
+							apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed"),
+							logger,
+						)
 						return
 					}
 				}
@@ -319,7 +365,16 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			browserDeviceToken = cookie.Value
 		}
 		if headerDeviceToken != "" && browserDeviceToken != "" {
-			writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
+			writeAPIError(
+				w,
+				r,
+				apperror.New(
+					http.StatusBadRequest,
+					"managed_device_credentials_conflict",
+					"Use either native or browser managed-device credentials, not both",
+				),
+				logger,
+			)
 			return
 		}
 		deviceToken := headerDeviceToken
@@ -347,29 +402,76 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 			if !device.IsSignagePlayer() {
-				writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured as a signage player"), logger)
+				writeAPIError(
+					w,
+					r,
+					apperror.New(
+						http.StatusForbidden,
+						"device_mode_denied",
+						"This managed device is not configured as a signage player",
+					),
+					logger,
+				)
 				return
 			}
-			if !s.allowSignagePlayerRequest(device.ID, strings.HasPrefix(r.URL.Path, apiBasePath+"/signage/player/assets/"), time.Now().UTC()) {
-				writeAPIError(w, r, apperror.RateLimited("rate_limited", "Player request rate exceeded", deviceRequestWindow), logger)
+			if !s.allowSignagePlayerRequest(
+				device.ID,
+				strings.HasPrefix(r.URL.Path, apiBasePath+"/signage/player/assets/"),
+				time.Now().UTC(),
+			) {
+				writeAPIError(
+					w,
+					r,
+					apperror.RateLimited("rate_limited", "Player request rate exceeded", deviceRequestWindow),
+					logger,
+				)
 				return
 			}
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.Method == http.MethodPost && isSignagePairingPath(r.URL.Path) && len(s.config.SignagePairingAllowedCIDRs) > 0 {
-			if client, ok := parseIP(sourceAddress(r.Context())); !ok || !isTrustedProxy(client, s.config.SignagePairingAllowedCIDRs) {
-				writeAPIError(w, r, apperror.New(http.StatusForbidden, "pairing_network_denied", "Pairing is not available from this network"), logger)
+		if r.Method == http.MethodPost && isSignagePairingPath(r.URL.Path) &&
+			len(s.config.SignagePairingAllowedCIDRs) > 0 {
+			if client, ok := parseIP(sourceAddress(r.Context())); !ok ||
+				!isTrustedProxy(client, s.config.SignagePairingAllowedCIDRs) {
+				writeAPIError(
+					w,
+					r,
+					apperror.New(
+						http.StatusForbidden,
+						"pairing_network_denied",
+						"Pairing is not available from this network",
+					),
+					logger,
+				)
 				return
 			}
 		}
 		if device != nil && device.IsSignagePlayer() && !isSignagePairingPath(r.URL.Path) {
 			// A signage player may reach the player routes and the pairing endpoints, never staff, visitor or public APIs.
-			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device may only run the signage player"), logger)
+			writeAPIError(
+				w,
+				r,
+				apperror.New(
+					http.StatusForbidden,
+					"device_mode_denied",
+					"This managed device may only run the signage player",
+				),
+				logger,
+			)
 			return
 		}
 		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && isStaffSessionEntryPath(r.URL.Path) {
-			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured for staff sessions"), logger)
+			writeAPIError(
+				w,
+				r,
+				apperror.New(
+					http.StatusForbidden,
+					"device_mode_denied",
+					"This managed device is not configured for staff sessions",
+				),
+				logger,
+			)
 			return
 		}
 		callback := r.URL.Path == apiBasePath+"/auth/oidc/callback"
@@ -379,7 +481,16 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			return
 		}
 		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && r.URL.Path != apiBasePath+"/auth/logout" {
-			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured for staff sessions"), logger)
+			writeAPIError(
+				w,
+				r,
+				apperror.New(
+					http.StatusForbidden,
+					"device_mode_denied",
+					"This managed device is not configured for staff sessions",
+				),
+				logger,
+			)
 			return
 		}
 		cookie, err := r.Cookie(s.config.SessionCookieName)
@@ -398,7 +509,13 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		var deviceContext *authorization.ManagedDevice
 		if device != nil {
-			deviceContext = &authorization.ManagedDevice{ID: device.ID, Name: device.Name, DeviceTypeID: device.DeviceTypeID, DeviceTypeName: device.DeviceTypeName, ExpiresAt: device.ExpiresAt}
+			deviceContext = &authorization.ManagedDevice{
+				ID:             device.ID,
+				Name:           device.Name,
+				DeviceTypeID:   device.DeviceTypeID,
+				DeviceTypeName: device.DeviceTypeName,
+				ExpiresAt:      device.ExpiresAt,
+			}
 		}
 		if deviceContext != nil {
 			authenticated, err = s.auth.WithDevice(r.Context(), authenticated, deviceContext)
@@ -410,7 +527,12 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		if isUnsafeMethod(r.Method) {
 			csrfCookie, err := r.Cookie(s.config.CSRFCookieName)
 			if err != nil {
-				writeAPIError(w, r, apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed"), logger)
+				writeAPIError(
+					w,
+					r,
+					apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed"),
+					logger,
+				)
 				return
 			}
 			if err := auth.ValidateCSRF(authenticated, csrfCookie.Value, r.Header.Get(csrfHeaderName)); err != nil {
@@ -475,7 +597,12 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 			return
 		}
 		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin && !isNativeDeviceHardwareReport(r) {
-			writeAPIError(w, r, apperror.New(http.StatusForbidden, "origin_invalid", "Request origin is not allowed"), logger)
+			writeAPIError(
+				w,
+				r,
+				apperror.New(http.StatusForbidden, "origin_invalid", "Request origin is not allowed"),
+				logger,
+			)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -744,7 +871,11 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *sl
 	if !errors.As(err, &appError) && errors.As(err, &abort) && (abort.Code == "40P01" || abort.Code == "40001") {
 		// A deadlock or serialization abort rolled the transaction back; the
 		// client can repeat the request unchanged.
-		appError = apperror.New(http.StatusConflict, "retry_conflict", "The request conflicted with a concurrent change; try again")
+		appError = apperror.New(
+			http.StatusConflict,
+			"retry_conflict",
+			"The request conflicted with a concurrent change; try again",
+		)
 		err = appError
 	}
 	if errors.As(err, &appError) {

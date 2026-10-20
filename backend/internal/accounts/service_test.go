@@ -27,7 +27,14 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 			return service.Delete(context.Background(), principal, accountID, 0, nil)
 		}},
 		{name: "login email", run: func() error {
-			_, err := service.UpdateLoginEmail(context.Background(), principal, accountID, "person@example.test", 0, nil)
+			_, err := service.UpdateLoginEmail(
+				context.Background(),
+				principal,
+				accountID,
+				"person@example.test",
+				0,
+				nil,
+			)
 			return err
 		}},
 		{name: "password", run: func() error {
@@ -35,7 +42,14 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 			return err
 		}},
 		{name: "remove authentication identity", run: func() error {
-			return service.RemoveAuthIdentity(context.Background(), principal, accountID, uuid.Must(uuid.NewV7()), 0, nil)
+			return service.RemoveAuthIdentity(
+				context.Background(),
+				principal,
+				accountID,
+				uuid.Must(uuid.NewV7()),
+				0,
+				nil,
+			)
 		}},
 		{name: "password reset", run: func() error {
 			_, err := service.IssuePasswordReset(context.Background(), principal, accountID, 0, nil)

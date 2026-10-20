@@ -11,7 +11,10 @@ import (
 const testPairingKey = "01234567890123456789012345678901"
 
 func TestServerRejectsUnpairedAndUnauthorizedOrigins(t *testing.T) {
-	server, err := NewServer(ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}}, NewBroker())
+	server, err := NewServer(
+		ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}},
+		NewBroker(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,9 +23,24 @@ func TestServerRejectsUnpairedAndUnauthorizedOrigins(t *testing.T) {
 		want                        int
 	}{
 		{name: "missing pairing", origin: "https://core.example.test", want: http.StatusUnauthorized},
-		{name: "wrong pairing", origin: "https://core.example.test", authorization: "Pairing wrong", want: http.StatusUnauthorized},
-		{name: "foreign origin", origin: "https://evil.example", authorization: "Pairing " + testPairingKey, want: http.StatusForbidden},
-		{name: "allowed", origin: "https://core.example.test", authorization: "Pairing " + testPairingKey, want: http.StatusOK},
+		{
+			name:          "wrong pairing",
+			origin:        "https://core.example.test",
+			authorization: "Pairing wrong",
+			want:          http.StatusUnauthorized,
+		},
+		{
+			name:          "foreign origin",
+			origin:        "https://evil.example",
+			authorization: "Pairing " + testPairingKey,
+			want:          http.StatusForbidden,
+		},
+		{
+			name:          "allowed",
+			origin:        "https://core.example.test",
+			authorization: "Pairing " + testPairingKey,
+			want:          http.StatusOK,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -43,7 +61,10 @@ func TestServerRejectsUnpairedAndUnauthorizedOrigins(t *testing.T) {
 }
 
 func TestServerRejectsDNSRebindingHostAndDoesNotUseWildcardCORS(t *testing.T) {
-	server, _ := NewServer(ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}}, NewBroker())
+	server, _ := NewServer(
+		ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}},
+		NewBroker(),
+	)
 	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/v1/info", nil)
 	request.Host = "attacker.example"
 	request.Header.Set("Origin", "https://core.example.test")
@@ -51,14 +72,29 @@ func TestServerRejectsDNSRebindingHostAndDoesNotUseWildcardCORS(t *testing.T) {
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden || response.Header().Get("Access-Control-Allow-Origin") == "*" {
-		t.Fatalf("unexpected rebinding response: status=%d cors=%q", response.Code, response.Header().Get("Access-Control-Allow-Origin"))
+		t.Fatalf(
+			"unexpected rebinding response: status=%d cors=%q",
+			response.Code,
+			response.Header().Get("Access-Control-Allow-Origin"),
+		)
 	}
 }
 
 func TestSimulatorUsesNormalEventStreamAndCanBeDisabled(t *testing.T) {
 	broker := NewBroker()
-	server, _ := NewServer(ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}, Simulator: true}, broker)
-	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/v1/simulator/events", strings.NewReader(`{"action":"duplicate","uid":"04:a7"}`))
+	server, _ := NewServer(
+		ServerConfig{
+			PairingKey:     testPairingKey,
+			AllowedOrigins: []string{"https://core.example.test"},
+			Simulator:      true,
+		},
+		broker,
+	)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"http://127.0.0.1/v1/simulator/events",
+		strings.NewReader(`{"action":"duplicate","uid":"04:a7"}`),
+	)
 	request.Host = "localhost:17321"
 	request.Header.Set("Authorization", "Pairing "+testPairingKey)
 	response := httptest.NewRecorder()
@@ -71,7 +107,10 @@ func TestSimulatorUsesNormalEventStreamAndCanBeDisabled(t *testing.T) {
 		t.Fatalf("unexpected simulator events: %+v", page.Events)
 	}
 
-	disabled, _ := NewServer(ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}}, NewBroker())
+	disabled, _ := NewServer(
+		ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}},
+		NewBroker(),
+	)
 	disabledResponse := httptest.NewRecorder()
 	disabled.Handler().ServeHTTP(disabledResponse, request.Clone(request.Context()))
 	if disabledResponse.Code != http.StatusNotFound {
@@ -80,9 +119,16 @@ func TestSimulatorUsesNormalEventStreamAndCanBeDisabled(t *testing.T) {
 }
 
 func TestInfoReturnsClearUnsupportedCapability(t *testing.T) {
-	server, _ := NewServer(ServerConfig{PairingKey: testPairingKey, AllowedOrigins: []string{"https://core.example.test"}, Capabilities: func() []Capability {
-		return []Capability{{ID: "nfc", Available: false, State: "unsupported"}}
-	}}, NewBroker())
+	server, _ := NewServer(
+		ServerConfig{
+			PairingKey:     testPairingKey,
+			AllowedOrigins: []string{"https://core.example.test"},
+			Capabilities: func() []Capability {
+				return []Capability{{ID: "nfc", Available: false, State: "unsupported"}}
+			},
+		},
+		NewBroker(),
+	)
 	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/v1/info", nil)
 	request.Host = "[::1]:17321"
 	request.Header.Set("Authorization", "Pairing "+testPairingKey)

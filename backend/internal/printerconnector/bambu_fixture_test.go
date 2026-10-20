@@ -47,7 +47,8 @@ func TestSanitizeBambuMQTTFixtureRedactsAndPreservesRelationships(t *testing.T) 
 	_ = json.Unmarshal(second.Payload, &secondPayload)
 	firstPrint := firstPayload["print"].(map[string]any)
 	secondPrint := secondPayload["print"].(map[string]any)
-	if firstPrint["local_task_id"] != secondPrint["local_task_id"] || firstPrint["gcode_file"] != secondPrint["gcode_file"] {
+	if firstPrint["local_task_id"] != secondPrint["local_task_id"] ||
+		firstPrint["gcode_file"] != secondPrint["gcode_file"] {
 		t.Fatal("stable values were not replaced consistently")
 	}
 	if firstPrint["gcode_file"] != "/cache/fixture-001.3mf" {

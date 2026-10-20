@@ -29,7 +29,12 @@ func TestEventMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, up); err != nil {
 		t.Fatalf("first up: %v", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'event%'`, 9)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'event%'`,
+		9,
+	)
 	if _, err = pool.Exec(ctx, down); err != nil {
 		t.Fatalf("empty down: %v", err)
 	}
@@ -39,7 +44,8 @@ func TestEventMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO events(id,name,public_id) VALUES($1,'Guarded event',$2)`, uuid.Must(uuid.NewV7()), strings.Repeat("A", 43)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, down); err == nil || !strings.Contains(err.Error(), "cannot drop Event Management tables") {
+	if _, err = pool.Exec(ctx, down); err == nil ||
+		!strings.Contains(err.Error(), "cannot drop Event Management tables") {
 		t.Fatalf("guarded down error = %v", err)
 	}
 }
@@ -64,7 +70,12 @@ func TestEventBannerMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, up); err != nil {
 		t.Fatalf("first up: %v", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='event_files' AND column_name='is_banner'`, 1)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='event_files' AND column_name='is_banner'`,
+		1,
+	)
 	if _, err = pool.Exec(ctx, down); err != nil {
 		t.Fatalf("empty down: %v", err)
 	}
@@ -81,7 +92,8 @@ func TestEventBannerMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO event_files(id,event_id,file_id,visibility,is_banner) VALUES($1,$2,$3,'public',true)`, eventFileID, eventID, fileID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, down); err == nil || !strings.Contains(err.Error(), "cannot remove Event banner support") {
+	if _, err = pool.Exec(ctx, down); err == nil ||
+		!strings.Contains(err.Error(), "cannot remove Event banner support") {
 		t.Fatalf("guarded down error = %v", err)
 	}
 }

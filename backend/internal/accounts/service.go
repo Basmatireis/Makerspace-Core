@@ -86,7 +86,11 @@ func (s *Service) GetCurrent(ctx context.Context, principal authorization.Princi
 	return loadAccount(ctx, accountsdb.New(s.pool), principal.AccountID)
 }
 
-func (s *Service) GetForPerson(ctx context.Context, principal authorization.Principal, personID uuid.UUID) (*Account, error) {
+func (s *Service) GetForPerson(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+) (*Account, error) {
 	if !principal.Has(authorization.AccountsRead) {
 		return nil, nil
 	}
@@ -105,7 +109,11 @@ func (s *Service) GetForPerson(ctx context.Context, principal authorization.Prin
 // ListForPeople returns account administration summaries in a fixed number of
 // queries so the people table does not hydrate accounts and identities
 // one person at a time.
-func (s *Service) ListForPeople(ctx context.Context, principal authorization.Principal, personIDs []uuid.UUID) (map[uuid.UUID]Account, error) {
+func (s *Service) ListForPeople(
+	ctx context.Context,
+	principal authorization.Principal,
+	personIDs []uuid.UUID,
+) (map[uuid.UUID]Account, error) {
 	if !principal.Has(authorization.AccountsRead) {
 		return nil, apperror.PermissionDenied
 	}
@@ -147,22 +155,44 @@ func (s *Service) ListForPeople(ctx context.Context, principal authorization.Pri
 		displayIdentifier := row.DisplayIdentifier
 		account.AuthIdentities = append(account.AuthIdentities, AuthIdentity{
 			ID: row.ID, Kind: row.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
-			VerifiedAt: timeFromPG(row.VerifiedAt), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
+			VerifiedAt: timeFromPG(
+				row.VerifiedAt,
+			), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
 		})
 		result[personID] = account
 	}
 	return result, nil
 }
 
-func (s *Service) Create(ctx context.Context, principal authorization.Principal, personID uuid.UUID, loginEmail string, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+	loginEmail string,
+	expectedPersonVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	return s.create(ctx, principal, personID, &loginEmail, expectedPersonVersion, requestID)
 }
 
-func (s *Service) CreateWithoutIdentity(ctx context.Context, principal authorization.Principal, personID uuid.UUID, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) CreateWithoutIdentity(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+	expectedPersonVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	return s.create(ctx, principal, personID, nil, expectedPersonVersion, requestID)
 }
 
-func (s *Service) create(ctx context.Context, principal authorization.Principal, personID uuid.UUID, loginEmail *string, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) create(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+	loginEmail *string,
+	expectedPersonVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	if !principal.Has(authorization.AccountsCreate) {
 		return Account{}, apperror.PermissionDenied
 	}
@@ -213,7 +243,14 @@ func (s *Service) create(ctx context.Context, principal authorization.Principal,
 	return account, nil
 }
 
-func (s *Service) SetStatus(ctx context.Context, principal authorization.Principal, id uuid.UUID, status string, expectedVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) SetStatus(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	status string,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	permission := authorization.AccountsEnable
 	if status == "disabled" {
 		permission = authorization.AccountsDisable
@@ -252,7 +289,10 @@ func (s *Service) SetStatus(ctx context.Context, principal authorization.Princip
 			return Account{}, err
 		}
 	}
-	row, err := queries.UpdateAccountStatus(ctx, accountsdb.UpdateAccountStatusParams{ID: id, Status: status, ExpectedVersion: expectedVersion})
+	row, err := queries.UpdateAccountStatus(
+		ctx,
+		accountsdb.UpdateAccountStatusParams{ID: id, Status: status, ExpectedVersion: expectedVersion},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, apperror.StaleWrite
 	}
@@ -279,7 +319,13 @@ func (s *Service) SetStatus(ctx context.Context, principal authorization.Princip
 	return result, nil
 }
 
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.AccountsDelete) {
 		return apperror.PermissionDenied
 	}
@@ -317,7 +363,10 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.deleted", ResourceType: "account", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
 	}
-	if _, err := queries.DeleteAccount(ctx, accountsdb.DeleteAccountParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.DeleteAccount(ctx, accountsdb.DeleteAccountParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if blocker := DeletionReferenceBlocker(err); blocker != nil {
 		return accountDeletionBlocked(blocker)
@@ -328,10 +377,20 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 }
 
 func accountDeletionBlocked(reasons ...*apperror.Error) *apperror.Error {
-	return apperror.Blocked("account_deletion_blocked", "This account cannot be deleted for several reasons", reasons...)
+	return apperror.Blocked(
+		"account_deletion_blocked",
+		"This account cannot be deleted for several reasons",
+		reasons...)
 }
 
-func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.Principal, id uuid.UUID, email string, expectedVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) UpdateLoginEmail(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	email string,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	if !principal.Has(authorization.AccountsLoginEmailUpdate) {
 		return Account{}, apperror.PermissionDenied
 	}
@@ -376,7 +435,10 @@ func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.
 	if err := queries.DeletePasswordChallengesForAccount(ctx, id); err != nil {
 		return Account{}, err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Account{}, apperror.StaleWrite
 	} else if err != nil {
 		return Account{}, err
@@ -398,7 +460,14 @@ func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.
 	return result, nil
 }
 
-func (s *Service) SetPassword(ctx context.Context, principal authorization.Principal, id uuid.UUID, password string, expectedVersion int64, requestID *uuid.UUID) (Account, error) {
+func (s *Service) SetPassword(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	password string,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Account, error) {
 	if !principal.Has(authorization.AccountsPasswordSet) {
 		return Account{}, apperror.PermissionDenied
 	}
@@ -441,7 +510,10 @@ func (s *Service) SetPassword(ctx context.Context, principal authorization.Princ
 	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_set_by_admin")}); err != nil {
 		return Account{}, err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Account{}, apperror.StaleWrite
 	} else if err != nil {
 		return Account{}, err
@@ -460,7 +532,13 @@ func (s *Service) SetPassword(ctx context.Context, principal authorization.Princ
 	return result, nil
 }
 
-func (s *Service) RemoveAuthIdentity(ctx context.Context, principal authorization.Principal, accountID, identityID uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
+func (s *Service) RemoveAuthIdentity(
+	ctx context.Context,
+	principal authorization.Principal,
+	accountID, identityID uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) error {
 	if !principal.Has(authorization.AccountsPasswordRemoveAll) &&
 		!principal.Has(authorization.AccountsPINRemoveAll) &&
 		!principal.Has(authorization.OIDCUnlinkAll) {
@@ -524,7 +602,10 @@ func (s *Service) RemoveAuthIdentity(ctx context.Context, principal authorizatio
 	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr(policy.revocationReason)}); err != nil {
 		return err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return apperror.StaleWrite
 	} else if err != nil {
 		return err
@@ -574,7 +655,13 @@ func authIdentityRemovalPolicyFor(kind string) (authIdentityRemovalPolicy, bool)
 	}
 }
 
-func (s *Service) IssuePasswordReset(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
+func (s *Service) IssuePasswordReset(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (ResetIssue, error) {
 	if !principal.Has(authorization.AccountsPasswordReset) {
 		return ResetIssue{}, apperror.PermissionDenied
 	}
@@ -616,7 +703,10 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return ResetIssue{}, apperror.StaleWrite
 	} else if err != nil {
 		return ResetIssue{}, err
@@ -644,9 +734,14 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 		code := "provider_error"
 		failureCode = &code
 	}
-	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	_ = accountsdb.New(s.pool).
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
-		manual := "/reset-password#email=" + url.QueryEscape(*identity.IdentifierDisplay) + "&code=" + url.QueryEscape(code)
+		manual := "/reset-password#email=" + url.QueryEscape(
+			*identity.IdentifierDisplay,
+		) + "&code=" + url.QueryEscape(
+			code,
+		)
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
@@ -655,7 +750,13 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
 
-func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
+func (s *Service) IssuePINEnrollment(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (ResetIssue, error) {
 	if !principal.Has(authorization.AccountsPINEnrollAll) && !principal.Has(authorization.AccountsPINReset) {
 		return ResetIssue{}, apperror.PermissionDenied
 	}
@@ -708,7 +809,10 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return ResetIssue{}, apperror.StaleWrite
 	} else if err != nil {
 		return ResetIssue{}, err
@@ -736,7 +840,8 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 		value := "provider_error"
 		failureCode = &value
 	}
-	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	_ = accountsdb.New(s.pool).
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
 		manual := "/complete-pin-setup#account=" + id.String() + "&code=" + url.QueryEscape(code)
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
@@ -747,7 +852,13 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
 
-func (s *Service) IssueInvitation(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
+func (s *Service) IssueInvitation(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (ResetIssue, error) {
 	if !principal.Has(authorization.AccountsPasswordEnrollAll) {
 		return ResetIssue{}, apperror.PermissionDenied
 	}
@@ -768,7 +879,11 @@ func (s *Service) IssueInvitation(ctx context.Context, principal authorization.P
 		return ResetIssue{}, apperror.StaleWrite
 	}
 	if current.PasswordStatus == "active" {
-		return ResetIssue{}, apperror.New(409, "password_already_enrolled", "Use password reset for an account that already has a password")
+		return ResetIssue{}, apperror.New(
+			409,
+			"password_already_enrolled",
+			"Use password reset for an account that already has a password",
+		)
 	}
 	identity, err := queries.GetIdentityByAccount(ctx, id)
 	if err != nil {
@@ -795,7 +910,10 @@ func (s *Service) IssueInvitation(ctx context.Context, principal authorization.P
 	if err := queries.MarkInvitationProvisioning(ctx, id); err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return ResetIssue{}, apperror.StaleWrite
 	} else if err != nil {
 		return ResetIssue{}, err
@@ -823,9 +941,14 @@ func (s *Service) IssueInvitation(ctx context.Context, principal authorization.P
 		code := "provider_error"
 		failureCode = &code
 	}
-	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	_ = accountsdb.New(s.pool).
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
-		manual := "/complete-invitation#email=" + url.QueryEscape(*identity.IdentifierDisplay) + "&code=" + url.QueryEscape(code)
+		manual := "/complete-invitation#email=" + url.QueryEscape(
+			*identity.IdentifierDisplay,
+		) + "&code=" + url.QueryEscape(
+			code,
+		)
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
@@ -851,7 +974,9 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 		displayIdentifier := identity.DisplayIdentifier
 		identities = append(identities, AuthIdentity{
 			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: identity.ProviderSlug,
-			VerifiedAt: timeFromPG(identity.VerifiedAt), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable, CreatedAt: identity.CreatedAt,
+			VerifiedAt: timeFromPG(
+				identity.VerifiedAt,
+			), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable, CreatedAt: identity.CreatedAt,
 		})
 	}
 	loginEmail := ""

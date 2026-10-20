@@ -67,7 +67,13 @@ func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
 	return &Service{pool: pool, files: fileService}
 }
 
-func (s *Service) CreateVersion(ctx context.Context, principal authorization.Principal, revision, filename string, reader io.Reader, requestID *uuid.UUID) (Version, error) {
+func (s *Service) CreateVersion(
+	ctx context.Context,
+	principal authorization.Principal,
+	revision, filename string,
+	reader io.Reader,
+	requestID *uuid.UUID,
+) (Version, error) {
 	if !principal.Has(authorization.LaborordnungManage) {
 		return Version{}, apperror.PermissionDenied
 	}
@@ -134,7 +140,13 @@ func (s *Service) ListVersions(ctx context.Context, principal authorization.Prin
 	return result, nil
 }
 
-func (s *Service) Publish(ctx context.Context, principal authorization.Principal, id uuid.UUID, effectiveAt time.Time, requestID *uuid.UUID) (Version, error) {
+func (s *Service) Publish(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	effectiveAt time.Time,
+	requestID *uuid.UUID,
+) (Version, error) {
 	if !principal.Has(authorization.LaborordnungManage) {
 		return Version{}, apperror.PermissionDenied
 	}
@@ -146,7 +158,8 @@ func (s *Service) Publish(ctx context.Context, principal authorization.Principal
 		return Version{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	row, err := laborordnungdb.New(tx).PublishVersion(ctx, laborordnungdb.PublishVersionParams{ID: id, EffectiveAt: pgtype.Timestamptz{Time: effectiveAt.UTC(), Valid: true}})
+	row, err := laborordnungdb.New(tx).
+		PublishVersion(ctx, laborordnungdb.PublishVersionParams{ID: id, EffectiveAt: pgtype.Timestamptz{Time: effectiveAt.UTC(), Valid: true}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Version{}, apperror.New(409, "laborordnung_not_draft", "Only an existing draft can be published")
 	}
@@ -163,7 +176,11 @@ func (s *Service) Publish(ctx context.Context, principal authorization.Principal
 	return versionFromRow(row), nil
 }
 
-func (s *Service) OpenPDF(ctx context.Context, principal authorization.Principal, id uuid.UUID) (files.File, io.ReadCloser, error) {
+func (s *Service) OpenPDF(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (files.File, io.ReadCloser, error) {
 	if !principal.Has(authorization.LaborordnungRead) && !principal.Has(authorization.LaborordnungManage) {
 		queries := laborordnungdb.New(s.pool)
 		mode, err := queries.GetPersonMode(ctx, principal.PersonID)
@@ -234,7 +251,11 @@ func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, err
 	return status, nil
 }
 
-func (s *Service) EvaluateForPerson(ctx context.Context, principal authorization.Principal, personID uuid.UUID) (Status, error) {
+func (s *Service) EvaluateForPerson(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+) (Status, error) {
 	if !principal.CanReadPerson(personID) || !principal.Has(authorization.LaborordnungRequestsRead) {
 		return Status{}, apperror.PermissionDenied
 	}
@@ -244,7 +265,11 @@ func (s *Service) EvaluateForPerson(ctx context.Context, principal authorization
 // RequestOwnConfirmation is the explicit, idempotent command that enqueues a
 // physical-signature confirmation. It is never called from authentication or
 // status reads.
-func (s *Service) RequestOwnConfirmation(ctx context.Context, principal authorization.Principal, requestID *uuid.UUID) (Request, bool, error) {
+func (s *Service) RequestOwnConfirmation(
+	ctx context.Context,
+	principal authorization.Principal,
+	requestID *uuid.UUID,
+) (Request, bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Request{}, false, err
@@ -263,7 +288,11 @@ func (s *Service) RequestOwnConfirmation(ctx context.Context, principal authoriz
 	}
 	current, err := queries.GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Request{}, false, apperror.New(409, "lab_rules_unavailable", "No effective Lab Rules version is available")
+		return Request{}, false, apperror.New(
+			409,
+			"lab_rules_unavailable",
+			"No effective Lab Rules version is available",
+		)
 	}
 	if err != nil {
 		return Request{}, false, err
@@ -338,7 +367,15 @@ func (s *Service) ListRequests(ctx context.Context, principal authorization.Prin
 	return result, nil
 }
 
-func (s *Service) Confirm(ctx context.Context, principal authorization.Principal, id uuid.UUID, reference string, signedDate *time.Time, archiveNote *string, requestID *uuid.UUID) (Request, error) {
+func (s *Service) Confirm(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	reference string,
+	signedDate *time.Time,
+	archiveNote *string,
+	requestID *uuid.UUID,
+) (Request, error) {
 	if !principal.Has(authorization.LaborordnungConfirm) {
 		return Request{}, apperror.PermissionDenied
 	}
@@ -364,14 +401,27 @@ func (s *Service) Confirm(ctx context.Context, principal authorization.Principal
 		return Request{}, err
 	}
 	if current.Status != "pending" {
-		return Request{}, apperror.New(409, "laborordnung_request_not_pending", "Only a pending request can be confirmed")
+		return Request{}, apperror.New(
+			409,
+			"laborordnung_request_not_pending",
+			"Only a pending request can be confirmed",
+		)
 	}
 	var date pgtype.Date
 	if signedDate != nil {
 		date = pgtype.Date{Time: signedDate.UTC(), Valid: true}
 	}
 	actor := principal.AccountID
-	row, err := queries.ConfirmRequest(ctx, laborordnungdb.ConfirmRequestParams{ID: id, ConfirmedByAccountID: &actor, PhysicalDocumentReference: &reference, SignedDate: date, ArchiveNote: archiveNote})
+	row, err := queries.ConfirmRequest(
+		ctx,
+		laborordnungdb.ConfirmRequestParams{
+			ID:                        id,
+			ConfirmedByAccountID:      &actor,
+			PhysicalDocumentReference: &reference,
+			SignedDate:                date,
+			ArchiveNote:               archiveNote,
+		},
+	)
 	if err != nil {
 		return Request{}, err
 	}
@@ -388,7 +438,11 @@ func (s *Service) Confirm(ctx context.Context, principal authorization.Principal
 	return result, nil
 }
 
-func (s *Service) hydrateRequest(ctx context.Context, queries *laborordnungdb.Queries, row laborordnungdb.LaborordnungRequest) (Request, error) {
+func (s *Service) hydrateRequest(
+	ctx context.Context,
+	queries *laborordnungdb.Queries,
+	row laborordnungdb.LaborordnungRequest,
+) (Request, error) {
 	name, err := queries.GetPersonName(ctx, row.PersonID)
 	if err != nil {
 		return Request{}, err
@@ -397,7 +451,16 @@ func (s *Service) hydrateRequest(ctx context.Context, queries *laborordnungdb.Qu
 	if err != nil {
 		return Request{}, err
 	}
-	result := Request{ID: row.ID, PersonID: row.PersonID, PersonName: name.FirstName + " " + name.LastName, RequiredVersion: versionFromRow(required), Status: row.Status, RequestedAt: row.RequestedAt, PhysicalDocumentReference: row.PhysicalDocumentReference, ArchiveNote: row.ArchiveNote}
+	result := Request{
+		ID:                        row.ID,
+		PersonID:                  row.PersonID,
+		PersonName:                name.FirstName + " " + name.LastName,
+		RequiredVersion:           versionFromRow(required),
+		Status:                    row.Status,
+		RequestedAt:               row.RequestedAt,
+		PhysicalDocumentReference: row.PhysicalDocumentReference,
+		ArchiveNote:               row.ArchiveNote,
+	}
 	if row.PreviousVersionID != nil {
 		previous, err := queries.GetVersion(ctx, *row.PreviousVersionID)
 		if err != nil {
@@ -416,7 +479,14 @@ func (s *Service) hydrateRequest(ctx context.Context, queries *laborordnungdb.Qu
 }
 
 func versionFromRow(row laborordnungdb.LaborordnungVersion) Version {
-	result := Version{ID: row.ID, Status: row.Status, HumanRevision: row.HumanRevision, PDFFileID: row.PdfFileID, SHA256: hex.EncodeToString(row.PdfSha256), CreatedAt: row.CreatedAt}
+	result := Version{
+		ID:            row.ID,
+		Status:        row.Status,
+		HumanRevision: row.HumanRevision,
+		PDFFileID:     row.PdfFileID,
+		SHA256:        hex.EncodeToString(row.PdfSha256),
+		CreatedAt:     row.CreatedAt,
+	}
 	if row.EffectiveAt.Valid {
 		result.EffectiveAt = &row.EffectiveAt.Time
 	}

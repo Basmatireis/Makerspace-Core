@@ -114,7 +114,9 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 			}
 			if slot.ExternalIdentifier != nil {
 				if seenSlotExternal[*slot.ExternalIdentifier] {
-					return SetupInput{}, duplicateIdentifier("Two slots of one spool input unit use the same printer identifier")
+					return SetupInput{}, duplicateIdentifier(
+						"Two slots of one spool input unit use the same printer identifier",
+					)
 				}
 				seenSlotExternal[*slot.ExternalIdentifier] = true
 			}
@@ -146,7 +148,13 @@ func setupDatabaseError(err error) error {
 // the desired state in one transaction. Rows are never deleted: removed slots
 // are retired and removed units are disabled, because mounts and print history
 // reference them. Active rows are renumbered 0..n-1 in the given order.
-func (s *Service) SaveSetup(ctx context.Context, p authorization.Principal, machineID uuid.UUID, raw SetupInput, requestID *uuid.UUID) (Profile, error) {
+func (s *Service) SaveSetup(
+	ctx context.Context,
+	p authorization.Principal,
+	machineID uuid.UUID,
+	raw SetupInput,
+	requestID *uuid.UUID,
+) (Profile, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Profile{}, err
 	}
@@ -288,7 +296,8 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 				continue
 			}
 			old := slotByID[*slot.ID]
-			changed := old.Name != slot.Name || int(old.Position) != position || old.Status != slot.Status || !samePointer(old.ExternalIdentifier, slot.ExternalIdentifier)
+			changed := old.Name != slot.Name || int(old.Position) != position || old.Status != slot.Status ||
+				!samePointer(old.ExternalIdentifier, slot.ExternalIdentifier)
 			if err := q.ApplyPrinterSlotSetup(ctx, db.ApplyPrinterSlotSetupParams{ID: old.ID, Name: slot.Name, Position: int32(position), ExternalIdentifier: slot.ExternalIdentifier, Status: slot.Status, Bump: changed}); err != nil {
 				return setupDatabaseError(err)
 			}

@@ -59,7 +59,11 @@ func newSignageEnvWith(t *testing.T, adjust func(*config.Config)) *signageEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := signage.NewService(pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"}, files.NewService(pool, store))
+	service, err := signage.NewService(
+		pool,
+		config.Config{MakerspaceTimeZone: "Europe/Vienna"},
+		files.NewService(pool, store),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,12 @@ func newSignageEnvWith(t *testing.T, adjust func(*config.Config)) *signageEnv {
 	t.Cleanup(server.Close)
 	return &signageEnv{
 		t: t, pool: pool, server: server, api: server.URL + "/api/v1", origin: cfg.PublicBaseURL.String(),
-		fixture: signageFixture{pool: pool, service: service, store: store, admin: authorization.Principal{AccountID: master.accountID, PersonID: master.personID, Master: true}},
+		fixture: signageFixture{
+			pool:    pool,
+			service: service,
+			store:   store,
+			admin:   authorization.Principal{AccountID: master.accountID, PersonID: master.personID, Master: true},
+		},
 	}
 }
 
@@ -87,11 +96,23 @@ func (e *signageEnv) staff(suffix string, permissions ...authorization.Permissio
 	e.t.Helper()
 	principal, account := signageActor(e.t, e.pool, suffix, permissions...)
 	session, csrf := insertTestSession(e.t, e.pool, account)
-	return staffSession{client: clientWithSession(e.t, e.server.URL, session, csrf), csrf: csrf, principal: principal, account: account}
+	return staffSession{
+		client:    clientWithSession(e.t, e.server.URL, session, csrf),
+		csrf:      csrf,
+		principal: principal,
+		account:   account,
+	}
 }
 
 func (e *signageEnv) allStaff() staffSession {
-	return e.staff("all-"+uuid.NewString()[:8], authorization.SignageRead, authorization.SignageManage, authorization.SignageContentManage, authorization.SignagePublish, authorization.SignageOverride)
+	return e.staff(
+		"all-"+uuid.NewString()[:8],
+		authorization.SignageRead,
+		authorization.SignageManage,
+		authorization.SignageContentManage,
+		authorization.SignagePublish,
+		authorization.SignageOverride,
+	)
 }
 
 func (e *signageEnv) newPlayer() *http.Client { return newCookieClient(e.t) }
@@ -170,7 +191,10 @@ func (e *signageEnv) pair(staff staffSession, name string, playlistID uuid.UUID)
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	display := e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": name, "location": "Entrance hall", "orientation": "landscape",
-		"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
+		"resolution": map[string]any{
+			"width":  1920,
+			"height": 1080,
+		}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
 	}), http.StatusCreated)
 	if poll := e.expect(e.do(player, "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK); poll["status"] != "paired" {
 		e.t.Fatalf("poll after claim = %v", poll)
@@ -191,7 +215,9 @@ func (e *signageEnv) seedContent(name string) (signage.Scene, signage.Playlist) 
 
 func (e *signageEnv) displayVersion(staff staffSession, id string) int64 {
 	e.t.Helper()
-	return int64(e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+id, nil), http.StatusOK)["version"].(float64))
+	return int64(
+		e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+id, nil), http.StatusOK)["version"].(float64),
+	)
 }
 
 func (e *signageEnv) countAudit(action string) int {
@@ -226,7 +252,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 
 	response := e.do(player, "", http.MethodPost, "/public/signage/pairing", nil)
 	cookie := setCookie(response, signagePairingCookie)
-	if cookie == nil || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge != 900 || cookie.Value == "" {
+	if cookie == nil || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge != 900 ||
+		cookie.Value == "" {
 		t.Fatalf("poll-secret cookie = %#v", cookie)
 	}
 	if response.Header.Get("Cache-Control") != "no-store" {
@@ -247,7 +274,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	if err := e.pool.QueryRow(ctx, `SELECT code_digest, poll_secret_digest FROM signage_pairing_requests`).Scan(&storedCodeDigest, &storedSecretDigest); err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(storedCodeDigest, []byte(code)) || len(storedCodeDigest) != 32 || !bytes.Equal(storedSecretDigest, security.DigestToken(cookie.Value)) {
+	if bytes.Contains(storedCodeDigest, []byte(code)) || len(storedCodeDigest) != 32 ||
+		!bytes.Equal(storedSecretDigest, security.DigestToken(cookie.Value)) {
 		t.Fatal("pairing request must store only digests of the code and the poll secret")
 	}
 
@@ -263,7 +291,10 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	claim := func(s staffSession, code string) *http.Response {
 		return e.as(s, http.MethodPost, "/signage/displays", map[string]any{
 			"code": code, "name": "Entrance", "location": "Hall", "orientation": "landscape",
-			"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": true, "defaultPlaylistId": playlist.ID.String(),
+			"resolution": map[string]any{
+				"width":  1920,
+				"height": 1080,
+			}, "visibleFromOutside": true, "defaultPlaylistId": playlist.ID.String(),
 		})
 	}
 	// A wrong code and an expired code give the identical answer.
@@ -285,7 +316,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 
 	// Claim (case and separators are forgiven); the display and its device exist, nothing is audited as a secret.
 	display := e.expect(claim(staff, strings.ToLower(code[:3]+"-"+code[3:])), http.StatusCreated)
-	if display["status"] != "offline" || display["publishedRevision"] != nil || display["name"] != "Entrance" || display["visibleFromOutside"] != true {
+	if display["status"] != "offline" || display["publishedRevision"] != nil || display["name"] != "Entrance" ||
+		display["visibleFromOutside"] != true {
 		t.Fatalf("display = %v", display)
 	}
 	var modes []string
@@ -307,7 +339,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	// First poll after the claim delivers the cookie, once.
 	response = e.do(player, "", http.MethodGet, "/public/signage/pairing", nil)
 	deviceCookie := setCookie(response, signageDeviceCookie)
-	if deviceCookie == nil || !deviceCookie.HttpOnly || deviceCookie.SameSite != http.SameSiteStrictMode || deviceCookie.Value == "" {
+	if deviceCookie == nil || !deviceCookie.HttpOnly || deviceCookie.SameSite != http.SameSiteStrictMode ||
+		deviceCookie.Value == "" {
 		t.Fatalf("device cookie = %#v", deviceCookie)
 	}
 	if cleared := setCookie(response, signagePairingCookie); cleared == nil || cleared.MaxAge >= 0 {
@@ -324,7 +357,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 		t.Fatal("the stored device credential must be the digest of the delivered token")
 	}
 	var open int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_pairing_requests WHERE claimed_display_id IS NOT NULL`).Scan(&open); err != nil || open != 0 {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_pairing_requests WHERE claimed_display_id IS NOT NULL`).Scan(&open); err != nil ||
+		open != 0 {
 		t.Fatalf("delivered request must be deleted: %d %v", open, err)
 	}
 	// A second poll (even with a copy of the old cookie) never yields another credential.
@@ -339,7 +373,11 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 		t.Fatalf("replayed poll = %v", poll)
 	}
 	// The player now authenticates as its device.
-	e.expectCode(e.do(player, "", http.MethodGet, "/signage/player/manifest", nil), http.StatusNotFound, "signage_not_published")
+	e.expectCode(
+		e.do(player, "", http.MethodGet, "/signage/player/manifest", nil),
+		http.StatusNotFound,
+		"signage_not_published",
+	)
 }
 
 func signageCodeDigest(code string) []byte {
@@ -358,7 +396,10 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	attempt := func(code string) *http.Response {
 		return e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 			"code": code, "name": "X", "location": "", "orientation": "landscape",
-			"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"resolution": map[string]any{
+				"width":  1920,
+				"height": 1080,
+			}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 		})
 	}
 	for i := 0; i < 10; i++ {
@@ -370,14 +411,21 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	other := e.allStaff()
 	e.expect(e.as(other, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": "Y", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"resolution": map[string]any{
+			"width":  1920,
+			"height": 1080,
+		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}), http.StatusCreated)
 
 	// Per client IP: ten codes per hour (one was used above), then 429.
 	for i := 0; i < 9; i++ {
 		e.expect(e.do(e.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	}
-	e.expectCode(e.do(e.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusTooManyRequests, "rate_limited")
+	e.expectCode(
+		e.do(e.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil),
+		http.StatusTooManyRequests,
+		"rate_limited",
+	)
 
 	// Expired rows disappear opportunistically, and the global cap of open requests applies.
 	e2 := newSignageEnv(t)
@@ -388,14 +436,19 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	}
 	e2.expect(e2.do(e2.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	var rows int
-	if err := e2.pool.QueryRow(ctx2, `SELECT count(*) FROM signage_pairing_requests`).Scan(&rows); err != nil || rows != 1 {
+	if err := e2.pool.QueryRow(ctx2, `SELECT count(*) FROM signage_pairing_requests`).Scan(&rows); err != nil ||
+		rows != 1 {
 		t.Fatalf("expired row should be gone, rows=%d err=%v", rows, err)
 	}
 	if _, err := e2.pool.Exec(ctx2, `INSERT INTO signage_pairing_requests (id, code_digest, poll_secret_digest, created_at, expires_at)
 		SELECT uuidv7(), sha256(('c' || n)::bytea), sha256(('s' || n)::bytea), now(), now() + interval '10 minutes' FROM generate_series(1, 49) AS n`); err != nil {
 		t.Fatal(err)
 	}
-	e2.expectCode(e2.do(e2.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusTooManyRequests, "rate_limited")
+	e2.expectCode(
+		e2.do(e2.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil),
+		http.StatusTooManyRequests,
+		"rate_limited",
+	)
 	_ = ctx
 }
 
@@ -417,7 +470,17 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	} {
 		e.expectCode(e.do(player, "", request.method, request.path, nil), http.StatusForbidden, "device_mode_denied")
 	}
-	e.expectCode(e.do(player, "", http.MethodPost, "/auth/login", map[string]any{"email": "x@example.test", "password": "irrelevant-password"}), http.StatusForbidden, "device_mode_denied")
+	e.expectCode(
+		e.do(
+			player,
+			"",
+			http.MethodPost,
+			"/auth/login",
+			map[string]any{"email": "x@example.test", "password": "irrelevant-password"},
+		),
+		http.StatusForbidden,
+		"device_mode_denied",
+	)
 	e.expectCode(e.do(player, "", http.MethodPost, "/auth/logout", nil), http.StatusForbidden, "device_mode_denied")
 	e.expect(e.do(player, "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK)
 
@@ -430,13 +493,28 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 
 	// The native header credential works for the player API too.
 	native := e.newPlayer()
-	e.expect(e.do(native, "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", token), http.StatusOK)
+	e.expect(
+		e.do(native, "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", token),
+		http.StatusOK,
+	)
 
 	// Player routes never accept a user session: not alone, not with another device mode.
 	e.expectCode(e.as(staff, http.MethodGet, "/signage/player/live", nil), http.StatusUnauthorized, "unauthenticated")
-	e.expectCode(e.as(staff, http.MethodGet, "/signage/player/manifest", nil), http.StatusUnauthorized, "unauthenticated")
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/player/heartbeat", map[string]any{"errors": []string{}}), http.StatusUnauthorized, "unauthenticated")
-	e.expectCode(e.do(e.newPlayer(), "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", "bogus"), http.StatusUnauthorized, "unauthenticated")
+	e.expectCode(
+		e.as(staff, http.MethodGet, "/signage/player/manifest", nil),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
+	e.expectCode(
+		e.as(staff, http.MethodPost, "/signage/player/heartbeat", map[string]any{"errors": []string{}}),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
+	e.expectCode(
+		e.do(e.newPlayer(), "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", "bogus"),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
 	deviceService := manageddevices.NewService(e.pool)
 	deviceType, err := deviceService.CreateType(ctx, e.fixture.admin, "Office tablet", nil, nil)
 	if err != nil {
@@ -446,7 +524,19 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.expectCode(e.do(staff.client, staff.csrf, http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", office.Token), http.StatusForbidden, "device_mode_denied")
+	e.expectCode(
+		e.do(
+			staff.client,
+			staff.csrf,
+			http.MethodGet,
+			"/signage/player/live",
+			nil,
+			"X-Managed-Device-Token",
+			office.Token,
+		),
+		http.StatusForbidden,
+		"device_mode_denied",
+	)
 
 	// A signage device without a display answers 404.
 	orphanToken, orphanDigest, err := security.NewOpaqueToken()
@@ -460,7 +550,11 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	if _, err := e.pool.Exec(ctx, `INSERT INTO managed_devices (id, name, device_type_id, token_digest, allowed_app_modes) VALUES (uuidv7(), 'Orphan', $1, $2, ARRAY['signage_player'])`, signageType, orphanDigest); err != nil {
 		t.Fatal(err)
 	}
-	e.expectCode(e.do(e.newPlayer(), "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", orphanToken), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.do(e.newPlayer(), "", http.MethodGet, "/signage/player/live", nil, "X-Managed-Device-Token", orphanToken),
+		http.StatusNotFound,
+		"not_found",
+	)
 
 	// The database refuses a signage player combined with any other mode.
 	for _, modes := range []string{"ARRAY['signage_player','staff_ui']", "ARRAY['staff_ui','signage_player']", "ARRAY['visitor_terminal','signage_player']"} {
@@ -471,22 +565,60 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 
 	// Revoking the display revokes the credential at once and blocks every further display change.
 	version := e.displayVersion(staff, displayID)
-	revoked := e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": version}), http.StatusOK)
+	revoked := e.expect(
+		e.as(
+			staff,
+			http.MethodPost,
+			"/signage/displays/"+displayID+"/revoke",
+			map[string]any{"expectedVersion": version},
+		),
+		http.StatusOK,
+	)
 	if revoked["status"] != "revoked" || revoked["revokedAt"] == nil {
 		t.Fatalf("revoked display = %v", revoked)
 	}
-	e.expectCode(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusUnauthorized, "unauthenticated")
-	e.expectCode(e.do(native, "", http.MethodGet, "/signage/player/manifest", nil, "X-Managed-Device-Token", token), http.StatusUnauthorized, "unauthenticated")
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": revoked["version"]}), http.StatusConflict, "signage_display_revoked")
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusConflict, "signage_display_revoked")
+	e.expectCode(
+		e.do(player, "", http.MethodGet, "/signage/player/live", nil),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
+	e.expectCode(
+		e.do(native, "", http.MethodGet, "/signage/player/manifest", nil, "X-Managed-Device-Token", token),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
+	e.expectCode(
+		e.as(
+			staff,
+			http.MethodPost,
+			"/signage/displays/"+displayID+"/revoke",
+			map[string]any{"expectedVersion": revoked["version"]},
+		),
+		http.StatusConflict,
+		"signage_display_revoked",
+	)
+	e.expectCode(
+		e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil),
+		http.StatusConflict,
+		"signage_display_revoked",
+	)
 	if e.countAudit("signage_display.revoked") != 1 || e.countAudit("managed_device.revoked") != 1 {
 		t.Fatal("revocation must be audited for the display and its device")
 	}
 	// Delete removes the display and its managed device.
-	e.expect(e.as(staff, http.MethodDelete, "/signage/displays/"+displayID, map[string]any{"expectedVersion": revoked["version"]}), http.StatusNoContent)
+	e.expect(
+		e.as(
+			staff,
+			http.MethodDelete,
+			"/signage/displays/"+displayID,
+			map[string]any{"expectedVersion": revoked["version"]},
+		),
+		http.StatusNoContent,
+	)
 	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+displayID, nil), http.StatusNotFound, "not_found")
 	var devices int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil || devices != 0 {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil ||
+		devices != 0 {
 		t.Fatalf("managed device should be deleted with its display: %d %v", devices, err)
 	}
 	if e.countAudit("signage_display.deleted") != 1 || e.countAudit("managed_device.deleted") != 1 {
@@ -496,17 +628,36 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	// Revoking only the managed device through the generic endpoint also cuts the display off.
 	second, secondPlayer := e.pair(staff, "Second", playlist.ID)
 	devManager := e.staff("devices", authorization.ManagedDevicesRead, authorization.ManagedDevicesManage)
-	device := e.expect(e.as(devManager, http.MethodGet, "/managed-devices/"+second["managedDeviceId"].(string), nil), http.StatusOK)
+	device := e.expect(
+		e.as(devManager, http.MethodGet, "/managed-devices/"+second["managedDeviceId"].(string), nil),
+		http.StatusOK,
+	)
 	if modes := device["allowedApplicationModes"].([]any); len(modes) != 1 || modes[0] != "signage_player" {
 		t.Fatalf("device modes = %v", modes)
 	}
-	e.expect(e.as(devManager, http.MethodPost, "/managed-devices/"+second["managedDeviceId"].(string)+"/revoke", map[string]any{"expectedVersion": device["version"]}), http.StatusOK)
-	e.expectCode(e.do(secondPlayer, "", http.MethodGet, "/signage/player/live", nil), http.StatusUnauthorized, "unauthenticated")
+	e.expect(
+		e.as(
+			devManager,
+			http.MethodPost,
+			"/managed-devices/"+second["managedDeviceId"].(string)+"/revoke",
+			map[string]any{"expectedVersion": device["version"]},
+		),
+		http.StatusOK,
+	)
+	e.expectCode(
+		e.do(secondPlayer, "", http.MethodGet, "/signage/player/live", nil),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
 	view := e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+second["id"].(string), nil), http.StatusOK)
 	if view["status"] != "revoked" {
 		t.Fatalf("display behind a revoked device must read as revoked: %v", view)
 	}
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/displays/"+second["id"].(string)+"/publish", nil), http.StatusConflict, "signage_display_revoked")
+	e.expectCode(
+		e.as(staff, http.MethodPost, "/signage/displays/"+second["id"].(string)+"/publish", nil),
+		http.StatusConflict,
+		"signage_display_revoked",
+	)
 }
 
 func (e *signageEnv) epoch() int64 {
@@ -529,35 +680,73 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 	id := display["id"].(string)
 	readOnly := e.staff("reader", authorization.SignageRead)
 	version := e.displayVersion(staff, id)
-	e.expectCode(e.as(readOnly, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusForbidden, "permission_denied")
-	e.expectCode(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version + 100}), http.StatusConflict, "stale_write")
+	e.expectCode(
+		e.as(readOnly, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}),
+		http.StatusForbidden,
+		"permission_denied",
+	)
+	e.expectCode(
+		e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version + 100}),
+		http.StatusConflict,
+		"stale_write",
+	)
 	e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
 
 	// An active display is deleted without a prior revoke; its player is cut off and camera sessions end.
 	epoch := e.epoch()
-	e.expect(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusNoContent)
+	e.expect(
+		e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}),
+		http.StatusNoContent,
+	)
 	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+id, nil), http.StatusNotFound, "not_found")
-	e.expectCode(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusUnauthorized, "unauthenticated")
+	e.expectCode(
+		e.do(player, "", http.MethodGet, "/signage/player/live", nil),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
 	if e.epoch() != epoch+1 {
 		t.Fatalf("session epoch = %d, want %d", e.epoch(), epoch+1)
 	}
 	var listed, devices int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`, id).Scan(&listed); err != nil || listed != 1 {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`, id).Scan(&listed); err != nil ||
+		listed != 1 {
 		t.Fatalf("deleted display must be on the revoked list: %d %v", listed, err)
 	}
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil || devices != 0 {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil ||
+		devices != 0 {
 		t.Fatalf("managed device should be deleted: %d %v", devices, err)
 	}
-	if e.countAudit("signage_display.deleted") != 1 || e.countAudit("managed_device.revoked") != 1 || e.countAudit("managed_device.deleted") != 1 {
+	if e.countAudit("signage_display.deleted") != 1 || e.countAudit("managed_device.revoked") != 1 ||
+		e.countAudit("managed_device.deleted") != 1 {
 		t.Fatal("deleting an active display must audit the display deletion and the device revoke and deletion")
 	}
-	e.expectCode(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}),
+		http.StatusNotFound,
+		"not_found",
+	)
 
 	// A revoked display can still be deleted.
 	second, _ := e.pair(staff, "Revoked", playlist.ID)
 	secondID := second["id"].(string)
-	revoked := e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+secondID+"/revoke", map[string]any{"expectedVersion": e.displayVersion(staff, secondID)}), http.StatusOK)
-	e.expect(e.as(staff, http.MethodDelete, "/signage/displays/"+secondID, map[string]any{"expectedVersion": revoked["version"]}), http.StatusNoContent)
+	revoked := e.expect(
+		e.as(
+			staff,
+			http.MethodPost,
+			"/signage/displays/"+secondID+"/revoke",
+			map[string]any{"expectedVersion": e.displayVersion(staff, secondID)},
+		),
+		http.StatusOK,
+	)
+	e.expect(
+		e.as(
+			staff,
+			http.MethodDelete,
+			"/signage/displays/"+secondID,
+			map[string]any{"expectedVersion": revoked["version"]},
+		),
+		http.StatusNoContent,
+	)
 	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+secondID, nil), http.StatusNotFound, "not_found")
 }
 
@@ -593,10 +782,36 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 	}
 	e.expectCode(update("staff_ui"), http.StatusUnprocessableEntity, "validation_failed")
 	e.expectCode(update("signage_player"), http.StatusUnprocessableEntity, "validation_failed")
-	e.expectCode(e.as(manager, http.MethodPost, "/managed-devices/"+deviceID+"/token", map[string]any{"expiresAt": nil, "expectedVersion": device["version"], "credentialDelivery": "nativeToken"}), http.StatusUnprocessableEntity, "validation_failed")
+	e.expectCode(
+		e.as(
+			manager,
+			http.MethodPost,
+			"/managed-devices/"+deviceID+"/token",
+			map[string]any{"expiresAt": nil, "expectedVersion": device["version"], "credentialDelivery": "nativeToken"},
+		),
+		http.StatusUnprocessableEntity,
+		"validation_failed",
+	)
 	// Deleting needs a revoked device, and the display still pins it.
-	revoked := e.expect(e.as(manager, http.MethodPost, "/managed-devices/"+deviceID+"/revoke", map[string]any{"expectedVersion": device["version"]}), http.StatusOK)
-	e.expectCode(e.as(manager, http.MethodDelete, "/managed-devices/"+deviceID, map[string]any{"expectedVersion": revoked["version"]}), http.StatusConflict, "conflict")
+	revoked := e.expect(
+		e.as(
+			manager,
+			http.MethodPost,
+			"/managed-devices/"+deviceID+"/revoke",
+			map[string]any{"expectedVersion": device["version"]},
+		),
+		http.StatusOK,
+	)
+	e.expectCode(
+		e.as(
+			manager,
+			http.MethodDelete,
+			"/managed-devices/"+deviceID,
+			map[string]any{"expectedVersion": revoked["version"]},
+		),
+		http.StatusConflict,
+		"conflict",
+	)
 }
 
 func TestSignagePermissionsForDisplayOperations(t *testing.T) {
@@ -624,12 +839,18 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	settings := func() map[string]any {
 		return map[string]any{
 			"expectedVersion": version(), "name": "Permissions", "location": "Hall", "orientation": "landscape",
-			"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"resolution": map[string]any{
+				"width":  1920,
+				"height": 1080,
+			}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 		}
 	}
 	pairBody := map[string]any{
 		"code": "AAAAAA", "name": "X", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"resolution": map[string]any{
+			"width":  1920,
+			"height": 1080,
+		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}
 
 	// Reads need signage.read.
@@ -648,13 +869,23 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 		body   func() map[string]any
 		status int
 	}{
-		{"pair", http.MethodPost, "/signage/displays", func() map[string]any { return pairBody }, http.StatusUnprocessableEntity},
+		{
+			"pair",
+			http.MethodPost,
+			"/signage/displays",
+			func() map[string]any { return pairBody },
+			http.StatusUnprocessableEntity,
+		},
 		{"update", http.MethodPut, "/signage/displays/" + displayID, settings, http.StatusOK},
 		{"create rule", http.MethodPost, "/signage/displays/" + displayID + "/rules", rule, http.StatusCreated},
 	}
 	for _, write := range writes {
 		for _, denied := range []staffSession{nobody, reader, publisher, content} {
-			e.expectCode(e.as(denied, write.method, write.path, write.body()), http.StatusForbidden, "permission_denied")
+			e.expectCode(
+				e.as(denied, write.method, write.path, write.body()),
+				http.StatusForbidden,
+				"permission_denied",
+			)
 		}
 	}
 	for _, write := range writes {
@@ -666,33 +897,110 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	rulePath := "/signage/displays/" + displayID + "/rules/" + ruleID
 	for _, denied := range []staffSession{nobody, reader, publisher, content} {
 		e.expectCode(e.as(denied, http.MethodPut, rulePath, rule()), http.StatusForbidden, "permission_denied")
-		e.expectCode(e.as(denied, http.MethodPatch, rulePath, map[string]any{"expectedVersion": version(), "enabled": false}), http.StatusForbidden, "permission_denied")
-		e.expectCode(e.as(denied, http.MethodPut, "/signage/displays/"+displayID+"/rule-order", map[string]any{"expectedVersion": version(), "ruleIds": []string{ruleID}}), http.StatusForbidden, "permission_denied")
-		e.expectCode(e.as(denied, http.MethodDelete, rulePath, map[string]any{"expectedVersion": version()}), http.StatusForbidden, "permission_denied")
-		e.expectCode(e.as(denied, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": version()}), http.StatusForbidden, "permission_denied")
-		e.expectCode(e.as(denied, http.MethodDelete, "/signage/displays/"+displayID, map[string]any{"expectedVersion": version()}), http.StatusForbidden, "permission_denied")
+		e.expectCode(
+			e.as(denied, http.MethodPatch, rulePath, map[string]any{"expectedVersion": version(), "enabled": false}),
+			http.StatusForbidden,
+			"permission_denied",
+		)
+		e.expectCode(
+			e.as(
+				denied,
+				http.MethodPut,
+				"/signage/displays/"+displayID+"/rule-order",
+				map[string]any{"expectedVersion": version(), "ruleIds": []string{ruleID}},
+			),
+			http.StatusForbidden,
+			"permission_denied",
+		)
+		e.expectCode(
+			e.as(denied, http.MethodDelete, rulePath, map[string]any{"expectedVersion": version()}),
+			http.StatusForbidden,
+			"permission_denied",
+		)
+		e.expectCode(
+			e.as(
+				denied,
+				http.MethodPost,
+				"/signage/displays/"+displayID+"/revoke",
+				map[string]any{"expectedVersion": version()},
+			),
+			http.StatusForbidden,
+			"permission_denied",
+		)
+		e.expectCode(
+			e.as(
+				denied,
+				http.MethodDelete,
+				"/signage/displays/"+displayID,
+				map[string]any{"expectedVersion": version()},
+			),
+			http.StatusForbidden,
+			"permission_denied",
+		)
 	}
 	e.expect(e.as(manager, http.MethodPut, rulePath, rule()), http.StatusOK)
-	e.expect(e.as(manager, http.MethodPatch, rulePath, map[string]any{"expectedVersion": version(), "enabled": false}), http.StatusOK)
-	e.expect(e.as(manager, http.MethodPut, "/signage/displays/"+displayID+"/rule-order", map[string]any{"expectedVersion": version(), "ruleIds": []string{ruleID}}), http.StatusOK)
+	e.expect(
+		e.as(manager, http.MethodPatch, rulePath, map[string]any{"expectedVersion": version(), "enabled": false}),
+		http.StatusOK,
+	)
+	e.expect(
+		e.as(
+			manager,
+			http.MethodPut,
+			"/signage/displays/"+displayID+"/rule-order",
+			map[string]any{"expectedVersion": version(), "ruleIds": []string{ruleID}},
+		),
+		http.StatusOK,
+	)
 
 	// Publishing needs signage.publish; manage does not imply it and publish does not imply manage.
 	for _, denied := range []staffSession{nobody, reader, manager, content, readManage} {
-		e.expectCode(e.as(denied, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusForbidden, "permission_denied")
+		e.expectCode(
+			e.as(denied, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil),
+			http.StatusForbidden,
+			"permission_denied",
+		)
 	}
-	published := e.expect(e.as(publisher, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
+	published := e.expect(
+		e.as(publisher, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil),
+		http.StatusOK,
+	)
 	if published["publishedRevision"] != float64(1) {
 		t.Fatalf("published = %v", published)
 	}
-	e.expectCode(e.as(publisher, http.MethodPut, "/signage/displays/"+displayID, settings()), http.StatusForbidden, "permission_denied")
+	e.expectCode(
+		e.as(publisher, http.MethodPut, "/signage/displays/"+displayID, settings()),
+		http.StatusForbidden,
+		"permission_denied",
+	)
 
 	// Deleting a rule, then the display (revoke first), works for the manager.
 	e.expect(e.as(manager, http.MethodDelete, rulePath, map[string]any{"expectedVersion": version()}), http.StatusOK)
-	revoked := e.expect(e.as(manager, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": version()}), http.StatusOK)
-	e.expect(e.as(manager, http.MethodDelete, "/signage/displays/"+displayID, map[string]any{"expectedVersion": revoked["version"]}), http.StatusNoContent)
+	revoked := e.expect(
+		e.as(
+			manager,
+			http.MethodPost,
+			"/signage/displays/"+displayID+"/revoke",
+			map[string]any{"expectedVersion": version()},
+		),
+		http.StatusOK,
+	)
+	e.expect(
+		e.as(
+			manager,
+			http.MethodDelete,
+			"/signage/displays/"+displayID,
+			map[string]any{"expectedVersion": revoked["version"]},
+		),
+		http.StatusNoContent,
+	)
 
 	// Unauthenticated callers are refused too.
-	e.expectCode(e.do(e.newPlayer(), "", http.MethodGet, "/signage/displays", nil), http.StatusUnauthorized, "unauthenticated")
+	e.expectCode(
+		e.do(e.newPlayer(), "", http.MethodGet, "/signage/displays", nil),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
 }
 
 func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
@@ -706,7 +1014,12 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	template, err := e.fixture.service.CreateTemplate(ctx, e.fixture.admin, signage.TemplateInput{Name: "Rule template", Tone: "info", Title: "Hello", Body: ""}, nil)
+	template, err := e.fixture.service.CreateTemplate(
+		ctx,
+		e.fixture.admin,
+		signage.TemplateInput{Name: "Rule template", Tone: "info", Title: "Hello", Body: ""},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -716,7 +1029,10 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	base := "/signage/displays/" + displayID
 	body := func(overrides map[string]any) map[string]any {
 		value := map[string]any{
-			"expectedVersion": e.displayVersion(staff, displayID), "enabled": true, "conditionKind": "live_data_unavailable",
+			"expectedVersion": e.displayVersion(
+				staff,
+				displayID,
+			), "enabled": true, "conditionKind": "live_data_unavailable",
 			"targetKind": "scene", "targetId": scene.ID.String(), "minSeconds": 20, "multiMode": "split", "alternateSeconds": 10,
 		}
 		for key, override := range overrides {
@@ -747,10 +1063,13 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		"conditionKind": "time_window", "weekdays": []int{5, 1, 1}, "timeFrom": "22:00", "timeTo": "06:00",
 	})), http.StatusCreated)
 	first := created["items"].([]any)[0].(map[string]any)
-	if created["displayVersion"] != startVersion+1 || first["conditionKind"] != "time_window" || first["timeFrom"] != "22:00" || first["machineMatch"] != nil {
+	if created["displayVersion"] != startVersion+1 || first["conditionKind"] != "time_window" ||
+		first["timeFrom"] != "22:00" ||
+		first["machineMatch"] != nil {
 		t.Fatalf("created = %v", created)
 	}
-	if weekdays := first["weekdays"].([]any); len(weekdays) != 2 || weekdays[0] != float64(1) || weekdays[1] != float64(5) {
+	if weekdays := first["weekdays"].([]any); len(weekdays) != 2 || weekdays[0] != float64(1) ||
+		weekdays[1] != float64(5) {
 		t.Fatalf("weekdays = %v", first["weekdays"])
 	}
 	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
@@ -759,14 +1078,21 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
 		"conditionKind": "announcement_active", "announcementTemplateIds": []string{template.ID.String()},
 	})), http.StatusCreated)
-	list = e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"enabled": false})), http.StatusCreated)
+	list = e.expect(
+		e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"enabled": false})),
+		http.StatusCreated,
+	)
 	ids := ruleIDs(list)
 	if len(ids) != 4 || list["displayVersion"] != startVersion+4 {
 		t.Fatalf("list = %v", list)
 	}
 
 	// Stale display versions conflict.
-	e.expectCode(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"expectedVersion": startVersion})), http.StatusConflict, "stale_write")
+	e.expectCode(
+		e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"expectedVersion": startVersion})),
+		http.StatusConflict,
+		"stale_write",
+	)
 
 	// Validation: kind-specific fields, references, orientation.
 	for name, overrides := range map[string]map[string]any{
@@ -801,22 +1127,58 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	}
 	// A playlist may hold scenes of any orientation.
 	playlistWithPortrait := e.fixture.playlist(t, "Mixed", portrait.ID)
-	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"targetKind": "playlist", "targetId": playlistWithPortrait.ID.String()})), http.StatusCreated)
+	e.expect(
+		e.as(
+			staff,
+			http.MethodPost,
+			base+"/rules",
+			body(map[string]any{"targetKind": "playlist", "targetId": playlistWithPortrait.ID.String()}),
+		),
+		http.StatusCreated,
+	)
 	list = e.expect(e.as(staff, http.MethodGet, base+"/rules", nil), http.StatusOK)
 	ids = ruleIDs(list)
-	e.expect(e.as(staff, http.MethodDelete, base+"/rules/"+ids[4], map[string]any{"expectedVersion": list["displayVersion"]}), http.StatusOK)
+	e.expect(
+		e.as(
+			staff,
+			http.MethodDelete,
+			base+"/rules/"+ids[4],
+			map[string]any{"expectedVersion": list["displayVersion"]},
+		),
+		http.StatusOK,
+	)
 
 	// Update and enable toggle.
-	updated := e.expect(e.as(staff, http.MethodPut, base+"/rules/"+ids[3], body(map[string]any{"enabled": true, "minSeconds": 45})), http.StatusOK)
-	if rule := updated["items"].([]any)[3].(map[string]any); rule["enabled"] != true || rule["minSeconds"] != float64(45) {
+	updated := e.expect(
+		e.as(staff, http.MethodPut, base+"/rules/"+ids[3], body(map[string]any{"enabled": true, "minSeconds": 45})),
+		http.StatusOK,
+	)
+	if rule := updated["items"].([]any)[3].(map[string]any); rule["enabled"] != true ||
+		rule["minSeconds"] != float64(45) {
 		t.Fatalf("updated rule = %v", rule)
 	}
-	toggled := e.expect(e.as(staff, http.MethodPatch, base+"/rules/"+ids[3], map[string]any{"expectedVersion": updated["displayVersion"], "enabled": false}), http.StatusOK)
+	toggled := e.expect(
+		e.as(
+			staff,
+			http.MethodPatch,
+			base+"/rules/"+ids[3],
+			map[string]any{"expectedVersion": updated["displayVersion"], "enabled": false},
+		),
+		http.StatusOK,
+	)
 	if toggled["items"].([]any)[3].(map[string]any)["enabled"] != false {
 		t.Fatalf("toggle = %v", toggled)
 	}
-	e.expectCode(e.as(staff, http.MethodPut, base+"/rules/"+uuid.Must(uuid.NewV7()).String(), body(nil)), http.StatusNotFound, "not_found")
-	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/rules", nil), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.as(staff, http.MethodPut, base+"/rules/"+uuid.Must(uuid.NewV7()).String(), body(nil)),
+		http.StatusNotFound,
+		"not_found",
+	)
+	e.expectCode(
+		e.as(staff, http.MethodGet, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/rules", nil),
+		http.StatusNotFound,
+		"not_found",
+	)
 
 	// Reorder is atomic: a bad set changes nothing, a good one applies completely and bumps the version once.
 	before := e.displayVersion(staff, displayID)
@@ -825,7 +1187,12 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		"duplicate": {ids[0], ids[0], ids[1], ids[2]},
 		"foreign":   {ids[0], ids[1], ids[2], uuid.Must(uuid.NewV7()).String()},
 	} {
-		response := e.as(staff, http.MethodPut, base+"/rule-order", map[string]any{"expectedVersion": before, "ruleIds": candidate})
+		response := e.as(
+			staff,
+			http.MethodPut,
+			base+"/rule-order",
+			map[string]any{"expectedVersion": before, "ruleIds": candidate},
+		)
 		if response.StatusCode != http.StatusUnprocessableEntity {
 			t.Errorf("reorder %s: status = %d, want 422", name, response.StatusCode)
 		}
@@ -834,25 +1201,64 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if after := e.displayVersion(staff, displayID); after != before {
 		t.Fatalf("failed reorders changed the version %d -> %d", before, after)
 	}
-	reordered := e.expect(e.as(staff, http.MethodPut, base+"/rule-order", map[string]any{"expectedVersion": before, "ruleIds": []string{ids[3], ids[2], ids[1], ids[0]}}), http.StatusOK)
+	reordered := e.expect(
+		e.as(
+			staff,
+			http.MethodPut,
+			base+"/rule-order",
+			map[string]any{"expectedVersion": before, "ruleIds": []string{ids[3], ids[2], ids[1], ids[0]}},
+		),
+		http.StatusOK,
+	)
 	newOrder := ruleIDs(reordered)
 	if newOrder[0] != ids[3] || newOrder[3] != ids[0] || reordered["displayVersion"] != float64(before+1) {
 		t.Fatalf("reordered = %v", reordered)
 	}
-	e.expectCode(e.as(staff, http.MethodPut, base+"/rule-order", map[string]any{"expectedVersion": before, "ruleIds": newOrder}), http.StatusConflict, "stale_write")
+	e.expectCode(
+		e.as(staff, http.MethodPut, base+"/rule-order", map[string]any{"expectedVersion": before, "ruleIds": newOrder}),
+		http.StatusConflict,
+		"stale_write",
+	)
 
 	// Delete closes the gap.
-	afterDelete := e.expect(e.as(staff, http.MethodDelete, base+"/rules/"+newOrder[1], map[string]any{"expectedVersion": reordered["displayVersion"]}), http.StatusOK)
-	if remaining := ruleIDs(afterDelete); len(remaining) != 3 || remaining[0] != newOrder[0] || remaining[1] != newOrder[2] || remaining[2] != newOrder[3] {
+	afterDelete := e.expect(
+		e.as(
+			staff,
+			http.MethodDelete,
+			base+"/rules/"+newOrder[1],
+			map[string]any{"expectedVersion": reordered["displayVersion"]},
+		),
+		http.StatusOK,
+	)
+	if remaining := ruleIDs(afterDelete); len(remaining) != 3 || remaining[0] != newOrder[0] ||
+		remaining[1] != newOrder[2] ||
+		remaining[2] != newOrder[3] {
 		t.Fatalf("after delete = %v", afterDelete)
 	}
 
 	// Drafts that rules point at cannot be deleted; settings cannot strand rules on another orientation.
-	expectInUse(t, e.fixture.service.DeleteScene(ctx, e.fixture.admin, scene.ID, scene.Version, nil), "playlist", "display_rule", "display_rule")
-	expectInUse(t, e.fixture.service.DeletePlaylist(ctx, e.fixture.admin, playlist.ID, playlist.Version, nil), "display_default", "display_rule")
+	expectInUse(
+		t,
+		e.fixture.service.DeleteScene(ctx, e.fixture.admin, scene.ID, scene.Version, nil),
+		"playlist",
+		"display_rule",
+		"display_rule",
+	)
+	expectInUse(
+		t,
+		e.fixture.service.DeletePlaylist(ctx, e.fixture.admin, playlist.ID, playlist.Version, nil),
+		"display_default",
+		"display_rule",
+	)
 	settings := map[string]any{
-		"expectedVersion": e.displayVersion(staff, displayID), "name": "Rules", "location": "", "orientation": "portrait",
-		"resolution": map[string]any{"width": 1080, "height": 1920}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"expectedVersion": e.displayVersion(
+			staff,
+			displayID,
+		), "name": "Rules", "location": "", "orientation": "portrait",
+		"resolution": map[string]any{
+			"width":  1080,
+			"height": 1920,
+		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}
 	e.expectCode(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity, "validation_failed")
 	settings["defaultPlaylistId"] = uuid.Must(uuid.NewV7()).String()
@@ -896,7 +1302,18 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	imageBytes := signageJPEG(t, 64, 48)
 	width, height := 640, 360
 	videoBytes := signageMP4(5000)
-	video, err := svc.UploadAsset(ctx, admin, signage.UploadInput{Name: "clip.mp4", ContentType: "video/mp4", Width: &width, Height: &height, Body: bytes.NewReader(videoBytes)}, nil)
+	video, err := svc.UploadAsset(
+		ctx,
+		admin,
+		signage.UploadInput{
+			Name:        "clip.mp4",
+			ContentType: "video/mp4",
+			Width:       &width,
+			Height:      &height,
+			Body:        bytes.NewReader(videoBytes),
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -920,7 +1337,10 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	base := "/signage/displays/" + displayID
 	addRule := func(enabled bool, scene signage.Scene) {
 		e.expect(e.as(staff, http.MethodPost, base+"/rules", map[string]any{
-			"expectedVersion": e.displayVersion(staff, displayID), "enabled": enabled, "conditionKind": "live_data_unavailable",
+			"expectedVersion": e.displayVersion(
+				staff,
+				displayID,
+			), "enabled": enabled, "conditionKind": "live_data_unavailable",
 			"targetKind": "scene", "targetId": scene.ID.String(), "minSeconds": 20, "multiMode": "split", "alternateSeconds": 10,
 		}), http.StatusCreated)
 	}
@@ -928,15 +1348,23 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	addRule(false, sceneC)
 
 	// Nothing published yet.
-	if pending := e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK); len(pending["pendingChanges"].([]any)) != 0 || pending["publishedRevision"] != nil {
+	if pending := e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK); len(
+		pending["pendingChanges"].([]any),
+	) != 0 ||
+		pending["publishedRevision"] != nil {
 		t.Fatalf("unpublished display = %v", pending)
 	}
-	e.expectCode(e.do(player, "", http.MethodGet, "/signage/player/manifest", nil), http.StatusNotFound, "signage_not_published")
+	e.expectCode(
+		e.do(player, "", http.MethodGet, "/signage/player/manifest", nil),
+		http.StatusNotFound,
+		"signage_not_published",
+	)
 	assetPath := func(a signage.Asset) string { return "/signage/player/assets/" + a.ID.String() + "/" + a.SHA256 }
 	e.expectCode(e.do(player, "", http.MethodGet, assetPath(image), nil), http.StatusNotFound, "not_found")
 
 	published := e.expect(e.as(staff, http.MethodPost, base+"/publish", nil), http.StatusOK)
-	if published["publishedRevision"] != float64(1) || published["publishedAt"] == nil || len(published["pendingChanges"].([]any)) != 0 {
+	if published["publishedRevision"] != float64(1) || published["publishedAt"] == nil ||
+		len(published["pendingChanges"].([]any)) != 0 {
 		t.Fatalf("published = %v", published)
 	}
 
@@ -947,19 +1375,31 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	}
 	envelope := e.expect(response, http.StatusOK)
 	manifest := envelope["manifest"].(map[string]any)
-	if envelope["unchanged"] != false || manifest["revision"] != float64(1) || manifest["layoutsVersion"] != float64(1) || manifest["defaultPlaylistId"] != playlist.ID.String() {
+	if envelope["unchanged"] != false || manifest["revision"] != float64(1) ||
+		manifest["layoutsVersion"] != float64(1) ||
+		manifest["defaultPlaylistId"] != playlist.ID.String() {
 		t.Fatalf("manifest = %v", manifest)
 	}
-	if len(manifest["rules"].([]any)) != 1 || len(manifest["scenes"].([]any)) != 2 || len(manifest["playlists"].([]any)) != 1 || len(manifest["assets"].([]any)) != 2 {
-		t.Fatalf("manifest content rules=%d scenes=%d playlists=%d assets=%d", len(manifest["rules"].([]any)), len(manifest["scenes"].([]any)), len(manifest["playlists"].([]any)), len(manifest["assets"].([]any)))
+	if len(manifest["rules"].([]any)) != 1 || len(manifest["scenes"].([]any)) != 2 ||
+		len(manifest["playlists"].([]any)) != 1 ||
+		len(manifest["assets"].([]any)) != 2 {
+		t.Fatalf(
+			"manifest content rules=%d scenes=%d playlists=%d assets=%d",
+			len(manifest["rules"].([]any)),
+			len(manifest["scenes"].([]any)),
+			len(manifest["playlists"].([]any)),
+			len(manifest["assets"].([]any)),
+		)
 	}
-	if d := manifest["display"].(map[string]any); d["orientation"] != "landscape" || d["resolution"].(map[string]any)["width"] != float64(1920) {
+	if d := manifest["display"].(map[string]any); d["orientation"] != "landscape" ||
+		d["resolution"].(map[string]any)["width"] != float64(1920) {
 		t.Fatalf("manifest display = %v", d)
 	}
 	digest := sha256.Sum256(imageBytes)
 	for _, raw := range manifest["assets"].([]any) {
 		asset := raw.(map[string]any)
-		if asset["id"] == image.ID.String() && (asset["sha256"] != hex.EncodeToString(digest[:]) || asset["url"] != "/api/v1"+assetPath(image) || asset["kind"] != "image") {
+		if asset["id"] == image.ID.String() &&
+			(asset["sha256"] != hex.EncodeToString(digest[:]) || asset["url"] != "/api/v1"+assetPath(image) || asset["kind"] != "image") {
 			t.Fatalf("image asset = %v", asset)
 		}
 		if asset["id"] == unused.ID.String() {
@@ -976,23 +1416,41 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 
 	// Asset delivery: content addressed, immutable, only for published assets.
 	response, body := e.rawGet(player, assetPath(image))
-	if response.StatusCode != http.StatusOK || !bytes.Equal(body, imageBytes) || response.Header.Get("Content-Type") != "image/jpeg" ||
-		response.Header.Get("Cache-Control") != "private, max-age=31536000, immutable" || response.Header.Get("X-Content-Type-Options") != "nosniff" {
+	if response.StatusCode != http.StatusOK || !bytes.Equal(body, imageBytes) ||
+		response.Header.Get("Content-Type") != "image/jpeg" ||
+		response.Header.Get("Cache-Control") != "private, max-age=31536000, immutable" ||
+		response.Header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("image response status=%d headers=%v", response.StatusCode, response.Header)
 	}
 	response, body = e.rawGet(player, assetPath(video), "Range", "bytes=10-19")
-	if response.StatusCode != http.StatusPartialContent || !bytes.Equal(body, videoBytes[10:20]) || response.Header.Get("Content-Range") != "bytes 10-19/5000" || response.Header.Get("Content-Type") != "video/mp4" {
+	if response.StatusCode != http.StatusPartialContent || !bytes.Equal(body, videoBytes[10:20]) ||
+		response.Header.Get("Content-Range") != "bytes 10-19/5000" ||
+		response.Header.Get("Content-Type") != "video/mp4" {
 		t.Fatalf("range response status=%d headers=%v len=%d", response.StatusCode, response.Header, len(body))
 	}
 	wrongSum := signage.Asset{ID: image.ID, SHA256: strings.Repeat("0", 64)}
 	e.expectCode(e.do(player, "", http.MethodGet, assetPath(wrongSum), nil), http.StatusNotFound, "not_found")
 	e.expectCode(e.do(player, "", http.MethodGet, assetPath(unused), nil), http.StatusNotFound, "not_found")
-	e.expectCode(e.do(player, "", http.MethodGet, assetPath(signage.Asset{ID: uuid.Must(uuid.NewV7()), SHA256: image.SHA256}), nil), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.do(
+			player,
+			"",
+			http.MethodGet,
+			assetPath(signage.Asset{ID: uuid.Must(uuid.NewV7()), SHA256: image.SHA256}),
+			nil,
+		),
+		http.StatusNotFound,
+		"not_found",
+	)
 	e.expectCode(e.as(staff, http.MethodGet, assetPath(image), nil), http.StatusUnauthorized, "unauthenticated")
 	// Another display never gets this display's assets.
 	_, otherPlayer := e.pair(staff, "Other", e.fixture.playlist(t, "Other", sceneC.ID).ID)
 	e.expectCode(e.do(otherPlayer, "", http.MethodGet, assetPath(image), nil), http.StatusNotFound, "not_found")
-	e.expectCode(e.do(otherPlayer, "", http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusForbidden, "device_mode_denied")
+	e.expectCode(
+		e.do(otherPlayer, "", http.MethodPost, "/signage/displays/"+displayID+"/publish", nil),
+		http.StatusForbidden,
+		"device_mode_denied",
+	)
 
 	// Pending changes compare drafts with the latest publication by id and version.
 	renamed := sceneA
@@ -1010,7 +1468,15 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	}
 	list := e.expect(e.as(staff, http.MethodGet, base+"/rules", nil), http.StatusOK)
 	first := list["items"].([]any)[0].(map[string]any)["id"].(string)
-	e.expect(e.as(staff, http.MethodPatch, base+"/rules/"+first, map[string]any{"expectedVersion": list["displayVersion"], "enabled": false}), http.StatusOK)
+	e.expect(
+		e.as(
+			staff,
+			http.MethodPatch,
+			base+"/rules/"+first,
+			map[string]any{"expectedVersion": list["displayVersion"], "enabled": false},
+		),
+		http.StatusOK,
+	)
 	if pending = pendingSet(e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK)); !pending["rule|Rule 1 (live_data_unavailable)|removed"] {
 		t.Fatalf("pending after disabling = %v", pending)
 	}
@@ -1026,7 +1492,8 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 		t.Fatalf("second publication = %v", second)
 	}
 	e.expectCode(e.do(player, "", http.MethodGet, assetPath(image), nil), http.StatusNotFound, "not_found")
-	if latest := e.expect(e.do(player, "", http.MethodGet, "/signage/player/manifest?known=1", nil), http.StatusOK); latest["unchanged"] != false || latest["manifest"].(map[string]any)["revision"] != float64(2) {
+	if latest := e.expect(e.do(player, "", http.MethodGet, "/signage/player/manifest?known=1", nil), http.StatusOK); latest["unchanged"] != false ||
+		latest["manifest"].(map[string]any)["revision"] != float64(2) {
 		t.Fatalf("latest = %v", latest)
 	}
 	// Scene B is now referenced only by the older publication, so it may be deleted (players keep their cache).
@@ -1048,7 +1515,11 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	if got := e.countAudit("signage_display.published"); got != 7 {
 		t.Fatalf("publish audit events = %d, want 7", got)
 	}
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/publish", nil), http.StatusNotFound, "not_found")
+	e.expectCode(
+		e.as(staff, http.MethodPost, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/publish", nil),
+		http.StatusNotFound,
+		"not_found",
+	)
 }
 
 type signagePrinter struct {
@@ -1126,7 +1597,11 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	unwatched.report("printing", time.Now().UTC())
 
 	input := sceneInput("Status scene", "full")
-	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`)}
+	input.Zones = map[string]json.RawMessage{
+		"main": json.RawMessage(
+			`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
+		),
+	}
 	scene, err := svc.CreateScene(ctx, admin, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1137,7 +1612,17 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	otherDisplay, _ := e.pair(staff, "Other display", playlist.ID)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
 
-	template, err := svc.CreateTemplate(ctx, admin, signage.TemplateInput{Name: "Notice", Tone: "warning", Title: "Welcome to {display}", Body: "Find us at {location}"}, nil)
+	template, err := svc.CreateTemplate(
+		ctx,
+		admin,
+		signage.TemplateInput{
+			Name:  "Notice",
+			Tone:  "warning",
+			Title: "Welcome to {display}",
+			Body:  "Find us at {location}",
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1146,7 +1631,12 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		for _, id := range displays {
 			ids = append(ids, uuid.MustParse(id))
 		}
-		announcement, err := svc.StartAnnouncement(ctx, admin, signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: all, DisplayIDs: ids}, nil)
+		announcement, err := svc.StartAnnouncement(
+			ctx,
+			admin,
+			signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: all, DisplayIDs: ids},
+			nil,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1201,7 +1691,8 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if err := json.Unmarshal(raw, &live); err != nil {
 		t.Fatal(err)
 	}
-	if len(live) != 7 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 || live["serverTime"] == nil {
+	if len(live) != 7 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
+		live["serverTime"] == nil {
 		t.Fatalf("live = %v", live)
 	}
 	machines := live["machines"].([]any)
@@ -1209,7 +1700,11 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		t.Fatalf("machines = %v (only the machine on the published scene belongs here)", machines)
 	}
 	machine := machines[0].(map[string]any)
-	if machine["machineId"] != watched.machineID.String() || machine["state"] != "printing" || machine["progressPercent"] != float64(42) || machine["remainingMinutes"] != float64(17) || machine["stale"] != false || machine["name"] != "Watched printer" {
+	if machine["machineId"] != watched.machineID.String() || machine["state"] != "printing" ||
+		machine["progressPercent"] != float64(42) ||
+		machine["remainingMinutes"] != float64(17) ||
+		machine["stale"] != false ||
+		machine["name"] != "Watched printer" {
 		t.Fatalf("machine = %v", machine)
 	}
 	announcements := live["announcements"].([]any)
@@ -1223,19 +1718,23 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	}
 	for _, id := range []uuid.UUID{everyone.ID, targeted.ID} {
 		entry := got[id.String()]
-		if entry == nil || entry["title"] != "Welcome to Live display" || entry["body"] != "Find us at Entrance hall" || entry["tone"] != "warning" || entry["templateId"] != template.ID.String() {
+		if entry == nil || entry["title"] != "Welcome to Live display" || entry["body"] != "Find us at Entrance hall" ||
+			entry["tone"] != "warning" ||
+			entry["templateId"] != template.ID.String() {
 			t.Fatalf("announcement %s = %v", id, entry)
 		}
 	}
 	openDays := live["openDays"].([]any)
-	if len(openDays) != 2 || openDays[0].(map[string]any)["startsAt"].(string) >= openDays[1].(map[string]any)["startsAt"].(string) {
+	if len(openDays) != 2 ||
+		openDays[0].(map[string]any)["startsAt"].(string) >= openDays[1].(map[string]any)["startsAt"].(string) {
 		t.Fatalf("openDays = %v (published period only, upcoming only, ascending)", openDays)
 	}
 	events := live["events"].([]any)
 	if len(events) != 1 {
 		t.Fatalf("events = %v", events)
 	}
-	if entry := events[0].(map[string]any); len(entry) != 3 || entry["title"] != "Public Workshop" || entry["location"] != "Workshop floor" {
+	if entry := events[0].(map[string]any); len(entry) != 3 || entry["title"] != "Public Workshop" ||
+		entry["location"] != "Workshop floor" {
 		t.Fatalf("event = %v", entry)
 	}
 
@@ -1244,7 +1743,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	live = e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
-	if machine = live["machines"].([]any)[0].(map[string]any); machine["state"] != "unknown" || machine["stale"] != true || machine["progressPercent"] != nil || machine["observedAt"] == nil {
+	if machine = live["machines"].([]any)[0].(map[string]any); machine["state"] != "unknown" ||
+		machine["stale"] != true ||
+		machine["progressPercent"] != nil ||
+		machine["observedAt"] == nil {
 		t.Fatalf("stale machine = %v", machine)
 	}
 
@@ -1263,12 +1765,17 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	}
 	response.Body.Close()
 	var auditAfter int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&auditAfter); err != nil ||
+		auditAfter != auditBefore {
 		t.Fatalf("heartbeat must not be audited: %d -> %d (%v)", auditBefore, auditAfter, err)
 	}
 	view := e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+displayID, nil), http.StatusOK)
-	if view["status"] != "online" || view["reportedRevision"] != float64(1) || view["currentRule"] != "default" || view["currentSceneId"] != scene.ID.String() ||
-		view["playerVersion"] != "1.2.3" || view["cacheUsedBytes"] != float64(1000) || view["cacheQuotaBytes"] != float64(5000) || view["errors"].([]any)[0] != "asset failed" {
+	if view["status"] != "online" || view["reportedRevision"] != float64(1) || view["currentRule"] != "default" ||
+		view["currentSceneId"] != scene.ID.String() ||
+		view["playerVersion"] != "1.2.3" ||
+		view["cacheUsedBytes"] != float64(1000) ||
+		view["cacheQuotaBytes"] != float64(5000) ||
+		view["errors"].([]any)[0] != "asset failed" {
 		t.Fatalf("display after heartbeat = %v", view)
 	}
 	status := func(age string) any {
@@ -1281,12 +1788,20 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		t.Fatal("online/offline must switch at 90 seconds")
 	}
 	// A repeated heartbeat replaces the state (single row).
-	e.expect(e.do(player, "", http.MethodPost, "/signage/player/heartbeat", map[string]any{"errors": []string{}}), http.StatusNoContent)
+	e.expect(
+		e.do(player, "", http.MethodPost, "/signage/player/heartbeat", map[string]any{"errors": []string{}}),
+		http.StatusNoContent,
+	)
 	var rows int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_display_states WHERE display_id = $1 AND current_rule IS NULL AND errors = '[]'::jsonb`, displayID).Scan(&rows); err != nil || rows != 1 {
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_display_states WHERE display_id = $1 AND current_rule IS NULL AND errors = '[]'::jsonb`, displayID).Scan(&rows); err != nil ||
+		rows != 1 {
 		t.Fatalf("state rows = %d (%v)", rows, err)
 	}
-	e.expectCode(e.as(staff, http.MethodPost, "/signage/player/heartbeat", heartbeat), http.StatusUnauthorized, "unauthenticated")
+	e.expectCode(
+		e.as(staff, http.MethodPost, "/signage/player/heartbeat", heartbeat),
+		http.StatusUnauthorized,
+		"unauthenticated",
+	)
 
 	tooMany := make([]string, 21)
 	for index := range tooMany {

@@ -136,12 +136,51 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if result.AccountStatus != "enabled" || result.Admission != "blocked" || result.LabRulesRequestID == nil {
 		t.Fatalf("unexpected enrollment result: %#v", result)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1 AND profile_image_file_id IS NOT NULL AND profile_image_source='terminal_capture'`, 1, result.PersonID)
-	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled' AND provisioning_source='visitor'`, 1, result.AccountID, result.PersonID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, result.PersonID, roleID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display=$2 AND identifier_normalized='visitor.one'`, 1, result.AccountID, loginName)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','oidc')`, 0, result.AccountID)
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`, 1, result.PersonID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM people WHERE id=$1 AND profile_image_file_id IS NOT NULL AND profile_image_source='terminal_capture'`,
+		1,
+		result.PersonID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled' AND provisioning_source='visitor'`,
+		1,
+		result.AccountID,
+		result.PersonID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		1,
+		result.PersonID,
+		roleID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display=$2 AND identifier_normalized='visitor.one'`,
+		1,
+		result.AccountID,
+		loginName,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','oidc')`,
+		0,
+		result.AccountID,
+	)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`,
+		1,
+		result.PersonID,
+	)
 
 	if _, err := service.AuthenticateContext(ctx, issue.ContextToken); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("consumed enrollment context error=%v", err)
@@ -157,7 +196,8 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	authenticated, err := authService.Authenticate(ctx, session.Token)
-	if err != nil || authenticated.Principal.AccountID != result.AccountID || authenticated.Principal.Assurance != authorization.AssuranceLow {
+	if err != nil || authenticated.Principal.AccountID != result.AccountID ||
+		authenticated.Principal.Assurance != authorization.AssuranceLow {
 		t.Fatalf("visitor PIN authentication=%#v err=%v", authenticated.Principal, err)
 	}
 	if _, err := labRulesService.Evaluate(ctx, result.PersonID); err != nil {
@@ -171,14 +211,22 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		DeviceTypeName: terminal.Device.DeviceTypeName,
 	}
 	firstAdmission, err := service.Admission(ctx, admissionPrincipal, nil)
-	if err != nil || firstAdmission.Decision != "blocked" || firstAdmission.RequestID == nil || *firstAdmission.RequestID != *result.LabRulesRequestID {
+	if err != nil || firstAdmission.Decision != "blocked" || firstAdmission.RequestID == nil ||
+		*firstAdmission.RequestID != *result.LabRulesRequestID {
 		t.Fatalf("first admission=%#v err=%v", firstAdmission, err)
 	}
 	secondAdmission, err := service.Admission(ctx, admissionPrincipal, nil)
-	if err != nil || secondAdmission.Decision != "blocked" || secondAdmission.RequestID == nil || *secondAdmission.RequestID != *result.LabRulesRequestID {
+	if err != nil || secondAdmission.Decision != "blocked" || secondAdmission.RequestID == nil ||
+		*secondAdmission.RequestID != *result.LabRulesRequestID {
 		t.Fatalf("second admission=%#v err=%v", secondAdmission, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`, 1, result.PersonID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`,
+		1,
+		result.PersonID,
+	)
 
 	if _, err := labRulesService.Confirm(ctx, master, *result.LabRulesRequestID, "physical-archive-visitor-1", nil, nil, nil); err != nil {
 		t.Fatal(err)
@@ -205,10 +253,17 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if passwordResult.AccountStatus != "enabled" || passwordResult.InvitationDelivery == nil || *passwordResult.InvitationDelivery != "sent" {
+	if passwordResult.AccountStatus != "enabled" || passwordResult.InvitationDelivery == nil ||
+		*passwordResult.InvitationDelivery != "sent" {
 		t.Fatalf("password-only visitor result=%#v", passwordResult)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`, 0, passwordResult.AccountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`,
+		0,
+		passwordResult.AccountID,
+	)
 	invitationCode := notifier.invitationCode(passwordEmail)
 	if invitationCode == "" {
 		t.Fatal("visitor invitation code was not delivered")
@@ -216,13 +271,26 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err := authService.CompleteInvitation(ctx, passwordEmail, invitationCode, "Visitor password workshop 94", "visitor-invitation", nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled' AND administratively_disabled_at IS NULL`, 1, passwordResult.AccountID)
-	passwordSession, err := authService.Login(ctx, passwordEmail, "Visitor password workshop 94", "visitor-password-login", nil)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled' AND administratively_disabled_at IS NULL`,
+		1,
+		passwordResult.AccountID,
+	)
+	passwordSession, err := authService.Login(
+		ctx,
+		passwordEmail,
+		"Visitor password workshop 94",
+		"visitor-password-login",
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	passwordAuthenticated, err := authService.Authenticate(ctx, passwordSession.Token)
-	if err != nil || passwordAuthenticated.Principal.AccountID != passwordResult.AccountID || passwordAuthenticated.Principal.Assurance != authorization.AssuranceNormal {
+	if err != nil || passwordAuthenticated.Principal.AccountID != passwordResult.AccountID ||
+		passwordAuthenticated.Principal.Assurance != authorization.AssuranceNormal {
 		t.Fatalf("visitor password authentication=%#v err=%v", passwordAuthenticated.Principal, err)
 	}
 
@@ -316,7 +384,14 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND lab_rules_version_id=$2`, 1, enrollment.ID, original)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND lab_rules_version_id=$2`,
+		1,
+		enrollment.ID,
+		original,
+	)
 	newer := publish("newer")
 	state, err := service.State(ctx, enrollment)
 	if err != nil || state.CurrentLabRules == nil || state.CurrentLabRules.ID != original {
@@ -332,17 +407,47 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		t.Fatalf("PDF switched version: %q %v", data, err)
 	}
 	email, login, pin := "pinned@example.test", "pinned.visitor", "654321"
-	result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{FirstName: "Pinned", LastName: "Visitor", Email: &email, AuthMethods: []string{"pin"}, PINLoginName: &login, PIN: &pin, ProfileImage: visitorTestJPEG(t), RequestConfirmation: true}, nil)
+	result, err := service.Submit(
+		ctx,
+		enrollment,
+		visitor.SubmissionInput{
+			FirstName:           "Pinned",
+			LastName:            "Visitor",
+			Email:               &email,
+			AuthMethods:         []string{"pin"},
+			PINLoginName:        &login,
+			PIN:                 &pin,
+			ProfileImage:        visitorTestJPEG(t),
+			RequestConfirmation: true,
+		},
+		nil,
+	)
 	if err != nil || result.LabRulesRequestID == nil {
 		t.Fatalf("submission: %#v %v", result, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND required_version_id=$2`, 1, *result.LabRulesRequestID, original)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND required_version_id=$2`,
+		1,
+		*result.LabRulesRequestID,
+		original,
+	)
 	if _, err := labRules.Confirm(ctx, master, *result.LabRulesRequestID, "signed-original", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	status, err := labRules.Evaluate(ctx, result.PersonID)
-	if err != nil || !status.ActionRequired || status.CurrentVersion == nil || status.CurrentVersion.ID != newer || status.LatestConfirmedVersion == nil || status.LatestConfirmedVersion.ID != original {
+	if err != nil || !status.ActionRequired || status.CurrentVersion == nil || status.CurrentVersion.ID != newer ||
+		status.LatestConfirmedVersion == nil ||
+		status.LatestConfirmedVersion.ID != original {
 		t.Fatalf("new policy status: %#v %v", status, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND status='completed' AND required_version_id=$2 AND physical_document_reference='signed-original'`, 1, *result.LabRulesRequestID, original)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND status='completed' AND required_version_id=$2 AND physical_document_reference='signed-original'`,
+		1,
+		*result.LabRulesRequestID,
+		original,
+	)
 }

@@ -37,10 +37,13 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if initial.Version != 1 || initial.Identity.ApplicationName != "HTU Graz Makerspace" || initial.Assets[branding.Logo].Mode != "default" || initial.Assets[branding.Logo].URL == nil {
+	if initial.Version != 1 || initial.Identity.ApplicationName != "HTU Graz Makerspace" ||
+		initial.Assets[branding.Logo].Mode != "default" ||
+		initial.Assets[branding.Logo].URL == nil {
 		t.Fatalf("unexpected defaults: %#v", initial)
 	}
-	if initial.Imprint.Mode != "internal" || initial.Imprint.Markdown != "" || initial.Privacy.Mode != "internal" || initial.Privacy.Markdown != "" {
+	if initial.Imprint.Mode != "internal" || initial.Imprint.Markdown != "" || initial.Privacy.Mode != "internal" ||
+		initial.Privacy.Markdown != "" {
 		t.Fatalf("unexpected legal defaults: imprint=%#v privacy=%#v", initial.Imprint, initial.Privacy)
 	}
 	if _, err := service.Get(ctx, unauthorized); !apperror.IsCode(err, "permission_denied") {
@@ -48,10 +51,27 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 	}
 
 	input := branding.ConfigurationInput{
-		Identity:        branding.Identity{LegalOrganizationName: "Example Association", DisplayName: "Open Workshop", ApplicationName: "Workshop Portal"},
-		Colors:          branding.Colors{Primary: "#123456", Secondary: "#abcdef", Accent: "#fedcba", Background: "#101820"},
-		Imprint:         branding.Legal{Mode: "internal", Markdown: "# Internal imprint", ExternalURL: "https://draft.example.test/imprint"},
-		Privacy:         branding.Legal{Mode: "external", Markdown: "# Private inactive draft", ExternalURL: "https://example.test/privacy"},
+		Identity: branding.Identity{
+			LegalOrganizationName: "Example Association",
+			DisplayName:           "Open Workshop",
+			ApplicationName:       "Workshop Portal",
+		},
+		Colors: branding.Colors{
+			Primary:    "#123456",
+			Secondary:  "#abcdef",
+			Accent:     "#fedcba",
+			Background: "#101820",
+		},
+		Imprint: branding.Legal{
+			Mode:        "internal",
+			Markdown:    "# Internal imprint",
+			ExternalURL: "https://draft.example.test/imprint",
+		},
+		Privacy: branding.Legal{
+			Mode:        "external",
+			Markdown:    "# Private inactive draft",
+			ExternalURL: "https://example.test/privacy",
+		},
 		ExpectedVersion: initial.Version,
 	}
 	updated, err := service.Update(ctx, admin, input, nil)
@@ -81,17 +101,27 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT changed_fields, metadata::text FROM audit_events WHERE action='branding.configuration_updated' ORDER BY occurred_at DESC LIMIT 1`).Scan(&changedFields, &metadata); err != nil {
 		t.Fatal(err)
 	}
-	if len(changedFields) != 4 || metadata != "{}" || strings.Contains(metadata, "example.test") || strings.Contains(metadata, "Internal imprint") {
+	if len(changedFields) != 4 || metadata != "{}" || strings.Contains(metadata, "example.test") ||
+		strings.Contains(metadata, "Internal imprint") {
 		t.Fatalf("unsafe audit payload: fields=%v metadata=%s", changedFields, metadata)
 	}
 
 	imageBytes := encodeBrandingPNG(t, 32, 24)
-	custom, err := service.PutAsset(ctx, admin, branding.Logo, updated.Version, "private-logo-name.png", bytes.NewReader(imageBytes), nil)
+	custom, err := service.PutAsset(
+		ctx,
+		admin,
+		branding.Logo,
+		updated.Version,
+		"private-logo-name.png",
+		bytes.NewReader(imageBytes),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	asset := custom.Assets[branding.Logo]
-	if custom.Version != 3 || asset.Mode != "custom" || asset.URL == nil || asset.ContentType == nil || *asset.ContentType != "image/png" {
+	if custom.Version != 3 || asset.Mode != "custom" || asset.URL == nil || asset.ContentType == nil ||
+		*asset.ContentType != "image/png" {
 		t.Fatalf("unexpected custom asset: configuration=%#v asset=%#v", custom, asset)
 	}
 	digest := (*asset.URL)[strings.LastIndex(*asset.URL, "/")+1:]
@@ -110,7 +140,8 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed.Version != 4 || removed.Assets[branding.Logo].Mode != "none" || removed.Assets[branding.Logo].URL != nil {
+	if removed.Version != 4 || removed.Assets[branding.Logo].Mode != "none" ||
+		removed.Assets[branding.Logo].URL != nil {
 		t.Fatalf("unexpected removed asset: %#v", removed.Assets[branding.Logo])
 	}
 	if _, err := service.OpenPublicAsset(ctx, branding.Logo, digest); !apperror.IsCode(err, "not_found") {
@@ -125,7 +156,8 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored.Version != 5 || restored.Assets[branding.Logo].Mode != "default" || restored.Assets[branding.Logo].URL == nil {
+	if restored.Version != 5 || restored.Assets[branding.Logo].Mode != "default" ||
+		restored.Assets[branding.Logo].URL == nil {
 		t.Fatalf("default was not restored: %#v", restored.Assets[branding.Logo])
 	}
 
@@ -161,7 +193,15 @@ func TestBrandingPublicHTTPAndAdministrativeAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := branding.NewService(pool, files.NewService(pool, sharedStore))
-	linked, err := service.PutAsset(ctx, principal, branding.Favicon, 1, "favicon.png", bytes.NewReader(encodeBrandingPNG(t, 16, 16)), nil)
+	linked, err := service.PutAsset(
+		ctx,
+		principal,
+		branding.Favicon,
+		1,
+		"favicon.png",
+		bytes.NewReader(encodeBrandingPNG(t, 16, 16)),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +223,8 @@ func TestBrandingPublicHTTPAndAdministrativeAuthentication(t *testing.T) {
 	}
 	var public map[string]any
 	decodeResponse(t, response, &public)
-	if public["version"] != float64(2) || public["updatedAt"] != nil || public["imprint"] != nil || public["privacy"] != nil {
+	if public["version"] != float64(2) || public["updatedAt"] != nil || public["imprint"] != nil ||
+		public["privacy"] != nil {
 		t.Fatalf("administrative fields leaked publicly: %#v", public)
 	}
 	if _, ok := public["identity"].(map[string]any); !ok {
@@ -195,7 +236,10 @@ func TestBrandingPublicHTTPAndAdministrativeAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertStatus(t, response, http.StatusOK)
-	if response.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" || response.Header.Get("ETag") == "" || response.Header.Get("X-Content-Type-Options") != "nosniff" || response.Header.Get("Content-Type") != "image/png" {
+	if response.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" ||
+		response.Header.Get("ETag") == "" ||
+		response.Header.Get("X-Content-Type-Options") != "nosniff" ||
+		response.Header.Get("Content-Type") != "image/png" {
 		t.Fatalf("immutable asset headers missing: %#v", response.Header)
 	}
 	response.Body.Close()
@@ -236,7 +280,12 @@ func TestBrandingAssetUploadAcceptsContractBinaryContentType(t *testing.T) {
 	defer server.Close()
 
 	pngBytes := encodeBrandingPNG(t, 32, 24)
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, server.URL+"/api/v1/branding/assets/application_background?expectedVersion=1", bytes.NewReader(pngBytes))
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPut,
+		server.URL+"/api/v1/branding/assets/application_background?expectedVersion=1",
+		bytes.NewReader(pngBytes),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +305,8 @@ func TestBrandingAssetUploadAcceptsContractBinaryContentType(t *testing.T) {
 		t.Fatalf("assets missing from response: %#v", configuration)
 	}
 	background, ok := assets["applicationBackground"].(map[string]any)
-	if !ok || background["mode"] != "custom" || background["originalFilename"] != "background.png" || background["contentType"] != "image/png" {
+	if !ok || background["mode"] != "custom" || background["originalFilename"] != "background.png" ||
+		background["contentType"] != "image/png" {
 		t.Fatalf("unexpected uploaded background: %#v", background)
 	}
 }

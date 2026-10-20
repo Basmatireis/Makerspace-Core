@@ -13,7 +13,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-func (s *Server) ListOpenDayPeriods(ctx context.Context, _ openapi.ListOpenDayPeriodsRequestObject) (openapi.ListOpenDayPeriodsResponseObject, error) {
+func (s *Server) ListOpenDayPeriods(
+	ctx context.Context,
+	_ openapi.ListOpenDayPeriodsRequestObject,
+) (openapi.ListOpenDayPeriodsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -29,7 +32,10 @@ func (s *Server) ListOpenDayPeriods(ctx context.Context, _ openapi.ListOpenDayPe
 	return openapi.ListOpenDayPeriods200JSONResponse{Items: out}, nil
 }
 
-func (s *Server) CreateOpenDayPeriod(ctx context.Context, r openapi.CreateOpenDayPeriodRequestObject) (openapi.CreateOpenDayPeriodResponseObject, error) {
+func (s *Server) CreateOpenDayPeriod(
+	ctx context.Context,
+	r openapi.CreateOpenDayPeriodRequestObject,
+) (openapi.CreateOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -37,14 +43,24 @@ func (s *Server) CreateOpenDayPeriod(ctx context.Context, r openapi.CreateOpenDa
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.CreatePeriod(ctx, p, r.Body.Name, r.Body.StartsOn.Time, r.Body.EndsOn.Time, requestIDPointer(ctx))
+	item, err := s.opendays.CreatePeriod(
+		ctx,
+		p,
+		r.Body.Name,
+		r.Body.StartsOn.Time,
+		r.Body.EndsOn.Time,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateOpenDayPeriod201JSONResponse(openDayPeriodDTO(item)), nil
 }
 
-func (s *Server) GetOpenDayPeriod(ctx context.Context, r openapi.GetOpenDayPeriodRequestObject) (openapi.GetOpenDayPeriodResponseObject, error) {
+func (s *Server) GetOpenDayPeriod(
+	ctx context.Context,
+	r openapi.GetOpenDayPeriodRequestObject,
+) (openapi.GetOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -56,7 +72,10 @@ func (s *Server) GetOpenDayPeriod(ctx context.Context, r openapi.GetOpenDayPerio
 	return openapi.GetOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
 }
 
-func (s *Server) UpdateOpenDayPeriod(ctx context.Context, r openapi.UpdateOpenDayPeriodRequestObject) (openapi.UpdateOpenDayPeriodResponseObject, error) {
+func (s *Server) UpdateOpenDayPeriod(
+	ctx context.Context,
+	r openapi.UpdateOpenDayPeriodRequestObject,
+) (openapi.UpdateOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -64,14 +83,26 @@ func (s *Server) UpdateOpenDayPeriod(ctx context.Context, r openapi.UpdateOpenDa
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.UpdatePeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, r.Body.Name, r.Body.StartsOn.Time, r.Body.EndsOn.Time, requestIDPointer(ctx))
+	item, err := s.opendays.UpdatePeriod(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedVersion,
+		r.Body.Name,
+		r.Body.StartsOn.Time,
+		r.Body.EndsOn.Time,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
 }
 
-func (s *Server) DeleteOpenDayPeriod(ctx context.Context, r openapi.DeleteOpenDayPeriodRequestObject) (openapi.DeleteOpenDayPeriodResponseObject, error) {
+func (s *Server) DeleteOpenDayPeriod(
+	ctx context.Context,
+	r openapi.DeleteOpenDayPeriodRequestObject,
+) (openapi.DeleteOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -85,7 +116,10 @@ func (s *Server) DeleteOpenDayPeriod(ctx context.Context, r openapi.DeleteOpenDa
 	return openapi.DeleteOpenDayPeriod204Response{}, nil
 }
 
-func (s *Server) OpenOpenDayPeriodForStaffing(ctx context.Context, r openapi.OpenOpenDayPeriodForStaffingRequestObject) (openapi.OpenOpenDayPeriodForStaffingResponseObject, error) {
+func (s *Server) OpenOpenDayPeriodForStaffing(
+	ctx context.Context,
+	r openapi.OpenOpenDayPeriodForStaffingRequestObject,
+) (openapi.OpenOpenDayPeriodForStaffingResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -93,13 +127,24 @@ func (s *Server) OpenOpenDayPeriodForStaffing(ctx context.Context, r openapi.Ope
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "staffing", requestIDPointer(ctx))
+	item, err := s.opendays.TransitionPeriod(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedVersion,
+		"staffing",
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.OpenOpenDayPeriodForStaffing200JSONResponse(openDayPeriodDTO(item)), nil
 }
-func (s *Server) ReturnOpenDayPeriodToDraft(ctx context.Context, r openapi.ReturnOpenDayPeriodToDraftRequestObject) (openapi.ReturnOpenDayPeriodToDraftResponseObject, error) {
+
+func (s *Server) ReturnOpenDayPeriodToDraft(
+	ctx context.Context,
+	r openapi.ReturnOpenDayPeriodToDraftRequestObject,
+) (openapi.ReturnOpenDayPeriodToDraftResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -113,7 +158,11 @@ func (s *Server) ReturnOpenDayPeriodToDraft(ctx context.Context, r openapi.Retur
 	}
 	return openapi.ReturnOpenDayPeriodToDraft200JSONResponse(openDayPeriodDTO(item)), nil
 }
-func (s *Server) PublishOpenDayPeriod(ctx context.Context, r openapi.PublishOpenDayPeriodRequestObject) (openapi.PublishOpenDayPeriodResponseObject, error) {
+
+func (s *Server) PublishOpenDayPeriod(
+	ctx context.Context,
+	r openapi.PublishOpenDayPeriodRequestObject,
+) (openapi.PublishOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -121,13 +170,24 @@ func (s *Server) PublishOpenDayPeriod(ctx context.Context, r openapi.PublishOpen
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "published", requestIDPointer(ctx))
+	item, err := s.opendays.TransitionPeriod(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedVersion,
+		"published",
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.PublishOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
 }
-func (s *Server) ReturnOpenDayPeriodToStaffing(ctx context.Context, r openapi.ReturnOpenDayPeriodToStaffingRequestObject) (openapi.ReturnOpenDayPeriodToStaffingResponseObject, error) {
+
+func (s *Server) ReturnOpenDayPeriodToStaffing(
+	ctx context.Context,
+	r openapi.ReturnOpenDayPeriodToStaffingRequestObject,
+) (openapi.ReturnOpenDayPeriodToStaffingResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -135,13 +195,24 @@ func (s *Server) ReturnOpenDayPeriodToStaffing(ctx context.Context, r openapi.Re
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "staffing", requestIDPointer(ctx))
+	item, err := s.opendays.TransitionPeriod(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedVersion,
+		"staffing",
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.ReturnOpenDayPeriodToStaffing200JSONResponse(openDayPeriodDTO(item)), nil
 }
-func (s *Server) ArchiveOpenDayPeriod(ctx context.Context, r openapi.ArchiveOpenDayPeriodRequestObject) (openapi.ArchiveOpenDayPeriodResponseObject, error) {
+
+func (s *Server) ArchiveOpenDayPeriod(
+	ctx context.Context,
+	r openapi.ArchiveOpenDayPeriodRequestObject,
+) (openapi.ArchiveOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -149,14 +220,24 @@ func (s *Server) ArchiveOpenDayPeriod(ctx context.Context, r openapi.ArchiveOpen
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "archived", requestIDPointer(ctx))
+	item, err := s.opendays.TransitionPeriod(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedVersion,
+		"archived",
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.ArchiveOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
 }
 
-func (s *Server) ListOpenDays(ctx context.Context, r openapi.ListOpenDaysRequestObject) (openapi.ListOpenDaysResponseObject, error) {
+func (s *Server) ListOpenDays(
+	ctx context.Context,
+	r openapi.ListOpenDaysRequestObject,
+) (openapi.ListOpenDaysResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -167,7 +248,11 @@ func (s *Server) ListOpenDays(ctx context.Context, r openapi.ListOpenDaysRequest
 	}
 	return openapi.ListOpenDays200JSONResponse(openDayScheduleDTO(schedule)), nil
 }
-func (s *Server) GetOpenDay(ctx context.Context, r openapi.GetOpenDayRequestObject) (openapi.GetOpenDayResponseObject, error) {
+
+func (s *Server) GetOpenDay(
+	ctx context.Context,
+	r openapi.GetOpenDayRequestObject,
+) (openapi.GetOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -179,7 +264,10 @@ func (s *Server) GetOpenDay(ctx context.Context, r openapi.GetOpenDayRequestObje
 	return openapi.GetOpenDay200JSONResponse(openDayDTO(item)), nil
 }
 
-func (s *Server) CreateOpenDay(ctx context.Context, r openapi.CreateOpenDayRequestObject) (openapi.CreateOpenDayResponseObject, error) {
+func (s *Server) CreateOpenDay(
+	ctx context.Context,
+	r openapi.CreateOpenDayRequestObject,
+) (openapi.CreateOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -188,7 +276,14 @@ func (s *Server) CreateOpenDay(ctx context.Context, r openapi.CreateOpenDayReque
 		return nil, invalidRequest("request body is required")
 	}
 	input := openDayInput(r.Body.StartsAt, r.Body.EndsAt, r.Body.InternalNote, r.Body.Requirements, uuid.Nil, 0)
-	schedule, err := s.opendays.CreateOpenDay(ctx, p, r.PeriodId, r.Body.ExpectedPeriodVersion, input, requestIDPointer(ctx))
+	schedule, err := s.opendays.CreateOpenDay(
+		ctx,
+		p,
+		r.PeriodId,
+		r.Body.ExpectedPeriodVersion,
+		input,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +295,10 @@ func (s *Server) CreateOpenDay(ctx context.Context, r openapi.CreateOpenDayReque
 	return nil, apperror.New(500, "internal_error", "Created Open Day could not be loaded")
 }
 
-func (s *Server) UpdateOpenDay(ctx context.Context, r openapi.UpdateOpenDayRequestObject) (openapi.UpdateOpenDayResponseObject, error) {
+func (s *Server) UpdateOpenDay(
+	ctx context.Context,
+	r openapi.UpdateOpenDayRequestObject,
+) (openapi.UpdateOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -208,7 +306,14 @@ func (s *Server) UpdateOpenDay(ctx context.Context, r openapi.UpdateOpenDayReque
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	input := openDayInput(r.Body.StartsAt, r.Body.EndsAt, r.Body.InternalNote, r.Body.Requirements, r.OpenDayId, r.Body.ExpectedVersion)
+	input := openDayInput(
+		r.Body.StartsAt,
+		r.Body.EndsAt,
+		r.Body.InternalNote,
+		r.Body.Requirements,
+		r.OpenDayId,
+		r.Body.ExpectedVersion,
+	)
 	_, err = s.opendays.UpdateOpenDay(ctx, p, r.OpenDayId, r.Body.ExpectedPeriodVersion, input, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -220,7 +325,10 @@ func (s *Server) UpdateOpenDay(ctx context.Context, r openapi.UpdateOpenDayReque
 	return openapi.UpdateOpenDay200JSONResponse(openDayDTO(item)), nil
 }
 
-func (s *Server) DeleteOpenDay(ctx context.Context, r openapi.DeleteOpenDayRequestObject) (openapi.DeleteOpenDayResponseObject, error) {
+func (s *Server) DeleteOpenDay(
+	ctx context.Context,
+	r openapi.DeleteOpenDayRequestObject,
+) (openapi.DeleteOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -233,7 +341,11 @@ func (s *Server) DeleteOpenDay(ctx context.Context, r openapi.DeleteOpenDayReque
 	}
 	return openapi.DeleteOpenDay204Response{}, nil
 }
-func (s *Server) CancelOpenDay(ctx context.Context, r openapi.CancelOpenDayRequestObject) (openapi.CancelOpenDayResponseObject, error) {
+
+func (s *Server) CancelOpenDay(
+	ctx context.Context,
+	r openapi.CancelOpenDayRequestObject,
+) (openapi.CancelOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -251,7 +363,10 @@ func (s *Server) CancelOpenDay(ctx context.Context, r openapi.CancelOpenDayReque
 	return openapi.CancelOpenDay200JSONResponse(openDayDTO(item)), nil
 }
 
-func (s *Server) SaveOpenDaySchedule(ctx context.Context, r openapi.SaveOpenDayScheduleRequestObject) (openapi.SaveOpenDayScheduleResponseObject, error) {
+func (s *Server) SaveOpenDaySchedule(
+	ctx context.Context,
+	r openapi.SaveOpenDayScheduleRequestObject,
+) (openapi.SaveOpenDayScheduleResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -259,12 +374,23 @@ func (s *Server) SaveOpenDaySchedule(ctx context.Context, r openapi.SaveOpenDayS
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	delta := opendays.ScheduleDelta{ExpectedPeriodVersion: r.Body.ExpectedPeriodVersion, Creates: make([]opendays.ScheduleInput, 0, len(r.Body.Creates)), Updates: make([]opendays.ScheduleInput, 0, len(r.Body.Updates)), Removals: make([]opendays.RemovalInput, 0, len(r.Body.Removals))}
+	delta := opendays.ScheduleDelta{
+		ExpectedPeriodVersion: r.Body.ExpectedPeriodVersion,
+		Creates:               make([]opendays.ScheduleInput, 0, len(r.Body.Creates)),
+		Updates:               make([]opendays.ScheduleInput, 0, len(r.Body.Updates)),
+		Removals:              make([]opendays.RemovalInput, 0, len(r.Body.Removals)),
+	}
 	for _, v := range r.Body.Creates {
-		delta.Creates = append(delta.Creates, openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, uuid.Nil, 0))
+		delta.Creates = append(
+			delta.Creates,
+			openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, uuid.Nil, 0),
+		)
 	}
 	for _, v := range r.Body.Updates {
-		delta.Updates = append(delta.Updates, openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, v.Id, v.ExpectedVersion))
+		delta.Updates = append(
+			delta.Updates,
+			openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, v.Id, v.ExpectedVersion),
+		)
 	}
 	for _, v := range r.Body.Removals {
 		delta.Removals = append(delta.Removals, opendays.RemovalInput{ID: v.Id, ExpectedVersion: v.ExpectedVersion})
@@ -276,7 +402,10 @@ func (s *Server) SaveOpenDaySchedule(ctx context.Context, r openapi.SaveOpenDayS
 	return openapi.SaveOpenDaySchedule200JSONResponse(openDayScheduleDTO(schedule)), nil
 }
 
-func (s *Server) PreviewOpenDayRecurrence(ctx context.Context, r openapi.PreviewOpenDayRecurrenceRequestObject) (openapi.PreviewOpenDayRecurrenceResponseObject, error) {
+func (s *Server) PreviewOpenDayRecurrence(
+	ctx context.Context,
+	r openapi.PreviewOpenDayRecurrenceRequestObject,
+) (openapi.PreviewOpenDayRecurrenceResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -284,13 +413,32 @@ func (s *Server) PreviewOpenDayRecurrence(ctx context.Context, r openapi.Preview
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	items, err := s.opendays.PreviewRecurrence(ctx, p, r.PeriodId, opendays.RecurrenceInput{Weekday: r.Body.Weekday, StartsOn: r.Body.StartsOn.Time, EndsOn: r.Body.EndsOn.Time, StartTime: r.Body.StartTime, EndTime: r.Body.EndTime, EveryWeeks: r.Body.EveryWeeks, SkipPublicHolidays: r.Body.SkipPublicHolidays, SkipAcademicBreaks: r.Body.SkipAcademicBreaks})
+	items, err := s.opendays.PreviewRecurrence(
+		ctx,
+		p,
+		r.PeriodId,
+		opendays.RecurrenceInput{
+			Weekday:            r.Body.Weekday,
+			StartsOn:           r.Body.StartsOn.Time,
+			EndsOn:             r.Body.EndsOn.Time,
+			StartTime:          r.Body.StartTime,
+			EndTime:            r.Body.EndTime,
+			EveryWeeks:         r.Body.EveryWeeks,
+			SkipPublicHolidays: r.Body.SkipPublicHolidays,
+			SkipAcademicBreaks: r.Body.SkipAcademicBreaks,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]openapi.RecurrenceOccurrence, 0, len(items))
 	for _, v := range items {
-		item := openapi.RecurrenceOccurrence{Date: apiDate(v.Date), StartsAt: v.StartsAt, EndsAt: v.EndsAt, Disposition: openapi.RecurrenceOccurrenceDisposition(v.Disposition)}
+		item := openapi.RecurrenceOccurrence{
+			Date:        apiDate(v.Date),
+			StartsAt:    v.StartsAt,
+			EndsAt:      v.EndsAt,
+			Disposition: openapi.RecurrenceOccurrenceDisposition(v.Disposition),
+		}
 		if v.Reason != "" {
 			reason := v.Reason
 			item.Reason = &reason
@@ -300,7 +448,10 @@ func (s *Server) PreviewOpenDayRecurrence(ctx context.Context, r openapi.Preview
 	return openapi.PreviewOpenDayRecurrence200JSONResponse{Occurrences: out}, nil
 }
 
-func (s *Server) JoinOpenDay(ctx context.Context, r openapi.JoinOpenDayRequestObject) (openapi.JoinOpenDayResponseObject, error) {
+func (s *Server) JoinOpenDay(
+	ctx context.Context,
+	r openapi.JoinOpenDayRequestObject,
+) (openapi.JoinOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -314,7 +465,11 @@ func (s *Server) JoinOpenDay(ctx context.Context, r openapi.JoinOpenDayRequestOb
 	}
 	return openapi.JoinOpenDay201JSONResponse(assignmentDTO(item)), nil
 }
-func (s *Server) LeaveOpenDay(ctx context.Context, r openapi.LeaveOpenDayRequestObject) (openapi.LeaveOpenDayResponseObject, error) {
+
+func (s *Server) LeaveOpenDay(
+	ctx context.Context,
+	r openapi.LeaveOpenDayRequestObject,
+) (openapi.LeaveOpenDayResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -324,7 +479,11 @@ func (s *Server) LeaveOpenDay(ctx context.Context, r openapi.LeaveOpenDayRequest
 	}
 	return openapi.LeaveOpenDay204Response{}, nil
 }
-func (s *Server) AssignOpenDayPerson(ctx context.Context, r openapi.AssignOpenDayPersonRequestObject) (openapi.AssignOpenDayPersonResponseObject, error) {
+
+func (s *Server) AssignOpenDayPerson(
+	ctx context.Context,
+	r openapi.AssignOpenDayPersonRequestObject,
+) (openapi.AssignOpenDayPersonResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -338,7 +497,11 @@ func (s *Server) AssignOpenDayPerson(ctx context.Context, r openapi.AssignOpenDa
 	}
 	return openapi.AssignOpenDayPerson201JSONResponse(assignmentDTO(item)), nil
 }
-func (s *Server) RemoveOpenDayAssignment(ctx context.Context, r openapi.RemoveOpenDayAssignmentRequestObject) (openapi.RemoveOpenDayAssignmentResponseObject, error) {
+
+func (s *Server) RemoveOpenDayAssignment(
+	ctx context.Context,
+	r openapi.RemoveOpenDayAssignmentRequestObject,
+) (openapi.RemoveOpenDayAssignmentResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -349,7 +512,10 @@ func (s *Server) RemoveOpenDayAssignment(ctx context.Context, r openapi.RemoveOp
 	return openapi.RemoveOpenDayAssignment204Response{}, nil
 }
 
-func (s *Server) ListOpenDayEligiblePeople(ctx context.Context, r openapi.ListOpenDayEligiblePeopleRequestObject) (openapi.ListOpenDayEligiblePeopleResponseObject, error) {
+func (s *Server) ListOpenDayEligiblePeople(
+	ctx context.Context,
+	r openapi.ListOpenDayEligiblePeopleRequestObject,
+) (openapi.ListOpenDayEligiblePeopleResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -368,7 +534,11 @@ func (s *Server) ListOpenDayEligiblePeople(ctx context.Context, r openapi.ListOp
 	}
 	return openapi.ListOpenDayEligiblePeople200JSONResponse{Items: out}, nil
 }
-func (s *Server) ListOpenDayEligibilityRoles(ctx context.Context, _ openapi.ListOpenDayEligibilityRolesRequestObject) (openapi.ListOpenDayEligibilityRolesResponseObject, error) {
+
+func (s *Server) ListOpenDayEligibilityRoles(
+	ctx context.Context,
+	_ openapi.ListOpenDayEligibilityRolesRequestObject,
+) (openapi.ListOpenDayEligibilityRolesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -384,7 +554,10 @@ func (s *Server) ListOpenDayEligibilityRoles(ctx context.Context, _ openapi.List
 	return openapi.ListOpenDayEligibilityRoles200JSONResponse{Items: out}, nil
 }
 
-func (s *Server) GetOpenDayCalendarContext(ctx context.Context, r openapi.GetOpenDayCalendarContextRequestObject) (openapi.GetOpenDayCalendarContextResponseObject, error) {
+func (s *Server) GetOpenDayCalendarContext(
+	ctx context.Context,
+	r openapi.GetOpenDayCalendarContextRequestObject,
+) (openapi.GetOpenDayCalendarContextResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -395,7 +568,17 @@ func (s *Server) GetOpenDayCalendarContext(ctx context.Context, r openapi.GetOpe
 	}
 	entries := make([]openapi.CalendarEntry, 0, len(value.Entries))
 	for _, v := range value.Entries {
-		entries = append(entries, openapi.CalendarEntry{Id: v.ID, Name: v.Name, Source: openapi.CalendarEntrySource(v.Source), Category: openapi.CalendarEntryCategory(v.Category), StartsOn: apiDate(v.StartsOn), EndsOn: apiDate(v.EndsOn)})
+		entries = append(
+			entries,
+			openapi.CalendarEntry{
+				Id:       v.ID,
+				Name:     v.Name,
+				Source:   openapi.CalendarEntrySource(v.Source),
+				Category: openapi.CalendarEntryCategory(v.Category),
+				StartsOn: apiDate(v.StartsOn),
+				EndsOn:   apiDate(v.EndsOn),
+			},
+		)
 	}
 	breaks := make([]openapi.AcademicBreak, 0, len(value.AcademicBreaks))
 	for _, v := range value.AcademicBreaks {
@@ -405,10 +588,20 @@ func (s *Server) GetOpenDayCalendarContext(ctx context.Context, r openapi.GetOpe
 	if value.SubdivisionCode != "" {
 		subdivision = nullable.NewNullableWithValue(value.SubdivisionCode)
 	}
-	return openapi.GetOpenDayCalendarContext200JSONResponse{TimeZone: value.TimeZone, CountryCode: value.CountryCode, SubdivisionCode: subdivision, LanguageCode: value.LanguageCode, Entries: entries, AcademicBreaks: breaks}, nil
+	return openapi.GetOpenDayCalendarContext200JSONResponse{
+		TimeZone:        value.TimeZone,
+		CountryCode:     value.CountryCode,
+		SubdivisionCode: subdivision,
+		LanguageCode:    value.LanguageCode,
+		Entries:         entries,
+		AcademicBreaks:  breaks,
+	}, nil
 }
 
-func (s *Server) ListOpenDayAcademicBreaks(ctx context.Context, _ openapi.ListOpenDayAcademicBreaksRequestObject) (openapi.ListOpenDayAcademicBreaksResponseObject, error) {
+func (s *Server) ListOpenDayAcademicBreaks(
+	ctx context.Context,
+	_ openapi.ListOpenDayAcademicBreaksRequestObject,
+) (openapi.ListOpenDayAcademicBreaksResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -424,7 +617,10 @@ func (s *Server) ListOpenDayAcademicBreaks(ctx context.Context, _ openapi.ListOp
 	return openapi.ListOpenDayAcademicBreaks200JSONResponse{Items: out}, nil
 }
 
-func (s *Server) CreateOpenDayAcademicBreak(ctx context.Context, r openapi.CreateOpenDayAcademicBreakRequestObject) (openapi.CreateOpenDayAcademicBreakResponseObject, error) {
+func (s *Server) CreateOpenDayAcademicBreak(
+	ctx context.Context,
+	r openapi.CreateOpenDayAcademicBreakRequestObject,
+) (openapi.CreateOpenDayAcademicBreakResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -432,13 +628,24 @@ func (s *Server) CreateOpenDayAcademicBreak(ctx context.Context, r openapi.Creat
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.CreateAcademicBreak(ctx, p, r.Body.Name, r.Body.StartsOn.Time, r.Body.EndsOn.Time, requestIDPointer(ctx))
+	item, err := s.opendays.CreateAcademicBreak(
+		ctx,
+		p,
+		r.Body.Name,
+		r.Body.StartsOn.Time,
+		r.Body.EndsOn.Time,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateOpenDayAcademicBreak201JSONResponse(academicBreakDTO(item)), nil
 }
-func (s *Server) UpdateOpenDayAcademicBreak(ctx context.Context, r openapi.UpdateOpenDayAcademicBreakRequestObject) (openapi.UpdateOpenDayAcademicBreakResponseObject, error) {
+
+func (s *Server) UpdateOpenDayAcademicBreak(
+	ctx context.Context,
+	r openapi.UpdateOpenDayAcademicBreakRequestObject,
+) (openapi.UpdateOpenDayAcademicBreakResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -446,13 +653,26 @@ func (s *Server) UpdateOpenDayAcademicBreak(ctx context.Context, r openapi.Updat
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.UpdateAcademicBreak(ctx, p, r.AcademicBreakId, r.Body.ExpectedVersion, r.Body.Name, r.Body.StartsOn.Time, r.Body.EndsOn.Time, requestIDPointer(ctx))
+	item, err := s.opendays.UpdateAcademicBreak(
+		ctx,
+		p,
+		r.AcademicBreakId,
+		r.Body.ExpectedVersion,
+		r.Body.Name,
+		r.Body.StartsOn.Time,
+		r.Body.EndsOn.Time,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.UpdateOpenDayAcademicBreak200JSONResponse(academicBreakDTO(item)), nil
 }
-func (s *Server) DeleteOpenDayAcademicBreak(ctx context.Context, r openapi.DeleteOpenDayAcademicBreakRequestObject) (openapi.DeleteOpenDayAcademicBreakResponseObject, error) {
+
+func (s *Server) DeleteOpenDayAcademicBreak(
+	ctx context.Context,
+	r openapi.DeleteOpenDayAcademicBreakRequestObject,
+) (openapi.DeleteOpenDayAcademicBreakResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -466,27 +686,62 @@ func (s *Server) DeleteOpenDayAcademicBreak(ctx context.Context, r openapi.Delet
 	return openapi.DeleteOpenDayAcademicBreak204Response{}, nil
 }
 
-func (s *Server) ListPublicOpenDays(ctx context.Context, _ openapi.ListPublicOpenDaysRequestObject) (openapi.ListPublicOpenDaysResponseObject, error) {
+func (s *Server) ListPublicOpenDays(
+	ctx context.Context,
+	_ openapi.ListPublicOpenDaysRequestObject,
+) (openapi.ListPublicOpenDaysResponseObject, error) {
 	items, err := s.opendays.ListPublic(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]openapi.PublicOpenDay, 0, len(items))
 	for _, v := range items {
-		out = append(out, openapi.PublicOpenDay{Id: v.ID, Title: openapi.PublicOpenDayTitle(v.Title), StartsAt: v.StartsAt, EndsAt: v.EndsAt, Status: openapi.OpenDayStatus(v.Status), UpdatedAt: v.UpdatedAt})
+		out = append(
+			out,
+			openapi.PublicOpenDay{
+				Id:        v.ID,
+				Title:     openapi.PublicOpenDayTitle(v.Title),
+				StartsAt:  v.StartsAt,
+				EndsAt:    v.EndsAt,
+				Status:    openapi.OpenDayStatus(v.Status),
+				UpdatedAt: v.UpdatedAt,
+			},
+		)
 	}
 	return openapi.ListPublicOpenDays200JSONResponse{Items: out}, nil
 }
-func (s *Server) GetPublicOpenDaysCalendar(ctx context.Context, _ openapi.GetPublicOpenDaysCalendarRequestObject) (openapi.GetPublicOpenDaysCalendarResponseObject, error) {
+
+func (s *Server) GetPublicOpenDaysCalendar(
+	ctx context.Context,
+	_ openapi.GetPublicOpenDaysCalendarRequestObject,
+) (openapi.GetPublicOpenDaysCalendarResponseObject, error) {
 	body, err := s.opendays.PublicICS(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetPublicOpenDaysCalendar200TextcalendarResponse{Body: bytes.NewReader(body), ContentLength: int64(len(body))}, nil
+	return openapi.GetPublicOpenDaysCalendar200TextcalendarResponse{
+		Body:          bytes.NewReader(body),
+		ContentLength: int64(len(body)),
+	}, nil
 }
 
 func openDayPeriodDTO(v opendays.Period) openapi.OpenDayPeriod {
-	return openapi.OpenDayPeriod{Id: v.ID, Name: v.Name, StartsOn: apiDate(v.StartsOn), EndsOn: apiDate(v.EndsOn), Status: openapi.OpenDayPeriodStatus(v.Status), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, TotalOpenDays: v.TotalOpenDays, FullyStaffedCount: v.FullyStaffedCount, NeedsStaffCount: v.NeedsStaffCount, OpenSupervisorPositions: v.OpenSupervisorPositions, CancelledCount: v.CancelledCount, MyAssignmentCount: v.MyAssignmentCount}
+	return openapi.OpenDayPeriod{
+		Id:                      v.ID,
+		Name:                    v.Name,
+		StartsOn:                apiDate(v.StartsOn),
+		EndsOn:                  apiDate(v.EndsOn),
+		Status:                  openapi.OpenDayPeriodStatus(v.Status),
+		Version:                 v.Version,
+		CreatedAt:               v.CreatedAt,
+		UpdatedAt:               v.UpdatedAt,
+		TotalOpenDays:           v.TotalOpenDays,
+		FullyStaffedCount:       v.FullyStaffedCount,
+		NeedsStaffCount:         v.NeedsStaffCount,
+		OpenSupervisorPositions: v.OpenSupervisorPositions,
+		CancelledCount:          v.CancelledCount,
+		MyAssignmentCount:       v.MyAssignmentCount,
+	}
 }
 func openDayScheduleDTO(v opendays.Schedule) openapi.OpenDaySchedule {
 	items := make([]openapi.OpenDay, 0, len(v.Items))
@@ -496,7 +751,18 @@ func openDayScheduleDTO(v opendays.Schedule) openapi.OpenDaySchedule {
 	return openapi.OpenDaySchedule{Period: openDayPeriodDTO(v.Period), Items: items, TimeZone: v.TimeZone}
 }
 func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
-	result := openapi.OpenDay{Id: v.ID, PeriodId: v.PeriodID, StartsAt: v.StartsAt, EndsAt: v.EndsAt, Status: openapi.OpenDayStatus(v.Status), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, Requirements: make([]openapi.OpenDayStaffRequirement, 0, len(v.Requirements)), MyAssignment: nullable.NewNullNullable[openapi.OpenDayAssignment]()}
+	result := openapi.OpenDay{
+		Id:           v.ID,
+		PeriodId:     v.PeriodID,
+		StartsAt:     v.StartsAt,
+		EndsAt:       v.EndsAt,
+		Status:       openapi.OpenDayStatus(v.Status),
+		Version:      v.Version,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+		Requirements: make([]openapi.OpenDayStaffRequirement, 0, len(v.Requirements)),
+		MyAssignment: nullable.NewNullNullable[openapi.OpenDayAssignment](),
+	}
 	if v.InternalNoteVisible {
 		result.InternalNote = nullable.NewNullNullable[string]()
 		if v.InternalNote != nil {
@@ -507,7 +773,12 @@ func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
 		result.MyAssignment = nullable.NewNullableWithValue(assignmentDTO(*v.MyAssignment))
 	}
 	for _, req := range v.Requirements {
-		item := openapi.OpenDayStaffRequirement{Id: req.ID, Kind: openapi.OpenDayRequirementKind(req.Kind), RequiredCount: req.RequiredCount, AssignedCount: req.AssignedCount}
+		item := openapi.OpenDayStaffRequirement{
+			Id:            req.ID,
+			Kind:          openapi.OpenDayRequirementKind(req.Kind),
+			RequiredCount: req.RequiredCount,
+			AssignedCount: req.AssignedCount,
+		}
 		if req.EligibleRolesVisible {
 			roles := req.EligibleRoleIDs
 			item.EligibleRoleIds = &roles
@@ -524,18 +795,55 @@ func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
 	return result
 }
 func assignmentDTO(v opendays.Assignment) openapi.OpenDayAssignment {
-	return openapi.OpenDayAssignment{Id: v.ID, OpenDayId: v.OpenDayID, RequirementId: v.RequirementID, PersonId: v.PersonID, DisplayName: v.DisplayName, IsCurrentUser: v.IsCurrentUser, CreatedAt: v.CreatedAt}
+	return openapi.OpenDayAssignment{
+		Id:            v.ID,
+		OpenDayId:     v.OpenDayID,
+		RequirementId: v.RequirementID,
+		PersonId:      v.PersonID,
+		DisplayName:   v.DisplayName,
+		IsCurrentUser: v.IsCurrentUser,
+		CreatedAt:     v.CreatedAt,
+	}
 }
 func academicBreakDTO(v opendays.AcademicBreak) openapi.AcademicBreak {
-	return openapi.AcademicBreak{Id: v.ID, Name: v.Name, StartsOn: apiDate(v.StartsOn), EndsOn: apiDate(v.EndsOn), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return openapi.AcademicBreak{
+		Id:        v.ID,
+		Name:      v.Name,
+		StartsOn:  apiDate(v.StartsOn),
+		EndsOn:    apiDate(v.EndsOn),
+		Version:   v.Version,
+		CreatedAt: v.CreatedAt,
+		UpdatedAt: v.UpdatedAt,
+	}
 }
 func apiDate(v time.Time) openapi_types.Date {
 	return openapi_types.Date{Time: time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)}
 }
-func openDayInput(start, end time.Time, note nullable.Nullable[string], requirements []openapi.StaffingRequirementInput, id uuid.UUID, expected int64) opendays.ScheduleInput {
+
+func openDayInput(
+	start, end time.Time,
+	note nullable.Nullable[string],
+	requirements []openapi.StaffingRequirementInput,
+	id uuid.UUID,
+	expected int64,
+) opendays.ScheduleInput {
 	values := make([]opendays.RequirementInput, 0, len(requirements))
 	for _, r := range requirements {
-		values = append(values, opendays.RequirementInput{Kind: string(r.Kind), RequiredCount: r.RequiredCount, EligibleRoleIDs: r.EligibleRoleIds})
+		values = append(
+			values,
+			opendays.RequirementInput{
+				Kind:            string(r.Kind),
+				RequiredCount:   r.RequiredCount,
+				EligibleRoleIDs: r.EligibleRoleIds,
+			},
+		)
 	}
-	return opendays.ScheduleInput{ID: id, ExpectedVersion: expected, StartsAt: start, EndsAt: end, InternalNote: nullableStringPointer(note), Requirements: values}
+	return opendays.ScheduleInput{
+		ID:              id,
+		ExpectedVersion: expected,
+		StartsAt:        start,
+		EndsAt:          end,
+		InternalNote:    nullableStringPointer(note),
+		Requirements:    values,
+	}
 }

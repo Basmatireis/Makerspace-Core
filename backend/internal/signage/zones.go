@@ -245,7 +245,11 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, zoneError(zone, "%s", err.Error())
 		}
 		if !plainText(w.Caption, maxCaptionRunes, false) {
-			return nil, refs, zoneError(zone, "QR caption must be single-line plain text of at most %d characters", maxCaptionRunes)
+			return nil, refs, zoneError(
+				zone,
+				"QR caption must be single-line plain text of at most %d characters",
+				maxCaptionRunes,
+			)
 		}
 	case "clock":
 		var w clockW
@@ -260,7 +264,8 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !inSet(w.Source, "machine", "auto") || !inSet(w.Multi, "split", "alternate") || !inSet(w.Fallback, "image", "text", "hide") {
+		if !inSet(w.Source, "machine", "auto") || !inSet(w.Multi, "split", "alternate") ||
+			!inSet(w.Fallback, "image", "text", "hide") {
 			return nil, refs, zoneError(zone, "camera source, multi mode or fallback is invalid")
 		}
 		if w.Source == "machine" && w.MachineID == nil {
@@ -325,11 +330,17 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, zoneError(zone, "an announcement widget filters at most %d templates", maxWidgetTemplates)
 		}
 		w.TemplateIDs = distinct(w.TemplateIDs)
-		if !inSet(w.Style, "banner", "card", "full") || !inSet(w.Size, "s", "m", "l", "xl") || !inSet(w.WhenNone, "empty", "text") || !inSet(w.WhenMany, "rotate", "newest", "stack") {
+		if !inSet(w.Style, "banner", "card", "full") || !inSet(w.Size, "s", "m", "l", "xl") ||
+			!inSet(w.WhenNone, "empty", "text") ||
+			!inSet(w.WhenMany, "rotate", "newest", "stack") {
 			return nil, refs, zoneError(zone, "announcement style, size, whenNone or whenMany is invalid")
 		}
 		if !plainText(w.FallbackText, maxFallbackTextRune, true) {
-			return nil, refs, zoneError(zone, "fallback text must be plain text of at most %d characters", maxFallbackTextRune)
+			return nil, refs, zoneError(
+				zone,
+				"fallback text must be plain text of at most %d characters",
+				maxFallbackTextRune,
+			)
 		}
 		if w.RotateSeconds < 3 || w.RotateSeconds > 300 {
 			return nil, refs, zoneError(zone, "rotateSeconds must be between 3 and 300")
@@ -379,7 +390,11 @@ func ParseZones(layout Layout, raw map[string]json.RawMessage) (map[string]RawWi
 	sort.Strings(keys)
 	for _, key := range keys {
 		if _, ok := known[key]; !ok {
-			return nil, WidgetRefs{}, apperror.New(422, "validation_failed", fmt.Sprintf("zone %q does not belong to layout %q", key, layout.ID))
+			return nil, WidgetRefs{}, apperror.New(
+				422,
+				"validation_failed",
+				fmt.Sprintf("zone %q does not belong to layout %q", key, layout.ID),
+			)
 		}
 	}
 	result := make(map[string]RawWidget, len(layout.Zones))

@@ -55,7 +55,10 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Mode != "warning" || status.State != "outdated" || !status.ActionRequired || status.CurrentVersion == nil || status.CurrentVersion.ID != versionID || status.RequestID != nil {
+	if status.Mode != "warning" || status.State != "outdated" || !status.ActionRequired ||
+		status.CurrentVersion == nil ||
+		status.CurrentVersion.ID != versionID ||
+		status.RequestID != nil {
 		t.Fatalf("unexpected warning status: %#v", status)
 	}
 	if _, err := service.Evaluate(ctx, personID); err != nil {
@@ -63,7 +66,13 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1`, 0, personID)
 
-	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true, Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC()}
+	principal := authorization.Principal{
+		AccountID:       accountID,
+		PersonID:        personID,
+		Master:          true,
+		Assurance:       authorization.AssuranceNormal,
+		AuthenticatedAt: time.Now().UTC(),
+	}
 	first, created, err := service.RequestOwnConfirmation(ctx, principal, nil)
 	if err != nil || !created {
 		t.Fatalf("create explicit request: created=%v err=%v", created, err)
@@ -72,7 +81,13 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if err != nil || created || second.ID != first.ID {
 		t.Fatalf("reuse explicit request: first=%s second=%s created=%v err=%v", first.ID, second.ID, created, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`, 1, personID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`,
+		1,
+		personID,
+	)
 	status, err = service.Evaluate(ctx, personID)
 	if err != nil || status.RequestID == nil || *status.RequestID != first.ID {
 		t.Fatalf("status after explicit request: %#v err=%v", status, err)
@@ -81,7 +96,8 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	status, err = service.Evaluate(ctx, personID)
-	if err != nil || status.State != "current" || status.ActionRequired || status.LatestConfirmedVersion == nil || status.LatestConfirmedVersion.ID != versionID {
+	if err != nil || status.State != "current" || status.ActionRequired || status.LatestConfirmedVersion == nil ||
+		status.LatestConfirmedVersion.ID != versionID {
 		t.Fatalf("status after confirmation: %#v err=%v", status, err)
 	}
 
@@ -114,7 +130,13 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, accountID).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
-	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true, Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC()}
+	principal := authorization.Principal{
+		AccountID:       accountID,
+		PersonID:        personID,
+		Master:          true,
+		Assurance:       authorization.AssuranceNormal,
+		AuthenticatedAt: time.Now().UTC(),
+	}
 	issue, err := accounts.NewService(pool, cfg, notifier).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +153,13 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err := authService.CompletePINEnrollment(ctx, accountID, code, "Noel.Workshop", "654321", "pin-enrollment", nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display='Noel.Workshop' AND identifier_normalized='noel.workshop'`, 1, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display='Noel.Workshop' AND identifier_normalized='noel.workshop'`,
+		1,
+		accountID,
+	)
 	var pinHash string
 	if err := pool.QueryRow(ctx, `SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`, accountID).Scan(&pinHash); err != nil {
 		t.Fatal(err)
@@ -147,7 +175,10 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err != nil || authenticated.Principal.Assurance != authorization.AssuranceLow {
 		t.Fatalf("PIN assurance=%q err=%v", authenticated.Principal.Assurance, err)
 	}
-	if err := authService.CompletePINEnrollment(ctx, accountID, code, "other-name", "123456", "replay", nil); !apperror.IsCode(err, "challenge_invalid") {
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "other-name", "123456", "replay", nil); !apperror.IsCode(
+		err,
+		"challenge_invalid",
+	) {
 		t.Fatalf("challenge replay error=%v", err)
 	}
 	if issue.Account.Version != 2 {
@@ -170,7 +201,13 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, masterAccountID).Scan(&masterPersonID); err != nil {
 		t.Fatal(err)
 	}
-	principal := authorization.Principal{AccountID: masterAccountID, PersonID: masterPersonID, Master: true, Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC()}
+	principal := authorization.Principal{
+		AccountID:       masterAccountID,
+		PersonID:        masterPersonID,
+		Master:          true,
+		Assurance:       authorization.AssuranceNormal,
+		AuthenticatedAt: time.Now().UTC(),
+	}
 
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Phone','Only','+43 660 123456')`, personID); err != nil {
@@ -183,10 +220,16 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.SetAccountPIN(ctx, authorization.Principal{}, accountID, "phone.only", "123456", 1, nil); !apperror.IsCode(err, "permission_denied") {
+	if err := authService.SetAccountPIN(ctx, authorization.Principal{}, accountID, "phone.only", "123456", 1, nil); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("PIN setup without permission error=%v", err)
 	}
-	if err := authService.SetAccountPIN(ctx, principal, accountID, "phone.only", "123456", 2, nil); !apperror.IsCode(err, "stale_write") {
+	if err := authService.SetAccountPIN(ctx, principal, accountID, "phone.only", "123456", 2, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale PIN setup error=%v", err)
 	}
 
@@ -197,12 +240,24 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if issue.DeliveryStatus != "manual" || issue.SetupURL == nil {
 		t.Fatalf("phone-only PIN enrollment issue=%#v", issue)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind='pin_enrollment' AND delivery_address IS NULL AND used_at IS NULL`, 1, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind='pin_enrollment' AND delivery_address IS NULL AND used_at IS NULL`,
+		1,
+		accountID,
+	)
 
 	if err := authService.SetAccountPIN(ctx, principal, accountID, "Phone.Only", "123456", issue.Account.Version, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind='pin_enrollment'`, 0, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_challenges WHERE account_id=$1 AND kind='pin_enrollment'`,
+		0,
+		accountID,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, accountID)
 	var pinHash string
 	if err := pool.QueryRow(ctx, `SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1 AND i.kind='pin'`, accountID).Scan(&pinHash); err != nil {
@@ -211,15 +266,25 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if pinHash == "123456" || !security.VerifyPIN(cfg.PINPepper, pinHash, "123456") {
 		t.Fatal("administrative PIN was not stored as a valid peppered hash")
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.pin_set'`, 1, accountID)
-	if _, err := authService.LoginWithPIN(ctx, "phone.only", "123456", "disabled-phone-only-login", nil); !apperror.IsCode(err, "invalid_credentials") {
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.pin_set'`,
+		1,
+		accountID,
+	)
+	if _, err := authService.LoginWithPIN(ctx, "phone.only", "123456", "disabled-phone-only-login", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("inactive account with a PIN login returned %v, want invalid_credentials", err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM pin_login_throttles`); err != nil {
 		t.Fatal(err)
 	}
 
-	account, err := accounts.NewService(pool, cfg).SetStatus(ctx, principal, accountID, "enabled", issue.Account.Version+1, nil)
+	account, err := accounts.NewService(pool, cfg).
+		SetStatus(ctx, principal, accountID, "enabled", issue.Account.Version+1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +313,10 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`, conflictAccountID, conflictPersonID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.SetAccountPIN(ctx, principal, conflictAccountID, "PHONE.ONLY", "789012", 1, nil); !apperror.IsCode(err, "login_name_unavailable") {
+	if err := authService.SetAccountPIN(ctx, principal, conflictAccountID, "PHONE.ONLY", "789012", 1, nil); !apperror.IsCode(
+		err,
+		"login_name_unavailable",
+	) {
 		t.Fatalf("duplicate PIN username error=%v", err)
 	}
 
@@ -261,10 +329,16 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatalf("account before PIN removal=%#v", currentAccount)
 	}
 	pinIdentityID := currentAccount.AuthIdentities[0].ID
-	if err := accountService.RemoveAuthIdentity(ctx, authorization.Principal{}, accountID, pinIdentityID, currentAccount.Version, nil); !apperror.IsCode(err, "permission_denied") {
+	if err := accountService.RemoveAuthIdentity(ctx, authorization.Principal{}, accountID, pinIdentityID, currentAccount.Version, nil); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("PIN removal without permission error=%v", err)
 	}
-	if err := accountService.RemoveAuthIdentity(ctx, principal, accountID, pinIdentityID, currentAccount.Version+1, nil); !apperror.IsCode(err, "stale_write") {
+	if err := accountService.RemoveAuthIdentity(ctx, principal, accountID, pinIdentityID, currentAccount.Version+1, nil); !apperror.IsCode(
+		err,
+		"stale_write",
+	) {
 		t.Fatalf("stale PIN removal error=%v", err)
 	}
 	if err := accountService.RemoveAuthIdentity(ctx, principal, accountID, pinIdentityID, currentAccount.Version, nil); err != nil {
@@ -272,7 +346,13 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	}
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin'`, 0, accountID)
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, accountID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.pin_removed'`, 1, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.pin_removed'`,
+		1,
+		accountID,
+	)
 	if _, err := authService.Authenticate(ctx, newPINSession.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("session after administrative PIN removal error=%v", err)
 	}
@@ -293,7 +373,13 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, masterAccountID).Scan(&masterPersonID); err != nil {
 		t.Fatal(err)
 	}
-	principal := authorization.Principal{AccountID: masterAccountID, PersonID: masterPersonID, Master: true, Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC()}
+	principal := authorization.Principal{
+		AccountID:       masterAccountID,
+		PersonID:        masterPersonID,
+		Master:          true,
+		Assurance:       authorization.AssuranceNormal,
+		AuthenticatedAt: time.Now().UTC(),
+	}
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Manual','PIN','+43 660 999999')`, personID); err != nil {
 		t.Fatal(err)
@@ -325,7 +411,10 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 	if err := authService.CompletePINEnrollment(ctx, accountID, code, "manual.pin", "112233", "manual-pin", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePINEnrollment(ctx, accountID, code, "manual.pin", "112233", "manual-pin-replay", nil); !apperror.IsCode(err, "challenge_invalid") {
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "manual.pin", "112233", "manual-pin-replay", nil); !apperror.IsCode(
+		err,
+		"challenge_invalid",
+	) {
 		t.Fatalf("manual setup replay error=%v", err)
 	}
 }
@@ -461,7 +550,10 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 	if !verified {
 		t.Fatal("password identity was not verified")
 	}
-	if err := service.CompleteEmailVerification(ctx, loginEmail, code, "verification-replay", nil); !apperror.IsCode(err, "challenge_invalid") {
+	if err := service.CompleteEmailVerification(ctx, loginEmail, code, "verification-replay", nil); !apperror.IsCode(
+		err,
+		"challenge_invalid",
+	) {
 		t.Fatalf("replayed verification returned %v", err)
 	}
 }

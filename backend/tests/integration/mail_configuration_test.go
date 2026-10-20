@@ -16,7 +16,8 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
-	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Mail", LastName: "Administrator", ContactEmail: "mail-admin@example.test", LoginEmail: "mail-login@example.test", Password: bootstrapPassword})
+	accountID, err := admin.NewService(pool).
+		BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Mail", LastName: "Administrator", ContactEmail: "mail-admin@example.test", LoginEmail: "mail-login@example.test", Password: bootstrapPassword})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,23 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 		t.Fatalf("initial mail configuration=%#v err=%v", initial, err)
 	}
 	password := "smtp-secret-value"
-	configured, err := mail.UpdateConfiguration(ctx, principal, mailservice.ConfigurationInput{Enabled: true, Host: "smtp.example.test", Port: 587, TLSMode: "starttls", Username: "mailer", Password: password, FromAddress: "makerspace@example.test", FromName: "Makerspace", BaseURL: "https://makerspace.example.test", ExpectedVersion: initial.Version}, nil)
+	configured, err := mail.UpdateConfiguration(
+		ctx,
+		principal,
+		mailservice.ConfigurationInput{
+			Enabled:         true,
+			Host:            "smtp.example.test",
+			Port:            587,
+			TLSMode:         "starttls",
+			Username:        "mailer",
+			Password:        password,
+			FromAddress:     "makerspace@example.test",
+			FromName:        "Makerspace",
+			BaseURL:         "https://makerspace.example.test",
+			ExpectedVersion: initial.Version,
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +68,22 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 		t.Fatal("SMTP password was not stored exclusively as encrypted ciphertext")
 	}
 
-	configured, err = mail.UpdateConfiguration(ctx, principal, mailservice.ConfigurationInput{Enabled: false, Host: configured.Host, Port: configured.Port, TLSMode: configured.TLSMode, Username: configured.Username, FromAddress: configured.FromAddress, FromName: configured.FromName, BaseURL: configured.BaseURL, ExpectedVersion: configured.Version}, nil)
+	configured, err = mail.UpdateConfiguration(
+		ctx,
+		principal,
+		mailservice.ConfigurationInput{
+			Enabled:         false,
+			Host:            configured.Host,
+			Port:            configured.Port,
+			TLSMode:         configured.TLSMode,
+			Username:        configured.Username,
+			FromAddress:     configured.FromAddress,
+			FromName:        configured.FromName,
+			BaseURL:         configured.BaseURL,
+			ExpectedVersion: configured.Version,
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +110,8 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.Path != "/reset-password" || fragment.Get("email") != "mail-login@example.test" || fragment.Get("code") == "" {
+	if parsed.Path != "/reset-password" || fragment.Get("email") != "mail-login@example.test" ||
+		fragment.Get("code") == "" {
 		t.Fatalf("manual URL=%q", *issue.SetupURL)
 	}
 	authService, err := auth.NewService(pool, cfg)

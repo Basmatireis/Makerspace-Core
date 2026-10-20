@@ -30,10 +30,40 @@ func (s *Service) syncAlreadyPaid(ctx context.Context, q *db.Queries, orderID uu
 	}
 	return q.SetRequestAlreadyPaid(ctx, db.SetRequestAlreadyPaidParams{RequestID: r.ID, AlreadyPaid: paid})
 }
-func (s *Service) allocate(ctx context.Context, q *db.Queries, p authorization.Principal, payment db.Payment, o db.Order, amount decimal.Decimal, op uuid.UUID) error {
-	return q.InsertAllocation(ctx, db.InsertAllocationParams{ID: newID(), PaymentID: &payment.ID, PaymentReference: payment.Reference, OrderID: &o.ID, OrderReference: o.Reference, Amount: numeric(amount), OperationID: op, ActorAccountID: &p.AccountID})
+
+func (s *Service) allocate(
+	ctx context.Context,
+	q *db.Queries,
+	p authorization.Principal,
+	payment db.Payment,
+	o db.Order,
+	amount decimal.Decimal,
+	op uuid.UUID,
+) error {
+	return q.InsertAllocation(
+		ctx,
+		db.InsertAllocationParams{
+			ID:               newID(),
+			PaymentID:        &payment.ID,
+			PaymentReference: payment.Reference,
+			OrderID:          &o.ID,
+			OrderReference:   o.Reference,
+			Amount:           numeric(amount),
+			OperationID:      op,
+			ActorAccountID:   &p.AccountID,
+		},
+	)
 }
-func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, input PaymentInput, op uuid.UUID, requestID *uuid.UUID) (db.Payment, error) {
+
+func (s *Service) receipt(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	input PaymentInput,
+	op uuid.UUID,
+	requestID *uuid.UUID,
+) (db.Payment, error) {
 	if err := require(p, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
 		return db.Payment{}, err
 	}
@@ -41,7 +71,10 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 		return db.Payment{}, conflict("order_not_finalized", "Payments require a finalized order")
 	}
 	if input.Method == "external" {
-		return db.Payment{}, conflict("invoice_settles_balance", "An issued wiRef invoice settles the open balance by itself; it cannot be recorded as a payment")
+		return db.Payment{}, conflict(
+			"invoice_settles_balance",
+			"An issued wiRef invoice settles the open balance by itself; it cannot be recorded as a payment",
+		)
 	}
 	q := db.New(tx)
 	amount, err := parseAmount(input.Amount, 2, true)
@@ -54,13 +87,17 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if input.Method != "cash" && input.Method != "card" {
 		return db.Payment{}, validation("Unsupported payment method")
 	}
-	if input.Method == "card" && (strings.TrimSpace(input.ExternalSource) == "" || strings.TrimSpace(input.ExternalReference) == "") {
+	if input.Method == "card" &&
+		(strings.TrimSpace(input.ExternalSource) == "" || strings.TrimSpace(input.ExternalReference) == "") {
 		return db.Payment{}, validation("Card terminal and transaction references are required")
 	}
 	// The request states what was already paid. From submission on that figure is frozen, until the request is returned or cancelled.
 	if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
 		if r.State != "draft" {
-			return db.Payment{}, conflict("invoice_amount_frozen", "The wiRef request "+r.Reference+" states what was already paid; return or cancel it before recording cash or card")
+			return db.Payment{}, conflict(
+				"invoice_amount_frozen",
+				"The wiRef request "+r.Reference+" states what was already paid; return or cancel it before recording cash or card",
+			)
 		}
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return db.Payment{}, e
@@ -71,7 +108,10 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	}
 	for _, v := range receipts {
 		if v.Method == "external" {
-			return db.Payment{}, conflict("settlement_workflow_conflict", "Cash/card cannot be added while an external invoice payment is active")
+			return db.Payment{}, conflict(
+				"settlement_workflow_conflict",
+				"Cash/card cannot be added while an external invoice payment is active",
+			)
 		}
 	}
 	balance, err := q.SumAllocations(ctx, &o.ID)
@@ -85,7 +125,20 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if err != nil {
 		return db.Payment{}, err
 	}
-	payment, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "receipt", Method: input.Method, Amount: numeric(amount), OccurredAt: input.OccurredAt.UTC(), ActorAccountID: &p.AccountID, ExternalSource: strings.TrimSpace(input.ExternalSource), ExternalReference: strings.TrimSpace(input.ExternalReference)})
+	payment, err := q.InsertPayment(
+		ctx,
+		db.InsertPaymentParams{
+			ID:                newID(),
+			Reference:         reference("P", n),
+			EntryKind:         "receipt",
+			Method:            input.Method,
+			Amount:            numeric(amount),
+			OccurredAt:        input.OccurredAt.UTC(),
+			ActorAccountID:    &p.AccountID,
+			ExternalSource:    strings.TrimSpace(input.ExternalSource),
+			ExternalReference: strings.TrimSpace(input.ExternalReference),
+		},
+	)
 	if err != nil {
 		return payment, databaseError(err)
 	}
@@ -98,9 +151,29 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if err = s.syncAlreadyPaid(ctx, q, o.ID); err != nil {
 		return payment, err
 	}
-	return payment, writeAudit(ctx, tx, p, "payment.recorded", "payment", payment.ID, requestID, "amount", "method", "allocations")
+	return payment, writeAudit(
+		ctx,
+		tx,
+		p,
+		"payment.recorded",
+		"payment",
+		payment.ID,
+		requestID,
+		"amount",
+		"method",
+		"allocations",
+	)
 }
-func (s *Service) reverseReceipt(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, input PaymentReversalInput, op uuid.UUID, requestID *uuid.UUID) error {
+
+func (s *Service) reverseReceipt(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	o db.Order,
+	input PaymentReversalInput,
+	op uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.PaymentsRead, authorization.PaymentsReverse); err != nil {
 		return err
 	}
@@ -158,7 +231,25 @@ func (s *Service) reverseReceipt(ctx context.Context, tx pgx.Tx, p authorization
 	if err != nil {
 		return err
 	}
-	v, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "reversal", Method: original.Method, Amount: original.Amount, OccurredAt: occurred, ActorAccountID: &p.AccountID, ReversesPaymentID: &original.ID, ReversedPaymentReference: &original.Reference, ReversalReasonKind: &input.ReasonKind, Reason: reason, ExternalSource: original.ExternalSource, ExternalReference: input.ExternalReference, ExternalInvoiceRequestID: original.ExternalInvoiceRequestID})
+	v, err := q.InsertPayment(
+		ctx,
+		db.InsertPaymentParams{
+			ID:                       newID(),
+			Reference:                reference("P", n),
+			EntryKind:                "reversal",
+			Method:                   original.Method,
+			Amount:                   original.Amount,
+			OccurredAt:               occurred,
+			ActorAccountID:           &p.AccountID,
+			ReversesPaymentID:        &original.ID,
+			ReversedPaymentReference: &original.Reference,
+			ReversalReasonKind:       &input.ReasonKind,
+			Reason:                   reason,
+			ExternalSource:           original.ExternalSource,
+			ExternalReference:        input.ExternalReference,
+			ExternalInvoiceRequestID: original.ExternalInvoiceRequestID,
+		},
+	)
 	if original.Method == "card" && input.ExternalReference == "" {
 		return validation("Card refund/correction reference is required")
 	}
@@ -176,7 +267,14 @@ func (s *Service) reverseReceipt(ctx context.Context, tx pgx.Tx, p authorization
 	}
 	return writeAudit(ctx, tx, p, "payment.reversed", "payment", v.ID, requestID, "reversal", "allocations")
 }
-func (s *Service) RecordPayment(ctx context.Context, p authorization.Principal, id uuid.UUID, input RecordOrderPayment, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) RecordPayment(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input RecordOrderPayment,
+	requestID *uuid.UUID,
+) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
 		return Order{}, err
 	}
@@ -218,7 +316,14 @@ func (s *Service) RecordPayment(ctx context.Context, p authorization.Principal, 
 	}
 	return result, databaseError(tx.Commit(ctx))
 }
-func (s *Service) ReversePayment(ctx context.Context, p authorization.Principal, id uuid.UUID, input ReversePaymentCommand, requestID *uuid.UUID) (Order, error) {
+
+func (s *Service) ReversePayment(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input ReversePaymentCommand,
+	requestID *uuid.UUID,
+) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.PaymentsRead, authorization.PaymentsReverse); err != nil {
 		return Order{}, err
 	}
@@ -281,7 +386,10 @@ func (s *Service) checkAnonymous(ctx context.Context, q *db.Queries, o db.Order)
 		return err
 	}
 	if o.FulfillmentMode != "immediate" || !d(balance).Equal(d(o.TotalAmount)) {
-		return conflict("anonymous_requires_full_settlement", "Anonymous sales require immediate fulfillment and full settlement")
+		return conflict(
+			"anonymous_requires_full_settlement",
+			"Anonymous sales require immediate fulfillment and full settlement",
+		)
 	}
 	return nil
 }
@@ -290,7 +398,22 @@ func (s *Service) loadPayment(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	if err != nil {
 		return OrderPayment{}, databaseError(err)
 	}
-	v := OrderPayment{ID: r.ID, Reference: r.Reference, EntryKind: r.EntryKind, Method: r.Method, Amount: money(r.Amount), OccurredAt: r.OccurredAt, RecordedAt: r.RecordedAt, ReversesPaymentID: r.ReversesPaymentID, ReversedPaymentReference: r.ReversedPaymentReference, ReasonKind: r.ReversalReasonKind, Reason: r.Reason, ExternalSource: r.ExternalSource, ExternalReference: r.ExternalReference, Allocations: []OrderAllocation{}}
+	v := OrderPayment{
+		ID:                       r.ID,
+		Reference:                r.Reference,
+		EntryKind:                r.EntryKind,
+		Method:                   r.Method,
+		Amount:                   money(r.Amount),
+		OccurredAt:               r.OccurredAt,
+		RecordedAt:               r.RecordedAt,
+		ReversesPaymentID:        r.ReversesPaymentID,
+		ReversedPaymentReference: r.ReversedPaymentReference,
+		ReasonKind:               r.ReversalReasonKind,
+		Reason:                   r.Reason,
+		ExternalSource:           r.ExternalSource,
+		ExternalReference:        r.ExternalReference,
+		Allocations:              []OrderAllocation{},
+	}
 	if v.RecordedBy, err = s.actor(ctx, q, r.ActorAccountID); err != nil {
 		return v, err
 	}
@@ -315,7 +438,14 @@ func nullableTime(v *time.Time) pgtype.Timestamptz {
 	}
 	return pgtype.Timestamptz{Time: v.UTC(), Valid: true}
 }
-func (s *Service) ListPayments(ctx context.Context, p authorization.Principal, method string, from, to *time.Time, page, size int) (OrderPaymentPage, error) {
+
+func (s *Service) ListPayments(
+	ctx context.Context,
+	p authorization.Principal,
+	method string,
+	from, to *time.Time,
+	page, size int,
+) (OrderPaymentPage, error) {
 	if err := require(p, authorization.PaymentsRead); err != nil {
 		return OrderPaymentPage{}, err
 	}
@@ -324,12 +454,24 @@ func (s *Service) ListPayments(ctx context.Context, p authorization.Principal, m
 		return OrderPaymentPage{}, err
 	}
 	q := db.New(s.pool)
-	rows, err := q.ListPayments(ctx, db.ListPaymentsParams{Method: method, FromTime: nullableTime(from), ToTime: nullableTime(to), PageLimit: limit, PageOffset: offset})
+	rows, err := q.ListPayments(
+		ctx,
+		db.ListPaymentsParams{
+			Method:     method,
+			FromTime:   nullableTime(from),
+			ToTime:     nullableTime(to),
+			PageLimit:  limit,
+			PageOffset: offset,
+		},
+	)
 	if err != nil {
 		return OrderPaymentPage{}, err
 	}
 	v := OrderPaymentPage{Items: []OrderPayment{}, Page: int64(page), PageSize: int64(size)}
-	v.Total, err = q.CountPayments(ctx, db.CountPaymentsParams{Method: method, FromTime: nullableTime(from), ToTime: nullableTime(to)})
+	v.Total, err = q.CountPayments(
+		ctx,
+		db.CountPaymentsParams{Method: method, FromTime: nullableTime(from), ToTime: nullableTime(to)},
+	)
 	if err != nil {
 		return v, err
 	}
@@ -342,13 +484,29 @@ func (s *Service) ListPayments(ctx context.Context, p authorization.Principal, m
 	}
 	return v, nil
 }
-func (s *Service) Reconciliation(ctx context.Context, p authorization.Principal, method string, from, to *time.Time, page, size int) (PaymentReconciliation, error) {
+
+func (s *Service) Reconciliation(
+	ctx context.Context,
+	p authorization.Principal,
+	method string,
+	from, to *time.Time,
+	page, size int,
+) (PaymentReconciliation, error) {
 	v, err := s.ListPayments(ctx, p, method, from, to, page, size)
 	if err != nil {
 		return PaymentReconciliation{}, err
 	}
-	result := PaymentReconciliation{Cash: "0.00", Card: "0.00", External: "0.00", Entries: v.Items, Page: v.Page, PageSize: v.PageSize, Total: v.Total}
-	rows, err := db.New(s.pool).ReconciliationTotals(ctx, db.ReconciliationTotalsParams{FromTime: nullableTime(from), ToTime: nullableTime(to)})
+	result := PaymentReconciliation{
+		Cash:     "0.00",
+		Card:     "0.00",
+		External: "0.00",
+		Entries:  v.Items,
+		Page:     v.Page,
+		PageSize: v.PageSize,
+		Total:    v.Total,
+	}
+	rows, err := db.New(s.pool).
+		ReconciliationTotals(ctx, db.ReconciliationTotalsParams{FromTime: nullableTime(from), ToTime: nullableTime(to)})
 	if err != nil {
 		return result, err
 	}

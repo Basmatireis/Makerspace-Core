@@ -19,8 +19,12 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 	ctx := testContext(t)
 
 	assertCount(t, pool, "SELECT count(*) FROM session_policies WHERE is_default", 1)
-	_, err := pool.Exec(ctx, `INSERT INTO session_policies(id,name,idle_timeout_seconds,absolute_lifetime_seconds,post_session_destination,is_default)
-		VALUES($1,'Second default',60,300,'login',true)`, uuid.Must(uuid.NewV7()))
+	_, err := pool.Exec(
+		ctx,
+		`INSERT INTO session_policies(id,name,idle_timeout_seconds,absolute_lifetime_seconds,post_session_destination,is_default)
+		VALUES($1,'Second default',60,300,'login',true)`,
+		uuid.Must(uuid.NewV7()),
+	)
 	expectPostgresCode(t, err, "23505")
 	deviceTypeID := uuid.Must(uuid.NewV7())
 	if _, err = pool.Exec(ctx, `INSERT INTO device_types(id,name) VALUES($1,'Constraint terminal')`, deviceTypeID); err != nil {
@@ -36,10 +40,19 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`, firstVisit, person.personID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = pool.Exec(ctx, `INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
-		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`, uuid.Must(uuid.NewV7()), person.personID)
+	_, err = pool.Exec(
+		ctx,
+		`INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
+		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`,
+		uuid.Must(uuid.NewV7()),
+		person.personID,
+	)
 	expectPostgresCode(t, err, "23505")
-	_, err = pool.Exec(ctx, `UPDATE visits SET status='checked_out', checked_out_at=checked_in_at-interval '1 second', check_out_method='supervisor' WHERE id=$1`, firstVisit)
+	_, err = pool.Exec(
+		ctx,
+		`UPDATE visits SET status='checked_out', checked_out_at=checked_in_at-interval '1 second', check_out_method='supervisor' WHERE id=$1`,
+		firstVisit,
+	)
 	expectPostgresCode(t, err, "23514")
 	if _, err = pool.Exec(ctx, `UPDATE visits SET status='checked_out', checked_out_at=checked_in_at+interval '1 minute', check_out_method='supervisor' WHERE id=$1`, firstVisit); err != nil {
 		t.Fatal(err)
@@ -48,7 +61,12 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, "SELECT count(*) FROM visits WHERE id='"+firstVisit.String()+"'", 0)
-	assertCount(t, pool, "SELECT count(*) FROM attendance_daily_statistics WHERE visitor_count=1 AND visitor_seconds=60", 1)
+	assertCount(
+		t,
+		pool,
+		"SELECT count(*) FROM attendance_daily_statistics WHERE visitor_count=1 AND visitor_seconds=60",
+		1,
+	)
 
 	voidVisit := uuid.Must(uuid.NewV7())
 	if _, err = pool.Exec(ctx, `INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
@@ -127,13 +145,25 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		t.Fatal(err)
 	}
 	if invitationStatus != "expired" || retainedPersonID != nil {
-		t.Fatalf("expired invitation retained delivery identity: status=%s person=%v", invitationStatus, retainedPersonID)
+		t.Fatalf(
+			"expired invitation retained delivery identity: status=%s person=%v",
+			invitationStatus,
+			retainedPersonID,
+		)
 	}
 
 	// Existing direct SQL session fixtures remain compatible, while application
 	// session creation always supplies the selected policy snapshot explicitly.
-	_, err = pool.Exec(ctx, `INSERT INTO sessions(id,account_id,auth_identity_id,token_digest,csrf_digest,auth_method,idle_expires_at,absolute_expires_at)
-		VALUES($1,$2,$3,$4,$5,'password',now()+interval '1 hour',now()+interval '2 hours')`, uuid.Must(uuid.NewV7()), person.accountID, person.identity, bytes.Repeat([]byte{8}, 32), bytes.Repeat([]byte{9}, 32))
+	_, err = pool.Exec(
+		ctx,
+		`INSERT INTO sessions(id,account_id,auth_identity_id,token_digest,csrf_digest,auth_method,idle_expires_at,absolute_expires_at)
+		VALUES($1,$2,$3,$4,$5,'password',now()+interval '1 hour',now()+interval '2 hours')`,
+		uuid.Must(uuid.NewV7()),
+		person.accountID,
+		person.identity,
+		bytes.Repeat([]byte{8}, 32),
+		bytes.Repeat([]byte{9}, 32),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

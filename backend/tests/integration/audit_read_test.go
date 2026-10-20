@@ -38,7 +38,10 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := audit.NewService(pool)
-	if _, err := service.List(ctx, authorization.Principal{}, audit.Filter{Limit: 25}); !apperror.IsCode(err, "permission_denied") {
+	if _, err := service.List(ctx, authorization.Principal{}, audit.Filter{Limit: 25}); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("unauthorized list error = %v", err)
 	}
 
@@ -74,7 +77,11 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 
 	actorType := "user"
 	action := "person.role_assigned"
-	filtered, err := service.List(ctx, principal, audit.Filter{Limit: 25, ActorType: &actorType, ActorSearch: "test person", Action: &action})
+	filtered, err := service.List(
+		ctx,
+		principal,
+		audit.Filter{Limit: 25, ActorType: &actorType, ActorSearch: "test person", Action: &action},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,17 +105,26 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 
 	resourceType := "role"
 	systemType := "system"
-	systemEvents, err := service.List(ctx, principal, audit.Filter{Limit: 25, ActorType: &systemType, ResourceType: &resourceType})
+	systemEvents, err := service.List(
+		ctx,
+		principal,
+		audit.Filter{Limit: 25, ActorType: &systemType, ResourceType: &resourceType},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(systemEvents.Items) != 1 || systemEvents.Items[0].ResourceDisplayName == nil || *systemEvents.Items[0].ResourceDisplayName != "Workshop supervisor" {
+	if len(systemEvents.Items) != 1 || systemEvents.Items[0].ResourceDisplayName == nil ||
+		*systemEvents.Items[0].ResourceDisplayName != "Workshop supervisor" {
 		t.Fatalf("system events = %#v", systemEvents.Items)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM roles WHERE id=$1`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := service.List(ctx, principal, audit.Filter{Limit: 25, ResourceType: &resourceType, ResourceID: &roleID})
+	deleted, err := service.List(
+		ctx,
+		principal,
+		audit.Filter{Limit: 25, ResourceType: &resourceType, ResourceID: &roleID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

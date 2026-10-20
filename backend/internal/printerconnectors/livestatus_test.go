@@ -12,11 +12,19 @@ import (
 )
 
 func liveStatusSnapshot(state string) json.RawMessage {
-	return json.RawMessage(`{"state":"` + state + `","job":null,"temperatures":{"extruders":[],"bedC":null,"bedTargetC":null,"chamberC":null},"nozzles":[],"units":[],"activeTray":null,"errors":[],"firmwareVersion":null,"wifiSignalDbm":-39}`)
+	return json.RawMessage(
+		`{"state":"` + state + `","job":null,"temperatures":{"extruders":[],"bedC":null,"bedTargetC":null,"chamberC":null},"nozzles":[],"units":[],"activeTray":null,"errors":[],"firmwareVersion":null,"wifiSignalDbm":-39}`,
+	)
 }
 
 func (h *ingestHarness) liveReport(observedAt time.Time, state string) LiveStatusReport {
-	return LiveStatusReport{AssignmentID: h.assignment.ID, ProtocolVersion: 1, ConfigurationVersion: h.assignment.ConfigurationVersion, ObservedAt: observedAt, Snapshot: liveStatusSnapshot(state)}
+	return LiveStatusReport{
+		AssignmentID:         h.assignment.ID,
+		ProtocolVersion:      1,
+		ConfigurationVersion: h.assignment.ConfigurationVersion,
+		ObservedAt:           observedAt,
+		Snapshot:             liveStatusSnapshot(state),
+	}
 }
 
 func TestLiveStatusRequiresMachinesRead(t *testing.T) {
@@ -24,7 +32,10 @@ func TestLiveStatusRequiresMachinesRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.LiveStatus(t.Context(), authorization.Principal{}, uuid.Must(uuid.NewV7())); !apperror.IsCode(err, "permission_denied") {
+	if _, err = service.LiveStatus(t.Context(), authorization.Principal{}, uuid.Must(uuid.NewV7())); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("expected permission_denied, got %v", err)
 	}
 }
@@ -49,7 +60,10 @@ func TestLiveStatusReportAndRead(t *testing.T) {
 		t.Fatalf("snapshot=%s err=%v", status.Snapshot, err)
 	}
 	// The principal needs machines.read to see the snapshot.
-	if _, err = h.service.LiveStatus(ctx, authorization.Principal{AccountID: h.principal.AccountID}, h.machine.ID); !apperror.IsCode(err, "permission_denied") {
+	if _, err = h.service.LiveStatus(ctx, authorization.Principal{AccountID: h.principal.AccountID}, h.machine.ID); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("expected permission_denied, got %v", err)
 	}
 
@@ -61,15 +75,18 @@ func TestLiveStatusReportAndRead(t *testing.T) {
 		t.Fatalf("an older snapshot is ignored, not an error: %v", err)
 	}
 	status, err = h.service.LiveStatus(ctx, h.principal, h.machine.ID)
-	if err != nil || !status.ObservedAt.Equal(now.Add(10*time.Second)) || !strings.Contains(string(status.Snapshot), `"printing"`) {
+	if err != nil || !status.ObservedAt.Equal(now.Add(10*time.Second)) ||
+		!strings.Contains(string(status.Snapshot), `"printing"`) {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	var rows int
-	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil || rows != 1 {
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil ||
+		rows != 1 {
 		t.Fatalf("rows=%d err=%v", rows, err)
 	}
 	var audits int
-	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action LIKE '%live%'`, h.assignment.ID).Scan(&audits); err != nil || audits != 0 {
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action LIKE '%live%'`, h.assignment.ID).Scan(&audits); err != nil ||
+		audits != 0 {
 		t.Fatalf("live status must not be audited: %d err=%v", audits, err)
 	}
 }
@@ -91,12 +108,18 @@ func TestLiveStatusReportRejections(t *testing.T) {
 	}
 	stale := h.liveReport(now, "idle")
 	stale.ConfigurationVersion = h.assignment.ConfigurationVersion + 1
-	if err := h.service.ReportLiveStatus(ctx, h.connector, stale); !apperror.IsCode(err, "configuration_version_mismatch") {
+	if err := h.service.ReportLiveStatus(ctx, h.connector, stale); !apperror.IsCode(
+		err,
+		"configuration_version_mismatch",
+	) {
 		t.Fatalf("a wrong configuration version must be a conflict, got %v", err)
 	}
 	inactive := h.connector
 	inactive.Lifecycle = "disabled"
-	if err := h.service.ReportLiveStatus(ctx, inactive, h.liveReport(now, "idle")); !apperror.IsCode(err, "printer_connector_inactive") {
+	if err := h.service.ReportLiveStatus(ctx, inactive, h.liveReport(now, "idle")); !apperror.IsCode(
+		err,
+		"printer_connector_inactive",
+	) {
 		t.Fatalf("a disabled connector must be refused, got %v", err)
 	}
 	future := h.liveReport(now.Add(time.Hour), "idle")
@@ -114,7 +137,8 @@ func TestLiveStatusReportRejections(t *testing.T) {
 		t.Fatalf("a non-object snapshot must be invalid, got %v", err)
 	}
 	var rows int
-	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil || rows != 0 {
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil ||
+		rows != 0 {
 		t.Fatalf("rejected reports must not store anything: rows=%d err=%v", rows, err)
 	}
 
@@ -128,7 +152,10 @@ func TestLiveStatusReportRejections(t *testing.T) {
 	if _, err := h.service.LiveStatus(ctx, h.principal, h.machine.ID); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("an ended assignment has no live status, got %v", err)
 	}
-	if err := h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now.Add(time.Second), "idle")); !apperror.IsCode(err, "not_found") {
+	if err := h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now.Add(time.Second), "idle")); !apperror.IsCode(
+		err,
+		"not_found",
+	) {
 		t.Fatalf("an ended assignment must be not_found, got %v", err)
 	}
 }

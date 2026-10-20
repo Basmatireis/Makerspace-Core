@@ -21,19 +21,59 @@ func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) 
 	credentialID := uuid.Must(uuid.NewV7())
 	assignmentID := uuid.Must(uuid.NewV7())
 	runID := uuid.Must(uuid.NewV7())
-	identity := Identity{ConnectorID: connectorID, CredentialID: credentialID, CredentialSecret: "secret", CredentialExpiresAt: time.Now().UTC().Add(time.Hour), Enrolled: true}
-	configuration := Configuration{Revision: 4, ProtocolVersion: 1, Assignments: []RuntimeAssignment{{ID: assignmentID.String(), MachineID: uuid.Must(uuid.NewV7()).String(), AdapterKind: "simulator", AdapterSchemaVersion: 1, ConfigurationVersion: 3, Settings: map[string]any{}, Enabled: true}}}
+	identity := Identity{
+		ConnectorID:         connectorID,
+		CredentialID:        credentialID,
+		CredentialSecret:    "secret",
+		CredentialExpiresAt: time.Now().UTC().Add(time.Hour),
+		Enrolled:            true,
+	}
+	configuration := Configuration{
+		Revision:        4,
+		ProtocolVersion: 1,
+		Assignments: []RuntimeAssignment{
+			{
+				ID:                   assignmentID.String(),
+				MachineID:            uuid.Must(uuid.NewV7()).String(),
+				AdapterKind:          "simulator",
+				AdapterSchemaVersion: 1,
+				ConfigurationVersion: 3,
+				Settings:             map[string]any{},
+				Enabled:              true,
+			},
+		},
+	}
 	if err = store.SaveIdentity(ctx, identity); err != nil {
 		t.Fatal(err)
 	}
 	if err = store.SaveConfiguration(ctx, configuration); err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.Enqueue(ctx, assignmentID, 3, "connectivity", json.RawMessage(`{"state":"online"}`), &runID, true, nil, nil)
+	first, err := store.Enqueue(
+		ctx,
+		assignmentID,
+		3,
+		"connectivity",
+		json.RawMessage(`{"state":"online"}`),
+		&runID,
+		true,
+		nil,
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.Enqueue(ctx, assignmentID, 3, "operational_state", json.RawMessage(`{"state":"idle"}`), nil, true, nil, nil)
+	second, err := store.Enqueue(
+		ctx,
+		assignmentID,
+		3,
+		"operational_state",
+		json.RawMessage(`{"state":"idle"}`),
+		nil,
+		true,
+		nil,
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +126,17 @@ func TestStoreQuarantinesRejectedEventsAndLocksDataDirectory(t *testing.T) {
 		_ = duplicate.Close()
 		t.Fatal("expected a second process lock to fail")
 	}
-	event, err := store.Enqueue(ctx, uuid.Must(uuid.NewV7()), 1, "progress", json.RawMessage(`{"percent":20}`), nil, true, nil, nil)
+	event, err := store.Enqueue(
+		ctx,
+		uuid.Must(uuid.NewV7()),
+		1,
+		"progress",
+		json.RawMessage(`{"percent":20}`),
+		nil,
+		true,
+		nil,
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -99,7 +99,11 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 	case message := <-delivered:
 		for _, fragment := range []string{"From: \"Makerspace\" <makerspace@example.test>", "To: <member@example.test>", "Subject: Security notice", "Your password changed."} {
 			if !strings.Contains(message, fragment) {
-				t.Fatalf("delivered message did not contain %s; message=%s", strconv.Quote(fragment), strconv.Quote(message))
+				t.Fatalf(
+					"delivered message did not contain %s; message=%s",
+					strconv.Quote(fragment),
+					strconv.Quote(message),
+				)
 			}
 		}
 	case err := <-serverError:

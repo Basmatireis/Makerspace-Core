@@ -25,7 +25,17 @@ func (s *Service) Overview(ctx context.Context, p authorization.Principal) (Over
 	if err != nil {
 		return Overview{}, err
 	}
-	result := Overview{JobsToday: counts.JobsToday, JobsThisWeek: counts.JobsThisWeek, UnassignedJobs: counts.UnassignedJobs, UnassignedEstimatedAmount: decimalString(counts.UnassignedEstimatedAmount), FailedOrPartialThisWeek: counts.FailedOrPartialThisWeek, LowStockItems: lowCount, RecentJobs: []MachineJob{}, LowStockMaterials: []Material{}, Activity: []DailyActivity{}}
+	result := Overview{
+		JobsToday:                 counts.JobsToday,
+		JobsThisWeek:              counts.JobsThisWeek,
+		UnassignedJobs:            counts.UnassignedJobs,
+		UnassignedEstimatedAmount: decimalString(counts.UnassignedEstimatedAmount),
+		FailedOrPartialThisWeek:   counts.FailedOrPartialThisWeek,
+		LowStockItems:             lowCount,
+		RecentJobs:                []MachineJob{},
+		LowStockMaterials:         []Material{},
+		Activity:                  []DailyActivity{},
+	}
 	recent, err := q.ListRecentJobIDs(ctx, 5)
 	if err != nil {
 		return Overview{}, err
@@ -69,7 +79,12 @@ func (s *Service) Overview(ctx context.Context, p authorization.Principal) (Over
 	return result, nil
 }
 
-func (s *Service) fillOverviewWorkItems(ctx context.Context, q *machinelogbookdb.Queries, p authorization.Principal, result *Overview) error {
+func (s *Service) fillOverviewWorkItems(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	result *Overview,
+) error {
 	now := s.now().UTC()
 	var err error
 	count := func(statuses, billing []string) *int64 {
@@ -91,8 +106,20 @@ func (s *Service) fillOverviewWorkItems(ctx context.Context, q *machinelogbookdb
 	if err != nil {
 		return err
 	}
-	rows, err := q.ListWorkItems(ctx, machinelogbookdb.ListWorkItemsParams{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}, MachineIds: []uuid.UUID{}, Sources: []string{},
-		MaterialIds: []uuid.UUID{}, BillingStates: []string{}, ActiveOrder: true, SortKey: "startedAt", SortDirection: "desc", PageLimit: 6})
+	rows, err := q.ListWorkItems(
+		ctx,
+		machinelogbookdb.ListWorkItemsParams{
+			Statuses:      []string{"running", "running_unassigned", "unassigned", "needs_outcome"},
+			MachineIds:    []uuid.UUID{},
+			Sources:       []string{},
+			MaterialIds:   []uuid.UUID{},
+			BillingStates: []string{},
+			ActiveOrder:   true,
+			SortKey:       "startedAt",
+			SortDirection: "desc",
+			PageLimit:     6,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -113,55 +140,105 @@ func (s *Service) Statistics(ctx context.Context, p authorization.Principal, fro
 		return Statistics{}, validation("to must be after from")
 	}
 	q := machinelogbookdb.New(s.pool)
-	result := Statistics{MaterialUsageByType: []StatisticPoint{}, MachineRuntimeHours: []StatisticPoint{}, MachineJobCounts: []StatisticPoint{}, AcquisitionCost: []StatisticPoint{}, CustomerCharges: []StatisticPoint{}, AdjustmentLoss: []StatisticPoint{}, MachineFailureRates: []StatisticPoint{}}
-	material, err := q.StatisticMaterialUsage(ctx, machinelogbookdb.StatisticMaterialUsageParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	result := Statistics{
+		MaterialUsageByType: []StatisticPoint{},
+		MachineRuntimeHours: []StatisticPoint{},
+		MachineJobCounts:    []StatisticPoint{},
+		AcquisitionCost:     []StatisticPoint{},
+		CustomerCharges:     []StatisticPoint{},
+		AdjustmentLoss:      []StatisticPoint{},
+		MachineFailureRates: []StatisticPoint{},
+	}
+	material, err := q.StatisticMaterialUsage(
+		ctx,
+		machinelogbookdb.StatisticMaterialUsageParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range material {
-		result.MaterialUsageByType = append(result.MaterialUsageByType, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
+		result.MaterialUsageByType = append(
+			result.MaterialUsageByType,
+			StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	runtime, err := q.StatisticMachineRuntime(ctx, machinelogbookdb.StatisticMachineRuntimeParams{Now: s.now().UTC(), FromTime: from.UTC(), ToTime: to.UTC()})
+	runtime, err := q.StatisticMachineRuntime(
+		ctx,
+		machinelogbookdb.StatisticMachineRuntimeParams{Now: s.now().UTC(), FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range runtime {
-		result.MachineRuntimeHours = append(result.MachineRuntimeHours, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
+		result.MachineRuntimeHours = append(
+			result.MachineRuntimeHours,
+			StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	jobCounts, err := q.StatisticMachineJobCounts(ctx, machinelogbookdb.StatisticMachineJobCountsParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	jobCounts, err := q.StatisticMachineJobCounts(
+		ctx,
+		machinelogbookdb.StatisticMachineJobCountsParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range jobCounts {
-		result.MachineJobCounts = append(result.MachineJobCounts, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
+		result.MachineJobCounts = append(
+			result.MachineJobCounts,
+			StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	acquisition, err := q.StatisticAcquisitionCost(ctx, machinelogbookdb.StatisticAcquisitionCostParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	acquisition, err := q.StatisticAcquisitionCost(
+		ctx,
+		machinelogbookdb.StatisticAcquisitionCostParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range acquisition {
-		result.AcquisitionCost = append(result.AcquisitionCost, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
+		result.AcquisitionCost = append(
+			result.AcquisitionCost,
+			StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	charges, err := q.StatisticCustomerCharges(ctx, machinelogbookdb.StatisticCustomerChargesParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	charges, err := q.StatisticCustomerCharges(
+		ctx,
+		machinelogbookdb.StatisticCustomerChargesParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range charges {
-		result.CustomerCharges = append(result.CustomerCharges, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
+		result.CustomerCharges = append(
+			result.CustomerCharges,
+			StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	loss, err := q.StatisticAdjustmentLoss(ctx, machinelogbookdb.StatisticAdjustmentLossParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	loss, err := q.StatisticAdjustmentLoss(
+		ctx,
+		machinelogbookdb.StatisticAdjustmentLossParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range loss {
-		result.AdjustmentLoss = append(result.AdjustmentLoss, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
+		result.AdjustmentLoss = append(
+			result.AdjustmentLoss,
+			StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	failure, err := q.StatisticMachineFailureRates(ctx, machinelogbookdb.StatisticMachineFailureRatesParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	failure, err := q.StatisticMachineFailureRates(
+		ctx,
+		machinelogbookdb.StatisticMachineFailureRatesParams{FromTime: from.UTC(), ToTime: to.UTC()},
+	)
 	if err != nil {
 		return result, err
 	}
 	for _, row := range failure {
-		result.MachineFailureRates = append(result.MachineFailureRates, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
+		result.MachineFailureRates = append(
+			result.MachineFailureRates,
+			StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
 	if err = s.fillPeriodStatistics(ctx, q, from.UTC(), to.UTC(), &result); err != nil {
 		return result, err
@@ -172,15 +249,33 @@ func (s *Service) Statistics(ctx context.Context, p authorization.Principal, fro
 // maxWeeklyRuntimeDays is the longest period whose runtime is bucketed by week.
 const maxWeeklyRuntimeDays = 92
 
-func (s *Service) periodTotals(ctx context.Context, q *machinelogbookdb.Queries, from, to, now time.Time) (StatisticTotals, error) {
-	row, err := q.StatisticPeriodTotals(ctx, machinelogbookdb.StatisticPeriodTotalsParams{Now: now, FromTime: from, ToTime: to})
+func (s *Service) periodTotals(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	from, to, now time.Time,
+) (StatisticTotals, error) {
+	row, err := q.StatisticPeriodTotals(
+		ctx,
+		machinelogbookdb.StatisticPeriodTotalsParams{Now: now, FromTime: from, ToTime: to},
+	)
 	if err != nil {
 		return StatisticTotals{}, err
 	}
-	return StatisticTotals{Jobs: row.Jobs, RuntimeHours: decimalString(row.RuntimeHours), Charges: decimalString(row.Charges), MaterialCost: decimalString(row.MaterialCost), FailureRate: decimalString(row.FailureRate)}, nil
+	return StatisticTotals{
+		Jobs:         row.Jobs,
+		RuntimeHours: decimalString(row.RuntimeHours),
+		Charges:      decimalString(row.Charges),
+		MaterialCost: decimalString(row.MaterialCost),
+		FailureRate:  decimalString(row.FailureRate),
+	}, nil
 }
 
-func (s *Service) fillPeriodStatistics(ctx context.Context, q *machinelogbookdb.Queries, from, to time.Time, result *Statistics) error {
+func (s *Service) fillPeriodStatistics(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	from, to time.Time,
+	result *Statistics,
+) error {
 	now := s.now().UTC()
 	var err error
 	if result.Totals, err = s.periodTotals(ctx, q, from, to, now); err != nil {
@@ -196,30 +291,57 @@ func (s *Service) fillPeriodStatistics(ctx context.Context, q *machinelogbookdb.
 	}
 	result.Months = make([]StatisticMonth, 0, len(months))
 	for _, row := range months {
-		result.Months = append(result.Months, StatisticMonth{Month: row.Month, Charges: decimalString(row.Charges), MaterialCost: decimalString(row.MaterialCost), Losses: decimalString(row.Losses)})
+		result.Months = append(
+			result.Months,
+			StatisticMonth{
+				Month:        row.Month,
+				Charges:      decimalString(row.Charges),
+				MaterialCost: decimalString(row.MaterialCost),
+				Losses:       decimalString(row.Losses),
+			},
+		)
 	}
 	unit := "month"
 	result.RuntimeGranularity = "month"
 	if length <= maxWeeklyRuntimeDays*24*time.Hour {
 		unit, result.RuntimeGranularity = "week", "week"
 	}
-	points, err := q.StatisticRuntimePoints(ctx, machinelogbookdb.StatisticRuntimePointsParams{Unit: unit, Now: now, FromTime: from, ToTime: to})
+	points, err := q.StatisticRuntimePoints(
+		ctx,
+		machinelogbookdb.StatisticRuntimePointsParams{Unit: unit, Now: now, FromTime: from, ToTime: to},
+	)
 	if err != nil {
 		return err
 	}
 	result.Runtime = make([]StatisticRuntimePoint, 0, len(points))
 	for _, row := range points {
-		result.Runtime = append(result.Runtime, StatisticRuntimePoint{BucketStart: row.BucketStart.Time.UTC(), MachineID: row.MachineID, Hours: decimalString(row.Hours)})
+		result.Runtime = append(
+			result.Runtime,
+			StatisticRuntimePoint{
+				BucketStart: row.BucketStart.Time.UTC(),
+				MachineID:   row.MachineID,
+				Hours:       decimalString(row.Hours),
+			},
+		)
 	}
-	types, err := q.StatisticMaterialCostByType(ctx, machinelogbookdb.StatisticMaterialCostByTypeParams{FromTime: from, ToTime: to})
+	types, err := q.StatisticMaterialCostByType(
+		ctx,
+		machinelogbookdb.StatisticMaterialCostByTypeParams{FromTime: from, ToTime: to},
+	)
 	if err != nil {
 		return err
 	}
 	result.MaterialCostByType = make([]StatisticPoint, 0, len(types))
 	for _, row := range types {
-		result.MaterialCostByType = append(result.MaterialCostByType, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
+		result.MaterialCostByType = append(
+			result.MaterialCostByType,
+			StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)},
+		)
 	}
-	machines, err := q.StatisticMachineSummaries(ctx, machinelogbookdb.StatisticMachineSummariesParams{Now: now, FromTime: from, ToTime: to})
+	machines, err := q.StatisticMachineSummaries(
+		ctx,
+		machinelogbookdb.StatisticMachineSummariesParams{Now: now, FromTime: from, ToTime: to},
+	)
 	if err != nil {
 		return err
 	}
@@ -233,8 +355,21 @@ func (s *Service) fillPeriodStatistics(ctx context.Context, q *machinelogbookdb.
 		if totalRuntime.IsPositive() {
 			share = decimalFromNumeric(row.RuntimeHours).Mul(decimal.NewFromInt(100)).Div(totalRuntime).Round(2)
 		}
-		result.Machines = append(result.Machines, StatisticMachine{MachineID: row.MachineID, Name: row.Name, MachineTypeName: row.MachineTypeName, Jobs: row.Jobs,
-			RuntimeHours: decimalString(row.RuntimeHours), FailureRate: decimalString(row.FailureRate), Charges: decimalString(row.Charges), RuntimeShare: share.String()})
+		result.Machines = append(
+			result.Machines,
+			StatisticMachine{
+				MachineID:       row.MachineID,
+				Name:            row.Name,
+				MachineTypeName: row.MachineTypeName,
+				Jobs:            row.Jobs,
+				RuntimeHours: decimalString(
+					row.RuntimeHours,
+				),
+				FailureRate:  decimalString(row.FailureRate),
+				Charges:      decimalString(row.Charges),
+				RuntimeShare: share.String(),
+			},
+		)
 	}
 	return nil
 }

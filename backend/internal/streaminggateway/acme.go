@@ -71,7 +71,9 @@ func SelectTLSMode(certFile, keyFile, publicHost, acmeEmail, cloudflareToken str
 	case certExists && keyExists:
 		return TLSSelection{Mode: TLSModeFiles}, nil
 	case certExists != keyExists:
-		return TLSSelection{}, errors.New("only one of the TLS certificate file and the TLS key file exists (STREAM_TLS_CERT_FILE, STREAM_TLS_KEY_FILE): provide both, or remove both to use ACME")
+		return TLSSelection{}, errors.New(
+			"only one of the TLS certificate file and the TLS key file exists (STREAM_TLS_CERT_FILE, STREAM_TLS_KEY_FILE): provide both, or remove both to use ACME",
+		)
 	}
 	email, token := strings.TrimSpace(acmeEmail), strings.TrimSpace(cloudflareToken)
 	if email == "" && token == "" {
@@ -80,7 +82,9 @@ func SelectTLSMode(certFile, keyFile, publicHost, acmeEmail, cloudflareToken str
 			"(2) provide certificate files: fullchain.pem and privkey.pem in ./certs (STREAM_TLS_CERT_FILE and STREAM_TLS_KEY_FILE)")
 	}
 	if email == "" || token == "" {
-		return TLSSelection{}, errors.New("ACME mode needs both ACME_EMAIL and CLOUDFLARE_DNS_API_TOKEN; one of them is missing")
+		return TLSSelection{}, errors.New(
+			"ACME mode needs both ACME_EMAIL and CLOUDFLARE_DNS_API_TOKEN; one of them is missing",
+		)
 	}
 	domain, err := ACMEDomain(publicHost)
 	if err != nil {
@@ -177,7 +181,9 @@ func ValidateACMEDirectory(value string) (string, error) {
 	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
-		return "", errors.New("ACME_CA_DIR must be an https URL, for example https://acme-staging-v02.api.letsencrypt.org/directory")
+		return "", errors.New(
+			"ACME_CA_DIR must be an https URL, for example https://acme-staging-v02.api.letsencrypt.org/directory",
+		)
 	}
 	return value, nil
 }
@@ -216,7 +222,12 @@ type CertStatus struct {
 
 // NewCertManager prepares the 0700 directory and loads a stored certificate for the domain, if any.
 // secrets are values that must never appear in log output.
-func NewCertManager(dir, domain string, obtainer CertObtainer, logger *slog.Logger, secrets ...string) (*CertManager, error) {
+func NewCertManager(
+	dir, domain string,
+	obtainer CertObtainer,
+	logger *slog.Logger,
+	secrets ...string,
+) (*CertManager, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create ACME directory: %w", err)
 	}
@@ -329,7 +340,17 @@ func (m *CertManager) Step(ctx context.Context) time.Duration {
 		m.lastErr = m.redact(err.Error())
 		m.mu.Unlock()
 		wait := m.backoff(failures)
-		m.logger.Warn("certificate request failed", "domain", m.domain, "error", m.redact(err.Error()), "attempt", failures, "retry_in", wait.Round(time.Second).String())
+		m.logger.Warn(
+			"certificate request failed",
+			"domain",
+			m.domain,
+			"error",
+			m.redact(err.Error()),
+			"attempt",
+			failures,
+			"retry_in",
+			wait.Round(time.Second).String(),
+		)
 		return wait
 	}
 	m.mu.Lock()

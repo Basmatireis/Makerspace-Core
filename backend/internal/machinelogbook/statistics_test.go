@@ -79,7 +79,15 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	ctx := t.Context()
 	day := func(d, hour int) time.Time { return time.Date(y, time.June, d, hour, 0, 0, 0, time.UTC) }
 	job := func(machine Machine, start time.Time, duration time.Duration, outcome string) MachineJob {
-		input := JobInput{MachineID: machine.ID, StartsAt: start, EndsAt: start.Add(duration), Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person, Outcome: outcome, PricingGroupID: &f.group.ID}
+		input := JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         start,
+			EndsAt:           start.Add(duration),
+			Customer:         PartyReference{Kind: "person", ID: f.person},
+			OperatorPersonID: f.person,
+			Outcome:          outcome,
+			PricingGroupID:   &f.group.ID,
+		}
 		return f.create(t, input)
 	}
 	a := job(f.machine, day(2, 10), 2*time.Hour, "successful")
@@ -88,7 +96,12 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	running := job(f.machine, statsClock.Add(-time.Hour), 4*time.Hour, "unknown") // one hour has elapsed
 	e := job(f.bareMachine, day(3, 8), 2*time.Hour, "successful")
 	previous := job(f.machine, time.Date(y, time.May, 20, 10, 0, 0, 0, time.UTC), time.Hour, "successful")
-	outside := job(f.machine, time.Date(y, time.July, 1, 0, 0, 0, 0, time.UTC), time.Hour, "unknown") // starts at the exclusive end
+	outside := job(
+		f.machine,
+		time.Date(y, time.July, 1, 0, 0, 0, 0, time.UTC),
+		time.Hour,
+		"unknown",
+	) // starts at the exclusive end
 	_ = outside
 
 	f.insertTransaction(t, "manual_consumption", "", "-10", "-5.00", day(5, 9))
@@ -135,7 +148,8 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	assertDecimal(t, "month materialCost", stats.Months[0].MaterialCost, "4")
 	assertDecimal(t, "month losses", stats.Months[0].Losses, "3.5")
 
-	if len(stats.MaterialCostByType) != 1 || stats.MaterialCostByType[0].Key != f.materialType.ID.String() || stats.MaterialCostByType[0].Label != f.materialType.Name {
+	if len(stats.MaterialCostByType) != 1 || stats.MaterialCostByType[0].Key != f.materialType.ID.String() ||
+		stats.MaterialCostByType[0].Label != f.materialType.Name {
 		t.Fatalf("material cost by type = %+v", stats.MaterialCostByType)
 	}
 	assertDecimal(t, "pla cost", stats.MaterialCostByType[0].Value, "4")
@@ -234,7 +248,8 @@ func TestStatisticsGranularityBoundaryAndMonths(t *testing.T) {
 				t.Fatalf("%d days: months = %v, want %v", test.days, months, test.months)
 			}
 		}
-		if len(stats.Runtime) != 1 || stats.Runtime[0].BucketStart.Format("2006-01-02") != test.bucket || stats.Runtime[0].MachineID != f.machine.ID {
+		if len(stats.Runtime) != 1 || stats.Runtime[0].BucketStart.Format("2006-01-02") != test.bucket ||
+			stats.Runtime[0].MachineID != f.machine.ID {
 			t.Fatalf("%d days: runtime = %+v, want bucket %s", test.days, stats.Runtime, test.bucket)
 		}
 		assertDecimal(t, "bucket hours", stats.Runtime[0].Hours, "2")
@@ -242,11 +257,18 @@ func TestStatisticsGranularityBoundaryAndMonths(t *testing.T) {
 			t.Fatalf("an empty month must be zero: %+v", stats.Months[1])
 		}
 	}
-	empty, err := f.s.Statistics(t.Context(), f.p, time.Date(y+1, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(y+1, 1, 8, 0, 0, 0, 0, time.UTC))
+	empty, err := f.s.Statistics(
+		t.Context(),
+		f.p,
+		time.Date(y+1, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(y+1, 1, 8, 0, 0, 0, 0, time.UTC),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if empty.Totals.Jobs != 0 || empty.Totals.FailureRate != "0" || len(empty.Machines) != 0 || len(empty.Runtime) != 0 || empty.Months == nil {
+	if empty.Totals.Jobs != 0 || empty.Totals.FailureRate != "0" || len(empty.Machines) != 0 ||
+		len(empty.Runtime) != 0 ||
+		empty.Months == nil {
 		t.Fatalf("empty period = %+v", empty)
 	}
 }
@@ -255,7 +277,10 @@ func TestStatisticsNewFieldsKeepTheirPermission(t *testing.T) {
 	f := newJobFixture(t)
 	statsClock := time.Date(2033, time.June, 15, 12, 0, 0, 0, time.UTC)
 	jobsOnly := restrictedPrincipal(t, f.pool, authorization.MachineJobsRead)
-	if _, err := f.s.Statistics(t.Context(), jobsOnly, statsClock.AddDate(0, 0, -7), statsClock); !apperror.IsCode(err, "permission_denied") {
+	if _, err := f.s.Statistics(t.Context(), jobsOnly, statsClock.AddDate(0, 0, -7), statsClock); !apperror.IsCode(
+		err,
+		"permission_denied",
+	) {
 		t.Fatalf("statistics without statistics.read: %v", err)
 	}
 }

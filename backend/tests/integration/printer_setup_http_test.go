@@ -60,7 +60,14 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +77,15 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 
 	login := func(email, password string) (*http.Client, string) {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)
@@ -79,32 +94,88 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	member := func(suffix string, permissions ...string) (*http.Client, string) {
 		t.Helper()
 		email, password := "setup-"+suffix+"@example.test", "Setup "+suffix+" workshop password 77"
-		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{"firstName": "Setup", "lastName": suffix, "email": "contact-" + email})
+		response := doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people",
+			origin,
+			adminCSRF,
+			map[string]any{"firstName": "Setup", "lastName": suffix, "email": "contact-" + email},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var person openapi.Person
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{"loginEmail": email, "expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+			origin,
+			adminCSRF,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var account openapi.Account
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{"newPassword": password, "expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+			origin,
+			adminCSRF,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{"expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{"name": "Setup " + suffix, "description": "Test role", "permissionGrants": grants})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/roles",
+			origin,
+			adminCSRF,
+			map[string]any{"name": "Setup " + suffix, "description": "Test role", "permissionGrants": grants},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var role openapi.Role
 		decodeResponse(t, response, &role)
 		response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{"expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		return login(email, password)
@@ -153,7 +224,10 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 	var profile openapi.PrinterProfile
 	decodeResponse(t, response, &profile)
-	if profile.Version != 1 || len(profile.InputUnits) != 1 || len(profile.Slots) != 2 || !profile.Model.IsSpecified() || profile.Model.MustGet() != openapi.BambuH2d || profile.InputUnits[0].Nozzle.MustGet() != openapi.Left {
+	if profile.Version != 1 || len(profile.InputUnits) != 1 || len(profile.Slots) != 2 ||
+		!profile.Model.IsSpecified() ||
+		profile.Model.MustGet() != openapi.BambuH2d ||
+		profile.InputUnits[0].Nozzle.MustGet() != openapi.Left {
 		t.Fatalf("saved profile = %+v", profile)
 	}
 	response = doJSON(t, managerClient, http.MethodPut, server.URL+setupPath, origin, managerCSRF, setupBody(nil))
@@ -171,7 +245,16 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	embroidery, err := logbook.CreateMachine(ctx, master, embroideryType.ID, "Setup embroidery 1", "active", nil, false, nil)
+	embroidery, err := logbook.CreateMachine(
+		ctx,
+		master,
+		embroideryType.ID,
+		"Setup embroidery 1",
+		"active",
+		nil,
+		false,
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,11 +283,27 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	}
 
 	// Enroll a connector over HTTP and assign it to the printer.
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/printer-connectors", origin, adminCSRF, map[string]any{"name": "Setup connector", "locationLabel": nil})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/printer-connectors",
+		origin,
+		adminCSRF,
+		map[string]any{"name": "Setup connector", "locationLabel": nil},
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var connector openapi.PrinterConnector
 	decodeResponse(t, response, &connector)
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/printer-connectors/"+connector.Id.String()+"/enrollments", origin, adminCSRF, nil)
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/printer-connectors/"+connector.Id.String()+"/enrollments",
+		origin,
+		adminCSRF,
+		nil,
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var enrollment openapi.PrinterConnectorEnrollmentIssue
 	decodeResponse(t, response, &enrollment)
@@ -224,10 +323,35 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		}
 		return bearerRaw(t, method, server.URL+path, token, reader)
 	}
-	response = bearer(http.MethodPost, "/api/v1/printer-connector/enroll", *enrollment.EnrollmentSecret, map[string]any{"credentialId": uuid.Must(uuid.NewV7()).String(), "credentialSecret": credentialSecret, "softwareVersion": "test", "protocolVersion": 1})
+	response = bearer(
+		http.MethodPost,
+		"/api/v1/printer-connector/enroll",
+		*enrollment.EnrollmentSecret,
+		map[string]any{
+			"credentialId":     uuid.Must(uuid.NewV7()).String(),
+			"credentialSecret": credentialSecret,
+			"softwareVersion":  "test",
+			"protocolVersion":  1,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	response.Body.Close()
-	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/printer-connectors/"+connector.Id.String()+"/assignments", origin, adminCSRF, map[string]any{"machineId": machine.ID.String(), "adapterKind": "simulator", "adapterSchemaVersion": 1, "settings": map[string]any{"scenario": "idle"}, "secrets": map[string]any{}, "enabled": true})
+	response = doJSON(
+		t,
+		adminClient,
+		http.MethodPost,
+		server.URL+"/api/v1/printer-connectors/"+connector.Id.String()+"/assignments",
+		origin,
+		adminCSRF,
+		map[string]any{
+			"machineId":            machine.ID.String(),
+			"adapterKind":          "simulator",
+			"adapterSchemaVersion": 1,
+			"settings":             map[string]any{"scenario": "idle"},
+			"secrets":              map[string]any{},
+			"enabled":              true,
+		},
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var assignment openapi.PrinterConnectorAssignment
 	decodeResponse(t, response, &assignment)
@@ -250,7 +374,13 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	response = report(assignment.ConfigurationVersion+1, now, "")
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
-	response = bearerRaw(t, http.MethodPut, server.URL+statusPath, "not-a-connector-credential", bytes.NewReader([]byte(sprintfLiveStatus(assignment.ConfigurationVersion, now, ""))))
+	response = bearerRaw(
+		t,
+		http.MethodPut,
+		server.URL+statusPath,
+		"not-a-connector-credential",
+		bytes.NewReader([]byte(sprintfLiveStatus(assignment.ConfigurationVersion, now, ""))),
+	)
 	assertStatus(t, response, http.StatusUnauthorized)
 	response.Body.Close()
 	response = doJSON(t, adminClient, http.MethodPut, server.URL+statusPath, origin, adminCSRF, map[string]any{})
@@ -264,7 +394,10 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	var live openapi.PrinterLiveStatus
 	decodeResponse(t, response, &live)
 	if live.AssignmentId != assignment.Id || live.Status.State != openapi.PrinterLiveStatusStatePrinting || len(live.Status.Units) != 2 || len(live.Status.Units[0].Trays) != 2 ||
-		live.Status.Units[0].Trays[0].ColorHex.MustGet() != "FFF144" || live.Status.ActiveTray.MustGet().TrayExternalId != "0" || live.Status.WifiSignalDbm.MustGet() != -39 || len(live.Status.Errors) != 1 {
+		live.Status.Units[0].Trays[0].ColorHex.MustGet() != "FFF144" ||
+		live.Status.ActiveTray.MustGet().TrayExternalId != "0" ||
+		live.Status.WifiSignalDbm.MustGet() != -39 ||
+		len(live.Status.Errors) != 1 {
 		t.Fatalf("live status = %+v", live)
 	}
 }

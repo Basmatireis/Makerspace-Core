@@ -59,7 +59,12 @@ func WithStreamIssuer(issuer StreamIssuer) Option {
 }
 
 // NewService builds the service. Announcement times are rendered in the makerspace time zone.
-func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Service, options ...Option) (*Service, error) {
+func NewService(
+	pool *pgxpool.Pool,
+	cfg config.Config,
+	fileService *files.Service,
+	options ...Option,
+) (*Service, error) {
 	timeZone := cfg.MakerspaceTimeZone
 	if timeZone == "" {
 		timeZone = "Europe/Vienna"
@@ -116,7 +121,10 @@ func validation(format string, args ...any) error {
 func inUse(what string, references []Reference) error {
 	listed := make([]map[string]any, 0, len(references))
 	for _, reference := range references {
-		listed = append(listed, map[string]any{"kind": reference.Kind, "id": reference.ID.String(), "name": reference.Name})
+		listed = append(
+			listed,
+			map[string]any{"kind": reference.Kind, "id": reference.ID.String(), "name": reference.Name},
+		)
 	}
 	result := apperror.New(409, "signage_in_use", what+" is still in use")
 	result.Details["references"] = listed
@@ -125,15 +133,35 @@ func inUse(what string, references []Reference) error {
 
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514" || pgErr.Code == "23001") {
+	if errors.As(err, &pgErr) &&
+		(pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514" || pgErr.Code == "23001") {
 		return apperror.Conflict
 	}
 	return err
 }
 
-func writeAudit(ctx context.Context, tx pgx.Tx, principal authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
+func writeAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields []string,
+) error {
 	actor := principal.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         action,
+			ResourceType:   resource,
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  fields,
+		},
+	)
 }
 
 func requireExpected(expected int64) error {

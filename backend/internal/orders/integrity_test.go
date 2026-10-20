@@ -34,7 +34,11 @@ func (f *fixture) principal(t *testing.T, permissions ...authorization.Permissio
 			t.Fatal(err)
 		}
 	}
-	p, err := authorization.LoadPermissionsFrom(ctx, f.pool, authorization.Principal{AccountID: account, PersonID: person})
+	p, err := authorization.LoadPermissionsFrom(
+		ctx,
+		f.pool,
+		authorization.Principal{AccountID: account, PersonID: person},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +55,13 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 	}
 	cases := map[string]func() error{
 		"draft write": func() error {
-			_, e := f.s.Update(ctx, read, o.ID, UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"}, nil)
+			_, e := f.s.Update(
+				ctx,
+				read,
+				o.ID,
+				UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"},
+				nil,
+			)
 			return e
 		},
 		"finalize":       func() error { _, e := f.s.Command(ctx, read, o.ID, cmd(o), "finalize", nil); return e },
@@ -77,15 +87,27 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 		t.Fatal(e)
 	}
 	recorder := f.principal(t, authorization.OrdersRead, authorization.PaymentsRead, authorization.PaymentsRecord)
-	o, e = f.s.RecordPayment(ctx, recorder, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")}, nil)
+	o, e = f.s.RecordPayment(
+		ctx,
+		recorder,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.ReversePayment(ctx, recorder, *o.Allocations[0].PaymentID, ReversePaymentCommand{}, nil); !apperror.IsCode(e, "permission_denied") {
+	if _, e = f.s.ReversePayment(ctx, recorder, *o.Allocations[0].PaymentID, ReversePaymentCommand{}, nil); !apperror.IsCode(
+		e,
+		"permission_denied",
+	) {
 		t.Fatal(e)
 	}
 	requestManager := f.principal(t, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead)
-	if _, e = f.s.CreateRequest(ctx, requestManager, o.ID, CreateInvoiceRequest{}, nil); !apperror.IsCode(e, "permission_denied") {
+	if _, e = f.s.CreateRequest(ctx, requestManager, o.ID, CreateInvoiceRequest{}, nil); !apperror.IsCode(
+		e,
+		"permission_denied",
+	) {
 		t.Fatal(e)
 	}
 }
@@ -98,22 +120,62 @@ func TestDraftEditingStaleVersionsAndConcurrentFinalization(t *testing.T) {
 		t.Fatal(o)
 	}
 	oldVersion := o.Version
-	o, e := f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "deferred", PreserveCustomer: true}, nil)
+	o, e := f.s.Update(
+		ctx,
+		f.p,
+		o.ID,
+		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "deferred", PreserveCustomer: true},
+		nil,
+	)
 	if e != nil || o.Customer == nil || o.Customer.ID != f.organization {
 		t.Fatalf("omitted customer not preserved: %v %+v", e, o)
 	}
-	if _, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: oldVersion, FulfillmentMode: "immediate"}, nil); !apperror.IsCode(e, "stale_write") {
+	if _, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: oldVersion, FulfillmentMode: "immediate"}, nil); !apperror.IsCode(
+		e,
+		"stale_write",
+	) {
 		t.Fatal(e)
 	}
-	o, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate", Customer: nil}, nil)
+	o, e = f.s.Update(
+		ctx,
+		f.p,
+		o.ID,
+		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate", Customer: nil},
+		nil,
+	)
 	if e != nil || o.Customer != nil || o.CustomerKind != "anonymous" {
 		t.Fatal(e, o)
 	}
-	o, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate", Customer: &OrderCustomer{Kind: "organization", ID: f.organization}}, nil)
+	o, e = f.s.Update(
+		ctx,
+		f.p,
+		o.ID,
+		UpdateOrderDraftInput{
+			ExpectedVersion: o.Version,
+			FulfillmentMode: "immediate",
+			Customer:        &OrderCustomer{Kind: "organization", ID: f.organization},
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	o, e = f.s.ChangeItem(ctx, f.p, o.ID, o.Items[0].ID, OrderItemInput{Kind: "manual", Description: "Corrected service", Quantity: "3", Unit: "piece", UnitPrice: "2.005", ExpectedVersion: o.Version}, "update", nil)
+	o, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		o.ID,
+		o.Items[0].ID,
+		OrderItemInput{
+			Kind:            "manual",
+			Description:     "Corrected service",
+			Quantity:        "3",
+			Unit:            "piece",
+			UnitPrice:       "2.005",
+			ExpectedVersion: o.Version,
+		},
+		"update",
+		nil,
+	)
 	if e != nil || o.TotalAmount != "6.02" || len(o.Items) != 2 || o.Items[0].RemovedAt == nil {
 		t.Fatal(e, o)
 	}
@@ -158,7 +220,22 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 	if e != nil {
 		t.Fatal(e)
 	}
-	next, e = f.s.ChangeItem(ctx, f.p, next.ID, next.Items[0].ID, OrderItemInput{Kind: "manual", Description: "Correct charge", Quantity: "1", Unit: "service", UnitPrice: "6", ExpectedVersion: next.Version}, "update", nil)
+	next, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		next.ID,
+		next.Items[0].ID,
+		OrderItemInput{
+			Kind:            "manual",
+			Description:     "Correct charge",
+			Quantity:        "1",
+			Unit:            "service",
+			UnitPrice:       "6",
+			ExpectedVersion: next.Version,
+		},
+		"update",
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -174,8 +251,18 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 		t.Fatal("failed replacement was partially committed")
 	}
 	input.OperationKey = newID()
-	input.Reversals = []PaymentReversalInput{{PaymentID: *o.Allocations[0].PaymentID, ReasonKind: "refund", Reason: "Whole cash receipt refunded", OccurredAt: time.Now()}}
-	if _, e = f.s.Command(ctx, f.p, o.ID, input, "replace", nil); !apperror.IsCode(e, "anonymous_requires_full_settlement") {
+	input.Reversals = []PaymentReversalInput{
+		{
+			PaymentID:  *o.Allocations[0].PaymentID,
+			ReasonKind: "refund",
+			Reason:     "Whole cash receipt refunded",
+			OccurredAt: time.Now(),
+		},
+	}
+	if _, e = f.s.Command(ctx, f.p, o.ID, input, "replace", nil); !apperror.IsCode(
+		e,
+		"anonymous_requires_full_settlement",
+	) {
 		t.Fatal(e)
 	}
 	input.OperationKey = newID()
@@ -192,7 +279,10 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 	if original.ReplacedByOrderID == nil || *original.ReplacedByOrderID != next.ID {
 		t.Fatal("missing successor link")
 	}
-	if _, e = f.s.Command(ctx, f.p, o.ID, cmd(original), "replacements", nil); !apperror.IsCode(e, "order_already_replaced") {
+	if _, e = f.s.Command(ctx, f.p, o.ID, cmd(original), "replacements", nil); !apperror.IsCode(
+		e,
+		"order_already_replaced",
+	) {
 		t.Fatal(e)
 	}
 }
@@ -201,12 +291,24 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	materials := []uuid.UUID{}
-	plaType, e := f.jobs.CreateMaterialType(ctx, f.p, "PLA "+newID().String(), "g", []string{"fdm_printing", "other"}, nil)
+	plaType, e := f.jobs.CreateMaterialType(
+		ctx,
+		f.p,
+		"PLA "+newID().String(),
+		"g",
+		[]string{"fdm_printing", "other"},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
 	for _, name := range []string{"PLA black", "PLA white"} {
-		m, e := f.jobs.CreateMaterial(ctx, f.p, machinelogbook.MaterialInput{Name: name, MaterialTypeID: plaType.ID}, nil)
+		m, e := f.jobs.CreateMaterial(
+			ctx,
+			f.p,
+			machinelogbook.MaterialInput{Name: name, MaterialTypeID: plaType.ID},
+			nil,
+		)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -219,15 +321,53 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		t.Fatal(e)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour)
-	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "10"}, {MaterialID: materials[1], Quantity: "20"}}}, nil)
+	job, e := f.jobs.CreateManualJob(
+		ctx,
+		f.p,
+		machinelogbook.JobInput{
+			MachineID:        f.machine,
+			StartsAt:         start,
+			EndsAt:           start.Add(time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
+			OperatorPersonID: f.person,
+			Outcome:          "successful",
+			PricingGroupID:   &f.group,
+			Usages: []machinelogbook.UsageInput{
+				{MaterialID: materials[0], Quantity: "10"},
+				{MaterialID: materials[1], Quantity: "20"},
+			},
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	o, e := f.s.Create(ctx, f.p, OrderDraftInput{Customer: &OrderCustomer{Kind: "organization", ID: f.organization}, FulfillmentMode: "immediate"}, nil)
+	o, e := f.s.Create(
+		ctx,
+		f.p,
+		OrderDraftInput{
+			Customer:        &OrderCustomer{Kind: "organization", ID: f.organization},
+			FulfillmentMode: "immediate",
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	o, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+	o, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		o.ID,
+		uuid.Nil,
+		OrderItemInput{
+			Kind:               "machine_job",
+			MachineJobID:       job.ID,
+			ExpectedJobVersion: job.Version,
+			ExpectedVersion:    o.Version,
+		},
+		"add",
+		nil,
+	)
 	if e != nil || o.TotalAmount != "13.00" {
 		t.Fatalf("repeated category charge: %v %+v", e, o)
 	}
@@ -236,11 +376,28 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		t.Fatal(e)
 	}
 	endsAt, successful := start.Add(2*time.Hour), "successful"
-	runResult, e := f.jobs.UpdateRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, machinelogbook.RunUpdate{EndsAt: &endsAt, Outcome: &successful}, nil)
+	runResult, e := f.jobs.UpdateRun(
+		ctx,
+		f.p,
+		job.Runs[0].ID,
+		job.Runs[0].Version,
+		machinelogbook.RunUpdate{EndsAt: &endsAt, Outcome: &successful},
+		nil,
+	)
 	if e != nil {
 		t.Fatal("operational correction failed", e)
 	}
-	runResult, e = f.jobs.ReplaceRunUsages(ctx, f.p, runResult.Run.ID, runResult.Run.Version, []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "5"}, {MaterialID: materials[1], Quantity: "20"}}, nil)
+	runResult, e = f.jobs.ReplaceRunUsages(
+		ctx,
+		f.p,
+		runResult.Run.ID,
+		runResult.Run.Version,
+		[]machinelogbook.UsageInput{
+			{MaterialID: materials[0], Quantity: "5"},
+			{MaterialID: materials[1], Quantity: "20"},
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -256,7 +413,8 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		t.Fatal(e)
 	}
 	retained, e = f.s.Get(ctx, f.p, o.ID)
-	if e != nil || retained.Items[0].SourceMachineJobID != nil || retained.Items[0].Snapshot == nil || retained.TotalAmount != "13.00" {
+	if e != nil || retained.Items[0].SourceMachineJobID != nil || retained.Items[0].Snapshot == nil ||
+		retained.TotalAmount != "13.00" {
 		t.Fatal("source detachment destroyed snapshot", e, retained)
 	}
 	encoded, _ := json.Marshal(retained.Items[0].Snapshot)
@@ -273,7 +431,19 @@ func TestConcurrentJobClaimsAndCardReferenceUniqueness(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	start := time.Now().UTC().Add(-time.Hour)
-	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, OperatorPersonID: f.person, Outcome: "successful"}, nil)
+	job, e := f.jobs.CreateManualJob(
+		ctx,
+		f.p,
+		machinelogbook.JobInput{
+			MachineID:        f.machine,
+			StartsAt:         start,
+			EndsAt:           start.Add(time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
+			OperatorPersonID: f.person,
+			Outcome:          "successful",
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -284,7 +454,20 @@ func TestConcurrentJobClaimsAndCardReferenceUniqueness(t *testing.T) {
 		wg.Add(1)
 		go func(o Order) {
 			defer wg.Done()
-			_, err := f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+			_, err := f.s.ChangeItem(
+				ctx,
+				f.p,
+				o.ID,
+				uuid.Nil,
+				OrderItemInput{
+					Kind:               "machine_job",
+					MachineJobID:       job.ID,
+					ExpectedJobVersion: job.Version,
+					ExpectedVersion:    o.Version,
+				},
+				"add",
+				nil,
+			)
 			results <- err
 		}(o)
 	}
@@ -317,7 +500,10 @@ func TestConcurrentJobClaimsAndCardReferenceUniqueness(t *testing.T) {
 	if _, e = f.s.RecordPayment(ctx, f.p, a.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: a.Version, Payment: payment}, nil); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.RecordPayment(ctx, f.p, b.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: b.Version, Payment: payment}, nil); !apperror.IsCode(e, "already_exists") {
+	if _, e = f.s.RecordPayment(ctx, f.p, b.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: b.Version, Payment: payment}, nil); !apperror.IsCode(
+		e,
+		"already_exists",
+	) {
 		t.Fatal("same terminal payment recorded twice", e)
 	}
 	b, e = f.s.Get(ctx, f.p, b.ID)
@@ -334,7 +520,13 @@ func TestConcurrentReplacementAndAuditPaymentRollback(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	o, e = f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")}, nil)
+	o, e = f.s.RecordPayment(
+		ctx,
+		f.p,
+		o.ID,
+		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -408,7 +600,14 @@ func TestOrderTotalOverflowBlocksFinalization(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	o := f.draft(t, true, "0")
-	item := OrderItemInput{Kind: "manual", Description: "Large exact charge", Quantity: "1000000000", Unit: "piece", UnitPrice: "900000000", ExpectedVersion: o.Version}
+	item := OrderItemInput{
+		Kind:            "manual",
+		Description:     "Large exact charge",
+		Quantity:        "1000000000",
+		Unit:            "piece",
+		UnitPrice:       "900000000",
+		ExpectedVersion: o.Version,
+	}
 	o, err := f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, item, "add", nil)
 	if err != nil || o.TotalAmount != "900000000000000000.00" {
 		t.Fatal(err, o.TotalAmount)
@@ -422,7 +621,8 @@ func TestOrderTotalOverflowBlocksFinalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	persisted, err := f.s.Get(ctx, f.p, o.ID)
-	if err != nil || persisted.Status != "draft" || persisted.Version != o.Version || persisted.TotalAmount != o.TotalAmount {
+	if err != nil || persisted.Status != "draft" || persisted.Version != o.Version ||
+		persisted.TotalAmount != o.TotalAmount {
 		t.Fatal("overflow finalization was not rolled back", err, persisted)
 	}
 }
@@ -431,16 +631,50 @@ func TestOrderItemSnapshotUsesDiscountedEffectivePrice(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	start := time.Now().UTC().Add(-time.Hour)
-	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, OperatorPersonID: f.person, Outcome: "successful"}, nil)
+	job, e := f.jobs.CreateManualJob(
+		ctx,
+		f.p,
+		machinelogbook.JobInput{
+			MachineID:        f.machine,
+			StartsAt:         start,
+			EndsAt:           start.Add(time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
+			OperatorPersonID: f.person,
+			Outcome:          "successful",
+		},
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	job, e = f.jobs.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version, "discount_percent", "25", "Member discount", nil)
+	job, e = f.jobs.SetJobPriceAdjustment(
+		ctx,
+		f.p,
+		job.ID,
+		job.Version,
+		"discount_percent",
+		"25",
+		"Member discount",
+		nil,
+	)
 	if e != nil || job.EffectivePrice == nil || *job.EffectivePrice != "7.5" {
 		t.Fatal(e, job.EffectivePrice)
 	}
 	o := f.draft(t, true, "1")
-	o, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+	o, e = f.s.ChangeItem(
+		ctx,
+		f.p,
+		o.ID,
+		uuid.Nil,
+		OrderItemInput{
+			Kind:               "machine_job",
+			MachineJobID:       job.ID,
+			ExpectedJobVersion: job.Version,
+			ExpectedVersion:    o.Version,
+		},
+		"add",
+		nil,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -450,7 +684,8 @@ func TestOrderItemSnapshotUsesDiscountedEffectivePrice(t *testing.T) {
 			snapshot = item.Snapshot
 		}
 	}
-	if snapshot == nil || snapshot.EffectiveAmount != "7.5" || snapshot.CalculatedAmount == nil || *snapshot.CalculatedAmount != "10" {
+	if snapshot == nil || snapshot.EffectiveAmount != "7.5" || snapshot.CalculatedAmount == nil ||
+		*snapshot.CalculatedAmount != "10" {
 		t.Fatalf("snapshot did not use the discounted price: %+v", snapshot)
 	}
 }

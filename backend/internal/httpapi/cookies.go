@@ -58,7 +58,13 @@ func (response cookieNoContentResponse) write(w http.ResponseWriter) error {
 	return nil
 }
 
-func (response cookieNoContentResponse) setCookie(w http.ResponseWriter, name, value string, httpOnly bool, expires time.Time, maxAge int) {
+func (response cookieNoContentResponse) setCookie(
+	w http.ResponseWriter,
+	name, value string,
+	httpOnly bool,
+	expires time.Time,
+	maxAge int,
+) {
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: value, Path: "/", Expires: expires, MaxAge: maxAge,
 		HttpOnly: httpOnly, Secure: response.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode,

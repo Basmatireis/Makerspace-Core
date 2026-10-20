@@ -40,14 +40,25 @@ func NewService(pool *pgxpool.Pool, store storage.Store) *Service {
 	return &Service{pool: pool, store: store}
 }
 
-func (s *Service) StoreBytes(ctx context.Context, principal authorization.Principal, originalFilename, contentType string, data []byte, requestID *uuid.UUID) (File, error) {
+func (s *Service) StoreBytes(
+	ctx context.Context,
+	principal authorization.Principal,
+	originalFilename, contentType string,
+	data []byte,
+	requestID *uuid.UUID,
+) (File, error) {
 	actor := principal.AccountID
 	return s.storeBytes(ctx, &actor, originalFilename, contentType, data, requestID)
 }
 
 // StoreSystemBytes stores a private file produced by a controlled unauthenticated
 // workflow. The creator remains null while the audit event is still recorded.
-func (s *Service) StoreSystemBytes(ctx context.Context, originalFilename, contentType string, data []byte, requestID *uuid.UUID) (File, error) {
+func (s *Service) StoreSystemBytes(
+	ctx context.Context,
+	originalFilename, contentType string,
+	data []byte,
+	requestID *uuid.UUID,
+) (File, error) {
 	return s.storeBytes(ctx, nil, originalFilename, contentType, data, requestID)
 }
 
@@ -56,18 +67,41 @@ func (s *Service) StoreSystemBytes(ctx context.Context, originalFilename, conten
 // cleanup must be called when the outer transaction does not commit. Keeping
 // this boundary explicit lets artifact metadata and the file row commit
 // atomically without teaching the storage backend about PostgreSQL.
-func (s *Service) StoreSystemReaderInTransaction(ctx context.Context, tx pgx.Tx, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+func (s *Service) StoreSystemReaderInTransaction(
+	ctx context.Context,
+	tx pgx.Tx,
+	originalFilename, contentType string,
+	reader io.Reader,
+	expected storage.Metadata,
+	requestID *uuid.UUID,
+) (File, func(), error) {
 	return s.storeReaderInTransaction(ctx, tx, nil, originalFilename, contentType, reader, expected, requestID)
 }
 
 // StoreReaderInTransaction is StoreSystemReaderInTransaction for a file created by an
 // authenticated account: the creator is recorded and the audit event names the actor.
-func (s *Service) StoreReaderInTransaction(ctx context.Context, tx pgx.Tx, principal authorization.Principal, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+func (s *Service) StoreReaderInTransaction(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	originalFilename, contentType string,
+	reader io.Reader,
+	expected storage.Metadata,
+	requestID *uuid.UUID,
+) (File, func(), error) {
 	actor := principal.AccountID
 	return s.storeReaderInTransaction(ctx, tx, &actor, originalFilename, contentType, reader, expected, requestID)
 }
 
-func (s *Service) storeReaderInTransaction(ctx context.Context, tx pgx.Tx, actor *uuid.UUID, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+func (s *Service) storeReaderInTransaction(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor *uuid.UUID,
+	originalFilename, contentType string,
+	reader io.Reader,
+	expected storage.Metadata,
+	requestID *uuid.UUID,
+) (File, func(), error) {
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 0 {
@@ -86,7 +120,11 @@ func (s *Service) storeReaderInTransaction(ctx context.Context, tx pgx.Tx, actor
 	copy(actual[:], hasher.Sum(nil))
 	if read != expected.Size || actual != expected.SHA256 {
 		cleanup()
-		return File{}, func() {}, apperror.New(422, "file_integrity_mismatch", "File size or SHA-256 does not match the declared content")
+		return File{}, func() {}, apperror.New(
+			422,
+			"file_integrity_mismatch",
+			"File size or SHA-256 does not match the declared content",
+		)
 	}
 	row, err := filesdb.New(tx).CreateFile(ctx, filesdb.CreateFileParams{
 		ID: id, StorageKey: key, OriginalFilename: filename, ContentType: contentType,
@@ -96,7 +134,13 @@ func (s *Service) storeReaderInTransaction(ctx context.Context, tx pgx.Tx, actor
 		cleanup()
 		return File{}, func() {}, err
 	}
-	event := audit.Event{ActorAccountID: actor, Action: "file.created", ResourceType: "file", ResourceID: &id, RequestID: requestID}
+	event := audit.Event{
+		ActorAccountID: actor,
+		Action:         "file.created",
+		ResourceType:   "file",
+		ResourceID:     &id,
+		RequestID:      requestID,
+	}
 	if actor == nil {
 		event.ActorType = "system"
 	}
@@ -114,20 +158,48 @@ func (w countWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (s *Service) storeBytes(ctx context.Context, actor *uuid.UUID, originalFilename, contentType string, data []byte, requestID *uuid.UUID) (File, error) {
+func (s *Service) storeBytes(
+	ctx context.Context,
+	actor *uuid.UUID,
+	originalFilename, contentType string,
+	data []byte,
+	requestID *uuid.UUID,
+) (File, error) {
 	digest := sha256.Sum256(data)
-	return s.storeReader(ctx, actor, originalFilename, contentType, bytes.NewReader(data), storage.Metadata{Size: int64(len(data)), SHA256: digest}, requestID)
+	return s.storeReader(
+		ctx,
+		actor,
+		originalFilename,
+		contentType,
+		bytes.NewReader(data),
+		storage.Metadata{Size: int64(len(data)), SHA256: digest},
+		requestID,
+	)
 }
 
 // StoreReader stores a private file from a reader whose size and SHA-256 are already known, for
 // large uploads that a caller has spooled to disk instead of holding in memory. The blob is verified
 // against the declared metadata while it is written.
-func (s *Service) StoreReader(ctx context.Context, principal authorization.Principal, originalFilename, contentType string, reader io.Reader, metadata storage.Metadata, requestID *uuid.UUID) (File, error) {
+func (s *Service) StoreReader(
+	ctx context.Context,
+	principal authorization.Principal,
+	originalFilename, contentType string,
+	reader io.Reader,
+	metadata storage.Metadata,
+	requestID *uuid.UUID,
+) (File, error) {
 	actor := principal.AccountID
 	return s.storeReader(ctx, &actor, originalFilename, contentType, reader, metadata, requestID)
 }
 
-func (s *Service) storeReader(ctx context.Context, actor *uuid.UUID, originalFilename, contentType string, reader io.Reader, metadata storage.Metadata, requestID *uuid.UUID) (File, error) {
+func (s *Service) storeReader(
+	ctx context.Context,
+	actor *uuid.UUID,
+	originalFilename, contentType string,
+	reader io.Reader,
+	metadata storage.Metadata,
+	requestID *uuid.UUID,
+) (File, error) {
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || metadata.Size < 0 {
@@ -185,7 +257,12 @@ func (s *Service) Open(ctx context.Context, id uuid.UUID) (File, io.ReadCloser, 
 	return fromRow(row), reader, err
 }
 
-func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) error {
 	actor := principal.AccountID
 	return s.delete(ctx, &actor, id, requestID)
 }
@@ -238,7 +315,8 @@ func (s *Service) CopyStorage(ctx context.Context, source, destination storage.S
 	for _, row := range rows {
 		expected := storage.Metadata{Size: row.SizeBytes}
 		copy(expected.SHA256[:], row.Sha256)
-		if current, metadataErr := destination.Metadata(ctx, row.StorageKey); metadataErr == nil && current == expected {
+		if current, metadataErr := destination.Metadata(ctx, row.StorageKey); metadataErr == nil &&
+			current == expected {
 			continue
 		}
 		reader, err := source.Open(ctx, row.StorageKey)
@@ -265,5 +343,14 @@ func (s *Service) CopyStorage(ctx context.Context, source, destination storage.S
 func fromRow(row filesdb.File) File {
 	var digest [sha256.Size]byte
 	copy(digest[:], row.Sha256)
-	return File{ID: row.ID, StorageKey: row.StorageKey, OriginalFilename: row.OriginalFilename, ContentType: row.ContentType, Size: row.SizeBytes, SHA256: digest, CreatedByAccountID: row.CreatedByAccountID, CreatedAt: row.CreatedAt}
+	return File{
+		ID:                 row.ID,
+		StorageKey:         row.StorageKey,
+		OriginalFilename:   row.OriginalFilename,
+		ContentType:        row.ContentType,
+		Size:               row.SizeBytes,
+		SHA256:             digest,
+		CreatedByAccountID: row.CreatedByAccountID,
+		CreatedAt:          row.CreatedAt,
+	}
 }

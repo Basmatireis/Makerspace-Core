@@ -55,7 +55,9 @@ func normalizePhone(raw string) (display, normalized string, err error) {
 	return display, normalized, nil
 }
 
-func normalizeContact(email, phone *string) (emailDisplay, emailNormalized, phoneDisplay, phoneNormalized *string, err error) {
+func normalizeContact(
+	email, phone *string,
+) (emailDisplay, emailNormalized, phoneDisplay, phoneNormalized *string, err error) {
 	if email != nil && strings.TrimSpace(*email) != "" {
 		display, normalized, emailErr := security.NormalizeEmail(*email)
 		if emailErr != nil {

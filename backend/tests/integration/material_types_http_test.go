@@ -40,7 +40,14 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +57,15 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	login := func(email, password string) (*http.Client, string) {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)
@@ -59,32 +74,88 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	member := func(suffix string, permissions ...string) (*http.Client, string) {
 		t.Helper()
 		email, password := "types-"+suffix+"@example.test", "Types "+suffix+" workshop password 77"
-		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{"firstName": "Runs", "lastName": suffix, "email": "contact-" + email})
+		response := doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people",
+			origin,
+			adminCSRF,
+			map[string]any{"firstName": "Runs", "lastName": suffix, "email": "contact-" + email},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var person openapi.Person
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{"loginEmail": email, "expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+			origin,
+			adminCSRF,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var account openapi.Account
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{"newPassword": password, "expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+			origin,
+			adminCSRF,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{"expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{"name": "Types " + suffix, "description": "Test role", "permissionGrants": grants})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/roles",
+			origin,
+			adminCSRF,
+			map[string]any{"name": "Types " + suffix, "description": "Test role", "permissionGrants": grants},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var role openapi.Role
 		decodeResponse(t, response, &role)
 		response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{"expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		return login(email, password)
@@ -123,10 +194,26 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if len(created.Processes) != 1 || created.Processes[0] != openapi.MachineProcessFdmPrinting {
 		t.Fatalf("processes = %v", created.Processes)
 	}
-	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "No process", "unit": "g", "processes": []string{}})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		base,
+		origin,
+		managerCSRF,
+		map[string]any{"name": "No process", "unit": "g", "processes": []string{}},
+	)
 	assertStatus(t, response, http.StatusBadRequest)
 	response.Body.Close()
-	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "pla", "unit": "g", "processes": []string{"fdm_printing"}})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		base,
+		origin,
+		managerCSRF,
+		map[string]any{"name": "pla", "unit": "g", "processes": []string{"fdm_printing"}},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 
@@ -151,7 +238,12 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response = doJSON(t, managerClient, http.MethodPost, server.URL+"/api/v1/materials", origin, managerCSRF, material)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
-	material = map[string]any{"name": "PLA Red", "materialTypeId": created.Id, "colorName": "Red", "colorHex": "#C62828"}
+	material = map[string]any{
+		"name":           "PLA Red",
+		"materialTypeId": created.Id,
+		"colorName":      "Red",
+		"colorHex":       "#C62828",
+	}
 	response = doJSON(t, managerClient, http.MethodPost, server.URL+"/api/v1/materials", origin, managerCSRF, material)
 	assertStatus(t, response, http.StatusCreated)
 	var m openapi.Material
@@ -159,7 +251,22 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if m.Unit != "g" || m.MaterialTypeName != "PLA+" || m.ColorHex.GetOrEmpty() != "#C62828" {
 		t.Fatalf("material = %+v", m)
 	}
-	response = doJSON(t, managerClient, http.MethodPatch, server.URL+"/api/v1/materials/"+m.Id.String(), origin, managerCSRF, map[string]any{"name": "PLA Red", "materialTypeId": created.Id, "colorName": "Crimson", "colorHex": "#B71C1C", "active": true, "expectedVersion": m.Version})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPatch,
+		server.URL+"/api/v1/materials/"+m.Id.String(),
+		origin,
+		managerCSRF,
+		map[string]any{
+			"name":            "PLA Red",
+			"materialTypeId":  created.Id,
+			"colorName":       "Crimson",
+			"colorHex":        "#B71C1C",
+			"active":          true,
+			"expectedVersion": m.Version,
+		},
+	)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &m)
 	if m.ColorName.GetOrEmpty() != "Crimson" || m.ColorHex.GetOrEmpty() != "#B71C1C" {
@@ -173,10 +280,26 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response.Body.Close()
 
 	// In use: delete answers 409 material_type_in_use; reader cannot delete.
-	response = doJSON(t, readerClient, http.MethodDelete, path, origin, readerCSRF, map[string]any{"expectedVersion": created.Version})
+	response = doJSON(
+		t,
+		readerClient,
+		http.MethodDelete,
+		path,
+		origin,
+		readerCSRF,
+		map[string]any{"expectedVersion": created.Version},
+	)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	response = doJSON(t, managerClient, http.MethodDelete, path, origin, managerCSRF, map[string]any{"expectedVersion": created.Version})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		path,
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": created.Version},
+	)
 	assertStatus(t, response, http.StatusConflict)
 	var problem struct {
 		Code string `json:"code"`
@@ -188,14 +311,36 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.deleted'`, 0)
 
 	// Unused: deleted with one audit event.
-	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "Unused", "unit": "m", "processes": []string{"embroidery"}})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		base,
+		origin,
+		managerCSRF,
+		map[string]any{"name": "Unused", "unit": "m", "processes": []string{"embroidery"}},
+	)
 	assertStatus(t, response, http.StatusCreated)
 	var unused openapi.MaterialType
 	decodeResponse(t, response, &unused)
-	response = doJSON(t, managerClient, http.MethodDelete, base+"/"+unused.Id.String(), origin, managerCSRF, map[string]any{"expectedVersion": unused.Version})
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodDelete,
+		base+"/"+unused.Id.String(),
+		origin,
+		managerCSRF,
+		map[string]any{"expectedVersion": unused.Version},
+	)
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.deleted' AND resource_id = $1`, 1, unused.Id)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action = 'material_type.deleted' AND resource_id = $1`,
+		1,
+		unused.Id,
+	)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.created'`, 2)
 	_ = uuid.Nil
 }

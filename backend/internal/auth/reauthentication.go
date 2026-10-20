@@ -19,7 +19,12 @@ const SensitiveAuthenticationAge = 5 * time.Minute
 
 // SessionForSensitiveOperation rechecks the persisted session while serializing
 // with account security mutations. Device context comes from request middleware.
-func (s *Service) SessionForSensitiveOperation(ctx context.Context, tx pgx.Tx, principal authorization.Principal, requireRecent bool) (authorization.Principal, error) {
+func (s *Service) SessionForSensitiveOperation(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	requireRecent bool,
+) (authorization.Principal, error) {
 	queries := authdb.New(tx)
 	account, err := queries.GetAccountForAuthentication(ctx, principal.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && account.Status != "enabled") {
@@ -28,7 +33,10 @@ func (s *Service) SessionForSensitiveOperation(ctx context.Context, tx pgx.Tx, p
 	if err != nil {
 		return principal, err
 	}
-	session, err := queries.GetSessionForReauthentication(ctx, authdb.GetSessionForReauthenticationParams{SessionID: principal.SessionID, AccountID: principal.AccountID})
+	session, err := queries.GetSessionForReauthentication(
+		ctx,
+		authdb.GetSessionForReauthenticationParams{SessionID: principal.SessionID, AccountID: principal.AccountID},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return principal, apperror.Unauthenticated
 	}
@@ -41,13 +49,21 @@ func (s *Service) SessionForSensitiveOperation(ctx context.Context, tx pgx.Tx, p
 	if expired {
 		principal.Assurance = authorization.Assurance(session.BaseAssurance)
 	}
-	if requireRecent && (expired || !principal.HasFreshAssurance(authorization.AssuranceNormal, SensitiveAuthenticationAge, time.Now())) {
+	if requireRecent &&
+		(expired || !principal.HasFreshAssurance(authorization.AssuranceNormal, SensitiveAuthenticationAge, time.Now())) {
 		return principal, reauthenticationRequired()
 	}
 	return authorization.LoadPermissionsFrom(ctx, tx, principal)
 }
 
-func (s *Service) GrantRecentAuthentication(ctx context.Context, tx pgx.Tx, principal authorization.Principal, assurance authorization.Assurance, authenticatedAt time.Time, requestID *uuid.UUID) error {
+func (s *Service) GrantRecentAuthentication(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	assurance authorization.Assurance,
+	authenticatedAt time.Time,
+	requestID *uuid.UUID,
+) error {
 	if _, err := s.SessionForSensitiveOperation(ctx, tx, principal, false); err != nil {
 		return err
 	}
@@ -58,10 +74,25 @@ func (s *Service) GrantRecentAuthentication(ctx context.Context, tx pgx.Tx, prin
 	if err := authdb.New(tx).GrantRecentAuthentication(ctx, authdb.GrantRecentAuthenticationParams{ID: principal.SessionID, Assurance: string(assurance), AuthenticatedAt: authenticatedAt, ExpiresAt: pgtype.Timestamptz{Time: authenticatedAt.Add(SensitiveAuthenticationAge), Valid: true}}); err != nil {
 		return err
 	}
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &principal.AccountID, Action: "auth.reauthenticated", ResourceType: "session", ResourceID: &principal.SessionID, RequestID: requestID})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &principal.AccountID,
+			Action:         "auth.reauthenticated",
+			ResourceType:   "session",
+			ResourceID:     &principal.SessionID,
+			RequestID:      requestID,
+		},
+	)
 }
 
-func (s *Service) ReauthenticatePassword(ctx context.Context, principal authorization.Principal, password string, requestID *uuid.UUID) (authorization.Principal, error) {
+func (s *Service) ReauthenticatePassword(
+	ctx context.Context,
+	principal authorization.Principal,
+	password string,
+	requestID *uuid.UUID,
+) (authorization.Principal, error) {
 	key, allowed := s.limits.take("reauthentication", "", principal.AccountID.String(), time.Now())
 	if !allowed {
 		return principal, loginRateLimited(loginLimitWindow)
@@ -101,5 +132,9 @@ func (s *Service) ReauthenticatePassword(ctx context.Context, principal authoriz
 }
 
 func reauthenticationRequired() error {
-	return apperror.New(403, "reauthentication_required", "Authenticate again with a password or linked OIDC provider before linking an identity")
+	return apperror.New(
+		403,
+		"reauthentication_required",
+		"Authenticate again with a password or linked OIDC provider before linking an identity",
+	)
 }

@@ -28,7 +28,14 @@ type DeleteJobInput struct {
 	DeleteRecordedRuns bool
 }
 
-func auditDeletedRun(ctx context.Context, tx pgx.Tx, p authorization.Principal, run machinelogbookdb.MachineRun, reversed bool, requestID *uuid.UUID) error {
+func auditDeletedRun(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	run machinelogbookdb.MachineRun,
+	reversed bool,
+	requestID *uuid.UUID,
+) error {
 	fields := []string{"deletedAt"}
 	if reversed {
 		fields = append(fields, "usages", "inventory")
@@ -37,7 +44,15 @@ func auditDeletedRun(ctx context.Context, tx pgx.Tx, p authorization.Principal, 
 	if run.JobID != nil {
 		metadata["jobId"] = run.JobID.String()
 	}
-	event := audit.Event{ActorAccountID: accountPointer(p), Action: "machine_run.deleted", ResourceType: "machine_run", ResourceID: &run.ID, RequestID: requestID, ChangedFields: fields, Metadata: metadata}
+	event := audit.Event{
+		ActorAccountID: accountPointer(p),
+		Action:         "machine_run.deleted",
+		ResourceType:   "machine_run",
+		ResourceID:     &run.ID,
+		RequestID:      requestID,
+		ChangedFields:  fields,
+		Metadata:       metadata,
+	}
 	if event.ActorAccountID == nil {
 		event.ActorType = "system"
 	}
@@ -50,7 +65,14 @@ func auditDeletedRun(ctx context.Context, tx pgx.Tx, p authorization.Principal, 
 // cost of the consumption, back into the usage's spool fill while that fill is
 // still open and into loose stock otherwise. The usages are deactivated. The
 // caller holds the locks on the runs. It returns the quantity restored.
-func (s *Service) reverseRunConsumption(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, runs []machinelogbookdb.MachineRun, requestID *uuid.UUID) (decimal.Decimal, error) {
+func (s *Service) reverseRunConsumption(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	runs []machinelogbookdb.MachineRun,
+	requestID *uuid.UUID,
+) (decimal.Decimal, error) {
 	type pending struct {
 		usage machinelogbookdb.MachineRunUsage
 		run   machinelogbookdb.MachineRun
@@ -144,7 +166,14 @@ func deletedBy(p authorization.Principal) *uuid.UUID { return accountPointer(p) 
 // reverseConsumption the consumed material goes back to inventory. Manual
 // runs need machine_jobs.edit or machine_jobs.delete, recorded runs
 // machine_jobs.delete.
-func (s *Service) DeleteRun(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, reverseConsumption bool, requestID *uuid.UUID) error {
+func (s *Service) DeleteRun(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	reverseConsumption bool,
+	requestID *uuid.UUID,
+) error {
 	// Removing a mistaken manual run is an editing operation; recorded runs
 	// need machine_jobs.delete, which is checked once the run is known.
 	if !p.Has(authorization.MachineJobsEdit) && !p.Has(authorization.MachineJobsDelete) {
@@ -189,7 +218,15 @@ func (s *Service) DeleteRun(ctx context.Context, p authorization.Principal, id u
 // deleteRunRows tombstones a locked run, optionally reversing its consumption,
 // audits it and reprices the job it belonged to. The caller has checked
 // permissions, the version and the last-run rule.
-func (s *Service) deleteRunRows(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, run machinelogbookdb.MachineRun, reverseConsumption bool, requestID *uuid.UUID) error {
+func (s *Service) deleteRunRows(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	run machinelogbookdb.MachineRun,
+	reverseConsumption bool,
+	requestID *uuid.UUID,
+) error {
 	deletedAt := pgTime(timePtr(s.now()))
 	reversed := false
 	if reverseConsumption {
@@ -219,7 +256,13 @@ func (s *Service) deleteRunRows(ctx context.Context, tx pgx.Tx, q *machinelogboo
 // DeleteJob deletes a job and its manual runs. Its recorded runs are deleted
 // with it or detached into unassigned runs. A job on an order cannot be
 // deleted. All rows are locked in the order job, runs.
-func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id uuid.UUID, input DeleteJobInput, requestID *uuid.UUID) error {
+func (s *Service) DeleteJob(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input DeleteJobInput,
+	requestID *uuid.UUID,
+) error {
 	if err := require(p, authorization.MachineJobsDelete); err != nil {
 		return err
 	}
@@ -260,7 +303,16 @@ func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id u
 // recorded runs with deleteRecorded) are tombstoned, the other recorded runs
 // are detached. The caller has checked permissions, the version and the
 // order guard.
-func (s *Service) deleteJobRows(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, runs []machinelogbookdb.MachineRun, deleteRecorded, reverseConsumption bool, requestID *uuid.UUID) error {
+func (s *Service) deleteJobRows(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	job machinelogbookdb.MachineJob,
+	runs []machinelogbookdb.MachineRun,
+	deleteRecorded, reverseConsumption bool,
+	requestID *uuid.UUID,
+) error {
 	var deleting, detaching []machinelogbookdb.MachineRun
 	for _, run := range runs {
 		if run.Source == "manual" || deleteRecorded {

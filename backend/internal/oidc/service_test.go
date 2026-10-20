@@ -41,7 +41,9 @@ func TestJITRequiresVerifiedEmailOrPhone(t *testing.T) {
 	if _, _, _, _, err := jitPersonFields(tokenClaims{Email: "unverified@example.test", Name: "No Contact"}); err == nil {
 		t.Fatal("expected unverified email-only claims to be rejected")
 	}
-	first, last, email, phone, err := jitPersonFields(tokenClaims{Email: "verified@example.test", EmailVerified: true, GivenName: "Ada", FamilyName: "Lovelace"})
+	first, last, email, phone, err := jitPersonFields(
+		tokenClaims{Email: "verified@example.test", EmailVerified: true, GivenName: "Ada", FamilyName: "Lovelace"},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,7 +19,15 @@ func TestPersonDeletionReportsEveryBlocker(t *testing.T) {
 	principal := authorization.Principal{AccountID: operator.accountID, Master: true}
 	providerID := insertSCIMOIDCProvider(t, pool, "https://multi-blocker.example.test")
 	service := scim.NewService(pool)
-	issue, err := service.CreateConnector(ctx, principal, "Multi blocker", &providerID, true, time.Now().UTC().Add(time.Hour), nil)
+	issue, err := service.CreateConnector(
+		ctx,
+		principal,
+		"Multi blocker",
+		&providerID,
+		true,
+		time.Now().UTC().Add(time.Hour),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,5 +70,11 @@ func TestPersonDeletionReportsEveryBlocker(t *testing.T) {
 		t.Fatalf("reasons = %#v", reasons)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, personID)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`, 0, personID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`,
+		0,
+		personID,
+	)
 }

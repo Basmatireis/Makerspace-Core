@@ -134,8 +134,13 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 	if previousPollSecret != "" {
 		// A request that staff already claimed stays collectable by the cookie that started it
 		// until its delivery window ends; restarting must not destroy (or orphan) it.
-		if previous, err := q.GetSignagePairingRequestForPoll(ctx, security.DigestToken(previousPollSecret)); err == nil && previous.ClaimedDisplayID != nil {
-			return PairingStart{}, apperror.New(409, "pairing_claimed", "This display was already claimed; collect its credential instead of restarting")
+		if previous, err := q.GetSignagePairingRequestForPoll(ctx, security.DigestToken(previousPollSecret)); err == nil &&
+			previous.ClaimedDisplayID != nil {
+			return PairingStart{}, apperror.New(
+				409,
+				"pairing_claimed",
+				"This display was already claimed; collect its credential instead of restarting",
+			)
 		} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return PairingStart{}, err
 		}
@@ -148,7 +153,10 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 		return PairingStart{}, err
 	}
 	if open >= maxOpenPairingRequests {
-		return PairingStart{}, rateLimited("Too many pairing requests are open; try again in a few minutes", deliveryGrace)
+		return PairingStart{}, rateLimited(
+			"Too many pairing requests are open; try again in a few minutes",
+			deliveryGrace,
+		)
 	}
 	expires := now.Add(PairingTTL)
 	if err := q.CreateSignagePairingRequest(ctx, signagedb.CreateSignagePairingRequestParams{
@@ -222,7 +230,13 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 // PairDisplay claims the player's pairing code for a new display. Unknown, expired, claimed and
 // malformed codes all answer 422 pairing_code_invalid; repeated failures of one account are
 // rate-limited.
-func (s *Service) PairDisplay(ctx context.Context, principal authorization.Principal, code string, input DisplayInput, requestID *uuid.UUID) (Display, error) {
+func (s *Service) PairDisplay(
+	ctx context.Context,
+	principal authorization.Principal,
+	code string,
+	input DisplayInput,
+	requestID *uuid.UUID,
+) (Display, error) {
 	if err := requireManage(principal); err != nil {
 		return Display{}, err
 	}
@@ -259,7 +273,10 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	} else if err != nil {
 		return Display{}, err
 	}
-	requestRowID, err := q.GetOpenSignagePairingRequestByCode(ctx, signagedb.GetOpenSignagePairingRequestByCodeParams{CodeDigest: pairingCodeDigest(normalized), Now: now})
+	requestRowID, err := q.GetOpenSignagePairingRequestByCode(
+		ctx,
+		signagedb.GetOpenSignagePairingRequestByCodeParams{CodeDigest: pairingCodeDigest(normalized), Now: now},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		wrongCode = true
 		return Display{}, errPairingCodeInvalid()

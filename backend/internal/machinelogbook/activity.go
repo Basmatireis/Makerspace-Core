@@ -76,7 +76,11 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 			item.LastJobStartedAt = &last
 		}
 		if row, ok := connectorByMachine[machine.ID]; ok {
-			item.Connector = &MachineConnectorState{RuntimeState: row.RuntimeState, RuntimeErrorCode: row.RuntimeErrorCode, LastHeartbeatAt: nullableTime(row.LastHeartbeatAt)}
+			item.Connector = &MachineConnectorState{
+				RuntimeState:     row.RuntimeState,
+				RuntimeErrorCode: row.RuntimeErrorCode,
+				LastHeartbeatAt:  nullableTime(row.LastHeartbeatAt),
+			}
 		}
 		current, inUse := runByMachine[machine.ID]
 		switch {
@@ -87,7 +91,15 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 		}
 		if canReadJobs && inUse {
 			if current.JobID != nil && current.JobDisplayID != nil {
-				item.Current = &MachineCurrentItem{Kind: "job", ID: *current.JobID, DisplayID: *current.JobDisplayID, Title: current.JobTitle, FileName: current.FileName, StartedAt: current.StartedAt.UTC(), EndsAt: nullableTime(current.EndsAt)}
+				item.Current = &MachineCurrentItem{
+					Kind:      "job",
+					ID:        *current.JobID,
+					DisplayID: *current.JobDisplayID,
+					Title:     current.JobTitle,
+					FileName:  current.FileName,
+					StartedAt: current.StartedAt.UTC(),
+					EndsAt:    nullableTime(current.EndsAt),
+				}
 			} else {
 				item.Current = &MachineCurrentItem{Kind: "run", ID: current.ID, DisplayID: current.DisplayID, FileName: current.FileName, StartedAt: current.StartedAt.UTC(), EndsAt: nullableTime(current.EndsAt)}
 			}

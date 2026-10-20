@@ -27,14 +27,26 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 	}
 	schedule, err := service.CreateOpenDay(ctx, p, period.ID, period.Version, opendays.ScheduleInput{
 		StartsAt: start.Add(18 * time.Hour), EndsAt: start.Add(26 * time.Hour),
-		Requirements: []opendays.RequirementInput{{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}}, {Kind: "trainee", RequiredCount: 0}},
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "trainee", RequiredCount: 0},
+		},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = service.UpdatePeriod(ctx, p, period.ID, schedule.Period.Version, period.Name, start, start, nil)
 	expectAppCode(t, err, "validation_failed")
-	_, err = service.UpdatePeriod(ctx, p, period.ID, schedule.Period.Version, period.Name, start, start.AddDate(0, 0, 1), nil)
+	_, err = service.UpdatePeriod(
+		ctx,
+		p,
+		period.ID,
+		schedule.Period.Version,
+		period.Name,
+		start,
+		start.AddDate(0, 0, 1),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +79,10 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	}
 	schedule, err := service.CreateOpenDay(ctx, p, period.ID, period.Version, opendays.ScheduleInput{
 		StartsAt: start.Add(12 * time.Hour), EndsAt: start.Add(14 * time.Hour),
-		Requirements: []opendays.RequirementInput{{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}}, {Kind: "trainee", RequiredCount: 0}},
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "trainee", RequiredCount: 0},
+		},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +130,19 @@ func TestOpenDayRecurrenceRejectsDSTGapsAndOverlaps(t *testing.T) {
 		if weekday == 0 {
 			weekday = 7
 		}
-		occurrences, err := service.PreviewRecurrence(ctx, principal, period.ID, opendays.RecurrenceInput{Weekday: weekday, StartsOn: day, EndsOn: day, StartTime: test.start, EndTime: test.end, EveryWeeks: 1})
+		occurrences, err := service.PreviewRecurrence(
+			ctx,
+			principal,
+			period.ID,
+			opendays.RecurrenceInput{
+				Weekday:    weekday,
+				StartsOn:   day,
+				EndsOn:     day,
+				StartTime:  test.start,
+				EndTime:    test.end,
+				EveryWeeks: 1,
+			},
+		)
 		if test.valid {
 			if err != nil || len(occurrences) != 1 || !occurrences[0].EndsAt.After(occurrences[0].StartsAt) {
 				t.Fatalf("valid recurrence: %#v %v", occurrences, err)

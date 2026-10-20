@@ -85,7 +85,10 @@ func NewClient(rawURL string, allowHTTP bool) (*Client, error) {
 	if base.Scheme != "https" && !(allowHTTP && base.Scheme == "http") {
 		return nil, errors.New("CORE_URL must use HTTPS outside explicit development mode")
 	}
-	client := &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{
+		Timeout:       25 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	return &Client{base: base, http: client}, nil
 }
 
@@ -128,8 +131,18 @@ func (c *Client) do(ctx context.Context, method, path, token string, input, outp
 	return nil
 }
 
-func (c *Client) Enroll(ctx context.Context, enrollmentSecret string, identity Identity, version string) (Identity, error) {
-	input := map[string]any{"credentialId": identity.CredentialID, "credentialSecret": identity.CredentialSecret, "softwareVersion": version, "protocolVersion": 1}
+func (c *Client) Enroll(
+	ctx context.Context,
+	enrollmentSecret string,
+	identity Identity,
+	version string,
+) (Identity, error) {
+	input := map[string]any{
+		"credentialId":     identity.CredentialID,
+		"credentialSecret": identity.CredentialSecret,
+		"softwareVersion":  version,
+		"protocolVersion":  1,
+	}
 	var output struct {
 		ConnectorID         uuid.UUID `json:"connectorId"`
 		CredentialID        uuid.UUID `json:"credentialId"`
@@ -161,15 +174,41 @@ func (c *Client) Heartbeat(ctx context.Context, token string, input Heartbeat) (
 }
 
 // PutLiveStatus replaces the latest live status snapshot of one assignment.
-func (c *Client) PutLiveStatus(ctx context.Context, token string, assignmentID uuid.UUID, configurationVersion int64, observedAt time.Time, snapshot json.RawMessage) error {
-	body := map[string]any{"protocolVersion": 1, "configurationVersion": configurationVersion, "observedAt": observedAt.UTC(), "status": snapshot}
-	return c.do(ctx, http.MethodPut, "/printer-connector/self/assignments/"+assignmentID.String()+"/status", token, body, nil)
+func (c *Client) PutLiveStatus(
+	ctx context.Context,
+	token string,
+	assignmentID uuid.UUID,
+	configurationVersion int64,
+	observedAt time.Time,
+	snapshot json.RawMessage,
+) error {
+	body := map[string]any{
+		"protocolVersion":      1,
+		"configurationVersion": configurationVersion,
+		"observedAt":           observedAt.UTC(),
+		"status":               snapshot,
+	}
+	return c.do(
+		ctx,
+		http.MethodPut,
+		"/printer-connector/self/assignments/"+assignmentID.String()+"/status",
+		token,
+		body,
+		nil,
+	)
 }
 func (c *Client) Send(ctx context.Context, token string, events []QueuedEvent) ([]EventReceipt, error) {
 	var output struct {
 		Receipts []EventReceipt `json:"receipts"`
 	}
-	err := c.do(ctx, http.MethodPost, "/printer-connector/self/events", token, map[string]any{"protocolVersion": 1, "events": events}, &output)
+	err := c.do(
+		ctx,
+		http.MethodPost,
+		"/printer-connector/self/events",
+		token,
+		map[string]any{"protocolVersion": 1, "events": events},
+		&output,
+	)
 	return output.Receipts, err
 }
 
@@ -188,8 +227,14 @@ func (c *Client) RotateCredential(ctx context.Context, token string, identity Id
 	return identity, nil
 }
 
-func (c *Client) UploadArtifact(ctx context.Context, token string, transfer ArtifactTransfer) (ArtifactUploadResult, error) {
-	if transfer.AssignmentID == uuid.Nil || transfer.RunID == uuid.Nil || transfer.ConfigurationVersion < 1 || transfer.SizeBytes < 1 || len(transfer.SHA256) != 64 {
+func (c *Client) UploadArtifact(
+	ctx context.Context,
+	token string,
+	transfer ArtifactTransfer,
+) (ArtifactUploadResult, error) {
+	if transfer.AssignmentID == uuid.Nil || transfer.RunID == uuid.Nil || transfer.ConfigurationVersion < 1 ||
+		transfer.SizeBytes < 1 ||
+		len(transfer.SHA256) != 64 {
 		return ArtifactUploadResult{}, errors.New("invalid queued artifact transfer")
 	}
 	file, err := os.Open(transfer.StagedPath)
@@ -204,7 +249,11 @@ func (c *Client) UploadArtifact(ctx context.Context, token string, transfer Arti
 	if info.Size() != transfer.SizeBytes {
 		return ArtifactUploadResult{}, errors.New("staged artifact size changed")
 	}
-	requestPath := fmt.Sprintf("/api/v1/printer-connector/self/assignments/%s/runs/%s/artifact", transfer.AssignmentID, transfer.RunID)
+	requestPath := fmt.Sprintf(
+		"/api/v1/printer-connector/self/assignments/%s/runs/%s/artifact",
+		transfer.AssignmentID,
+		transfer.RunID,
+	)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.base.String()+requestPath, file)
 	if err != nil {
 		return ArtifactUploadResult{}, err
@@ -233,7 +282,9 @@ func (c *Client) UploadArtifact(ctx context.Context, token string, transfer Arti
 	if err = json.NewDecoder(limited).Decode(&result); err != nil {
 		return ArtifactUploadResult{}, err
 	}
-	if (response.StatusCode == http.StatusCreated && result.Disposition != "created") || (response.StatusCode == http.StatusOK && result.Disposition != "deduplicated") || result.RunID != transfer.RunID {
+	if (response.StatusCode == http.StatusCreated && result.Disposition != "created") ||
+		(response.StatusCode == http.StatusOK && result.Disposition != "deduplicated") ||
+		result.RunID != transfer.RunID {
 		return ArtifactUploadResult{}, errors.New("core artifact upload returned an invalid receipt")
 	}
 	return result, nil

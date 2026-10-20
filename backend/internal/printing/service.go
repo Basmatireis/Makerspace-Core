@@ -130,19 +130,76 @@ func fingerprint(value any) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
-func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
+
+func writeAudit(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	action, resource string,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	fields []string,
+) error {
 	actor := p.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields})
+	return audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         action,
+			ResourceType:   resource,
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  fields,
+		},
+	)
 }
 
 func inputUnit(row db.PrinterInputUnit) InputUnit {
-	return InputUnit{ID: row.ID, MachineID: row.MachineID, Name: row.Name, Position: int(row.Position), Nozzle: row.Nozzle, ExternalIdentifier: row.ExternalIdentifier, Enabled: row.Enabled, Version: row.Version}
+	return InputUnit{
+		ID:                 row.ID,
+		MachineID:          row.MachineID,
+		Name:               row.Name,
+		Position:           int(row.Position),
+		Nozzle:             row.Nozzle,
+		ExternalIdentifier: row.ExternalIdentifier,
+		Enabled:            row.Enabled,
+		Version:            row.Version,
+	}
 }
 func slotFromGet(row db.GetPrinterSlotRow) Slot {
-	return Slot{ID: row.ID, InputUnitID: row.InputUnitID, MachineID: row.MachineID, InputUnitName: row.InputUnitName, Name: row.Name, Position: int(row.Position), ExternalIdentifier: row.ExternalIdentifier, Status: row.Status, AssignmentID: row.AssignmentID, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, MountedAt: nullableTime(row.MountedAt), Version: row.Version}
+	return Slot{
+		ID:                 row.ID,
+		InputUnitID:        row.InputUnitID,
+		MachineID:          row.MachineID,
+		InputUnitName:      row.InputUnitName,
+		Name:               row.Name,
+		Position:           int(row.Position),
+		ExternalIdentifier: row.ExternalIdentifier,
+		Status:             row.Status,
+		AssignmentID:       row.AssignmentID,
+		SpoolID:            row.SpoolID,
+		SpoolDisplayID:     row.SpoolDisplayID,
+		MountedAt:          nullableTime(row.MountedAt),
+		Version:            row.Version,
+	}
 }
 func slotFromList(row db.ListPrinterSlotsRow) Slot {
-	return Slot{ID: row.ID, InputUnitID: row.InputUnitID, MachineID: row.MachineID, InputUnitName: row.InputUnitName, Name: row.Name, Position: int(row.Position), ExternalIdentifier: row.ExternalIdentifier, Status: row.Status, AssignmentID: row.AssignmentID, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, MountedAt: nullableTime(row.MountedAt), Version: row.Version}
+	return Slot{
+		ID:                 row.ID,
+		InputUnitID:        row.InputUnitID,
+		MachineID:          row.MachineID,
+		InputUnitName:      row.InputUnitName,
+		Name:               row.Name,
+		Position:           int(row.Position),
+		ExternalIdentifier: row.ExternalIdentifier,
+		Status:             row.Status,
+		AssignmentID:       row.AssignmentID,
+		SpoolID:            row.SpoolID,
+		SpoolDisplayID:     row.SpoolDisplayID,
+		MountedAt:          nullableTime(row.MountedAt),
+		Version:            row.Version,
+	}
 }
 
 func (s *Service) GetProfile(ctx context.Context, p authorization.Principal, machineID uuid.UUID) (Profile, error) {
@@ -165,7 +222,17 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 	if err != nil {
 		return Profile{}, err
 	}
-	item := Profile{MachineID: row.MachineID, MachineName: row.MachineName, Enabled: row.Enabled, Model: row.Model, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, InputUnits: make([]InputUnit, 0, len(units)), Slots: make([]Slot, 0, len(slots))}
+	item := Profile{
+		MachineID:   row.MachineID,
+		MachineName: row.MachineName,
+		Enabled:     row.Enabled,
+		Model:       row.Model,
+		Version:     row.Version,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+		InputUnits:  make([]InputUnit, 0, len(units)),
+		Slots:       make([]Slot, 0, len(slots)),
+	}
 	for _, u := range units {
 		item.InputUnits = append(item.InputUnits, inputUnit(u))
 	}
@@ -180,7 +247,8 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 // FDM printers have a printer setup.
 func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) error {
 	var process string
-	err := tx.QueryRow(ctx, "SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1", machineID).Scan(&process)
+	err := tx.QueryRow(ctx, "SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1", machineID).
+		Scan(&process)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
@@ -193,7 +261,14 @@ func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) err
 	return nil
 }
 
-func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principal, machineID uuid.UUID, enabled bool, expected int64, requestID *uuid.UUID) (Profile, error) {
+func (s *Service) ConfigureProfile(
+	ctx context.Context,
+	p authorization.Principal,
+	machineID uuid.UUID,
+	enabled bool,
+	expected int64,
+	requestID *uuid.UUID,
+) (Profile, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Profile{}, err
 	}
@@ -205,7 +280,8 @@ func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principa
 	if err = requireFDMPrinting(ctx, tx, machineID); err != nil {
 		return Profile{}, err
 	}
-	row, err := db.New(tx).UpsertPrinterProfile(ctx, db.UpsertPrinterProfileParams{MachineID: machineID, Enabled: enabled, ExpectedVersion: expected})
+	row, err := db.New(tx).
+		UpsertPrinterProfile(ctx, db.UpsertPrinterProfileParams{MachineID: machineID, Enabled: enabled, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Profile{}, apperror.StaleWrite
 	}
@@ -222,7 +298,15 @@ func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principa
 	return s.GetProfile(ctx, p, machineID)
 }
 
-func (s *Service) CreateInputUnit(ctx context.Context, p authorization.Principal, machineID uuid.UUID, name string, position int, external *string, requestID *uuid.UUID) (InputUnit, error) {
+func (s *Service) CreateInputUnit(
+	ctx context.Context,
+	p authorization.Principal,
+	machineID uuid.UUID,
+	name string,
+	position int,
+	external *string,
+	requestID *uuid.UUID,
+) (InputUnit, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return InputUnit{}, err
 	}
@@ -240,7 +324,16 @@ func (s *Service) CreateInputUnit(ctx context.Context, p authorization.Principal
 		return InputUnit{}, noRows(err)
 	}
 	id := newID()
-	row, err := q.CreatePrinterInputUnit(ctx, db.CreatePrinterInputUnitParams{ID: id, MachineID: machineID, Name: name, Position: int32(position), ExternalIdentifier: clean(external)})
+	row, err := q.CreatePrinterInputUnit(
+		ctx,
+		db.CreatePrinterInputUnitParams{
+			ID:                 id,
+			MachineID:          machineID,
+			Name:               name,
+			Position:           int32(position),
+			ExternalIdentifier: clean(external),
+		},
+	)
 	if err != nil {
 		return InputUnit{}, dbError(err)
 	}
@@ -253,7 +346,17 @@ func (s *Service) CreateInputUnit(ctx context.Context, p authorization.Principal
 	return inputUnit(row), nil
 }
 
-func (s *Service) UpdateInputUnit(ctx context.Context, p authorization.Principal, inputUnitID uuid.UUID, name string, position int, external *string, enabled bool, expected int64, requestID *uuid.UUID) (InputUnit, error) {
+func (s *Service) UpdateInputUnit(
+	ctx context.Context,
+	p authorization.Principal,
+	inputUnitID uuid.UUID,
+	name string,
+	position int,
+	external *string,
+	enabled bool,
+	expected int64,
+	requestID *uuid.UUID,
+) (InputUnit, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return InputUnit{}, err
 	}
@@ -271,7 +374,17 @@ func (s *Service) UpdateInputUnit(ctx context.Context, p authorization.Principal
 	if _, err = q.GetPrinterInputUnitForUpdate(ctx, inputUnitID); err != nil {
 		return InputUnit{}, noRows(err)
 	}
-	row, err := q.UpdatePrinterInputUnit(ctx, db.UpdatePrinterInputUnitParams{ID: inputUnitID, Name: name, Position: int32(position), ExternalIdentifier: external, Enabled: enabled, ExpectedVersion: expected})
+	row, err := q.UpdatePrinterInputUnit(
+		ctx,
+		db.UpdatePrinterInputUnitParams{
+			ID:                 inputUnitID,
+			Name:               name,
+			Position:           int32(position),
+			ExternalIdentifier: external,
+			Enabled:            enabled,
+			ExpectedVersion:    expected,
+		},
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return InputUnit{}, apperror.StaleWrite
 	}
@@ -287,12 +400,22 @@ func (s *Service) UpdateInputUnit(ctx context.Context, p authorization.Principal
 	return inputUnit(row), nil
 }
 
-func (s *Service) CreateSlot(ctx context.Context, p authorization.Principal, inputUnitID uuid.UUID, name string, position int, status string, external *string, requestID *uuid.UUID) (Slot, error) {
+func (s *Service) CreateSlot(
+	ctx context.Context,
+	p authorization.Principal,
+	inputUnitID uuid.UUID,
+	name string,
+	position int,
+	status string,
+	external *string,
+	requestID *uuid.UUID,
+) (Slot, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Slot{}, err
 	}
 	name = strings.TrimSpace(name)
-	if name == "" || len(name) > 120 || position < 0 || (status != "available" && status != "unavailable" && status != "retired") {
+	if name == "" || len(name) > 120 || position < 0 ||
+		(status != "available" && status != "unavailable" && status != "retired") {
 		return Slot{}, validation("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -318,13 +441,24 @@ func (s *Service) CreateSlot(ctx context.Context, p authorization.Principal, inp
 	return slotFromGet(row), err
 }
 
-func (s *Service) UpdateSlot(ctx context.Context, p authorization.Principal, slotID uuid.UUID, name string, position int, status string, external *string, expected int64, requestID *uuid.UUID) (Slot, error) {
+func (s *Service) UpdateSlot(
+	ctx context.Context,
+	p authorization.Principal,
+	slotID uuid.UUID,
+	name string,
+	position int,
+	status string,
+	external *string,
+	expected int64,
+	requestID *uuid.UUID,
+) (Slot, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Slot{}, err
 	}
 	name = strings.TrimSpace(name)
 	external = clean(external)
-	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) || (status != "available" && status != "unavailable" && status != "retired") {
+	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) ||
+		(status != "available" && status != "unavailable" && status != "retired") {
 		return Slot{}, validation("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -336,7 +470,10 @@ func (s *Service) UpdateSlot(ctx context.Context, p authorization.Principal, slo
 	if _, err = q.GetPrinterSlotForUpdate(ctx, slotID); err != nil {
 		return Slot{}, noRows(err)
 	}
-	if _, err = q.UpdatePrinterSlot(ctx, db.UpdatePrinterSlotParams{ID: slotID, Name: name, Position: int32(position), ExternalIdentifier: external, Status: status, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.UpdatePrinterSlot(ctx, db.UpdatePrinterSlotParams{ID: slotID, Name: name, Position: int32(position), ExternalIdentifier: external, Status: status, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Slot{}, apperror.StaleWrite
 	} else if err != nil {
 		return Slot{}, dbError(err)
@@ -351,7 +488,12 @@ func (s *Service) UpdateSlot(ctx context.Context, p authorization.Principal, slo
 	return slotFromGet(row), err
 }
 
-func (s *Service) Mount(ctx context.Context, p authorization.Principal, slotID, spoolID uuid.UUID, requestID *uuid.UUID) (Slot, error) {
+func (s *Service) Mount(
+	ctx context.Context,
+	p authorization.Principal,
+	slotID, spoolID uuid.UUID,
+	requestID *uuid.UUID,
+) (Slot, error) {
 	if err := require(p, authorization.PrinterSlotsAssign); err != nil {
 		return Slot{}, err
 	}
@@ -415,7 +557,12 @@ func (s *Service) Mount(ctx context.Context, p authorization.Principal, slotID, 
 	return slotFromGet(row), err
 }
 
-func (s *Service) Unmount(ctx context.Context, p authorization.Principal, slotID uuid.UUID, requestID *uuid.UUID) (Slot, error) {
+func (s *Service) Unmount(
+	ctx context.Context,
+	p authorization.Principal,
+	slotID uuid.UUID,
+	requestID *uuid.UUID,
+) (Slot, error) {
 	if err := require(p, authorization.PrinterSlotsAssign); err != nil {
 		return Slot{}, err
 	}
@@ -446,19 +593,40 @@ func (s *Service) Unmount(ctx context.Context, p authorization.Principal, slotID
 	return slotFromGet(row), err
 }
 func connectorEventFromRow(row printerconnectorsdb.PrinterEvent) PrinterEvent {
-	return PrinterEvent{ID: row.ID, SourceID: row.SourceID, EventKey: row.EventKey, ProtocolVersion: int(row.ProtocolVersion), Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, Payload: row.Payload}
+	return PrinterEvent{
+		ID:              row.ID,
+		SourceID:        row.SourceID,
+		EventKey:        row.EventKey,
+		ProtocolVersion: int(row.ProtocolVersion),
+		Kind:            row.Kind,
+		OccurredAt:      row.OccurredAt,
+		ReceivedAt:      row.ReceivedAt,
+		Payload:         row.Payload,
+	}
 }
 
 // IngestConnectorEvent is the transaction-aware connector boundary. The caller
 // validates and locks connector ownership in the same transaction before using
 // this method, so event receipt, authorization, and audit cannot commit apart.
-func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input ConnectorEventInput) (PrinterEvent, bool, error) {
+func (s *Service) IngestConnectorEvent(
+	ctx context.Context,
+	tx pgx.Tx,
+	input ConnectorEventInput,
+) (PrinterEvent, bool, error) {
 	if input.EventID == uuid.Nil || input.ConnectorID == uuid.Nil || input.AssignmentID == uuid.Nil || input.MachineID == uuid.Nil ||
-		input.ConfigurationVersion < 1 || input.Sequence < 1 || input.OccurredAt.IsZero() || len(input.Payload) == 0 || len(input.Payload) > 32768 {
+		input.ConfigurationVersion < 1 || input.Sequence < 1 || input.OccurredAt.IsZero() ||
+		len(input.Payload) == 0 ||
+		len(input.Payload) > 32768 {
 		return PrinterEvent{}, false, validation("invalid printer event")
 	}
 	switch input.Kind {
-	case "identity", "connectivity", "operational_state", "progress", "slot_observation", "consumption_report", "terminal_outcome":
+	case "identity",
+		"connectivity",
+		"operational_state",
+		"progress",
+		"slot_observation",
+		"consumption_report",
+		"terminal_outcome":
 	default:
 		return PrinterEvent{}, false, validation("invalid printer event kind")
 	}
@@ -466,7 +634,8 @@ func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input Con
 	if json.Unmarshal(input.Payload, &payloadObject) != nil || payloadObject == nil {
 		return PrinterEvent{}, false, validation("printer event payload must be a JSON object")
 	}
-	if input.ApplicationState != "applied" && input.ApplicationState != "review_required" && input.ApplicationState != "recorded" {
+	if input.ApplicationState != "applied" && input.ApplicationState != "review_required" &&
+		input.ApplicationState != "recorded" {
 		return PrinterEvent{}, false, validation("invalid printer event application state")
 	}
 	if input.Kind == "consumption_report" {
@@ -492,7 +661,10 @@ func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input Con
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", sourceID+"\n"+eventKey); err != nil {
 		return PrinterEvent{}, false, err
 	}
-	existing, err := q.GetConnectorEventByKey(ctx, printerconnectorsdb.GetConnectorEventByKeyParams{SourceID: sourceID, EventKey: eventKey})
+	existing, err := q.GetConnectorEventByKey(
+		ctx,
+		printerconnectorsdb.GetConnectorEventByKeyParams{SourceID: sourceID, EventKey: eventKey},
+	)
 	if err == nil {
 		if existing.Fingerprint != fp {
 			return PrinterEvent{}, false, conflict("printer_event_mismatch", "Event ID was reused with different facts")
@@ -502,17 +674,48 @@ func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input Con
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return PrinterEvent{}, false, err
 	}
-	bySequence, err := q.GetConnectorEventBySequence(ctx, printerconnectorsdb.GetConnectorEventBySequenceParams{AssignmentID: &input.AssignmentID, SourceSequence: &input.Sequence})
+	bySequence, err := q.GetConnectorEventBySequence(
+		ctx,
+		printerconnectorsdb.GetConnectorEventBySequenceParams{
+			AssignmentID:   &input.AssignmentID,
+			SourceSequence: &input.Sequence,
+		},
+	)
 	if err == nil {
 		if bySequence.EventKey == eventKey && bySequence.Fingerprint == fp {
 			return connectorEventFromRow(bySequence), false, nil
 		}
-		return PrinterEvent{}, false, conflict("printer_event_sequence_conflict", "Event sequence was reused with different facts")
+		return PrinterEvent{}, false, conflict(
+			"printer_event_sequence_conflict",
+			"Event sequence was reused with different facts",
+		)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return PrinterEvent{}, false, err
 	}
-	row, err := q.InsertConnectorEvent(ctx, printerconnectorsdb.InsertConnectorEventParams{ID: input.EventID, SourceID: sourceID, EventKey: eventKey, Fingerprint: fp, ProtocolVersion: 1, MachineID: &input.MachineID, Kind: input.Kind, OccurredAt: input.OccurredAt.UTC(), SourceSequence: &input.Sequence, ExternalPrintID: clean(input.ExternalPrintID), Payload: input.Payload, ConnectorID: &input.ConnectorID, AssignmentID: &input.AssignmentID, RunID: input.RunID, ConfigurationVersion: &input.ConfigurationVersion, ApplicationState: input.ApplicationState, ApplicationReason: input.ApplicationReason, ReportRevision: input.ReportRevision})
+	row, err := q.InsertConnectorEvent(
+		ctx,
+		printerconnectorsdb.InsertConnectorEventParams{
+			ID:                   input.EventID,
+			SourceID:             sourceID,
+			EventKey:             eventKey,
+			Fingerprint:          fp,
+			ProtocolVersion:      1,
+			MachineID:            &input.MachineID,
+			Kind:                 input.Kind,
+			OccurredAt:           input.OccurredAt.UTC(),
+			SourceSequence:       &input.Sequence,
+			ExternalPrintID:      clean(input.ExternalPrintID),
+			Payload:              input.Payload,
+			ConnectorID:          &input.ConnectorID,
+			AssignmentID:         &input.AssignmentID,
+			RunID:                input.RunID,
+			ConfigurationVersion: &input.ConfigurationVersion,
+			ApplicationState:     input.ApplicationState,
+			ApplicationReason:    input.ApplicationReason,
+			ReportRevision:       input.ReportRevision,
+		},
+	)
 	if err != nil {
 		return PrinterEvent{}, false, dbError(err)
 	}

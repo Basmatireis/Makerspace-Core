@@ -23,7 +23,17 @@ func TestS3IntegrityReadsBytesRatherThanTrustingObjectMetadata(t *testing.T) {
 		_, _ = w.Write([]byte("tampered")) // Same length; a HEAD-only check used to pass.
 	}))
 	defer server.Close()
-	store, err := NewS3(context.Background(), S3Config{Endpoint: server.URL, Region: "test", Bucket: "private", AccessKeyID: "local-test", SecretAccessKey: "local-test", UsePathStyle: true})
+	store, err := NewS3(
+		context.Background(),
+		S3Config{
+			Endpoint:        server.URL,
+			Region:          "test",
+			Bucket:          "private",
+			AccessKeyID:     "local-test",
+			SecretAccessKey: "local-test",
+			UsePathStyle:    true,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +44,10 @@ func TestS3IntegrityReadsBytesRatherThanTrustingObjectMetadata(t *testing.T) {
 	if metadata.Size != 8 || metadata.SHA256 != sha256.Sum256([]byte("tampered")) {
 		t.Fatalf("unverified metadata returned: %#v", metadata)
 	}
-	if _, err := store.Metadata(context.Background(), "01/01995ea6-6d00-7000-8000-000000000002"); !errors.Is(err, ErrNotFound) {
+	if _, err := store.Metadata(context.Background(), "01/01995ea6-6d00-7000-8000-000000000002"); !errors.Is(
+		err,
+		ErrNotFound,
+	) {
 		t.Fatalf("missing object error = %v", err)
 	}
 }

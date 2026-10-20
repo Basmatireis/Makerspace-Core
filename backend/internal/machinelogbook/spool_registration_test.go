@@ -16,7 +16,16 @@ func (f *fillFixture) mountSpool(t *testing.T, spool FilamentSpool) (machine Mac
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err = f.s.CreateMachine(t.Context(), f.p, typ.ID, f.unique("Mount machine"), "active", nil, false, &f.request)
+	machine, err = f.s.CreateMachine(
+		t.Context(),
+		f.p,
+		typ.ID,
+		f.unique("Mount machine"),
+		"active",
+		nil,
+		false,
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +60,10 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spool.Status != "needs_refill" || spool.Kind != "reusable" || spool.FillID != nil || spool.MaterialID != nil || spool.RemainingQuantity != "0" || spool.Mounted || spool.MountedOn != nil {
+	if spool.Status != "needs_refill" || spool.Kind != "reusable" || spool.FillID != nil || spool.MaterialID != nil ||
+		spool.RemainingQuantity != "0" ||
+		spool.Mounted ||
+		spool.MountedOn != nil {
 		t.Fatalf("empty spool: %+v", spool)
 	}
 	var fills, ledger int
@@ -66,11 +78,22 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 		t.Fatalf("material changed: %+v -> %+v", before, after)
 	}
 	// Details and list tolerate a spool that never had a fill.
-	if detail := f.get(t, spool.ID); detail.Status != "needs_refill" || detail.FillNumber != 0 || len(detail.Fills) != 0 {
+	if detail := f.get(t, spool.ID); detail.Status != "needs_refill" || detail.FillNumber != 0 ||
+		len(detail.Fills) != 0 {
 		t.Fatalf("detail: %+v", detail)
 	}
 	// Narrow by display ID: the shared test database accumulates empty spools.
-	items, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Search: spool.DisplayID, Statuses: []string{"needs_refill"}, Kind: "reusable", Page: 1, PageSize: 100})
+	items, _, err := f.s.ListFilamentSpools(
+		ctx,
+		f.p,
+		SpoolFilters{
+			Search:   spool.DisplayID,
+			Statuses: []string{"needs_refill"},
+			Kind:     "reusable",
+			Page:     1,
+			PageSize: 100,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +106,17 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 	}
 
 	// A later fill works like after a finished fill.
-	filled, err := f.s.ChangeFilamentSpoolFill(ctx, f.p, spool.ID, ChangeFillInput{Fill: NewFillInput{MaterialID: m.ID, NetWeightG: "300", Source: "loose_stock"}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}, &f.request)
+	filled, err := f.s.ChangeFilamentSpoolFill(
+		ctx,
+		f.p,
+		spool.ID,
+		ChangeFillInput{
+			Fill:            NewFillInput{MaterialID: m.ID, NetWeightG: "300", Source: "loose_stock"},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: spool.Version,
+		},
+		&f.request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +134,10 @@ func TestCreateEmptySpoolRules(t *testing.T) {
 	for _, kind := range []string{"", "single_use"} {
 		input := base
 		input.Kind = kind
-		if _, err := f.s.CreateFilamentSpool(ctx, f.p, input, &f.request); !apperror.IsCode(err, "empty_requires_reusable") {
+		if _, err := f.s.CreateFilamentSpool(ctx, f.p, input, &f.request); !apperror.IsCode(
+			err,
+			"empty_requires_reusable",
+		) {
 			t.Fatalf("kind %q: %v", kind, err)
 		}
 	}
@@ -156,7 +192,9 @@ func TestSpoolSupplierAndLedgerActorName(t *testing.T) {
 	if err != nil || total != 1 || len(spoolRows) != 1 {
 		t.Fatalf("spool ledger: %+v %d %v", spoolRows, total, err)
 	}
-	if row := spoolRows[0]; row.Kind != "purchase" || row.Supplier == nil || *row.Supplier != "Filament Shop" || row.ActorName == nil || *row.ActorName != "Fill Tester" {
+	if row := spoolRows[0]; row.Kind != "purchase" || row.Supplier == nil || *row.Supplier != "Filament Shop" ||
+		row.ActorName == nil ||
+		*row.ActorName != "Fill Tester" {
 		t.Fatalf("spool purchase row: %+v", row)
 	}
 	materialRows, _, err := f.s.ListMaterialTransactions(ctx, f.p, m.ID, 1, 25)
@@ -187,7 +225,11 @@ func TestSpoolMountedOn(t *testing.T) {
 	check := func(label string, item FilamentSpool) {
 		t.Helper()
 		mo := item.MountedOn
-		if !item.Mounted || mo == nil || mo.MachineID != machine.ID || mo.MachineName != machine.Name || mo.SlotName != slotName || mo.InputUnitName == nil || *mo.InputUnitName != unitName || mo.SlotID == uuid.Nil {
+		if !item.Mounted || mo == nil || mo.MachineID != machine.ID || mo.MachineName != machine.Name ||
+			mo.SlotName != slotName ||
+			mo.InputUnitName == nil ||
+			*mo.InputUnitName != unitName ||
+			mo.SlotID == uuid.Nil {
 			t.Fatalf("%s: mounted=%v mountedOn=%+v", label, item.Mounted, mo)
 		}
 	}
@@ -207,7 +249,11 @@ func TestSpoolMountedOn(t *testing.T) {
 		}
 	}
 	yes := true
-	filtered, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{MaterialID: &m.ID, Mounted: &yes, Page: 1, PageSize: 100})
+	filtered, _, err := f.s.ListFilamentSpools(
+		ctx,
+		f.p,
+		SpoolFilters{MaterialID: &m.ID, Mounted: &yes, Page: 1, PageSize: 100},
+	)
 	if err != nil || len(filtered) != 1 || filtered[0].ID != mounted.ID {
 		t.Fatalf("mounted filter: %+v %v", filtered, err)
 	}

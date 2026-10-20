@@ -297,14 +297,28 @@ func (s *seeder) setupActor(email string) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		pw := make([]byte, 32)
 		_, _ = rand.Read(pw)
-		_, err = admin.NewService(s.pool).BootstrapMaster(s.ctx, admin.BootstrapInput{FirstName: "Devseed", LastName: "Admin",
-			ContactEmail: "devseed-admin@makerspace.example.org", LoginEmail: "devseed-admin@makerspace.example.org", Password: base64.RawURLEncoding.EncodeToString(pw)})
+		_, err = admin.NewService(s.pool).
+			BootstrapMaster(s.ctx, admin.BootstrapInput{FirstName: "Devseed", LastName: "Admin",
+				ContactEmail: "devseed-admin@makerspace.example.org", LoginEmail: "devseed-admin@makerspace.example.org", Password: base64.RawURLEncoding.EncodeToString(pw)})
 		check("bootstrap devseed master", err)
-		log.Println("no master found; created Devseed Admin (devseed-admin@makerspace.example.org) without a usable password")
+		log.Println(
+			"no master found; created Devseed Admin (devseed-admin@makerspace.example.org) without a usable password",
+		)
 		err = s.pool.QueryRow(s.ctx, masterQuery, "").Scan(&acc, &person, &fn, &ln)
 	}
 	check("actor", err)
-	pr, err := authorization.LoadPermissionsFrom(s.ctx, s.pool, authorization.Principal{AccountID: acc, PersonID: person, FirstName: fn, LastName: ln, Assurance: authorization.AssuranceNormal, AuthenticatedAt: s.now})
+	pr, err := authorization.LoadPermissionsFrom(
+		s.ctx,
+		s.pool,
+		authorization.Principal{
+			AccountID:       acc,
+			PersonID:        person,
+			FirstName:       fn,
+			LastName:        ln,
+			Assurance:       authorization.AssuranceNormal,
+			AuthenticatedAt: s.now,
+		},
+	)
 	check("principal", err)
 	if !pr.Master {
 		log.Fatal("actor is not master")
@@ -350,7 +364,17 @@ func (s *seeder) ensureRoles() {
 		if _, ok := s.roles[strings.ToLower(r.name)]; ok {
 			continue
 		}
-		role, err := s.rolesSvc.CreateWithBehaviors(s.ctx, s.actor, r.name, ptr(r.desc), r.grants, false, "not_required", r.dashboard, nil)
+		role, err := s.rolesSvc.CreateWithBehaviors(
+			s.ctx,
+			s.actor,
+			r.name,
+			ptr(r.desc),
+			r.grants,
+			false,
+			"not_required",
+			r.dashboard,
+			nil,
+		)
 		check("role "+r.name, err)
 		s.roles[strings.ToLower(r.name)] = role.ID
 		log.Printf("created role %s", r.name)
@@ -371,11 +395,187 @@ func (s *seeder) existing(query string, args ...any) (uuid.UUID, bool) {
 // tagged marks a name with the run tag to keep it unique.
 func (s *seeder) tagged(name string) string { return name + " · demo " + s.tag }
 
-var firstNames = []string{"Lukas", "Leon", "Finn", "Jonas", "Paul", "Felix", "Maximilian", "Noah", "Elias", "Tim", "Jan", "Niklas", "Moritz", "Philipp", "Sebastian", "Tobias", "David", "Simon", "Julian", "Fabian", "Anna", "Lena", "Marie", "Sophie", "Laura", "Hannah", "Julia", "Katharina", "Lisa", "Johanna", "Clara", "Emma", "Mia", "Leonie", "Franziska", "Carolin", "Sarah", "Nina", "Eva", "Jana", "Mehmet", "Emre", "Aylin", "Marta", "Piotr", "Ioana", "Luca", "Giulia", "Ravi", "Mei", "Amira", "Karim", "Tomas", "Elif", "Ben", "Henrik", "Greta", "Ole", "Merle", "Jannik"}
-var lastNames = []string{"Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann", "Braun", "Krüger", "Hartmann", "Lange", "Schmitt", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "König", "Walter", "Huber", "Kaiser", "Fuchs", "Peters", "Scholz", "Möller", "Weiß", "Jung", "Hahn", "Schubert", "Vogel", "Friedrich", "Keller", "Günther", "Frank", "Berger", "Winkler", "Roth", "Beck", "Lorenz", "Baumann", "Franke", "Albrecht", "Schuster", "Ludwig", "Böhm", "Winter", "Kraus", "Schumacher", "Krämer", "Vogt", "Stein", "Jäger", "Otto", "Sommer", "Seidel", "Brandt", "Haas", "Graf", "Ziegler", "Kuhn", "Engel", "Pohl", "Horn", "Busch", "Bergmann", "Voigt", "Sauer", "Arnold", "Pfeiffer", "Yilmaz", "Kaya", "Nowak", "Kowalski", "Rossi", "Nguyen", "Petrov", "Okafor", "Chen", "Singh", "Haddad", "Popescu"}
+var firstNames = []string{
+	"Lukas",
+	"Leon",
+	"Finn",
+	"Jonas",
+	"Paul",
+	"Felix",
+	"Maximilian",
+	"Noah",
+	"Elias",
+	"Tim",
+	"Jan",
+	"Niklas",
+	"Moritz",
+	"Philipp",
+	"Sebastian",
+	"Tobias",
+	"David",
+	"Simon",
+	"Julian",
+	"Fabian",
+	"Anna",
+	"Lena",
+	"Marie",
+	"Sophie",
+	"Laura",
+	"Hannah",
+	"Julia",
+	"Katharina",
+	"Lisa",
+	"Johanna",
+	"Clara",
+	"Emma",
+	"Mia",
+	"Leonie",
+	"Franziska",
+	"Carolin",
+	"Sarah",
+	"Nina",
+	"Eva",
+	"Jana",
+	"Mehmet",
+	"Emre",
+	"Aylin",
+	"Marta",
+	"Piotr",
+	"Ioana",
+	"Luca",
+	"Giulia",
+	"Ravi",
+	"Mei",
+	"Amira",
+	"Karim",
+	"Tomas",
+	"Elif",
+	"Ben",
+	"Henrik",
+	"Greta",
+	"Ole",
+	"Merle",
+	"Jannik",
+}
+
+var lastNames = []string{
+	"Müller",
+	"Schmidt",
+	"Schneider",
+	"Fischer",
+	"Weber",
+	"Meyer",
+	"Wagner",
+	"Becker",
+	"Schulz",
+	"Hoffmann",
+	"Schäfer",
+	"Koch",
+	"Bauer",
+	"Richter",
+	"Klein",
+	"Wolf",
+	"Schröder",
+	"Neumann",
+	"Schwarz",
+	"Zimmermann",
+	"Braun",
+	"Krüger",
+	"Hartmann",
+	"Lange",
+	"Schmitt",
+	"Werner",
+	"Krause",
+	"Lehmann",
+	"Köhler",
+	"Herrmann",
+	"König",
+	"Walter",
+	"Huber",
+	"Kaiser",
+	"Fuchs",
+	"Peters",
+	"Scholz",
+	"Möller",
+	"Weiß",
+	"Jung",
+	"Hahn",
+	"Schubert",
+	"Vogel",
+	"Friedrich",
+	"Keller",
+	"Günther",
+	"Frank",
+	"Berger",
+	"Winkler",
+	"Roth",
+	"Beck",
+	"Lorenz",
+	"Baumann",
+	"Franke",
+	"Albrecht",
+	"Schuster",
+	"Ludwig",
+	"Böhm",
+	"Winter",
+	"Kraus",
+	"Schumacher",
+	"Krämer",
+	"Vogt",
+	"Stein",
+	"Jäger",
+	"Otto",
+	"Sommer",
+	"Seidel",
+	"Brandt",
+	"Haas",
+	"Graf",
+	"Ziegler",
+	"Kuhn",
+	"Engel",
+	"Pohl",
+	"Horn",
+	"Busch",
+	"Bergmann",
+	"Voigt",
+	"Sauer",
+	"Arnold",
+	"Pfeiffer",
+	"Yilmaz",
+	"Kaya",
+	"Nowak",
+	"Kowalski",
+	"Rossi",
+	"Nguyen",
+	"Petrov",
+	"Okafor",
+	"Chen",
+	"Singh",
+	"Haddad",
+	"Popescu",
+}
 
 func translit(v string) string {
-	r := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss", "Ä", "Ae", "Ö", "Oe", "Ü", "Ue", "ş", "s", "ğ", "g")
+	r := strings.NewReplacer(
+		"ä",
+		"ae",
+		"ö",
+		"oe",
+		"ü",
+		"ue",
+		"ß",
+		"ss",
+		"Ä",
+		"Ae",
+		"Ö",
+		"Oe",
+		"Ü",
+		"Ue",
+		"ş",
+		"s",
+		"ğ",
+		"g",
+	)
 	return strings.ToLower(r.Replace(v))
 }
 
@@ -403,7 +603,11 @@ func (s *seeder) createPeople() {
 	check("emails", rows.Err())
 	usedName := map[string]bool{}
 	var maxMat int64
-	check("matriculation", s.pool.QueryRow(s.ctx, "SELECT coalesce(max(matriculation_number::bigint), 0) FROM people WHERE matriculation_number ~ '^[0-9]{1,15}$'").Scan(&maxMat))
+	check(
+		"matriculation",
+		s.pool.QueryRow(s.ctx, "SELECT coalesce(max(matriculation_number::bigint), 0) FROM people WHERE matriculation_number ~ '^[0-9]{1,15}$'").
+			Scan(&maxMat),
+	)
 	mat := max(3000000+s.rng.Intn(500000), int(maxMat))
 	next := func(domain string) (string, string, string) {
 		for {
@@ -495,7 +699,14 @@ func (s *seeder) createOrgsAndPricing() {
 	mk := func(name, kind, key string) {
 		id, create := s.claim("organizations", name, "active")
 		if create != "" {
-			o, err := ml.CreateOrganization(s.ctx, s.actor, create, kind, machinelogbook.OrganizationDetailsInput{}, nil)
+			o, err := ml.CreateOrganization(
+				s.ctx,
+				s.actor,
+				create,
+				kind,
+				machinelogbook.OrganizationDetailsInput{},
+				nil,
+			)
 			check("org", err)
 			id, name = o.ID, create
 			newOrgs[key] = true
@@ -677,7 +888,12 @@ func (s *seeder) createCatalog() {
 		typeID := s.materialType(typeName, unit)
 		id, create := s.claim("materials", name, "active AND unit = $2", unit)
 		if create != "" {
-			in := machinelogbook.MaterialInput{Name: create, MaterialTypeID: typeID, ColorName: colorName, ColorHex: colorHex}
+			in := machinelogbook.MaterialInput{
+				Name:           create,
+				MaterialTypeID: typeID,
+				ColorName:      colorName,
+				ColorHex:       colorHex,
+			}
 			if unit == "g" {
 				in.FilamentDiameterMM = ptr("1.75")
 			}
@@ -703,7 +919,18 @@ func (s *seeder) createCatalog() {
 		typeID := s.materialType(typeName, unit)
 		id, create := s.claim("materials", name, "active AND unit = $2", unit)
 		if create != "" {
-			m, err := ml.CreateMaterial(s.ctx, s.actor, machinelogbook.MaterialInput{Name: create, MaterialTypeID: typeID, ColorName: colorName, ColorHex: colorHex, LowStockThreshold: nil}, nil)
+			m, err := ml.CreateMaterial(
+				s.ctx,
+				s.actor,
+				machinelogbook.MaterialInput{
+					Name:              create,
+					MaterialTypeID:    typeID,
+					ColorName:         colorName,
+					ColorHex:          colorHex,
+					LowStockThreshold: nil,
+				},
+				nil,
+			)
 			check("mat", err)
 			id = m.ID
 		}
@@ -731,7 +958,15 @@ func (s *seeder) createCatalog() {
 			if _, taken := s.existing(byName, maker, name); taken {
 				createName = s.tagged(name)
 			}
-			in := machinelogbook.FilamentProductInput{Manufacturer: maker, Name: createName, NetWeightG: f1(weight), Packaging: pack, MaterialID: matID, DefaultPrice: ptr(f2(price)), Active: true}
+			in := machinelogbook.FilamentProductInput{
+				Manufacturer: maker,
+				Name:         createName,
+				NetWeightG:   f1(weight),
+				Packaging:    pack,
+				MaterialID:   matID,
+				DefaultPrice: ptr(f2(price)),
+				Active:       true,
+			}
 			p, err := ml.CreateFilamentProduct(s.ctx, s.actor, in, nil)
 			check("product", err)
 			if !active {
@@ -883,9 +1118,28 @@ func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 	p := s.prods[key]
 	m := s.mat(p.mat)
 	svc := s.mlAt(at)
-	sp, err := svc.CreateFilamentSpool(s.ctx, s.actor, machinelogbook.FilamentSpoolInput{Kind: "single_use", Label: label, ProductID: &p.id, MaterialID: s.mats[p.mat].id,
-		InitialNetWeightG: f1(p.weight), StockMode: "new_acquisition", TotalPrice: ptr(f2(p.price * (0.97 + s.rng.Float64()*0.06))), TareWeightG: ptr("210"),
-		AcquiredOn: &at, AcquisitionReference: ptr(fmt.Sprintf("RE-%d-%04d", at.Year(), 1000+s.rng.Intn(8000))), StorageLocation: ptr("Filament shelf"), OccurredAt: at, ExpectedInventoryVersion: m.InventoryVersion}, nil)
+	sp, err := svc.CreateFilamentSpool(
+		s.ctx,
+		s.actor,
+		machinelogbook.FilamentSpoolInput{
+			Kind:       "single_use",
+			Label:      label,
+			ProductID:  &p.id,
+			MaterialID: s.mats[p.mat].id,
+			InitialNetWeightG: f1(
+				p.weight,
+			),
+			StockMode:                "new_acquisition",
+			TotalPrice:               ptr(f2(p.price * (0.97 + s.rng.Float64()*0.06))),
+			TareWeightG:              ptr("210"),
+			AcquiredOn:               &at,
+			AcquisitionReference:     ptr(fmt.Sprintf("RE-%d-%04d", at.Year(), 1000+s.rng.Intn(8000))),
+			StorageLocation:          ptr("Filament shelf"),
+			OccurredAt:               at,
+			ExpectedInventoryVersion: m.InventoryVersion,
+		},
+		nil,
+	)
 	check("single-use spool "+key, err)
 	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "barcode", s.nextBarcode(), nil)
 	check("identifier", err)
@@ -896,8 +1150,19 @@ func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {
 	p := s.prods[key]
 	m := s.mat(p.mat)
 	svc := s.mlAt(at)
-	in := machinelogbook.FilamentSpoolInput{Kind: "reusable", Label: label, ProductID: &p.id, MaterialID: s.mats[p.mat].id, InitialNetWeightG: f1(p.weight),
-		StockMode: mode, TareWeightG: ptr("250"), AcquiredOn: &at, StorageLocation: ptr("AMS"), OccurredAt: at, ExpectedInventoryVersion: m.InventoryVersion}
+	in := machinelogbook.FilamentSpoolInput{
+		Kind:                     "reusable",
+		Label:                    label,
+		ProductID:                &p.id,
+		MaterialID:               s.mats[p.mat].id,
+		InitialNetWeightG:        f1(p.weight),
+		StockMode:                mode,
+		TareWeightG:              ptr("250"),
+		AcquiredOn:               &at,
+		StorageLocation:          ptr("AMS"),
+		OccurredAt:               at,
+		ExpectedInventoryVersion: m.InventoryVersion,
+	}
 	if mode == "new_acquisition" {
 		in.TotalPrice = ptr(f2(p.price))
 	}
@@ -914,7 +1179,13 @@ func (s *seeder) mount(sl *slot, spool uuid.UUID, at time.Time) {
 	_, err := s.printing.Mount(s.ctx, s.actor, sl.id, spool, nil)
 	check("mount", err)
 	// printing.Mount stamps the wall clock; backdate so history lookups resolve.
-	_, err = s.pool.Exec(s.ctx, "UPDATE printer_spool_assignments SET mounted_at=$1 WHERE slot_id=$2 AND spool_id=$3 AND unmounted_at IS NULL", at.UTC(), sl.id, spool)
+	_, err = s.pool.Exec(
+		s.ctx,
+		"UPDATE printer_spool_assignments SET mounted_at=$1 WHERE slot_id=$2 AND spool_id=$3 AND unmounted_at IS NULL",
+		at.UTC(),
+		sl.id,
+		spool,
+	)
 	check("backdate mount", err)
 	sl.cur = spool
 }
@@ -938,16 +1209,28 @@ func (s *seeder) leftover(sp machinelogbook.FilamentSpool, exhausted bool) *mach
 		if s.rng.Float64() < 0.5 {
 			return &machinelogbook.LeftoverInput{Basis: "none"}
 		}
-		return &machinelogbook.LeftoverInput{Basis: "weighed", GrossWeightG: ptr(f1(tare + math.Floor(rem))), Disposition: ptr("disposed")}
+		return &machinelogbook.LeftoverInput{
+			Basis:        "weighed",
+			GrossWeightG: ptr(f1(tare + math.Floor(rem))),
+			Disposition:  ptr("disposed"),
+		}
 	}
 	switch r := s.rng.Float64(); {
 	case r < 0.4:
 		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
 	case r < 0.75:
-		return &machinelogbook.LeftoverInput{Basis: "weighed", GrossWeightG: ptr(f1(tare + math.Floor(rem*0.96))), Disposition: ptr("returned_to_stock")}
+		return &machinelogbook.LeftoverInput{
+			Basis:        "weighed",
+			GrossWeightG: ptr(f1(tare + math.Floor(rem*0.96))),
+			Disposition:  ptr("returned_to_stock"),
+		}
 	default:
 		if rem < 120 {
-			return &machinelogbook.LeftoverInput{Basis: "weighed", GrossWeightG: ptr(f1(tare + math.Floor(rem))), Disposition: ptr("disposed")}
+			return &machinelogbook.LeftoverInput{
+				Basis:        "weighed",
+				GrossWeightG: ptr(f1(tare + math.Floor(rem))),
+				Disposition:  ptr("disposed"),
+			}
 		}
 		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
 	}
@@ -991,12 +1274,30 @@ func (s *seeder) changeFill(r *reusable, at time.Time, matName, source string, e
 		}
 		fill.Supplier = ptr("Bambu Lab Store EU")
 	}
-	_, err := svc.ChangeFilamentSpoolFill(s.ctx, s.actor, r.id, machinelogbook.ChangeFillInput{Leftover: lo, Fill: fill, KeepIdentifierIDs: keep, OccurredAt: at, ExpectedVersion: sp.Version}, nil)
+	_, err := svc.ChangeFilamentSpoolFill(
+		s.ctx,
+		s.actor,
+		r.id,
+		machinelogbook.ChangeFillInput{
+			Leftover:          lo,
+			Fill:              fill,
+			KeepIdentifierIDs: keep,
+			OccurredAt:        at,
+			ExpectedVersion:   sp.Version,
+		},
+		nil,
+	)
 	check(fmt.Sprintf("change fill %s %s", r.label, matName), err)
 }
 
 func (s *seeder) setupConnector() {
-	c, err := s.pc.Create(s.ctx, s.actor, s.freeName("printer_connectors", "Workshop printer connector"), ptr("Print lab, bench 2"), nil)
+	c, err := s.pc.Create(
+		s.ctx,
+		s.actor,
+		s.freeName("printer_connectors", "Workshop printer connector"),
+		ptr("Print lab, bench 2"),
+		nil,
+	)
 	check("connector", err)
 	enr, err := s.pc.IssueEnrollment(s.ctx, s.actor, c.ID, nil)
 	check("enrollment", err)
@@ -1013,7 +1314,18 @@ func (s *seeder) setupConnector() {
 	s.connCtx = *cx
 	for _, k := range []string{"x1c", "p1s"} {
 		m := s.machines[k]
-		a, err := s.pc.CreateAssignment(s.ctx, s.actor, c.ID, printerconnectors.AssignmentInput{MachineID: m.id, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`)}, nil)
+		a, err := s.pc.CreateAssignment(
+			s.ctx,
+			s.actor,
+			c.ID,
+			printerconnectors.AssignmentInput{
+				MachineID:            m.id,
+				AdapterKind:          "simulator",
+				AdapterSchemaVersion: 1,
+				Settings:             json.RawMessage(`{"scenario":"idle"}`),
+			},
+			nil,
+		)
 		check("assignment", err)
 		m.assign = a.ID
 		m.cfgVer = a.ConfigurationVersion
@@ -1032,8 +1344,14 @@ func (s *seeder) setupConnector() {
 func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, payload map[string]any, rev *int64) {
 	m.seq++
 	raw, _ := json.Marshal(payload)
-	rc, err := s.pc.IngestEvents(s.ctx, s.connCtx, []printerconnectors.EventInput{{EventID: uuid.Must(uuid.NewV7()), AssignmentID: m.assign, RunID: &run, HistoryComplete: true,
-		ConfigurationVersion: m.cfgVer, Sequence: m.seq, OccurredAt: at.UTC(), Kind: kind, ExternalPrintID: &ext, ReportRevision: rev, Payload: raw}})
+	rc, err := s.pc.IngestEvents(
+		s.ctx,
+		s.connCtx,
+		[]printerconnectors.EventInput{
+			{EventID: uuid.Must(uuid.NewV7()), AssignmentID: m.assign, RunID: &run, HistoryComplete: true,
+				ConfigurationVersion: m.cfgVer, Sequence: m.seq, OccurredAt: at.UTC(), Kind: kind, ExternalPrintID: &ext, ReportRevision: rev, Payload: raw},
+		},
+	)
 	check("ingest "+kind, err)
 	if rc[0].Status != "accepted" {
 		reason := ""
@@ -1044,10 +1362,36 @@ func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, 
 	}
 }
 
-var fdmFiles = []string{"gearbox_housing_v3", "sensor_bracket", "drone_arm_left", "rpi_enclosure", "cable_clips_x20", "thesis_prototype_a", "handle_proto", "test_coupon_petg", "replacement_knob", "lens_holder", "planetary_gear_test", "turbine_blade", "impeller_v2", "phone_stand", "name_badges", "spacer_rings", "chassis_plate", "hinge_set"}
+var fdmFiles = []string{
+	"gearbox_housing_v3",
+	"sensor_bracket",
+	"drone_arm_left",
+	"rpi_enclosure",
+	"cable_clips_x20",
+	"thesis_prototype_a",
+	"handle_proto",
+	"test_coupon_petg",
+	"replacement_knob",
+	"lens_holder",
+	"planetary_gear_test",
+	"turbine_blade",
+	"impeller_v2",
+	"phone_stand",
+	"name_badges",
+	"spacer_rings",
+	"chassis_plate",
+	"hinge_set",
+}
 
 // printRun simulates a print and returns the observed run id.
-func (s *seeder) printRun(m *mach, start, end time.Time, terminal string, file string, report *float64, slotExt string) uuid.UUID {
+func (s *seeder) printRun(
+	m *mach,
+	start, end time.Time,
+	terminal string,
+	file string,
+	report *float64,
+	slotExt string,
+) uuid.UUID {
 	run := uuid.Must(uuid.NewV7())
 	ext := "sim-" + run.String()[:8]
 	f := file + ".gcode.3mf"
@@ -1055,7 +1399,20 @@ func (s *seeder) printRun(m *mach, start, end time.Time, terminal string, file s
 	s.ingest(m, run, ext, "operational_state", start, map[string]any{"state": "printing", "fileName": f}, nil)
 	for _, pc := range []int{25, 50, 75} {
 		at := start.Add(total * time.Duration(pc) / 100)
-		s.ingest(m, run, ext, "progress", at, map[string]any{"state": "printing", "percent": pc, "remainingSeconds": int(end.Sub(at).Seconds()), "fileName": f}, nil)
+		s.ingest(
+			m,
+			run,
+			ext,
+			"progress",
+			at,
+			map[string]any{
+				"state":            "printing",
+				"percent":          pc,
+				"remainingSeconds": int(end.Sub(at).Seconds()),
+				"fileName":         f,
+			},
+			nil,
+		)
 	}
 	s.ingest(m, run, ext, "terminal_outcome", end, map[string]any{"outcome": terminal}, nil)
 	if report != nil {
@@ -1070,9 +1427,49 @@ func (s *seeder) printRun(m *mach, start, end time.Time, terminal string, file s
 
 // ---------- planning ----------
 
-var fdmTitles = []string{"Gearbox housing v3", "Sensor mount bracket", "Drone frame arm", "Enclosure for Raspberry Pi", "Cable clips (x20)", "Bachelor thesis prototype", "Prototype handle", "Test coupon PETG", "Replacement knob", "Lens holder", "Planetary gear test", "Wind turbine blade", "Pump impeller v2", "Phone stand", "Name badges", "Spacer rings", "Robotics chassis plate", "Hinge set"}
-var laserTitles = []string{"Acrylic nameplate", "Puzzle (plywood)", "Workshop signage", "Gasket 3 mm", "Enclosure panels", "Stencil set", "Lampshade", "Model bridge 1:50", "Engraved coasters", "Fachschaft Schild"}
-var notesList = []string{"Customer will pick up tomorrow", "Second attempt after warping on first try", "Supports removed by customer", "Rush job before deadline", "Material supplied partly by customer", "Used 0.2 mm layer height", "Test fit pending"}
+var fdmTitles = []string{
+	"Gearbox housing v3",
+	"Sensor mount bracket",
+	"Drone frame arm",
+	"Enclosure for Raspberry Pi",
+	"Cable clips (x20)",
+	"Bachelor thesis prototype",
+	"Prototype handle",
+	"Test coupon PETG",
+	"Replacement knob",
+	"Lens holder",
+	"Planetary gear test",
+	"Wind turbine blade",
+	"Pump impeller v2",
+	"Phone stand",
+	"Name badges",
+	"Spacer rings",
+	"Robotics chassis plate",
+	"Hinge set",
+}
+
+var laserTitles = []string{
+	"Acrylic nameplate",
+	"Puzzle (plywood)",
+	"Workshop signage",
+	"Gasket 3 mm",
+	"Enclosure panels",
+	"Stencil set",
+	"Lampshade",
+	"Model bridge 1:50",
+	"Engraved coasters",
+	"Fachschaft Schild",
+}
+
+var notesList = []string{
+	"Customer will pick up tomorrow",
+	"Second attempt after warping on first try",
+	"Supports removed by customer",
+	"Rush job before deadline",
+	"Material supplied partly by customer",
+	"Used 0.2 mm layer height",
+	"Test fit pending",
+}
 
 func (s *seeder) pickWeighted(w []float64) int {
 	t := 0.0
@@ -1252,11 +1649,53 @@ func (s *seeder) planEverything() {
 	// special runs
 	op := func() uuid.UUID { return s.supervisors[s.pickWeighted(s.opWeights)] }
 	special := []*plan{
-		{m: s.machines["pr1"], start: s.ago(25 * time.Minute), end: s.now.Add(70 * time.Minute), outcome: "unknown", customer: s.custs[3], operator: op(), title: ptr("Bracket for sensor mount"), special: "running"},
-		{m: s.machines["laser"], start: s.ago(30 * time.Minute), end: s.now.Add(25 * time.Minute), outcome: "unknown", customer: s.orgs["fs"], operator: op(), title: ptr("Fachschaft Schild"), special: "running"},
-		{m: s.machines["pr2"], start: s.ago(5 * time.Hour), end: s.ago(95 * time.Minute), outcome: "unknown", customer: s.custs[7], operator: op(), special: "needs_outcome"},
-		{m: s.machines["laser"], start: s.ago(20 * time.Hour), end: s.ago(19*time.Hour + 10*time.Minute), outcome: "unknown", customer: s.custs[11], operator: op(), special: "needs_outcome"},
-		{m: s.machines["pr1"], start: s.ago(26 * time.Hour), end: s.ago(23 * time.Hour), outcome: "unknown", customer: s.custs[1], operator: op(), special: "needs_outcome"},
+		{
+			m:        s.machines["pr1"],
+			start:    s.ago(25 * time.Minute),
+			end:      s.now.Add(70 * time.Minute),
+			outcome:  "unknown",
+			customer: s.custs[3],
+			operator: op(),
+			title:    ptr("Bracket for sensor mount"),
+			special:  "running",
+		},
+		{
+			m:        s.machines["laser"],
+			start:    s.ago(30 * time.Minute),
+			end:      s.now.Add(25 * time.Minute),
+			outcome:  "unknown",
+			customer: s.orgs["fs"],
+			operator: op(),
+			title:    ptr("Fachschaft Schild"),
+			special:  "running",
+		},
+		{
+			m:        s.machines["pr2"],
+			start:    s.ago(5 * time.Hour),
+			end:      s.ago(95 * time.Minute),
+			outcome:  "unknown",
+			customer: s.custs[7],
+			operator: op(),
+			special:  "needs_outcome",
+		},
+		{
+			m:        s.machines["laser"],
+			start:    s.ago(20 * time.Hour),
+			end:      s.ago(19*time.Hour + 10*time.Minute),
+			outcome:  "unknown",
+			customer: s.custs[11],
+			operator: op(),
+			special:  "needs_outcome",
+		},
+		{
+			m:        s.machines["pr1"],
+			start:    s.ago(26 * time.Hour),
+			end:      s.ago(23 * time.Hour),
+			outcome:  "unknown",
+			customer: s.custs[1],
+			operator: op(),
+			special:  "needs_outcome",
+		},
 	}
 	for _, p := range special {
 		p := p
@@ -1335,7 +1774,8 @@ func (s *seeder) stockEvents() {
 		r := s.reus[6]
 		sp := s.spool(r.id)
 		at := d(9, 28)
-		_, err := s.mlAt(at).FinishFilamentSpool(s.ctx, s.actor, r.id, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, false), OccurredAt: at, ExpectedVersion: sp.Version}, nil)
+		_, err := s.mlAt(at).
+			FinishFilamentSpool(s.ctx, s.actor, r.id, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, false), OccurredAt: at, ExpectedVersion: sp.Version}, nil)
 		check("finish r8", err)
 	})
 	add(d(7, 15), func() {
@@ -1396,7 +1836,8 @@ func (s *seeder) ensure(sl *slot, qty float64, at time.Time) (uuid.UUID, float64
 		if sp.FilledAt != nil && !fa.After(sp.FilledAt.Add(time.Minute)) {
 			fa = sp.FilledAt.Add(2 * time.Minute)
 		}
-		_, err := s.mlAt(fa).FinishFilamentSpool(s.ctx, s.actor, sl.cur, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, rem < qty+1), OccurredAt: fa, ExpectedVersion: sp.Version}, nil)
+		_, err := s.mlAt(fa).
+			FinishFilamentSpool(s.ctx, s.actor, sl.cur, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, rem < qty+1), OccurredAt: fa, ExpectedVersion: sp.Version}, nil)
 		check("finish spool", err)
 		sl.gi++
 		sl.cur = uuid.Nil
@@ -1469,14 +1910,30 @@ func (s *seeder) usagesFor(p *plan, single bool) ([]machinelogbook.UsageInput, *
 			}
 			spoolID, qq := s.ensure(sl, q, p.start)
 			if spoolID == uuid.Nil {
-				out = append(out, machinelogbook.UsageInput{Ownership: "external", ExternalMaterialName: ptr("Customer-supplied PLA"), Quantity: f1(q)})
+				out = append(
+					out,
+					machinelogbook.UsageInput{
+						Ownership:            "external",
+						ExternalMaterialName: ptr("Customer-supplied PLA"),
+						Quantity:             f1(q),
+					},
+				)
 				continue
 			}
 			if primary == nil {
 				primary = sl
 			}
 			sp := s.spool(spoolID)
-			out = append(out, machinelogbook.UsageInput{MaterialID: *sp.MaterialID, SpoolID: &spoolID, Ownership: "makerspace", Quantity: f1(qq), QuantityBasis: "actual"})
+			out = append(
+				out,
+				machinelogbook.UsageInput{
+					MaterialID:    *sp.MaterialID,
+					SpoolID:       &spoolID,
+					Ownership:     "makerspace",
+					Quantity:      f1(qq),
+					QuantityBasis: "actual",
+				},
+			)
 		}
 		var q0 float64
 		if len(out) > 0 {
@@ -1497,7 +1954,9 @@ func (s *seeder) usagesFor(p *plan, single bool) ([]machinelogbook.UsageInput, *
 	if dnum(mm.Quantity) < area+0.05 {
 		s.purchase(name, 1.8, 35, p.start.Add(-24*time.Hour), "Modulor Material Shop", 3)
 	}
-	return []machinelogbook.UsageInput{{MaterialID: s.mats[name].id, Ownership: "makerspace", Quantity: f3(area), QuantityBasis: "actual"}}, nil, 0
+	return []machinelogbook.UsageInput{
+		{MaterialID: s.mats[name].id, Ownership: "makerspace", Quantity: f3(area), QuantityBasis: "actual"},
+	}, nil, 0
 }
 
 func (s *seeder) runPlan(p *plan) {
@@ -1511,7 +1970,17 @@ func (s *seeder) runPlan(p *plan) {
 		usages, prim, q0 = s.usagesFor(p, true)
 	}
 	_ = q0
-	in := machinelogbook.JobInput{MachineID: p.m.id, Title: p.title, StartsAt: p.start, EndsAt: p.end, Customer: p.customer.ref(), OperatorPersonID: p.operator, Outcome: p.outcome, Notes: p.notes, Usages: usages}
+	in := machinelogbook.JobInput{
+		MachineID:        p.m.id,
+		Title:            p.title,
+		StartsAt:         p.start,
+		EndsAt:           p.end,
+		Customer:         p.customer.ref(),
+		OperatorPersonID: p.operator,
+		Outcome:          p.outcome,
+		Notes:            p.notes,
+		Usages:           usages,
+	}
 	var job machinelogbook.MachineJob
 	var err error
 	switch p.mode {
@@ -1525,7 +1994,18 @@ func (s *seeder) runPlan(p *plan) {
 			slotExt = prim.ext
 		}
 		run := s.printRun(p.m, p.start, p.end, "completed", file, rep, slotExt)
-		job, err = s.ml.CreateJobFromRun(s.ctx, s.actor, run, machinelogbook.RunJobInput{Title: p.title, Customer: p.customer.ref(), OperatorPersonID: p.operator, Notes: p.notes}, nil)
+		job, err = s.ml.CreateJobFromRun(
+			s.ctx,
+			s.actor,
+			run,
+			machinelogbook.RunJobInput{
+				Title:            p.title,
+				Customer:         p.customer.ref(),
+				OperatorPersonID: p.operator,
+				Notes:            p.notes,
+			},
+			nil,
+		)
 		check("create from print", err)
 	case "link":
 		in.Usages = usages[:min(1, len(usages))]
@@ -1548,7 +2028,18 @@ func (s *seeder) runPlan(p *plan) {
 		job, err = s.ml.CreateManualJob(s.ctx, s.actor, in, nil)
 		check("manual job", err)
 	}
-	s.jobs = append(s.jobs, jobRec{id: job.ID, customer: p.customer, outcome: p.outcome, incomplete: job.PricingStatus != "complete", ends: p.end, machine: p.m.name, failedRun: p.outcome == "failed"})
+	s.jobs = append(
+		s.jobs,
+		jobRec{
+			id:         job.ID,
+			customer:   p.customer,
+			outcome:    p.outcome,
+			incomplete: job.PricingStatus != "complete",
+			ends:       p.end,
+			machine:    p.m.name,
+			failedRun:  p.outcome == "failed",
+		},
+	)
 }
 
 // seedProcessJobs records a few jobs on the embroidery machine, the UV printer,
@@ -1570,16 +2061,67 @@ func (s *seeder) seedProcessJobs() {
 	stock := map[string]struct {
 		qty, price float64
 	}{
-		"Tear-away stabilizer": {50, 20}, "UV ink Cyan": {200, 90}, "UV ink Magenta": {200, 90}, "UV ink Yellow": {200, 90},
-		"UV ink Black": {200, 90}, "UV ink White": {300, 140}, "DTF sticker paper A4": {20000, 60}, "Roll-to-film 30 cm": {30, 75},
+		"Tear-away stabilizer": {
+			50,
+			20,
+		}, "UV ink Cyan": {200, 90}, "UV ink Magenta": {200, 90}, "UV ink Yellow": {200, 90},
+		"UV ink Black": {
+			200,
+			90,
+		}, "UV ink White": {300, 140}, "DTF sticker paper A4": {20000, 60}, "Roll-to-film 30 cm": {30, 75},
 		"Birch plywood 4 mm sheet": {40000, 45}, "Vinyl foil matt white": {30000, 35},
 	}
 	bought := map[string]bool{}
 	jobs := []job{
-		{"embroidery", "Fachschaft polo logo", s.orgs["fs"], 9, 38, machinelogbook.RunMeasures{"stitches": 12400}, []use{{"Tear-away stabilizer", "0.4"}}},
-		{"embroidery", "Workshop patches", s.custs[2], 4, 72, machinelogbook.RunMeasures{"stitches": 31250}, []use{{"Tear-away stabilizer", "0.9"}}},
-		{"uv", "Phone case batch", s.custs[4], 7, 55, nil, []use{{"UV ink Cyan", "0.45"}, {"UV ink Magenta", "0.62"}, {"UV ink Yellow", "0.38"}, {"UV ink Black", "1.20"}, {"UV ink White", "1.85"}, {"DTF sticker paper A4", "180"}}},
-		{"uv", "Sticker sheets", s.orgs["startup"], 2, 41, nil, []use{{"UV ink Cyan", "0.20"}, {"UV ink Black", "0.75"}, {"UV ink White", "0.90"}, {"DTF sticker paper A4", "420"}, {"Roll-to-film 30 cm", "0.5"}}},
+		{
+			"embroidery",
+			"Fachschaft polo logo",
+			s.orgs["fs"],
+			9,
+			38,
+			machinelogbook.RunMeasures{"stitches": 12400},
+			[]use{{"Tear-away stabilizer", "0.4"}},
+		},
+		{
+			"embroidery",
+			"Workshop patches",
+			s.custs[2],
+			4,
+			72,
+			machinelogbook.RunMeasures{"stitches": 31250},
+			[]use{{"Tear-away stabilizer", "0.9"}},
+		},
+		{
+			"uv",
+			"Phone case batch",
+			s.custs[4],
+			7,
+			55,
+			nil,
+			[]use{
+				{"UV ink Cyan", "0.45"},
+				{"UV ink Magenta", "0.62"},
+				{"UV ink Yellow", "0.38"},
+				{"UV ink Black", "1.20"},
+				{"UV ink White", "1.85"},
+				{"DTF sticker paper A4", "180"},
+			},
+		},
+		{
+			"uv",
+			"Sticker sheets",
+			s.orgs["startup"],
+			2,
+			41,
+			nil,
+			[]use{
+				{"UV ink Cyan", "0.20"},
+				{"UV ink Black", "0.75"},
+				{"UV ink White", "0.90"},
+				{"DTF sticker paper A4", "420"},
+				{"Roll-to-film 30 cm", "0.5"},
+			},
+		},
 		{"laser", "Birch coasters", s.custs[6], 5, 25, nil, []use{{"Birch plywood 4 mm sheet", "1450"}}},
 		{"plotter", "Window vinyl lettering", s.custs[8], 3, 18, nil, []use{{"Vinyl foil matt white", "2400"}}},
 	}
@@ -1595,11 +2137,44 @@ func (s *seeder) seedProcessJobs() {
 				st := stock[u.name]
 				s.purchase(u.name, st.qty, st.price, start.Add(-48*time.Hour), "Makerspace supplier", 3)
 			}
-			usages = append(usages, machinelogbook.UsageInput{MaterialID: s.mats[u.name].id, Ownership: "makerspace", Quantity: u.qty, QuantityBasis: "actual"})
+			usages = append(
+				usages,
+				machinelogbook.UsageInput{
+					MaterialID:    s.mats[u.name].id,
+					Ownership:     "makerspace",
+					Quantity:      u.qty,
+					QuantityBasis: "actual",
+				},
+			)
 		}
-		job, err := s.ml.CreateManualJob(s.ctx, s.actor, machinelogbook.JobInput{MachineID: m.id, Title: ptr(j.title), StartsAt: start, EndsAt: end, Customer: j.customer.ref(), OperatorPersonID: op, Outcome: "successful", Usages: usages, Measures: j.measures}, nil)
+		job, err := s.ml.CreateManualJob(
+			s.ctx,
+			s.actor,
+			machinelogbook.JobInput{
+				MachineID:        m.id,
+				Title:            ptr(j.title),
+				StartsAt:         start,
+				EndsAt:           end,
+				Customer:         j.customer.ref(),
+				OperatorPersonID: op,
+				Outcome:          "successful",
+				Usages:           usages,
+				Measures:         j.measures,
+			},
+			nil,
+		)
 		check("process job "+j.title, err)
-		s.jobs = append(s.jobs, jobRec{id: job.ID, customer: j.customer, outcome: "successful", incomplete: job.PricingStatus != "complete", ends: end, machine: m.name})
+		s.jobs = append(
+			s.jobs,
+			jobRec{
+				id:         job.ID,
+				customer:   j.customer,
+				outcome:    "successful",
+				incomplete: job.PricingStatus != "complete",
+				ends:       end,
+				machine:    m.name,
+			},
+		)
 	}
 }
 
@@ -1619,18 +2194,46 @@ func (s *seeder) unlinkedPrints() {
 	f := "gearbox_housing_v4.gcode.3mf"
 	start := s.ago(55 * time.Minute)
 	s.ingest(m, run, ext, "operational_state", start, map[string]any{"state": "printing", "fileName": f}, nil)
-	s.ingest(m, run, ext, "progress", s.ago(2*time.Minute), map[string]any{"state": "printing", "percent": 34, "remainingSeconds": 6300, "fileName": f}, nil)
+	s.ingest(
+		m,
+		run,
+		ext,
+		"progress",
+		s.ago(2*time.Minute),
+		map[string]any{"state": "printing", "percent": 34, "remainingSeconds": 6300, "fileName": f},
+		nil,
+	)
 }
 
 func (s *seeder) finishPrints() {
 	cid := s.connCtx.ID
 	hb := func(m *mach, state string, code *string) printerconnectors.AssignmentHealth {
-		return printerconnectors.AssignmentHealth{AssignmentID: m.assign, AppliedConfigurationVersion: m.cfgVer, State: state, ErrorCode: code}
+		return printerconnectors.AssignmentHealth{
+			AssignmentID:                m.assign,
+			AppliedConfigurationVersion: m.cfgVer,
+			State:                       state,
+			ErrorCode:                   code,
+		}
 	}
 	c, err := s.pc.Get(s.ctx, s.actor, cid)
 	check("connector get", err)
-	_, err = s.pc.Heartbeat(s.ctx, s.connCtx, printerconnectors.Heartbeat{SoftwareVersion: "devseed-1.0.0", HealthState: "degraded", ProtocolVersion: 1, AppliedConfigurationRevision: c.ConfigurationRevision,
-		HealthSummary: ptr("P1S reports intermittent MQTT timeouts"), Assignments: []printerconnectors.AssignmentHealth{hb(s.machines["x1c"], "connected", nil), hb(s.machines["p1s"], "degraded", ptr("mqtt_timeout"))}})
+	_, err = s.pc.Heartbeat(
+		s.ctx,
+		s.connCtx,
+		printerconnectors.Heartbeat{
+			SoftwareVersion:              "devseed-1.0.0",
+			HealthState:                  "degraded",
+			ProtocolVersion:              1,
+			AppliedConfigurationRevision: c.ConfigurationRevision,
+			HealthSummary: ptr(
+				"P1S reports intermittent MQTT timeouts",
+			),
+			Assignments: []printerconnectors.AssignmentHealth{
+				hb(s.machines["x1c"], "connected", nil),
+				hb(s.machines["p1s"], "degraded", ptr("mqtt_timeout")),
+			},
+		},
+	)
 	check("heartbeat", err)
 }
 
@@ -1649,13 +2252,29 @@ func (s *seeder) priceAdjustments() {
 		}
 		job, err := s.ml.GetJob(s.ctx, s.actor, r.id)
 		check("get job", err)
-		_, err = s.mlAt(r.ends.Add(36*time.Hour)).SetJobPriceAdjustment(s.ctx, s.actor, r.id, job.Version, kind, val, reason, nil)
+		_, err = s.mlAt(r.ends.Add(36*time.Hour)).
+			SetJobPriceAdjustment(s.ctx, s.actor, r.id, job.Version, kind, val, reason, nil)
 		check("adjust", err)
 		r.used = true
 	}
-	apply(get(func(r jobRec) bool { return r.failedRun && r.ends.Before(s.ago(24*time.Hour)) }), "discount_percent", "100", "Print failed due to machine fault; no charge")
-	apply(get(func(r jobRec) bool { return r.customer.id == s.orgs["fs"].id && r.outcome == "successful" }), "discount_percent", "50", "Student council sponsorship")
-	apply(get(func(r jobRec) bool { return r.customer.cat == "student" && r.outcome == "partial_failure" }), "discount_amount", "1.00", "Goodwill after partial failure")
+	apply(
+		get(func(r jobRec) bool { return r.failedRun && r.ends.Before(s.ago(24*time.Hour)) }),
+		"discount_percent",
+		"100",
+		"Print failed due to machine fault; no charge",
+	)
+	apply(
+		get(func(r jobRec) bool { return r.customer.id == s.orgs["fs"].id && r.outcome == "successful" }),
+		"discount_percent",
+		"50",
+		"Student council sponsorship",
+	)
+	apply(
+		get(func(r jobRec) bool { return r.customer.cat == "student" && r.outcome == "partial_failure" }),
+		"discount_amount",
+		"1.00",
+		"Goodwill after partial failure",
+	)
 	apply(get(func(r jobRec) bool {
 		return r.customer.cat == "student" && r.outcome == "successful" && r.machine == s.machines["laser"].name
 	}), "fixed", "5.00", "Flat rate for class project")
@@ -1692,22 +2311,62 @@ func (s *seeder) createOrders() {
 		return ps
 	}
 	build := func(c party, idxs []int, mode string, manual bool) orders.Order {
-		o, err := s.orders.Create(s.ctx, s.actor, orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: c.kind, ID: c.id}, FulfillmentMode: mode}, nil)
+		o, err := s.orders.Create(
+			s.ctx,
+			s.actor,
+			orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: c.kind, ID: c.id}, FulfillmentMode: mode},
+			nil,
+		)
 		check("order create", err)
 		for _, i := range idxs {
 			job, err := s.ml.GetJob(s.ctx, s.actor, s.jobs[i].id)
 			check("get job", err)
-			o, err = s.orders.ChangeItem(s.ctx, s.actor, o.ID, uuid.Nil, orders.OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+			o, err = s.orders.ChangeItem(
+				s.ctx,
+				s.actor,
+				o.ID,
+				uuid.Nil,
+				orders.OrderItemInput{
+					Kind:               "machine_job",
+					MachineJobID:       job.ID,
+					ExpectedJobVersion: job.Version,
+					ExpectedVersion:    o.Version,
+				},
+				"add",
+				nil,
+			)
 			check("order add item", err)
 		}
 		if manual {
-			o, err = s.orders.ChangeItem(s.ctx, s.actor, o.ID, uuid.Nil, orders.OrderItemInput{Kind: "manual", Description: "Design consultation", Quantity: "0.5", Unit: "h", UnitPrice: "20.00", ExpectedVersion: o.Version}, "add", nil)
+			o, err = s.orders.ChangeItem(
+				s.ctx,
+				s.actor,
+				o.ID,
+				uuid.Nil,
+				orders.OrderItemInput{
+					Kind:            "manual",
+					Description:     "Design consultation",
+					Quantity:        "0.5",
+					Unit:            "h",
+					UnitPrice:       "20.00",
+					ExpectedVersion: o.Version,
+				},
+				"add",
+				nil,
+			)
 			check("order manual item", err)
 		}
 		return o
 	}
 	finalize := func(o orders.Order, pays []orders.PaymentInput) orders.Order {
-		o, err := s.orders.Command(s.ctx, s.actor, o.ID, orders.OrderCommand{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payments: pays}, "finalize", nil)
+		o, err := s.orders.Command(
+			s.ctx,
+			s.actor,
+			o.ID,
+			orders.OrderCommand{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payments: pays},
+			"finalize",
+			nil,
+		)
 		check("order finalize", err)
 		return o
 	}
@@ -1723,7 +2382,23 @@ func (s *seeder) createOrders() {
 	o = build(s.orgs["fs"], take(s.orgs["fs"], 3), "deferred", false)
 	o = finalize(o, nil)
 	if d := decimal.RequireFromString(o.TotalAmount); d.GreaterThan(decimal.RequireFromString("1.00")) {
-		_, err := s.orders.RecordPayment(s.ctx, s.actor, o.ID, orders.RecordOrderPayment{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payment: orders.PaymentInput{Method: "card", Amount: "1.00", OccurredAt: s.ago(30 * time.Hour), ExternalSource: "terminal-1", ExternalReference: "TX-" + s.randHex(6)}}, nil)
+		_, err := s.orders.RecordPayment(
+			s.ctx,
+			s.actor,
+			o.ID,
+			orders.RecordOrderPayment{
+				OperationKey:    uuid.Must(uuid.NewV7()),
+				ExpectedVersion: o.Version,
+				Payment: orders.PaymentInput{
+					Method:            "card",
+					Amount:            "1.00",
+					OccurredAt:        s.ago(30 * time.Hour),
+					ExternalSource:    "terminal-1",
+					ExternalReference: "TX-" + s.randHex(6),
+				},
+			},
+			nil,
+		)
 		check("partial payment", err)
 	}
 	// O3: Lehrstuhl, unpaid, with manual item
@@ -1736,7 +2411,16 @@ func (s *seeder) createOrders() {
 		finalize(o, nil)
 		job, err := s.ml.GetJob(s.ctx, s.actor, s.jobs[idx[0]].id)
 		check("get job", err)
-		_, err = s.ml.SetJobPriceAdjustment(s.ctx, s.actor, job.ID, job.Version, "multiplier", "1.5", "Rush job surcharge added after invoicing", nil)
+		_, err = s.ml.SetJobPriceAdjustment(
+			s.ctx,
+			s.actor,
+			job.ID,
+			job.Version,
+			"multiplier",
+			"1.5",
+			"Rush job surcharge added after invoicing",
+			nil,
+		)
 		check("late adjustment", err)
 	} else {
 		log.Println("no startup jobs for outdated order")
@@ -1761,14 +2445,22 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 	check("periods", err)
 	var periodID uuid.UUID
 	for _, p := range periods {
-		if (p.Status == "staffing" || p.Status == "published") && !p.StartsOn.After(nextWeek) && !p.EndsOn.Before(nextWeek) {
+		if (p.Status == "staffing" || p.Status == "published") && !p.StartsOn.After(nextWeek) &&
+			!p.EndsOn.Before(nextWeek) {
 			periodID = p.ID
 			break
 		}
 	}
 	if periodID == uuid.Nil {
 		end := today.AddDate(0, 0, 120)
-		p, err := s.od.CreatePeriod(s.ctx, s.actor, fmt.Sprintf("Open Days %s – %s", today.Format("02.01."), end.Format("02.01.2006")), today, end, nil)
+		p, err := s.od.CreatePeriod(
+			s.ctx,
+			s.actor,
+			fmt.Sprintf("Open Days %s – %s", today.Format("02.01."), end.Format("02.01.2006")),
+			today,
+			end,
+			nil,
+		)
 		check("create period", err)
 		for _, target := range []string{"staffing", "published"} {
 			p, err = s.od.TransitionPeriod(s.ctx, s.actor, p.ID, p.Version, target, nil)
@@ -1796,7 +2488,14 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 			continue
 		}
 		start := time.Date(d.Year(), d.Month(), d.Day(), 16, 0, 0, 0, s.loc)
-		sched, err = s.od.CreateOpenDay(s.ctx, s.actor, periodID, sched.Period.Version, opendays.ScheduleInput{StartsAt: start.UTC(), EndsAt: start.Add(3 * time.Hour).UTC(), Requirements: reqs}, nil)
+		sched, err = s.od.CreateOpenDay(
+			s.ctx,
+			s.actor,
+			periodID,
+			sched.Period.Version,
+			opendays.ScheduleInput{StartsAt: start.UTC(), EndsAt: start.Add(3 * time.Hour).UTC(), Requirements: reqs},
+			nil,
+		)
 		check("create open day", err)
 		upcoming++
 	}
@@ -1874,8 +2573,24 @@ func (s *seeder) setThresholds() {
 		if m.Unit == "g" {
 			diameter = ptr("1.75")
 		}
-		_, err := s.ml.UpdateMaterial(s.ctx, s.actor, m.ID, machinelogbook.MaterialInput{Name: m.Name, MaterialTypeID: m.MaterialTypeID, ColorName: m.ColorName, ColorHex: m.ColorHex, Active: true,
-			LowStockThreshold: ptr(strconv.FormatFloat(th, 'f', prec, 64)), FilamentDiameterMM: diameter, ExpectedVersion: m.Version}, nil)
+		_, err := s.ml.UpdateMaterial(
+			s.ctx,
+			s.actor,
+			m.ID,
+			machinelogbook.MaterialInput{
+				Name:           m.Name,
+				MaterialTypeID: m.MaterialTypeID,
+				ColorName:      m.ColorName,
+				ColorHex:       m.ColorHex,
+				Active:         true,
+				LowStockThreshold: ptr(
+					strconv.FormatFloat(th, 'f', prec, 64),
+				),
+				FilamentDiameterMM: diameter,
+				ExpectedVersion:    m.Version,
+			},
+			nil,
+		)
 		check("threshold "+name, err)
 	}
 }

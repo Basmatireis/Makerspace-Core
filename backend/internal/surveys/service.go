@@ -123,7 +123,9 @@ func clean(input Input) (Input, error) {
 				return input, validation("only rating questions accept rating bounds")
 			}
 		case "rating":
-			if q.RatingMin == nil || q.RatingMax == nil || *q.RatingMin < 0 || *q.RatingMax > 10 || *q.RatingMin >= *q.RatingMax || len(q.Options) != 0 {
+			if q.RatingMin == nil || q.RatingMax == nil || *q.RatingMin < 0 || *q.RatingMax > 10 ||
+				*q.RatingMin >= *q.RatingMax ||
+				len(q.Options) != 0 {
 				return input, validation("rating bounds are invalid")
 			}
 		case "free_text", "yes_no":
@@ -147,7 +149,12 @@ func clean(input Input) (Input, error) {
 	return input, nil
 }
 
-func (s *Service) Create(ctx context.Context, p authorization.Principal, input Input, requestID *uuid.UUID) (Survey, error) {
+func (s *Service) Create(
+	ctx context.Context,
+	p authorization.Principal,
+	input Input,
+	requestID *uuid.UUID,
+) (Survey, error) {
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
@@ -196,7 +203,13 @@ func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.U
 	return nil
 }
 
-func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid.UUID, input Input, requestID *uuid.UUID) (Survey, error) {
+func (s *Service) Update(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	input Input,
+	requestID *uuid.UUID,
+) (Survey, error) {
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
@@ -227,7 +240,10 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	if err != nil {
 		return Survey{}, err
 	}
-	if _, err = q.UpdateSurveyDraft(ctx, surveysdb.UpdateSurveyDraftParams{ID: id, Name: input.Name, Description: input.Description, Anonymous: input.Anonymous, ExpectedVersion: input.ExpectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.UpdateSurveyDraft(ctx, surveysdb.UpdateSurveyDraftParams{ID: id, Name: input.Name, Description: input.Description, Anonymous: input.Anonymous, ExpectedVersion: input.ExpectedVersion}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Survey{}, apperror.StaleWrite
 	} else if err != nil {
 		return Survey{}, err
@@ -251,7 +267,13 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	return s.Get(ctx, p, id)
 }
 
-func (s *Service) Publish(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Survey, error) {
+func (s *Service) Publish(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Survey, error) {
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
@@ -282,7 +304,10 @@ func (s *Service) Publish(ctx context.Context, p authorization.Principal, id uui
 	if len(questions) == 0 {
 		return Survey{}, validation("survey needs questions before publication")
 	}
-	if _, err = q.PublishSurvey(ctx, surveysdb.PublishSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.PublishSurvey(ctx, surveysdb.PublishSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Survey{}, apperror.StaleWrite
 	} else if err != nil {
 		return Survey{}, err
@@ -300,7 +325,13 @@ func (s *Service) Publish(ctx context.Context, p authorization.Principal, id uui
 	return s.Get(ctx, p, id)
 }
 
-func (s *Service) Close(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Survey, error) {
+func (s *Service) Close(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (Survey, error) {
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
@@ -322,7 +353,10 @@ func (s *Service) Close(ctx context.Context, p authorization.Principal, id uuid.
 	if current.Version != expected || current.Status != "published" {
 		return Survey{}, apperror.StaleWrite
 	}
-	if _, err = q.CloseSurvey(ctx, surveysdb.CloseSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+	if _, err = q.CloseSurvey(ctx, surveysdb.CloseSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(
+		err,
+		pgx.ErrNoRows,
+	) {
 		return Survey{}, apperror.StaleWrite
 	} else if err != nil {
 		return Survey{}, err
@@ -343,7 +377,15 @@ func (s *Service) Close(ctx context.Context, p authorization.Principal, id uuid.
 	return s.Get(ctx, p, id)
 }
 
-func (s *Service) UpdateTrigger(ctx context.Context, p authorization.Principal, surveyID uuid.UUID, enabled bool, delay, cooldown int32, expected int64, requestID *uuid.UUID) (Trigger, error) {
+func (s *Service) UpdateTrigger(
+	ctx context.Context,
+	p authorization.Principal,
+	surveyID uuid.UUID,
+	enabled bool,
+	delay, cooldown int32,
+	expected int64,
+	requestID *uuid.UUID,
+) (Trigger, error) {
 	if !p.Has(authorization.SurveysManage) {
 		return Trigger{}, apperror.PermissionDenied
 	}
@@ -363,11 +405,24 @@ func (s *Service) UpdateTrigger(ctx context.Context, p authorization.Principal, 
 		return Trigger{}, err
 	}
 	if enabled && survey.Status != "published" {
-		return Trigger{}, apperror.New(409, "survey_not_published", "Only a published survey can have an enabled trigger")
+		return Trigger{}, apperror.New(
+			409,
+			"survey_not_published",
+			"Only a published survey can have an enabled trigger",
+		)
 	}
 	var row surveysdb.SurveyTrigger
 	if expected == 0 {
-		row, err = q.CreateSurveyTrigger(ctx, surveysdb.CreateSurveyTriggerParams{ID: uuid.Must(uuid.NewV7()), SurveyID: surveyID, Enabled: enabled, DelaySeconds: delay, CooldownDays: cooldown})
+		row, err = q.CreateSurveyTrigger(
+			ctx,
+			surveysdb.CreateSurveyTriggerParams{
+				ID:           uuid.Must(uuid.NewV7()),
+				SurveyID:     surveyID,
+				Enabled:      enabled,
+				DelaySeconds: delay,
+				CooldownDays: cooldown,
+			},
+		)
 	} else {
 		row, err = q.UpdateSurveyTrigger(ctx, surveysdb.UpdateSurveyTriggerParams{SurveyID: surveyID, Enabled: enabled, DelaySeconds: delay, CooldownDays: cooldown, ExpectedVersion: expected})
 	}
@@ -397,7 +452,21 @@ func (s *Service) List(ctx context.Context, p authorization.Principal) ([]Survey
 	}
 	result := make([]Survey, 0, len(rows))
 	for _, row := range rows {
-		item, err := s.hydrate(ctx, row.ID, row.Name, row.Description, row.Status, row.Anonymous, row.Version, row.CreatedAt, row.UpdatedAt, row.SurveyVersionID, row.Revision, row.Title, row.Introduction)
+		item, err := s.hydrate(
+			ctx,
+			row.ID,
+			row.Name,
+			row.Description,
+			row.Status,
+			row.Anonymous,
+			row.Version,
+			row.CreatedAt,
+			row.UpdatedAt,
+			row.SurveyVersionID,
+			row.Revision,
+			row.Title,
+			row.Introduction,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -416,9 +485,37 @@ func (s *Service) Get(ctx context.Context, p authorization.Principal, id uuid.UU
 	if err != nil {
 		return Survey{}, err
 	}
-	return s.hydrate(ctx, row.ID, row.Name, row.Description, row.Status, row.Anonymous, row.Version, row.CreatedAt, row.UpdatedAt, row.SurveyVersionID, row.Revision, row.Title, row.Introduction)
+	return s.hydrate(
+		ctx,
+		row.ID,
+		row.Name,
+		row.Description,
+		row.Status,
+		row.Anonymous,
+		row.Version,
+		row.CreatedAt,
+		row.UpdatedAt,
+		row.SurveyVersionID,
+		row.Revision,
+		row.Title,
+		row.Introduction,
+	)
 }
-func (s *Service) hydrate(ctx context.Context, id uuid.UUID, name string, description *string, status string, anonymous bool, version int64, created, updated time.Time, versionID uuid.UUID, revision int32, title string, introduction *string) (Survey, error) {
+
+func (s *Service) hydrate(
+	ctx context.Context,
+	id uuid.UUID,
+	name string,
+	description *string,
+	status string,
+	anonymous bool,
+	version int64,
+	created, updated time.Time,
+	versionID uuid.UUID,
+	revision int32,
+	title string,
+	introduction *string,
+) (Survey, error) {
 	questions, err := s.questions(ctx, versionID)
 	if err != nil {
 		return Survey{}, err
@@ -431,7 +528,21 @@ func (s *Service) hydrate(ctx context.Context, id uuid.UUID, name string, descri
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return Survey{}, err
 	}
-	return Survey{ID: id, Name: name, Description: description, Status: status, Anonymous: anonymous, Title: title, Introduction: introduction, Revision: revision, Questions: questions, Trigger: trigger, Version: version, CreatedAt: created, UpdatedAt: updated}, nil
+	return Survey{
+		ID:           id,
+		Name:         name,
+		Description:  description,
+		Status:       status,
+		Anonymous:    anonymous,
+		Title:        title,
+		Introduction: introduction,
+		Revision:     revision,
+		Questions:    questions,
+		Trigger:      trigger,
+		Version:      version,
+		CreatedAt:    created,
+		UpdatedAt:    updated,
+	}, nil
 }
 func (s *Service) questions(ctx context.Context, versionID uuid.UUID) ([]Question, error) {
 	q := surveysdb.New(s.pool)
@@ -445,7 +556,16 @@ func (s *Service) questions(ctx context.Context, versionID uuid.UUID) ([]Questio
 		if err != nil {
 			return nil, err
 		}
-		item := Question{ID: row.ID, Kind: row.Kind, Prompt: row.Prompt, Required: row.Required, Position: row.Position, RatingMin: row.RatingMin, RatingMax: row.RatingMax, Options: make([]Option, 0, len(options))}
+		item := Question{
+			ID:        row.ID,
+			Kind:      row.Kind,
+			Prompt:    row.Prompt,
+			Required:  row.Required,
+			Position:  row.Position,
+			RatingMin: row.RatingMin,
+			RatingMax: row.RatingMax,
+			Options:   make([]Option, 0, len(options)),
+		}
 		for _, option := range options {
 			item.Options = append(item.Options, Option{ID: option.ID, Label: option.Label, Position: option.Position})
 		}
@@ -500,9 +620,11 @@ func (s *Service) DeliverDue(ctx context.Context, limit int32) (int, error) {
 		if row.RecipientEmail == nil {
 			continue
 		}
-		if s.notifier == nil || s.notifier.SendSurveyInvitation(ctx, *row.RecipientEmail, row.Title, token, row.ExpiresAt) != nil {
+		if s.notifier == nil ||
+			s.notifier.SendSurveyInvitation(ctx, *row.RecipientEmail, row.Title, token, row.ExpiresAt) != nil {
 			code := "provider_error"
-			_ = surveysdb.New(s.pool).MarkSurveyInvitationFailed(ctx, surveysdb.MarkSurveyInvitationFailedParams{ID: row.ID, DeliveryFailureCode: &code})
+			_ = surveysdb.New(s.pool).
+				MarkSurveyInvitationFailed(ctx, surveysdb.MarkSurveyInvitationFailedParams{ID: row.ID, DeliveryFailureCode: &code})
 			continue
 		}
 		if err = surveysdb.New(s.pool).MarkSurveyInvitationSent(ctx, row.ID); err != nil {
@@ -525,13 +647,23 @@ func (s *Service) Public(ctx context.Context, token string) (PublicSurvey, error
 		return PublicSurvey{}, apperror.New(410, "survey_invitation_expired", "Survey invitation has expired")
 	}
 	if row.Status == "redeemed" || row.Status == "cancelled" || row.Status == "expired" {
-		return PublicSurvey{}, apperror.New(410, "survey_invitation_unavailable", "Survey invitation is no longer available")
+		return PublicSurvey{}, apperror.New(
+			410,
+			"survey_invitation_unavailable",
+			"Survey invitation is no longer available",
+		)
 	}
 	questions, err := s.questions(ctx, row.SurveyVersionID)
 	if err != nil {
 		return PublicSurvey{}, err
 	}
-	return PublicSurvey{Title: row.Title, Introduction: row.Introduction, Anonymous: row.Anonymous, Questions: questions, ExpiresAt: row.ExpiresAt}, nil
+	return PublicSurvey{
+		Title:        row.Title,
+		Introduction: row.Introduction,
+		Anonymous:    row.Anonymous,
+		Questions:    questions,
+		ExpiresAt:    row.ExpiresAt,
+	}, nil
 }
 
 func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInput) error {
@@ -604,7 +736,13 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	return tx.Commit(ctx)
 }
 
-func storeAnswer(ctx context.Context, q *surveysdb.Queries, responseID uuid.UUID, question surveysdb.SurveyQuestion, answer AnswerInput) error {
+func storeAnswer(
+	ctx context.Context,
+	q *surveysdb.Queries,
+	responseID uuid.UUID,
+	question surveysdb.SurveyQuestion,
+	answer AnswerInput,
+) error {
 	valueCount := 0
 	if answer.TextValue != nil {
 		valueCount++
@@ -634,21 +772,56 @@ func storeAnswer(ctx context.Context, q *surveysdb.Queries, responseID uuid.UUID
 			return validation("free-text answer is invalid")
 		}
 		value := strings.TrimSpace(*answer.TextValue)
-		return q.CreateSurveyAnswer(ctx, surveysdb.CreateSurveyAnswerParams{ID: uuid.Must(uuid.NewV7()), ResponseID: responseID, QuestionID: question.ID, TextValue: &value, Position: 1})
+		return q.CreateSurveyAnswer(
+			ctx,
+			surveysdb.CreateSurveyAnswerParams{
+				ID:         uuid.Must(uuid.NewV7()),
+				ResponseID: responseID,
+				QuestionID: question.ID,
+				TextValue:  &value,
+				Position:   1,
+			},
+		)
 	case "rating":
-		if valueCount != 1 || answer.NumericValue == nil || question.RatingMin == nil || question.RatingMax == nil || *answer.NumericValue < *question.RatingMin || *answer.NumericValue > *question.RatingMax {
+		if valueCount != 1 || answer.NumericValue == nil || question.RatingMin == nil || question.RatingMax == nil ||
+			*answer.NumericValue < *question.RatingMin ||
+			*answer.NumericValue > *question.RatingMax {
 			return validation("rating answer is invalid")
 		}
-		return q.CreateSurveyAnswer(ctx, surveysdb.CreateSurveyAnswerParams{ID: uuid.Must(uuid.NewV7()), ResponseID: responseID, QuestionID: question.ID, NumericValue: answer.NumericValue, Position: 1})
+		return q.CreateSurveyAnswer(
+			ctx,
+			surveysdb.CreateSurveyAnswerParams{
+				ID:           uuid.Must(uuid.NewV7()),
+				ResponseID:   responseID,
+				QuestionID:   question.ID,
+				NumericValue: answer.NumericValue,
+				Position:     1,
+			},
+		)
 	case "yes_no":
 		if valueCount != 1 || answer.BooleanValue == nil {
 			return validation("yes/no answer is invalid")
 		}
-		return q.CreateSurveyAnswer(ctx, surveysdb.CreateSurveyAnswerParams{ID: uuid.Must(uuid.NewV7()), ResponseID: responseID, QuestionID: question.ID, BooleanValue: answer.BooleanValue, Position: 1})
+		return q.CreateSurveyAnswer(
+			ctx,
+			surveysdb.CreateSurveyAnswerParams{
+				ID:           uuid.Must(uuid.NewV7()),
+				ResponseID:   responseID,
+				QuestionID:   question.ID,
+				BooleanValue: answer.BooleanValue,
+				Position:     1,
+			},
+		)
 	}
 	return validation("question kind is invalid")
 }
-func storeOptions(ctx context.Context, q *surveysdb.Queries, responseID, questionID uuid.UUID, optionIDs []uuid.UUID) error {
+
+func storeOptions(
+	ctx context.Context,
+	q *surveysdb.Queries,
+	responseID, questionID uuid.UUID,
+	optionIDs []uuid.UUID,
+) error {
 	options, err := q.ListSurveyOptions(ctx, questionID)
 	if err != nil {
 		return err
@@ -670,7 +843,14 @@ func storeOptions(ctx context.Context, q *surveysdb.Queries, responseID, questio
 	return nil
 }
 func triggerFromRow(row surveysdb.SurveyTrigger) Trigger {
-	return Trigger{ID: row.ID, Kind: row.Kind, Enabled: row.Enabled, DelaySeconds: row.DelaySeconds, CooldownDays: row.CooldownDays, Version: row.Version}
+	return Trigger{
+		ID:           row.ID,
+		Kind:         row.Kind,
+		Enabled:      row.Enabled,
+		DelaySeconds: row.DelaySeconds,
+		CooldownDays: row.CooldownDays,
+		Version:      row.Version,
+	}
 }
 func cleanOptional(value *string) *string {
 	if value == nil {

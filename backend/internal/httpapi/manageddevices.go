@@ -13,7 +13,10 @@ import (
 	"github.com/oapi-codegen/nullable"
 )
 
-func (s *Server) ListManagedDeviceTypes(ctx context.Context, _ openapi.ListManagedDeviceTypesRequestObject) (openapi.ListManagedDeviceTypesResponseObject, error) {
+func (s *Server) ListManagedDeviceTypes(
+	ctx context.Context,
+	_ openapi.ListManagedDeviceTypesRequestObject,
+) (openapi.ListManagedDeviceTypesResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -28,7 +31,11 @@ func (s *Server) ListManagedDeviceTypes(ctx context.Context, _ openapi.ListManag
 	}
 	return openapi.ListManagedDeviceTypes200JSONResponse{Items: out}, nil
 }
-func (s *Server) CreateManagedDeviceType(ctx context.Context, r openapi.CreateManagedDeviceTypeRequestObject) (openapi.CreateManagedDeviceTypeResponseObject, error) {
+
+func (s *Server) CreateManagedDeviceType(
+	ctx context.Context,
+	r openapi.CreateManagedDeviceTypeRequestObject,
+) (openapi.CreateManagedDeviceTypeResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -36,13 +43,23 @@ func (s *Server) CreateManagedDeviceType(ctx context.Context, r openapi.CreateMa
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, e := s.managedDevices.CreateType(ctx, p, r.Body.Name, nullableStringPointer(r.Body.Description), requestIDPointer(ctx))
+	item, e := s.managedDevices.CreateType(
+		ctx,
+		p,
+		r.Body.Name,
+		nullableStringPointer(r.Body.Description),
+		requestIDPointer(ctx),
+	)
 	if e != nil {
 		return nil, e
 	}
 	return openapi.CreateManagedDeviceType201JSONResponse(deviceTypeDTO(item)), nil
 }
-func (s *Server) GetManagedDeviceType(ctx context.Context, r openapi.GetManagedDeviceTypeRequestObject) (openapi.GetManagedDeviceTypeResponseObject, error) {
+
+func (s *Server) GetManagedDeviceType(
+	ctx context.Context,
+	r openapi.GetManagedDeviceTypeRequestObject,
+) (openapi.GetManagedDeviceTypeResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -53,7 +70,11 @@ func (s *Server) GetManagedDeviceType(ctx context.Context, r openapi.GetManagedD
 	}
 	return openapi.GetManagedDeviceType200JSONResponse(deviceTypeDTO(item)), nil
 }
-func (s *Server) UpdateManagedDeviceType(ctx context.Context, r openapi.UpdateManagedDeviceTypeRequestObject) (openapi.UpdateManagedDeviceTypeResponseObject, error) {
+
+func (s *Server) UpdateManagedDeviceType(
+	ctx context.Context,
+	r openapi.UpdateManagedDeviceTypeRequestObject,
+) (openapi.UpdateManagedDeviceTypeResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -61,13 +82,25 @@ func (s *Server) UpdateManagedDeviceType(ctx context.Context, r openapi.UpdateMa
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, e := s.managedDevices.UpdateType(ctx, p, r.DeviceTypeId, r.Body.ExpectedVersion, r.Body.Name, nullableStringPointer(r.Body.Description), requestIDPointer(ctx))
+	item, e := s.managedDevices.UpdateType(
+		ctx,
+		p,
+		r.DeviceTypeId,
+		r.Body.ExpectedVersion,
+		r.Body.Name,
+		nullableStringPointer(r.Body.Description),
+		requestIDPointer(ctx),
+	)
 	if e != nil {
 		return nil, e
 	}
 	return openapi.UpdateManagedDeviceType200JSONResponse(deviceTypeDTO(item)), nil
 }
-func (s *Server) DeleteManagedDeviceType(ctx context.Context, r openapi.DeleteManagedDeviceTypeRequestObject) (openapi.DeleteManagedDeviceTypeResponseObject, error) {
+
+func (s *Server) DeleteManagedDeviceType(
+	ctx context.Context,
+	r openapi.DeleteManagedDeviceTypeRequestObject,
+) (openapi.DeleteManagedDeviceTypeResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -80,7 +113,11 @@ func (s *Server) DeleteManagedDeviceType(ctx context.Context, r openapi.DeleteMa
 	}
 	return openapi.DeleteManagedDeviceType204Response{}, nil
 }
-func (s *Server) ListManagedDevices(ctx context.Context, request openapi.ListManagedDevicesRequestObject) (openapi.ListManagedDevicesResponseObject, error) {
+
+func (s *Server) ListManagedDevices(
+	ctx context.Context,
+	request openapi.ListManagedDevicesRequestObject,
+) (openapi.ListManagedDevicesResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -100,9 +137,16 @@ func (s *Server) ListManagedDevices(ctx context.Context, request openapi.ListMan
 	for _, item := range page.Items {
 		out = append(out, managedDeviceDTO(item))
 	}
-	return openapi.ListManagedDevices200JSONResponse{Items: out, NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value })}, nil
+	return openapi.ListManagedDevices200JSONResponse{
+		Items:      out,
+		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
+	}, nil
 }
-func (s *Server) GetManagedDevice(ctx context.Context, request openapi.GetManagedDeviceRequestObject) (openapi.GetManagedDeviceResponseObject, error) {
+
+func (s *Server) GetManagedDevice(
+	ctx context.Context,
+	request openapi.GetManagedDeviceRequestObject,
+) (openapi.GetManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -113,7 +157,11 @@ func (s *Server) GetManagedDevice(ctx context.Context, request openapi.GetManage
 	}
 	return openapi.GetManagedDevice200JSONResponse(managedDeviceDTO(item)), nil
 }
-func (s *Server) CreateManagedDevice(ctx context.Context, r openapi.CreateManagedDeviceRequestObject) (openapi.CreateManagedDeviceResponseObject, error) {
+
+func (s *Server) CreateManagedDevice(
+	ctx context.Context,
+	r openapi.CreateManagedDeviceRequestObject,
+) (openapi.CreateManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -125,19 +173,36 @@ func (s *Server) CreateManagedDevice(ctx context.Context, r openapi.CreateManage
 	for i, capability := range r.Body.Capabilities {
 		capabilities[i] = string(capability)
 	}
-	item, e := s.managedDevices.CreateConfigured(ctx, p, r.Body.Name, r.Body.DeviceTypeId, nullableTime(r.Body.ExpiresAt), manageddevices.DeviceSettings{
-		SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
-		AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-		CheckInAssurance:        string(r.Body.CheckInAssurance), CheckOutAssurance: string(r.Body.CheckOutAssurance),
-		CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
-	}, requestIDPointer(ctx))
+	item, e := s.managedDevices.CreateConfigured(
+		ctx,
+		p,
+		r.Body.Name,
+		r.Body.DeviceTypeId,
+		nullableTime(r.Body.ExpiresAt),
+		manageddevices.DeviceSettings{
+			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
+			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
+			CheckInAssurance: string(
+				r.Body.CheckInAssurance,
+			), CheckOutAssurance: string(r.Body.CheckOutAssurance),
+			CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
+		},
+		requestIDPointer(ctx),
+	)
 	if e != nil {
 		return nil, e
 	}
 	body, setCookie := s.managedDeviceProvisioning(item, r.Body.CredentialDelivery)
-	return openapi.CreateManagedDevice201JSONResponse{Body: body, Headers: openapi.CreateManagedDevice201ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie}}, nil
+	return openapi.CreateManagedDevice201JSONResponse{
+		Body:    body,
+		Headers: openapi.CreateManagedDevice201ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie},
+	}, nil
 }
-func (s *Server) UpdateManagedDevice(ctx context.Context, r openapi.UpdateManagedDeviceRequestObject) (openapi.UpdateManagedDeviceResponseObject, error) {
+
+func (s *Server) UpdateManagedDevice(
+	ctx context.Context,
+	r openapi.UpdateManagedDeviceRequestObject,
+) (openapi.UpdateManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -149,19 +214,34 @@ func (s *Server) UpdateManagedDevice(ctx context.Context, r openapi.UpdateManage
 	for i, capability := range r.Body.Capabilities {
 		capabilities[i] = string(capability)
 	}
-	item, e := s.managedDevices.UpdateConfigured(ctx, p, r.ManagedDeviceId, r.Body.Name, r.Body.DeviceTypeId, nullableTime(r.Body.ExpiresAt), manageddevices.DeviceSettings{
-		SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
-		AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-		CheckInAssurance:        string(r.Body.CheckInAssurance), CheckOutAssurance: string(r.Body.CheckOutAssurance),
-		CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
-	}, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	item, e := s.managedDevices.UpdateConfigured(
+		ctx,
+		p,
+		r.ManagedDeviceId,
+		r.Body.Name,
+		r.Body.DeviceTypeId,
+		nullableTime(r.Body.ExpiresAt),
+		manageddevices.DeviceSettings{
+			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
+			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
+			CheckInAssurance: string(
+				r.Body.CheckInAssurance,
+			), CheckOutAssurance: string(r.Body.CheckOutAssurance),
+			CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
+		},
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if e != nil {
 		return nil, e
 	}
 	return openapi.UpdateManagedDevice200JSONResponse(managedDeviceDTO(item)), nil
 }
 
-func (s *Server) GetOwnManagedDeviceHardware(ctx context.Context, _ openapi.GetOwnManagedDeviceHardwareRequestObject) (openapi.GetOwnManagedDeviceHardwareResponseObject, error) {
+func (s *Server) GetOwnManagedDeviceHardware(
+	ctx context.Context,
+	_ openapi.GetOwnManagedDeviceHardwareRequestObject,
+) (openapi.GetOwnManagedDeviceHardwareResponseObject, error) {
 	device, ok := ctx.Value(visitorDeviceContextKey).(manageddevices.DeviceContext)
 	if !ok {
 		return nil, apperror.Unauthenticated
@@ -173,7 +253,10 @@ func (s *Server) GetOwnManagedDeviceHardware(ctx context.Context, _ openapi.GetO
 	return openapi.GetOwnManagedDeviceHardware200JSONResponse(hardwareContextDTO(value)), nil
 }
 
-func (s *Server) ReportOwnManagedDeviceHardware(ctx context.Context, request openapi.ReportOwnManagedDeviceHardwareRequestObject) (openapi.ReportOwnManagedDeviceHardwareResponseObject, error) {
+func (s *Server) ReportOwnManagedDeviceHardware(
+	ctx context.Context,
+	request openapi.ReportOwnManagedDeviceHardwareRequestObject,
+) (openapi.ReportOwnManagedDeviceHardwareResponseObject, error) {
 	device, ok := ctx.Value(visitorDeviceContextKey).(manageddevices.DeviceContext)
 	if !ok {
 		return nil, apperror.Unauthenticated
@@ -193,7 +276,11 @@ func (s *Server) ReportOwnManagedDeviceHardware(ctx context.Context, request ope
 	}
 	return openapi.ReportOwnManagedDeviceHardware200JSONResponse(hardwareContextDTO(value)), nil
 }
-func (s *Server) DeleteManagedDevice(ctx context.Context, r openapi.DeleteManagedDeviceRequestObject) (openapi.DeleteManagedDeviceResponseObject, error) {
+
+func (s *Server) DeleteManagedDevice(
+	ctx context.Context,
+	r openapi.DeleteManagedDeviceRequestObject,
+) (openapi.DeleteManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -206,7 +293,11 @@ func (s *Server) DeleteManagedDevice(ctx context.Context, r openapi.DeleteManage
 	}
 	return openapi.DeleteManagedDevice204Response{}, nil
 }
-func (s *Server) RevokeManagedDevice(ctx context.Context, r openapi.RevokeManagedDeviceRequestObject) (openapi.RevokeManagedDeviceResponseObject, error) {
+
+func (s *Server) RevokeManagedDevice(
+	ctx context.Context,
+	r openapi.RevokeManagedDeviceRequestObject,
+) (openapi.RevokeManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -220,7 +311,11 @@ func (s *Server) RevokeManagedDevice(ctx context.Context, r openapi.RevokeManage
 	}
 	return openapi.RevokeManagedDevice200JSONResponse(managedDeviceDTO(item)), nil
 }
-func (s *Server) RotateManagedDeviceToken(ctx context.Context, r openapi.RotateManagedDeviceTokenRequestObject) (openapi.RotateManagedDeviceTokenResponseObject, error) {
+
+func (s *Server) RotateManagedDeviceToken(
+	ctx context.Context,
+	r openapi.RotateManagedDeviceTokenRequestObject,
+) (openapi.RotateManagedDeviceTokenResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
 		return nil, e
@@ -228,15 +323,28 @@ func (s *Server) RotateManagedDeviceToken(ctx context.Context, r openapi.RotateM
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, e := s.managedDevices.Rotate(ctx, p, r.ManagedDeviceId, r.Body.ExpectedVersion, nullableTime(r.Body.ExpiresAt), requestIDPointer(ctx))
+	item, e := s.managedDevices.Rotate(
+		ctx,
+		p,
+		r.ManagedDeviceId,
+		r.Body.ExpectedVersion,
+		nullableTime(r.Body.ExpiresAt),
+		requestIDPointer(ctx),
+	)
 	if e != nil {
 		return nil, e
 	}
 	body, setCookie := s.managedDeviceProvisioning(item, r.Body.CredentialDelivery)
-	return openapi.RotateManagedDeviceToken200JSONResponse{Body: body, Headers: openapi.RotateManagedDeviceToken200ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie}}, nil
+	return openapi.RotateManagedDeviceToken200JSONResponse{
+		Body:    body,
+		Headers: openapi.RotateManagedDeviceToken200ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie},
+	}, nil
 }
 
-func (s *Server) managedDeviceProvisioning(v manageddevices.ProvisionedDevice, delivery openapi.ManagedDeviceCredentialDelivery) (openapi.ManagedDeviceProvisioning, string) {
+func (s *Server) managedDeviceProvisioning(
+	v manageddevices.ProvisionedDevice,
+	delivery openapi.ManagedDeviceCredentialDelivery,
+) (openapi.ManagedDeviceProvisioning, string) {
 	result := openapi.ManagedDeviceProvisioning{Device: managedDeviceDTO(v.Device)}
 	if delivery == openapi.BindBrowser {
 		expires := time.Now().UTC().AddDate(10, 0, 0)
@@ -253,7 +361,14 @@ func (s *Server) managedDeviceProvisioning(v manageddevices.ProvisionedDevice, d
 }
 
 func deviceTypeDTO(v manageddevices.DeviceType) openapi.ManagedDeviceType {
-	return openapi.ManagedDeviceType{Id: v.ID, Name: v.Name, Description: nullablePointer[string](v.Description, func(x string) string { return x }), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return openapi.ManagedDeviceType{
+		Id:          v.ID,
+		Name:        v.Name,
+		Description: nullablePointer[string](v.Description, func(x string) string { return x }),
+		Version:     v.Version,
+		CreatedAt:   v.CreatedAt,
+		UpdatedAt:   v.UpdatedAt,
+	}
 }
 func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 	status := openapi.ManagedDeviceStatus(v.Status(time.Now()))
@@ -261,11 +376,37 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 	for i, capability := range v.Capabilities {
 		capabilities[i] = openapi.DeviceCapability(capability)
 	}
-	return openapi.ManagedDevice{Id: v.ID, Name: v.Name, DeviceTypeId: v.DeviceTypeID, DeviceTypeName: v.DeviceTypeName, Status: status,
-		ExpiresAt: nullablePointer[time.Time](v.ExpiresAt, func(x time.Time) time.Time { return x }), RevokedAt: nullablePointer[time.Time](v.RevokedAt, func(x time.Time) time.Time { return x }),
-		LastSeenAt: nullablePointer[time.Time](v.LastSeenAt, func(x time.Time) time.Time { return x }), SessionPolicyId: nullablePointer[uuid.UUID](v.SessionPolicyID, func(x uuid.UUID) openapi.UUIDv7 { return x }),
-		TerminalEnabled: v.TerminalEnabled, AllowedApplicationModes: applicationModes(v.AllowedApplicationModes), CheckInAssurance: openapi.AuthenticationAssurance(v.CheckInAssurance), CheckOutAssurance: openapi.AuthenticationAssurance(v.CheckOutAssurance),
-		CheckoutMode: openapi.CheckoutMode(v.CheckoutMode), Capabilities: capabilities, Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return openapi.ManagedDevice{
+		Id:             v.ID,
+		Name:           v.Name,
+		DeviceTypeId:   v.DeviceTypeID,
+		DeviceTypeName: v.DeviceTypeName,
+		Status:         status,
+		ExpiresAt: nullablePointer[time.Time](
+			v.ExpiresAt,
+			func(x time.Time) time.Time { return x },
+		),
+		RevokedAt: nullablePointer[time.Time](v.RevokedAt, func(x time.Time) time.Time { return x }),
+		LastSeenAt: nullablePointer[time.Time](
+			v.LastSeenAt,
+			func(x time.Time) time.Time { return x },
+		),
+		SessionPolicyId: nullablePointer[uuid.UUID](
+			v.SessionPolicyID,
+			func(x uuid.UUID) openapi.UUIDv7 { return x },
+		),
+		TerminalEnabled:         v.TerminalEnabled,
+		AllowedApplicationModes: applicationModes(v.AllowedApplicationModes),
+		CheckInAssurance:        openapi.AuthenticationAssurance(v.CheckInAssurance),
+		CheckOutAssurance:       openapi.AuthenticationAssurance(v.CheckOutAssurance),
+		CheckoutMode: openapi.CheckoutMode(
+			v.CheckoutMode,
+		),
+		Capabilities: capabilities,
+		Version:      v.Version,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
+	}
 }
 
 func applicationModeStrings(values []openapi.DeviceApplicationMode) []string {
@@ -296,16 +437,30 @@ func hardwareContextDTO(value manageddevices.HardwareContext) openapi.DeviceHard
 	return openapi.DeviceHardwareContext{
 		DeviceId: value.DeviceID, DeviceName: value.DeviceName, TerminalEnabled: value.TerminalEnabled,
 		AllowedApplicationModes: applicationModes(value.AllowedApplicationModes),
-		SessionPolicyId:         nullablePointer[uuid.UUID](value.SessionPolicyID, func(id uuid.UUID) openapi.UUIDv7 { return id }),
-		ConfiguredCapabilities:  deviceCapabilities(value.ConfiguredCapabilities), ReportedCapabilities: deviceCapabilities(value.ReportedCapabilities),
+		SessionPolicyId: nullablePointer[uuid.UUID](
+			value.SessionPolicyID,
+			func(id uuid.UUID) openapi.UUIDv7 { return id },
+		),
+		ConfiguredCapabilities: deviceCapabilities(
+			value.ConfiguredCapabilities,
+		), ReportedCapabilities: deviceCapabilities(value.ReportedCapabilities),
 		EffectiveCapabilities: deviceCapabilities(value.EffectiveCapabilities),
-		Platform:              nullablePointer[string](value.Platform, func(platform string) openapi.DevicePlatform { return openapi.DevicePlatform(platform) }),
-		BridgeVersion:         nullablePointer[string](value.BridgeVersion, func(version string) string { return version }),
-		ReportedAt:            nullablePointer[time.Time](value.ReportedAt, func(at time.Time) time.Time { return at }),
+		Platform: nullablePointer[string](
+			value.Platform,
+			func(platform string) openapi.DevicePlatform { return openapi.DevicePlatform(platform) },
+		),
+		BridgeVersion: nullablePointer[string](
+			value.BridgeVersion,
+			func(version string) string { return version },
+		),
+		ReportedAt: nullablePointer[time.Time](value.ReportedAt, func(at time.Time) time.Time { return at }),
 	}
 }
 
-func (s *Server) ListSessionPolicies(ctx context.Context, _ openapi.ListSessionPoliciesRequestObject) (openapi.ListSessionPoliciesResponseObject, error) {
+func (s *Server) ListSessionPolicies(
+	ctx context.Context,
+	_ openapi.ListSessionPoliciesRequestObject,
+) (openapi.ListSessionPoliciesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -321,7 +476,10 @@ func (s *Server) ListSessionPolicies(ctx context.Context, _ openapi.ListSessionP
 	return openapi.ListSessionPolicies200JSONResponse{Items: result}, nil
 }
 
-func (s *Server) CreateSessionPolicy(ctx context.Context, request openapi.CreateSessionPolicyRequestObject) (openapi.CreateSessionPolicyResponseObject, error) {
+func (s *Server) CreateSessionPolicy(
+	ctx context.Context,
+	request openapi.CreateSessionPolicyRequestObject,
+) (openapi.CreateSessionPolicyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -329,14 +487,22 @@ func (s *Server) CreateSessionPolicy(ctx context.Context, request openapi.Create
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	value, err := s.managedDevices.CreateSessionPolicy(ctx, p, sessionPolicyInput(*request.Body, 0), requestIDPointer(ctx))
+	value, err := s.managedDevices.CreateSessionPolicy(
+		ctx,
+		p,
+		sessionPolicyInput(*request.Body, 0),
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateSessionPolicy201JSONResponse(sessionPolicyDTO(value)), nil
 }
 
-func (s *Server) UpdateSessionPolicy(ctx context.Context, request openapi.UpdateSessionPolicyRequestObject) (openapi.UpdateSessionPolicyResponseObject, error) {
+func (s *Server) UpdateSessionPolicy(
+	ctx context.Context,
+	request openapi.UpdateSessionPolicyRequestObject,
+) (openapi.UpdateSessionPolicyResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -344,10 +510,18 @@ func (s *Server) UpdateSessionPolicy(ctx context.Context, request openapi.Update
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	value, err := s.managedDevices.UpdateSessionPolicy(ctx, p, request.SessionPolicyId, manageddevices.SessionPolicyInput{
-		Name: request.Body.Name, IdleTimeoutSeconds: int32(request.Body.IdleTimeoutSeconds), AbsoluteLifetimeSeconds: int32(request.Body.AbsoluteLifetimeSeconds),
-		PostSessionDestination: string(request.Body.PostSessionDestination), IsDefault: request.Body.IsDefault, ExpectedVersion: request.Body.ExpectedVersion,
-	}, requestIDPointer(ctx))
+	value, err := s.managedDevices.UpdateSessionPolicy(
+		ctx,
+		p,
+		request.SessionPolicyId,
+		manageddevices.SessionPolicyInput{
+			Name: request.Body.Name, IdleTimeoutSeconds: int32(request.Body.IdleTimeoutSeconds), AbsoluteLifetimeSeconds: int32(request.Body.AbsoluteLifetimeSeconds),
+			PostSessionDestination: string(
+				request.Body.PostSessionDestination,
+			), IsDefault: request.Body.IsDefault, ExpectedVersion: request.Body.ExpectedVersion,
+		},
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -355,13 +529,32 @@ func (s *Server) UpdateSessionPolicy(ctx context.Context, request openapi.Update
 }
 
 func sessionPolicyInput(value openapi.SessionPolicyInput, expected int64) manageddevices.SessionPolicyInput {
-	return manageddevices.SessionPolicyInput{Name: value.Name, IdleTimeoutSeconds: int32(value.IdleTimeoutSeconds), AbsoluteLifetimeSeconds: int32(value.AbsoluteLifetimeSeconds),
-		PostSessionDestination: string(value.PostSessionDestination), IsDefault: value.IsDefault, ExpectedVersion: expected}
+	return manageddevices.SessionPolicyInput{
+		Name:                    value.Name,
+		IdleTimeoutSeconds:      int32(value.IdleTimeoutSeconds),
+		AbsoluteLifetimeSeconds: int32(value.AbsoluteLifetimeSeconds),
+		PostSessionDestination: string(
+			value.PostSessionDestination,
+		),
+		IsDefault:       value.IsDefault,
+		ExpectedVersion: expected,
+	}
 }
 
 func sessionPolicyDTO(value manageddevices.SessionPolicy) openapi.SessionPolicy {
-	return openapi.SessionPolicy{Id: value.ID, Name: value.Name, IdleTimeoutSeconds: int(value.IdleTimeoutSeconds), AbsoluteLifetimeSeconds: int(value.AbsoluteLifetimeSeconds),
-		PostSessionDestination: openapi.PostSessionDestination(value.PostSessionDestination), IsDefault: value.IsDefault, Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
+	return openapi.SessionPolicy{
+		Id:                      value.ID,
+		Name:                    value.Name,
+		IdleTimeoutSeconds:      int(value.IdleTimeoutSeconds),
+		AbsoluteLifetimeSeconds: int(value.AbsoluteLifetimeSeconds),
+		PostSessionDestination: openapi.PostSessionDestination(
+			value.PostSessionDestination,
+		),
+		IsDefault: value.IsDefault,
+		Version:   value.Version,
+		CreatedAt: value.CreatedAt,
+		UpdatedAt: value.UpdatedAt,
+	}
 }
 func nullableTime(v nullable.Nullable[time.Time]) *time.Time {
 	if !v.IsSpecified() || v.IsNull() {

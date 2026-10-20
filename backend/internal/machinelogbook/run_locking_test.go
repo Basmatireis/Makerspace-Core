@@ -23,10 +23,20 @@ func TestJobMachineChangeMovesManualRunsAndIsRefusedWithARecordedRun(t *testing.
 		}
 	}
 	// A recorded run pins the job to its machine.
-	recorded := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: at(h.now, -time.Hour), ended: at(h.now, -30*time.Minute)})
+	recorded := h.insertRun(
+		t,
+		runSpec{machine: h.bareMachine.ID, started: at(h.now, -time.Hour), ended: at(h.now, -30*time.Minute)},
+	)
 	attached := h.attach(t, recorded, moved, false)
-	update := JobUpdate{MachineID: h.machine.ID, OperatorPersonID: h.person, Customer: PartyReference{Kind: "person", ID: h.person}}
-	if _, err := h.s.UpdateJobFacts(ctx, h.p, attached.ID, attached.Version, update, &h.request); !apperror.IsCode(err, "machine_change_not_allowed") {
+	update := JobUpdate{
+		MachineID:        h.machine.ID,
+		OperatorPersonID: h.person,
+		Customer:         PartyReference{Kind: "person", ID: h.person},
+	}
+	if _, err := h.s.UpdateJobFacts(ctx, h.p, attached.ID, attached.Version, update, &h.request); !apperror.IsCode(
+		err,
+		"machine_change_not_allowed",
+	) {
 		t.Fatalf("machine change with a recorded run: %v", err)
 	}
 }
@@ -36,7 +46,10 @@ func TestJobMachineChangeMovesManualRunsAndIsRefusedWithARecordedRun(t *testing.
 func TestConcurrentJobUpdateAndConnectorEventDoNotDeadlock(t *testing.T) {
 	h := newRunHarness(t)
 	ctx := t.Context()
-	runID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -2*time.Hour), fileName: "live.gcode"})
+	runID := h.insertRun(
+		t,
+		runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -2*time.Hour), fileName: "live.gcode"},
+	)
 	job := h.attach(t, runID, h.create(t, h.input(-2*time.Hour, time.Hour, "unknown")), true)
 	const iterations = 20
 	edits := 0
@@ -50,7 +63,12 @@ func TestConcurrentJobUpdateAndConnectorEventDoNotDeadlock(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			update := JobUpdate{MachineID: job.Machine.ID, Title: &title, OperatorPersonID: h.person, Customer: PartyReference{Kind: "person", ID: h.person}}
+			update := JobUpdate{
+				MachineID:        job.Machine.ID,
+				Title:            &title,
+				OperatorPersonID: h.person,
+				Customer:         PartyReference{Kind: "person", ID: h.person},
+			}
 			updated, editErr = h.s.UpdateJobFacts(ctx, h.p, job.ID, job.Version, update, &h.request)
 		}()
 		go func() {

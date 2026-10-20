@@ -36,10 +36,17 @@ func (c *reenrollCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"code": "unauthenticated", "message": "bad token " + token})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"connectorId": id, "credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour)})
+	_ = json.NewEncoder(w).
+		Encode(map[string]any{"connectorId": id, "credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour)})
 }
 
-func newReenrollRuntime(t *testing.T, core *reenrollCore, dir string, enrollment Enrollment, logs *bytes.Buffer) (*Runtime, *Store) {
+func newReenrollRuntime(
+	t *testing.T,
+	core *reenrollCore,
+	dir string,
+	enrollment Enrollment,
+	logs *bytes.Buffer,
+) (*Runtime, *Store) {
 	t.Helper()
 	server := httptest.NewServer(core)
 	t.Cleanup(server.Close)
@@ -70,7 +77,8 @@ func TestNewEnrollmentSecretReplacesTheIdentity(t *testing.T) {
 	}
 	runtime.enrollment = Enrollment{Secret: "new-secret"}
 	after, err := runtime.ensureIdentity(context.Background())
-	if err != nil || after.ConnectorID != second || after.CredentialID == before.CredentialID || after.CredentialSecret == before.CredentialSecret {
+	if err != nil || after.ConnectorID != second || after.CredentialID == before.CredentialID ||
+		after.CredentialSecret == before.CredentialSecret {
 		t.Fatalf("identity not replaced: %+v %v", after, err)
 	}
 	stored, _ := store.Identity(context.Background())
@@ -127,7 +135,9 @@ func TestFailedReenrollmentKeepsTheOldIdentity(t *testing.T) {
 		t.Fatalf("stored identity changed: %+v", stored)
 	}
 	out := logs.String()
-	if !strings.Contains(out, "not accepted by Core") || !strings.Contains(out, "status=401") || !strings.Contains(out, "code=unauthenticated") || strings.Contains(out, "bad-new-secret") {
+	if !strings.Contains(out, "not accepted by Core") || !strings.Contains(out, "status=401") ||
+		!strings.Contains(out, "code=unauthenticated") ||
+		strings.Contains(out, "bad-new-secret") {
 		t.Fatalf("unexpected log: %s", out)
 	}
 }
@@ -135,8 +145,20 @@ func TestFailedReenrollmentKeepsTheOldIdentity(t *testing.T) {
 func TestLegacyIdentityWithoutDigestReenrollsWhenASecretIsSet(t *testing.T) {
 	second := uuid.Must(uuid.NewV7())
 	core := &reenrollCore{accepted: map[string]uuid.UUID{"fresh": second}}
-	runtime, store := newReenrollRuntime(t, core, filepath.Join(t.TempDir(), "d"), Enrollment{Secret: "fresh"}, &bytes.Buffer{})
-	legacy := Identity{ConnectorID: uuid.Must(uuid.NewV7()), CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: "x", Enrolled: true, CredentialExpiresAt: time.Now().Add(time.Hour)}
+	runtime, store := newReenrollRuntime(
+		t,
+		core,
+		filepath.Join(t.TempDir(), "d"),
+		Enrollment{Secret: "fresh"},
+		&bytes.Buffer{},
+	)
+	legacy := Identity{
+		ConnectorID:         uuid.Must(uuid.NewV7()),
+		CredentialID:        uuid.Must(uuid.NewV7()),
+		CredentialSecret:    "x",
+		Enrolled:            true,
+		CredentialExpiresAt: time.Now().Add(time.Hour),
+	}
 	if err := store.SaveIdentity(context.Background(), legacy); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +171,12 @@ func TestLegacyIdentityWithoutDigestReenrollsWhenASecretIsSet(t *testing.T) {
 func TestEnrolledIdentityWithoutASecretIsLeftAlone(t *testing.T) {
 	core := &reenrollCore{}
 	runtime, store := newReenrollRuntime(t, core, filepath.Join(t.TempDir(), "d"), Enrollment{}, &bytes.Buffer{})
-	legacy := Identity{ConnectorID: uuid.Must(uuid.NewV7()), CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: "x", Enrolled: true}
+	legacy := Identity{
+		ConnectorID:      uuid.Must(uuid.NewV7()),
+		CredentialID:     uuid.Must(uuid.NewV7()),
+		CredentialSecret: "x",
+		Enrolled:         true,
+	}
 	_ = store.SaveIdentity(context.Background(), legacy)
 	identity, err := runtime.ensureIdentity(context.Background())
 	if err != nil || identity.CredentialID != legacy.CredentialID || len(core.tokens) != 0 {
@@ -169,7 +196,8 @@ func TestCoreErrorsLogStatusAndCodeAndRejectionIsRateLimited(t *testing.T) {
 	if !strings.Contains(out, "status=401") || !strings.Contains(out, "code=unauthenticated") {
 		t.Fatalf("missing safe fields: %s", out)
 	}
-	if n := strings.Count(out, "Core rejects this connector's credential"); n != 1 || !strings.Contains(out, "CONNECTOR_ENROLLMENT_SECRET") {
+	if n := strings.Count(out, "Core rejects this connector's credential"); n != 1 ||
+		!strings.Contains(out, "CONNECTOR_ENROLLMENT_SECRET") {
 		t.Fatalf("expected one actionable error, got %d: %s", n, out)
 	}
 	clock = clock.Add(6 * time.Minute)
@@ -180,7 +208,8 @@ func TestCoreErrorsLogStatusAndCodeAndRejectionIsRateLimited(t *testing.T) {
 	logs.Reset()
 	runtime.logFailure("heartbeat failed", &CoreError{Status: 429, Code: "rate_limited"})
 	runtime.logFailure("heartbeat failed", errors.New("dial tcp: secret-host"))
-	if strings.Contains(logs.String(), "Core rejects") || !strings.Contains(logs.String(), "code=rate_limited") || strings.Contains(logs.String(), "secret-host") {
+	if strings.Contains(logs.String(), "Core rejects") || !strings.Contains(logs.String(), "code=rate_limited") ||
+		strings.Contains(logs.String(), "secret-host") {
 		t.Fatalf("unexpected log: %s", logs.String())
 	}
 }

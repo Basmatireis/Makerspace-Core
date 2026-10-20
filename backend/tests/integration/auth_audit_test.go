@@ -44,7 +44,14 @@ func (n *notificationRecorder) SendInvitation(_ context.Context, to, code string
 	n.codes["invite:"+strings.ToLower(to)] = code
 	return nil
 }
-func (n *notificationRecorder) SendPINEnrollment(_ context.Context, to string, _ uuid.UUID, code string, _ time.Time) error {
+
+func (n *notificationRecorder) SendPINEnrollment(
+	_ context.Context,
+	to string,
+	_ uuid.UUID,
+	code string,
+	_ time.Time,
+) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.codes["pin:"+strings.ToLower(to)] = code
@@ -139,7 +146,12 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if storedContact != contactEmail || storedLogin != loginEmail || storedNormalized != strings.ToLower(loginEmail) {
-		t.Fatalf("contact/login identities were conflated: contact=%q login=%q normalized=%q", storedContact, storedLogin, storedNormalized)
+		t.Fatalf(
+			"contact/login identities were conflated: contact=%q login=%q normalized=%q",
+			storedContact,
+			storedLogin,
+			storedNormalized,
+		)
 	}
 	if accountStatus != "enabled" || !isMaster {
 		t.Fatalf("bootstrap account status=%q master=%v, want enabled master", accountStatus, isMaster)
@@ -147,7 +159,12 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if !strings.HasPrefix(passwordHash, "$argon2id$") || strings.Contains(passwordHash, bootstrapPassword) {
 		t.Fatal("bootstrap credential was not stored as a non-plaintext Argon2id PHC string")
 	}
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'system.master_bootstrapped' AND source = 'admin_cli'`, 1)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action = 'system.master_bootstrapped' AND source = 'admin_cli'`,
+		1,
+	)
 
 	if _, err := adminService.BootstrapMaster(ctx, admin.BootstrapInput{
 		FirstName: "Second", LastName: "Master", ContactEmail: "second-contact@example.test",
@@ -170,10 +187,12 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	}
 	assertSessionMaterial(t, pool, session)
 	privateIdle, privateAbsolute := 72*time.Hour, 7*24*time.Hour
-	if got := session.IdleExpiresAt.Sub(time.Now().UTC()); got < privateIdle-time.Minute || got > privateIdle+time.Minute {
+	if got := session.IdleExpiresAt.Sub(time.Now().UTC()); got < privateIdle-time.Minute ||
+		got > privateIdle+time.Minute {
 		t.Fatalf("idle expiry delta = %s, want approximately %s", got, privateIdle)
 	}
-	if got := session.AbsoluteExpiry.Sub(time.Now().UTC()); got < privateAbsolute-time.Minute || got > privateAbsolute+time.Minute {
+	if got := session.AbsoluteExpiry.Sub(time.Now().UTC()); got < privateAbsolute-time.Minute ||
+		got > privateAbsolute+time.Minute {
 		t.Fatalf("absolute expiry delta = %s, want approximately %s", got, privateAbsolute)
 	}
 	authenticated, err := authService.Authenticate(ctx, session.Token)
@@ -236,7 +255,10 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil); err != nil {
 		t.Fatalf("password was invalidated before reset completion: %v", err)
 	}
-	if _, err := authService.Login(ctx, "absent@example.test", bootstrapPassword, "127.0.0.2", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, "absent@example.test", bootstrapPassword, "127.0.0.2", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("absent account did not return the same generic login failure: %v", err)
 	}
 
@@ -255,7 +277,13 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if succeeded != 1 || rejected != 1 {
 		t.Fatalf("concurrent reset results succeeded=%d rejected=%d, want 1/1", succeeded, rejected)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`, 1, accountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`,
+		1,
+		accountID,
+	)
 	if _, err := authService.Authenticate(ctx, activeSession.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("session was not revoked by reset completion: %v", err)
 	}
@@ -267,7 +295,10 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("account version after reset redemption = %d, want %d", redeemedVersion, issue.Account.Version+1)
 	}
 
-	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.3", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.3", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("old password remained valid after reset: %v", err)
 	}
 	passwordChangeSession, err := authService.Login(ctx, loginEmail, resetPassword, "127.0.0.3", nil)
@@ -278,7 +309,13 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate before own password change: %v", err)
 	}
-	freshSession, err := authService.ChangePassword(ctx, passwordChangeAuth.Principal, resetPassword, changedPassword, nil)
+	freshSession, err := authService.ChangePassword(
+		ctx,
+		passwordChangeAuth.Principal,
+		resetPassword,
+		changedPassword,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("change own password: %v", err)
 	}
@@ -298,11 +335,23 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if changedVersion != redeemedVersion+1 {
 		t.Fatalf("account version after own password change = %d, want %d", changedVersion, redeemedVersion+1)
 	}
-	if _, err := authService.Login(ctx, loginEmail, resetPassword, "127.0.0.4", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, loginEmail, resetPassword, "127.0.0.4", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("pre-change password remained valid: %v", err)
 	}
 
-	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, bootstrapPassword, resetPassword, changedPassword, resetCode)
+	assertAuditContainsNoPII(
+		t,
+		pool,
+		contactEmail,
+		loginEmail,
+		bootstrapPassword,
+		resetPassword,
+		changedPassword,
+		resetCode,
+	)
 }
 
 func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *testing.T) {
@@ -345,14 +394,24 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 		t.Fatalf("create account: %v", err)
 	}
 	if account.Status != "enabled" || account.PasswordStatus != "not_set" {
-		t.Fatalf("new account status=%q passwordStatus=%q, want enabled/not_set", account.Status, account.PasswordStatus)
+		t.Fatalf(
+			"new account status=%q passwordStatus=%q, want enabled/not_set",
+			account.Status,
+			account.PasswordStatus,
+		)
 	}
 	account, err = accountService.SetStatus(ctx, authenticated.Principal, account.ID, "disabled", account.Version, nil)
 	if err != nil {
 		t.Fatalf("explicitly disable account: %v", err)
 	}
 
-	expiredIssue, err := accountService.IssuePasswordReset(ctx, authenticated.Principal, account.ID, account.Version, nil)
+	expiredIssue, err := accountService.IssuePasswordReset(
+		ctx,
+		authenticated.Principal,
+		account.ID,
+		account.Version,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("issue password setup token: %v", err)
 	}
@@ -363,12 +422,27 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 		WHERE account_id = $1 AND kind = 'password_reset'`, account.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePasswordResetCode(ctx, loginEmail, expiredCode, "Expired token password 46", "127.0.0.1", nil); !apperror.IsCode(err, "challenge_invalid") {
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, expiredCode, "Expired token password 46", "127.0.0.1", nil); !apperror.IsCode(
+		err,
+		"challenge_invalid",
+	) {
 		t.Fatalf("expired setup code returned %v, want challenge_invalid", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id = pc.auth_identity_id WHERE i.account_id = $1`, 0, account.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id = pc.auth_identity_id WHERE i.account_id = $1`,
+		0,
+		account.ID,
+	)
 
-	activeIssue, err := accountService.IssuePasswordReset(ctx, authenticated.Principal, account.ID, expiredIssue.Account.Version, nil)
+	activeIssue, err := accountService.IssuePasswordReset(
+		ctx,
+		authenticated.Principal,
+		account.ID,
+		expiredIssue.Account.Version,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("replace expired password setup token: %v", err)
 	}
@@ -377,7 +451,10 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, provisionedPassword, "127.0.0.2", nil); err != nil {
 		t.Fatalf("redeem active setup code: %v", err)
 	}
-	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, "Second redemption password 25", "127.0.0.3", nil); !apperror.IsCode(err, "challenge_invalid") {
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, "Second redemption password 25", "127.0.0.3", nil); !apperror.IsCode(
+		err,
+		"challenge_invalid",
+	) {
 		t.Fatalf("second setup-code redemption returned %v, want challenge_invalid", err)
 	}
 
@@ -402,11 +479,24 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 		t.Fatalf("account version after password setup = %d, want %d", version, activeIssue.Account.Version+1)
 	}
 	if resetRequired || !strings.HasPrefix(passwordHash, "$argon2id$") {
-		t.Fatalf("credential resetRequired=%v hashPrefixValid=%v, want active Argon2id credential", resetRequired, strings.HasPrefix(passwordHash, "$argon2id$"))
+		t.Fatalf(
+			"credential resetRequired=%v hashPrefixValid=%v, want active Argon2id credential",
+			resetRequired,
+			strings.HasPrefix(passwordHash, "$argon2id$"),
+		)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`, 1, account.ID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`,
+		1,
+		account.ID,
+	)
 
-	if _, err := authService.Login(ctx, loginEmail, provisionedPassword, "127.0.0.4", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, loginEmail, provisionedPassword, "127.0.0.4", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("disabled provisioned account login returned %v, want invalid_credentials", err)
 	}
 	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, expiredCode, activeCode, provisionedPassword)
@@ -563,7 +653,13 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 
 	resetDone := make(chan error, 1)
 	go func() {
-		_, resetErr := accountService.IssuePasswordReset(context.Background(), authenticated.Principal, accountID, account.Version, nil)
+		_, resetErr := accountService.IssuePasswordReset(
+			context.Background(),
+			authenticated.Principal,
+			accountID,
+			account.Version,
+			nil,
+		)
 		resetDone <- resetErr
 	}()
 	waitForAdvisoryQuery(t, pool, "INSERT INTO audit_events")
@@ -574,7 +670,13 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	}
 	changeDone := make(chan passwordChangeResult, 1)
 	go func() {
-		session, changeErr := authService.ChangePassword(context.Background(), authenticated.Principal, bootstrapPassword, changedPassword, nil)
+		session, changeErr := authService.ChangePassword(
+			context.Background(),
+			authenticated.Principal,
+			bootstrapPassword,
+			changedPassword,
+			nil,
+		)
 		changeDone <- passwordChangeResult{session: session, err: changeErr}
 	}()
 	select {
@@ -607,7 +709,10 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	if _, err := authService.Authenticate(ctx, change.session.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("password-change session remained usable after reset completion: %v", err)
 	}
-	if _, err := authService.Login(ctx, loginEmail, changedPassword, "192.0.2.34", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, loginEmail, changedPassword, "192.0.2.34", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("password set concurrently before reset completion remained usable: %v", err)
 	}
 	if _, err := authService.Login(ctx, loginEmail, resetPassword, "192.0.2.35", nil); err != nil {
@@ -699,7 +804,10 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	if _, err := authService.Authenticate(ctx, login.session.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("session committed before recovery remained usable: %v", err)
 	}
-	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "192.0.2.35", nil); !apperror.IsCode(err, "invalid_credentials") {
+	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "192.0.2.35", nil); !apperror.IsCode(
+		err,
+		"invalid_credentials",
+	) {
 		t.Fatalf("pre-recovery password remained valid: %v", err)
 	}
 	if _, err := authService.Login(ctx, loginEmail, recoveryPassword, "192.0.2.36", nil); err != nil {
@@ -803,21 +911,30 @@ func assertSessionMaterial(t *testing.T, pool *pgxpool.Pool, session auth.Sessio
 		Scan(&storedTokenDigest, &storedCSRFDigest); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(storedTokenDigest, security.DigestToken(session.Token)) || bytes.Equal(storedTokenDigest, []byte(session.Token)) {
+	if !bytes.Equal(storedTokenDigest, security.DigestToken(session.Token)) ||
+		bytes.Equal(storedTokenDigest, []byte(session.Token)) {
 		t.Fatal("session token was not persisted exclusively as its SHA-256 digest")
 	}
-	if !bytes.Equal(storedCSRFDigest, security.DigestToken(session.CSRFToken)) || bytes.Equal(storedCSRFDigest, []byte(session.CSRFToken)) {
+	if !bytes.Equal(storedCSRFDigest, security.DigestToken(session.CSRFToken)) ||
+		bytes.Equal(storedCSRFDigest, []byte(session.CSRFToken)) {
 		t.Fatal("CSRF token was not persisted exclusively as its SHA-256 digest")
 	}
 }
 
-func assertChallengeStoredAsDigest(t *testing.T, pool *pgxpool.Pool, cfg config.Config, accountID uuid.UUID, kind, code string) {
+func assertChallengeStoredAsDigest(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	cfg config.Config,
+	accountID uuid.UUID,
+	kind, code string,
+) {
 	t.Helper()
 	var digest []byte
 	if err := pool.QueryRow(testContext(t), `SELECT code_digest FROM auth_challenges WHERE account_id = $1 AND kind = $2`, accountID, kind).Scan(&digest); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(digest, security.ChallengeDigest(cfg.ChallengeHMACKey, kind, accountID, code)) || bytes.Equal(digest, []byte(code)) {
+	if !bytes.Equal(digest, security.ChallengeDigest(cfg.ChallengeHMACKey, kind, accountID, code)) ||
+		bytes.Equal(digest, []byte(code)) {
 		t.Fatal("challenge code was not persisted exclusively as its keyed digest")
 	}
 }

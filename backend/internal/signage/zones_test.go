@@ -29,7 +29,15 @@ func mustLayout(t *testing.T, id string) Layout {
 }
 
 func TestParseZonesAcceptsEveryWidgetType(t *testing.T) {
-	image, video, machine, template := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	image, video, machine, template := uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	)
 	widgets := map[string]string{
 		"empty":        `{"type":"empty"}`,
 		"image":        `{"type":"image","mediaId":"` + image.String() + `","fit":"cover"}`,
@@ -72,35 +80,47 @@ func TestParseZonesAcceptsEveryWidgetType(t *testing.T) {
 func TestParseZonesRejectsInvalidInput(t *testing.T) {
 	id := uuid.Must(uuid.NewV7()).String()
 	cases := map[string]string{
-		"unknown zone":           `{"nowhere":{"type":"empty"}}`,
-		"unknown field":          `{"left":{"type":"empty","extra":1}}`,
-		"unknown field on text":  `{"left":{"type":"text","text":"x","size":"m","align":"start","html":"<b>"}}`,
-		"unknown type":           `{"left":{"type":"iframe"}}`,
-		"missing type":           `{"left":{"text":"x"}}`,
-		"not an object":          `{"left":"text"}`,
-		"null widget":            `{"left":null}`,
-		"bad fit":                `{"left":{"type":"image","mediaId":null,"fit":"stretch"}}`,
-		"bad uuid":               `{"left":{"type":"image","mediaId":"nope","fit":"cover"}}`,
-		"http qr":                `{"left":{"type":"qr","url":"http://makerspace.example","caption":""}}`,
-		"javascript qr":          `{"left":{"type":"qr","url":"javascript:alert(1)","caption":""}}`,
-		"credentials qr":         `{"left":{"type":"qr","url":"https://user:pw@makerspace.example","caption":""}}`,
-		"empty qr":               `{"left":{"type":"qr","url":"","caption":""}}`,
-		"multiline caption":      `{"left":{"type":"qr","url":"https://x.example","caption":"a\nb"}}`,
-		"long text":              `{"left":{"type":"text","text":"` + strings.Repeat("a", 1001) + `","size":"m","align":"start"}}`,
-		"control character":      `{"left":{"type":"text","text":"a\u0000b","size":"m","align":"start"}}`,
-		"bad size":               `{"left":{"type":"text","text":"x","size":"xxl","align":"start"}}`,
-		"slideshow too fast":     `{"left":{"type":"slideshow","mediaIds":[],"seconds":1}}`,
-		"slideshow too long":     `{"left":{"type":"slideshow","mediaIds":[],"seconds":3601}}`,
-		"slideshow too many":     `{"left":{"type":"slideshow","mediaIds":[` + strings.TrimSuffix(strings.Repeat(`"`+id+`",`, 51), ",") + `],"seconds":8}}`,
-		"camera needs machine":   `{"left":{"type":"camera","source":"machine","machineId":null,"multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":null}}`,
-		"clock mode":             `{"left":{"type":"clock","mode":"seconds"}}`,
-		"count zero":             `{"left":{"type":"open_days","count":0}}`,
-		"count eleven":           `{"left":{"type":"events","count":11}}`,
-		"rotate too fast":        `{"left":{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":1}}`,
-		"announcement style":     `{"left":{"type":"announcement","templateIds":[],"style":"popup","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}}`,
-		"trailing data":          `{"left":{"type":"empty"} }`,
-		"status too many":        `{"left":{"type":"status","machineIds":[` + strings.TrimSuffix(strings.Repeat(`"`+id+`",`, 21), ",") + `],"showProgress":true,"showRemaining":true}}`,
-		"fallback text too long": `{"left":{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"text","fallbackText":"` + strings.Repeat("a", 501) + `","whenMany":"rotate","rotateSeconds":10}}`,
+		"unknown zone":          `{"nowhere":{"type":"empty"}}`,
+		"unknown field":         `{"left":{"type":"empty","extra":1}}`,
+		"unknown field on text": `{"left":{"type":"text","text":"x","size":"m","align":"start","html":"<b>"}}`,
+		"unknown type":          `{"left":{"type":"iframe"}}`,
+		"missing type":          `{"left":{"text":"x"}}`,
+		"not an object":         `{"left":"text"}`,
+		"null widget":           `{"left":null}`,
+		"bad fit":               `{"left":{"type":"image","mediaId":null,"fit":"stretch"}}`,
+		"bad uuid":              `{"left":{"type":"image","mediaId":"nope","fit":"cover"}}`,
+		"http qr":               `{"left":{"type":"qr","url":"http://makerspace.example","caption":""}}`,
+		"javascript qr":         `{"left":{"type":"qr","url":"javascript:alert(1)","caption":""}}`,
+		"credentials qr":        `{"left":{"type":"qr","url":"https://user:pw@makerspace.example","caption":""}}`,
+		"empty qr":              `{"left":{"type":"qr","url":"","caption":""}}`,
+		"multiline caption":     `{"left":{"type":"qr","url":"https://x.example","caption":"a\nb"}}`,
+		"long text": `{"left":{"type":"text","text":"` + strings.Repeat(
+			"a",
+			1001,
+		) + `","size":"m","align":"start"}}`,
+		"control character":  `{"left":{"type":"text","text":"a\u0000b","size":"m","align":"start"}}`,
+		"bad size":           `{"left":{"type":"text","text":"x","size":"xxl","align":"start"}}`,
+		"slideshow too fast": `{"left":{"type":"slideshow","mediaIds":[],"seconds":1}}`,
+		"slideshow too long": `{"left":{"type":"slideshow","mediaIds":[],"seconds":3601}}`,
+		"slideshow too many": `{"left":{"type":"slideshow","mediaIds":[` + strings.TrimSuffix(
+			strings.Repeat(`"`+id+`",`, 51),
+			",",
+		) + `],"seconds":8}}`,
+		"camera needs machine": `{"left":{"type":"camera","source":"machine","machineId":null,"multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":null}}`,
+		"clock mode":           `{"left":{"type":"clock","mode":"seconds"}}`,
+		"count zero":           `{"left":{"type":"open_days","count":0}}`,
+		"count eleven":         `{"left":{"type":"events","count":11}}`,
+		"rotate too fast":      `{"left":{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":1}}`,
+		"announcement style":   `{"left":{"type":"announcement","templateIds":[],"style":"popup","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}}`,
+		"trailing data":        `{"left":{"type":"empty"} }`,
+		"status too many": `{"left":{"type":"status","machineIds":[` + strings.TrimSuffix(
+			strings.Repeat(`"`+id+`",`, 21),
+			",",
+		) + `],"showProgress":true,"showRemaining":true}}`,
+		"fallback text too long": `{"left":{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"text","fallbackText":"` + strings.Repeat(
+			"a",
+			501,
+		) + `","whenMany":"rotate","rotateSeconds":10}}`,
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -125,11 +145,19 @@ func TestParseZonesRejectsInvalidInput(t *testing.T) {
 func TestParseZonesDropsStaleCameraFields(t *testing.T) {
 	machine := uuid.Must(uuid.NewV7())
 	image := uuid.Must(uuid.NewV7())
-	zones, refs, err := ParseZones(mustLayout(t, "full"), zonesFrom(t, `{"main":{"type":"camera","source":"auto","machineId":"`+machine.String()+`","multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":"`+image.String()+`"}}`))
+	zones, refs, err := ParseZones(
+		mustLayout(t, "full"),
+		zonesFrom(
+			t,
+			`{"main":{"type":"camera","source":"auto","machineId":"`+machine.String()+`","multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":"`+image.String()+`"}}`,
+		),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(zones["main"]), machine.String()) || strings.Contains(string(zones["main"]), image.String()) || len(refs.Machines)+len(refs.ImageAssets) != 0 {
+	if strings.Contains(string(zones["main"]), machine.String()) ||
+		strings.Contains(string(zones["main"]), image.String()) ||
+		len(refs.Machines)+len(refs.ImageAssets) != 0 {
 		t.Fatalf("stale references kept: %s %#v", zones["main"], refs)
 	}
 }
@@ -169,8 +197,13 @@ func TestLayoutsMatchOpenAPIEnumAndRemapByPosition(t *testing.T) {
 
 	text := RawWidget(`{"type":"clock","mode":"time"}`)
 	other := RawWidget(`{"type":"open_days","count":3}`)
-	moved := remapZones(mustLayout(t, "split"), map[string]RawWidget{"left": text, "right": other}, mustLayout(t, "stack3"))
-	if string(moved["header"]) != string(text) || string(moved["main"]) != string(other) || string(moved["footer"]) != string(emptyWidget) {
+	moved := remapZones(
+		mustLayout(t, "split"),
+		map[string]RawWidget{"left": text, "right": other},
+		mustLayout(t, "stack3"),
+	)
+	if string(moved["header"]) != string(text) || string(moved["main"]) != string(other) ||
+		string(moved["footer"]) != string(emptyWidget) {
 		t.Fatalf("remap = %v", moved)
 	}
 	shrunk := remapZones(mustLayout(t, "stack3"), moved, mustLayout(t, "full"))
@@ -184,7 +217,13 @@ func TestValidateTemplateInput(t *testing.T) {
 		Name: "Closed", Tone: "warning", Title: "Closed until {back_on}", Body: "{reason} - {ends}",
 		Fields: []TemplateField{
 			{Key: "back_on", Label: "Back on", Type: "datetime", Required: true},
-			{Key: "reason", Label: "Reason", Type: "choice", Options: []string{"Holiday", "Repair"}, DefaultValue: "Holiday"},
+			{
+				Key:          "reason",
+				Label:        "Reason",
+				Type:         "choice",
+				Options:      []string{"Holiday", "Repair"},
+				DefaultValue: "Holiday",
+			},
 		},
 	}
 	if _, err := validateTemplateInput(valid); err != nil {
@@ -213,7 +252,10 @@ func TestValidateTemplateInput(t *testing.T) {
 		}),
 		"too many fields": mutate(func(i *TemplateInput) {
 			for index := 0; index < 21; index++ {
-				i.Fields = append(i.Fields, TemplateField{Key: "f" + strings.Repeat("x", index+1), Label: "F", Type: "text"})
+				i.Fields = append(
+					i.Fields,
+					TemplateField{Key: "f" + strings.Repeat("x", index+1), Label: "F", Type: "text"},
+				)
 			}
 		}),
 	}
@@ -328,7 +370,8 @@ func TestParseZonesCameraMachineList(t *testing.T) {
 	}
 	// A fixed machine drops the list.
 	zones, refs, err = ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("machine", `"`+a.String()+`"`, list(b))))
-	if err != nil || strings.Contains(string(zones["main"]), b.String()) || len(refs.Machines) != 1 || refs.Machines[0] != a {
+	if err != nil || strings.Contains(string(zones["main"]), b.String()) || len(refs.Machines) != 1 ||
+		refs.Machines[0] != a {
 		t.Fatalf("machine source: %s %#v %v", zones["main"], refs, err)
 	}
 	for name, raw := range map[string]string{
@@ -373,10 +416,14 @@ func TestManifestCameraMachineIDs(t *testing.T) {
 	if ids, all = ManifestCameraMachineIDs(manifestWith(auto(""))); !all || len(ids) != 0 {
 		t.Fatalf("unrestricted auto = %v all=%v", ids, all)
 	}
-	if ids, all = ManifestCameraMachineIDs(manifestWith(`{"type":"status","machineIds":["` + a.String() + `"]}`)); all || len(ids) != 0 {
+	if ids, all = ManifestCameraMachineIDs(manifestWith(`{"type":"status","machineIds":["` + a.String() + `"]}`)); all ||
+		len(ids) != 0 {
 		t.Fatalf("status widget gives cameras: %v %v", ids, all)
 	}
-	if !camerasRemoved(cameraSet{all: true}, cameraSet{ids: []uuid.UUID{a}}) || camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{all: true}) || camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{ids: []uuid.UUID{a, b}}) || !camerasRemoved(cameraSet{ids: []uuid.UUID{a, b}}, cameraSet{ids: []uuid.UUID{a}}) {
+	if !camerasRemoved(cameraSet{all: true}, cameraSet{ids: []uuid.UUID{a}}) ||
+		camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{all: true}) ||
+		camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{ids: []uuid.UUID{a, b}}) ||
+		!camerasRemoved(cameraSet{ids: []uuid.UUID{a, b}}, cameraSet{ids: []uuid.UUID{a}}) {
 		t.Fatal("camerasRemoved semantics wrong")
 	}
 }

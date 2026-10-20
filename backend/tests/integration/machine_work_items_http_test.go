@@ -46,7 +46,14 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf", SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute}
+	cfg := config.Config{
+		PublicBaseURL:      baseURL,
+		SessionCookieName:  "makerspace_session",
+		CSRFCookieName:     "makerspace_csrf",
+		SessionIdleTTL:     6 * time.Hour,
+		SessionAbsoluteTTL: 72 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +63,15 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 
 	login := func(email, password string) (*http.Client, string) {
 		client := newCookieClient(t)
-		response := doJSON(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{"email": email, "password": password})
+		response := doJSON(
+			t,
+			client,
+			http.MethodPost,
+			server.URL+"/api/v1/auth/login",
+			origin,
+			"",
+			map[string]any{"email": email, "password": password},
+		)
 		assertStatus(t, response, http.StatusNoContent)
 		response.Body.Close()
 		return client, cookieValue(t, client, server.URL, cfg.CSRFCookieName)
@@ -65,32 +80,88 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	member := func(suffix string, permissions ...string) *http.Client {
 		t.Helper()
 		email, password := "work-items-"+suffix+"@example.test", "Work items "+suffix+" workshop password 77"
-		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{"firstName": "Work", "lastName": suffix, "email": "contact-" + email})
+		response := doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people",
+			origin,
+			adminCSRF,
+			map[string]any{"firstName": "Work", "lastName": suffix, "email": "contact-" + email},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var person openapi.Person
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+person.Id.String()+"/account", origin, adminCSRF, map[string]any{"loginEmail": email, "expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/account",
+			origin,
+			adminCSRF,
+			map[string]any{"loginEmail": email, "expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var account openapi.Account
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{"newPassword": password, "expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/password",
+			origin,
+			adminCSRF,
+			map[string]any{"newPassword": password, "expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &account)
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable", origin, adminCSRF, map[string]any{"expectedVersion": account.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/accounts/"+account.Id.String()+"/enable",
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": account.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
 		for _, permission := range permissions {
-			grants = append(grants, map[string]any{"permissionId": permission, "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"})
+			grants = append(
+				grants,
+				map[string]any{
+					"permissionId":     permission,
+					"scope":            "everywhere",
+					"deviceTypeIds":    []string{},
+					"minimumAssurance": "low",
+				},
+			)
 		}
-		response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{"name": "Work items " + suffix, "description": "Test role", "permissionGrants": grants})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPost,
+			server.URL+"/api/v1/roles",
+			origin,
+			adminCSRF,
+			map[string]any{"name": "Work items " + suffix, "description": "Test role", "permissionGrants": grants},
+		)
 		assertStatus(t, response, http.StatusCreated)
 		var role openapi.Role
 		decodeResponse(t, response, &role)
 		response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 		assertStatus(t, response, http.StatusOK)
 		decodeResponse(t, response, &person)
-		response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{"expectedVersion": person.Version})
+		response = doJSON(
+			t,
+			adminClient,
+			http.MethodPut,
+			server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(),
+			origin,
+			adminCSRF,
+			map[string]any{"expectedVersion": person.Version},
+		)
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		client, _ := login(email, password)
@@ -122,7 +193,14 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 	start := time.Now().UTC().Add(-6 * time.Hour).Truncate(time.Second)
 	newJob := func(offset time.Duration) machinelogbook.MachineJob {
-		input := machinelogbook.JobInput{MachineID: machine.ID, StartsAt: start.Add(offset), EndsAt: start.Add(offset + time.Hour), Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful"}
+		input := machinelogbook.JobInput{
+			MachineID:        machine.ID,
+			StartsAt:         start.Add(offset),
+			EndsAt:           start.Add(offset + time.Hour),
+			Customer:         machinelogbook.PartyReference{Kind: "person", ID: personID},
+			OperatorPersonID: personID,
+			Outcome:          "successful",
+		}
 		job, jobErr := logbook.CreateManualJob(ctx, master, input, nil)
 		if jobErr != nil {
 			t.Fatal(jobErr)
@@ -131,7 +209,15 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 	changed, unchanged, free := newJob(0), newJob(2*time.Hour), newJob(4*time.Hour)
 	for _, job := range []machinelogbook.MachineJob{changed, unchanged} {
-		order, orderErr := orderService.Create(ctx, master, orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: "person", ID: personID}, FulfillmentMode: "deferred"}, nil)
+		order, orderErr := orderService.Create(
+			ctx,
+			master,
+			orders.OrderDraftInput{
+				Customer:        &orders.OrderCustomer{Kind: "person", ID: personID},
+				FulfillmentMode: "deferred",
+			},
+			nil,
+		)
 		if orderErr != nil {
 			t.Fatal(orderErr)
 		}
@@ -140,7 +226,12 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		}
 	}
 	title := "Edited after ordering"
-	edit := machinelogbook.JobUpdate{MachineID: machine.ID, Title: &title, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID}
+	edit := machinelogbook.JobUpdate{
+		MachineID:        machine.ID,
+		Title:            &title,
+		Customer:         machinelogbook.PartyReference{Kind: "person", ID: personID},
+		OperatorPersonID: personID,
+	}
 	if _, err = logbook.UpdateJobFacts(ctx, master, changed.ID, changed.Version, edit, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +276,12 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 
 	var all page
-	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String()+"&source=manual&source=recorded&billing=on_order&billing=order_outdated&billing=not_on_order&sort=startedAt&direction=asc&pageSize=10", http.StatusOK, &all)
+	fetch(
+		adminClient,
+		"/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String()+"&source=manual&source=recorded&billing=on_order&billing=order_outdated&billing=not_on_order&sort=startedAt&direction=asc&pageSize=10",
+		http.StatusOK,
+		&all,
+	)
 	if all.Total != 3 || all.Page != 1 || all.PageSize != 10 || len(all.Items) != 3 {
 		t.Fatalf("work items = %+v", all)
 	}
@@ -211,12 +307,22 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		t.Fatalf("running/printing filter matched finished jobs: %+v", repeated)
 	}
 	var twoStatuses page
-	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String(), http.StatusOK, &twoStatuses)
+	fetch(
+		adminClient,
+		"/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String(),
+		http.StatusOK,
+		&twoStatuses,
+	)
 	if twoStatuses.Total != 3 {
 		t.Fatalf("repeated status keys = %+v", twoStatuses)
 	}
 	var reversed page
-	fetch(adminClient, "/machine-logbook/work-items?status=cancelled&status=successful&machineId="+machine.ID.String(), http.StatusOK, &reversed)
+	fetch(
+		adminClient,
+		"/machine-logbook/work-items?status=cancelled&status=successful&machineId="+machine.ID.String(),
+		http.StatusOK,
+		&reversed,
+	)
 	if reversed.Total != 3 {
 		t.Fatalf("repeated keys must be ORed regardless of order: %+v", reversed)
 	}
@@ -232,11 +338,21 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		t.Fatalf("restricted work items = %+v", restricted)
 	}
 	for _, i := range restricted.Items {
-		if i.Billing == nil || (i.Billing.State != "on_order" && i.Billing.State != "order_outdated") || i.Billing.OrderID != nil || i.Billing.OrderReference != nil {
+		if i.Billing == nil || (i.Billing.State != "on_order" && i.Billing.State != "order_outdated") ||
+			i.Billing.OrderID != nil ||
+			i.Billing.OrderReference != nil {
 			t.Fatalf("order data leaked or state missing: %+v", i.Billing)
 		}
 	}
-	rawResponse := doJSON(t, jobsReader, http.MethodGet, server.URL+"/api/v1/machine-logbook/work-items?billing=on_order", "", "", nil)
+	rawResponse := doJSON(
+		t,
+		jobsReader,
+		http.MethodGet,
+		server.URL+"/api/v1/machine-logbook/work-items?billing=on_order",
+		"",
+		"",
+		nil,
+	)
 	assertStatus(t, rawResponse, http.StatusOK)
 	if body := string(readResponse(t, rawResponse)); containsOrderReference(body) {
 		t.Fatalf("response body exposes an order reference: %s", body)
@@ -247,7 +363,8 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	fetch(machinesReader, "/machine-logbook/work-items", http.StatusForbidden, nil)
 	var activity openapi.MachineActivityList
 	fetch(machinesReader, "/machine-logbook/machine-activity", http.StatusOK, &activity)
-	if len(activity.Items) != 1 || activity.Items[0].MachineId != machine.ID || activity.Items[0].Availability != openapi.MachineAvailabilityAvailable {
+	if len(activity.Items) != 1 || activity.Items[0].MachineId != machine.ID ||
+		activity.Items[0].Availability != openapi.MachineAvailabilityAvailable {
 		t.Fatalf("machine activity = %+v", activity)
 	}
 	fetch(adminClient, "/machine-logbook/machine-activity", http.StatusOK, &activity)
@@ -259,7 +376,8 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	statsOnly := member("stats", "statistics.read")
 	var overview openapi.MachineLogbookOverview
 	fetch(statsOnly, "/machine-logbook/overview", http.StatusOK, &overview)
-	if !overview.RunningNow.IsNull() || !overview.ActiveItems.IsNull() || !overview.BillingIssues.IsNull() || !overview.RunningMachineNames.IsNull() {
+	if !overview.RunningNow.IsNull() || !overview.ActiveItems.IsNull() || !overview.BillingIssues.IsNull() ||
+		!overview.RunningMachineNames.IsNull() {
 		t.Fatalf("statistics-only overview = %+v", overview)
 	}
 	fetch(adminClient, "/machine-logbook/overview", http.StatusOK, &overview)
@@ -268,7 +386,16 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		t.Fatalf("billingIssues = %d, %v", issues, issuesErr)
 	}
 	var statistics openapi.MachineLogbookStatistics
-	fetch(statsOnly, fmt.Sprintf("/machine-logbook/statistics?from=%s&to=%s", start.Format("2006-01-02"), time.Now().UTC().Format("2006-01-02")), http.StatusOK, &statistics)
+	fetch(
+		statsOnly,
+		fmt.Sprintf(
+			"/machine-logbook/statistics?from=%s&to=%s",
+			start.Format("2006-01-02"),
+			time.Now().UTC().Format("2006-01-02"),
+		),
+		http.StatusOK,
+		&statistics,
+	)
 	if statistics.Totals.Jobs != 3 || statistics.RuntimeGranularity != openapi.Week || len(statistics.Machines) != 1 {
 		t.Fatalf("statistics = %+v", statistics)
 	}
