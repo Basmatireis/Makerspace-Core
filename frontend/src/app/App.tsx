@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Suspense } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { PermissionId } from '../api/generated/models';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { LoginPage } from '../features/auth/LoginPage';
@@ -10,234 +10,74 @@ import { NotFoundPage } from './NotFoundPage';
 import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
 import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
-import { useQuery } from '@tanstack/react-query';
-import { requestQuery } from '../features/orders/queries';
 import { DeviceBridgeProvider } from '../features/terminal/DeviceBridgeProvider';
-
-const ResetPasswordPage = lazy(() =>
-  import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })),
-);
-const InvitationPage = lazy(() =>
-  import('../features/auth/ResetPasswordPage').then(({ InvitationPage }) => ({ default: InvitationPage })),
-);
-const PINEnrollmentPage = lazy(() =>
-  import('../features/auth/ResetPasswordPage').then(({ PINEnrollmentPage }) => ({ default: PINEnrollmentPage })),
-);
-const EmailVerificationPage = lazy(() =>
-  import('../features/auth/ResetPasswordPage').then(({ EmailVerificationPage }) => ({
-    default: EmailVerificationPage,
-  })),
-);
-const VisitorEnrollmentPage = lazy(() =>
-  import('../features/visitor/VisitorEnrollmentPage').then(({ VisitorEnrollmentPage }) => ({
-    default: VisitorEnrollmentPage,
-  })),
-);
-const LegalPage = lazy(() =>
-  import('../features/branding/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })),
-);
-const ProfilePage = lazy(() =>
-  import('../features/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })),
-);
-const SalesOverviewPage = lazy(() =>
-  import('../features/orders/SalesOverviewPage').then(({ SalesOverviewPage }) => ({ default: SalesOverviewPage })),
-);
-const OrdersPage = lazy(() =>
-  import('../features/orders/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })),
-);
-const OrderDetailPage = lazy(() =>
-  import('../features/orders/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })),
-);
-const ReceiptPage = lazy(() =>
-  import('../features/orders/ReceiptPage').then(({ ReceiptPage }) => ({ default: ReceiptPage })),
-);
-const PaymentsPage = lazy(() =>
-  import('../features/orders/PaymentsPage').then(({ PaymentsPage }) => ({ default: PaymentsPage })),
-);
-const PaymentDetailPage = lazy(() =>
-  import('../features/orders/PaymentDetailPage').then(({ PaymentDetailPage }) => ({ default: PaymentDetailPage })),
-);
-const PricingPage = lazy(() =>
-  import('../features/pricing/PricingPage').then(({ PricingPage }) => ({ default: PricingPage })),
-);
-const MachineLogbookLayout = lazy(() =>
-  import('../features/machinelogbook/shared/MachineLogbookLayout').then(({ MachineLogbookLayout }) => ({
-    default: MachineLogbookLayout,
-  })),
-);
-const MachineLogbookOverviewPage = lazy(() =>
-  import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({
-    default: MachineLogbookOverviewPage,
-  })),
-);
-const JobsPage = lazy(() =>
-  import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })),
-);
-const JobDetailPage = lazy(() =>
-  import('../features/machinelogbook/JobDetailPage').then(({ JobDetailPage }) => ({ default: JobDetailPage })),
-);
-const RunDetailPage = lazy(() =>
-  import('../features/machinelogbook/RunDetailPage').then(({ RunDetailPage }) => ({ default: RunDetailPage })),
-);
-const InventoryPage = lazy(() =>
-  import('../features/machinelogbook/InventoryPage').then(({ InventoryPage }) => ({ default: InventoryPage })),
-);
-const MaterialDetailPage = lazy(() =>
-  import('../features/machinelogbook/MaterialDetailPage').then(({ MaterialDetailPage }) => ({
-    default: MaterialDetailPage,
-  })),
-);
-const FilamentSpoolDetailPage = lazy(() =>
-  import('../features/machinelogbook/FilamentSpoolDetailPage').then(({ FilamentSpoolDetailPage }) => ({
-    default: FilamentSpoolDetailPage,
-  })),
-);
-const MachinesPage = lazy(() =>
-  import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })),
-);
-const MachineDetailPage = lazy(() =>
-  import('../features/machinelogbook/MachineDetailPage').then(({ MachineDetailPage }) => ({
-    default: MachineDetailPage,
-  })),
-);
-const StatisticsPage = lazy(() =>
-  import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })),
-);
-const SignageDisplaysPage = lazy(() =>
-  import('../features/signage/DisplaysPage').then(({ DisplaysPage }) => ({ default: DisplaysPage })),
-);
-const SignageDisplayDetailPage = lazy(() =>
-  import('../features/signage/DisplayDetailPage').then(({ DisplayDetailPage }) => ({ default: DisplayDetailPage })),
-);
-const SignageAnnouncementsPage = lazy(() =>
-  import('../features/signage/AnnouncementsPage').then(({ AnnouncementsPage }) => ({ default: AnnouncementsPage })),
-);
-const SignageContentPage = lazy(() =>
-  import('../features/signage/ContentPage').then(({ ContentPage }) => ({ default: ContentPage })),
-);
-const SignageSceneEditorPage = lazy(() =>
-  import('../features/signage/SceneEditorPage').then(({ SceneEditorPage }) => ({ default: SceneEditorPage })),
-);
-const SignagePlaylistDetailPage = lazy(() =>
-  import('../features/signage/PlaylistDetailPage').then(({ PlaylistDetailPage }) => ({ default: PlaylistDetailPage })),
-);
-const SignageMediaPage = lazy(() =>
-  import('../features/signage/MediaPage').then(({ MediaPage }) => ({ default: MediaPage })),
-);
-const OpenDaysPage = lazy(() =>
-  import('../features/opendays/OpenDaysPage').then(({ OpenDaysPage }) => ({ default: OpenDaysPage })),
-);
-const OpenDayPeriodPage = lazy(() =>
-  import('../features/opendays/OpenDayPeriodPage').then(({ OpenDayPeriodPage }) => ({ default: OpenDayPeriodPage })),
-);
-const OpenDayDetailPage = lazy(() =>
-  import('../features/opendays/OpenDayDetailPage').then(({ OpenDayDetailPage }) => ({ default: OpenDayDetailPage })),
-);
-const OpenDayManagementPage = lazy(() =>
-  import('../features/opendays/OpenDayManagementPage').then(({ OpenDayManagementPage }) => ({
-    default: OpenDayManagementPage,
-  })),
-);
-const SettingsPage = lazy(() =>
-  import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),
-);
-const ManagedDevicesPage = lazy(() =>
-  import('../features/devices/ManagedDevicesPage').then(({ ManagedDevicesPage }) => ({ default: ManagedDevicesPage })),
-);
-const LocalServicesPage = lazy(() =>
-  import('../features/localservices/LocalServicesPage').then(({ LocalServicesPage }) => ({
-    default: LocalServicesPage,
-  })),
-);
-const GatewayDetailPage = lazy(() =>
-  import('../features/localservices/GatewayDetailPage').then(({ GatewayDetailPage }) => ({
-    default: GatewayDetailPage,
-  })),
-);
-const LaborordnungPage = lazy(() =>
-  import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })),
-);
-const OIDCProvidersPage = lazy(() =>
-  import('../features/oidc/OIDCProvidersPage').then(({ OIDCProvidersPage }) => ({ default: OIDCProvidersPage })),
-);
-const SCIMConnectorsPage = lazy(() =>
-  import('../features/scim/SCIMConnectorsPage').then(({ SCIMConnectorsPage }) => ({ default: SCIMConnectorsPage })),
-);
-const VisitorEnrollmentSettingsPage = lazy(() =>
-  import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({
-    default: VisitorEnrollmentSettingsPage,
-  })),
-);
-const MailSettingsPage = lazy(() =>
-  import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })),
-);
-const BrandingLegalSettingsPage = lazy(() =>
-  import('../features/branding/BrandingLegalSettingsPage').then(({ BrandingLegalSettingsPage }) => ({
-    default: BrandingLegalSettingsPage,
-  })),
-);
-const OrganizationsPage = lazy(() =>
-  import('../features/organizations/OrganizationsPage').then(({ OrganizationsPage }) => ({
-    default: OrganizationsPage,
-  })),
-);
-const OrganizationDetailPage = lazy(() =>
-  import('../features/organizations/OrganizationDetailPage').then(({ OrganizationDetailPage }) => ({
-    default: OrganizationDetailPage,
-  })),
-);
-const UsersPage = lazy(() => import('../features/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })));
-const SupervisorStaffingPage = lazy(() =>
-  import('../features/users/SupervisorStaffingPage').then(({ SupervisorStaffingPage }) => ({
-    default: SupervisorStaffingPage,
-  })),
-);
-const UserCreatePage = lazy(() =>
-  import('../features/users/UserCreatePage').then(({ UserCreatePage }) => ({ default: UserCreatePage })),
-);
-const UserDetailPage = lazy(() =>
-  import('../features/users/UserDetailPage').then(({ UserDetailPage }) => ({ default: UserDetailPage })),
-);
-const ActivityPage = lazy(() =>
-  import('../features/audit/ActivityPage').then(({ ActivityPage }) => ({ default: ActivityPage })),
-);
-const RolesPage = lazy(() => import('../features/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })));
-const EventsPage = lazy(() =>
-  import('../features/events/EventsPage').then(({ EventsPage }) => ({ default: EventsPage })),
-);
-const EventCreatePage = lazy(() =>
-  import('../features/events/EventCreatePage').then(({ EventCreatePage }) => ({ default: EventCreatePage })),
-);
-const EventDetailPage = lazy(() =>
-  import('../features/events/EventDetailPage').then(({ EventDetailPage }) => ({ default: EventDetailPage })),
-);
-const PublicEventPage = lazy(() =>
-  import('../features/events/PublicEventPage').then(({ PublicEventPage }) => ({ default: PublicEventPage })),
-);
-const EventSignupManagementPage = lazy(() =>
-  import('../features/events/EventSignupManagementPage').then(({ EventSignupManagementPage }) => ({
-    default: EventSignupManagementPage,
-  })),
-);
-const VisitorTerminalPage = lazy(() =>
-  import('../features/terminal/VisitorTerminalPage').then(({ VisitorTerminalPage }) => ({
-    default: VisitorTerminalPage,
-  })),
-);
-const PublicSurveyPage = lazy(() =>
-  import('../features/surveys/PublicSurveyPage').then(({ PublicSurveyPage }) => ({ default: PublicSurveyPage })),
-);
-const AttendancePage = lazy(() =>
-  import('../features/attendance/AttendancePage').then(({ AttendancePage }) => ({ default: AttendancePage })),
-);
-const SessionPoliciesPage = lazy(() =>
-  import('../features/devices/SessionPoliciesPage').then(({ SessionPoliciesPage }) => ({
-    default: SessionPoliciesPage,
-  })),
-);
-const SurveyAdminPage = lazy(() =>
-  import('../features/surveys/SurveyAdminPage').then(({ SurveyAdminPage }) => ({ default: SurveyAdminPage })),
-);
+import {
+  ActivityPage,
+  AttendancePage,
+  BrandingLegalSettingsPage,
+  EmailVerificationPage,
+  EventCreatePage,
+  EventDetailPage,
+  EventSignupManagementPage,
+  EventsPage,
+  FilamentSpoolDetailPage,
+  GatewayDetailPage,
+  InventoryPage,
+  InvitationPage,
+  JobDetailPage,
+  JobsPage,
+  LaborordnungPage,
+  LegalPage,
+  LocalServicesPage,
+  MachineDetailPage,
+  MachineLogbookLayout,
+  MachineLogbookOverviewPage,
+  MachinesPage,
+  MailSettingsPage,
+  ManagedDevicesPage,
+  MaterialDetailPage,
+  OIDCProvidersPage,
+  OpenDayDetailPage,
+  OpenDayManagementPage,
+  OpenDayPeriodPage,
+  OpenDaysPage,
+  OrderDetailPage,
+  OrdersPage,
+  OrganizationDetailPage,
+  OrganizationsPage,
+  PINEnrollmentPage,
+  PaymentDetailPage,
+  PaymentsPage,
+  PricingPage,
+  ProfilePage,
+  PublicEventPage,
+  PublicSurveyPage,
+  ReceiptPage,
+  ResetPasswordPage,
+  RolesPage,
+  RunDetailPage,
+  SCIMConnectorsPage,
+  SalesOverviewPage,
+  SessionPoliciesPage,
+  SettingsPage,
+  SignageAnnouncementsPage,
+  SignageContentPage,
+  SignageDisplayDetailPage,
+  SignageDisplaysPage,
+  SignageMediaPage,
+  SignagePlaylistDetailPage,
+  SignageSceneEditorPage,
+  StatisticsPage,
+  SupervisorStaffingPage,
+  SurveyAdminPage,
+  UserCreatePage,
+  UserDetailPage,
+  UsersPage,
+  VisitorEnrollmentPage,
+  VisitorEnrollmentSettingsPage,
+  VisitorTerminalPage,
+} from './routes';
+import { ExternalInvoiceRedirect, IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
 
 function ProtectedApp() {
   return (
@@ -250,43 +90,6 @@ function ProtectedApp() {
 function SettingsRoute() {
   const currentUser = useCurrentUser();
   return canAccessSettings(currentUser) ? <SettingsPage /> : <Navigate to="/dashboard" replace />;
-}
-
-function LegacyRedirect({ from, to }: { from: string; to: string }) {
-  const location = useLocation();
-  const suffix = location.pathname.slice(from.length);
-
-  return <Navigate to={{ pathname: `${to}${suffix}`, search: location.search, hash: location.hash }} replace />;
-}
-
-/** The former request page: the invoice now lives on its order. */
-function ExternalInvoiceRedirect() {
-  const { requestId = '' } = useParams();
-  const request = useQuery({ ...requestQuery(requestId), enabled: !!requestId });
-  if (request.isError || (request.data && !request.data.orderId)) return <Navigate to="/orders" replace />;
-  if (!request.data) return <FullPageLoading label="Loading page" />;
-  return <Navigate to={`/orders/${request.data.orderId}`} replace />;
-}
-
-function OpenDayScheduleRedirect() {
-  const { periodId = '' } = useParams();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.set('mode', 'edit');
-
-  return (
-    <Navigate
-      to={{ pathname: `/open-days/${periodId}`, search: `?${params.toString()}`, hash: location.hash }}
-      state={location.state}
-      replace
-    />
-  );
-}
-
-/** Redirects a former URL carrying one ID to its new path; the query string and hash are dropped on purpose. */
-function IdRedirect({ param, to }: { param: string; to: (id: string) => string }) {
-  const id = useParams()[param] ?? '';
-  return <Navigate to={to(id)} replace />;
 }
 
 export function App() {
