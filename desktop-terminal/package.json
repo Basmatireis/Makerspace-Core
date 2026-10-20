@@ -17,7 +17,7 @@
     "@carbon/react": "1.116.0",
     "@carbon/styles": "1.115.0",
     "@ibm/plex": "6.4.1",
-    "react": "19.3.0",
+    "react": "19.3.1",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
