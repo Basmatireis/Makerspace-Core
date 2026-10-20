@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/oapi-codegen/nullable"
 )
@@ -104,7 +105,7 @@ func (s *Server) PairSignageDisplay(
 		return nil, invalidRequest("request body is required")
 	}
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
-		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
+		Name: r.Body.Name, Location: r.Body.Location, Orientation: signage.Orientation(r.Body.Orientation),
 		Resolution: signage.Resolution{
 			Width:  r.Body.Resolution.Width,
 			Height: r.Body.Resolution.Height,
@@ -129,7 +130,7 @@ func (s *Server) UpdateSignageDisplay(
 		return nil, invalidRequest("request body is required")
 	}
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
-		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
+		Name: r.Body.Name, Location: r.Body.Location, Orientation: signage.Orientation(r.Body.Orientation),
 		Resolution: signage.Resolution{
 			Width:  r.Body.Resolution.Width,
 			Height: r.Body.Resolution.Height,
@@ -225,23 +226,20 @@ func signageRuleListDTO(list signage.RuleList) openapi.SignageRuleList {
 }
 
 func signageRuleInput(body *openapi.SignageRuleRequest) signage.RuleInput {
-	var match *string
-	if body.MachineMatch != nil {
-		value := string(*body.MachineMatch)
-		match = &value
-	}
 	return signage.RuleInput{
 		Enabled:       body.Enabled,
-		ConditionKind: string(body.ConditionKind),
+		ConditionKind: signage.ConditionKind(body.ConditionKind),
 		Weekdays:      derefSlice(body.Weekdays),
 		TimeFrom:      body.TimeFrom,
 		TimeTo:        body.TimeTo,
 		MachineIDs: derefSlice(
 			body.MachineIds,
-		), MachineMatch: match, AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
-		TargetKind: string(
-			body.TargetKind,
-		), TargetID: body.TargetId, MinSeconds: body.MinSeconds, MultiMode: string(body.MultiMode), AlternateSeconds: body.AlternateSeconds,
+		), MachineMatch: optional.Convert[signage.MachineMatch](body.MachineMatch), AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
+		TargetKind:       signage.TargetKind(body.TargetKind),
+		TargetID:         body.TargetId,
+		MinSeconds:       body.MinSeconds,
+		MultiMode:        signage.MultiMode(body.MultiMode),
+		AlternateSeconds: body.AlternateSeconds,
 	}
 }
 
@@ -458,7 +456,7 @@ func (s *Server) PollSignagePairing(
 		return nil, err
 	}
 	response := signagePairingPollResponse{status: openapi.SignagePairingPollStatus(poll.Status)}
-	if poll.Status == "paired" {
+	if poll.Status == signage.PairingPaired {
 		expires := time.Now().UTC().AddDate(10, 0, 0)
 		response.cookies = []*http.Cookie{
 			// Same attributes as the browser binding of the generic managed-device endpoints.

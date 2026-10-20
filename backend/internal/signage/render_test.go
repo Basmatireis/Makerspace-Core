@@ -60,10 +60,10 @@ func TestRenderAnnouncementVectors(t *testing.T) {
 			template := RenderTemplate{
 				Title: vector.Template.Title,
 				Body:  vector.Template.Body,
-				Tone:  vector.Template.Tone,
+				Tone:  Tone(vector.Template.Tone),
 			}
 			for _, field := range vector.Template.Fields {
-				template.Fields = append(template.Fields, RenderField{Key: field.Key, Type: field.Type})
+				template.Fields = append(template.Fields, RenderField{Key: field.Key, Type: FieldType(field.Type)})
 			}
 			got := RenderAnnouncement(
 				template,

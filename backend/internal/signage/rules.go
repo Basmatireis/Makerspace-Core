@@ -12,6 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -34,32 +35,32 @@ type Rule struct {
 	DisplayID               uuid.UUID
 	Position                int
 	Enabled                 bool
-	ConditionKind           string
+	ConditionKind           ConditionKind
 	Weekdays                []int
 	TimeFrom, TimeTo        *string
 	MachineIDs              []uuid.UUID
-	MachineMatch            *string
+	MachineMatch            *MachineMatch
 	AnnouncementTemplateIDs []uuid.UUID
-	TargetKind              string
+	TargetKind              TargetKind
 	TargetID                uuid.UUID
 	MinSeconds              int
-	MultiMode               string
+	MultiMode               MultiMode
 	AlternateSeconds        int
 }
 
 // RuleInput is the writable part of a rule.
 type RuleInput struct {
 	Enabled                 bool
-	ConditionKind           string
+	ConditionKind           ConditionKind
 	Weekdays                []int
 	TimeFrom, TimeTo        *string
 	MachineIDs              []uuid.UUID
-	MachineMatch            *string
+	MachineMatch            *MachineMatch
 	AnnouncementTemplateIDs []uuid.UUID
-	TargetKind              string
+	TargetKind              TargetKind
 	TargetID                uuid.UUID
 	MinSeconds              int
-	MultiMode               string
+	MultiMode               MultiMode
 	AlternateSeconds        int
 }
 
@@ -88,13 +89,13 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 	if input.MinSeconds < 0 || input.MinSeconds > 600 {
 		return input, validation("minSeconds must be between 0 and 600")
 	}
-	if input.MultiMode != "split" && input.MultiMode != "alternate" {
+	if input.MultiMode != MultiModeSplit && input.MultiMode != MultiModeAlternate {
 		return input, validation("multiMode must be split or alternate")
 	}
 	if input.AlternateSeconds < 3 || input.AlternateSeconds > 600 {
 		return input, validation("alternateSeconds must be between 3 and 600")
 	}
-	if input.TargetKind != "scene" && input.TargetKind != "playlist" {
+	if input.TargetKind != TargetKindScene && input.TargetKind != TargetKindPlaylist {
 		return input, validation("targetKind must be scene or playlist")
 	}
 	if input.TargetID == uuid.Nil {
@@ -123,7 +124,7 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 	noTime := input.TimeFrom == nil && input.TimeTo == nil
 	noMachines := len(input.MachineIDs) == 0 && input.MachineMatch == nil
 	switch input.ConditionKind {
-	case "time_window":
+	case ConditionTimeWindow:
 		if len(input.Weekdays) == 0 {
 			return input, validation("a time window needs at least one weekday")
 		}
@@ -142,21 +143,21 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 		if !noMachines || len(input.AnnouncementTemplateIDs) > 0 {
 			return input, validation("a time window cannot have machine or announcement conditions")
 		}
-	case "machine_printing":
+	case ConditionMachinePrinting:
 		if len(input.MachineIDs) == 0 {
 			return input, validation("a machine rule needs at least one machine")
 		}
-		if input.MachineMatch == nil || (*input.MachineMatch != "any" && *input.MachineMatch != "all") {
+		if input.MachineMatch == nil || (*input.MachineMatch != MachineMatchAny && *input.MachineMatch != MachineMatchAll) {
 			return input, validation("machineMatch must be any or all")
 		}
 		if len(input.Weekdays) > 0 || !noTime || len(input.AnnouncementTemplateIDs) > 0 {
 			return input, validation("a machine rule cannot have time or announcement conditions")
 		}
-	case "announcement_active":
+	case ConditionAnnouncementActive:
 		if len(input.Weekdays) > 0 || !noTime || !noMachines {
 			return input, validation("an announcement rule only takes announcement template filters")
 		}
-	case "live_data_unavailable":
+	case ConditionLiveDataUnavailable:
 		if len(input.Weekdays) > 0 || !noTime || !noMachines || len(input.AnnouncementTemplateIDs) > 0 {
 			return input, validation("a live-data rule takes no condition fields")
 		}
@@ -174,9 +175,10 @@ func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 		DisplayID:     row.DisplayID,
 		Position:      int(row.Position),
 		Enabled:       row.Enabled,
-		ConditionKind: row.ConditionKind,
-		Weekdays:      make([]int, 0, len(row.Weekdays)), MachineMatch: row.MachineMatch, TargetKind: row.TargetKind,
-		MinSeconds: int(row.MinSeconds), MultiMode: row.MultiMode, AlternateSeconds: int(row.AlternateSeconds),
+		ConditionKind: ConditionKind(row.ConditionKind),
+		Weekdays:      make([]int, 0, len(row.Weekdays)), MachineMatch: optional.Convert[MachineMatch](row.MachineMatch),
+		TargetKind: TargetKind(row.TargetKind),
+		MinSeconds: int(row.MinSeconds), MultiMode: MultiMode(row.MultiMode), AlternateSeconds: int(row.AlternateSeconds),
 		MachineIDs: []uuid.UUID{}, AnnouncementTemplateIDs: []uuid.UUID{},
 	}
 	for _, day := range row.Weekdays {
@@ -201,9 +203,9 @@ func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 		rule.AnnouncementTemplateIDs = append(rule.AnnouncementTemplateIDs, id)
 	}
 	switch {
-	case row.TargetKind == "scene" && row.TargetSceneID != nil:
+	case TargetKind(row.TargetKind) == TargetKindScene && row.TargetSceneID != nil:
 		rule.TargetID = *row.TargetSceneID
-	case row.TargetKind == "playlist" && row.TargetPlaylistID != nil:
+	case TargetKind(row.TargetKind) == TargetKindPlaylist && row.TargetPlaylistID != nil:
 		rule.TargetID = *row.TargetPlaylistID
 	default:
 		return Rule{}, errors.New("rule has no target")
@@ -257,7 +259,7 @@ func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, orientation
 			return validation("a referenced announcement template does not exist")
 		}
 	}
-	if input.TargetKind == "scene" {
+	if input.TargetKind == TargetKindScene {
 		scene, err := q.LockSignageSceneForShare(ctx, input.TargetID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return validation("the target scene does not exist")
@@ -288,19 +290,19 @@ func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) sign
 		DisplayID:               displayID,
 		Position:                int32(position),
 		Enabled:                 input.Enabled,
-		ConditionKind:           input.ConditionKind,
+		ConditionKind:           string(input.ConditionKind),
 		Weekdays:                weekdays,
 		TimeFrom:                input.TimeFrom,
 		TimeTo:                  input.TimeTo,
 		MachineIds:              uuidStrings(input.MachineIDs),
-		MachineMatch:            input.MachineMatch,
-		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs), TargetKind: input.TargetKind,
+		MachineMatch:            optional.Convert[string](input.MachineMatch),
+		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs), TargetKind: string(input.TargetKind),
 		MinSeconds: int32(
 			input.MinSeconds,
-		), MultiMode: input.MultiMode, AlternateSeconds: int32(input.AlternateSeconds),
+		), MultiMode: string(input.MultiMode), AlternateSeconds: int32(input.AlternateSeconds),
 	}
 	target := input.TargetID
-	if input.TargetKind == "scene" {
+	if input.TargetKind == TargetKindScene {
 		params.TargetSceneID = &target
 	} else {
 		params.TargetPlaylistID = &target

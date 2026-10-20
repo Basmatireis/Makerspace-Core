@@ -187,7 +187,7 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 // PairingPoll is the answer to a player's poll. DeviceToken is set exactly once, on the first
 // poll that sees the claimed request.
 type PairingPoll struct {
-	Status      string // pending | expired | paired
+	Status      PairingStatus // pending | expired | paired
 	DeviceToken string
 }
 
@@ -197,7 +197,7 @@ type PairingPoll struct {
 func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) (PairingPoll, error) {
 	now := s.now()
 	if decoded, err := base64.RawURLEncoding.DecodeString(pollSecret); err != nil || len(decoded) != 32 {
-		return PairingPoll{Status: "expired"}, nil // cannot match any request; skip the database
+		return PairingPoll{Status: PairingExpired}, nil // cannot match any request; skip the database
 	}
 	if !s.pairingPolls.Take(ratelimit.KeyForIP(clientIP), now) {
 		return PairingPoll{}, rateLimited("Too many pairing polls; slow down", pairingPollWindow)
@@ -213,13 +213,13 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 	}
 	request, err := q.GetSignagePairingRequestForPoll(ctx, security.DigestToken(pollSecret))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return PairingPoll{Status: "expired"}, tx.Commit(ctx)
+		return PairingPoll{Status: PairingExpired}, tx.Commit(ctx)
 	}
 	if err != nil {
 		return PairingPoll{}, err
 	}
 	if request.ClaimedDisplayID == nil || request.ManagedDeviceID == nil {
-		return PairingPoll{Status: "pending"}, tx.Commit(ctx)
+		return PairingPoll{Status: PairingPending}, tx.Commit(ctx)
 	}
 	token, err := manageddevices.IssueSignagePlayerTokenTx(ctx, tx, *request.ManagedDeviceID)
 	if apperror.IsCode(err, "not_found") {
@@ -227,7 +227,7 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 		if err := q.DeleteSignagePairingRequest(ctx, request.ID); err != nil {
 			return PairingPoll{}, err
 		}
-		return PairingPoll{Status: "expired"}, tx.Commit(ctx)
+		return PairingPoll{Status: PairingExpired}, tx.Commit(ctx)
 	}
 	if err != nil {
 		return PairingPoll{}, err
@@ -238,7 +238,7 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 	if err := tx.Commit(ctx); err != nil {
 		return PairingPoll{}, err
 	}
-	return PairingPoll{Status: "paired", DeviceToken: token}, nil
+	return PairingPoll{Status: PairingPaired, DeviceToken: token}, nil
 }
 
 // PairDisplay claims the player's pairing code for a new display. Unknown, expired, claimed and
@@ -308,7 +308,7 @@ func (s *Service) PairDisplay(
 		ManagedDeviceID: deviceID,
 		Name:            checked.Name,
 		Location:        checked.Location,
-		Orientation:     checked.Orientation,
+		Orientation:     string(checked.Orientation),
 		ResolutionWidth: int32(checked.Resolution.Width), ResolutionHeight: int32(checked.Resolution.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside,

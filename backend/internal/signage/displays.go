@@ -22,12 +22,12 @@ const onlineWindow = 90 * time.Second
 type Display struct {
 	ID, ManagedDeviceID uuid.UUID
 	Name, Location      string
-	Orientation         string
+	Orientation         Orientation
 	Resolution          Resolution
 	VisibleFromOutside  bool
 	AllowCameraOutside  bool
 	DefaultPlaylistID   uuid.UUID
-	Status              string // online | offline | revoked
+	Status              DisplayStatus // online | offline | revoked
 	RevokedAt           *time.Time
 	LastHeartbeatAt     *time.Time
 	PublishedRevision   *int
@@ -48,7 +48,7 @@ type Display struct {
 // DisplayInput is the writable part of a display.
 type DisplayInput struct {
 	Name, Location     string
-	Orientation        string
+	Orientation        Orientation
 	Resolution         Resolution
 	VisibleFromOutside bool
 	// AllowCameraOutside nil means unchanged on update and false when pairing.
@@ -72,7 +72,7 @@ func (s *Service) displayFromView(row viewRow) Display {
 		ManagedDeviceID: row.ManagedDeviceID,
 		Name:            row.Name,
 		Location:        row.Location,
-		Orientation:     row.Orientation,
+		Orientation:     Orientation(row.Orientation),
 		Resolution: Resolution{
 			Width:  int(row.ResolutionWidth),
 			Height: int(row.ResolutionHeight),
@@ -87,7 +87,7 @@ func (s *Service) displayFromView(row viewRow) Display {
 		CacheUsedBytes:  row.CacheUsedBytes,
 		CacheQuotaBytes: row.CacheQuotaBytes,
 		Errors:          []string{},
-		Version:         row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: "offline",
+		Version:         row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: DisplayOffline,
 	}
 	if revoked := fromPgTime(row.RevokedAt); revoked != nil {
 		display.RevokedAt = revoked
@@ -96,9 +96,9 @@ func (s *Service) displayFromView(row viewRow) Display {
 	}
 	switch {
 	case display.RevokedAt != nil:
-		display.Status = "revoked"
+		display.Status = DisplayRevoked
 	case display.LastHeartbeatAt != nil && now.Sub(*display.LastHeartbeatAt) < onlineWindow:
-		display.Status = "online"
+		display.Status = DisplayOnline
 	}
 	if row.PublishedRevision > 0 {
 		revision := int(row.PublishedRevision)
@@ -182,7 +182,7 @@ func (s *Service) buildManifests(
 			if !rule.Enabled {
 				continue
 			}
-			if rule.TargetKind == "playlist" {
+			if rule.TargetKind == TargetKindPlaylist {
 				playlistSet[rule.TargetID] = struct{}{}
 			} else {
 				sceneSet[rule.TargetID] = struct{}{}
@@ -257,7 +257,7 @@ func (s *Service) buildManifests(
 		for _, row := range assetRows {
 			asset := assetFromRow(
 				row.ID,
-				row.Kind,
+				AssetKind(row.Kind),
 				row.Name,
 				row.Width,
 				row.Height,
@@ -271,7 +271,7 @@ func (s *Service) buildManifests(
 			)
 			content.assets[row.ID] = ManifestAsset{
 				ID:          row.ID,
-				Kind:        row.Kind,
+				Kind:        AssetKind(row.Kind),
 				Name:        row.Name,
 				ContentType: row.ContentType,
 				SHA256:      asset.SHA256,
@@ -355,7 +355,7 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	if err != nil {
 		return input, err
 	}
-	if input.Orientation != "portrait" && input.Orientation != "landscape" {
+	if input.Orientation != OrientationPortrait && input.Orientation != OrientationLandscape {
 		return input, validation("orientation must be portrait or landscape")
 	}
 	if input.Resolution.Width < 320 || input.Resolution.Width > 16384 || input.Resolution.Height < 320 ||
@@ -412,10 +412,10 @@ func (s *Service) UpdateDisplay(
 	} else if err != nil {
 		return Display{}, err
 	}
-	if current.Orientation != checked.Orientation {
+	if Orientation(current.Orientation) != checked.Orientation {
 		mismatched, err := q.CountSceneRulesWithOtherOrientation(
 			ctx,
-			signagedb.CountSceneRulesWithOtherOrientationParams{DisplayID: id, Orientation: checked.Orientation},
+			signagedb.CountSceneRulesWithOtherOrientationParams{DisplayID: id, Orientation: string(checked.Orientation)},
 		)
 		if err != nil {
 			return Display{}, err
@@ -434,7 +434,7 @@ func (s *Service) UpdateDisplay(
 	if _, err := q.UpdateSignageDisplay(ctx, signagedb.UpdateSignageDisplayParams{
 		Name:               checked.Name,
 		Location:           checked.Location,
-		Orientation:        checked.Orientation,
+		Orientation:        string(checked.Orientation),
 		ResolutionWidth:    int32(checked.Resolution.Width),
 		ResolutionHeight:   int32(checked.Resolution.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
@@ -453,7 +453,7 @@ func (s *Service) UpdateDisplay(
 	if current.Location != checked.Location {
 		changed = append(changed, "location")
 	}
-	if current.Orientation != checked.Orientation {
+	if Orientation(current.Orientation) != checked.Orientation {
 		changed = append(changed, "orientation")
 	}
 	if int(current.ResolutionWidth) != checked.Resolution.Width ||

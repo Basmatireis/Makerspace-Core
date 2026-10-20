@@ -29,7 +29,7 @@ type Announcement struct {
 	DisplayIDs     []uuid.UUID
 	StartsAt       time.Time
 	EndsAt         *time.Time
-	Status         string // scheduled | active
+	Status         AnnouncementState // scheduled | active
 	Rendered       Rendered
 	Version        int64
 	CreatedAt      time.Time
@@ -97,11 +97,11 @@ func (s *Service) sweepExpiredThrottled(ctx context.Context) {
 	_ = s.sweepExpired(ctx)
 }
 
-func (s *Service) statusOf(startsAt time.Time, now time.Time) string {
+func (s *Service) statusOf(startsAt time.Time, now time.Time) AnnouncementState {
 	if startsAt.After(now) {
-		return "scheduled"
+		return AnnouncementScheduled
 	}
-	return "active"
+	return AnnouncementActive
 }
 
 // hydrate loads values, targets, templates and machine names and renders the announcements.
@@ -167,7 +167,7 @@ func (s *Service) hydrateFor(
 	var machineIDs []uuid.UUID
 	for _, row := range rows {
 		for _, field := range fields[row.TemplateID] {
-			if field.Type != "machine" {
+			if field.Type != FieldMachine {
 				continue
 			}
 			if id, err := uuid.Parse(values[row.ID][field.Key]); err == nil {
@@ -203,7 +203,7 @@ func (s *Service) hydrateFor(
 				Fields: renderFields(fields[row.TemplateID]),
 				Title:  template.Title,
 				Body:   template.Body,
-				Tone:   template.Tone,
+				Tone:   Tone(template.Tone),
 			},
 			announcementValues,
 			RenderTiming{StartsAt: row.StartsAt, EndsAt: endsAt},
@@ -473,7 +473,7 @@ func (s *Service) verifyMachineValues(
 ) error {
 	var ids []uuid.UUID
 	for _, field := range fields {
-		if field.Type == "machine" && values[field.Key] != "" {
+		if field.Type == FieldMachine && values[field.Key] != "" {
 			id, _ := uuid.Parse(values[field.Key])
 			ids = append(ids, id)
 		}

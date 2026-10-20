@@ -21,48 +21,48 @@ type Resolution struct {
 
 // ManifestDisplay carries the display settings a player needs.
 type ManifestDisplay struct {
-	Orientation        string     `json:"orientation"`
-	Resolution         Resolution `json:"resolution"`
-	VisibleFromOutside bool       `json:"visibleFromOutside"`
+	Orientation        Orientation `json:"orientation"`
+	Resolution         Resolution  `json:"resolution"`
+	VisibleFromOutside bool        `json:"visibleFromOutside"`
 }
 
 // ManifestRule is an enabled rule; rules are listed in evaluation order (first match wins).
 type ManifestRule struct {
-	ID                      uuid.UUID   `json:"id"`
-	Kind                    string      `json:"kind"`
-	Weekdays                []int       `json:"weekdays"`
-	TimeFrom                *string     `json:"timeFrom"`
-	TimeTo                  *string     `json:"timeTo"`
-	MachineIDs              []uuid.UUID `json:"machineIds"`
-	MachineMatch            *string     `json:"machineMatch"`
-	AnnouncementTemplateIDs []uuid.UUID `json:"announcementTemplateIds"`
-	TargetKind              string      `json:"targetKind"`
-	TargetID                uuid.UUID   `json:"targetId"`
-	MinSeconds              int         `json:"minSeconds"`
-	MultiMode               string      `json:"multiMode"`
-	AlternateSeconds        int         `json:"alternateSeconds"`
+	ID                      uuid.UUID     `json:"id"`
+	Kind                    ConditionKind `json:"kind"`
+	Weekdays                []int         `json:"weekdays"`
+	TimeFrom                *string       `json:"timeFrom"`
+	TimeTo                  *string       `json:"timeTo"`
+	MachineIDs              []uuid.UUID   `json:"machineIds"`
+	MachineMatch            *MachineMatch `json:"machineMatch"`
+	AnnouncementTemplateIDs []uuid.UUID   `json:"announcementTemplateIds"`
+	TargetKind              TargetKind    `json:"targetKind"`
+	TargetID                uuid.UUID     `json:"targetId"`
+	MinSeconds              int           `json:"minSeconds"`
+	MultiMode               MultiMode     `json:"multiMode"`
+	AlternateSeconds        int           `json:"alternateSeconds"`
 }
 
 // ManifestScene is a scene as published; the version identifies the draft it was taken from.
 type ManifestScene struct {
 	ID                uuid.UUID                  `json:"id"`
 	Name              string                     `json:"name"`
-	Orientation       string                     `json:"orientation"`
+	Orientation       Orientation                `json:"orientation"`
 	LayoutID          string                     `json:"layoutId"`
 	BackgroundColor   string                     `json:"backgroundColor"`
 	BackgroundAssetID *uuid.UUID                 `json:"backgroundAssetId"`
-	BackgroundFit     string                     `json:"backgroundFit"`
+	BackgroundFit     MediaFit                   `json:"backgroundFit"`
 	BackgroundDim     int                        `json:"backgroundDim"`
-	Theme             string                     `json:"theme"`
+	Theme             Theme                      `json:"theme"`
 	Zones             map[string]json.RawMessage `json:"zones"`
 	Version           int64                      `json:"version"`
 }
 
 // ManifestPlaylistItem is one scene slot of a published playlist.
 type ManifestPlaylistItem struct {
-	SceneID    uuid.UUID `json:"sceneId"`
-	Seconds    int       `json:"seconds"`
-	Transition string    `json:"transition"`
+	SceneID    uuid.UUID  `json:"sceneId"`
+	Seconds    int        `json:"seconds"`
+	Transition Transition `json:"transition"`
 }
 
 // ManifestPlaylist is a playlist as published.
@@ -76,7 +76,7 @@ type ManifestPlaylist struct {
 // ManifestAsset is a media file a published scene uses; players fetch it by id and sha256.
 type ManifestAsset struct {
 	ID          uuid.UUID `json:"id"`
-	Kind        string    `json:"kind"`
+	Kind        AssetKind `json:"kind"`
 	Name        string    `json:"name"`
 	ContentType string    `json:"contentType"`
 	SHA256      string    `json:"sha256"`
@@ -102,7 +102,7 @@ type Manifest struct {
 type displayDraft struct {
 	ID                 uuid.UUID
 	Name               string
-	Orientation        string
+	Orientation        Orientation
 	Resolution         Resolution
 	VisibleFromOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -161,7 +161,7 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 			continue
 		}
 		manifest.Rules = append(manifest.Rules, manifestRuleFrom(rule))
-		if rule.TargetKind == "playlist" {
+		if rule.TargetKind == TargetKindPlaylist {
 			playlistIDs[rule.TargetID] = struct{}{}
 		} else {
 			sceneIDs[rule.TargetID] = struct{}{}
@@ -239,25 +239,25 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 	for _, scene := range manifest.Scenes {
 		for _, raw := range scene.Zones {
 			var widget struct {
-				Type       string      `json:"type"`
-				Source     string      `json:"source"`
-				MachineID  *uuid.UUID  `json:"machineId"`
-				MachineIDs []uuid.UUID `json:"machineIds"`
+				Type       WidgetType   `json:"type"`
+				Source     CameraSource `json:"source"`
+				MachineID  *uuid.UUID   `json:"machineId"`
+				MachineIDs []uuid.UUID  `json:"machineIds"`
 			}
 			if json.Unmarshal(raw, &widget) != nil {
 				continue
 			}
 			switch widget.Type {
-			case "camera":
+			case WidgetCamera:
 				if widget.MachineID != nil {
 					ids[*widget.MachineID] = struct{}{}
 				}
-				if widget.Source == "auto" {
+				if widget.Source == CameraSourceAuto {
 					for _, id := range widget.MachineIDs {
 						ids[id] = struct{}{}
 					}
 				}
-			case "status":
+			case WidgetStatus:
 				for _, id := range widget.MachineIDs {
 					ids[id] = struct{}{}
 				}
@@ -276,16 +276,16 @@ func ManifestCameraMachineIDs(manifest Manifest) (ids []uuid.UUID, allCameras bo
 	for _, scene := range manifest.Scenes {
 		for _, raw := range scene.Zones {
 			var widget struct {
-				Type       string      `json:"type"`
-				Source     string      `json:"source"`
-				MachineID  *uuid.UUID  `json:"machineId"`
-				MachineIDs []uuid.UUID `json:"machineIds"`
+				Type       WidgetType   `json:"type"`
+				Source     CameraSource `json:"source"`
+				MachineID  *uuid.UUID   `json:"machineId"`
+				MachineIDs []uuid.UUID  `json:"machineIds"`
 			}
-			if json.Unmarshal(raw, &widget) != nil || widget.Type != "camera" {
+			if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetCamera {
 				continue
 			}
 			switch {
-			case widget.Source != "auto":
+			case widget.Source != CameraSourceAuto:
 				if widget.MachineID != nil {
 					set[*widget.MachineID] = struct{}{}
 				}
@@ -303,9 +303,9 @@ func ManifestCameraMachineIDs(manifest Manifest) (ids []uuid.UUID, allCameras bo
 
 // PendingChange is one difference between a display's drafts and its latest publication.
 type PendingChange struct {
-	Kind   string // display | rule | scene | playlist | asset
+	Kind   ChangeTarget
 	Name   string
-	Change string // added | modified | removed
+	Change ChangeKind
 }
 
 // diffManifests lists what publishing the draft would change compared with the published manifest.
@@ -313,7 +313,7 @@ type PendingChange struct {
 func diffManifests(published, draft Manifest) []PendingChange {
 	changes := []PendingChange{}
 	if published.Display != draft.Display || published.DefaultPlaylistID != draft.DefaultPlaylistID {
-		changes = append(changes, PendingChange{Kind: "display", Name: "Display settings", Change: "modified"})
+		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Display settings", Change: ChangeModified})
 	}
 	changes = append(changes, diffRules(published.Rules, draft.Rules)...)
 	scenes := func(manifest Manifest) map[uuid.UUID]versioned {
@@ -337,28 +337,28 @@ func diffManifests(published, draft Manifest) []PendingChange {
 		}
 		return result
 	}
-	changes = append(changes, diffEntities("scene", scenes(published), scenes(draft))...)
-	changes = append(changes, diffEntities("playlist", playlists(published), playlists(draft))...)
-	changes = append(changes, diffEntities("asset", assets(published), assets(draft))...)
+	changes = append(changes, diffEntities(ChangeTargetScene, scenes(published), scenes(draft))...)
+	changes = append(changes, diffEntities(ChangeTargetPlaylist, playlists(published), playlists(draft))...)
+	changes = append(changes, diffEntities(ChangeTargetAsset, assets(published), assets(draft))...)
 	return changes
 }
 
 type versioned struct{ name, marker string }
 
-func diffEntities(kind string, published, draft map[uuid.UUID]versioned) []PendingChange {
+func diffEntities(kind ChangeTarget, published, draft map[uuid.UUID]versioned) []PendingChange {
 	var changes []PendingChange
 	for id, item := range draft {
 		previous, existed := published[id]
 		switch {
 		case !existed:
-			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: "added"})
+			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: ChangeAdded})
 		case previous.marker != item.marker:
-			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: "modified"})
+			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: ChangeModified})
 		}
 	}
 	for id, item := range published {
 		if _, kept := draft[id]; !kept {
-			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: "removed"})
+			changes = append(changes, PendingChange{Kind: kind, Name: item.name, Change: ChangeRemoved})
 		}
 	}
 	sort.Slice(changes, func(i, j int) bool {
@@ -386,26 +386,26 @@ func diffRules(published, draft []ManifestRule) []PendingChange {
 		kept[rule.ID] = struct{}{}
 		old, existed := previous[rule.ID]
 		if !existed {
-			changes = append(changes, PendingChange{Kind: "rule", Name: ruleLabel(index, rule), Change: "added"})
+			changes = append(changes, PendingChange{Kind: ChangeTargetRule, Name: ruleLabel(index, rule), Change: ChangeAdded})
 			continue
 		}
 		survivingDraft = append(survivingDraft, rule.ID)
 		before, _ := json.Marshal(published[old])
 		after, _ := json.Marshal(rule)
 		if !bytes.Equal(before, after) {
-			changes = append(changes, PendingChange{Kind: "rule", Name: ruleLabel(index, rule), Change: "modified"})
+			changes = append(changes, PendingChange{Kind: ChangeTargetRule, Name: ruleLabel(index, rule), Change: ChangeModified})
 		}
 	}
 	for index, rule := range published {
 		if _, ok := kept[rule.ID]; !ok {
-			changes = append(changes, PendingChange{Kind: "rule", Name: ruleLabel(index, rule), Change: "removed"})
+			changes = append(changes, PendingChange{Kind: ChangeTargetRule, Name: ruleLabel(index, rule), Change: ChangeRemoved})
 		} else {
 			survivingPublished = append(survivingPublished, rule.ID)
 		}
 	}
 	for index := range survivingDraft {
 		if survivingDraft[index] != survivingPublished[index] {
-			changes = append(changes, PendingChange{Kind: "rule", Name: "Rule order", Change: "modified"})
+			changes = append(changes, PendingChange{Kind: ChangeTargetRule, Name: "Rule order", Change: ChangeModified})
 			break
 		}
 	}

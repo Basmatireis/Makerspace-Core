@@ -22,13 +22,14 @@ var colorPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 // Scene is one screen composition: a layout plus one widget per zone and the background.
 type Scene struct {
 	ID                uuid.UUID
-	Name, Orientation string
+	Name              string
+	Orientation       Orientation
 	LayoutID          string
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
-	BackgroundFit     string
+	BackgroundFit     MediaFit
 	BackgroundDim     int
-	Theme             string
+	Theme             Theme
 	Zones             map[string]RawWidget
 	Version           int64
 	CreatedAt         time.Time
@@ -38,13 +39,14 @@ type Scene struct {
 // SceneInput is the writable part of a scene. A nil Zones keeps the stored widgets (remapped by
 // position when the layout changes) on update and creates empty zones on create.
 type SceneInput struct {
-	Name, Orientation string
+	Name              string
+	Orientation       Orientation
 	LayoutID          string
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
-	BackgroundFit     string
+	BackgroundFit     MediaFit
 	BackgroundDim     int
-	Theme             string
+	Theme             Theme
 	Zones             map[string]json.RawMessage
 }
 
@@ -65,13 +67,13 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 	return Scene{
 		ID:                row.ID,
 		Name:              row.Name,
-		Orientation:       row.Orientation,
+		Orientation:       Orientation(row.Orientation),
 		LayoutID:          row.LayoutID,
 		BackgroundColor:   row.BackgroundColor,
 		BackgroundAssetID: row.BackgroundAssetID,
-		BackgroundFit:     row.BackgroundFit,
+		BackgroundFit:     MediaFit(row.BackgroundFit),
 		BackgroundDim:     int(row.BackgroundDim),
-		Theme:             row.Theme,
+		Theme:             Theme(row.Theme),
 		Zones:             zones, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 	}, nil
 }
@@ -91,19 +93,19 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 	if !ok {
 		return validatedScene{}, validation("layoutId is not a known layout")
 	}
-	if input.Orientation != "portrait" && input.Orientation != "landscape" {
+	if input.Orientation != OrientationPortrait && input.Orientation != OrientationLandscape {
 		return validatedScene{}, validation("orientation must be portrait or landscape")
 	}
 	if !colorPattern.MatchString(input.BackgroundColor) {
 		return validatedScene{}, validation("backgroundColor must be a lowercase #rrggbb colour")
 	}
-	if input.BackgroundFit != "cover" && input.BackgroundFit != "contain" {
+	if input.BackgroundFit != MediaFitCover && input.BackgroundFit != MediaFitContain {
 		return validatedScene{}, validation("backgroundFit must be cover or contain")
 	}
 	if input.BackgroundDim < 0 || input.BackgroundDim > 80 {
 		return validatedScene{}, validation("backgroundDim must be between 0 and 80")
 	}
-	if input.Theme != "dark" && input.Theme != "light" {
+	if input.Theme != ThemeDark && input.Theme != ThemeLight {
 		return validatedScene{}, validation("theme must be dark or light")
 	}
 	return validatedScene{SceneInput: input, name: name, layout: layout}, nil
@@ -127,17 +129,17 @@ func (s *Service) verifyReferences(
 		if err != nil {
 			return err
 		}
-		kinds := make(map[uuid.UUID]string, len(rows))
+		kinds := make(map[uuid.UUID]AssetKind, len(rows))
 		for _, row := range rows {
-			kinds[row.ID] = row.Kind
+			kinds[row.ID] = AssetKind(row.Kind)
 		}
 		for _, id := range distinct(images) {
-			if kinds[id] != "image" {
+			if kinds[id] != AssetKindImage {
 				return validation("image asset %s does not exist", id)
 			}
 		}
 		for _, id := range distinct(videos) {
-			if kinds[id] != "video" {
+			if kinds[id] != AssetKindVideo {
 				return validation("video asset %s does not exist", id)
 			}
 		}
@@ -236,13 +238,13 @@ func (s *Service) CreateScene(
 	row, err := q.CreateSignageScene(ctx, signagedb.CreateSignageSceneParams{
 		ID:                id,
 		Name:              checked.name,
-		Orientation:       input.Orientation,
+		Orientation:       string(input.Orientation),
 		LayoutID:          input.LayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
-		BackgroundFit:     input.BackgroundFit,
+		BackgroundFit:     string(input.BackgroundFit),
 		BackgroundDim:     int32(input.BackgroundDim),
-		Theme:             input.Theme,
+		Theme:             string(input.Theme),
 		Zones:             string(encoded),
 	})
 	if err != nil {
@@ -338,13 +340,13 @@ func (s *Service) UpdateScene(
 	}
 	row, err := q.UpdateSignageScene(ctx, signagedb.UpdateSignageSceneParams{
 		Name:              checked.name,
-		Orientation:       input.Orientation,
+		Orientation:       string(input.Orientation),
 		LayoutID:          input.LayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
-		BackgroundFit:     input.BackgroundFit,
+		BackgroundFit:     string(input.BackgroundFit),
 		BackgroundDim:     int32(input.BackgroundDim),
-		Theme:             input.Theme,
+		Theme:             string(input.Theme),
 		Zones:             string(encoded), ID: id, ExpectedVersion: expected,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -407,14 +409,14 @@ func (s *Service) DeleteScene(
 		return err
 	}
 	for _, playlist := range playlists {
-		references = append(references, Reference{Kind: "playlist", ID: playlist.ID, Name: playlist.Name})
+		references = append(references, Reference{Kind: ReferencePlaylist, ID: playlist.ID, Name: playlist.Name})
 	}
 	rules, err := q.ListRulesReferencingScene(ctx, &id)
 	if err != nil {
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, Reference{Kind: "display_rule", ID: rule.DisplayID, Name: rule.DisplayName})
+		references = append(references, Reference{Kind: ReferenceDisplayRule, ID: rule.DisplayID, Name: rule.DisplayName})
 	}
 	if len(references) > 0 {
 		return inUse("Scene", references)

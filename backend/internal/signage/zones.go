@@ -65,74 +65,74 @@ func distinct(ids []uuid.UUID) []uuid.UUID {
 }
 
 type widgetType struct {
-	Type string `json:"type"`
+	Type WidgetType `json:"type"`
 }
 
 type emptyW struct {
-	Type string `json:"type"`
+	Type WidgetType `json:"type"`
 }
 type mediaW struct {
-	Type    string     `json:"type"`
+	Type    WidgetType `json:"type"`
 	MediaID *uuid.UUID `json:"mediaId"`
-	Fit     string     `json:"fit"`
+	Fit     MediaFit   `json:"fit"`
 }
 type slideshowW struct {
-	Type     string      `json:"type"`
+	Type     WidgetType  `json:"type"`
 	MediaIDs []uuid.UUID `json:"mediaIds"`
 	Seconds  int         `json:"seconds"`
 }
 type textW struct {
-	Type  string `json:"type"`
-	Text  string `json:"text"`
-	Size  string `json:"size"`
-	Align string `json:"align"`
+	Type  WidgetType `json:"type"`
+	Text  string     `json:"text"`
+	Size  TextSize   `json:"size"`
+	Align TextAlign  `json:"align"`
 }
 type qrW struct {
-	Type    string `json:"type"`
-	URL     string `json:"url"`
-	Caption string `json:"caption"`
+	Type    WidgetType `json:"type"`
+	URL     string     `json:"url"`
+	Caption string     `json:"caption"`
 }
 type clockW struct {
-	Type string `json:"type"`
-	Mode string `json:"mode"`
+	Type WidgetType `json:"type"`
+	Mode ClockMode  `json:"mode"`
 }
 type cameraW struct {
-	Type            string      `json:"type"`
-	Source          string      `json:"source"`
-	MachineID       *uuid.UUID  `json:"machineId"`
-	Multi           string      `json:"multi"`
-	ShowProgress    bool        `json:"showProgress"`
-	ShowRemaining   bool        `json:"showRemaining"`
-	Fallback        string      `json:"fallback"`
-	FallbackMediaID *uuid.UUID  `json:"fallbackMediaId"`
-	MachineIDs      []uuid.UUID `json:"machineIds"`
+	Type            WidgetType     `json:"type"`
+	Source          CameraSource   `json:"source"`
+	MachineID       *uuid.UUID     `json:"machineId"`
+	Multi           MultiMode      `json:"multi"`
+	ShowProgress    bool           `json:"showProgress"`
+	ShowRemaining   bool           `json:"showRemaining"`
+	Fallback        CameraFallback `json:"fallback"`
+	FallbackMediaID *uuid.UUID     `json:"fallbackMediaId"`
+	MachineIDs      []uuid.UUID    `json:"machineIds"`
 }
 type statusW struct {
-	Type          string      `json:"type"`
+	Type          WidgetType  `json:"type"`
 	MachineIDs    []uuid.UUID `json:"machineIds"`
 	ShowProgress  bool        `json:"showProgress"`
 	ShowRemaining bool        `json:"showRemaining"`
 }
 type countW struct {
-	Type  string `json:"type"`
-	Count int    `json:"count"`
+	Type  WidgetType `json:"type"`
+	Count int        `json:"count"`
 }
 type announcementW struct {
-	Type          string      `json:"type"`
-	TemplateIDs   []uuid.UUID `json:"templateIds"`
-	Style         string      `json:"style"`
-	Size          string      `json:"size"`
-	WhenNone      string      `json:"whenNone"`
-	FallbackText  string      `json:"fallbackText"`
-	WhenMany      string      `json:"whenMany"`
-	RotateSeconds int         `json:"rotateSeconds"`
+	Type          WidgetType        `json:"type"`
+	TemplateIDs   []uuid.UUID       `json:"templateIds"`
+	Style         AnnouncementStyle `json:"style"`
+	Size          TextSize          `json:"size"`
+	WhenNone      WhenNone          `json:"whenNone"`
+	FallbackText  string            `json:"fallbackText"`
+	WhenMany      WhenMany          `json:"whenMany"`
+	RotateSeconds int               `json:"rotateSeconds"`
 }
 
 func zoneError(zone, format string, args ...any) error {
 	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf("zone %q: %s", zone, fmt.Sprintf(format, args...)))
 }
 
-func inSet(value string, allowed ...string) bool {
+func inSet[T comparable](value T, allowed ...T) bool {
 	for _, candidate := range allowed {
 		if value == candidate {
 			return true
@@ -190,27 +190,27 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		return nil
 	}
 	switch head.Type {
-	case "empty":
+	case WidgetEmpty:
 		var w emptyW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-	case "image", "video":
+	case WidgetImage, WidgetVideo:
 		var w mediaW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !inSet(w.Fit, "contain", "cover") {
+		if !inSet(w.Fit, MediaFitContain, MediaFitCover) {
 			return nil, refs, zoneError(zone, "fit must be contain or cover")
 		}
 		if w.MediaID != nil {
-			if head.Type == "image" {
+			if head.Type == WidgetImage {
 				refs.ImageAssets = append(refs.ImageAssets, *w.MediaID)
 			} else {
 				refs.VideoAssets = append(refs.VideoAssets, *w.MediaID)
 			}
 		}
-	case "slideshow":
+	case WidgetSlideshow:
 		var w slideshowW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -226,7 +226,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		}
 		refs.ImageAssets = append(refs.ImageAssets, w.MediaIDs...)
 		value = &w
-	case "text":
+	case WidgetText:
 		var w textW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -234,10 +234,10 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if !plainText(w.Text, maxTextWidgetRunes, true) {
 			return nil, refs, zoneError(zone, "text must be plain text of at most %d characters", maxTextWidgetRunes)
 		}
-		if !inSet(w.Size, "s", "m", "l", "xl") || !inSet(w.Align, "start", "center", "end") {
+		if !inSet(w.Size, TextSizeS, TextSizeM, TextSizeL, TextSizeXL) || !inSet(w.Align, TextAlignStart, TextAlignCenter, TextAlignEnd) {
 			return nil, refs, zoneError(zone, "text size or alignment is invalid")
 		}
-	case "qr":
+	case WidgetQR:
 		var w qrW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -252,24 +252,24 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 				maxCaptionRunes,
 			)
 		}
-	case "clock":
+	case WidgetClock:
 		var w clockW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !inSet(w.Mode, "time", "datetime") {
+		if !inSet(w.Mode, ClockTime, ClockDateTime) {
 			return nil, refs, zoneError(zone, "clock mode must be time or datetime")
 		}
-	case "camera":
+	case WidgetCamera:
 		var w cameraW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !inSet(w.Source, "machine", "auto") || !inSet(w.Multi, "split", "alternate") ||
-			!inSet(w.Fallback, "image", "text", "hide") {
+		if !inSet(w.Source, CameraSourceMachine, CameraSourceAuto) || !inSet(w.Multi, MultiModeSplit, MultiModeAlternate) ||
+			!inSet(w.Fallback, CameraFallbackImage, CameraFallbackText, CameraFallbackHide) {
 			return nil, refs, zoneError(zone, "camera source, multi mode or fallback is invalid")
 		}
-		if w.Source == "machine" && w.MachineID == nil {
+		if w.Source == CameraSourceMachine && w.MachineID == nil {
 			return nil, refs, zoneError(zone, "a camera bound to a machine needs machineId")
 		}
 		if w.MachineIDs == nil {
@@ -281,7 +281,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if len(distinct(w.MachineIDs)) != len(w.MachineIDs) {
 			return nil, refs, zoneError(zone, "camera machines must be distinct")
 		}
-		if w.Source == "auto" {
+		if w.Source == CameraSourceAuto {
 			w.MachineID = nil
 			refs.Machines = append(refs.Machines, w.MachineIDs...)
 		} else {
@@ -290,14 +290,14 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if w.MachineID != nil {
 			refs.Machines = append(refs.Machines, *w.MachineID)
 		}
-		if w.Fallback != "image" {
+		if w.Fallback != CameraFallbackImage {
 			w.FallbackMediaID = nil
 		}
 		if w.FallbackMediaID != nil {
 			refs.ImageAssets = append(refs.ImageAssets, *w.FallbackMediaID)
 		}
 		value = &w
-	case "status":
+	case WidgetStatus:
 		var w statusW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -311,7 +311,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		w.MachineIDs = distinct(w.MachineIDs)
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
 		value = &w
-	case "open_days", "events":
+	case WidgetOpenDays, WidgetEvents:
 		var w countW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -319,7 +319,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if w.Count < 1 || w.Count > 10 {
 			return nil, refs, zoneError(zone, "count must be between 1 and 10")
 		}
-	case "announcement":
+	case WidgetAnnouncement:
 		var w announcementW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
@@ -331,9 +331,10 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, zoneError(zone, "an announcement widget filters at most %d templates", maxWidgetTemplates)
 		}
 		w.TemplateIDs = distinct(w.TemplateIDs)
-		if !inSet(w.Style, "banner", "card", "full") || !inSet(w.Size, "s", "m", "l", "xl") ||
-			!inSet(w.WhenNone, "empty", "text") ||
-			!inSet(w.WhenMany, "rotate", "newest", "stack") {
+		if !inSet(w.Style, AnnouncementStyleBanner, AnnouncementStyleCard, AnnouncementStyleFull) ||
+			!inSet(w.Size, TextSizeS, TextSizeM, TextSizeL, TextSizeXL) ||
+			!inSet(w.WhenNone, WhenNoneEmpty, WhenNoneText) ||
+			!inSet(w.WhenMany, WhenManyRotate, WhenManyNewest, WhenManyStack) {
 			return nil, refs, zoneError(zone, "announcement style, size, whenNone or whenMany is invalid")
 		}
 		if !plainText(w.FallbackText, maxFallbackTextRune, true) {

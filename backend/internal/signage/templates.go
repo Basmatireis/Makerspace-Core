@@ -26,23 +26,25 @@ var (
 	fieldKeyPattern  = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 	timeValuePattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 	numberPattern    = regexp.MustCompile(`^-?[0-9]{1,15}([.,][0-9]{1,6})?$`)
-	fieldTypes       = []string{"text", "longtext", "time", "date", "datetime", "number", "choice", "machine"}
-	tones            = []string{"info", "warning", "critical", "neutral"}
+	fieldTypes       = []FieldType{FieldText, FieldLongText, FieldTime, FieldDate, FieldDateTime, FieldNumber, FieldChoice, FieldMachine}
+	tones            = []Tone{ToneInfo, ToneWarning, ToneCritical, ToneNeutral}
 )
 
 // TemplateField is one typed input of an announcement template.
 type TemplateField struct {
-	Key, Label, Type string
-	Required         bool
-	DefaultValue     string
-	HelperText       string
-	Options          []string
+	Key, Label   string
+	Type         FieldType
+	Required     bool
+	DefaultValue string
+	HelperText   string
+	Options      []string
 }
 
 // Template is an announcement template: fields, a title and body with {placeholders}, and a tone.
 type Template struct {
 	ID          uuid.UUID
-	Name, Tone  string
+	Name        string
+	Tone        Tone
 	Title, Body string
 	Fields      []TemplateField
 	Version     int64
@@ -52,7 +54,8 @@ type Template struct {
 
 // TemplateInput is the writable part of a template; Fields replace the stored fields.
 type TemplateInput struct {
-	Name, Tone  string
+	Name        string
+	Tone        Tone
 	Title, Body string
 	Fields      []TemplateField
 }
@@ -64,7 +67,7 @@ func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateFi
 	return Template{
 		ID:        row.ID,
 		Name:      row.Name,
-		Tone:      row.Tone,
+		Tone:      Tone(row.Tone),
 		Title:     row.Title,
 		Body:      row.Body,
 		Fields:    fields,
@@ -84,7 +87,7 @@ func fieldsByTemplate(rows []signagedb.SignageAnnouncementTemplateField) map[uui
 		result[row.TemplateID] = append(result[row.TemplateID], TemplateField{
 			Key:          row.Key,
 			Label:        row.Label,
-			Type:         row.Type,
+			Type:         FieldType(row.Type),
 			Required:     row.Required,
 			DefaultValue: row.DefaultValue,
 			HelperText:   row.HelperText,
@@ -112,38 +115,38 @@ func ValidateFieldValue(field TemplateField, value string) error {
 		return validation("%s is too long", field.Label)
 	}
 	switch field.Type {
-	case "text":
+	case FieldText:
 		if !plainText(value, 200, false) {
 			return validation("%s must be single-line text of at most 200 characters", field.Label)
 		}
-	case "longtext":
+	case FieldLongText:
 		if !plainText(value, maxFieldValueRunes, true) {
 			return validation("%s must be plain text of at most %d characters", field.Label, maxFieldValueRunes)
 		}
-	case "time":
+	case FieldTime:
 		if !timeValuePattern.MatchString(value) {
 			return validation("%s must be a time as HH:MM", field.Label)
 		}
-	case "date":
+	case FieldDate:
 		if _, err := time.Parse("2006-01-02", value); err != nil {
 			return validation("%s must be a date as YYYY-MM-DD", field.Label)
 		}
-	case "datetime":
+	case FieldDateTime:
 		if _, err := time.Parse("2006-01-02T15:04", value); err != nil {
 			return validation("%s must be a date and time as YYYY-MM-DDTHH:MM", field.Label)
 		}
-	case "number":
+	case FieldNumber:
 		if !numberPattern.MatchString(value) {
 			return validation("%s must be a number", field.Label)
 		}
-	case "choice":
+	case FieldChoice:
 		for _, option := range field.Options {
 			if option == value {
 				return nil
 			}
 		}
 		return validation("%s must be one of its options", field.Label)
-	case "machine":
+	case FieldMachine:
 		if _, err := uuid.Parse(value); err != nil {
 			return validation("%s must be a machine id", field.Label)
 		}
@@ -151,7 +154,7 @@ func ValidateFieldValue(field TemplateField, value string) error {
 	return nil
 }
 
-func contains(values []string, value string) bool {
+func contains[T comparable](values []T, value T) bool {
 	for _, candidate := range values {
 		if candidate == value {
 			return true
@@ -207,7 +210,7 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 			)
 		}
 		options := []string{}
-		if field.Type == "choice" {
+		if field.Type == FieldChoice {
 			if len(field.Options) == 0 || len(field.Options) > maxFieldOptions {
 				return TemplateInput{}, validation(
 					"choice field %q needs between 1 and %d options",
@@ -263,7 +266,7 @@ func insertFields(ctx context.Context, q *signagedb.Queries, templateID uuid.UUI
 			Position:     int32(position),
 			Key:          field.Key,
 			Label:        field.Label,
-			Type:         field.Type,
+			Type:         string(field.Type),
 			Required:     field.Required,
 			DefaultValue: field.DefaultValue, HelperText: field.HelperText, Options: field.Options,
 		}); err != nil {
@@ -348,7 +351,7 @@ func (s *Service) CreateTemplate(
 		signagedb.CreateSignageTemplateParams{
 			ID:    id,
 			Name:  checked.Name,
-			Tone:  checked.Tone,
+			Tone:  string(checked.Tone),
 			Title: checked.Title,
 			Body:  checked.Body,
 		},
@@ -417,7 +420,7 @@ func (s *Service) UpdateTemplate(
 		ctx,
 		signagedb.UpdateSignageTemplateParams{
 			Name:            checked.Name,
-			Tone:            checked.Tone,
+			Tone:            string(checked.Tone),
 			Title:           checked.Title,
 			Body:            checked.Body,
 			ID:              id,
@@ -504,21 +507,21 @@ func (s *Service) DeleteTemplate(
 		return err
 	}
 	for _, announcementID := range live {
-		references = append(references, Reference{Kind: "announcement", ID: announcementID, Name: current.Name})
+		references = append(references, Reference{Kind: ReferenceAnnouncement, ID: announcementID, Name: current.Name})
 	}
 	rules, err := q.ListRulesFilteringTemplate(ctx, id)
 	if err != nil {
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, Reference{Kind: "display_rule", ID: rule.DisplayID, Name: rule.DisplayName})
+		references = append(references, Reference{Kind: ReferenceDisplayRule, ID: rule.DisplayID, Name: rule.DisplayName})
 	}
 	scenes, err := q.ListScenesReferencingTemplate(ctx, id)
 	if err != nil {
 		return err
 	}
 	for _, scene := range scenes {
-		references = append(references, Reference{Kind: "scene", ID: scene.ID, Name: scene.Name})
+		references = append(references, Reference{Kind: ReferenceScene, ID: scene.ID, Name: scene.Name})
 	}
 	if len(references) > 0 {
 		return inUse("Announcement template", references)

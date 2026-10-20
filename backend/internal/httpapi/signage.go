@@ -10,6 +10,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
@@ -113,12 +114,7 @@ func (s *Server) ListSignageAssets(
 	if err != nil {
 		return nil, err
 	}
-	var kind *string
-	if r.Params.Kind != nil {
-		value := string(*r.Params.Kind)
-		kind = &value
-	}
-	assets, err := s.signage.ListAssets(ctx, p, kind)
+	assets, err := s.signage.ListAssets(ctx, p, optional.Convert[signage.AssetKind](r.Params.Kind))
 	if err != nil {
 		return nil, err
 	}
@@ -333,13 +329,13 @@ func (s *Server) CreateSignageScene(
 	}
 	scene, err := s.signage.CreateScene(ctx, p, signage.SceneInput{
 		Name:            r.Body.Name,
-		Orientation:     string(r.Body.Orientation),
+		Orientation:     signage.Orientation(r.Body.Orientation),
 		LayoutID:        string(r.Body.LayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
-		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
-		Theme: string(r.Body.Theme), Zones: zones,
+		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
+		Theme: signage.Theme(r.Body.Theme), Zones: zones,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -387,13 +383,13 @@ func (s *Server) UpdateSignageScene(
 	}
 	scene, err := s.signage.UpdateScene(ctx, p, r.SceneId, r.Body.ExpectedVersion, signage.SceneInput{
 		Name:            r.Body.Name,
-		Orientation:     string(r.Body.Orientation),
+		Orientation:     signage.Orientation(r.Body.Orientation),
 		LayoutID:        string(r.Body.LayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
-		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
-		Theme: string(r.Body.Theme), Zones: zones,
+		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
+		Theme: signage.Theme(r.Body.Theme), Zones: zones,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -451,7 +447,7 @@ func signagePlaylistItems(items []openapi.SignagePlaylistItem) []signage.Playlis
 	for _, item := range items {
 		result = append(
 			result,
-			signage.PlaylistItem{SceneID: item.SceneId, Seconds: item.Seconds, Transition: string(item.Transition)},
+			signage.PlaylistItem{SceneID: item.SceneId, Seconds: item.Seconds, Transition: signage.Transition(item.Transition)},
 		)
 	}
 	return result
@@ -586,7 +582,7 @@ func signageTemplateFields(fields []openapi.SignageTemplateField) []signage.Temp
 	result := make([]signage.TemplateField, 0, len(fields))
 	for _, field := range fields {
 		result = append(result, signage.TemplateField{
-			Key: field.Key, Label: field.Label, Type: string(field.Type), Required: field.Required,
+			Key: field.Key, Label: field.Label, Type: signage.FieldType(field.Type), Required: field.Required,
 			DefaultValue: field.DefaultValue, HelperText: field.HelperText, Options: field.Options,
 		})
 	}
@@ -625,7 +621,7 @@ func (s *Server) CreateSignageAnnouncementTemplate(
 	}
 	template, err := s.signage.CreateTemplate(ctx, p, signage.TemplateInput{
 		Name:   r.Body.Name,
-		Tone:   string(r.Body.Tone),
+		Tone:   signage.Tone(r.Body.Tone),
 		Title:  r.Body.Title,
 		Body:   r.Body.Body,
 		Fields: signageTemplateFields(r.Body.Fields),
@@ -664,7 +660,7 @@ func (s *Server) UpdateSignageAnnouncementTemplate(
 	}
 	template, err := s.signage.UpdateTemplate(ctx, p, r.TemplateId, r.Body.ExpectedVersion, signage.TemplateInput{
 		Name:   r.Body.Name,
-		Tone:   string(r.Body.Tone),
+		Tone:   signage.Tone(r.Body.Tone),
 		Title:  r.Body.Title,
 		Body:   r.Body.Body,
 		Fields: signageTemplateFields(r.Body.Fields),

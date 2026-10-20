@@ -88,7 +88,7 @@ func NewService(
 
 // Reference names one entity that blocks a deletion.
 type Reference struct {
-	Kind string
+	Kind ReferenceKind
 	ID   uuid.UUID
 	Name string
 }

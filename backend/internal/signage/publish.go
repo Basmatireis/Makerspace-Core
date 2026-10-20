@@ -73,7 +73,7 @@ func (s *Service) publishDisplay(
 		return Display{}, err
 	}
 	draft := displayDraft{
-		ID: id, Name: current.Name, Orientation: current.Orientation,
+		ID: id, Name: current.Name, Orientation: Orientation(current.Orientation),
 		Resolution:         Resolution{Width: int(current.ResolutionWidth), Height: int(current.ResolutionHeight)},
 		VisibleFromOutside: current.VisibleFromOutside, DefaultPlaylistID: current.DefaultPlaylistID, Rules: rules[id],
 	}

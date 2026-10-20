@@ -20,7 +20,7 @@ const maxPlaylistItems = 100
 type PlaylistItem struct {
 	SceneID    uuid.UUID
 	Seconds    int
-	Transition string
+	Transition Transition
 }
 
 // Playlist is an ordered list of scenes with seconds per item and a transition.
@@ -66,7 +66,7 @@ func validatePlaylistInput(ctx context.Context, q *signagedb.Queries, input Play
 		if item.Seconds < 3 || item.Seconds > 3600 {
 			return "", validation("item seconds must be between 3 and 3600")
 		}
-		if item.Transition != "cut" && item.Transition != "fade" {
+		if item.Transition != TransitionCut && item.Transition != TransitionFade {
 			return "", validation("item transition must be cut or fade")
 		}
 		scenes = append(scenes, item.SceneID)
@@ -93,7 +93,7 @@ func replaceItems(ctx context.Context, q *signagedb.Queries, playlistID uuid.UUI
 			Position:   int32(position),
 			SceneID:    item.SceneID,
 			Seconds:    int32(item.Seconds),
-			Transition: item.Transition,
+			Transition: string(item.Transition),
 		}); err != nil {
 			return databaseError(err)
 		}
@@ -106,7 +106,7 @@ func itemsByPlaylist(rows []signagedb.SignagePlaylistItem) map[uuid.UUID][]Playl
 	for _, row := range rows {
 		result[row.PlaylistID] = append(
 			result[row.PlaylistID],
-			PlaylistItem{SceneID: row.SceneID, Seconds: int(row.Seconds), Transition: row.Transition},
+			PlaylistItem{SceneID: row.SceneID, Seconds: int(row.Seconds), Transition: Transition(row.Transition)},
 		)
 	}
 	return result
@@ -311,14 +311,14 @@ func (s *Service) DeletePlaylist(
 		return err
 	}
 	for _, display := range displays {
-		references = append(references, Reference{Kind: "display_default", ID: display.ID, Name: display.Name})
+		references = append(references, Reference{Kind: ReferenceDisplayDefault, ID: display.ID, Name: display.Name})
 	}
 	rules, err := q.ListRulesReferencingPlaylist(ctx, &id)
 	if err != nil {
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, Reference{Kind: "display_rule", ID: rule.DisplayID, Name: rule.DisplayName})
+		references = append(references, Reference{Kind: ReferenceDisplayRule, ID: rule.DisplayID, Name: rule.DisplayName})
 	}
 	if len(references) > 0 {
 		return inUse("Playlist", references)

@@ -52,7 +52,7 @@ type PublicCalendar interface {
 type PlayerDisplay struct {
 	ID                 uuid.UUID
 	Name, Location     string
-	Orientation        string
+	Orientation        Orientation
 	Resolution         Resolution
 	VisibleFromOutside bool
 	AllowCameraOutside bool
@@ -72,7 +72,7 @@ func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (Pla
 		return PlayerDisplay{}, apperror.New(http.StatusForbidden, "signage_display_revoked", "The display is revoked")
 	}
 	return PlayerDisplay{
-		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
+		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: Orientation(row.Orientation),
 		Resolution: Resolution{
 			Width:  int(row.ResolutionWidth),
 			Height: int(row.ResolutionHeight),
@@ -163,7 +163,7 @@ func (s *Service) OpenPlayerAsset(
 	}
 	if assetFromRow(
 		row.ID,
-		row.Kind,
+		AssetKind(row.Kind),
 		row.Name,
 		row.Width,
 		row.Height,
@@ -188,7 +188,7 @@ func (s *Service) OpenPlayerAsset(
 type LiveMachine struct {
 	MachineID        uuid.UUID
 	Name             string
-	State            string
+	State            LiveState
 	ProgressPercent  *int
 	RemainingMinutes *int
 	ObservedAt       *time.Time
@@ -199,7 +199,7 @@ type LiveMachine struct {
 // field values, only the finished text.
 type LiveAnnouncement struct {
 	ID, TemplateID uuid.UUID
-	Tone           string
+	Tone           Tone
 	Title, Body    string
 	StartsAt       time.Time
 	EndsAt         *time.Time
@@ -230,17 +230,17 @@ type LiveData struct {
 	Streams       []Stream
 }
 
-var knownLiveStates = map[string]struct{}{
-	"idle":      {},
-	"preparing": {},
-	"printing":  {},
-	"paused":    {},
-	"finished":  {},
-	"failed":    {},
+var knownLiveStates = map[LiveState]struct{}{
+	LiveStateIdle:      {},
+	LiveStatePreparing: {},
+	LiveStatePrinting:  {},
+	LiveStatePaused:    {},
+	LiveStateFinished:  {},
+	LiveStateFailed:    {},
 }
 
 type liveSnapshot struct {
-	State string `json:"state"`
+	State LiveState `json:"state"`
 	Job   *struct {
 		ProgressPercent  *int `json:"progressPercent"`
 		RemainingMinutes *int `json:"remainingMinutes"`
@@ -255,7 +255,7 @@ func liveMachineFrom(
 	status *signagedb.ListSignageLiveStatusesRow,
 	now time.Time,
 ) LiveMachine {
-	machine := LiveMachine{MachineID: id, Name: name, State: "unknown", Stale: true}
+	machine := LiveMachine{MachineID: id, Name: name, State: LiveStateUnknown, Stale: true}
 	if status == nil {
 		return machine
 	}
@@ -267,14 +267,14 @@ func liveMachineFrom(
 	machine.Stale = false
 	var snapshot liveSnapshot
 	if json.Unmarshal(status.Snapshot, &snapshot) != nil {
-		machine.State = "unknown"
+		machine.State = LiveStateUnknown
 		return machine
 	}
 	if _, ok := knownLiveStates[snapshot.State]; ok {
 		machine.State = snapshot.State
 	}
 	if snapshot.Job != nil &&
-		(machine.State == "printing" || machine.State == "paused" || machine.State == "preparing") {
+		(machine.State == LiveStatePrinting || machine.State == LiveStatePaused || machine.State == LiveStatePreparing) {
 		machine.ProgressPercent, machine.RemainingMinutes = snapshot.Job.ProgressPercent, snapshot.Job.RemainingMinutes
 	}
 	return machine
@@ -356,7 +356,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	}
 	for _, announcement := range announcements {
 		live.Announcements = append(live.Announcements, LiveAnnouncement{
-			ID: announcement.ID, TemplateID: announcement.TemplateID, Tone: announcement.Rendered.Tone,
+			ID: announcement.ID, TemplateID: announcement.TemplateID, Tone: Tone(announcement.Rendered.Tone),
 			Title:    announcement.Rendered.Title,
 			Body:     announcement.Rendered.Body,
 			StartsAt: announcement.StartsAt,

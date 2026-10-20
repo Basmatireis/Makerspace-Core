@@ -8,6 +8,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 )
@@ -94,7 +95,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:    "machine_printing",
 				MachineIDs:       []uuid.UUID{machine},
-				MachineMatch:     str("any"),
+				MachineMatch:     optional.Of(MachineMatchAny),
 				TargetKind:       "playlist",
 				TargetID:         r.TargetID,
 				MinSeconds:       0,
@@ -105,7 +106,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 		{"machine rule needs machines", func(r *RuleInput) {
 			*r = RuleInput{
 				ConditionKind:    "machine_printing",
-				MachineMatch:     str("any"),
+				MachineMatch:     optional.Of(MachineMatchAny),
 				TargetKind:       "scene",
 				TargetID:         r.TargetID,
 				MultiMode:        "split",
@@ -127,7 +128,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 				ConditionKind:    "machine_printing",
 				Weekdays:         []int{1},
 				MachineIDs:       []uuid.UUID{machine},
-				MachineMatch:     str("all"),
+				MachineMatch:     optional.Of(MachineMatchAll),
 				TargetKind:       "scene",
 				TargetID:         r.TargetID,
 				MultiMode:        "split",

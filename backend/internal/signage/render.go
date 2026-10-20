@@ -21,13 +21,16 @@ func isBuiltInKey(key string) bool {
 }
 
 // RenderField is the part of a template field the renderer needs.
-type RenderField struct{ Key, Type string }
+type RenderField struct {
+	Key  string
+	Type FieldType
+}
 
 // RenderTemplate is the part of an announcement template the renderer needs.
 type RenderTemplate struct {
 	Fields      []RenderField
 	Title, Body string
-	Tone        string
+	Tone        Tone
 }
 
 // RenderTiming is the announcement window.
@@ -120,11 +123,11 @@ func formatFieldValue(field RenderField, value string, now time.Time, machines m
 		return ""
 	}
 	switch field.Type {
-	case "date":
+	case FieldDate:
 		if date, ok := parseLocal(value); ok {
 			return formatDate(date)
 		}
-	case "datetime":
+	case FieldDateTime:
 		date, ok := parseLocal(value)
 		if !ok {
 			return value
@@ -137,7 +140,7 @@ func formatFieldValue(field RenderField, value string, now time.Time, machines m
 		default:
 			return "on " + formatDate(date) + " at " + formatTime(date)
 		}
-	case "machine":
+	case FieldMachine:
 		if name, ok := machines[value]; ok {
 			return name
 		}
@@ -226,5 +229,5 @@ func RenderAnnouncement(
 			return match
 		})
 	}
-	return Rendered{Title: fill(template.Title), Body: fill(template.Body), Tone: template.Tone}
+	return Rendered{Title: fill(template.Title), Body: fill(template.Body), Tone: string(template.Tone)}
 }

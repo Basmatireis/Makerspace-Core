@@ -722,7 +722,7 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	) {
 		t.Fatalf("rename unknown: %v", err)
 	}
-	images, err := f.service.ListAssets(ctx, f.admin, ptr("image"))
+	images, err := f.service.ListAssets(ctx, f.admin, ptr(signage.AssetKindImage))
 	if err != nil || len(images) != 1 || images[0].ID != asset.ID {
 		t.Fatalf("image list = %#v, %v", images, err)
 	}

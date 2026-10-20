@@ -17,6 +17,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ const (
 // Asset is an uploaded image or video; the bytes live in the files module.
 type Asset struct {
 	ID                 uuid.UUID
-	Kind               string
+	Kind               AssetKind
 	Name               string
 	Width, Height      *int
 	DurationMs         *int
@@ -58,8 +59,8 @@ type UploadInput struct {
 	Body        io.Reader
 }
 
-var assetContentTypes = map[string]string{
-	"image/png": "image", "image/jpeg": "image", "image/webp": "image", "video/mp4": "video",
+var assetContentTypes = map[string]AssetKind{
+	"image/png": AssetKindImage, "image/jpeg": AssetKindImage, "image/webp": AssetKindImage, "video/mp4": AssetKindVideo,
 }
 
 var imageFormats = map[string]string{"image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp"}
@@ -73,7 +74,8 @@ type OpenedAsset struct {
 // assetFromRow maps a row; an empty createdByName (account deleted) becomes nil.
 func assetFromRow(
 	id uuid.UUID,
-	kind, name string,
+	kind AssetKind,
+	name string,
 	width, height, duration *int32,
 	createdBy *uuid.UUID,
 	createdByName string,
@@ -103,14 +105,14 @@ func assetFromRow(
 }
 
 // ListAssets lists assets newest first, optionally only one kind.
-func (s *Service) ListAssets(ctx context.Context, principal authorization.Principal, kind *string) ([]Asset, error) {
+func (s *Service) ListAssets(ctx context.Context, principal authorization.Principal, kind *AssetKind) ([]Asset, error) {
 	if err := requireRead(principal); err != nil {
 		return nil, err
 	}
-	if kind != nil && *kind != "image" && *kind != "video" {
+	if kind != nil && *kind != AssetKindImage && *kind != AssetKindVideo {
 		return nil, validation("kind must be image or video")
 	}
-	rows, err := signagedb.New(s.pool).ListSignageAssets(ctx, kind)
+	rows, err := signagedb.New(s.pool).ListSignageAssets(ctx, optional.Convert[string](kind))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (s *Service) ListAssets(ctx context.Context, principal authorization.Princi
 			items,
 			assetFromRow(
 				row.ID,
-				row.Kind,
+				AssetKind(row.Kind),
 				row.Name,
 				row.Width,
 				row.Height,
@@ -155,7 +157,7 @@ func (s *Service) getAsset(ctx context.Context, q *signagedb.Queries, id uuid.UU
 	}
 	return assetFromRow(
 		row.ID,
-		row.Kind,
+		AssetKind(row.Kind),
 		row.Name,
 		row.Width,
 		row.Height,
@@ -188,7 +190,7 @@ func (s *Service) OpenAsset(ctx context.Context, principal authorization.Princip
 	return OpenedAsset{
 		Asset: assetFromRow(
 			row.ID,
-			row.Kind,
+			AssetKind(row.Kind),
 			row.Name,
 			row.Width,
 			row.Height,
@@ -232,7 +234,7 @@ func (s *Service) UploadAsset(
 	if err != nil {
 		return Asset{}, err
 	}
-	if kind == "video" {
+	if kind == AssetKindVideo {
 		if err := positiveHeader(input.Width, 20000, "video width"); err != nil {
 			return Asset{}, err
 		}
@@ -247,7 +249,7 @@ func (s *Service) UploadAsset(
 		}
 	}
 	limit := MaxImageBytes
-	if kind == "video" {
+	if kind == AssetKindVideo {
 		limit = MaxVideoBytes
 	}
 	spool, err := os.CreateTemp("", "signage-upload-*")
@@ -277,7 +279,7 @@ func (s *Service) UploadAsset(
 		return Asset{}, err
 	}
 	var width, height, duration *int
-	if kind == "image" {
+	if kind == AssetKindImage {
 		configuration, format, err := image.DecodeConfig(spool)
 		if err != nil || format != imageFormats[input.ContentType] {
 			return Asset{}, validation("the file is not a valid %s image", imageFormats[input.ContentType])
@@ -336,7 +338,7 @@ func (s *Service) UploadAsset(
 	if _, err := signagedb.New(tx).CreateSignageAsset(ctx, signagedb.CreateSignageAssetParams{
 		ID:                 id,
 		FileID:             stored.ID,
-		Kind:               kind,
+		Kind:               string(kind),
 		Name:               name,
 		Width:              int32Pointer(width),
 		Height:             int32Pointer(height),
@@ -364,8 +366,8 @@ func (s *Service) UploadAsset(
 	return s.getAsset(ctx, signagedb.New(s.pool), id)
 }
 
-func assetTooLarge(kind string) error {
-	if kind == "video" {
+func assetTooLarge(kind AssetKind) error {
+	if kind == AssetKindVideo {
 		return apperror.New(
 			http.StatusRequestEntityTooLarge,
 			"signage_asset_too_large",
@@ -448,7 +450,7 @@ func (s *Service) DeleteAsset(
 	if len(scenes) > 0 {
 		references := make([]Reference, 0, len(scenes))
 		for _, scene := range scenes {
-			references = append(references, Reference{Kind: "scene", ID: scene.ID, Name: scene.Name})
+			references = append(references, Reference{Kind: ReferenceScene, ID: scene.ID, Name: scene.Name})
 		}
 		return inUse("Asset", references)
 	}
