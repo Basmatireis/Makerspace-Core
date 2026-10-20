@@ -11,6 +11,7 @@ import { formatGrams, parseDecimal, toDecimal } from '../components/inventorySha
 import { hasOpenFill, toNumber } from '../components/spoolShared';
 import { useNotify } from '../shared/toasts';
 import { activeProductsQuery, filamentMaterialsQuery, spoolErrorMessage, spoolUpdateBody, useRefreshInventory } from '../spoolData';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 type Values = {
   kind: FilamentSpoolKind; label: string; productId: string; manual: boolean; materialId: string; weight: string; tare: string; manufacturer: string; product: string; location: string;
@@ -72,8 +73,8 @@ export function SpoolFormModal({ open, onClose, spool, initialMaterialId }: { op
       });
     },
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { reset(defaults()); mutation.reset(); } }, [open, spool?.id, initialMaterialId]);
+  const resetForm = useLatestCallback(() => { reset(defaults()); mutation.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, spool?.id, initialMaterialId, resetForm]);
   const pending = mutation.isPending;
   const source = watch('source');
   const productId = watch('productId');

@@ -7,6 +7,7 @@ import type { FilamentSpool, FilamentSpoolIdentifierKind } from '../../../api/ge
 import { identifierKey, identifierKinds, identifierLabel } from '../components/spoolShared';
 import { useNotify } from '../shared/toasts';
 import { errorCode, spoolErrorMessage, useRefreshInventory } from '../spoolData';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 type Values = { kind: FilamentSpoolIdentifierKind; value: string };
 
@@ -16,7 +17,8 @@ export function IdentifierModal({ open, onClose, spool }: { open: boolean; onClo
   const refresh = useRefreshInventory();
   const mutation = useMutation({ mutationFn: (values: Values) => addFilamentSpoolIdentifier(spool.id, { kind: values.kind, value: values.value.trim() }) });
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<Values>({ defaultValues: { kind: 'nfc', value: '' } });
-  useEffect(() => { if (open) { reset({ kind: 'nfc', value: '' }); mutation.reset(); } }, [open, reset]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resetForm = useLatestCallback(() => { reset({ kind: 'nfc', value: '' }); mutation.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, resetForm]);
   const pending = mutation.isPending;
 
   const submit = handleSubmit(async (values) => {

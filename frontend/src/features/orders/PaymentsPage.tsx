@@ -52,8 +52,8 @@ function Cashbook() {
   const methods = url.list('method');
   const kinds = url.list('kind');
   const who = url.list('who');
-  const rows = useMemo(() => lines.filter((line) => (methods.length === 0 || methods.includes(line.method)) && (kinds.length === 0 || kinds.includes(lineKindId(line)))
-    && (who.length === 0 || (line.type === 'payment' && line.customerKind !== null && who.includes(line.customerKind)))), [lines, methods.join(','), kinds.join(','), who.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = lines.filter((line) => (methods.length === 0 || methods.includes(line.method)) && (kinds.length === 0 || kinds.includes(lineKindId(line)))
+    && (who.length === 0 || (line.type === 'payment' && line.customerKind !== null && who.includes(line.customerKind))));
 
   const paymentList = payments.data ?? [];
   const net = takings(paymentList);

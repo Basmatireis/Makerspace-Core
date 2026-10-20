@@ -20,6 +20,7 @@ import { formatDateTime } from '../shared/format';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { activeProductsQuery, allSpoolsQuery, filamentMaterialsQuery, spoolErrorMessage, useRefreshInventory } from '../spoolData';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 type Values = LeftoverValues & {
   spoolId: string;
@@ -116,13 +117,15 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
   });
   const pending = mutation.isPending;
 
-  useEffect(() => {
-    if (!open || !ready) return;
+  const resetWizard = useLatestCallback(() => {
     reset(defaults(preselected));
     mutation.reset();
     setStep(preselected ? 1 : 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ready, preselected?.id]);
+  });
+  useEffect(() => {
+    if (!open || !ready) return;
+    resetWizard();
+  }, [open, ready, preselected?.id, resetWizard]);
 
   const chooseSpool = (next: FilamentSpool | null) => {
     setValue('spoolId', next?.id ?? '', { shouldValidate: Boolean(next) });

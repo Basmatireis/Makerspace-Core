@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Controller, useWatch } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import type { PrinterConnector } from '../../../../api/generated/models';
+import { useLatestCallback } from '../../../../app/useLatestCallback';
 import { connectorsQuery, type PrinterConnection } from '../../connectorQueries';
 import { adapterLabel, describeDetection, isBambuAdapter, SERIAL_PATTERN, type PrinterModelInfo } from '../../printerSetup';
 import { connectorDiagnostic, isIPv4Unicast } from '../../shared/connectorHelpers';
@@ -32,12 +33,15 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
 
   // Without any active connector there is nothing to connect to now.
   const defaulted = useRef(false);
+  const applyDefaults = useLatestCallback(() => {
+    if (hosts.length === 0) setValue('connect', 'later');
+    else if (!form.getValues('connectorId')) setValue('connectorId', hosts[0].id);
+  });
   useEffect(() => {
     if (!creating || !query.isSuccess || defaulted.current) return;
     defaulted.current = true;
-    if (hosts.length === 0) setValue('connect', 'later');
-    else if (!form.getValues('connectorId')) setValue('connectorId', hosts[0].id);
-  }, [creating, query.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+    applyDefaults();
+  }, [creating, query.isSuccess, applyDefaults]);
 
   if (!canManage) {
     return (

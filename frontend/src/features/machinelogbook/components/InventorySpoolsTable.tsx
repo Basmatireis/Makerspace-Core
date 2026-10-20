@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, Link as CarbonLink, MenuButton, MenuItem, TableToolbarAction } from '@carbon/react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -84,7 +84,7 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
   const productOptions: Option[] = [...new Set(spools.map((spool) => spool.productName).filter((name): name is string => Boolean(name)))].sort().map((name) => ({ id: name, label: name }));
   const manufacturerOptions: Option[] = [...new Set(spools.map((spool) => spool.manufacturer).filter((name): name is string => Boolean(name)))].sort().map((name) => ({ id: name, label: name }));
 
-  const rows = useMemo(() => spools.filter((spool) => (
+  const rows = spools.filter((spool) => (
     (showArchived || spool.status !== 'archived')
     && (kindIds.length === 0 || kindIds.includes(spool.kind))
     && (materialIds.length === 0 || materialIds.includes(spool.materialId ?? ''))
@@ -92,7 +92,7 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
     && (manufacturerIds.length === 0 || manufacturerIds.includes(spool.manufacturer ?? ''))
     && (statusIds.length === 0 || statusIds.some((id) => matchesStatus(spool, id)))
     && (mountedIds.length === 0 || mountedIds.includes(spool.mounted ? 'mounted' : 'free'))
-  )), [spools, showArchived, kindIds.join(','), materialIds.join(','), productIds.join(','), manufacturerIds.join(','), statusIds.join(','), mountedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  ));
 
   const columns: Column<FilamentSpool>[] = [
     {

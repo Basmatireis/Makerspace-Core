@@ -9,6 +9,7 @@ import { ApiError } from '../../../api/http-client';
 import { formatQuantity, parseDecimal, toDecimal, toMoney, unitLabel } from '../components/inventoryShared';
 import { machineLogbookKeys } from '../queries';
 import { useNotify } from '../shared/toasts';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 export type MovementMode = 'purchase' | 'consumption' | 'correction' | 'disposal';
 
@@ -86,8 +87,8 @@ export function StockMovementModal({ open, onClose, mode, material, spool }: { o
     },
     onError: () => { void client.invalidateQueries({ queryKey: machineLogbookKeys.all }); },
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { reset(EMPTY); save.reset(); } }, [open, mode]);
+  const resetForm = useLatestCallback(() => { reset(EMPTY); save.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, mode, resetForm]);
   const pending = save.isPending;
   const after = typed == null ? null : mode === 'purchase' ? current + typed : mode === 'correction' ? typed : current - typed;
   const noteRequired = mode === 'disposal';

@@ -8,6 +8,7 @@ import { ApiError } from '../../../api/http-client';
 import { processOptions } from '../processConfig';
 import { machineLogbookKeys } from '../queries';
 import { useNotify } from '../shared/toasts';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 type Values = { name: string; unit: MaterialUnit; processes: MachineProcess[]; active: boolean };
 
@@ -35,8 +36,8 @@ export function MaterialTypeFormModal({ open, onClose, materialType, onDelete }:
       if (error instanceof ApiError && error.status === 409 && error.data?.code === 'material_type_exists') setError('name', { message: 'A material type with this name already exists.' });
     },
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { reset(defaults()); save.reset(); } }, [open, materialType?.id]);
+  const resetForm = useLatestCallback(() => { reset(defaults()); save.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, materialType?.id, resetForm]);
   const pending = save.isPending;
   const submit = handleSubmit((values) => { save.mutate(values); });
   const failure = save.error instanceof ApiError && save.error.data?.code === 'material_type_exists' ? null : save.error;

@@ -68,7 +68,7 @@ export function AnnouncementStartModal({ display, announcement, onClose }: { dis
   const previewDisplay = (draft.target === 'selected' ? displays.find((item) => draft.displayIds.includes(item.id)) : undefined) ?? display ?? displays[0];
   const machineNames = useMemo(() => Object.fromEntries(machines.map((machine) => [machine.id, machine.name])), [machines]);
   const message = template && startsAt ? renderAnnouncement(template, draft.values, { startsAt, endsAt }, { now: new Date(), timeZone, displayName: previewDisplay?.name ?? 'Display', location: previewDisplay?.location ?? '', machines: machineNames }) : null;
-  const extra = useMemo<RenderAnnouncement[]>(() => (message && template ? [{ id: 'draft', templateId: template.id, tone: message.tone, title: message.title, body: message.body, startsAt: 0 }] : []), [message?.title, message?.body, message?.tone, template?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const extra: RenderAnnouncement[] = message && template ? [{ id: 'draft', templateId: template.id, tone: message.tone, title: message.title, body: message.body, startsAt: 0 }] : [];
   const frame = usePublishedView(previewDisplay?.id ?? '', { extra, omitAnnouncementId: announcement?.id }, Boolean(previewDisplay));
 
   const mutation = useMutation({

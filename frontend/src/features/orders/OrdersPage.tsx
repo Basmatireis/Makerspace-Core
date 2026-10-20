@@ -68,7 +68,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
   }), [orders]);
   const customers = useMemo(() => [...new Map(orders.filter((order) => order.customer).map((order) => [order.customer!.id, { id: order.customer!.id, label: customerLabel(order) }])).values()].sort((a, b) => a.label.localeCompare(b.label)), [orders]);
 
-  const rows = useMemo(() => orders.filter((order) => {
+  const rows = orders.filter((order) => {
     const day = dateInAppTimeZone(order.createdAt);
     return sectionOf(order) === section
       && (views.length === 0 || views.some((view) => view.has(order)))
@@ -76,7 +76,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       && (types.length === 0 || types.includes(order.customerKind))
       && (!customerId || order.customer?.id === customerId)
       && (!from || day >= from) && (!to || day <= to);
-  }), [orders, section, views.map((view) => view.id).join(','), invoices.join(','), types.join(','), customerId, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
   const columns: Column<Order>[] = [
     {

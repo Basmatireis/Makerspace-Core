@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { RefLink } from '../../../app/RefLink';
 import type { InventoryTransaction, MaterialUnit } from '../../../api/generated/models';
 import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
@@ -25,7 +25,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
   const to = (tx: InventoryTransaction): SpoolRef => ({ id: tx.toSpoolId, displayId: tx.toSpoolDisplayId, fillNumber: tx.toFillNumber });
   const spoolTexts = (tx: InventoryTransaction) => [own(tx), from(tx), to(tx)].map(spoolText).filter(Boolean) as string[];
 
-  const rows = useMemo(() => transactions.filter((tx) => typeIds.length === 0 || typeIds.includes(tx.kind)), [transactions, typeIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = transactions.filter((tx) => typeIds.length === 0 || typeIds.includes(tx.kind));
 
   const spoolLink = (key: string, ref: SpoolRef) => {
     const text = spoolText(ref);

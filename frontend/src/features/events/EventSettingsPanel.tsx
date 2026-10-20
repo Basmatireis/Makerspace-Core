@@ -12,6 +12,7 @@ import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { MutationError } from './EventPanelError';
 import { statusTagType } from './format';
 import { eventFilesQueryOptions, eventKeys } from './queries';
+import { useLatestCallback } from '../../app/useLatestCallback';
 
 const eventBannerTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -83,15 +84,15 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
   const refresh = async () => { await Promise.all([client.invalidateQueries({ queryKey: eventKeys.detail(event.id) }), client.invalidateQueries({ queryKey: eventKeys.all })]); };
   const save = useMutation({ mutationFn: () => updateEvent(event.id, value), onSuccess: async (next) => { const saved = settingsValue(next); setValue(saved); setBaseline(saved); await refresh(); } });
   const action = useMutation({ mutationFn: async (name: string) => { const request = { expectedVersion: event.version }; switch (name) { case 'start': return startEventPlanning(event.id, request); case 'draft': return returnEventToDraft(event.id, request); case 'confirm': return confirmEvent(event.id, request); case 'planning': return returnEventToPlanning(event.id, request); case 'complete': return completeEvent(event.id, request); case 'cancel': return cancelEvent(event.id, request); case 'archive': return archiveEvent(event.id, request); case 'publish': return publishEvent(event.id, request); case 'unpublish': return unpublishEvent(event.id, request); default: return rotateEventPublicId(event.id, request); } }, onSuccess: async () => { setConfirmAction(null); await refresh(); } });
-  useEffect(() => {
+  // Background data replaces the form only while the form has no local draft, hence formDirty is read at call time.
+  const syncFromEvent = useLatestCallback(() => {
     if (!formDirty) {
       const next = settingsValue(event);
       setValue(next);
       setBaseline(next);
     }
-  // formDirty intentionally prevents background data from replacing a local draft.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event]);
+  });
+  useEffect(() => { syncFromEvent(); }, [event, syncFromEvent]);
   if (!canManage) return <p>You can view this event, but settings require <code>events.manage</code>.</p>;
   const archived = event.status === 'archived';
   const metadataReadOnly = archived || event.status === 'completed' || event.status === 'cancelled';

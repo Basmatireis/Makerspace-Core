@@ -7,6 +7,7 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import { BatchFilter, toPatch, type FilterCategory, type FilterValues } from '../../../app/BatchFilter';
 import { EmptyState } from '../../../app/PageState';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 import './shared.scss';
 
 export type Column<T> = {
@@ -174,8 +175,8 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
   const page = Math.min(requestedPage, lastPage);
   // A server page that no longer exists (rows were removed, filters narrowed) falls back to the last one.
   const pageGone = server && matching > 0 && requestedPage > lastPage;
-  const setUrlPage = url.set;
-  useEffect(() => { if (pageGone) setUrlPage({ page: String(lastPage) }); }, [pageGone, lastPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setUrlPage = useLatestCallback(url.set);
+  useEffect(() => { if (pageGone) setUrlPage({ page: String(lastPage) }); }, [pageGone, lastPage, setUrlPage]);
   const pageRows = server ? props.rows : clientVisible.slice((page - 1) * pageSize, page * pageSize);
   const rowsById = new Map(pageRows.map((row) => [row.id, row]));
   const tableRows = pageRows.map((row) => ({ id: row.id }));

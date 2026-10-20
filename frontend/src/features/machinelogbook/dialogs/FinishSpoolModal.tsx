@@ -10,6 +10,7 @@ import { initialOf, remainingOf, removedFromText, spoolNameText } from '../compo
 import { formatDateTime } from '../shared/format';
 import { useNotify } from '../shared/toasts';
 import { spoolErrorMessage, useRefreshInventory } from '../spoolData';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 /** Closes the current fill of a spool: single-use spools are archived, reusable ones wait for a refill. */
 export function FinishSpoolModal({ open, onClose, spool }: { open: boolean; onClose: () => void; spool: FilamentSpool }) {
@@ -22,8 +23,8 @@ export function FinishSpoolModal({ open, onClose, spool }: { open: boolean; onCl
       leftover: toLeftoverInput(spool, values), occurredAt: new Date().toISOString(), expectedVersion: await saveTareWeight(spool, values),
     }),
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { form.reset(leftoverDefaults(spool)); mutation.reset(); } }, [open, spool.id]);
+  const resetForm = useLatestCallback(() => { form.reset(leftoverDefaults(spool)); mutation.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, spool.id, resetForm]);
   const title = single ? 'Finish spool' : 'Empty spool';
   const pending = mutation.isPending;
 

@@ -12,6 +12,7 @@ import { allMaterialsQuery, allProductsQuery } from '../inventoryQueries';
 import { machineLogbookKeys } from '../queries';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 
 type Values = {
   manufacturer: string; name: string; materialId: string; netWeight: string; price: string; packaging: FilamentPackaging; notes: string; active: boolean;
@@ -50,8 +51,8 @@ export function ProductFormModal({ open, onClose, product, materialId }: { open:
       if (error instanceof ApiError && error.status === 409 && error.data?.code === 'product_exists') setError('name', { message: 'This manufacturer already has a product with this name.' });
     },
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { reset(defaults()); save.reset(); } }, [open, product?.id, materialId]);
+  const resetForm = useLatestCallback(() => { reset(defaults()); save.reset(); });
+  useEffect(() => { if (open) resetForm(); }, [open, product?.id, materialId, resetForm]);
   const pending = save.isPending;
   const failure = save.error instanceof ApiError && save.error.data?.code === 'product_exists' ? null : save.error;
 
