@@ -50,7 +50,7 @@ export function LocalServicesPage() {
             <Table aria-label="Streaming gateways">
               <TableHead>
                 <TableRow>
-                  <TableHeader>Name</TableHeader><TableHeader>Status</TableHeader><TableHeader>Version</TableHeader><TableHeader>Public host</TableHeader><TableHeader>Cameras</TableHeader><TableHeader>Enrolled</TableHeader>
+                  <TableHeader>Name</TableHeader><TableHeader>Status</TableHeader><TableHeader>Version</TableHeader><TableHeader>Public host</TableHeader><TableHeader>Cameras</TableHeader><TableHeader>Enrolled</TableHeader><TableHeader>Credential expires</TableHeader>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -62,6 +62,7 @@ export function LocalServicesPage() {
                     <TableCell>{gateway.publicHost}</TableCell>
                     <TableCell>{cameras.isSuccess ? countOf(gateway.id) : '…'}</TableCell>
                     <TableCell>{dateOrDash(gateway.enrolledAt)}</TableCell>
+                    <TableCell>{dateOrDash(gateway.credentialExpiresAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

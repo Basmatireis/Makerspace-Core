@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"strings"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/google/uuid"
@@ -58,7 +60,7 @@ func streamingGatewayDTO(value streaminggateways.Gateway) openapi.StreamingGatew
 		ConfigurationRevision: value.ConfigurationRevision, AppliedConfigurationRevision: value.AppliedRevison,
 		SoftwareVersion: nullableString(value.SoftwareVersion), ProtocolVersion: nullableValue(value.ProtocolVersion),
 		HealthState: health, HealthSummary: nullableString(value.HealthSummary), LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
-		EnrolledAt: nullableValue(value.EnrolledAt), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt),
+		EnrolledAt: nullableValue(value.EnrolledAt), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt), CredentialExpiresAt: nullableValue(value.CredentialExpiresAt),
 		Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
@@ -253,6 +255,22 @@ func (s *Server) ListLocalServiceCameras(ctx context.Context, _ openapi.ListLoca
 	return openapi.ListLocalServiceCameras200JSONResponse(streamingCameraListDTO(items)), nil
 }
 
+func (s *Server) ListCameraCandidates(ctx context.Context, _ openapi.ListCameraCandidatesRequestObject) (openapi.ListCameraCandidatesResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	candidates, err := s.streamingGateways.ListCameraCandidates(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.CameraCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		items = append(items, openapi.CameraCandidate{Id: candidate.ID, Name: candidate.Name, Kind: candidate.Kind})
+	}
+	return openapi.ListCameraCandidates200JSONResponse(openapi.CameraCandidateList{Items: items}), nil
+}
+
 // ---- gateway-authenticated endpoints ----
 
 func (s *Server) EnrollStreamingGateway(ctx context.Context, request openapi.EnrollStreamingGatewayRequestObject) (openapi.EnrollStreamingGatewayResponseObject, error) {
@@ -265,6 +283,9 @@ func (s *Server) EnrollStreamingGateway(ctx context.Context, request openapi.Enr
 	}
 	result, err := s.streamingGateways.Enroll(ctx, secret, request.Body.CredentialId, *request.Body.CredentialSecret, request.Body.SoftwareVersion, request.Body.ProtocolVersion)
 	if err != nil {
+		if apperror.IsCode(err, apperror.Unauthenticated.Code) {
+			s.gatewayFailures.Take(ratelimit.KeyForIP(sourceAddress(ctx)), time.Now().UTC())
+		}
 		return nil, err
 	}
 	return openapi.EnrollStreamingGateway200JSONResponse{Body: openapi.StreamingGatewayEnrollmentResult{GatewayId: result.Gateway.ID, CredentialId: request.Body.CredentialId, ProtocolVersion: streaminggateways.ProtocolVersion, CredentialExpiresAt: result.CredentialExpiresAt}, Headers: openapi.EnrollStreamingGateway200ResponseHeaders{CacheControl: "no-store"}}, nil

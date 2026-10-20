@@ -44,7 +44,7 @@ export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}
 });
 
 export const displayFixture = (overrides: Partial<SignageDisplay> = {}): SignageDisplay => ({
-  id: ids.display, managedDeviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a191', name: 'Entrance window', location: 'Ground floor', orientation: 'portrait', resolution: { width: 1080, height: 1920 }, visibleFromOutside: true,
+  id: ids.display, managedDeviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a191', name: 'Entrance window', location: 'Ground floor', orientation: 'portrait', resolution: { width: 1080, height: 1920 }, visibleFromOutside: true, allowCameraOutside: false,
   defaultPlaylistId: ids.playlist, status: 'online', revokedAt: null, lastHeartbeatAt: new Date().toISOString(), publishedRevision: 2, publishedAt: stamp, pendingChanges: [],
   reportedRevision: 2, currentRule: 'default', currentSceneId: ids.scene, playerVersion: '1.0.0', cacheUsedBytes: 1_073_741_824, cacheQuotaBytes: 8_589_934_592, errors: [],
   version: 5, createdAt: stamp, updatedAt: stamp, ...overrides,

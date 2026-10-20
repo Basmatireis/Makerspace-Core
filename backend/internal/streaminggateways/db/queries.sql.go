@@ -570,6 +570,17 @@ func (q *Queries) GetGatewayCredential(ctx context.Context, arg GetGatewayCreden
 	return i, err
 }
 
+const getGatewayCredentialExpiry = `-- name: GetGatewayCredentialExpiry :one
+SELECT expires_at FROM streaming_gateway_credentials WHERE gateway_id = $1 AND state = 'current'
+`
+
+func (q *Queries) GetGatewayCredentialExpiry(ctx context.Context, gatewayID uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, getGatewayCredentialExpiry, gatewayID)
+	var expires_at time.Time
+	err := row.Scan(&expires_at)
+	return expires_at, err
+}
+
 const getGatewayEnrollmentByDigestForUpdate = `-- name: GetGatewayEnrollmentByDigestForUpdate :one
 SELECT id, gateway_id, token_digest, credential_fingerprint, accepted_credential_id, expires_at, consumed_at, revoked_at, created_by_account_id, created_at FROM streaming_gateway_enrollments WHERE token_digest = $1 FOR UPDATE
 `
@@ -680,6 +691,40 @@ func (q *Queries) InsertTicketKey(ctx context.Context, arg InsertTicketKeyParams
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listCameraCandidates = `-- name: ListCameraCandidates :many
+SELECT m.id, m.name, mt.name AS kind
+FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+WHERE EXISTS (SELECT 1 FROM printer_connector_assignments a WHERE a.machine_id = m.id AND a.ended_at IS NULL AND a.adapter_kind IN ('bambu_h2d', 'bambu_x1c'))
+  AND NOT EXISTS (SELECT 1 FROM streaming_cameras c WHERE c.machine_id = m.id)
+ORDER BY lower(m.name), m.id
+`
+
+type ListCameraCandidatesRow struct {
+	ID   uuid.UUID
+	Name string
+	Kind string
+}
+
+func (q *Queries) ListCameraCandidates(ctx context.Context) ([]ListCameraCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listCameraCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCameraCandidatesRow{}
+	for rows.Next() {
+		var i ListCameraCandidatesRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Kind); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCameraViews = `-- name: ListCameraViews :many
@@ -841,6 +886,35 @@ func (q *Queries) ListGatewayConfigCameras(ctx context.Context, gatewayID uuid.U
 			&i.Settings,
 			&i.EncryptedSecrets,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGatewayCredentialExpiries = `-- name: ListGatewayCredentialExpiries :many
+SELECT gateway_id, expires_at FROM streaming_gateway_credentials WHERE state = 'current'
+`
+
+type ListGatewayCredentialExpiriesRow struct {
+	GatewayID uuid.UUID
+	ExpiresAt time.Time
+}
+
+func (q *Queries) ListGatewayCredentialExpiries(ctx context.Context) ([]ListGatewayCredentialExpiriesRow, error) {
+	rows, err := q.db.Query(ctx, listGatewayCredentialExpiries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGatewayCredentialExpiriesRow{}
+	for rows.Next() {
+		var i ListGatewayCredentialExpiriesRow
+		if err := rows.Scan(&i.GatewayID, &i.ExpiresAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

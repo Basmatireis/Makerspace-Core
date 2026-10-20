@@ -4338,6 +4338,19 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /local-services/camera-candidates:
+    get:
+      tags: [Local Services]
+      operationId: listCameraCandidates
+      summary: Machines that can be given a streaming camera
+      description: Needs `local_services.manage` (not `machines.read`). Machines with an active Bambu printer assignment that have no camera assigned yet, by name.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Camera candidates., content: {application/json: {schema: {$ref: "#/components/schemas/CameraCandidateList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /local-services/ticket-key/rotation:
     post:
       tags: [Local Services]
@@ -11098,7 +11111,7 @@ components:
     StreamingGateway:
       type: object
       additionalProperties: false
-      required: [id, name, publicHost, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, version, createdAt, updatedAt]
+      required: [id, name, publicHost, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, credentialExpiresAt, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 120}
@@ -11114,9 +11127,23 @@ components:
         enrolledAt: {type: string, format: date-time, nullable: true}
         disabledAt: {type: string, format: date-time, nullable: true}
         revokedAt: {type: string, format: date-time, nullable: true}
+        credentialExpiresAt: {type: string, format: date-time, nullable: true, description: "When the gateway's current credential expires; null while the gateway has none (pending or revoked). The gateway rotates it on its own before then."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    CameraCandidate:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 150}
+        kind: {type: string, maxLength: 120, description: "Machine type (process) name."}
+    CameraCandidateList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/CameraCandidate"}}}
     StreamingGatewayList:
       type: object
       additionalProperties: false

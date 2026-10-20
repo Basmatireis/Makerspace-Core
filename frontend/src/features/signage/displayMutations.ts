@@ -25,10 +25,8 @@ export function useUpdateDisplay(displayId: string) {
 }
 
 /** The writable settings of a display, to change one of them without touching the rest. */
-export type CameraOutsideField = { allowCameraOutside?: boolean };
-
-export const settingsOf = (display: SignageDisplay & CameraOutsideField): Omit<UpdateSignageDisplayRequest, 'expectedVersion'> & CameraOutsideField => ({
-  allowCameraOutside: display.allowCameraOutside ?? false,
+export const settingsOf = (display: SignageDisplay): Omit<UpdateSignageDisplayRequest, 'expectedVersion'> => ({
+  allowCameraOutside: display.allowCameraOutside,
   name: display.name, location: display.location, orientation: display.orientation, resolution: display.resolution,
   visibleFromOutside: display.visibleFromOutside, defaultPlaylistId: display.defaultPlaylistId,
 });

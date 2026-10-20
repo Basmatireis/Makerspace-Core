@@ -6,18 +6,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   createStreamingGatewayCamera, createStreamingGatewayEnrollment, deleteStreamingGateway, deleteStreamingGatewayCamera, revokeStreamingGateway, updateStreamingGateway, updateStreamingGatewayCamera,
 } from '../../api/generated/local-services/local-services';
-import { listMachines } from '../../api/generated/machines/machines';
-import { PermissionId, type StreamingCamera, type StreamingGateway, type StreamingGatewayEnrollmentIssue } from '../../api/generated/models';
+import { type StreamingCamera, type StreamingGateway, type StreamingGatewayEnrollmentIssue } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
-import { useCurrentUser } from '../auth/auth';
-import { hasPermission } from '../auth/permissions';
-import { machinesQuery } from '../signage/queries';
 import { CameraStatusTag, EnrollmentSecretModal, GatewayFormModal, GatewayStatusTag } from './components';
 import { cameraAssignError, dateOrDash, errorText, isStale } from './helpers';
-import { camerasQuery, gatewayQuery, localServiceKeys } from './queries';
+import { cameraCandidatesQuery, camerasQuery, gatewayQuery, localServiceKeys } from './queries';
 
 const crumbs = [{ label: 'Settings', to: '/settings' }, { label: 'Local services', to: '/settings/local-services' }];
 
@@ -149,7 +145,7 @@ function Detail({ gateway }: { gateway: StreamingGateway }) {
       </Stack>
 
       {dialog === 'edit' && <GatewayFormModal gateway={gateway} pending={save.isPending} error={save.isError ? errorText(save.error) : undefined} onSubmit={(values) => save.mutate(values)} onClose={() => setDialog(null)} />}
-      {dialog === 'assign' && <AssignCameraModal gatewayId={gateway.id} assigned={new Set((cameras.data?.items ?? []).map((camera) => camera.machineId))} onClose={() => setDialog(null)} onAssigned={() => { setDialog(null); void refresh(); }} />}
+      {dialog === 'assign' && <AssignCameraModal gatewayId={gateway.id} onClose={() => setDialog(null)} onAssigned={() => { setDialog(null); void refresh(); }} />}
       <DestructiveActionDialog
         open={dialog === 'revoke'} title="Revoke gateway" confirmLabel="Revoke" pending={revoke.isPending} error={revoke.isError ? errorText(revoke.error) : undefined} launcherButtonRef={revokeButton}
         onConfirm={() => revoke.mutate()} onClose={() => setDialog(null)}
@@ -173,14 +169,10 @@ function Detail({ gateway }: { gateway: StreamingGateway }) {
   );
 }
 
-function AssignCameraModal({ gatewayId, assigned, onClose, onAssigned }: { gatewayId: string; assigned: ReadonlySet<string>; onClose: () => void; onAssigned: () => void }) {
-  const user = useCurrentUser();
-  const canListMachines = hasPermission(user, PermissionId.machinesread);
+function AssignCameraModal({ gatewayId, onClose, onAssigned }: { gatewayId: string; onClose: () => void; onAssigned: () => void }) {
   const [machineId, setMachineId] = useState('');
-  const all = useQuery({ queryKey: [...localServiceKeys.all, 'machines'], queryFn: ({ signal }) => listMachines({ pageSize: 100 }, { signal }), enabled: canListMachines });
-  const signage = useQuery(machinesQuery(!canListMachines));
-  const options = canListMachines ? (all.data?.items ?? []).map((machine) => ({ id: machine.id, name: machine.name })) : (signage.data?.items ?? []).map((machine) => ({ id: machine.id, name: machine.name }));
-  const free = options.filter((machine) => !assigned.has(machine.id));
+  const candidates = useQuery(cameraCandidatesQuery());
+  const free = candidates.data?.items ?? [];
   const assign = useMutation({ mutationFn: () => createStreamingGatewayCamera(gatewayId, { machineId, enabled: true }), onSuccess: onAssigned });
   const submit = () => { if (machineId) assign.mutate(); };
   return (

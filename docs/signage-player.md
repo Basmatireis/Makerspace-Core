@@ -12,6 +12,8 @@ The player is a small web app served by Makerspace Core at `https://<core>/playe
 
 ## Pairing
 
+See also [Signage](signage.md) for the content model and [Streaming gateway](streaming-gateway.md) for live printer cameras.
+
 1. Start the browser on the display. It shows **This display is not paired** and a six-character code with a countdown (codes are valid for 15 minutes; a new one appears by itself).
 2. In Makerspace Core open **Signage > Displays > Pair display**, enter the code and fill in name, location, orientation and resolution.
 3. Within a few seconds the display reloads and plays. Until the first publication it shows "Waiting for content"; publish the display from its detail page.

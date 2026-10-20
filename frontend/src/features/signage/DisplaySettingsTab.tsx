@@ -2,20 +2,19 @@ import { Button, InlineNotification, RadioButton, RadioButtonGroup, Select, Sele
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import type { SignageDisplay, SignageOrientation, UpdateSignageDisplayRequest } from '../../api/generated/models';
-import { useUpdateDisplay, type CameraOutsideField } from './displayMutations';
+import { useUpdateDisplay } from './displayMutations';
 import { errorMessage, isStaleWrite, orientationLabel, resolutionLabel, resolutionOptions } from './helpers';
 import { playlistsQuery } from './queries';
 
 type Values = { name: string; location: string; orientation: SignageOrientation; resolution: string; visibleFromOutside: boolean; allowCameraOutside: boolean; defaultPlaylistId: string };
 
-const valuesOf = (display: SignageDisplay & CameraOutsideField): Values => ({
+const valuesOf = (display: SignageDisplay): Values => ({
   name: display.name, location: display.location, orientation: display.orientation,
   resolution: String(resolutionOptions(display.orientation, display.resolution).findIndex((item) => item.width === display.resolution.width && item.height === display.resolution.height)),
-  visibleFromOutside: display.visibleFromOutside, allowCameraOutside: display.allowCameraOutside ?? false, defaultPlaylistId: display.defaultPlaylistId,
+  visibleFromOutside: display.visibleFromOutside, allowCameraOutside: display.allowCameraOutside, defaultPlaylistId: display.defaultPlaylistId,
 });
 
-export function DisplaySettingsTab({ display: shown, canManage }: { display: SignageDisplay; canManage: boolean }) {
-  const display = shown as SignageDisplay & CameraOutsideField;
+export function DisplaySettingsTab({ display, canManage }: { display: SignageDisplay; canManage: boolean }) {
   const playlists = useQuery(playlistsQuery());
   const update = useUpdateDisplay(display.id);
   const form = useForm<Values>({ defaultValues: valuesOf(display) });
@@ -38,7 +37,7 @@ export function DisplaySettingsTab({ display: shown, canManage }: { display: Sig
 
   const save = form.handleSubmit((values) => {
     const resolution = resolutionOptions(values.orientation, values.orientation === display.orientation ? display.resolution : undefined)[Number(values.resolution)];
-    const request: UpdateSignageDisplayRequest & CameraOutsideField = { expectedVersion: display.version, name: values.name.trim(), location: values.location.trim(), orientation: values.orientation, resolution, visibleFromOutside: values.visibleFromOutside, allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside, defaultPlaylistId: values.defaultPlaylistId };
+    const request: UpdateSignageDisplayRequest = { expectedVersion: display.version, name: values.name.trim(), location: values.location.trim(), orientation: values.orientation, resolution, visibleFromOutside: values.visibleFromOutside, allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside, defaultPlaylistId: values.defaultPlaylistId };
     update.mutate(
       request,
       { onSuccess: (saved) => form.reset(valuesOf(saved)) },

@@ -24,7 +24,7 @@ Port 8555 must be reachable from the displays on the LAN because WebRTC media do
 
 ## Setup
 
-1. In Core create a gateway (`POST /streaming-gateways`, permission `local_services.manage`) with its **public host**, the `hostname[:port]` players use, for example `signage-gw.example.org:8443`. It must equal `STREAM_PUBLIC_HOST` below and match the certificate. No admin screen exists yet; use the API.
+1. In Core create a gateway (`POST /streaming-gateways`, permission `local_services.manage`) with its **public host**, the `hostname[:port]` players use, for example `signage-gw.example.org:8443`. It must equal `STREAM_PUBLIC_HOST` below and match the certificate. In Core, use Settings, Local services, Add gateway (or the API).
 2. Issue an enrollment secret (`POST /streaming-gateways/{id}/enrollments`). It is shown once and valid 15 minutes.
 3. Prepare the bundle (`local-services/`):
 
@@ -39,7 +39,7 @@ sudo chown 10001:10001 secrets/streaming-gateway-*; chmod 600 secrets/streaming-
 docker compose up -d
 ```
 
-4. Assign cameras: `POST /streaming-gateways/{id}/cameras {machineId, enabled}`. The machine needs an active Bambu printer assignment. `GET /local-services/cameras` shows health per camera.
+4. Assign cameras on the gateway's page (Assign camera) or with `POST /streaming-gateways/{id}/cameras {machineId, enabled}`. The machine needs an active Bambu printer assignment; the dialog offers exactly the machines without a camera that have one (`GET /local-services/camera-candidates`). `GET /local-services/cameras` shows health per camera. The gateway list shows when each gateway's credential expires; the gateway rotates it on its own during its last seven days.
 5. Publish a display that has a camera widget for that machine; `GET /signage/player/live` then contains `streams`.
 
 The gateway generates its runtime credential locally, exchanges the enrollment secret, stores its identity and the last configuration encrypted in its data volume and rotates the credential during its last seven days. The enrollment file can be removed after the first successful start. Back up the data volume as sensitive; do not clone it to a second host. The standalone `printer-connector/compose.yaml` keeps working; `local-services/compose.yaml` runs both services.
@@ -65,6 +65,8 @@ Image names: `ghcr.io/basmatireis/makerspace-core-streaming-gateway:<version>` (
 - **go2rtc logs.** go2rtc logs stream sources, which contain the access codes, at its more verbose levels. The generated configuration uses level `error`; `GO2RTC_LOG_LEVEL` accepts only `error` or `fatal`, and the gateway refuses to start with another value. Error lines in go2rtc 1.9.14 were observed to carry the failing address but not the stream URL; this is not guaranteed for future versions, so Compose also limits the go2rtc log to a local file driver with 5 MB x 3 files. Do not ship these logs to a central system.
 - Containers run read-only, without capabilities and with `no-new-privileges`. The go2rtc API is only on the internal network.
 - Anyone on the LAN who obtains a valid ticket can watch that stream for up to five minutes; tickets are only delivered to paired, non-revoked display devices.
+
+- **Failed authentication limit.** Core answers 429 to an address after 20 failed gateway authentications or enrollments within 15 minutes. A gateway whose credential was revoked or whose enrollment secret is wrong keeps retrying and blocks its own address (and other gateways behind it) for that time; remove or re-enroll it. Valid requests are not counted.
 
 ## Assumptions to verify on hardware
 

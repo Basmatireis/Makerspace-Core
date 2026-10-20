@@ -131,6 +131,16 @@ The command is read-only. It exits unsuccessfully and prints only opaque File ID
 
 Back up the private file store alongside PostgreSQL. New local-storage volumes are owned by the unprivileged API user. Existing volumes retain their permissions when images change; verify their ownership and write access during an upgrade. Custom S3 endpoints must use HTTPS in production. The bundled nginx allows the API's 513 MiB maximum request envelope for connector-streamed 3MF archives; any external ingress must allow the same endpoint size. The API still enforces 512 MiB for connector artifacts and the smaller feature-specific JSON, image, and PDF limits.
 
+## Signage and local services
+
+Digital signage ([signage](signage.md), [player setup](signage-player.md)) needs no extra services. Core settings:
+
+- `HTTP_TRUSTED_PROXIES`: required behind a reverse proxy, otherwise the per-client limits (pairing, polling, failed gateway authentications) throttle every display and gateway together.
+- `SIGNAGE_PAIRING_ALLOWED_CIDRS` (optional, comma-separated CIDRs): restricts `POST /public/signage/pairing` to the makerspace network; other clients get 403 `pairing_network_denied`.
+- `APP_ENCRYPTION_KEYS`: without it no stream tickets are issued and gateway configuration answers 409.
+
+The optional streaming gateway runs on a computer in the makerspace network from `local-services/compose.yaml` with its own `.env` (`MAKERSPACE_VERSION`, `CORE_URL`, `STREAM_PUBLIC_HOST`, `STREAM_LAN_ADDRESS`, optional `STREAM_BIND_ADDRESS`, `STREAM_HTTPS_PORT`, the enrollment secret and TLS file paths, optional image digests). Settings, enrollment, ports and the security model: [streaming gateway](streaming-gateway.md). The gateway's credential expires after 90 days and is rotated by the gateway itself; the expiry is visible under Settings, Local services.
+
 ## SCIM connectors
 
 An administrator with `scim.manage` creates a connector under **Settings → SCIM provisioning**. Its bearer token is displayed exactly once, stored only as a digest, and must be copied directly into the provisioning system. Tokens have an explicit expiry and can be rotated or revoked without changing the connector URL, `/api/v1/scim/v2`.

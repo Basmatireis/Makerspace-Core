@@ -6,14 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"net/netip"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
@@ -85,122 +84,6 @@ func pairingCodeDigest(code string) []byte {
 	return sum[:]
 }
 
-// maxLimiterKeys bounds the memory of one attemptLimiter. At the cap, expired keys are swept
-// (at most once per minute); if the table is still full, new keys are refused (fail closed)
-// while keys that are already tracked keep working.
-const (
-	maxLimiterKeys     = 4096
-	limiterSweepPeriod = time.Minute
-)
-
-// attemptLimiter is a small in-memory sliding-window counter (single-instance deployment).
-type attemptLimiter struct {
-	mu        sync.Mutex
-	limit     int
-	window    time.Duration
-	maxKeys   int
-	entries   map[string][]time.Time
-	lastSweep time.Time
-}
-
-func newAttemptLimiter(limit int, window time.Duration) *attemptLimiter {
-	return &attemptLimiter{limit: limit, window: window, maxKeys: maxLimiterKeys, entries: map[string][]time.Time{}}
-}
-
-// recentLocked drops the expired attempts of key and returns the remaining ones. It never
-// touches other keys.
-func (l *attemptLimiter) recentLocked(key string, now time.Time) []time.Time {
-	attempts, ok := l.entries[key]
-	if !ok {
-		return nil
-	}
-	recent := attempts[:0:0]
-	for _, at := range attempts {
-		if now.Sub(at) < l.window {
-			recent = append(recent, at)
-		}
-	}
-	if len(recent) == 0 {
-		delete(l.entries, key)
-		return nil
-	}
-	l.entries[key] = recent
-	return recent
-}
-
-// sweepLocked removes every key without a live attempt.
-func (l *attemptLimiter) sweepLocked(now time.Time) {
-	l.lastSweep = now
-	for key := range l.entries {
-		l.recentLocked(key, now)
-	}
-}
-
-// admitsNewKeyLocked reports whether there is room to track a key that is not in the table yet,
-// sweeping expired keys first when the table is full.
-func (l *attemptLimiter) admitsNewKeyLocked(key string, now time.Time) bool {
-	if _, tracked := l.entries[key]; tracked || len(l.entries) < l.maxKeys {
-		return true
-	}
-	if now.Sub(l.lastSweep) >= limiterSweepPeriod || now.Before(l.lastSweep) {
-		l.sweepLocked(now)
-	}
-	return len(l.entries) < l.maxKeys
-}
-
-// blocked reports whether key already used up its attempts (or cannot be tracked at all).
-func (l *attemptLimiter) blocked(key string, now time.Time) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if len(l.recentLocked(key, now)) >= l.limit {
-		return true
-	}
-	return !l.admitsNewKeyLocked(key, now)
-}
-
-// take counts an attempt and reports whether it was within the limit.
-func (l *attemptLimiter) take(key string, now time.Time) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if len(l.recentLocked(key, now)) >= l.limit || !l.admitsNewKeyLocked(key, now) {
-		return false
-	}
-	l.entries[key] = append(l.entries[key], now)
-	return true
-}
-
-// refund gives back one attempt that take counted at the given time.
-func (l *attemptLimiter) refund(key string, at time.Time) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	attempts := l.entries[key]
-	for index, candidate := range attempts {
-		if candidate.Equal(at) {
-			attempts = append(attempts[:index:index], attempts[index+1:]...)
-			break
-		}
-	}
-	if len(attempts) == 0 {
-		delete(l.entries, key)
-	} else {
-		l.entries[key] = attempts
-	}
-}
-
-// limiterKeyForIP maps a client address to its rate-limit key: IPv4 by full address, IPv6 by /64
-// (one subscriber typically controls a whole /64, so per-address keys would be free to mint).
-func limiterKeyForIP(raw string) string {
-	address, err := netip.ParseAddr(strings.TrimSpace(raw))
-	if err != nil {
-		return "unknown"
-	}
-	address = address.WithZone("").Unmap()
-	if address.Is6() {
-		return netip.PrefixFrom(address, 64).Masked().String()
-	}
-	return address.String()
-}
-
 // PairingStart is what an unpaired player receives: the code to show and the secret that proves
 // later polls come from the same player.
 type PairingStart struct {
@@ -213,7 +96,7 @@ type PairingStart struct {
 // limit; pollSecret is the cookie value of a previous request of the same player, which is replaced.
 func (s *Service) StartPairing(ctx context.Context, clientIP, previousPollSecret string) (PairingStart, error) {
 	now := s.now()
-	if !s.pairingRequests.take(limiterKeyForIP(clientIP), now) {
+	if !s.pairingRequests.Take(ratelimit.KeyForIP(clientIP), now) {
 		return PairingStart{}, rateLimited("Too many pairing requests; try again later")
 	}
 	for attempt := 0; attempt < pairingGenerationAttempts; attempt++ {
@@ -294,7 +177,7 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 	if decoded, err := base64.RawURLEncoding.DecodeString(pollSecret); err != nil || len(decoded) != 32 {
 		return PairingPoll{Status: "expired"}, nil // cannot match any request; skip the database
 	}
-	if !s.pairingPolls.take(limiterKeyForIP(clientIP), now) {
+	if !s.pairingPolls.Take(ratelimit.KeyForIP(clientIP), now) {
 		return PairingPoll{}, rateLimited("Too many pairing polls; slow down")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -351,13 +234,13 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	account := principal.AccountID.String()
 	// Reserve an attempt before looking at the code so concurrent guesses cannot all pass the
 	// check; the reservation is given back unless the code itself was wrong.
-	if !s.claimFailures.take(account, now) {
+	if !s.claimFailures.Take(account, now) {
 		return Display{}, rateLimited("Too many wrong pairing codes; try again later")
 	}
 	wrongCode := false
 	defer func() {
 		if !wrongCode {
-			s.claimFailures.refund(account, now)
+			s.claimFailures.Refund(account, now)
 		}
 	}()
 	normalized, wellFormed := NormalizePairingCode(code)

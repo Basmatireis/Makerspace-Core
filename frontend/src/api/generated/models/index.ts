@@ -78,6 +78,8 @@ export * from './bulkItem';
 export * from './calendarEntry';
 export * from './calendarEntryCategory';
 export * from './calendarEntrySource';
+export * from './cameraCandidate';
+export * from './cameraCandidateList';
 export * from './cashMovement';
 export * from './cashMovementKind';
 export * from './cashMovementPage';

@@ -3,7 +3,6 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import type { Names } from './engine/playback';
 import { useMachineOptions, useMakerspaceTimeZone, useNow } from './preview';
 import { resolvePublished, type PublishedOptions, type PublishedView } from './publishedView';
-import type { CameraOutsideField } from './displayMutations';
 import { displaysQuery, playlistsQuery, previewQuery, rulesQuery, templatesQuery } from './queries';
 
 /** Machine and template names for describing rules; unknown ids read as removed. */
@@ -40,7 +39,7 @@ export function usePublishedView(displayId: string, options: Pick<PublishedOptio
 export function useCameraBlockedDisplays(sceneId: string): string[] {
   const displays = useQuery(displaysQuery()).data?.items;
   const playlists = useQuery(playlistsQuery()).data?.items;
-  const blocked = useMemo(() => (displays ?? []).filter((display) => display.visibleFromOutside && display.status !== 'revoked' && !(display as CameraOutsideField).allowCameraOutside), [displays]);
+  const blocked = useMemo(() => (displays ?? []).filter((display) => display.visibleFromOutside && display.status !== 'revoked' && !display.allowCameraOutside), [displays]);
   const rules = useQueries({ queries: blocked.map((display) => rulesQuery(display.id)) });
   const plays = (playlistId: string) => playlists?.find((item) => item.id === playlistId)?.items.some((item) => item.sceneId === sceneId) ?? false;
   return blocked.filter((display, index) => plays(display.defaultPlaylistId)

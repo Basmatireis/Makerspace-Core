@@ -20,6 +20,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -208,8 +209,14 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			return
 		}
 		if isStreamingGatewayPath(r.URL.Path) {
+			failureKey := ratelimit.KeyForIP(sourceAddress(r.Context()))
+			if s.gatewayFailures.Blocked(failureKey, time.Now().UTC()) {
+				writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Too many failed gateway authentications; try again later"), logger)
+				return
+			}
 			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
 			if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				s.gatewayFailures.Take(failureKey, time.Now().UTC())
 				writeAPIError(w, r, apperror.Unauthenticated, logger)
 				return
 			}
@@ -223,6 +230,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				if gateway == nil {
+					s.gatewayFailures.Take(failureKey, time.Now().UTC())
 					writeAPIError(w, r, apperror.Unauthenticated, logger)
 					return
 				}
@@ -418,6 +426,11 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+const (
+	gatewayFailuresPerWindow = 20
+	gatewayFailureWindow     = 15 * time.Minute
+)
 
 type connectorRateWindow struct {
 	startedAt time.Time

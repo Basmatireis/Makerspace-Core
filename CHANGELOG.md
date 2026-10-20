@@ -6,6 +6,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Added
 
+- Digital signage: displays (a separate player web app in a kiosk browser, paired with a short code) show scenes, playlists, media and announcements chosen by rules, published per display. New permissions `signage.read`, `signage.manage`, `signage.content.manage`, `signage.publish` and `signage.override`; optional `SIGNAGE_PAIRING_ALLOWED_CIDRS` restricts pairing to given networks (migrations 00051-00052; see `docs/signage.md` and `docs/signage-player.md`).
+- Streaming gateway and Local services (Settings): a gateway in the makerspace network restreams Bambu printer cameras to signage displays with short-lived signed tickets; video never passes through Core. New permission `local_services.manage`, gateway list with status and "Credential expires", camera assignment from `GET /local-services/camera-candidates` (machines with an active Bambu assignment and no camera; no `machines.read` needed). Failed gateway authentications are limited to 20 per client IP and 15 minutes (migrations 00053-00054; see `docs/streaming-gateway.md`).
 - Invoice request approval: draft, awaiting approval, issued. New permission `external_invoice_requests.approve` (edit, return for correction, forward to wiRef, cancel). Forwarding settles the order with an `external` "Invoice (wiRef)" payment; an invoice can be requested for partially paid orders (`alreadyPaid`).
 - Cash movements (`/cash-movements`, `cash_movements.read/record`) and the expected cash in the register (`GET /payments/cash-register`, cash only).
 - Role based pricing: `/pricing-role-groups` maps roles to pricing groups by priority.

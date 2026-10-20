@@ -96,6 +96,7 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 
 - [Architecture and domain model](docs/architecture.md)
 - [Orders, payments, and external wiRef invoicing](docs/orders.md)
+- [Digital signage](docs/signage.md), [signage player kiosk setup](docs/signage-player.md), and [streaming gateway](docs/streaming-gateway.md)
 - [Terminal, attendance, session policies, and surveys](docs/terminal-attendance-surveys.md)
 - [Device Bridge architecture](docs/device-bridge.md)
 - [Desktop terminal](docs/desktop-device-bridge.md)

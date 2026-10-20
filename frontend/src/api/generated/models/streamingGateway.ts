@@ -66,6 +66,11 @@ export interface StreamingGateway {
   disabledAt: string | null;
   /** @nullable */
   revokedAt: string | null;
+  /**
+   * When the gateway's current credential expires; null while the gateway has none (pending or revoked). The gateway rotates it on its own before then.
+   * @nullable
+   */
+  credentialExpiresAt: string | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

@@ -78,6 +78,7 @@ type Gateway struct {
 	ProtocolVersion                       *int
 	LastHeartbeatAt, EnrolledAt           *time.Time
 	DisabledAt, RevokedAt                 *time.Time
+	CredentialExpiresAt                   *time.Time
 	Version                               int64
 	CreatedAt, UpdatedAt                  time.Time
 }
@@ -205,6 +206,20 @@ func gatewayFrom(row db.StreamingGateway) Gateway {
 	}
 }
 
+// withCredentialExpiry fills in when the gateway's current credential expires (nil without one).
+func withCredentialExpiry(ctx context.Context, q *db.Queries, gateway Gateway) (Gateway, error) {
+	expires, err := q.GetGatewayCredentialExpiry(ctx, gateway.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return gateway, nil
+	}
+	if err != nil {
+		return Gateway{}, err
+	}
+	expires = expires.UTC()
+	gateway.CredentialExpiresAt = &expires
+	return gateway, nil
+}
+
 func normalizeName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > 120 {
@@ -309,9 +324,21 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal) (
 	if err != nil {
 		return nil, err
 	}
+	expiries, err := db.New(s.pool).ListGatewayCredentialExpiries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	expiryOf := make(map[uuid.UUID]time.Time, len(expiries))
+	for _, expiry := range expiries {
+		expiryOf[expiry.GatewayID] = expiry.ExpiresAt.UTC()
+	}
 	result := make([]Gateway, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, gatewayFrom(row))
+		gateway := gatewayFrom(row)
+		if expires, ok := expiryOf[row.ID]; ok {
+			gateway.CredentialExpiresAt = &expires
+		}
+		result = append(result, gateway)
 	}
 	return result, nil
 }
@@ -327,7 +354,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	if err != nil {
 		return Gateway{}, err
 	}
-	return gatewayFrom(row), nil
+	return withCredentialExpiry(ctx, db.New(s.pool), gatewayFrom(row))
 }
 
 // Update renames a gateway, changes its public host and enables or disables it.
@@ -386,7 +413,7 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	if err = tx.Commit(ctx); err != nil {
 		return Gateway{}, err
 	}
-	return gatewayFrom(row), nil
+	return withCredentialExpiry(ctx, db.New(s.pool), gatewayFrom(row))
 }
 
 // Delete removes a gateway with its credentials, enrollments and camera assignments.
@@ -510,7 +537,9 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		if err = tx.Commit(ctx); err != nil {
 			return EnrollmentResult{}, err
 		}
-		return EnrollmentResult{Gateway: gatewayFrom(row), CredentialExpiresAt: credential.ExpiresAt}, nil
+		gateway := gatewayFrom(row)
+		gateway.CredentialExpiresAt = &credential.ExpiresAt
+		return EnrollmentResult{Gateway: gateway, CredentialExpiresAt: credential.ExpiresAt}, nil
 	}
 	expires := s.now().Add(credentialTTL)
 	if _, err = q.CreateGatewayCredential(ctx, db.CreateGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
@@ -532,7 +561,9 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	if err = tx.Commit(ctx); err != nil {
 		return EnrollmentResult{}, err
 	}
-	return EnrollmentResult{Gateway: gatewayFrom(row), CredentialExpiresAt: expires}, nil
+	gateway := gatewayFrom(row)
+	gateway.CredentialExpiresAt = &expires
+	return EnrollmentResult{Gateway: gateway, CredentialExpiresAt: expires}, nil
 }
 
 // Authenticate resolves a runtime credential; it answers nil for anything unknown or revoked.
@@ -640,6 +671,29 @@ func (s *Service) RotateCredential(ctx context.Context, gateway Context, credent
 }
 
 // ---- cameras ----
+
+// CameraCandidate is a machine that can be given a camera.
+type CameraCandidate struct {
+	ID         uuid.UUID
+	Name, Kind string
+}
+
+// ListCameraCandidates lists machines with an active Bambu printer assignment and no camera yet.
+// It needs local_services.manage only, so the assign dialog works without machines.read.
+func (s *Service) ListCameraCandidates(ctx context.Context, principal authorization.Principal) ([]CameraCandidate, error) {
+	if err := requireManage(principal); err != nil {
+		return nil, err
+	}
+	rows, err := db.New(s.pool).ListCameraCandidates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CameraCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, CameraCandidate{ID: row.ID, Name: row.Name, Kind: row.Kind})
+	}
+	return result, nil
+}
 
 func cameraFrom(row db.GetCameraViewRow, now time.Time) Camera {
 	return buildCamera(row.ID, row.GatewayID, row.MachineID, row.GatewayName, row.GatewayLifecycle, row.MachineName, row.Enabled, row.Health, row.Viewers, row.Codec, row.Width, row.Height, row.Fps, row.ReportedAt, row.Version, row.CreatedAt, row.UpdatedAt, now)
@@ -974,8 +1028,12 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 			return Gateway{}, err
 		}
 	}
+	result, err := withCredentialExpiry(ctx, q, gatewayFrom(row))
+	if err != nil {
+		return Gateway{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Gateway{}, err
 	}
-	return gatewayFrom(row), nil
+	return result, nil
 }

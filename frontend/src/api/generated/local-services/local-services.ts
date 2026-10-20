@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  CameraCandidateList,
   CreateStreamingCameraRequest,
   CreateStreamingGatewayRequest,
   EnrollStreamingGatewayRequest,
@@ -321,6 +322,30 @@ export const getListLocalServiceCamerasUrl = () => {
 export const listLocalServiceCameras = async ( options?: RequestInit): Promise<StreamingCameraList> => {
 
   return apiFetch<StreamingCameraList>(getListLocalServiceCamerasUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Needs `local_services.manage` (not `machines.read`). Machines with an active Bambu printer assignment that have no camera assigned yet, by name.
+ * @summary Machines that can be given a streaming camera
+ */
+export const getListCameraCandidatesUrl = () => {
+
+
+
+
+  return `/api/v1/local-services/camera-candidates`
+}
+
+export const listCameraCandidates = async ( options?: RequestInit): Promise<CameraCandidateList> => {
+
+  return apiFetch<CameraCandidateList>(getListCameraCandidatesUrl(),
   {
     ...options,
     method: 'GET'

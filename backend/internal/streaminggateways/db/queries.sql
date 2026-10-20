@@ -93,6 +93,12 @@ WHERE cr.token_digest = sqlc.arg(token_digest) AND cr.state IN ('current', 'reti
   AND cr.expires_at > now() AND (cr.retire_after IS NULL OR cr.retire_after > now())
   AND g.lifecycle IN ('active', 'disabled');
 
+-- name: GetGatewayCredentialExpiry :one
+SELECT expires_at FROM streaming_gateway_credentials WHERE gateway_id = sqlc.arg(gateway_id) AND state = 'current';
+
+-- name: ListGatewayCredentialExpiries :many
+SELECT gateway_id, expires_at FROM streaming_gateway_credentials WHERE state = 'current';
+
 -- name: TouchGatewayCredential :exec
 UPDATE streaming_gateway_credentials SET last_used_at = now()
 WHERE id = sqlc.arg(id) AND (last_used_at IS NULL OR last_used_at < now() - interval '5 minutes');
@@ -102,6 +108,13 @@ WHERE id = sqlc.arg(id) AND (last_used_at IS NULL OR last_used_at < now() - inte
 -- name: ActiveBambuAssignmentForMachine :one
 SELECT id, adapter_kind FROM printer_connector_assignments
 WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL AND adapter_kind IN ('bambu_h2d', 'bambu_x1c');
+
+-- name: ListCameraCandidates :many
+SELECT m.id, m.name, mt.name AS kind
+FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+WHERE EXISTS (SELECT 1 FROM printer_connector_assignments a WHERE a.machine_id = m.id AND a.ended_at IS NULL AND a.adapter_kind IN ('bambu_h2d', 'bambu_x1c'))
+  AND NOT EXISTS (SELECT 1 FROM streaming_cameras c WHERE c.machine_id = m.id)
+ORDER BY lower(m.name), m.id;
 
 -- name: MachineExists :one
 SELECT EXISTS (SELECT 1 FROM machines WHERE id = sqlc.arg(id));

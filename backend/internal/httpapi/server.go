@@ -26,6 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
@@ -80,6 +81,8 @@ type Server struct {
 	connectorRates    map[uuid.UUID]connectorRateWindow
 	playerRateMu      sync.Mutex
 	playerRates       map[string]connectorRateWindow
+	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
+	gatewayFailures *ratelimit.Limiter
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -159,6 +162,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		surveys:           surveyService,
 		connectorRates:    make(map[uuid.UUID]connectorRateWindow),
 		playerRates:       make(map[string]connectorRateWindow),
+		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),
 	}, nil
 }

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId, type StreamingCamera, type StreamingGateway } from '../../api/generated/models';
 import { App } from '../../app/App';
+import { formatDateTime } from '../../app/dateTime';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
@@ -14,7 +15,7 @@ const stamp = '2026-10-19T08:00:00Z';
 
 const gateway = (patch: Partial<StreamingGateway> = {}): StreamingGateway => ({
   id: gatewayId, name: 'Print room gateway', publicHost: 'signage-gw.example.org:8443', lifecycle: 'active', configurationRevision: 3, appliedConfigurationRevision: 3, softwareVersion: '0.6.0', protocolVersion: 1,
-  healthState: 'connected', healthSummary: null, lastHeartbeatAt: new Date().toISOString(), enrolledAt: stamp, disabledAt: null, revokedAt: null, version: 4, createdAt: stamp, updatedAt: stamp, ...patch,
+  healthState: 'connected', healthSummary: null, lastHeartbeatAt: new Date().toISOString(), enrolledAt: stamp, disabledAt: null, revokedAt: null, credentialExpiresAt: '2027-01-17T08:00:00Z', version: 4, createdAt: stamp, updatedAt: stamp, ...patch,
 });
 const camera = (patch: Partial<StreamingCamera> = {}): StreamingCamera => ({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8a703', gatewayId, gatewayName: 'Print room gateway', gatewayLifecycle: 'active', machineId, machineName: 'Bambu H2D', enabled: true, health: 'idle', viewers: 0,
@@ -30,7 +31,7 @@ function setup(permissions: PermissionId[], { gateways = [gateway()], cameras = 
       return found ? HttpResponse.json(found) : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
     }),
     http.get('*/api/v1/local-services/cameras', () => HttpResponse.json({ items: cameras })),
-    http.get('*/api/v1/machines', () => HttpResponse.json({ items: [{ id: machineId, name: 'Bambu H2D' }, { id: '0192f6f8-743e-7c77-a349-cd07c3e8a704', name: 'Laser cutter' }], page: 1, pageSize: 100, total: 2 })),
+    http.get('*/api/v1/local-services/camera-candidates', () => HttpResponse.json({ items: [{ id: machineId, name: 'Bambu H2D', kind: 'FDM printer' }, { id: '0192f6f8-743e-7c77-a349-cd07c3e8a704', name: 'Laser cutter', kind: 'Laser' }] })),
   );
 }
 
@@ -52,6 +53,8 @@ describe('Local services', () => {
     expect(within(row).getByText('Online')).toBeInTheDocument();
     expect(within(row).getByText('0.6.0')).toBeInTheDocument();
     expect(within(row).getByText('signage-gw.example.org:8443')).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Credential expires' })).toBeInTheDocument();
+    expect(within(row).getByText(formatDateTime('2027-01-17T08:00:00Z'))).toBeInTheDocument();
     await waitFor(() => expect(within(row).getByText('1')).toBeInTheDocument());
     expect(screen.getByRole('link', { name: /Open Machines, Connectors/ })).toHaveAttribute('href', '/machine-logbook/machines?tab=connectors');
   });
@@ -80,7 +83,7 @@ describe('Local services', () => {
   });
 
   it('explains why a camera cannot be assigned', async () => {
-    setup([PermissionId.local_servicesmanage, PermissionId.machinesread], { cameras: [] });
+    setup([PermissionId.local_servicesmanage], { cameras: [] });
     const message = 'the machine needs an active Bambu printer assignment (H2D or X1 Carbon) before its camera can be streamed';
     let attempts = 0;
     server.use(http.post(`*/api/v1/streaming-gateways/${gatewayId}/cameras`, () => {

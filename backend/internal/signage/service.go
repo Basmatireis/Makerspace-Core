@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -34,9 +35,9 @@ type Service struct {
 	calendar PublicCalendar
 	streams  StreamIssuer
 
-	pairingRequests *attemptLimiter // pairing codes handed out per client IP
-	claimFailures   *attemptLimiter // wrong pairing codes entered per staff account
-	pairingPolls    *attemptLimiter // pairing polls per client IP
+	pairingRequests *ratelimit.Limiter // pairing codes handed out per client IP
+	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
+	pairingPolls    *ratelimit.Limiter // pairing polls per client IP
 
 	sweepMu        sync.Mutex
 	lastAnnounceGC time.Time
@@ -69,9 +70,9 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 	}
 	service := &Service{
 		pool: pool, files: fileService, location: location, now: func() time.Time { return time.Now().UTC() },
-		pairingRequests: newAttemptLimiter(pairingRequestsPerWindow, pairingRequestWindow),
-		claimFailures:   newAttemptLimiter(claimFailuresPerWindow, claimFailureWindow),
-		pairingPolls:    newAttemptLimiter(pairingPollsPerWindow, pairingPollWindow),
+		pairingRequests: ratelimit.New(pairingRequestsPerWindow, pairingRequestWindow),
+		claimFailures:   ratelimit.New(claimFailuresPerWindow, claimFailureWindow),
+		pairingPolls:    ratelimit.New(pairingPollsPerWindow, pairingPollWindow),
 	}
 	for _, option := range options {
 		option(service)
