@@ -1,11 +1,13 @@
 # Makerspace Core repository instructions
 
+This file is the single source of instructions for people and coding agents. Code style and conventions are in [docs/styleguide.md](docs/styleguide.md); follow both.
+
 ## Architecture
 
 - This repository is a modular monolith for one makerspace/location. Do not introduce microservices, multi-tenancy, queues, Redis, distributed caches, or speculative infrastructure.
 - Organize backend code by business feature. HTTP handlers translate transport concerns; services own business rules, authorization, and transaction boundaries; repositories own SQL persistence.
 - Keep OpenAPI transport types, domain types, and sqlc persistence rows separate.
-- Prefer explicit code and existing focused libraries over generic frameworks or abstractions without a present use case.
+- Prefer explicit code and existing focused libraries over generic frameworks or abstractions without a present use case. Depend on narrow interfaces only at real module or test seams.
 
 ## API and persistence
 
@@ -23,6 +25,9 @@
 - Never log or serialize passwords, hashes, cookies, session/reset tokens, authorization headers, request bodies, or unnecessary PII.
 - Store only digests of session and reset tokens. Preserve genuine hard-deletion paths and minimize retained audit data.
 - Tests are required for every authorization-sensitive behavior.
+- Which operations are reachable without a staff session is declared only by their `security` entry in `api/openapi.yaml`; the HTTP layer derives it from the contract. Never add hand-maintained public-path lists.
+- API responses default to `Cache-Control: no-store`. Rate limiters must stay bounded without refusing every new client when full, and slow credential hashing must not run inside a transaction or while holding a lock.
+- HTML responses carry the security headers in `frontend/nginx/` (CSP without inline scripts and with `frame-ancestors 'none'`, HSTS, nosniff). The production Compose stack trusts only its own network as forwarding proxy.
 
 ## Frontend
 
@@ -46,5 +51,6 @@
 ## Quality
 
 - Add or update tests with behavior changes. Prefer real PostgreSQL integration tests for repository/API behavior.
-- Keep generated-code freshness, formatting, type checking, unit tests, integration tests, and production builds reproducible through documented commands.
+- Keep generated-code freshness, formatting, linting (`golangci-lint`, ESLint), type checking, unit tests, integration tests, and production builds reproducible through documented commands.
+- Do not commit design prototypes, implementation plans, progress logs, or review reports; they belong in branches, issues, or pull requests.
 - Do not add placeholder modules, pages, routes, or navigation for future makerspace concepts.

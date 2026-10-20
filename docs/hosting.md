@@ -90,7 +90,8 @@ Bundle: `makerspace-core-VERSION-compose.tar.gz` (`compose.yaml` with the releas
 | `AUTH_CHALLENGE_HMAC_KEY`, `PIN_PEPPER` | independent base64 secrets of at least 32 bytes, `openssl rand -base64 32` (required; sensitive) |
 | `APP_ENCRYPTION_KEYS` | ordered base64 32-byte AES keys; required for OIDC/SMTP secrets, printer access codes and stream tickets (sensitive) |
 | `FRONTEND_BIND_ADDRESS`, `FRONTEND_PORT` | where the frontend listens; default `127.0.0.1:8080` |
-| `HTTP_TRUSTED_PROXIES` | CIDRs of your reverse proxy; required behind one |
+| `HTTP_TRUSTED_PROXIES` | forwarding proxies the backend trusts; defaults to the Compose network (`MAKERSPACE_NETWORK_SUBNET`, `172.30.240.0/24`), which covers the bundled nginx and a TLS proxy on the Docker host |
+| `MAKERSPACE_NETWORK_SUBNET` | subnet of the production Compose network; change only if it collides with a host network |
 | `SIGNAGE_PAIRING_ALLOWED_CIDRS` | optional: only these networks may pair signage displays |
 | `STORAGE_BACKEND`, `S3_*`, `AUDIT_RETENTION`, `MAKERSPACE_TIME_ZONE`, `OPEN_DAYS_*`, `OTEL_*` | optional, see `production.env.example` and [operations](operations.md#production-compose-deployment) |
 

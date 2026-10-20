@@ -7,7 +7,7 @@ The player is a small web app served by Makerspace Core at `https://<core>/playe
 - Chromium or Chrome 110 or newer (the player uses `AbortSignal.timeout`, container query units and `<video>` autoplay).
 - A persistent browser profile. The device cookie lives in the profile; with a throw-away profile (`--incognito`, guest mode, a tmpfs `--user-data-dir`) the display has to be paired again after every restart.
 - HTTPS to Core. The cookies are `Secure` (and `__Host-` prefixed) in production.
-- Core must know the real client address: set `HTTP_TRUSTED_PROXIES` behind a reverse proxy, otherwise all displays share one rate limit (see `docs/signage.md`, "Security hardening").
+- Core must know the real client address. The production stack trusts its own Compose network by default; a proxy that reaches Core another way must be added to `HTTP_TRUSTED_PROXIES`, otherwise all displays share one rate limit (see `docs/signage.md`, "Security hardening").
 - Optional: `SIGNAGE_PAIRING_ALLOWED_CIDRS` on Core restricts pairing to the makerspace network. Displays outside it show "This network may not pair displays".
 
 ## Pairing
@@ -156,7 +156,7 @@ If the second answer is correct and the first is not, rebind protection is the c
 | --- | --- |
 | Pairing screen after every restart | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`. |
 | "This network may not pair displays" | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere. |
-| "Too many requests, trying again shortly" | Core limits 10 pairing codes per hour per client address. Behind a proxy make sure `HTTP_TRUSTED_PROXIES` is set. Wait; the player retries by itself. |
+| "Too many requests, trying again shortly" | Core limits 10 pairing codes per hour per client address. Behind a proxy outside the Compose network make sure it is listed in `HTTP_TRUSTED_PROXIES`. Wait; the player retries by itself. |
 | Camera widgets stay empty, the gateway name does not resolve | The router blocks public names that point to private addresses; see [DNS on the kiosk](#dns-on-the-kiosk-names-that-point-to-a-private-address). |
 | "Cannot reach Makerspace Core" | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors. |
 | "Waiting for content" | The display is paired but was never published. Publish it from the display detail page. |
