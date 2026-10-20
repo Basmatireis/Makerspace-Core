@@ -71,7 +71,7 @@ func (s *Service) activeKey(ctx context.Context) (*signingKey, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		if err = s.createKey(
 			ctx,
-			db.InsertTicketKeyParams{State: "active"},
+			db.InsertTicketKeyParams{State: string(TicketKeyActive)},
 			"signage_ticket_key.created",
 			nil,
 			nil,
@@ -218,7 +218,7 @@ func (s *Service) createKey(
 	if inserted == 0 {
 		return nil // another instance created the key concurrently
 	}
-	if params.State == "pending" {
+	if TicketKeyState(params.State) == TicketKeyPending {
 		if err = q.BumpAllGatewayConfigurations(ctx); err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ func (s *Service) RotateTicketKey(
 	if _, err := db.New(s.pool).GetActiveTicketKey(ctx); errors.Is(err, pgx.ErrNoRows) {
 		if err = s.createKey(
 			ctx,
-			db.InsertTicketKeyParams{State: "active"},
+			db.InsertTicketKeyParams{State: string(TicketKeyActive)},
 			"signage_ticket_key.created",
 			nil,
 			nil,
@@ -296,7 +296,7 @@ func (s *Service) RotateTicketKey(
 	actor := principal.AccountID
 	if err := s.createKey(
 		ctx,
-		db.InsertTicketKeyParams{State: "pending", ActivatesAt: timestamptz(&activates)},
+		db.InsertTicketKeyParams{State: string(TicketKeyPending), ActivatesAt: timestamptz(&activates)},
 		"signage_ticket_key.rotated",
 		&actor,
 		requestID,
@@ -324,7 +324,7 @@ func (s *Service) PublicKeys(ctx context.Context) ([]TicketKey, error) {
 	keys := make([]TicketKey, 0, len(rows))
 	for _, row := range rows {
 		key := TicketKey{KeyID: row.Kid, PublicKey: row.PublicKey}
-		if row.State == "retired" && row.RetiredAt.Valid {
+		if TicketKeyState(row.State) == TicketKeyRetired && row.RetiredAt.Valid {
 			until := row.RetiredAt.Time.UTC().Add(retiredKeyValidity)
 			key.ValidUntil = &until
 		}

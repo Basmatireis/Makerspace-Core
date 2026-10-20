@@ -7,6 +7,7 @@ package streaminggateways
 import (
 	"context"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"net/netip"
 	"regexp"
 	"strconv"
@@ -64,9 +65,11 @@ func NewService(pool *pgxpool.Pool, encryptionKeys [][]byte) (*Service, error) {
 // Gateway is a registered streaming gateway.
 type Gateway struct {
 	ID                                    uuid.UUID
-	Name, PublicHost, Lifecycle           string
+	Name, PublicHost                      string
+	Lifecycle                             Lifecycle
 	ConfigurationRevision, AppliedRevison int64
-	SoftwareVersion, HealthState          *string
+	SoftwareVersion                       *string
+	HealthState                           *HealthState
 	HealthSummary                         *string
 	ProtocolVersion                       *int
 	LastHeartbeatAt, EnrolledAt           *time.Time
@@ -78,18 +81,19 @@ type Gateway struct {
 
 // Camera is a machine camera assigned to a gateway, with the gateway's last reported health.
 type Camera struct {
-	ID, GatewayID, MachineID      uuid.UUID
-	GatewayName, GatewayLifecycle string
-	MachineName                   string
-	Enabled                       bool
-	Health                        string
-	Viewers                       *int
-	Codec                         *string
-	Width, Height                 *int
-	FPS                           *float64
-	ReportedAt                    *time.Time
-	Version                       int64
-	CreatedAt, UpdatedAt          time.Time
+	ID, GatewayID, MachineID uuid.UUID
+	GatewayName              string
+	GatewayLifecycle         Lifecycle
+	MachineName              string
+	Enabled                  bool
+	Health                   CameraStatus
+	Viewers                  *int
+	Codec                    *string
+	Width, Height            *int
+	FPS                      *float64
+	ReportedAt               *time.Time
+	Version                  int64
+	CreatedAt, UpdatedAt     time.Time
 }
 
 // EnrollmentIssue is the one-time secret shown to the administrator.
@@ -109,7 +113,8 @@ type EnrollmentResult struct {
 // Context identifies an authenticated gateway.
 type Context struct {
 	ID, CredentialID uuid.UUID
-	Name, Lifecycle  string
+	Name             string
+	Lifecycle        Lifecycle
 }
 
 // TicketKey is a public ticket verification key a gateway trusts.
@@ -142,7 +147,7 @@ type Configuration struct {
 // CameraHealth is a gateway's report about one camera.
 type CameraHealth struct {
 	MachineID     uuid.UUID
-	Health        string
+	Health        CameraStatus
 	Viewers       int
 	Codec         *string
 	Width, Height *int
@@ -151,7 +156,8 @@ type CameraHealth struct {
 
 // Heartbeat is what a gateway reports every 30 seconds.
 type Heartbeat struct {
-	SoftwareVersion, HealthState string
+	SoftwareVersion              string
+	HealthState                  HealthState
 	ProtocolVersion              int
 	AppliedConfigurationRevision int64
 	HealthSummary                *string
@@ -187,11 +193,11 @@ func gatewayFrom(row db.StreamingGateway) Gateway {
 		protocol = &v
 	}
 	return Gateway{
-		ID: row.ID, Name: row.Name, PublicHost: row.PublicHost, Lifecycle: row.Lifecycle,
+		ID: row.ID, Name: row.Name, PublicHost: row.PublicHost, Lifecycle: Lifecycle(row.Lifecycle),
 		ConfigurationRevision: row.ConfigurationRevision, AppliedRevison: row.AppliedConfigurationRevision,
 		SoftwareVersion: row.SoftwareVersion,
 		ProtocolVersion: protocol,
-		HealthState:     row.HealthState,
+		HealthState:     optional.Convert[HealthState](row.HealthState),
 		HealthSummary:   row.HealthSummary,
 		LastHeartbeatAt: nullableTime(row.LastHeartbeatAt), EnrolledAt: nullableTime(row.EnrolledAt),
 		DisabledAt: nullableTime(row.DisabledAt), RevokedAt: nullableTime(row.RevokedAt),

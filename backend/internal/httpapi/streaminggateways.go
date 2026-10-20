@@ -510,7 +510,7 @@ func (s *Server) ReportStreamingGatewayHeartbeat(
 			cameras,
 			streaminggateways.CameraHealth{
 				MachineID: camera.MachineId,
-				Health:    string(camera.Health),
+				Health:    streaminggateways.CameraStatus(camera.Health),
 				Viewers:   camera.Viewers,
 				Codec: nullableStringPointer(
 					camera.Codec,
@@ -525,7 +525,7 @@ func (s *Server) ReportStreamingGatewayHeartbeat(
 		SoftwareVersion:              request.Body.SoftwareVersion,
 		ProtocolVersion:              request.Body.ProtocolVersion,
 		AppliedConfigurationRevision: request.Body.AppliedConfigurationRevision,
-		HealthState: string(
+		HealthState: streaminggateways.HealthState(
 			request.Body.HealthState,
 		), HealthSummary: nullableStringPointer(request.Body.HealthSummary), Cameras: cameras,
 	})

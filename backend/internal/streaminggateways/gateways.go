@@ -136,20 +136,20 @@ func (s *Service) Update(
 	if err != nil {
 		return Gateway{}, err
 	}
-	if current.Lifecycle == "revoked" {
+	if Lifecycle(current.Lifecycle) == LifecycleRevoked {
 		return Gateway{}, apperror.Conflicting("streaming_gateway_revoked", "A revoked gateway cannot be updated")
 	}
-	lifecycle := current.Lifecycle
+	lifecycle := Lifecycle(current.Lifecycle)
 	var disabledAt *time.Time
 	switch {
-	case lifecycle == "pending":
+	case lifecycle == LifecyclePending:
 		if !enabled {
 			return Gateway{}, apperror.Invalid("A pending gateway cannot be disabled before enrollment")
 		}
 	case enabled:
-		lifecycle = "active"
+		lifecycle = LifecycleActive
 	default:
-		lifecycle = "disabled"
+		lifecycle = LifecycleDisabled
 		now := s.now()
 		disabledAt = &now
 	}
@@ -158,7 +158,7 @@ func (s *Service) Update(
 		db.UpdateGatewayParams{
 			Name:            name,
 			PublicHost:      publicHost,
-			Lifecycle:       lifecycle,
+			Lifecycle:       string(lifecycle),
 			DisabledAt:      timestamptz(disabledAt),
 			ID:              id,
 			ExpectedVersion: expected,

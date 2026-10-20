@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -33,7 +34,7 @@ func BuildSourceURL(ip, accessCode string) string {
 
 // Configuration returns the complete configuration of an authenticated gateway.
 func (s *Service) Configuration(ctx context.Context, gateway Context) (Configuration, error) {
-	if gateway.Lifecycle != "active" && gateway.Lifecycle != "disabled" {
+	if gateway.Lifecycle != LifecycleActive && gateway.Lifecycle != LifecycleDisabled {
 		return Configuration{}, apperror.New(
 			http.StatusForbidden,
 			"streaming_gateway_inactive",
@@ -66,7 +67,7 @@ func (s *Service) Configuration(ctx context.Context, gateway Context) (Configura
 		TicketPublicKeys: keys,
 		Cameras:          []ConfigCamera{},
 	}
-	if gateway.Lifecycle == "disabled" {
+	if gateway.Lifecycle == LifecycleDisabled {
 		return result, nil
 	}
 	cameras, err := q.ListGatewayConfigCameras(ctx, gateway.ID)
@@ -131,13 +132,13 @@ func plainText(value string, maxRunes int) bool {
 
 // Heartbeat records gateway and camera health. Camera health is ephemeral and not audited.
 func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbeat) (Gateway, error) {
-	if gateway.Lifecycle != "active" {
+	if gateway.Lifecycle != LifecycleActive {
 		return Gateway{}, apperror.New(http.StatusForbidden, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
 	if input.SoftwareVersion == "" || !plainText(input.SoftwareVersion, 80) ||
 		input.ProtocolVersion != ProtocolVersion ||
-		(input.HealthState != "connected" && input.HealthState != "degraded") ||
+		(input.HealthState != HealthConnected && input.HealthState != HealthDegraded) ||
 		input.AppliedConfigurationRevision < 0 ||
 		len(input.Cameras) > 100 {
 		return Gateway{}, apperror.Invalid("invalid heartbeat")
@@ -146,7 +147,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 		return Gateway{}, apperror.Invalid("invalid heartbeat")
 	}
 	for _, camera := range input.Cameras {
-		if (camera.Health != "live" && camera.Health != "idle" && camera.Health != "unavailable") ||
+		if (camera.Health != CameraLive && camera.Health != CameraIdle && camera.Health != CameraUnavailable) ||
 			camera.Viewers < 0 ||
 			camera.Viewers > 100000 ||
 			(camera.Codec != nil && (*camera.Codec == "" || !plainText(*camera.Codec, 40))) ||
@@ -169,7 +170,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 			SoftwareVersion:              &input.SoftwareVersion,
 			ProtocolVersion:              &protocol,
 			AppliedConfigurationRevision: input.AppliedConfigurationRevision,
-			HealthState:                  &input.HealthState,
+			HealthState:                  optional.Of(string(input.HealthState)),
 			HealthSummary:                input.HealthSummary,
 			ID:                           gateway.ID,
 		},
@@ -209,7 +210,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 			ctx,
 			db.UpsertCameraStateParams{
 				CameraID: cameraID,
-				Health:   camera.Health,
+				Health:   string(camera.Health),
 				Viewers:  int32(camera.Viewers),
 				Codec:    camera.Codec,
 				Width:    width,

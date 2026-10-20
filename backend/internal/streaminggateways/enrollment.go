@@ -50,7 +50,7 @@ func (s *Service) IssueEnrollment(
 	}
 	// Pending gateways are enrolled for the first time; active and disabled ones are re-enrolled
 	// (new host, lost data volume). Their current credential stays valid until the secret is used.
-	if gateway.Lifecycle == "revoked" {
+	if Lifecycle(gateway.Lifecycle) == LifecycleRevoked {
 		return EnrollmentIssue{}, apperror.Conflicting(
 			"streaming_gateway_revoked",
 			"A revoked gateway cannot be enrolled",
@@ -168,13 +168,13 @@ func (s *Service) Enroll(
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if current.Lifecycle == "revoked" {
+	if Lifecycle(current.Lifecycle) == LifecycleRevoked {
 		return EnrollmentResult{}, apperror.Conflicting(
 			"streaming_gateway_revoked",
 			"Gateway cannot be enrolled in its current state",
 		)
 	}
-	reenroll := current.Lifecycle != "pending"
+	reenroll := Lifecycle(current.Lifecycle) != LifecyclePending
 	if reenroll {
 		if err = q.RevokeGatewayCredentials(ctx, enrollment.GatewayID); err != nil {
 			return EnrollmentResult{}, err
@@ -255,7 +255,7 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*Context, error
 		return nil, err
 	}
 	_ = q.TouchGatewayCredential(ctx, row.CredentialID)
-	return &Context{ID: row.ID, CredentialID: row.CredentialID, Name: row.Name, Lifecycle: row.Lifecycle}, nil
+	return &Context{ID: row.ID, CredentialID: row.CredentialID, Name: row.Name, Lifecycle: Lifecycle(row.Lifecycle)}, nil
 }
 
 // Revoke ends the gateway's credentials and open enrollment immediately.
@@ -282,7 +282,7 @@ func (s *Service) Revoke(
 	if err != nil {
 		return Gateway{}, err
 	}
-	if current.Lifecycle == "revoked" {
+	if Lifecycle(current.Lifecycle) == LifecycleRevoked {
 		return Gateway{}, apperror.Conflicting("streaming_gateway_revoked", "The gateway is already revoked")
 	}
 	row, err := q.RevokeGateway(ctx, db.RevokeGatewayParams{ID: id, ExpectedVersion: expected})
@@ -326,7 +326,7 @@ func (s *Service) RotateCredential(
 	credentialID uuid.UUID,
 	credentialSecret string,
 ) (time.Time, error) {
-	if gateway.Lifecycle != "active" || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
+	if gateway.Lifecycle != LifecycleActive || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
 		return time.Time{}, apperror.Invalid("valid gateway credentials are required")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -340,7 +340,7 @@ func (s *Service) RotateCredential(
 		db.GetGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID},
 	)
 	if existingErr == nil {
-		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || existing.State == "revoked" {
+		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || CredentialState(existing.State) == CredentialRevoked {
 			return time.Time{}, apperror.Conflicting(
 				"credential_rotation_conflict",
 				"Credential identifier was reused with different credentials",

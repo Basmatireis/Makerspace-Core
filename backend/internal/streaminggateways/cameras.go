@@ -49,7 +49,7 @@ func cameraFrom(row db.GetCameraViewRow, now time.Time) Camera {
 		row.GatewayID,
 		row.MachineID,
 		row.GatewayName,
-		row.GatewayLifecycle,
+		Lifecycle(row.GatewayLifecycle),
 		row.MachineName,
 		row.Enabled,
 		row.Health,
@@ -68,7 +68,9 @@ func cameraFrom(row db.GetCameraViewRow, now time.Time) Camera {
 
 func buildCamera(
 	id, gatewayID, machineID uuid.UUID,
-	gatewayName, gatewayLifecycle, machineName string,
+	gatewayName string,
+	gatewayLifecycle Lifecycle,
+	machineName string,
 	enabled bool,
 	health *string,
 	viewers *int32,
@@ -87,16 +89,16 @@ func buildCamera(
 		GatewayLifecycle: gatewayLifecycle,
 		MachineName:      machineName,
 		Enabled:          enabled,
-		Health:           "unknown",
+		Health:           CameraUnknown,
 		Version:          version,
 		CreatedAt:        createdAt,
 		UpdatedAt:        updatedAt,
 	}
 	reported := nullableTime(reportedAt)
-	if health == nil || reported == nil || now.Sub(*reported) > cameraStatusStaleAfter || gatewayLifecycle != "active" {
+	if health == nil || reported == nil || now.Sub(*reported) > cameraStatusStaleAfter || gatewayLifecycle != LifecycleActive {
 		return camera
 	}
-	camera.Health, camera.Codec, camera.FPS, camera.ReportedAt = *health, codec, fps, reported
+	camera.Health, camera.Codec, camera.FPS, camera.ReportedAt = CameraStatus(*health), codec, fps, reported
 	if viewers != nil {
 		v := int(*viewers)
 		camera.Viewers = &v
@@ -153,7 +155,7 @@ func (s *Service) listCameras(ctx context.Context, q *db.Queries, gatewayID *uui
 				row.GatewayID,
 				row.MachineID,
 				row.GatewayName,
-				row.GatewayLifecycle,
+				Lifecycle(row.GatewayLifecycle),
 				row.MachineName,
 				row.Enabled,
 				row.Health,
@@ -198,7 +200,7 @@ func (s *Service) AssignCamera(
 	if err != nil {
 		return Camera{}, err
 	}
-	if gateway.Lifecycle == "revoked" {
+	if Lifecycle(gateway.Lifecycle) == LifecycleRevoked {
 		return Camera{}, apperror.Conflicting("streaming_gateway_revoked", "A revoked gateway cannot receive cameras")
 	}
 	exists, err := q.MachineExists(ctx, machineID)
