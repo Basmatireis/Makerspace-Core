@@ -21,20 +21,10 @@ type ErrorStateProps = {
   onRetry?: () => void;
 };
 
-export function ErrorState({
-  title = 'Something went wrong',
-  message,
-  onRetry,
-}: ErrorStateProps) {
+export function ErrorState({ title = 'Something went wrong', message, onRetry }: ErrorStateProps) {
   return (
     <Stack gap={5} className="page-state page-state--error">
-      <InlineNotification
-        kind="error"
-        lowContrast
-        hideCloseButton
-        title={title}
-        subtitle={message}
-      />
+      <InlineNotification kind="error" lowContrast hideCloseButton title={title} subtitle={message} />
       {onRetry && (
         <Button kind="tertiary" renderIcon={Renew} onClick={onRetry}>
           Try again

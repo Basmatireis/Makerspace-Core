@@ -14,10 +14,7 @@ export function testQueryClient() {
 
 export function renderRoute(ui: ReactElement, route = '/') {
   const queryClient = testQueryClient();
-  const router = createMemoryRouter(
-    [{ path: '*', element: ui }],
-    { initialEntries: [route] },
-  );
+  const router = createMemoryRouter([{ path: '*', element: ui }], { initialEntries: [route] });
   return {
     queryClient,
     router,

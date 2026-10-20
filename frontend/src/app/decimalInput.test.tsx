@@ -17,7 +17,8 @@ describe('parseDecimalText', () => {
   });
 
   it('rejects thousands separators, signs, exponents and text', () => {
-    for (const text of ['1.234,5', '1,234.5', '1 234', '-1', '1e3', 'abc', '', '1,2,3', ',']) expect(parseDecimalText(text)).toBeNull();
+    for (const text of ['1.234,5', '1,234.5', '1 234', '-1', '1e3', 'abc', '', '1,2,3', ','])
+      expect(parseDecimalText(text)).toBeNull();
   });
 
   it('limits fraction digits and whole-number fields', () => {
@@ -48,7 +49,12 @@ describe('decimalValidator', () => {
 describe('DecimalField', () => {
   function Harness() {
     const [value, setValue] = useState('');
-    return <><DecimalField id="amount" labelText="Amount" value={value} onChange={setValue} /><output>{parseDecimalText(value) ?? 'invalid'}</output></>;
+    return (
+      <>
+        <DecimalField id="amount" labelText="Amount" value={value} onChange={setValue} />
+        <output>{parseDecimalText(value) ?? 'invalid'}</output>
+      </>
+    );
   }
 
   it('keeps every intermediate state as typed', async () => {

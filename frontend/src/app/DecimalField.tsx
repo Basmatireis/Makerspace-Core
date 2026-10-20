@@ -13,5 +13,13 @@ type Props = Omit<ComponentProps<typeof TextInput>, 'value' | 'onChange' | 'type
  * A `type="number"` input cannot be used because browsers report "12," as empty, which clears the field.
  */
 export function DecimalField({ value, onChange, integer = false, autoComplete = 'off', ...rest }: Props) {
-  return <TextInput {...rest} autoComplete={autoComplete} inputMode={integer ? 'numeric' : 'decimal'} value={value} onChange={(event) => onChange(event.target.value)} />;
+  return (
+    <TextInput
+      {...rest}
+      autoComplete={autoComplete}
+      inputMode={integer ? 'numeric' : 'decimal'}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
 }

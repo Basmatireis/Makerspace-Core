@@ -1,11 +1,4 @@
-import {
-  Button,
-  InlineNotification,
-  MultiSelect,
-  Select,
-  SelectItem,
-  Stack,
-} from '@carbon/react';
+import { Button, InlineNotification, MultiSelect, Select, SelectItem, Stack } from '@carbon/react';
 import { Add, Close, TrashCan } from '@carbon/icons-react';
 import type {
   AuthenticationAssurance,
@@ -14,11 +7,7 @@ import type {
   PermissionGrant,
 } from '../../api/generated/models';
 import { PermissionGrantScope } from '../../api/generated/models';
-import {
-  permissionGrantCoveredBy,
-  permissionGrantDeviceTypeIds,
-  permissionGrantsValid,
-} from '../auth/permissions';
+import { permissionGrantCoveredBy, permissionGrantDeviceTypeIds, permissionGrantsValid } from '../auth/permissions';
 import { presentPermission } from './permissionPresentation';
 
 type Props = {
@@ -67,7 +56,14 @@ export function PermissionEditor({
           <code className="permission-editor__identifier">{permission.id}</code>
           <p className="permission-editor__description">{permission.description}</p>
         </div>
-        <Button kind="ghost" size="sm" hasIconOnly renderIcon={Close} iconDescription="Close permission editor" onClick={onClose} />
+        <Button
+          kind="ghost"
+          size="sm"
+          hasIconOnly
+          renderIcon={Close}
+          iconDescription="Close permission editor"
+          onClick={onClose}
+        />
       </div>
       <div className="permission-editor__body">
         <Stack gap={6}>
@@ -104,7 +100,7 @@ export function PermissionEditor({
               envelopes={permissionEnvelopes}
               deviceTypes={deviceTypes}
               disabled={isSaving || readOnly}
-              onChange={(next) => onChange(rules.map((item, itemIndex) => itemIndex === index ? next : item))}
+              onChange={(next) => onChange(rules.map((item, itemIndex) => (itemIndex === index ? next : item)))}
               onRemove={() => onChange(rules.filter((_, itemIndex) => itemIndex !== index))}
             />
           ))}
@@ -116,8 +112,12 @@ export function PermissionEditor({
         </Stack>
       </div>
       <div className="permission-editor__footer">
-        <Button kind="secondary" disabled={isSaving || readOnly || !modified} onClick={onRevert}>Revert permission</Button>
-        <Button disabled={isSaving || !valid} onClick={onClose}>Done</Button>
+        <Button kind="secondary" disabled={isSaving || readOnly || !modified} onClick={onRevert}>
+          Revert permission
+        </Button>
+        <Button disabled={isSaving || !valid} onClick={onClose}>
+          Done
+        </Button>
       </div>
     </aside>
   );
@@ -140,17 +140,27 @@ function RuleEditor({
   onChange: (next: PermissionGrant) => void;
   onRemove: () => void;
 }) {
-  const selectableTypes = deviceTypes.filter((type) => permissionGrantCoveredBy(envelopes, {
-    permissionId: rule.permissionId,
-    scope: PermissionGrantScope.selectedDeviceTypes,
-    deviceTypeIds: [type.id],
-    minimumAssurance: 'strong_mfa',
-  }));
+  const selectableTypes = deviceTypes.filter((type) =>
+    permissionGrantCoveredBy(envelopes, {
+      permissionId: rule.permissionId,
+      scope: PermissionGrantScope.selectedDeviceTypes,
+      deviceTypeIds: [type.id],
+      minimumAssurance: 'strong_mfa',
+    }),
+  );
   return (
     <section className="permission-editor__rule" aria-label={`Access rule ${index + 1}`}>
       <div className="permission-editor__rule-heading">
         <h3>Rule {index + 1}</h3>
-        <Button kind="ghost" size="sm" hasIconOnly renderIcon={TrashCan} iconDescription={`Remove rule ${index + 1}`} disabled={disabled} onClick={onRemove} />
+        <Button
+          kind="ghost"
+          size="sm"
+          hasIconOnly
+          renderIcon={TrashCan}
+          iconDescription={`Remove rule ${index + 1}`}
+          disabled={disabled}
+          onClick={onRemove}
+        />
       </div>
       <Stack gap={5}>
         <Select
@@ -179,15 +189,26 @@ function RuleEditor({
             onChange({
               ...rule,
               scope,
-              deviceTypeIds: scope === PermissionGrantScope.selectedDeviceTypes && selectableTypes[0]
-                ? [selectableTypes[0].id]
-                : [],
+              deviceTypeIds:
+                scope === PermissionGrantScope.selectedDeviceTypes && selectableTypes[0] ? [selectableTypes[0].id] : [],
             });
           }}
         >
-          <SelectItem value={PermissionGrantScope.everywhere} text="Everywhere" disabled={!scopeCovered(envelopes, rule, PermissionGrantScope.everywhere)} />
-          <SelectItem value={PermissionGrantScope.anyManagedDevice} text="Any managed device" disabled={!scopeCovered(envelopes, rule, PermissionGrantScope.anyManagedDevice)} />
-          <SelectItem value={PermissionGrantScope.selectedDeviceTypes} text="Selected device types" disabled={selectableTypes.length === 0} />
+          <SelectItem
+            value={PermissionGrantScope.everywhere}
+            text="Everywhere"
+            disabled={!scopeCovered(envelopes, rule, PermissionGrantScope.everywhere)}
+          />
+          <SelectItem
+            value={PermissionGrantScope.anyManagedDevice}
+            text="Any managed device"
+            disabled={!scopeCovered(envelopes, rule, PermissionGrantScope.anyManagedDevice)}
+          />
+          <SelectItem
+            value={PermissionGrantScope.selectedDeviceTypes}
+            text="Selected device types"
+            disabled={selectableTypes.length === 0}
+          />
         </Select>
         {rule.scope === PermissionGrantScope.selectedDeviceTypes && (
           <MultiSelect
@@ -200,7 +221,9 @@ function RuleEditor({
             disabled={disabled}
             invalid={permissionGrantDeviceTypeIds(rule).length === 0}
             invalidText="Choose at least one device type."
-            onChange={({ selectedItems }) => onChange({ ...rule, deviceTypeIds: (selectedItems ?? []).map((type) => type.id) })}
+            onChange={({ selectedItems }) =>
+              onChange({ ...rule, deviceTypeIds: (selectedItems ?? []).map((type) => type.id) })
+            }
           />
         )}
       </Stack>
@@ -212,9 +235,10 @@ function initialGrant(permissionId: Permission['id'], envelope?: PermissionGrant
   return {
     permissionId,
     scope: envelope?.scope ?? PermissionGrantScope.everywhere,
-    deviceTypeIds: envelope?.scope === PermissionGrantScope.selectedDeviceTypes
-      ? permissionGrantDeviceTypeIds(envelope).slice(0, 1)
-      : [],
+    deviceTypeIds:
+      envelope?.scope === PermissionGrantScope.selectedDeviceTypes
+        ? permissionGrantDeviceTypeIds(envelope).slice(0, 1)
+        : [],
     minimumAssurance: envelope?.minimumAssurance ?? 'low',
   };
 }

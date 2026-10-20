@@ -51,17 +51,19 @@ async function readResponse(response: Response): Promise<unknown> {
   if (contentType === 'application/json' || contentType.endsWith('+json')) {
     return response.json();
   }
-  if (contentType.startsWith('image/') || contentType === 'application/pdf' || contentType === 'application/octet-stream' || response.headers.has('content-disposition')) {
+  if (
+    contentType.startsWith('image/') ||
+    contentType === 'application/pdf' ||
+    contentType === 'application/octet-stream' ||
+    response.headers.has('content-disposition')
+  ) {
     return response.blob();
   }
 
   return response.text();
 }
 
-export async function apiFetch<T>(
-  url: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const method = (options.method ?? 'GET').toUpperCase();
   const csrfToken = CSRF_COOKIE_NAMES.map(readCookie).find(Boolean);
@@ -89,14 +91,17 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const pathname = new URL(url, window.location.origin).pathname;
     const isPublicAuthenticationRequest =
-      pathname.endsWith('/auth/login') || pathname.endsWith('/auth/pin/login') ||
-      pathname.endsWith('/auth/password-reset/complete') || pathname.includes('/visitor-enrollment/');
-    const isPublicBrandingRequest = pathname.includes('/public/config') || pathname.includes('/public/legal/') || pathname.includes('/public/branding/assets/');
+      pathname.endsWith('/auth/login') ||
+      pathname.endsWith('/auth/pin/login') ||
+      pathname.endsWith('/auth/password-reset/complete') ||
+      pathname.includes('/visitor-enrollment/');
+    const isPublicBrandingRequest =
+      pathname.includes('/public/config') ||
+      pathname.includes('/public/legal/') ||
+      pathname.includes('/public/branding/assets/');
     const isPublicEventRequest = pathname.includes('/public/events/') || pathname.includes('/public/event-signups/');
     const isPublicTerminalRequest = pathname.includes('/terminal/') || pathname.includes('/public/surveys/');
-    const isCurrentUserProbe =
-      method === 'GET' &&
-      pathname.endsWith('/auth/me');
+    const isCurrentUserProbe = method === 'GET' && pathname.endsWith('/auth/me');
     if (
       response.status === 401 &&
       !isPublicAuthenticationRequest &&

@@ -1,4 +1,10 @@
-import type { SignagePairingPoll, SignagePairingStart, SignagePlayerHeartbeat, SignagePlayerLive, SignagePlayerManifestResponse } from '../api/generated/models';
+import type {
+  SignagePairingPoll,
+  SignagePairingStart,
+  SignagePlayerHeartbeat,
+  SignagePlayerLive,
+  SignagePlayerManifestResponse,
+} from '../api/generated/models';
 
 // A tiny fetch wrapper for the player endpoints. The player must not load the application's HTTP client stack, so this
 // only knows the five calls it needs. The device cookie and the pairing poll-secret cookie travel with `same-origin`.
@@ -38,7 +44,8 @@ export type PlayerApi = {
 };
 
 /** Revoked credentials answer 401 or 403 on the player endpoints. */
-export const isRevoked = (error: unknown) => error instanceof PlayerApiError && (error.status === 401 || error.status === 403);
+export const isRevoked = (error: unknown) =>
+  error instanceof PlayerApiError && (error.status === 401 || error.status === 403);
 
 function retryAfter(response: Response): number | null {
   const seconds = Number(response.headers.get('Retry-After'));
@@ -66,7 +73,9 @@ export function createPlayerApi(fetchImpl: typeof fetch = (input, init) => fetch
         const body = (await response.json()) as { code?: string; message?: string };
         code = body.code ?? null;
         message = body.message ?? message;
-      } catch { /* The body is optional. */ }
+      } catch {
+        /* The body is optional. */
+      }
       throw new PlayerApiError(response.status, code, message, retryAfter(response));
     }
     if (response.status === 204) return undefined as T;

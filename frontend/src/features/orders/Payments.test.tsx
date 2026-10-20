@@ -10,18 +10,55 @@ import { as, at, everything, finalized, ids, invoiceRequest, orderList, paid, re
 
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
-const movement = { id: 'm1', reference: 'C-2026-000001', kind: 'withdrawal', amount: '20.00', reason: 'safe', note: 'To the safe', occurredAt: new Date().toISOString(), createdAt: at, recordedBy: { id: 'x', displayName: 'Sara Kofler' } };
-const register = { receipts: '10.00', refunds: '0.00', withdrawals: '20.00', deposits: '50.00', expected: '40.00', to: null };
+const movement = {
+  id: 'm1',
+  reference: 'C-2026-000001',
+  kind: 'withdrawal',
+  amount: '20.00',
+  reason: 'safe',
+  note: 'To the safe',
+  occurredAt: new Date().toISOString(),
+  createdAt: at,
+  recordedBy: { id: 'x', displayName: 'Sara Kofler' },
+};
+const register = {
+  receipts: '10.00',
+  refunds: '0.00',
+  withdrawals: '20.00',
+  deposits: '50.00',
+  expected: '40.00',
+  to: null,
+};
 
 function serveCashbook(requests: URL[] = []) {
-  const onOrder = paid({ allocations: [{ id: 'a1', paymentId: ids.payment, paymentReference: 'P-2026-000001', orderId: ids.order, orderReference: 'O-2026-000001', amount: '10.00', operationId: 'op', createdAt: at }] });
+  const onOrder = paid({
+    allocations: [
+      {
+        id: 'a1',
+        paymentId: ids.payment,
+        paymentReference: 'P-2026-000001',
+        orderId: ids.order,
+        orderReference: 'O-2026-000001',
+        amount: '10.00',
+        operationId: 'op',
+        createdAt: at,
+      },
+    ],
+  });
   orderList([onOrder]);
   server.use(
     http.get('*/api/v1/payments', ({ request }) => {
       requests.push(new URL(request.url));
-      return HttpResponse.json({ items: [receipt({ allocations: onOrder.allocations })], page: 1, pageSize: 100, total: 1 });
+      return HttpResponse.json({
+        items: [receipt({ allocations: onOrder.allocations })],
+        page: 1,
+        pageSize: 100,
+        total: 1,
+      });
     }),
-    http.get('*/api/v1/cash-movements', () => HttpResponse.json({ items: [movement], page: 1, pageSize: 100, total: 1 })),
+    http.get('*/api/v1/cash-movements', () =>
+      HttpResponse.json({ items: [movement], page: 1, pageSize: 100, total: 1 }),
+    ),
     http.get('*/api/v1/payments/cash-register', () => HttpResponse.json(register)),
   );
 }
@@ -32,14 +69,18 @@ describe('cashbook', () => {
     serveCashbook();
     renderRoute(<App />, '/payments');
     expect(await screen.findByText(/^Today · \d{2}\.\d{2}\.\d{4}$/)).toBeInTheDocument();
-    for (const label of ['Net takings', 'Cash', 'Card', 'Invoice (wiRef)']) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    for (const label of ['Net takings', 'Cash', 'Card', 'Invoice (wiRef)'])
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(await screen.findByText('Cash in register (expected)')).toBeInTheDocument();
     expect((await screen.findAllByText('€40.00')).length).toBeGreaterThan(0);
     const table = await screen.findByRole('table', { name: 'Payments' });
     expect(await within(table).findByText('C-2026-000001')).toBeInTheDocument();
     expect(within(table).getByText('Cash withdrawal')).toBeInTheDocument();
     expect(within(table).getByText('−€20.00')).toBeInTheDocument();
-    expect(await within(table).findByRole('link', { name: 'P-2026-000001' })).toHaveAttribute('href', `/payments/${ids.payment}`);
+    expect(await within(table).findByRole('link', { name: 'P-2026-000001' })).toHaveAttribute(
+      'href',
+      `/payments/${ids.payment}`,
+    );
   });
 
   it('explains in a toggletip that only cash goes through the register', async () => {
@@ -74,14 +115,21 @@ describe('cashbook', () => {
     serveCashbook(requests);
     renderRoute(<App />, '/payments?period=custom&from=2026-10-01&to=2026-10-05');
     expect(await screen.findByText('Custom range · 01.10.2026 to 05.10.2026')).toBeInTheDocument();
-    await waitFor(() => expect(requests.at(-1)?.searchParams.get('to')).toBe(new Date('2026-10-05T22:00:00Z').toISOString()));
+    await waitFor(() =>
+      expect(requests.at(-1)?.searchParams.get('to')).toBe(new Date('2026-10-05T22:00:00Z').toISOString()),
+    );
   });
 
   it('records a cash withdrawal with a reason and the register limit', async () => {
     as(everything);
     serveCashbook();
     let body: Record<string, unknown> | undefined;
-    server.use(http.post('*/api/v1/cash-movements', async ({ request }) => { body = await request.json() as Record<string, unknown>; return HttpResponse.json(movement, { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/cash-movements', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(movement, { status: 201 });
+      }),
+    );
     const user = userEvent.setup();
     renderRoute(<App />, '/payments');
     await user.click(await screen.findByRole('button', { name: 'Record cash withdrawal' }));
@@ -110,7 +158,14 @@ describe('cashbook', () => {
     as(everything);
     serveCashbook();
     const created: Blob[] = [];
-    Object.defineProperty(URL, 'createObjectURL', { value: (blob: Blob) => { created.push(blob); return 'blob:x'; }, configurable: true, writable: true });
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: (blob: Blob) => {
+        created.push(blob);
+        return 'blob:x';
+      },
+      configurable: true,
+      writable: true,
+    });
     Object.defineProperty(URL, 'revokeObjectURL', { value: () => undefined, configurable: true, writable: true });
     const user = userEvent.setup();
     renderRoute(<App />, '/payments');
@@ -126,13 +181,31 @@ describe('cashbook', () => {
 describe('payment detail', () => {
   it('refunds a cash payment with the current order version', async () => {
     as(everything);
-    const onOrder = paid({ allocations: [{ id: 'a1', paymentId: ids.payment, paymentReference: 'P-2026-000001', orderId: ids.order, orderReference: 'O-2026-000001', amount: '10.00', operationId: 'op', createdAt: at }] });
+    const onOrder = paid({
+      allocations: [
+        {
+          id: 'a1',
+          paymentId: ids.payment,
+          paymentReference: 'P-2026-000001',
+          orderId: ids.order,
+          orderReference: 'O-2026-000001',
+          amount: '10.00',
+          operationId: 'op',
+          createdAt: at,
+        },
+      ],
+    });
     let body: Record<string, unknown> | undefined;
     server.use(
-      http.get(`*/api/v1/payments/${ids.payment}`, () => HttpResponse.json(receipt({ allocations: onOrder.allocations }))),
+      http.get(`*/api/v1/payments/${ids.payment}`, () =>
+        HttpResponse.json(receipt({ allocations: onOrder.allocations })),
+      ),
       http.get('*/api/v1/payments', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get(`*/api/v1/orders/${ids.order}`, () => HttpResponse.json(onOrder)),
-      http.post(`*/api/v1/payments/${ids.payment}/reverse`, async ({ request }) => { body = await request.json() as Record<string, unknown>; return HttpResponse.json(finalized()); }),
+      http.post(`*/api/v1/payments/${ids.payment}/reverse`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(finalized());
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/payments/${ids.payment}`);
@@ -140,14 +213,37 @@ describe('payment detail', () => {
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Reason'), 'Cash refunded');
     await user.click(within(dialog).getByRole('button', { name: 'Refund payment' }));
-    await waitFor(() => expect(body).toMatchObject({ expectedVersion: 2, reversal: { paymentId: ids.payment, reasonKind: 'refund', reason: 'Cash refunded' } }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        expectedVersion: 2,
+        reversal: { paymentId: ids.payment, reasonKind: 'refund', reason: 'Cash refunded' },
+      }),
+    );
   });
 
   it('asks for the wiRef cancellation first while an invoice states what was paid', async () => {
     as(everything);
-    const locked = paid({ activeExternalRequestId: ids.request, activeExternalRequestReference: 'W-2026-000001', activeExternalRequestState: 'submitted', allocations: [{ id: 'a1', paymentId: ids.payment, paymentReference: 'P-2026-000001', orderId: ids.order, orderReference: 'O-2026-000001', amount: '10.00', operationId: 'op', createdAt: at }] });
+    const locked = paid({
+      activeExternalRequestId: ids.request,
+      activeExternalRequestReference: 'W-2026-000001',
+      activeExternalRequestState: 'submitted',
+      allocations: [
+        {
+          id: 'a1',
+          paymentId: ids.payment,
+          paymentReference: 'P-2026-000001',
+          orderId: ids.order,
+          orderReference: 'O-2026-000001',
+          amount: '10.00',
+          operationId: 'op',
+          createdAt: at,
+        },
+      ],
+    });
     server.use(
-      http.get(`*/api/v1/payments/${ids.payment}`, () => HttpResponse.json(receipt({ allocations: locked.allocations }))),
+      http.get(`*/api/v1/payments/${ids.payment}`, () =>
+        HttpResponse.json(receipt({ allocations: locked.allocations })),
+      ),
       http.get('*/api/v1/payments', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get(`*/api/v1/orders/${ids.order}`, () => HttpResponse.json(locked)),
       http.get(`*/api/v1/external-invoice-requests/${ids.request}`, () => HttpResponse.json(invoiceRequest())),

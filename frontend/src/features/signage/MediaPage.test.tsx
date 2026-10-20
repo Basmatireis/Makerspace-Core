@@ -26,7 +26,12 @@ describe('Media page', () => {
   });
 
   it('filters by type and search', async () => {
-    mockSignage([PermissionId.signageread], { assets: [assetFixture(), assetFixture({ id: ids.video, kind: 'video', name: 'intro.mp4', contentType: 'video/mp4', durationMs: 90_000 })] });
+    mockSignage([PermissionId.signageread], {
+      assets: [
+        assetFixture(),
+        assetFixture({ id: ids.video, kind: 'video', name: 'intro.mp4', contentType: 'video/mp4', durationMs: 90_000 }),
+      ],
+    });
     renderRoute(<App />, '/signage/media');
     const user = userEvent.setup();
     expect(await screen.findByRole('button', { name: 'intro.mp4, details' })).toBeInTheDocument();
@@ -39,7 +44,12 @@ describe('Media page', () => {
   it('uploads an image as raw bytes with the expected headers', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let headers: Headers | undefined;
-    server.use(http.post('*/api/v1/signage/assets', async ({ request }) => { headers = request.headers;  return HttpResponse.json(assetFixture({ name: 'new.png' }), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/assets', async ({ request }) => {
+        headers = request.headers;
+        return HttpResponse.json(assetFixture({ name: 'new.png' }), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage/media');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
@@ -56,12 +66,20 @@ describe('Media page', () => {
   it('sends ASCII names encoded and strips control characters', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let name: string | null | undefined;
-    server.use(http.post('*/api/v1/signage/assets', async ({ request }) => { name = request.headers.get('x-file-name'); return HttpResponse.json(assetFixture(), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/assets', async ({ request }) => {
+        name = request.headers.get('x-file-name');
+        return HttpResponse.json(assetFixture(), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage/media');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Upload' }));
     const dialog = await screen.findByRole('dialog');
-    await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, new File([new Uint8Array(10)], '100% done – 日本.png', { type: 'image/png' }));
+    await user.upload(
+      dialog.querySelector('input[type="file"]') as HTMLInputElement,
+      new File([new Uint8Array(10)], '100% done – 日本.png', { type: 'image/png' }),
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
     await waitFor(() => expect(name).toBeDefined());
     expect(decodeURIComponent(name ?? '')).toBe('100% done – 日本.png');
@@ -105,13 +123,27 @@ describe('Media page', () => {
 
   it('lists the scenes that block deleting media (409)', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
-    server.use(http.delete('*/api/v1/signage/assets/:id', () => HttpResponse.json({ code: 'signage_in_use', message: 'in use', details: { references: [{ kind: 'scene', id: ids.scene, name: 'Open days poster' }] } }, { status: 409 })));
+    server.use(
+      http.delete('*/api/v1/signage/assets/:id', () =>
+        HttpResponse.json(
+          {
+            code: 'signage_in_use',
+            message: 'in use',
+            details: { references: [{ kind: 'scene', id: ids.scene, name: 'Open days poster' }] },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
     renderRoute(<App />, '/signage/media');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'poster.png, details' }));
     await user.click(await screen.findByRole('button', { name: 'Delete media' }));
     await user.click(await screen.findByRole('button', { name: 'Delete media' }));
     const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByRole('link', { name: 'Open days poster' })).toHaveAttribute('href', `/signage/scenes/${ids.scene}`);
+    expect(await within(dialog).findByRole('link', { name: 'Open days poster' })).toHaveAttribute(
+      'href',
+      `/signage/scenes/${ids.scene}`,
+    );
   });
 });

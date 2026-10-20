@@ -4,5 +4,9 @@ import { FatalBoundary, PlayerApp } from './PlayerApp';
 import { registerServiceWorker } from './register';
 import './player.css';
 
-createRoot(document.getElementById('root')!).render(<FatalBoundary><PlayerApp api={createPlayerApi()} /></FatalBoundary>);
+createRoot(document.getElementById('root')!).render(
+  <FatalBoundary>
+    <PlayerApp api={createPlayerApi()} />
+  </FatalBoundary>,
+);
 registerServiceWorker();

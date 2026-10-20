@@ -20,13 +20,7 @@ export function PersonAvatar({
   const className = `person-avatar person-avatar--${size}`;
 
   if (profileImage) {
-    return (
-      <img
-        className={className}
-        src={profileImage.downloadUrl}
-        alt={decorative ? '' : `${name} profile`}
-      />
-    );
+    return <img className={className} src={profileImage.downloadUrl} alt={decorative ? '' : `${name} profile`} />;
   }
 
   return (

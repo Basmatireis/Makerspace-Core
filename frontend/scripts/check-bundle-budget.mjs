@@ -36,10 +36,8 @@ function graphOfFiles(entry) {
   return [...graphOf(entry)].flatMap((key) => [manifest[key].file, ...(manifest[key].css ?? [])]);
 }
 
-const compressedSize = (files) => [...files].reduce(
-  (sum, file) => sum + gzipSync(readFileSync(resolve(directory, file))).length,
-  0,
-);
+const compressedSize = (files) =>
+  [...files].reduce((sum, file) => sum + gzipSync(readFileSync(resolve(directory, file))).length, 0);
 
 const failures = [];
 for (const entry of entries) {
@@ -50,8 +48,12 @@ for (const entry of entries) {
   const stylesheets = new Set([...visited].flatMap((key) => manifest[key].css ?? []));
   const javascriptBytes = compressedSize(javascript);
   const cssBytes = compressedSize(stylesheets);
-  process.stdout.write(`${budget.label} initial static JavaScript: ${javascriptBytes} / ${budget.javascript} gzip bytes (${javascript.size} files)\n`);
-  process.stdout.write(`${budget.label} initial CSS: ${cssBytes} / ${budget.css} gzip bytes (${stylesheets.size} files)\n`);
+  process.stdout.write(
+    `${budget.label} initial static JavaScript: ${javascriptBytes} / ${budget.javascript} gzip bytes (${javascript.size} files)\n`,
+  );
+  process.stdout.write(
+    `${budget.label} initial CSS: ${cssBytes} / ${budget.css} gzip bytes (${stylesheets.size} files)\n`,
+  );
   if ([...visited].some((key) => key === 'src/app/charting.ts' || manifest[key].name === 'charting')) {
     throw new Error('Carbon Charts must remain outside the initial static import graph.');
   }
@@ -59,10 +61,15 @@ for (const entry of entries) {
 }
 
 const worker = manifest[SERVICE_WORKER.entry];
-if (!worker || worker.file !== SERVICE_WORKER.file) throw new Error(`Build manifest has no ${SERVICE_WORKER.entry} entry at ${SERVICE_WORKER.file}.`);
+if (!worker || worker.file !== SERVICE_WORKER.file)
+  throw new Error(`Build manifest has no ${SERVICE_WORKER.entry} entry at ${SERVICE_WORKER.file}.`);
 const workerSource = readFileSync(resolve(directory, worker.file), 'utf8');
-if (/__PLAYER_SHELL_(FILES|VERSION)__/.test(workerSource)) throw new Error('The player service worker still has its placeholders; the build step that fills in the shell files did not run.');
-if (/^\s*(import|export)\b/m.test(workerSource) || (worker.imports ?? []).length > 0) throw new Error('The player service worker must be self-contained (no imports).');
+if (/__PLAYER_SHELL_(FILES|VERSION)__/.test(workerSource))
+  throw new Error(
+    'The player service worker still has its placeholders; the build step that fills in the shell files did not run.',
+  );
+if (/^\s*(import|export)\b/m.test(workerSource) || (worker.imports ?? []).length > 0)
+  throw new Error('The player service worker must be self-contained (no imports).');
 for (const file of graphOfFiles('player.html')) {
   if (!workerSource.includes(`"/${file}"`)) throw new Error(`The player service worker does not precache /${file}.`);
 }
@@ -71,5 +78,7 @@ process.stdout.write(`Player service worker: ${workerBytes} / ${SERVICE_WORKER.g
 if (workerBytes > SERVICE_WORKER.gzip) failures.push('Player service worker');
 
 if (failures.length > 0) {
-  throw new Error(`Production loading budget exceeded for: ${failures.join(', ')}. Inspect static dependencies and styles before accepting this build.`);
+  throw new Error(
+    `Production loading budget exceeded for: ${failures.join(', ')}. Inspect static dependencies and styles before accepting this build.`,
+  );
 }

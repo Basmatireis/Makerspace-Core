@@ -1,4 +1,10 @@
-import type { MachineProcess, MaterialType, MaterialUnit, RunMeasures, WorkItemConsumption } from '../../api/generated/models';
+import type {
+  MachineProcess,
+  MaterialType,
+  MaterialUnit,
+  RunMeasures,
+  WorkItemConsumption,
+} from '../../api/generated/models';
 
 /**
  * What each machine process records and how its run form looks. One config drives all run forms: the form
@@ -18,27 +24,81 @@ export type ProcessConfig = {
 };
 
 export const processConfig: Record<MachineProcess, ProcessConfig> = {
-  fdm_printing: { label: 'FDM 3D printing', description: 'Filament printers with spools, a printer setup and optional connector; consumption in grams.', measures: [], inkGroup: false, areaHelper: false, printerSetup: true },
-  embroidery: { label: 'Embroidery', description: 'Runtime and an exact stitch count, priced per 1000 stitches; stabilizer in metres.', measures: ['stitches'], inkGroup: false, areaHelper: false, printerSetup: false },
-  uv_printing: { label: 'UV printing', description: 'Runtime, ink in ml per colour (C, M, Y, K, W) and substrates in cm² or metres.', measures: [], inkGroup: true, areaHelper: false, printerSetup: false },
-  laser_cutting: { label: 'Laser cutting', description: 'Mostly time tracking; sheet material in cm², customer material stays free.', measures: [], inkGroup: false, areaHelper: true, printerSetup: false },
-  vinyl_cutting: { label: 'Vinyl cutting', description: 'Plotter runtime (0 €/h where not charged) and foil in cm².', measures: [], inkGroup: false, areaHelper: true, printerSetup: false },
-  other: { label: 'Other', description: 'Runtime and free material usage.', measures: [], inkGroup: false, areaHelper: false, printerSetup: false },
+  fdm_printing: {
+    label: 'FDM 3D printing',
+    description: 'Filament printers with spools, a printer setup and optional connector; consumption in grams.',
+    measures: [],
+    inkGroup: false,
+    areaHelper: false,
+    printerSetup: true,
+  },
+  embroidery: {
+    label: 'Embroidery',
+    description: 'Runtime and an exact stitch count, priced per 1000 stitches; stabilizer in metres.',
+    measures: ['stitches'],
+    inkGroup: false,
+    areaHelper: false,
+    printerSetup: false,
+  },
+  uv_printing: {
+    label: 'UV printing',
+    description: 'Runtime, ink in ml per colour (C, M, Y, K, W) and substrates in cm² or metres.',
+    measures: [],
+    inkGroup: true,
+    areaHelper: false,
+    printerSetup: false,
+  },
+  laser_cutting: {
+    label: 'Laser cutting',
+    description: 'Mostly time tracking; sheet material in cm², customer material stays free.',
+    measures: [],
+    inkGroup: false,
+    areaHelper: true,
+    printerSetup: false,
+  },
+  vinyl_cutting: {
+    label: 'Vinyl cutting',
+    description: 'Plotter runtime (0 €/h where not charged) and foil in cm².',
+    measures: [],
+    inkGroup: false,
+    areaHelper: true,
+    printerSetup: false,
+  },
+  other: {
+    label: 'Other',
+    description: 'Runtime and free material usage.',
+    measures: [],
+    inkGroup: false,
+    areaHelper: false,
+    printerSetup: false,
+  },
 };
 
-export const processOptions = (Object.keys(processConfig) as MachineProcess[]).map((id) => ({ id, label: processConfig[id].label, description: processConfig[id].description }));
+export const processOptions = (Object.keys(processConfig) as MachineProcess[]).map((id) => ({
+  id,
+  label: processConfig[id].label,
+  description: processConfig[id].description,
+}));
 
 export const isFdm = (process: MachineProcess | undefined | null) => process === 'fdm_printing';
 
 export const measureLabels: Record<keyof RunMeasures, string> = { stitches: 'Stitches' };
 /** Rate unit text of a measure rule: "€ per 1000 stitches". */
-export const measureRateLabel = (measure: keyof RunMeasures, blockSize: number | null | undefined) => `€ per ${blockSize ?? 1000} ${measure}`;
+export const measureRateLabel = (measure: keyof RunMeasures, blockSize: number | null | undefined) =>
+  `€ per ${blockSize ?? 1000} ${measure}`;
 
-export const unitText = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit);
+export const unitText = (unit: MaterialUnit) =>
+  unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit;
 
 /** Materials the picker may offer for a machine process: active ones whose type includes the process, plus the one already chosen. */
-export function materialsForProcess<M extends { id: string; active: boolean; materialTypeId: string; unit: MaterialUnit }>(
-  materials: M[], types: Pick<MaterialType, 'id' | 'processes'>[] | undefined, process: MachineProcess | undefined, keepId?: string, config?: ProcessConfig,
+export function materialsForProcess<
+  M extends { id: string; active: boolean; materialTypeId: string; unit: MaterialUnit },
+>(
+  materials: M[],
+  types: Pick<MaterialType, 'id' | 'processes'>[] | undefined,
+  process: MachineProcess | undefined,
+  keepId?: string,
+  config?: ProcessConfig,
 ): M[] {
   const processesOf = new Map((types ?? []).map((type) => [type.id, type.processes]));
   return materials.filter((material) => {
@@ -69,17 +129,34 @@ export function consumptionSummary(materials: ConsumedLine[], measures?: RunMeas
 }
 
 /** Sums usages per material type and unit. */
-export function sumUsages(usages: { materialTypeName: string; unit: MaterialUnit; quantity: string }[]): ConsumedLine[] {
+export function sumUsages(
+  usages: { materialTypeName: string; unit: MaterialUnit; quantity: string }[],
+): ConsumedLine[] {
   const totals = new Map<string, ConsumedLine>();
   for (const usage of usages) {
     const key = `${usage.materialTypeName}/${usage.unit}`;
     const current = totals.get(key);
-    totals.set(key, { materialTypeName: usage.materialTypeName, unit: usage.unit, quantity: (current ? Number(current.quantity) : 0) + Number(usage.quantity) });
+    totals.set(key, {
+      materialTypeName: usage.materialTypeName,
+      unit: usage.unit,
+      quantity: (current ? Number(current.quantity) : 0) + Number(usage.quantity),
+    });
   }
   return [...totals.values()];
 }
 
-export const jobConsumption = (job: { measures: RunMeasures; runs: { state: string; usages: { materialTypeName: string; unit: MaterialUnit; quantity: string }[]; measures: RunMeasures }[] }) =>
-  consumptionSummary(sumUsages(job.runs.filter((run) => run.state !== 'replaced').flatMap((run) => run.usages)), job.measures);
+export const jobConsumption = (job: {
+  measures: RunMeasures;
+  runs: {
+    state: string;
+    usages: { materialTypeName: string; unit: MaterialUnit; quantity: string }[];
+    measures: RunMeasures;
+  }[];
+}) =>
+  consumptionSummary(
+    sumUsages(job.runs.filter((run) => run.state !== 'replaced').flatMap((run) => run.usages)),
+    job.measures,
+  );
 
-export const workItemConsumption = (consumption: WorkItemConsumption | undefined) => consumption ? consumptionSummary(consumption.materials, consumption.measures) : null;
+export const workItemConsumption = (consumption: WorkItemConsumption | undefined) =>
+  consumption ? consumptionSummary(consumption.materials, consumption.measures) : null;

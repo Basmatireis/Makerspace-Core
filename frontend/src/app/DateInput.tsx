@@ -1,10 +1,5 @@
 import { DatePicker, DatePickerInput, TimePicker } from '@carbon/react';
-import {
-  APP_DATE_PLACEHOLDER,
-  dateOnlyToPickerDate,
-  parseDisplayDate,
-  pickerDateToDateOnly,
-} from './dateTime';
+import { APP_DATE_PLACEHOLDER, dateOnlyToPickerDate, parseDisplayDate, pickerDateToDateOnly } from './dateTime';
 
 type DateInputProps = {
   id: string;

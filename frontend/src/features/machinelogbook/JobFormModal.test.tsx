@@ -9,16 +9,27 @@ import { server } from '../../test/server';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { ToastProvider } from './shared/toasts';
 
-vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'] }) }));
+vi.mock('../auth/auth', () => ({
+  useCurrentUser: () => ({ permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'] }),
+}));
 
 const lookups = [
   http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
   http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [customer] })),
   http.get('*/api/v1/machine-job-operators', () => HttpResponse.json({ items: [operator] })),
-  http.get('*/api/v1/materials', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0, totalInventoryValue: '0' })),
+  http.get('*/api/v1/materials', () =>
+    HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0, totalInventoryValue: '0' }),
+  ),
 ];
 
-const editable: MachineJob = jobFixture({ title: null, runs: [manualRun({ outcome: null })], outcome: 'unknown', status: 'needs_outcome', notes: null, version: 5 });
+const editable: MachineJob = jobFixture({
+  title: null,
+  runs: [manualRun({ outcome: null })],
+  outcome: 'unknown',
+  status: 'needs_outcome',
+  notes: null,
+  version: 5,
+});
 
 describe('JobFormModal', () => {
   it('creates a job from a recorded run without sending machine, times or material', async () => {
@@ -27,7 +38,7 @@ describe('JobFormModal', () => {
     server.use(
       ...lookups,
       http.post(`*/api/v1/machine-runs/${ids.recordedRun}/job`, async ({ request }) => {
-        body = await request.json() as CreateMachineJobFromRunRequest;
+        body = (await request.json()) as CreateMachineJobFromRunRequest;
         return HttpResponse.json(jobFixture({ title: 'Gearbox housing v3' }), { status: 201 });
       }),
     );
@@ -50,19 +61,42 @@ describe('JobFormModal', () => {
     await user.click(await screen.findByText('Maria Hoffmann'));
     await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
     await waitFor(() => expect(body).toBeDefined());
-    expect(body).toEqual({ title: 'Gearbox housing v3', customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, notes: null });
+    expect(body).toEqual({
+      title: 'Gearbox housing v3',
+      customer: { kind: 'organization', id: ids.organization },
+      operatorPersonId: ids.operator,
+      notes: null,
+    });
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 
   it('suggests the single organization of the chosen person and switches only on request', async () => {
-    const person = { kind: 'person' as const, id: ids.operator, displayName: 'Maria Hoffmann', pricingGroupAssignmentVersion: 0, memberOrganizations: [{ id: ids.organization, name: 'TU Berlin' }] };
-    const twoOrganizations = { ...person, id: ids.job, displayName: 'Jonas Weber', memberOrganizations: [{ id: ids.organization, name: 'TU Berlin' }, { id: ids.otherJob, name: 'HU Berlin' }] };
+    const person = {
+      kind: 'person' as const,
+      id: ids.operator,
+      displayName: 'Maria Hoffmann',
+      pricingGroupAssignmentVersion: 0,
+      memberOrganizations: [{ id: ids.organization, name: 'TU Berlin' }],
+    };
+    const twoOrganizations = {
+      ...person,
+      id: ids.job,
+      displayName: 'Jonas Weber',
+      memberOrganizations: [
+        { id: ids.organization, name: 'TU Berlin' },
+        { id: ids.otherJob, name: 'HU Berlin' },
+      ],
+    };
     server.use(
       http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [person, twoOrganizations] })),
       ...lookups,
     );
     const user = userEvent.setup();
-    renderRoute(<ToastProvider><JobFormModal open mode="create" onClose={() => undefined} run={recordedRun()} /></ToastProvider>);
+    renderRoute(
+      <ToastProvider>
+        <JobFormModal open mode="create" onClose={() => undefined} run={recordedRun()} />
+      </ToastProvider>,
+    );
     const dialog = await screen.findByRole('dialog');
     const customerField = within(dialog).getByPlaceholderText('Search people or organizations');
     await user.click(customerField);
@@ -83,12 +117,22 @@ describe('JobFormModal', () => {
     server.use(
       ...lookups,
       http.patch(`*/api/v1/machine-jobs/${ids.job}`, async ({ request }) => {
-        body = await request.json() as UpdateMachineJobRequest;
-        return HttpResponse.json({ ...editable, outcome: 'partial_failure', outcomeOverridden: true, status: 'partial_failure', version: 6 });
+        body = (await request.json()) as UpdateMachineJobRequest;
+        return HttpResponse.json({
+          ...editable,
+          outcome: 'partial_failure',
+          outcomeOverridden: true,
+          status: 'partial_failure',
+          version: 6,
+        });
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<ToastProvider><JobFormModal open mode="edit" job={editable} onClose={() => undefined} /></ToastProvider>);
+    renderRoute(
+      <ToastProvider>
+        <JobFormModal open mode="edit" job={editable} onClose={() => undefined} />
+      </ToastProvider>,
+    );
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Material usage')).not.toBeInTheDocument();
@@ -97,7 +141,13 @@ describe('JobFormModal', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({
-      machineId: ids.machine, customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, outcomeOverride: null, title: null, notes: null, expectedVersion: 5,
+      machineId: ids.machine,
+      customer: { kind: 'organization', id: ids.organization },
+      operatorPersonId: ids.operator,
+      outcomeOverride: null,
+      title: null,
+      notes: null,
+      expectedVersion: 5,
     });
 
     body = undefined;
@@ -107,9 +157,17 @@ describe('JobFormModal', () => {
   });
 
   it('starts from the override a job already has and locks the machine while a recorded run belongs to it', async () => {
-    const overridden = jobFixture({ runs: [manualRun(), recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: null } })], outcome: 'failed', outcomeOverridden: true });
+    const overridden = jobFixture({
+      runs: [manualRun(), recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: null } })],
+      outcome: 'failed',
+      outcomeOverridden: true,
+    });
     server.use(...lookups);
-    renderRoute(<ToastProvider><JobFormModal open mode="edit" job={overridden} onClose={() => undefined} /></ToastProvider>);
+    renderRoute(
+      <ToastProvider>
+        <JobFormModal open mode="edit" job={overridden} onClose={() => undefined} />
+      </ToastProvider>,
+    );
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText('Outcome override')).toHaveValue('failed');
     expect(within(dialog).getByText('Set by staff; the outcomes of the runs are ignored.')).toBeInTheDocument();

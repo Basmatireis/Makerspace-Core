@@ -10,12 +10,29 @@ import { as, at, everything, finalized, ids, order, paid, receipt } from './test
 
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
-const allocation = (id: string, paymentId: string, reference: string, amount: string) => ({ id, paymentId, paymentReference: reference, orderId: ids.order, orderReference: 'O-2026-000001', amount, operationId: 'op', createdAt: at });
+const allocation = (id: string, paymentId: string, reference: string, amount: string) => ({
+  id,
+  paymentId,
+  paymentReference: reference,
+  orderId: ids.order,
+  orderReference: 'O-2026-000001',
+  amount,
+  operationId: 'op',
+  createdAt: at,
+});
 const cashShare = allocation('a1', ids.payment, 'P-2026-000001', '4.00');
-const partial = finalized({ settlementState: 'partially_paid', settledAmount: '4.00', outstandingAmount: '6.00', allocations: [cashShare] });
+const partial = finalized({
+  settlementState: 'partially_paid',
+  settledAmount: '4.00',
+  outstandingAmount: '6.00',
+  allocations: [cashShare],
+});
 const full = paid({ allocations: [allocation('a1', ids.payment, 'P-2026-000001', '10.00')] });
 
-function serve(current: ReturnType<typeof order>, payments = [receipt({ amount: current.settledAmount, allocations: current.allocations })]) {
+function serve(
+  current: ReturnType<typeof order>,
+  payments = [receipt({ amount: current.settledAmount, allocations: current.allocations })],
+) {
   server.use(
     http.get(`*/api/v1/orders/${current.id}`, () => HttpResponse.json(current)),
     ...payments.map((payment) => http.get(`*/api/v1/payments/${payment.id}`, () => HttpResponse.json(payment))),
@@ -42,7 +59,10 @@ describe('receipt action', () => {
     expect(await screen.findByRole('button', { name: 'Print receipt' })).toBeInTheDocument();
   });
 
-  it.each([['an unpaid order', finalized()], ['a draft', order()]])('is not offered on %s', async (_name, current) => {
+  it.each([
+    ['an unpaid order', finalized()],
+    ['a draft', order()],
+  ])('is not offered on %s', async (_name, current) => {
     as(everything);
     serve(current);
     renderRoute(<App />, `/orders/${ids.order}`);
@@ -64,12 +84,25 @@ describe('receipt action', () => {
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, `/payments/${ids.payment}`);
     await user.click(await screen.findByRole('button', { name: 'Print receipt' }));
-    await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(`/orders/${ids.order}/receipt?payment=${ids.payment}`));
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        `/orders/${ids.order}/receipt?payment=${ids.payment}`,
+      ),
+    );
   });
 
   it('is not offered on a refund line', async () => {
     as(everything);
-    const refund = receipt({ id: 'r1', reference: 'P-2026-000002', entryKind: 'reversal', reversesPaymentId: ids.payment, reversedPaymentReference: 'P-2026-000001', reasonKind: 'refund', reason: 'Back', allocations: [{ ...cashShare, paymentId: 'r1', amount: '-4.00' }] });
+    const refund = receipt({
+      id: 'r1',
+      reference: 'P-2026-000002',
+      entryKind: 'reversal',
+      reversesPaymentId: ids.payment,
+      reversedPaymentReference: 'P-2026-000001',
+      reasonKind: 'refund',
+      reason: 'Back',
+      allocations: [{ ...cashShare, paymentId: 'r1', amount: '-4.00' }],
+    });
     serve(partial, [refund, receipt({ allocations: [cashShare] })]);
     renderRoute(<App />, '/payments/r1');
     await screen.findByRole('heading', { name: 'P-2026-000002' });
@@ -80,7 +113,15 @@ describe('receipt action', () => {
 describe('receipt page', () => {
   it('lists items, payments and what is outstanding, without a receipt number of its own', async () => {
     as(everything);
-    serve(partial, [receipt({ amount: '4.00', method: 'card', externalSource: 'Terminal 1', externalReference: 'c-1', allocations: [cashShare] })]);
+    serve(partial, [
+      receipt({
+        amount: '4.00',
+        method: 'card',
+        externalSource: 'Terminal 1',
+        externalReference: 'c-1',
+        allocations: [cashShare],
+      }),
+    ]);
     renderRoute(<App />, `/orders/${ids.order}/receipt`);
     const article = await screen.findByRole('article', { name: 'Receipt for O-2026-000001' });
     expect(within(article).getByText('Example institute')).toBeInTheDocument();
@@ -111,7 +152,14 @@ describe('receipt page', () => {
 
   it('notes an invoice issued through wiRef', async () => {
     as(everything);
-    serve(full, [receipt({ method: 'external', externalSource: 'wiRef', externalReference: 'W-2026-000001', allocations: full.allocations })]);
+    serve(full, [
+      receipt({
+        method: 'external',
+        externalSource: 'wiRef',
+        externalReference: 'W-2026-000001',
+        allocations: full.allocations,
+      }),
+    ]);
     renderRoute(<App />, `/orders/${ids.order}/receipt`);
     expect(await screen.findByText(/Settled by the wiRef invoice request W-2026-000001/)).toBeInTheDocument();
   });
@@ -119,8 +167,16 @@ describe('receipt page', () => {
   it('restricts the receipt to one payment when asked', async () => {
     as(everything);
     const second = allocation('a2', 'pay-2', 'P-2026-000002', '3.00');
-    const both = finalized({ settlementState: 'partially_paid', settledAmount: '7.00', outstandingAmount: '3.00', allocations: [cashShare, second] });
-    serve(both, [receipt({ amount: '4.00', allocations: [cashShare] }), receipt({ id: 'pay-2', reference: 'P-2026-000002', amount: '3.00', allocations: [second] })]);
+    const both = finalized({
+      settlementState: 'partially_paid',
+      settledAmount: '7.00',
+      outstandingAmount: '3.00',
+      allocations: [cashShare, second],
+    });
+    serve(both, [
+      receipt({ amount: '4.00', allocations: [cashShare] }),
+      receipt({ id: 'pay-2', reference: 'P-2026-000002', amount: '3.00', allocations: [second] }),
+    ]);
     renderRoute(<App />, `/orders/${ids.order}/receipt?payment=pay-2`);
     const payments = await screen.findByRole('table', { name: 'Payments' });
     expect(within(payments).getByText('P-2026-000002')).toBeInTheDocument();

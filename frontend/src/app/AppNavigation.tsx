@@ -1,11 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import {
-  SideNavDivider,
-  SideNavItems,
-  SideNavLink,
-  SideNavMenu,
-  SideNavMenuItem,
-} from '@carbon/react';
+import { SideNavDivider, SideNavItems, SideNavLink, SideNavMenu, SideNavMenuItem } from '@carbon/react';
 import {
   Calendar,
   Dashboard,
@@ -51,14 +45,7 @@ export interface AppNavigationProps {
   onNavigate: () => void;
 }
 
-function NavigationGroup({
-  title,
-  icon,
-  items,
-  active,
-  pathname,
-  onNavigate,
-}: NavigationGroupProps) {
+function NavigationGroup({ title, icon, items, active, pathname, onNavigate }: NavigationGroupProps) {
   const menuButtonRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -70,13 +57,7 @@ function NavigationGroup({
   if (items.length === 0) return null;
 
   return (
-    <SideNavMenu
-      ref={menuButtonRef}
-      title={title}
-      defaultExpanded={active}
-      isActive={active}
-      renderIcon={icon}
-    >
+    <SideNavMenu ref={menuButtonRef} title={title} defaultExpanded={active} isActive={active} renderIcon={icon}>
       {items.map((item) => (
         <SideNavMenuItem
           key={item.to}
@@ -94,10 +75,18 @@ function NavigationGroup({
 }
 
 function activeGroupForPath(pathname: string): NavigationGroupId | null {
-  if (pathname.startsWith('/open-days') || pathname.startsWith('/events') || pathname.startsWith('/attendance')) return 'operations';
+  if (pathname.startsWith('/open-days') || pathname.startsWith('/events') || pathname.startsWith('/attendance'))
+    return 'operations';
   if (pathname.startsWith('/people') || pathname.startsWith('/organizations')) return 'people';
   if (pathname.startsWith('/machine-logbook')) return 'machines';
-  if (pathname === '/sales' || pathname.startsWith('/orders') || pathname.startsWith('/payments') || pathname.startsWith('/pricing') || pathname.startsWith('/external-invoicing')) return 'sales';
+  if (
+    pathname === '/sales' ||
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/payments') ||
+    pathname.startsWith('/pricing') ||
+    pathname.startsWith('/external-invoicing')
+  )
+    return 'sales';
   if (pathname.startsWith('/signage')) return 'signage';
   return null;
 }
@@ -110,16 +99,37 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   if (canAccessOpenDays(currentUser)) {
     operations.push({ label: 'Open Days', to: '/open-days', active: pathname.startsWith('/open-days') });
   }
-  if (hasAnyPermission(currentUser, [PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign])) {
-    operations.push({ label: 'Events', to: '/events', active: pathname === '/events' || pathname.startsWith('/events/') });
+  if (
+    hasAnyPermission(currentUser, [
+      PermissionId.eventsread,
+      PermissionId.eventsmanage,
+      PermissionId.eventsstaffingmanage,
+      PermissionId.eventsassign,
+    ])
+  ) {
+    operations.push({
+      label: 'Events',
+      to: '/events',
+      active: pathname === '/events' || pathname.startsWith('/events/'),
+    });
   }
-  if (hasAnyPermission(currentUser, [PermissionId.attendanceread, PermissionId.attendanceassist, PermissionId.attendancestatisticsread])) {
+  if (
+    hasAnyPermission(currentUser, [
+      PermissionId.attendanceread,
+      PermissionId.attendanceassist,
+      PermissionId.attendancestatisticsread,
+    ])
+  ) {
     operations.push({ label: 'Attendance', to: '/attendance', active: pathname.startsWith('/attendance') });
   }
 
   const people: NavigationItem[] = [];
   if (hasPermission(currentUser, PermissionId.peoplereadall)) {
-    people.push({ label: 'People', to: '/people', active: pathname === '/people' || (pathname.startsWith('/people/') && !pathname.startsWith('/people/staffing')) });
+    people.push({
+      label: 'People',
+      to: '/people',
+      active: pathname === '/people' || (pathname.startsWith('/people/') && !pathname.startsWith('/people/staffing')),
+    });
   }
   if (hasPermission(currentUser, PermissionId.organizationsread)) {
     people.push({ label: 'Organizations', to: '/organizations', active: pathname.startsWith('/organizations') });
@@ -136,13 +146,25 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     machines.push({ label: 'Jobs', to: '/machine-logbook/jobs', active: pathname.startsWith('/machine-logbook/jobs') });
   }
   if (hasPermission(currentUser, PermissionId.machinesread)) {
-    machines.push({ label: 'Machines', to: '/machine-logbook/machines', active: pathname.startsWith('/machine-logbook/machines') });
+    machines.push({
+      label: 'Machines',
+      to: '/machine-logbook/machines',
+      active: pathname.startsWith('/machine-logbook/machines'),
+    });
   }
   if (hasPermission(currentUser, PermissionId.inventoryread)) {
-    machines.push({ label: 'Inventory', to: '/machine-logbook/inventory', active: pathname.startsWith('/machine-logbook/inventory') });
+    machines.push({
+      label: 'Inventory',
+      to: '/machine-logbook/inventory',
+      active: pathname.startsWith('/machine-logbook/inventory'),
+    });
   }
   if (hasPermission(currentUser, PermissionId.statisticsread)) {
-    machines.push({ label: 'Statistics', to: '/machine-logbook/statistics', active: pathname.startsWith('/machine-logbook/statistics') });
+    machines.push({
+      label: 'Statistics',
+      to: '/machine-logbook/statistics',
+      active: pathname.startsWith('/machine-logbook/statistics'),
+    });
   }
 
   const sales: NavigationItem[] = [];
@@ -162,13 +184,28 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   const signage: NavigationItem[] = [];
   const canReadSignage = hasPermission(currentUser, PermissionId.signageread);
   if (canReadSignage) {
-    signage.push({ label: 'Displays', to: '/signage', active: pathname === '/signage' || pathname.startsWith('/signage/displays') });
+    signage.push({
+      label: 'Displays',
+      to: '/signage',
+      active: pathname === '/signage' || pathname.startsWith('/signage/displays'),
+    });
   }
   if (canReadSignage || hasPermission(currentUser, PermissionId.signageoverride)) {
-    signage.push({ label: 'Announcements', to: '/signage/announcements', active: pathname.startsWith('/signage/announcements') });
+    signage.push({
+      label: 'Announcements',
+      to: '/signage/announcements',
+      active: pathname.startsWith('/signage/announcements'),
+    });
   }
   if (canReadSignage) {
-    signage.push({ label: 'Content', to: '/signage/content', active: pathname.startsWith('/signage/content') || pathname.startsWith('/signage/scenes') || pathname.startsWith('/signage/playlists') });
+    signage.push({
+      label: 'Content',
+      to: '/signage/content',
+      active:
+        pathname.startsWith('/signage/content') ||
+        pathname.startsWith('/signage/scenes') ||
+        pathname.startsWith('/signage/playlists'),
+    });
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
   }
 
@@ -241,15 +278,45 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         )}
       </SideNavItems>
       <SideNavItems className="app-side-nav__secondary">
-        <SideNavLink as={Link} to="/about" isActive={pathname === '/about'} renderIcon={Information} onClick={onNavigate}>
+        <SideNavLink
+          as={Link}
+          to="/about"
+          isActive={pathname === '/about'}
+          renderIcon={Information}
+          onClick={onNavigate}
+        >
           About
         </SideNavLink>
-        {legal.imprint.mode === 'external'
-          ? <SideNavLink href={legal.imprint.href} renderIcon={Policy}>Imprint</SideNavLink>
-          : <SideNavLink as={Link} to={legal.imprint.href} isActive={pathname === '/legal/imprint'} renderIcon={Policy} onClick={onNavigate}>Imprint</SideNavLink>}
-        {legal.privacy.mode === 'external'
-          ? <SideNavLink href={legal.privacy.href} renderIcon={DocumentSecurity}>Privacy policy</SideNavLink>
-          : <SideNavLink as={Link} to={legal.privacy.href} isActive={pathname === '/legal/privacy'} renderIcon={DocumentSecurity} onClick={onNavigate}>Privacy policy</SideNavLink>}
+        {legal.imprint.mode === 'external' ? (
+          <SideNavLink href={legal.imprint.href} renderIcon={Policy}>
+            Imprint
+          </SideNavLink>
+        ) : (
+          <SideNavLink
+            as={Link}
+            to={legal.imprint.href}
+            isActive={pathname === '/legal/imprint'}
+            renderIcon={Policy}
+            onClick={onNavigate}
+          >
+            Imprint
+          </SideNavLink>
+        )}
+        {legal.privacy.mode === 'external' ? (
+          <SideNavLink href={legal.privacy.href} renderIcon={DocumentSecurity}>
+            Privacy policy
+          </SideNavLink>
+        ) : (
+          <SideNavLink
+            as={Link}
+            to={legal.privacy.href}
+            isActive={pathname === '/legal/privacy'}
+            renderIcon={DocumentSecurity}
+            onClick={onNavigate}
+          >
+            Privacy policy
+          </SideNavLink>
+        )}
       </SideNavItems>
     </>
   );

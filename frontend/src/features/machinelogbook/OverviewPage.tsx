@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { Button, ClickableTile as CarbonClickableTile, ContainedList, ContainedListItem, SkeletonText } from '@carbon/react';
+import {
+  Button,
+  ClickableTile as CarbonClickableTile,
+  ContainedList,
+  ContainedListItem,
+  SkeletonText,
+} from '@carbon/react';
 import { ArrowRight } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,12 +19,22 @@ import { machineActivityQuery, machinesQuery, overviewQuery } from './queries';
 import { formatDecimal } from './formatting';
 import { formatRelative, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
-import { AvailabilityTag, ConnectorIssueTag, connectorIssue, currentItemName, JobRowStatusTag, workItemName } from './shared/status';
+import {
+  AvailabilityTag,
+  ConnectorIssueTag,
+  connectorIssue,
+  currentItemName,
+  JobRowStatusTag,
+  workItemName,
+} from './shared/status';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
 import './styles/overview.scss';
 
-type RouterClickableTileProps = Omit<ComponentProps<typeof CarbonClickableTile>, 'href'> & { as: typeof Link; to: string };
+type RouterClickableTileProps = Omit<ComponentProps<typeof CarbonClickableTile>, 'href'> & {
+  as: typeof Link;
+  to: string;
+};
 // Carbon's ClickableTile forwards polymorphic Link props at runtime, but its public type omits them.
 const ClickableTile = CarbonClickableTile as ComponentType<RouterClickableTileProps>;
 
@@ -38,12 +54,17 @@ function MetricTile({ metric }: { metric: Metric }) {
   );
 }
 
-const itemPath = (item: WorkItem) => item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
+const itemPath = (item: WorkItem) =>
+  item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
 
 function activeLine(item: WorkItem, now: number) {
   const end = item.endsAt ?? item.estimatedEndAt;
   const ended = end !== null && end !== undefined && new Date(end).getTime() <= now;
-  const when = ended ? `ended ${formatRelative(end)}` : end ? `ends ~${formatTime(end)}` : `started ${formatRelative(item.startedAt)}`;
+  const when = ended
+    ? `ended ${formatRelative(end)}`
+    : end
+      ? `ends ~${formatTime(end)}`
+      : `started ${formatRelative(item.startedAt)}`;
   return [item.machineName, item.customer?.displayName, when].filter(Boolean).join(' · ');
 }
 
@@ -71,15 +92,44 @@ export function MachineLogbookOverviewPage() {
   const activeTotal = data?.activeTotal ?? activeItems?.length ?? 0;
   const lowStock = data?.lowStockMaterials[0];
 
-  const metrics: Metric[] = hasJobFigures ? [
-    { key: 'running', label: 'Running now', count: running, detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy', to: machineLogbookPaths.jobs({ status: 'running,running_unassigned' }) },
-    { key: 'outcome', label: 'Needs outcome', count: data.needsOutcome ?? 0, detail: 'Run ended; record how it went', to: machineLogbookPaths.jobs({ status: 'needs_outcome' }) },
-    { key: 'unassigned', label: 'Unassigned runs', count: unassigned, detail: 'Create a job or attach to one', to: machineLogbookPaths.jobs({ status: 'unassigned' }) },
-    { key: 'billing', label: 'Billing issues', count: data.billingIssues ?? 0, detail: 'Missing price rule or changed order', to: machineLogbookPaths.jobs({ billing: 'price_incomplete,order_outdated' }) },
-  ] : [];
+  const metrics: Metric[] = hasJobFigures
+    ? [
+        {
+          key: 'running',
+          label: 'Running now',
+          count: running,
+          detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy',
+          to: machineLogbookPaths.jobs({ status: 'running,running_unassigned' }),
+        },
+        {
+          key: 'outcome',
+          label: 'Needs outcome',
+          count: data.needsOutcome ?? 0,
+          detail: 'Run ended; record how it went',
+          to: machineLogbookPaths.jobs({ status: 'needs_outcome' }),
+        },
+        {
+          key: 'unassigned',
+          label: 'Unassigned runs',
+          count: unassigned,
+          detail: 'Create a job or attach to one',
+          to: machineLogbookPaths.jobs({ status: 'unassigned' }),
+        },
+        {
+          key: 'billing',
+          label: 'Billing issues',
+          count: data.billingIssues ?? 0,
+          detail: 'Missing price rule or changed order',
+          to: machineLogbookPaths.jobs({ billing: 'price_incomplete,order_outdated' }),
+        },
+      ]
+    : [];
 
   const description = data
-    ? [`${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today`, ...(hasJobFigures ? [`${running} running`, `${unassigned} unassigned`] : [])].join(' · ')
+    ? [
+        `${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today`,
+        ...(hasJobFigures ? [`${running} running`, `${unassigned} unassigned`] : []),
+      ].join(' · ')
     : 'What is running and what needs you.';
 
   const showMachines = canReadMachines;
@@ -92,32 +142,71 @@ export function MachineLogbookOverviewPage() {
 
   return (
     <PageShell
-      title="Overview" width="wide" breadcrumbs={[{ label: 'Workshop' }]}
+      title="Overview"
+      width="wide"
+      breadcrumbs={[{ label: 'Workshop' }]}
       description={description}
-      actions={canCreate ? <Button kind="primary" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
+      actions={
+        canCreate ? (
+          <Button kind="primary" onClick={() => setJobOpen(true)}>
+            New job
+          </Button>
+        ) : undefined
+      }
     >
-      {query.isError ? <ErrorState message="The overview could not be loaded." onRetry={() => { void query.refetch(); }} /> : nothingToShow ? (
-        <EmptyState title="Nothing to show yet" description="Job, machine and inventory permissions decide which parts of the overview you see." />
+      {query.isError ? (
+        <ErrorState
+          message="The overview could not be loaded."
+          onRetry={() => {
+            void query.refetch();
+          }}
+        />
+      ) : nothingToShow ? (
+        <EmptyState
+          title="Nothing to show yet"
+          description="Job, machine and inventory permissions decide which parts of the overview you see."
+        />
       ) : (
         <div className="mj-overview">
           {(loading ? canReadJobs : hasJobFigures) && (
             <section aria-label="Key figures" className="mj-overview__metrics">
-              {loading ? METRIC_LABELS.map((label) => (
-                <CarbonClickableTile key={label} className="mj-metric"><span className="mj-metric__label">{label}</span><SkeletonText heading width="3rem" /></CarbonClickableTile>
-              )) : metrics.map((metric) => <MetricTile key={metric.key} metric={metric} />)}
+              {loading
+                ? METRIC_LABELS.map((label) => (
+                    <CarbonClickableTile key={label} className="mj-metric">
+                      <span className="mj-metric__label">{label}</span>
+                      <SkeletonText heading width="3rem" />
+                    </CarbonClickableTile>
+                  ))
+                : metrics.map((metric) => <MetricTile key={metric.key} metric={metric} />)}
             </section>
           )}
 
           <div className="mj-overview__panels">
             {(loading ? canReadJobs : activeItems !== null) && (
               <ContainedList
-                label="Active jobs" kind="on-page" className="mj-overview__panel"
-                action={<Button as={Link} to={machineLogbookPaths.jobs()} kind="ghost" size="sm" renderIcon={ArrowRight}>All jobs</Button>}
+                label="Active jobs"
+                kind="on-page"
+                className="mj-overview__panel"
+                action={
+                  <Button as={Link} to={machineLogbookPaths.jobs()} kind="ghost" size="sm" renderIcon={ArrowRight}>
+                    All jobs
+                  </Button>
+                }
               >
-                {loading && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
-                {activeItems?.length === 0 && <ContainedListItem>Nothing is running and no run waits for a job.</ContainedListItem>}
+                {loading && (
+                  <ContainedListItem>
+                    <SkeletonText paragraph lineCount={3} />
+                  </ContainedListItem>
+                )}
+                {activeItems?.length === 0 && (
+                  <ContainedListItem>Nothing is running and no run waits for a job.</ContainedListItem>
+                )}
                 {activeItems?.slice(0, ACTIVE_LIMIT).map((item) => (
-                  <ContainedListItem key={`${item.kind}-${item.id}`} onClick={() => navigate(itemPath(item))} action={<JobRowStatusTag status={item.status} size="sm" />}>
+                  <ContainedListItem
+                    key={`${item.kind}-${item.id}`}
+                    onClick={() => navigate(itemPath(item))}
+                    action={<JobRowStatusTag status={item.status} size="sm" />}
+                  >
                     <span className="mj-cell-stack">
                       <strong>{workItemName(item)}</strong>
                       <span className="mj-secondary">{activeLine(item, now)}</span>
@@ -125,7 +214,13 @@ export function MachineLogbookOverviewPage() {
                   </ContainedListItem>
                 ))}
                 {activeItems && activeTotal > ACTIVE_LIMIT && (
-                  <ContainedListItem onClick={() => navigate(machineLogbookPaths.jobs({ status: 'running,running_unassigned,unassigned,needs_outcome' }))}>
+                  <ContainedListItem
+                    onClick={() =>
+                      navigate(
+                        machineLogbookPaths.jobs({ status: 'running,running_unassigned,unassigned,needs_outcome' }),
+                      )
+                    }
+                  >
                     <span className="mj-secondary">{activeTotal - ACTIVE_LIMIT} more active items</span>
                   </ContainedListItem>
                 )}
@@ -134,31 +229,56 @@ export function MachineLogbookOverviewPage() {
 
             {showMachines && (
               <ContainedList
-                label="Machines" kind="on-page" className="mj-overview__panel"
-                action={<Button as={Link} to={machineLogbookPaths.machines()} kind="ghost" size="sm" renderIcon={ArrowRight}>All machines</Button>}
+                label="Machines"
+                kind="on-page"
+                className="mj-overview__panel"
+                action={
+                  <Button as={Link} to={machineLogbookPaths.machines()} kind="ghost" size="sm" renderIcon={ArrowRight}>
+                    All machines
+                  </Button>
+                }
               >
-                {machinesLoading && !machines.isError && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
+                {machinesLoading && !machines.isError && (
+                  <ContainedListItem>
+                    <SkeletonText paragraph lineCount={3} />
+                  </ContainedListItem>
+                )}
                 {machines.isError && <ContainedListItem>Machines could not be loaded.</ContainedListItem>}
-                {!machinesLoading && !machines.isError && visibleMachines.length === 0 && <ContainedListItem>No machines have been added yet.</ContainedListItem>}
-                {!machinesLoading && !machines.isError && visibleMachines.map((machine) => {
-                  const state = activityByMachine.get(machine.id);
-                  const current = state?.current ?? null;
-                  const availability = state?.availability ?? (machine.status === 'maintenance' ? 'maintenance' : 'available');
-                  const detail = current ? `${currentItemName(current)}${current.endsAt ? ` · ends ~${formatTime(current.endsAt)}` : ''}`
-                    : availability === 'maintenance' ? 'Marked for maintenance'
-                      : state?.lastJobStartedAt ? `Last job ${formatRelative(state.lastJobStartedAt)}` : 'No jobs yet';
-                  return (
-                    <ContainedListItem
-                      key={machine.id} onClick={() => navigate(machineLogbookPaths.machine(machine.id))}
-                      action={<span className="mj-inline"><ConnectorIssueTag issue={connectorIssue(state?.connector ?? undefined)} /><AvailabilityTag availability={availability} size="sm" /></span>}
-                    >
-                      <span className="mj-cell-stack">
-                        <strong>{machine.name}</strong>
-                        <span className="mj-secondary">{detail}</span>
-                      </span>
-                    </ContainedListItem>
-                  );
-                })}
+                {!machinesLoading && !machines.isError && visibleMachines.length === 0 && (
+                  <ContainedListItem>No machines have been added yet.</ContainedListItem>
+                )}
+                {!machinesLoading &&
+                  !machines.isError &&
+                  visibleMachines.map((machine) => {
+                    const state = activityByMachine.get(machine.id);
+                    const current = state?.current ?? null;
+                    const availability =
+                      state?.availability ?? (machine.status === 'maintenance' ? 'maintenance' : 'available');
+                    const detail = current
+                      ? `${currentItemName(current)}${current.endsAt ? ` · ends ~${formatTime(current.endsAt)}` : ''}`
+                      : availability === 'maintenance'
+                        ? 'Marked for maintenance'
+                        : state?.lastJobStartedAt
+                          ? `Last job ${formatRelative(state.lastJobStartedAt)}`
+                          : 'No jobs yet';
+                    return (
+                      <ContainedListItem
+                        key={machine.id}
+                        onClick={() => navigate(machineLogbookPaths.machine(machine.id))}
+                        action={
+                          <span className="mj-inline">
+                            <ConnectorIssueTag issue={connectorIssue(state?.connector ?? undefined)} />
+                            <AvailabilityTag availability={availability} size="sm" />
+                          </span>
+                        }
+                      >
+                        <span className="mj-cell-stack">
+                          <strong>{machine.name}</strong>
+                          <span className="mj-secondary">{detail}</span>
+                        </span>
+                      </ContainedListItem>
+                    );
+                  })}
               </ContainedList>
             )}
           </div>
@@ -166,9 +286,21 @@ export function MachineLogbookOverviewPage() {
           {showLowStock && (
             <ContainedList label="Stock" kind="on-page" className="mj-overview__panel">
               <ContainedListItem
-                action={<Button as={Link} to={`${machineLogbookPaths.inventory('materials')}&stock=low_stock`} kind="ghost" size="sm" renderIcon={ArrowRight}>Restock</Button>}
+                action={
+                  <Button
+                    as={Link}
+                    to={`${machineLogbookPaths.inventory('materials')}&stock=low_stock`}
+                    kind="ghost"
+                    size="sm"
+                    renderIcon={ArrowRight}
+                  >
+                    Restock
+                  </Button>
+                }
               >
-                {data.lowStockItems === 1 && lowStock ? `Low stock · ${lowStock.name} ${formatDecimal(lowStock.quantity)} ${lowStock.unit}` : 'Materials low on stock'}
+                {data.lowStockItems === 1 && lowStock
+                  ? `Low stock · ${lowStock.name} ${formatDecimal(lowStock.quantity)} ${lowStock.unit}`
+                  : 'Materials low on stock'}
               </ContainedListItem>
             </ContainedList>
           )}

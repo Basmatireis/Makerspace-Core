@@ -1,8 +1,23 @@
 // Section switcher at the start of a table toolbar: layout glue around Carbon's contained tabs.
 // The switcher keeps the natural width of its tabs; only the toolbar content next to it shrinks. Shrinking both made Carbon's overflow
 // buttons appear and disappear while the tabs were hovered or moved. The tabs only scroll when they are wider than the whole toolbar.
-.app-toolbar-switcher { display: flex; align-items: center; flex: 0 0 auto; min-inline-size: 0; max-inline-size: 100%; padding-inline-start: 0; }
-.app-toolbar-switcher .cds--tabs { max-inline-size: 100%; }
-.app-toolbar-switcher .cds--tabs { min-block-size: 3rem; }
-.app-toolbar-switcher .cds--tabs.cds--tabs--contained .cds--tabs__nav-item { block-size: 3rem; }
-.app-toolbar-switcher__panel { display: none; }
+.app-toolbar-switcher {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding-inline-start: 0;
+}
+.app-toolbar-switcher .cds--tabs {
+  max-inline-size: 100%;
+}
+.app-toolbar-switcher .cds--tabs {
+  min-block-size: 3rem;
+}
+.app-toolbar-switcher .cds--tabs.cds--tabs--contained .cds--tabs__nav-item {
+  block-size: 3rem;
+}
+.app-toolbar-switcher__panel {
+  display: none;
+}

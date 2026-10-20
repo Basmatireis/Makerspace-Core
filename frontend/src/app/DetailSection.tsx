@@ -1,10 +1,5 @@
 import type { ReactNode } from 'react';
-import {
-  Stack,
-  StructuredListCell,
-  StructuredListRow,
-  Tile,
-} from '@carbon/react';
+import { Stack, StructuredListCell, StructuredListRow, Tile } from '@carbon/react';
 
 export type DetailSectionProps = {
   title: string;
@@ -25,9 +20,7 @@ export function DetailSection({
   className,
   children,
 }: DetailSectionProps) {
-  const classes = ['detail-section', 'person-detail-card', className]
-    .filter(Boolean)
-    .join(' ');
+  const classes = ['detail-section', 'person-detail-card', className].filter(Boolean).join(' ');
 
   return (
     <Tile className={classes}>
@@ -38,9 +31,7 @@ export function DetailSection({
             {description && <p className="section-description">{description}</p>}
           </div>
           {headingContent && (
-            <div className="detail-section__heading-content person-detail-card__heading-content">
-              {headingContent}
-            </div>
+            <div className="detail-section__heading-content person-detail-card__heading-content">{headingContent}</div>
           )}
           {(meta || action) && (
             <div className="detail-section__actions person-detail-card__actions">
@@ -62,12 +53,7 @@ export type DetailRowProps = {
   action?: ReactNode;
 };
 
-export function DetailRow({
-  label,
-  value,
-  monospace = false,
-  action,
-}: DetailRowProps) {
+export function DetailRow({ label, value, monospace = false, action }: DetailRowProps) {
   return (
     <StructuredListRow>
       <StructuredListCell>{label}</StructuredListCell>

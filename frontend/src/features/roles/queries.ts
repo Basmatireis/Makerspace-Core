@@ -24,10 +24,7 @@ export const fullRoleCatalogOptions = queryOptions({
     let cursor: string | undefined;
 
     do {
-      const page = await listRoles(
-        { limit: 100, ...(cursor ? { cursor } : {}) },
-        { signal },
-      );
+      const page = await listRoles({ limit: 100, ...(cursor ? { cursor } : {}) }, { signal });
       roles.push(...page.items);
       cursor = page.nextCursor ?? undefined;
       if (cursor) {
@@ -54,15 +51,23 @@ export const permissionListOptions = queryOptions({
   queryFn: ({ signal }) => listPermissions({ signal }),
   staleTime: 5 * 60 * 1000,
 });
-export const deviceTypeListOptions = queryOptions({queryKey:roleKeys.deviceTypes,queryFn:({signal})=>listManagedDeviceTypes({signal}),staleTime:5*60*1000});
+export const deviceTypeListOptions = queryOptions({
+  queryKey: roleKeys.deviceTypes,
+  queryFn: ({ signal }) => listManagedDeviceTypes({ signal }),
+  staleTime: 5 * 60 * 1000,
+});
 
 export function effectivePermissionOptions(assurance: AuthenticationAssurance, deviceTypeId?: string) {
   return queryOptions({
     queryKey: roleKeys.evaluation(assurance, deviceTypeId),
-    queryFn: ({ signal }) => evaluateRolePermissions({
-      authenticationAssurance: assurance,
-      ...(deviceTypeId ? { deviceTypeId } : {}),
-    }, { signal }),
+    queryFn: ({ signal }) =>
+      evaluateRolePermissions(
+        {
+          authenticationAssurance: assurance,
+          ...(deviceTypeId ? { deviceTypeId } : {}),
+        },
+        { signal },
+      ),
   });
 }
 

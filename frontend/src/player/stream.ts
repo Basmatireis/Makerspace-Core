@@ -7,7 +7,12 @@ export type StreamOffer = { webrtcUrl: string; mseUrl: string; ticket: string };
 export type StreamErrorCode = 'rejected' | 'http' | 'closed' | 'timeout' | 'unsupported' | 'aborted';
 
 export class StreamError extends Error {
-  constructor(readonly code: StreamErrorCode, message: string) { super(message); }
+  constructor(
+    readonly code: StreamErrorCode,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 /** Shows a connection's picture in a video element; returns the function that detaches it. */
@@ -44,9 +49,18 @@ const withTicket = (url: string, ticket: string) => {
 
 function iceGathered(pc: RTCPeerConnection): Promise<void> {
   return new Promise((resolve) => {
-    if (pc.iceGatheringState === 'complete') { resolve(); return; }
-    const done = () => { clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', check); resolve(); };
-    const check = () => { if (pc.iceGatheringState === 'complete') done(); };
+    if (pc.iceGatheringState === 'complete') {
+      resolve();
+      return;
+    }
+    const done = () => {
+      clearTimeout(timer);
+      pc.removeEventListener('icegatheringstatechange', check);
+      resolve();
+    };
+    const check = () => {
+      if (pc.iceGatheringState === 'complete') done();
+    };
     // go2rtc has no trickle for this endpoint: whatever was gathered by the deadline goes into the offer.
     const timer = setTimeout(done, GATHER_MS);
     pc.addEventListener('icegatheringstatechange', check);
@@ -58,24 +72,41 @@ async function connectWebRtc(offer: StreamOffer, env: StreamEnv, signal: AbortSi
   if (!Peer) throw new StreamError('unsupported', 'WebRTC is not available');
   const pc = new Peer({ iceServers: [] }); // the gateway is on the LAN: no STUN
   let ended!: (error: StreamError) => void;
-  const closed = new Promise<StreamError>((resolve) => { ended = resolve; });
+  const closed = new Promise<StreamError>((resolve) => {
+    ended = resolve;
+  });
   let stopFailing: () => void = () => undefined;
-  const close = () => { stopFailing(); pc.close(); };
+  const close = () => {
+    stopFailing();
+    pc.close();
+  };
   try {
     const up = new Promise<MediaStream>((resolve, reject) => {
       let stream: MediaStream | null = null;
       let connected = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const fail = (error: StreamError) => { reject(error); ended(error); };
-      const ready = () => { if (stream && connected) resolve(stream); };
+      const fail = (error: StreamError) => {
+        reject(error);
+        ended(error);
+      };
+      const ready = () => {
+        if (stream && connected) resolve(stream);
+      };
       stopFailing = () => clearTimeout(timer);
       signal.addEventListener('abort', () => reject(new StreamError('aborted', 'aborted')), { once: true });
-      pc.ontrack = (event) => { stream = event.streams[0] ?? new MediaStream([event.track]); ready(); };
+      pc.ontrack = (event) => {
+        stream = event.streams[0] ?? new MediaStream([event.track]);
+        ready();
+      };
       pc.onconnectionstatechange = () => {
         clearTimeout(timer);
-        if (pc.connectionState === 'connected') { connected = true; ready(); }
-        else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') fail(new StreamError('closed', 'WebRTC connection lost'));
-        else if (pc.connectionState === 'disconnected') timer = setTimeout(() => fail(new StreamError('closed', 'WebRTC connection lost')), DISCONNECT_GRACE_MS);
+        if (pc.connectionState === 'connected') {
+          connected = true;
+          ready();
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed')
+          fail(new StreamError('closed', 'WebRTC connection lost'));
+        else if (pc.connectionState === 'disconnected')
+          timer = setTimeout(() => fail(new StreamError('closed', 'WebRTC connection lost')), DISCONNECT_GRACE_MS);
       };
     });
     up.catch(() => undefined);
@@ -83,8 +114,14 @@ async function connectWebRtc(offer: StreamOffer, env: StreamEnv, signal: AbortSi
     await pc.setLocalDescription(await pc.createOffer());
     await iceGathered(pc);
     if (signal.aborted) throw new StreamError('aborted', 'aborted');
-    const response = await (env.fetch ?? fetch)(withTicket(offer.webrtcUrl, offer.ticket), { method: 'POST', body: pc.localDescription?.sdp ?? '', signal, credentials: 'omit' });
-    if (response.status === 401 || response.status === 403) throw new StreamError('rejected', 'the gateway rejected the stream ticket');
+    const response = await (env.fetch ?? fetch)(withTicket(offer.webrtcUrl, offer.ticket), {
+      method: 'POST',
+      body: pc.localDescription?.sdp ?? '',
+      signal,
+      credentials: 'omit',
+    });
+    if (response.status === 401 || response.status === 403)
+      throw new StreamError('rejected', 'the gateway rejected the stream ticket');
     if (!response.ok) throw new StreamError('http', `WebRTC signalling failed (HTTP ${response.status})`);
     await pc.setRemoteDescription({ type: 'answer', sdp: await response.text() });
     const stream = await up;
@@ -92,13 +129,17 @@ async function connectWebRtc(offer: StreamOffer, env: StreamEnv, signal: AbortSi
       attach(video) {
         video.srcObject = stream;
         void Promise.resolve(video.play?.()).catch(() => undefined);
-        return () => { if (video.srcObject === stream) video.srcObject = null; };
+        return () => {
+          if (video.srcObject === stream) video.srcObject = null;
+        };
       },
     };
     return { transport: 'webrtc', feed, closed, close };
   } catch (error) {
     close();
-    throw error instanceof StreamError ? error : new StreamError(signal.aborted ? 'aborted' : 'closed', signal.aborted ? 'aborted' : 'WebRTC signalling failed');
+    throw error instanceof StreamError
+      ? error
+      : new StreamError(signal.aborted ? 'aborted' : 'closed', signal.aborted ? 'aborted' : 'WebRTC signalling failed');
   }
 }
 
@@ -111,28 +152,57 @@ function createSink(video: HTMLVideoElement, MS: typeof MediaSource, mime: strin
   let dead = false;
   const pump = () => {
     if (dead || !buffer || buffer.updating || queue.length === 0) return;
-    try { buffer.appendBuffer(queue.shift()!); } catch { queue.length = 0; }
+    try {
+      buffer.appendBuffer(queue.shift()!);
+    } catch {
+      queue.length = 0;
+    }
   };
   const tidy = () => {
     if (!buffer || buffer.updating || video.buffered.length === 0) return;
     const start = video.buffered.start(0);
     const end = video.buffered.end(video.buffered.length - 1);
     if (end - video.currentTime > 4) video.currentTime = end - 0.5;
-    if (end - start > 20) { try { buffer.remove(start, end - 10); } catch { /* retried after the next append */ } }
+    if (end - start > 20) {
+      try {
+        buffer.remove(start, end - 10);
+      } catch {
+        /* retried after the next append */
+      }
+    }
   };
-  source.addEventListener('sourceopen', () => {
-    if (dead) return;
-    try { buffer = source.addSourceBuffer(mime); } catch { return; }
-    buffer.mode = 'segments';
-    buffer.addEventListener('updateend', () => { tidy(); pump(); });
-    pump();
-  }, { once: true });
+  source.addEventListener(
+    'sourceopen',
+    () => {
+      if (dead) return;
+      try {
+        buffer = source.addSourceBuffer(mime);
+      } catch {
+        return;
+      }
+      buffer.mode = 'segments';
+      buffer.addEventListener('updateend', () => {
+        tidy();
+        pump();
+      });
+      pump();
+    },
+    { once: true },
+  );
   video.src = url;
   return {
-    push(data: ArrayBuffer) { if (queue.length >= BACKLOG) queue.shift(); queue.push(data); pump(); },
+    push(data: ArrayBuffer) {
+      if (queue.length >= BACKLOG) queue.shift();
+      queue.push(data);
+      pump();
+    },
     dispose() {
       dead = true;
-      try { if (source.readyState === 'open') source.endOfStream(); } catch { /* already closed */ }
+      try {
+        if (source.readyState === 'open') source.endOfStream();
+      } catch {
+        /* already closed */
+      }
       URL.revokeObjectURL(url);
       if (video.src === url) video.removeAttribute('src');
     },
@@ -152,12 +222,26 @@ async function connectMse(offer: StreamOffer, env: StreamEnv, signal: AbortSigna
     let init: ArrayBuffer | null = null;
     let backlog: ArrayBuffer[] = [];
     let ended!: (error: StreamError) => void;
-    const closed = new Promise<StreamError>((done) => { ended = done; });
+    const closed = new Promise<StreamError>((done) => {
+      ended = done;
+    });
     const sinks = new Set<ReturnType<typeof createSink>>();
-    const close = () => { socket.onclose = null; socket.onerror = null; socket.close(); sinks.forEach((sink) => sink.dispose()); sinks.clear(); };
-    const lost = (error: StreamError) => { reject(error); ended(error); close(); };
+    const close = () => {
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.close();
+      sinks.forEach((sink) => sink.dispose());
+      sinks.clear();
+    };
+    const lost = (error: StreamError) => {
+      reject(error);
+      ended(error);
+      close();
+    };
     const connection: Connection = {
-      transport: 'mse', closed, close,
+      transport: 'mse',
+      closed,
+      close,
       feed: {
         attach(video) {
           const sink = createSink(video, MS, mime);
@@ -166,22 +250,41 @@ async function connectMse(offer: StreamOffer, env: StreamEnv, signal: AbortSigna
           backlog = [];
           sinks.add(sink);
           void Promise.resolve(video.play?.()).catch(() => undefined);
-          return () => { sinks.delete(sink); sink.dispose(); };
+          return () => {
+            sinks.delete(sink);
+            sink.dispose();
+          };
         },
       },
     };
-    signal.addEventListener('abort', () => { reject(new StreamError('aborted', 'aborted')); close(); }, { once: true });
+    signal.addEventListener(
+      'abort',
+      () => {
+        reject(new StreamError('aborted', 'aborted'));
+        close();
+      },
+      { once: true },
+    );
     socket.onopen = () => socket.send(JSON.stringify({ type: 'mse', value: codecs.join(',') }));
     socket.onerror = () => lost(new StreamError('closed', 'MSE connection failed'));
     socket.onclose = () => lost(new StreamError('closed', 'MSE connection closed'));
     socket.onmessage = (event: MessageEvent) => {
       if (typeof event.data === 'string') {
-        try { const message = JSON.parse(event.data) as { type?: string; value?: unknown }; if (message.type === 'mse' && typeof message.value === 'string') mime = message.value; } catch { /* not for us */ }
+        try {
+          const message = JSON.parse(event.data) as { type?: string; value?: unknown };
+          if (message.type === 'mse' && typeof message.value === 'string') mime = message.value;
+        } catch {
+          /* not for us */
+        }
         return;
       }
       if (!mime) return;
       const chunk = event.data as ArrayBuffer;
-      if (!init) { init = chunk; resolve(connection); return; }
+      if (!init) {
+        init = chunk;
+        resolve(connection);
+        return;
+      }
       if (sinks.size > 0) sinks.forEach((sink) => sink.push(chunk));
       else backlog = [...backlog, chunk].slice(-BACKLOG);
     };
@@ -189,7 +292,12 @@ async function connectMse(offer: StreamOffer, env: StreamEnv, signal: AbortSigna
 }
 
 /** WebRTC first; MSE when WebRTC does not come up in time or fails (unless the ticket itself was refused). */
-export async function connectStream(offer: StreamOffer, env: StreamEnv, signal: AbortSignal, webrtcMs = WEBRTC_BUDGET_MS): Promise<Connection> {
+export async function connectStream(
+  offer: StreamOffer,
+  env: StreamEnv,
+  signal: AbortSignal,
+  webrtcMs = WEBRTC_BUDGET_MS,
+): Promise<Connection> {
   const attempt = new AbortController();
   const abort = () => attempt.abort();
   signal.addEventListener('abort', abort, { once: true });

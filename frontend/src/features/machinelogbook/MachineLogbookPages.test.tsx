@@ -16,7 +16,9 @@ describe('Machine Logbook pages', () => {
   it('does not expose the overview to an inventory-only reader', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.inventoryread]))),
-      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0, totalInventoryValue: '0' })),
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0, totalInventoryValue: '0' }),
+      ),
     );
     renderRoute(<App />, '/machine-logbook');
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();

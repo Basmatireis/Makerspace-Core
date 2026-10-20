@@ -27,7 +27,13 @@ describe('schedule editor working copy', () => {
     expect(addedMany.slots).toHaveLength(3);
     expect(scheduleEditorReducer(addedMany, { type: 'undo' })).toMatchObject({ slots: initial.slots, dirty: false });
 
-    const updatedMany = scheduleEditorReducer(addedMany, { type: 'updateMany', slots: [{ ...slot('one'), internalNote: 'Updated' }, { ...slot('two'), internalNote: 'Updated' }] });
+    const updatedMany = scheduleEditorReducer(addedMany, {
+      type: 'updateMany',
+      slots: [
+        { ...slot('one'), internalNote: 'Updated' },
+        { ...slot('two'), internalNote: 'Updated' },
+      ],
+    });
     expect(updatedMany.slots.map((item) => item.internalNote)).toEqual(['Updated', 'Updated', undefined]);
     expect(scheduleEditorReducer(updatedMany, { type: 'undo' }).slots).toEqual(addedMany.slots);
 
@@ -35,7 +41,12 @@ describe('schedule editor working copy', () => {
     expect(removedMany.slots.map((item) => item.id)).toEqual(['two']);
     expect(scheduleEditorReducer(removedMany, { type: 'undo' }).slots).toEqual(addedMany.slots);
 
-    const moved = scheduleEditorReducer(initial, { type: 'move', id: 'one', date: '2026-10-14', timeZone: 'Europe/Vienna' });
+    const moved = scheduleEditorReducer(initial, {
+      type: 'move',
+      id: 'one',
+      date: '2026-10-14',
+      timeZone: 'Europe/Vienna',
+    });
     expect(moved.slots[0].startsAt.startsWith('2026-10-14')).toBe(true);
     expect(scheduleEditorReducer(moved, { type: 'undo' }).slots).toEqual(initial.slots);
 
@@ -61,10 +72,17 @@ describe('schedule editor working copy', () => {
       ],
     };
     const initial: EditorState = { slots: [configured], previous: null, dirty: false };
-    const moved = scheduleEditorReducer(initial, { type: 'move', id: configured.id, date: '2026-10-14', timeZone: 'Europe/Vienna' });
+    const moved = scheduleEditorReducer(initial, {
+      type: 'move',
+      id: configured.id,
+      date: '2026-10-14',
+      timeZone: 'Europe/Vienna',
+    });
 
     expect(dateInTimeZone(moved.slots[0].startsAt, 'Europe/Vienna')).toBe('2026-10-14');
-    expect(new Date(moved.slots[0].endsAt).getTime() - new Date(moved.slots[0].startsAt).getTime()).toBe(3 * 60 * 60 * 1000);
+    expect(new Date(moved.slots[0].endsAt).getTime() - new Date(moved.slots[0].startsAt).getTime()).toBe(
+      3 * 60 * 60 * 1000,
+    );
     expect(moved.slots[0].requirements).toEqual(configured.requirements);
     expect(moved.slots[0].internalNote).toBe(configured.internalNote);
   });
@@ -80,7 +98,12 @@ it.each([
 it('preserves the working copy when dragging into a DST overlap', () => {
   const original = { ...slot('overlap'), startsAt: '2026-10-24T00:30:00Z', endsAt: '2026-10-24T02:30:00Z' };
   const initial: EditorState = { slots: [original], previous: null, dirty: false };
-  const result = scheduleEditorReducer(initial, { type: 'move', id: original.id, date: '2026-10-25', timeZone: 'Europe/Vienna' });
+  const result = scheduleEditorReducer(initial, {
+    type: 'move',
+    id: original.id,
+    date: '2026-10-25',
+    timeZone: 'Europe/Vienna',
+  });
   expect(result.slots).toEqual(initial.slots);
   expect(result.dirty).toBe(false);
   expect(result.error).toContain('ambiguous');

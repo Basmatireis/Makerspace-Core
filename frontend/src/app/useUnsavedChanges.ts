@@ -19,13 +19,12 @@ export type UnsavedChangesGuard = {
   keepEditing: () => void;
 };
 
-function routeChanged(
-  currentLocation: UnsavedChangesLocation,
-  nextLocation: UnsavedChangesLocation,
-) {
-  return currentLocation.pathname !== nextLocation.pathname
-    || currentLocation.search !== nextLocation.search
-    || currentLocation.hash !== nextLocation.hash;
+function routeChanged(currentLocation: UnsavedChangesLocation, nextLocation: UnsavedChangesLocation) {
+  return (
+    currentLocation.pathname !== nextLocation.pathname ||
+    currentLocation.search !== nextLocation.search ||
+    currentLocation.hash !== nextLocation.hash
+  );
 }
 
 export function useUnsavedChanges({
@@ -35,10 +34,13 @@ export function useUnsavedChanges({
 }: UseUnsavedChangesOptions): UnsavedChangesGuard {
   const [pendingAction, setPendingAction] = useState<DiscardAction | null>(null);
   const bypassRef = useRef(false);
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => (
-    isDirty && !bypassRef.current && routeChanged(currentLocation, nextLocation)
-      && (shouldBlockNavigation?.(currentLocation, nextLocation) ?? true)
-  ));
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty &&
+      !bypassRef.current &&
+      routeChanged(currentLocation, nextLocation) &&
+      (shouldBlockNavigation?.(currentLocation, nextLocation) ?? true),
+  );
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {

@@ -1,5 +1,15 @@
-import type { SignagePlayerLive, SignagePlayerManifest, SignagePlayerScene, SignageTransition } from '../api/generated/models';
-import { playlistPosition, resolvePlayback, type PlaybackResult, type PlaybackRule } from '../features/signage/engine/playback';
+import type {
+  SignagePlayerLive,
+  SignagePlayerManifest,
+  SignagePlayerScene,
+  SignageTransition,
+} from '../api/generated/models';
+import {
+  playlistPosition,
+  resolvePlayback,
+  type PlaybackResult,
+  type PlaybackRule,
+} from '../features/signage/engine/playback';
 import { isPrinting, type RenderData, type RenderMachine } from '../features/signage/render/types';
 import type { CameraSource } from './camera';
 
@@ -10,16 +20,30 @@ import type { CameraSource } from './camera';
 export const LIVE_TTL_MS = 60_000;
 
 /** The rule that currently holds the screen. */
-export type Hold = { ruleId: string; position: number | null; since: number; minSeconds: number; result: PlaybackResult };
+export type Hold = {
+  ruleId: string;
+  position: number | null;
+  since: number;
+  minSeconds: number;
+  result: PlaybackResult;
+};
 
 /**
  * Applies the minimum display time: a rule that took the screen keeps it for `minSeconds` unless a rule of higher
  * priority (smaller position; the default playlist ranks last) matches. Afterwards the engine's result is followed.
  */
-export function holdResult(previous: Hold | null, next: PlaybackResult, now: number): { hold: Hold; result: PlaybackResult } {
-  const adopt = () => ({ hold: { ruleId: next.ruleId, position: next.rulePosition, since: now, minSeconds: next.minSeconds, result: next }, result: next });
+export function holdResult(
+  previous: Hold | null,
+  next: PlaybackResult,
+  now: number,
+): { hold: Hold; result: PlaybackResult } {
+  const adopt = () => ({
+    hold: { ruleId: next.ruleId, position: next.rulePosition, since: now, minSeconds: next.minSeconds, result: next },
+    result: next,
+  });
   if (!previous) return adopt();
-  if (previous.ruleId === next.ruleId) return { hold: { ...previous, minSeconds: next.minSeconds, result: next }, result: next };
+  if (previous.ruleId === next.ruleId)
+    return { hold: { ...previous, minSeconds: next.minSeconds, result: next }, result: next };
   if (now - previous.since >= previous.minSeconds * 1000) return adopt();
   if ((next.rulePosition ?? Infinity) < (previous.position ?? Infinity)) return adopt();
   return { hold: previous, result: previous.result };
@@ -52,17 +76,32 @@ export type ViewInput = {
   assetUrl: (assetId: string) => string | null;
 };
 
-export const liveAvailable = (lastLiveAt: number | null, now: number) => lastLiveAt !== null && now - lastLiveAt <= LIVE_TTL_MS;
+export const liveAvailable = (lastLiveAt: number | null, now: number) =>
+  lastLiveAt !== null && now - lastLiveAt <= LIVE_TTL_MS;
 
 export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } {
   const { manifest, live, lastLiveAt, now, camera } = input;
   const available = liveAvailable(lastLiveAt, now);
   const serverNow = now + (live?.skewMs ?? 0);
-  const machines: RenderMachine[] = (live?.machines ?? []).map((machine) => ({ machineId: machine.machineId, name: machine.name, state: machine.state, progressPercent: machine.progressPercent, remainingMinutes: machine.remainingMinutes, stale: machine.stale }));
+  const machines: RenderMachine[] = (live?.machines ?? []).map((machine) => ({
+    machineId: machine.machineId,
+    name: machine.name,
+    state: machine.state,
+    progressPercent: machine.progressPercent,
+    remainingMinutes: machine.remainingMinutes,
+    stale: machine.stale,
+  }));
   // Announcements stay until their end, also when live data went stale (the server decides about open-ended ones on the next poll).
   const announcements = (live?.announcements ?? [])
     .filter((item) => item.endsAt === null || Date.parse(item.endsAt) > serverNow)
-    .map((item) => ({ id: item.id, templateId: item.templateId, tone: item.tone, title: item.title, body: item.body, startsAt: Date.parse(item.startsAt) }));
+    .map((item) => ({
+      id: item.id,
+      templateId: item.templateId,
+      tone: item.tone,
+      title: item.title,
+      body: item.body,
+      startsAt: Date.parse(item.startsAt),
+    }));
   const engineResult = resolvePlayback(manifest.defaultPlaylistId, manifest.rules as PlaybackRule[], {
     now: new Date(now),
     printingMachineIds: available ? machines.filter(isPrinting).map((machine) => machine.machineId) : [],
@@ -90,7 +129,9 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
     now,
     liveAvailable: available,
     machines,
-    unavailableCameras: new Set(machines.filter((machine) => !camera.hasStream(machine.machineId)).map((machine) => machine.machineId)),
+    unavailableCameras: new Set(
+      machines.filter((machine) => !camera.hasStream(machine.machineId)).map((machine) => machine.machineId),
+    ),
     announcements,
     openDays: live?.openDays ?? [],
     events: live?.events ?? [],

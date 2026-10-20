@@ -14,7 +14,7 @@ const SPLIT = new RegExp(`(?<![\\w-])(${SOURCE})(?![\\w-])`);
 const prefixKind: Record<string, RefKind> = { J: 'job', R: 'run', O: 'order', P: 'payment', S: 'spool' };
 
 export function refKind(reference: string): RefKind | null {
-  return /^[JROPS]-/.test(reference) ? prefixKind[reference.charAt(0)] ?? null : null;
+  return /^[JROPS]-/.test(reference) ? (prefixKind[reference.charAt(0)] ?? null) : null;
 }
 
 /** Read permission of the page a reference points to. Links to pages the person cannot open stay plain text. */
@@ -28,11 +28,16 @@ export const refPermission: Record<RefKind, PermissionIdType> = {
 
 export function refRoute(kind: RefKind, id: string): string {
   switch (kind) {
-    case 'job': return machineLogbookPaths.job(id);
-    case 'run': return machineLogbookPaths.run(id);
-    case 'spool': return machineLogbookPaths.spool(id);
-    case 'order': return `/orders/${encodeURIComponent(id)}`;
-    default: return `/payments/${encodeURIComponent(id)}`;
+    case 'job':
+      return machineLogbookPaths.job(id);
+    case 'run':
+      return machineLogbookPaths.run(id);
+    case 'spool':
+      return machineLogbookPaths.spool(id);
+    case 'order':
+      return `/orders/${encodeURIComponent(id)}`;
+    default:
+      return `/payments/${encodeURIComponent(id)}`;
   }
 }
 

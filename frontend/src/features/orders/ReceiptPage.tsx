@@ -24,9 +24,17 @@ import '../machinelogbook/shared/shared.scss';
 export function ReceiptPage() {
   const { orderId = '' } = useParams();
   const query = useQuery(orderQuery(orderId));
-  const crumbs = [{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders', to: '/orders' }];
+  const crumbs = [
+    { label: 'Sales & payments', to: '/sales' },
+    { label: 'Orders', to: '/orders' },
+  ];
   if (query.isPending) return <FullPageLoading label="Loading receipt" />;
-  if (query.isError) return <PageShell title="Receipt" breadcrumbs={crumbs} width="wide"><ErrorState message="The receipt could not be loaded." onRetry={() => query.refetch()} /></PageShell>;
+  if (query.isError)
+    return (
+      <PageShell title="Receipt" breadcrumbs={crumbs} width="wide">
+        <ErrorState message="The receipt could not be loaded." onRetry={() => query.refetch()} />
+      </PageShell>
+    );
   return <Receipt key={query.data.id} order={query.data} />;
 }
 
@@ -36,25 +44,53 @@ function Receipt({ order }: { order: Order }) {
   const only = params.get('payment');
   const shares = receiptPaymentShares(order).filter((share) => !only || share.paymentId === only);
   const loaded = useQueries({ queries: shares.map((share) => paymentQuery(share.paymentId)) });
-  const payments = new Map<string, OrderPayment>(loaded.flatMap((result) => result.data ? [[result.data.id, result.data] as const] : []));
-  const crumbs = [{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders', to: '/orders' }, { label: order.reference, to: `/orders/${order.id}` }];
+  const payments = new Map<string, OrderPayment>(
+    loaded.flatMap((result) => (result.data ? [[result.data.id, result.data] as const] : [])),
+  );
+  const crumbs = [
+    { label: 'Sales & payments', to: '/sales' },
+    { label: 'Orders', to: '/orders' },
+    { label: order.reference, to: `/orders/${order.id}` },
+  ];
   const items = activeItems(order);
   const outstanding = toCents(order.outstandingAmount);
   const pending = loaded.some((result) => result.isPending);
   const failed = loaded.some((result) => result.isError);
   const available = canPrintReceipt(order) && shares.length > 0;
-  const lastPayment = shares.map((share) => payments.get(share.paymentId)?.occurredAt).filter((value): value is string => !!value).sort().at(-1);
-  const invoiced = shares.map((share) => payments.get(share.paymentId)).filter((payment): payment is OrderPayment => payment?.method === 'external');
+  const lastPayment = shares
+    .map((share) => payments.get(share.paymentId)?.occurredAt)
+    .filter((value): value is string => !!value)
+    .sort()
+    .at(-1);
+  const invoiced = shares
+    .map((share) => payments.get(share.paymentId))
+    .filter((payment): payment is OrderPayment => payment?.method === 'external');
 
   return (
     <PageShell
-      className="sales-page sales-receipt-page" title={`Receipt for ${order.reference}`} width="wide" breadcrumbs={crumbs}
-      actions={<>
-        <Button as={Link} to={`/orders/${order.id}`} kind="tertiary" renderIcon={ArrowLeft}>Back to order</Button>
-        {available && <Button kind="primary" renderIcon={Printer} disabled={pending || failed} onClick={() => window.print()}>Print</Button>}
-      </>}
+      className="sales-page sales-receipt-page"
+      title={`Receipt for ${order.reference}`}
+      width="wide"
+      breadcrumbs={crumbs}
+      actions={
+        <>
+          <Button as={Link} to={`/orders/${order.id}`} kind="tertiary" renderIcon={ArrowLeft}>
+            Back to order
+          </Button>
+          {available && (
+            <Button kind="primary" renderIcon={Printer} disabled={pending || failed} onClick={() => window.print()}>
+              Print
+            </Button>
+          )}
+        </>
+      }
     >
-      {!available && <EmptyState title="No receipt available" description="A receipt needs a finalized order with at least one payment that still counts." />}
+      {!available && (
+        <EmptyState
+          title="No receipt available"
+          description="A receipt needs a finalized order with at least one payment that still counts."
+        />
+      )}
       {available && failed && <ErrorState message="The payments of this receipt could not be loaded." />}
       {available && !failed && (
         <article className="sales-receipt" aria-label={`Receipt for ${order.reference}`}>
@@ -62,38 +98,66 @@ function Receipt({ order }: { order: Order }) {
             <BrandMark kind="logo" className="sales-receipt__logo" />
             <div>
               <strong>{branding.identity.legalOrganizationName}</strong>
-              <br /><span>{branding.identity.displayName}</span>
+              <br />
+              <span>{branding.identity.displayName}</span>
             </div>
           </header>
           <h2 className="sales-receipt__title">Payment receipt</h2>
           <dl className="sales-receipt__facts">
-            <div><dt>Order</dt><dd>{order.reference}</dd></div>
-            <div><dt>Date</dt><dd>{lastPayment ? formatDateTime(lastPayment) : '—'}</dd></div>
-            <div><dt>Customer</dt><dd>{customerLabel(order)}</dd></div>
+            <div>
+              <dt>Order</dt>
+              <dd>{order.reference}</dd>
+            </div>
+            <div>
+              <dt>Date</dt>
+              <dd>{lastPayment ? formatDateTime(lastPayment) : '—'}</dd>
+            </div>
+            <div>
+              <dt>Customer</dt>
+              <dd>{customerLabel(order)}</dd>
+            </div>
           </dl>
           <Table size="sm" aria-label="Items">
             <TableHead>
-              <TableRow><TableHeader>Item</TableHeader><TableHeader className="sales-num">Quantity</TableHeader><TableHeader className="sales-num">Unit price</TableHeader><TableHeader className="sales-num">Amount</TableHeader></TableRow>
+              <TableRow>
+                <TableHeader>Item</TableHeader>
+                <TableHeader className="sales-num">Quantity</TableHeader>
+                <TableHeader className="sales-num">Unit price</TableHeader>
+                <TableHeader className="sales-num">Amount</TableHeader>
+              </TableRow>
             </TableHead>
             <TableBody>
               {items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.description}</TableCell>
-                  <TableCell className="sales-num">{item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}</TableCell>
+                  <TableCell className="sales-num">
+                    {item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}
+                  </TableCell>
                   <TableCell className="sales-num">{formatMoney(item.unitPrice)}</TableCell>
                   <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>
                 </TableRow>
               ))}
               <TableRow>
-                <TableCell colSpan={3}><strong>Total</strong></TableCell>
-                <TableCell className="sales-num"><strong>{formatCents(sumCents(items.map((item) => item.amount)))}</strong></TableCell>
+                <TableCell colSpan={3}>
+                  <strong>Total</strong>
+                </TableCell>
+                <TableCell className="sales-num">
+                  <strong>{formatCents(sumCents(items.map((item) => item.amount)))}</strong>
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
-          {toCents(order.netCharge) !== sumCents(items.map((item) => item.amount)) && <p className="sales-receipt__note">Net charge after adjustments: {formatCents(toCents(order.netCharge))}</p>}
+          {toCents(order.netCharge) !== sumCents(items.map((item) => item.amount)) && (
+            <p className="sales-receipt__note">Net charge after adjustments: {formatCents(toCents(order.netCharge))}</p>
+          )}
           <Table size="sm" aria-label="Payments">
             <TableHead>
-              <TableRow><TableHeader>Payment</TableHeader><TableHeader>Method</TableHeader><TableHeader>Date</TableHeader><TableHeader className="sales-num">Amount</TableHeader></TableRow>
+              <TableRow>
+                <TableHeader>Payment</TableHeader>
+                <TableHeader>Method</TableHeader>
+                <TableHeader>Date</TableHeader>
+                <TableHeader className="sales-num">Amount</TableHeader>
+              </TableRow>
             </TableHead>
             <TableBody>
               {shares.map((share) => {
@@ -108,24 +172,40 @@ function Receipt({ order }: { order: Order }) {
                 );
               })}
               <TableRow>
-                <TableCell colSpan={3}><strong>{only ? 'Paid with this receipt' : 'Paid'}</strong></TableCell>
-                <TableCell className="sales-num"><strong>{formatCents(shares.reduce((total, share) => total + share.amount, 0))}</strong></TableCell>
+                <TableCell colSpan={3}>
+                  <strong>{only ? 'Paid with this receipt' : 'Paid'}</strong>
+                </TableCell>
+                <TableCell className="sales-num">
+                  <strong>{formatCents(shares.reduce((total, share) => total + share.amount, 0))}</strong>
+                </TableCell>
               </TableRow>
               {outstanding > 0 && (
                 <TableRow>
-                  <TableCell colSpan={3}><strong>Outstanding</strong></TableCell>
-                  <TableCell className="sales-num"><strong>{formatCents(outstanding)}</strong></TableCell>
+                  <TableCell colSpan={3}>
+                    <strong>Outstanding</strong>
+                  </TableCell>
+                  <TableCell className="sales-num">
+                    <strong>{formatCents(outstanding)}</strong>
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
           {invoiced.length > 0 && (
             <p className="sales-receipt__note">
-              {invoiced.map((payment) => payment.externalReference ? `Settled by the wiRef invoice request ${payment.externalReference}.` : 'Settled by a wiRef invoice.').join(' ')} The invoice itself is issued by wiRef.
+              {invoiced
+                .map((payment) =>
+                  payment.externalReference
+                    ? `Settled by the wiRef invoice request ${payment.externalReference}.`
+                    : 'Settled by a wiRef invoice.',
+                )
+                .join(' ')}{' '}
+              The invoice itself is issued by wiRef.
             </p>
           )}
           <footer className="sales-receipt__foot">
-            This is a payment receipt, not an invoice. It is identified by the order reference and the payment references above.
+            This is a payment receipt, not an invoice. It is identified by the order reference and the payment
+            references above.
           </footer>
         </article>
       )}

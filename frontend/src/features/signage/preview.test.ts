@@ -14,13 +14,26 @@ describe('signage preview helpers', () => {
   it('adds the content digest to asset URLs when it is known', () => {
     expect(assetContentUrl('abc', 'f'.repeat(64))).toBe(`/api/v1/signage/assets/abc/content?v=${'f'.repeat(64)}`);
     expect(assetContentUrl('abc')).toBe('/api/v1/signage/assets/abc/content');
-    const data = buildPreviewData({ preset: 'idle', now: now.getTime(), machines: [], templates: [], timeZone: 'Europe/Vienna', assets: [{ id: 'abc', sha256: 'f'.repeat(64) }] });
+    const data = buildPreviewData({
+      preset: 'idle',
+      now: now.getTime(),
+      machines: [],
+      templates: [],
+      timeZone: 'Europe/Vienna',
+      assets: [{ id: 'abc', sha256: 'f'.repeat(64) }],
+    });
     expect(data.assetUrl('abc')).toContain(`?v=${'f'.repeat(64)}`);
     expect(data.assetUrl('other')).not.toContain('?v=');
   });
 
   it('previews the real open days and events and shows no invented ones', () => {
-    const base = { preset: 'idle' as const, now: now.getTime(), machines: [], templates: [], timeZone: 'Europe/Vienna' };
+    const base = {
+      preset: 'idle' as const,
+      now: now.getTime(),
+      machines: [],
+      templates: [],
+      timeZone: 'Europe/Vienna',
+    };
     const empty = buildPreviewData(base);
     expect(empty.openDays).toEqual([]);
     expect(empty.events).toEqual([]);
@@ -32,8 +45,17 @@ describe('signage preview helpers', () => {
   });
 
   it('never lets a machine without a camera show one', () => {
-    const machines = [{ id: 'a', name: 'Plain', hasCamera: false }, { id: 'b', name: 'Camera', hasCamera: true }];
-    const data = buildPreviewData({ preset: 'all', now: now.getTime(), machines, templates: [], timeZone: 'Europe/Vienna' });
+    const machines = [
+      { id: 'a', name: 'Plain', hasCamera: false },
+      { id: 'b', name: 'Camera', hasCamera: true },
+    ];
+    const data = buildPreviewData({
+      preset: 'all',
+      now: now.getTime(),
+      machines,
+      templates: [],
+      timeZone: 'Europe/Vienna',
+    });
     expect([...(data.unavailableCameras ?? [])]).toEqual(['a']);
   });
 });

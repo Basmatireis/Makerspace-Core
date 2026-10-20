@@ -47,56 +47,96 @@ export function EventCreateDialog({ open, onClose }: EventCreateDialogProps) {
     if (!mutation.isPending) mutation.mutate(value);
   });
 
-  return <>
-    <ComposedModal
-      open={open && !guard.dialogOpen}
-      onClose={requestClose}
-      size="sm"
-      preventCloseOnClickOutside
-      selectorPrimaryFocus="#event-name"
-      aria-label="Create event"
-    >
-      <ModalHeader
-        title="Create event"
-        label="Start with the internal details. The owner is assigned later in Settings."
-        closeModal={requestClose}
-      />
-      <ModalBody hasScrollingContent>
-        <form id="create-event-form" onSubmit={submit}>
-          <Stack gap={5}>
-            {mutation.isError && <InlineNotification
-              kind="error"
-              lowContrast
-              hideCloseButton
-              title="Event not created"
-              subtitle={eventMutationMessage(mutation.error)}
-            />}
-            <Controller
-              name="name"
-              control={form.control}
-              rules={{ required: 'Enter an internal event name.', maxLength: { value: 200, message: 'Use 200 characters or fewer.' } }}
-              render={({ field, fieldState }) => <TextInput {...field} id="event-name" labelText="Internal event name" invalid={Boolean(fieldState.error)} invalidText={fieldState.error?.message} />}
-            />
-            <Controller
-              name="location"
-              control={form.control}
-              rules={{ maxLength: { value: 500, message: 'Use 500 characters or fewer.' } }}
-              render={({ field, fieldState }) => <TextInput id="event-location" labelText="Internal location" value={field.value ?? ''} onBlur={field.onBlur} onChange={(event) => field.onChange(event.target.value || null)} invalid={Boolean(fieldState.error)} invalidText={fieldState.error?.message} />}
-            />
-            <Controller
-              name="internalDescription"
-              control={form.control}
-              rules={{ maxLength: { value: 10_000, message: 'Use 10,000 characters or fewer.' } }}
-              render={({ field, fieldState }) => <TextArea id="event-description" labelText="Internal description" value={field.value ?? ''} onBlur={field.onBlur} onChange={(event) => field.onChange(event.target.value || null)} rows={7} invalid={Boolean(fieldState.error)} invalidText={fieldState.error?.message} />}
-            />
-          </Stack>
-        </form>
-      </ModalBody>
-      <ModalFooter>
-        <Button kind="secondary" type="button" onClick={requestClose} disabled={mutation.isPending}>Cancel</Button>
-        <Button type="submit" form="create-event-form" disabled={mutation.isPending}>{mutation.isPending ? 'Creating…' : 'Create event'}</Button>
-      </ModalFooter>
-    </ComposedModal>
-    <UnsavedChangesDialog guard={guard} />
-  </>;
+  return (
+    <>
+      <ComposedModal
+        open={open && !guard.dialogOpen}
+        onClose={requestClose}
+        size="sm"
+        preventCloseOnClickOutside
+        selectorPrimaryFocus="#event-name"
+        aria-label="Create event"
+      >
+        <ModalHeader
+          title="Create event"
+          label="Start with the internal details. The owner is assigned later in Settings."
+          closeModal={requestClose}
+        />
+        <ModalBody hasScrollingContent>
+          <form id="create-event-form" onSubmit={submit}>
+            <Stack gap={5}>
+              {mutation.isError && (
+                <InlineNotification
+                  kind="error"
+                  lowContrast
+                  hideCloseButton
+                  title="Event not created"
+                  subtitle={eventMutationMessage(mutation.error)}
+                />
+              )}
+              <Controller
+                name="name"
+                control={form.control}
+                rules={{
+                  required: 'Enter an internal event name.',
+                  maxLength: { value: 200, message: 'Use 200 characters or fewer.' },
+                }}
+                render={({ field, fieldState }) => (
+                  <TextInput
+                    {...field}
+                    id="event-name"
+                    labelText="Internal event name"
+                    invalid={Boolean(fieldState.error)}
+                    invalidText={fieldState.error?.message}
+                  />
+                )}
+              />
+              <Controller
+                name="location"
+                control={form.control}
+                rules={{ maxLength: { value: 500, message: 'Use 500 characters or fewer.' } }}
+                render={({ field, fieldState }) => (
+                  <TextInput
+                    id="event-location"
+                    labelText="Internal location"
+                    value={field.value ?? ''}
+                    onBlur={field.onBlur}
+                    onChange={(event) => field.onChange(event.target.value || null)}
+                    invalid={Boolean(fieldState.error)}
+                    invalidText={fieldState.error?.message}
+                  />
+                )}
+              />
+              <Controller
+                name="internalDescription"
+                control={form.control}
+                rules={{ maxLength: { value: 10_000, message: 'Use 10,000 characters or fewer.' } }}
+                render={({ field, fieldState }) => (
+                  <TextArea
+                    id="event-description"
+                    labelText="Internal description"
+                    value={field.value ?? ''}
+                    onBlur={field.onBlur}
+                    onChange={(event) => field.onChange(event.target.value || null)}
+                    rows={7}
+                    invalid={Boolean(fieldState.error)}
+                    invalidText={fieldState.error?.message}
+                  />
+                )}
+              />
+            </Stack>
+          </form>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" type="button" onClick={requestClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-event-form" disabled={mutation.isPending}>
+            {mutation.isPending ? 'Creating…' : 'Create event'}
+          </Button>
+        </ModalFooter>
+      </ComposedModal>
+      <UnsavedChangesDialog guard={guard} />
+    </>
+  );
 }

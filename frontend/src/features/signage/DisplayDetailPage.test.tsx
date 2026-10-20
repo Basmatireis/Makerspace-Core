@@ -11,7 +11,10 @@ import { announcementFixture, displayFixture, ids, mockSignage, previewFixture, 
 const HEAVY_PAGE_TEST_TIMEOUT = 90_000;
 
 const route = `/signage/displays/${ids.display}`;
-const pending = [{ kind: 'scene' as const, name: 'Open days poster', change: 'modified' as const }, { kind: 'rule' as const, name: '', change: 'added' as const }];
+const pending = [
+  { kind: 'scene' as const, name: 'Open days poster', change: 'modified' as const },
+  { kind: 'rule' as const, name: '', change: 'added' as const },
+];
 
 describe('Display detail', () => {
   it('shows pending changes and a publish button only with signage.publish', async () => {
@@ -24,9 +27,16 @@ describe('Display detail', () => {
   });
 
   it('publishes the pending changes', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagepublish, PermissionId.signageoverride], { displays: [displayFixture({ pendingChanges: pending })] });
+    mockSignage([PermissionId.signageread, PermissionId.signagepublish, PermissionId.signageoverride], {
+      displays: [displayFixture({ pendingChanges: pending })],
+    });
     let published = 0;
-    server.use(http.post('*/api/v1/signage/displays/:id/publish', () => { published += 1; return HttpResponse.json(displayFixture({ publishedRevision: 3 })); }));
+    server.use(
+      http.post('*/api/v1/signage/displays/:id/publish', () => {
+        published += 1;
+        return HttpResponse.json(displayFixture({ publishedRevision: 3 }));
+      }),
+    );
     renderRoute(<App />, route);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Publish 2 changes' }));
@@ -42,20 +52,58 @@ describe('Display detail', () => {
   });
 
   it('offers the first publication for a display that was never published', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagepublish], { displays: [displayFixture({ publishedRevision: null, publishedAt: null })], preview: previewFixture({ manifest: null }) });
+    mockSignage([PermissionId.signageread, PermissionId.signagepublish], {
+      displays: [displayFixture({ publishedRevision: null, publishedAt: null })],
+      preview: previewFixture({ manifest: null }),
+    });
     renderRoute(<App />, route);
     expect(await screen.findByRole('button', { name: 'Publish' })).toBeInTheDocument();
     expect(await screen.findByText('Nothing is published yet, so there is nothing to preview.')).toBeInTheDocument();
   });
 
   it('previews the publication and marks the engine-winning rule as active', async () => {
-    const manifestRule = { id: ids.rule, kind: 'announcement_active' as const, weekdays: [], timeFrom: null, timeTo: null, machineIds: [], machineMatch: null, announcementTemplateIds: [], targetKind: 'scene' as const, targetId: ids.scene2, minSeconds: 20, multiMode: 'split' as const, alternateSeconds: 10 };
+    const manifestRule = {
+      id: ids.rule,
+      kind: 'announcement_active' as const,
+      weekdays: [],
+      timeFrom: null,
+      timeTo: null,
+      machineIds: [],
+      machineMatch: null,
+      announcementTemplateIds: [],
+      targetKind: 'scene' as const,
+      targetId: ids.scene2,
+      minSeconds: 20,
+      multiMode: 'split' as const,
+      alternateSeconds: 10,
+    };
     const base = previewFixture();
     const preview = previewFixture({
-      manifest: { ...base.manifest!, rules: [manifestRule], scenes: [...base.manifest!.scenes, { ...base.manifest!.scenes[0], id: ids.scene2, name: 'Closed notice' }] },
-      live: { ...base.live, announcements: [{ id: ids.announcement, templateId: ids.template, tone: 'warning', title: 'Closed today', body: '', startsAt: '2026-10-19T08:00:00Z', endsAt: null }] },
+      manifest: {
+        ...base.manifest!,
+        rules: [manifestRule],
+        scenes: [...base.manifest!.scenes, { ...base.manifest!.scenes[0], id: ids.scene2, name: 'Closed notice' }],
+      },
+      live: {
+        ...base.live,
+        announcements: [
+          {
+            id: ids.announcement,
+            templateId: ids.template,
+            tone: 'warning',
+            title: 'Closed today',
+            body: '',
+            startsAt: '2026-10-19T08:00:00Z',
+            endsAt: null,
+          },
+        ],
+      },
     });
-    mockSignage([PermissionId.signageread], { displays: [displayFixture({ currentRule: ids.rule, currentSceneId: ids.scene2 })], rules: [ruleFixture({ conditionKind: 'announcement_active', targetId: ids.scene2 })], preview });
+    mockSignage([PermissionId.signageread], {
+      displays: [displayFixture({ currentRule: ids.rule, currentSceneId: ids.scene2 })],
+      rules: [ruleFixture({ conditionKind: 'announcement_active', targetId: ids.scene2 })],
+      preview,
+    });
     renderRoute(<App />, route);
     expect(await screen.findByText('Closed notice')).toBeInTheDocument();
     expect(screen.getByText(/Rule 1: announcement active/)).toBeInTheDocument();
@@ -65,30 +113,53 @@ describe('Display detail', () => {
   });
 
   it('says neutrally when the display reports something else', async () => {
-    mockSignage([PermissionId.signageread], { displays: [displayFixture({ currentRule: ids.rule })], rules: [ruleFixture()] });
+    mockSignage([PermissionId.signageread], {
+      displays: [displayFixture({ currentRule: ids.rule })],
+      rules: [ruleFixture()],
+    });
     renderRoute(<App />, route);
     expect(await screen.findByText(/Display reports: rule 1/)).toBeInTheDocument();
   });
 
   // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
-  it('reorders rules with the display version and refreshes on a stale write', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
-    const rules = [ruleFixture(), ruleFixture({ id: ids.rule2, position: 1, conditionKind: 'live_data_unavailable', timeFrom: null, timeTo: null, weekdays: [] })];
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], rules });
-    const bodies: unknown[] = [];
-    let attempts = 0;
-    server.use(http.put('*/api/v1/signage/displays/:id/rule-order', async ({ request }) => {
-      bodies.push(await request.json());
-      attempts += 1;
-      return attempts === 1 ? HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 }) : HttpResponse.json({ items: [rules[1], rules[0]], displayVersion: 6 });
-    }));
-    renderRoute(<App />, route);
-    expect(await screen.findByText('Mon–Fri 08:00–10:00')).toBeInTheDocument();
-    // Role queries over this large DOM take seconds in jsdom; the tooltip text finds the same button cheaply.
-    const down = (await screen.findAllByText('Move down', { selector: '.cds--tooltip-content' }))[0].closest('.cds--popover-container')!.querySelector('button')!;
-    fireEvent.click(down);
-    await waitFor(() => expect(bodies).toEqual([{ expectedVersion: 5, ruleIds: [ids.rule2, ids.rule] }]));
-    expect(await screen.findByText('The rules were changed somewhere else')).toBeInTheDocument();
-  });
+  it(
+    'reorders rules with the display version and refreshes on a stale write',
+    { timeout: HEAVY_PAGE_TEST_TIMEOUT },
+    async () => {
+      const rules = [
+        ruleFixture(),
+        ruleFixture({
+          id: ids.rule2,
+          position: 1,
+          conditionKind: 'live_data_unavailable',
+          timeFrom: null,
+          timeTo: null,
+          weekdays: [],
+        }),
+      ];
+      mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], rules });
+      const bodies: unknown[] = [];
+      let attempts = 0;
+      server.use(
+        http.put('*/api/v1/signage/displays/:id/rule-order', async ({ request }) => {
+          bodies.push(await request.json());
+          attempts += 1;
+          return attempts === 1
+            ? HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 })
+            : HttpResponse.json({ items: [rules[1], rules[0]], displayVersion: 6 });
+        }),
+      );
+      renderRoute(<App />, route);
+      expect(await screen.findByText('Mon–Fri 08:00–10:00')).toBeInTheDocument();
+      // Role queries over this large DOM take seconds in jsdom; the tooltip text finds the same button cheaply.
+      const down = (await screen.findAllByText('Move down', { selector: '.cds--tooltip-content' }))[0]
+        .closest('.cds--popover-container')!
+        .querySelector('button')!;
+      fireEvent.click(down);
+      await waitFor(() => expect(bodies).toEqual([{ expectedVersion: 5, ruleIds: [ids.rule2, ids.rule] }]));
+      expect(await screen.findByText('The rules were changed somewhere else')).toBeInTheDocument();
+    },
+  );
 
   it('hides rule editing without signage.manage', async () => {
     mockSignage([PermissionId.signageread], { displays: [displayFixture()], rules: [ruleFixture()] });
@@ -101,9 +172,17 @@ describe('Display detail', () => {
 
   // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
   it('adds a machine rule with the display version', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], machines: [{ id: ids.machine, name: 'H2D', kind: 'Printer', hasCamera: false }] });
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      machines: [{ id: ids.machine, name: 'H2D', kind: 'Printer', hasCamera: false }],
+    });
     let body: unknown;
-    server.use(http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => { body = await request.json(); return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 });
+      }),
+    );
     renderRoute(<App />, route);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Add rule' }));
@@ -114,20 +193,47 @@ describe('Display detail', () => {
     await user.click(within(dialog).getByRole('combobox', { name: 'Show' }));
     await user.click(await screen.findByRole('option', { name: 'Scene Open days poster' }));
     await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
-    await waitFor(() => expect(body).toEqual({
-      expectedVersion: 5, enabled: true, conditionKind: 'machine_printing', machineIds: [ids.machine], machineMatch: 'any', targetKind: 'scene', targetId: ids.scene, minSeconds: 20, multiMode: 'split', alternateSeconds: 10,
-    }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        expectedVersion: 5,
+        enabled: true,
+        conditionKind: 'machine_printing',
+        machineIds: [ids.machine],
+        machineMatch: 'any',
+        targetKind: 'scene',
+        targetId: ids.scene,
+        minSeconds: 20,
+        multiMode: 'split',
+        alternateSeconds: 10,
+      }),
+    );
   });
 
   it('deletes a revoked display from the overflow menu', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture({ status: 'revoked', revokedAt: '2026-10-19T09:00:00Z' })] });
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture({ status: 'revoked', revokedAt: '2026-10-19T09:00:00Z' })],
+    });
     let deleted: unknown;
-    server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete('*/api/v1/signage/displays/:id', async ({ request }) => {
+        deleted = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     renderRoute(<App />, route);
     const user = userEvent.setup();
-    await user.click((await screen.findByText('Display actions', { selector: '.cds--overflow-menu__icon title, .cds--tooltip-content' })).closest('button') ?? (await screen.findByRole('button', { name: /Display actions/ })));
-    const item = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
-    expect(screen.queryByText('Revoke', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    await user.click(
+      (
+        await screen.findByText('Display actions', {
+          selector: '.cds--overflow-menu__icon title, .cds--tooltip-content',
+        })
+      ).closest('button') ?? (await screen.findByRole('button', { name: /Display actions/ })),
+    );
+    const item = (label: string) =>
+      screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
+    expect(
+      screen.queryByText('Revoke', { selector: '.cds--overflow-menu-options__option-content' }),
+    ).not.toBeInTheDocument();
     await user.click(await item('Delete'));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
@@ -136,22 +242,35 @@ describe('Display detail', () => {
   it('offers Delete next to Revoke for an active display and returns to the list', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     let deleted: unknown;
-    server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete('*/api/v1/signage/displays/:id', async ({ request }) => {
+        deleted = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     renderRoute(<App />, route);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /Display actions/ }));
-    const item = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
+    const item = (label: string) =>
+      screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
     expect(await item('Revoke')).toBeInTheDocument();
     await user.click(await item('Delete'));
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/The display is disconnected and removed with its rules and publications\. The screen shows a new pairing code\./)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /The display is disconnected and removed with its rules and publications\. The screen shows a new pairing code\./,
+      ),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
     expect(await screen.findByRole('heading', { name: 'Displays' })).toBeInTheDocument();
   });
 
   it('lists a started announcement on this display', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signageoverride], { displays: [displayFixture()], announcements: [announcementFixture()] });
+    mockSignage([PermissionId.signageread, PermissionId.signageoverride], {
+      displays: [displayFixture()],
+      announcements: [announcementFixture()],
+    });
     renderRoute(<App />, route);
     expect(await screen.findByRole('button', { name: 'Show announcement' })).toBeInTheDocument();
   });

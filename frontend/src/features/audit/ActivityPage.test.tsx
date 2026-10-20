@@ -57,13 +57,29 @@ describe('Audit Log', () => {
 
   it('renders readable activity and loads the next cursor page', async () => {
     authorizeActivity();
-    server.use(http.get('*/api/v1/audit-events', ({ request }) => {
-      const cursor = new URL(request.url).searchParams.get('cursor');
-      if (cursor) {
-        return HttpResponse.json({ items: [{ ...baseEvent, id: '0192f6f8-743e-7c77-a349-cd07c3e8a924', actorType: 'system', actorAccountId: null, actorDisplayName: null, action: 'managed_device.revoked', resourceType: 'managed_device', resourceDisplayName: 'Front desk' }], nextCursor: null });
-      }
-      return HttpResponse.json({ items: [baseEvent], nextCursor: 'next-page' });
-    }));
+    server.use(
+      http.get('*/api/v1/audit-events', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor) {
+          return HttpResponse.json({
+            items: [
+              {
+                ...baseEvent,
+                id: '0192f6f8-743e-7c77-a349-cd07c3e8a924',
+                actorType: 'system',
+                actorAccountId: null,
+                actorDisplayName: null,
+                action: 'managed_device.revoked',
+                resourceType: 'managed_device',
+                resourceDisplayName: 'Front desk',
+              },
+            ],
+            nextCursor: null,
+          });
+        }
+        return HttpResponse.json({ items: [baseEvent], nextCursor: 'next-page' });
+      }),
+    );
     const user = userEvent.setup();
     renderRoute(<App />, '/audit-log');
 
@@ -79,10 +95,12 @@ describe('Audit Log', () => {
   it('synchronizes filters to the URL and resets cursor pagination', async () => {
     authorizeActivity();
     const requests: URL[] = [];
-    server.use(http.get('*/api/v1/audit-events', ({ request }) => {
-      requests.push(new URL(request.url));
-      return HttpResponse.json({ items: [], nextCursor: null });
-    }));
+    server.use(
+      http.get('*/api/v1/audit-events', ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json({ items: [], nextCursor: null });
+      }),
+    );
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, '/audit-log');
     await screen.findByText('No activity found');
@@ -112,7 +130,11 @@ describe('Audit Log', () => {
     expect(await screen.findByText('No activity found')).toBeInTheDocument();
     first.unmount();
 
-    server.use(http.get('*/api/v1/audit-events', () => HttpResponse.json({ code: 'failed', message: 'failed', requestId: 'request' }, { status: 500 })));
+    server.use(
+      http.get('*/api/v1/audit-events', () =>
+        HttpResponse.json({ code: 'failed', message: 'failed', requestId: 'request' }, { status: 500 }),
+      ),
+    );
     renderRoute(<App />, '/audit-log');
     expect(await screen.findByText('Unable to load activity')).toBeInTheDocument();
   });

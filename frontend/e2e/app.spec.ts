@@ -27,13 +27,18 @@ const openDayPeriodId = '0192f6f8-743e-7c77-a349-cd07c3e8a932';
 async function visibleBoundingBox(locator: Locator, label: string) {
   await expect(locator).toBeVisible();
   let measured: Awaited<ReturnType<Locator['boundingBox']>>;
-  await expect.poll(async () => {
-    const bounds = await locator.boundingBox();
-    if (bounds) measured = bounds;
-    return bounds;
-  }, {
-    message: `Could not measure the ${label}.`,
-  }).not.toBeNull();
+  await expect
+    .poll(
+      async () => {
+        const bounds = await locator.boundingBox();
+        if (bounds) measured = bounds;
+        return bounds;
+      },
+      {
+        message: `Could not measure the ${label}.`,
+      },
+    )
+    .not.toBeNull();
   if (!measured) throw new Error(`Could not measure the ${label}.`);
   return measured;
 }
@@ -64,7 +69,17 @@ function currentUser(permissions: string[] = []) {
         loginEmail: 'ada.login@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
+        authIdentities: [
+          {
+            id: passwordIdentityId,
+            kind: 'password',
+            displayIdentifier: 'ada.login@example.test',
+            verifiedAt: '2026-01-01T00:00:00Z',
+            disabledAt: null,
+            usable: true,
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ],
         status: 'enabled',
         passwordStatus: 'active',
         version: 1,
@@ -79,7 +94,17 @@ function currentUser(permissions: string[] = []) {
       loginEmail: 'ada.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [
+        {
+          id: passwordIdentityId,
+          kind: 'password',
+          displayIdentifier: 'ada.login@example.test',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          usable: true,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
       status: 'enabled',
       passwordStatus: 'active',
       createdAt: '2026-01-01T00:00:00Z',
@@ -89,14 +114,25 @@ function currentUser(permissions: string[] = []) {
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
-    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
+    session: {
+      idleExpiresAt: '2099-01-01T01:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    },
     delegablePermissionGrants: permissions.map((permissionId) => ({
       permissionId,
       scope: 'everywhere',
       deviceTypeIds: [],
       minimumAssurance: 'low',
     })),
-    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
+    laborordnungStatus: {
+      mode: 'not_required',
+      state: 'not_required',
+      actionRequired: false,
+      currentVersion: null,
+      latestConfirmedVersion: null,
+      requestId: null,
+    },
   };
 }
 
@@ -136,7 +172,17 @@ function managedPerson(role = customRole()) {
       loginEmail: 'grace.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [
+        {
+          id: passwordIdentityId,
+          kind: 'password',
+          displayIdentifier: 'grace.login@example.test',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          usable: true,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
       status: 'enabled',
       passwordStatus: 'active',
       version: 1,
@@ -157,33 +203,39 @@ function personMakerspaceStatus() {
       latestConfirmedVersion: { humanRevision: '2025-09' },
       requestId: null,
     },
-    upcomingOpenDayAssignments: [{
-      assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
-      openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
-      periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
-      periodName: 'Autumn Open Days',
-      startsAt: '2026-10-10T08:00:00Z',
-      endsAt: '2026-10-10T12:00:00Z',
-      role: 'supervisor',
-    }],
+    upcomingOpenDayAssignments: [
+      {
+        assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
+        openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
+        periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+        periodName: 'Autumn Open Days',
+        startsAt: '2026-10-10T08:00:00Z',
+        endsAt: '2026-10-10T12:00:00Z',
+        role: 'supervisor',
+      },
+    ],
   };
 }
 
 function supervisorDashboard() {
   return {
-    periods: [{
-      id: openDayPeriodId,
-      name: 'Autumn Open Days',
-      status: 'published',
-      supervisorAssignments: 4,
-    }],
-    supervisors: [{
-      personId: managedPersonId,
-      name: 'Grace Hopper',
-      hasProfileImage: true,
-      laborordnungState: 'current',
-      assignmentCounts: [{ periodId: openDayPeriodId, supervisorCount: 2, traineeCount: 1 }],
-    }],
+    periods: [
+      {
+        id: openDayPeriodId,
+        name: 'Autumn Open Days',
+        status: 'published',
+        supervisorAssignments: 4,
+      },
+    ],
+    supervisors: [
+      {
+        personId: managedPersonId,
+        name: 'Grace Hopper',
+        hasProfileImage: true,
+        laborordnungState: 'current',
+        assignmentCounts: [{ periodId: openDayPeriodId, supervisorCount: 2, traineeCount: 1 }],
+      },
+    ],
     totals: {
       supervisors: 1,
       profileImagesComplete: 1,
@@ -202,7 +254,10 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 function rgbBrightness(color: string) {
-  const channels = color.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number);
+  const channels = color
+    .match(/\d+(?:\.\d+)?/g)
+    ?.slice(0, 3)
+    .map(Number);
   if (!channels || channels.length !== 3) throw new Error(`Expected an RGB color, received ${color}.`);
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
@@ -213,7 +268,11 @@ async function installApi(page: Page, state: ApiState) {
     const path = new URL(request.url()).pathname;
 
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
-      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      await json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
       return;
     }
 
@@ -268,11 +327,13 @@ async function installApi(page: Page, state: ApiState) {
 
     if (path === '/api/v1/roles/effective-permissions' && request.method() === 'GET' && state.role) {
       await json(route, {
-        items: [{
-          roleId: state.role.id,
-          roleVersion: state.role.version,
-          permissionIds: state.role.permissionGrants.map((grant) => grant.permissionId),
-        }],
+        items: [
+          {
+            roleId: state.role.id,
+            roleVersion: state.role.version,
+            permissionIds: state.role.permissionGrants.map((grant) => grant.permissionId),
+          },
+        ],
       });
       return;
     }
@@ -298,10 +359,10 @@ async function installApi(page: Page, state: ApiState) {
     }
 
     const makerspaceStatusPersonId = path.match(/^\/api\/v1\/people\/([^/]+)\/makerspace-status$/)?.[1];
-    const mayReturnMakerspaceStatus = makerspaceStatusPersonId && (
-      state.person?.id === makerspaceStatusPersonId ||
-      state.people?.some((person) => person.id === makerspaceStatusPersonId)
-    );
+    const mayReturnMakerspaceStatus =
+      makerspaceStatusPersonId &&
+      (state.person?.id === makerspaceStatusPersonId ||
+        state.people?.some((person) => person.id === makerspaceStatusPersonId));
     if (state.makerspaceStatus && mayReturnMakerspaceStatus && request.method() === 'GET') {
       await json(route, state.makerspaceStatus);
       return;
@@ -328,9 +389,7 @@ async function installApi(page: Page, state: ApiState) {
 }
 
 async function expectNoSeriousAccessibilityViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(results.violations).toEqual([]);
 }
 
@@ -354,10 +413,7 @@ async function expectShellHeaderAndContentAligned(page: Page) {
   const shell = page.locator('[data-page-shell]');
   const header = shell.locator(':scope > .page-header');
   const content = shell.locator(':scope > .page-shell__content');
-  const [headerBounds, contentBounds] = await Promise.all([
-    header.boundingBox(),
-    content.boundingBox(),
-  ]);
+  const [headerBounds, contentBounds] = await Promise.all([header.boundingBox(), content.boundingBox()]);
   if (!headerBounds || !contentBounds) throw new Error('Could not measure the page shell.');
   expect(Math.abs(headerBounds.x - contentBounds.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(headerBounds.width - contentBounds.width)).toBeLessThanOrEqual(1);
@@ -375,9 +431,7 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await expectNoSeriousAccessibilityViolations(page);
 
   await page.getByLabel('Email').fill('ada.login@example.test');
-  await page
-    .getByLabel('Password', { exact: true })
-    .fill('correct horse battery staple');
+  await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -414,9 +468,7 @@ test('shows promoted Directory navigation and exposes self-service profile acces
     name: 'Open profile menu for Ada Lovelace',
   });
   await profileMenuButton.click();
-  await expect(
-    page.getByRole('button', { name: 'Close profile menu for Ada Lovelace' }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close profile menu for Ada Lovelace' })).toBeVisible();
   await expect(page.getByText('ada@example.test')).toBeVisible();
   await page.getByRole('button', { name: 'View profile' }).focus();
   await page.keyboard.press('Escape');
@@ -452,7 +504,7 @@ test('shows promoted Directory navigation and exposes self-service profile acces
     cardBounds('Authentication methods'),
   ]);
   expect(Math.abs(profile.y - accountAccess.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs((profile.y + profile.height) - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profile.y + profile.height - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
   expect(Math.abs(profile.x - personalInformation.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(accountAccess.x - authenticationMethods.x)).toBeLessThanOrEqual(1);
   await expect(page.getByText('Matriculation number')).toHaveCount(0);
@@ -467,12 +519,7 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
     people: [person],
     makerspaceStatus: personMakerspaceStatus(),
     role,
-    user: currentUser([
-      'people.read.all',
-      'accounts.read',
-      'roles.read',
-      'laborordnung.requests.read',
-    ]),
+    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.requests.read']),
   });
 
   await page.goto('/people');
@@ -496,9 +543,7 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
   expect(rolesBounds.x).toBeLessThan(labRulesBounds.x);
   expect(labRulesBounds.x).toBeLessThan(headerBounds.x);
   expect(await statusHeader.evaluate((element) => getComputedStyle(element).textAlign)).toBe('center');
-  expect(Math.abs(
-    (cellBounds.x + (cellBounds.width / 2)) - (tagBounds.x + (tagBounds.width / 2)),
-  )).toBeLessThanOrEqual(1);
+  expect(Math.abs(cellBounds.x + cellBounds.width / 2 - (tagBounds.x + tagBounds.width / 2))).toBeLessThanOrEqual(1);
   await expect(personRow.getByLabel(`${role.name}, supervisor role`)).toHaveClass(/cds--tag--blue/);
 });
 
@@ -507,12 +552,7 @@ test('opens responsive Directory filters for roles, Lab Rules, and account statu
   await installApi(page, {
     authenticated: true,
     role,
-    user: currentUser([
-      'people.read.all',
-      'accounts.read',
-      'roles.read',
-      'laborordnung.requests.read',
-    ]),
+    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.requests.read']),
   });
 
   await page.goto('/people');
@@ -553,11 +593,7 @@ test('renders the Directory-styled Members table without summary statistics', as
   await installApi(page, {
     authenticated: true,
     supervisorDashboard: supervisorDashboard(),
-    user: currentUser([
-      'supervisor_dashboard.read',
-      'people.read.all',
-      'open_days.read',
-    ]),
+    user: currentUser(['supervisor_dashboard.read', 'people.read.all', 'open_days.read']),
   });
 
   await page.goto('/people/staffing');
@@ -633,7 +669,9 @@ test('renders the responsive person detail hierarchy and functional tabs', async
 
   await page.goto(`/people/${person.id}`);
   await expect(page.getByRole('heading', { name: 'Grace Hopper' })).toBeVisible();
-  await expect(page.locator('.page-header__tabs').getByRole('tablist', { name: 'Person detail sections' })).toBeVisible();
+  await expect(
+    page.locator('.page-header__tabs').getByRole('tablist', { name: 'Person detail sections' }),
+  ).toBeVisible();
   await expect(page.locator('.page-shell__content').locator('.cds--tab-content')).toHaveCount(5);
   await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Overview' }).focus();
@@ -661,22 +699,22 @@ test('renders the responsive person detail hierarchy and functional tabs', async
     cardBounds('Roles'),
   ]);
   expect(Math.abs(profile.y - accountAccess.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs((profile.y + profile.height) - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profile.y + profile.height - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
   expect(profile.height).toBeLessThanOrEqual(260);
   const actionsButton = await visibleBoundingBox(
     page.getByRole('button', { name: 'Actions', exact: true }),
     'page Actions button',
   );
-  expect(Math.abs(
-    (actionsButton.x + actionsButton.width) - (accountAccess.x + accountAccess.width),
-  )).toBeLessThanOrEqual(1);
+  expect(Math.abs(actionsButton.x + actionsButton.width - (accountAccess.x + accountAccess.width))).toBeLessThanOrEqual(
+    1,
+  );
   expect(accountAccess.x - (profile.x + profile.width)).toBeGreaterThanOrEqual(16);
   expect(Math.abs(profile.x - personalInformation.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(accountAccess.x - authenticationMethods.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(personalInformation.y - authenticationMethods.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(
-    (personalInformation.y + personalInformation.height) - (roles.y + roles.height),
-  )).toBeLessThanOrEqual(1);
+  expect(Math.abs(personalInformation.y + personalInformation.height - (roles.y + roles.height))).toBeLessThanOrEqual(
+    1,
+  );
 
   const profileCard = page
     .getByRole('heading', { name: 'Profile picture', exact: true })
@@ -690,28 +728,22 @@ test('renders the responsive person detail hierarchy and functional tabs', async
       profileCard.locator('.person-detail-card__heading-content .person-avatar'),
       'Profile picture avatar',
     ),
-    visibleBoundingBox(
-      profileCard.getByRole('button', { name: 'Edit', exact: true }),
-      'Profile picture Edit button',
-    ),
-    visibleBoundingBox(
-      page.getByRole('heading', { name: 'Account access', exact: true }),
-      'Account access heading',
-    ),
+    visibleBoundingBox(profileCard.getByRole('button', { name: 'Edit', exact: true }), 'Profile picture Edit button'),
+    visibleBoundingBox(page.getByRole('heading', { name: 'Account access', exact: true }), 'Account access heading'),
   ]);
-  const profileHeadingCenter = profileHeading.x + (profileHeading.width / 2);
-  const profileAvatarCenter = profileAvatar.x + (profileAvatar.width / 2);
-  const profileAvatarMiddle = profileAvatar.y + (profileAvatar.height / 2);
-  const profileEditCenter = profileEdit.x + (profileEdit.width / 2);
+  const profileHeadingCenter = profileHeading.x + profileHeading.width / 2;
+  const profileAvatarCenter = profileAvatar.x + profileAvatar.width / 2;
+  const profileAvatarMiddle = profileAvatar.y + profileAvatar.height / 2;
+  const profileEditCenter = profileEdit.x + profileEdit.width / 2;
   expect(profileHeadingCenter).toBeLessThan(profileAvatarCenter);
   expect(profileAvatarCenter).toBeLessThan(profileEditCenter);
-  expect(Math.abs(profileAvatarCenter - (profile.x + (profile.width / 2)))).toBeLessThanOrEqual(1);
-  expect(Math.abs(profileAvatarMiddle - (profile.y + (profile.height / 2)))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profileAvatarCenter - (profile.x + profile.width / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profileAvatarMiddle - (profile.y + profile.height / 2))).toBeLessThanOrEqual(1);
   await expect(profileCard.getByText('Grace Hopper', { exact: true })).toHaveCount(0);
   expect(Math.abs(profileHeading.y - accountHeading.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(
-    (profileEdit.y + (profileEdit.height / 2)) - (accountHeading.y + (accountHeading.height / 2)),
-  )).toBeLessThanOrEqual(8);
+  expect(
+    Math.abs(profileEdit.y + profileEdit.height / 2 - (accountHeading.y + accountHeading.height / 2)),
+  ).toBeLessThanOrEqual(8);
 
   await page.getByRole('tab', { name: 'Personal information' }).click();
   await expect(page.getByRole('heading', { name: 'Profile picture', exact: true })).toBeVisible();
@@ -725,10 +757,11 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   expect(Math.abs(focusedPersonalInformation.x - accountAccess.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(focusedPersonalInformation.width - accountAccess.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(focusedProfile.y - focusedPersonalInformation.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(
-    (focusedProfile.y + focusedProfile.height) -
-    (focusedPersonalInformation.y + focusedPersonalInformation.height),
-  )).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      focusedProfile.y + focusedProfile.height - (focusedPersonalInformation.y + focusedPersonalInformation.height),
+    ),
+  ).toBeLessThanOrEqual(1);
 
   await page.getByRole('tab', { name: 'Account access' }).click();
   await expect(page).toHaveURL(new RegExp(`/people/${person.id}\\?tab=account-access$`));
@@ -764,22 +797,24 @@ test('moves Open Days management actions into the table toolbar', async ({ page 
 test('renders Open Day periods as an accessible table and mobile cards without overflow', async ({ page }) => {
   await installApi(page, {
     authenticated: true,
-    openDayPeriods: [{
-      id: openDayPeriodId,
-      name: 'Winter Semester 2026/27',
-      startsOn: '2026-10-01',
-      endsOn: '2027-01-31',
-      status: 'published',
-      totalOpenDays: 44,
-      fullyStaffedCount: 12,
-      needsStaffCount: 32,
-      openSupervisorPositions: 85,
-      cancelledCount: 1,
-      myAssignmentCount: 2,
-      version: 1,
-      createdAt: '2026-09-01T10:00:00Z',
-      updatedAt: '2026-09-01T10:00:00Z',
-    }],
+    openDayPeriods: [
+      {
+        id: openDayPeriodId,
+        name: 'Winter Semester 2026/27',
+        startsOn: '2026-10-01',
+        endsOn: '2027-01-31',
+        status: 'published',
+        totalOpenDays: 44,
+        fullyStaffedCount: 12,
+        needsStaffCount: 32,
+        openSupervisorPositions: 85,
+        cancelledCount: 1,
+        myAssignmentCount: 2,
+        version: 1,
+        createdAt: '2026-09-01T10:00:00Z',
+        updatedAt: '2026-09-01T10:00:00Z',
+      },
+    ],
     user: currentUser(['open_days.read', 'open_days.manage']),
   });
 
@@ -806,9 +841,16 @@ test('renders Open Day periods as an accessible table and mobile cards without o
   await expect(table).toHaveCount(0);
   const card = page.locator('.open-day-period-card');
   await expect(card).toHaveCount(1);
-  await expect(card.getByRole('link', { name: 'Winter Semester 2026/27' })).toHaveAttribute('href', `/open-days/${openDayPeriodId}`);
+  await expect(card.getByRole('link', { name: 'Winter Semester 2026/27' })).toHaveAttribute(
+    'href',
+    `/open-days/${openDayPeriodId}`,
+  );
   await expect(card.getByText('85', { exact: true })).toBeVisible();
-  await expect(card.getByRole('group', { name: 'Actions for Winter Semester 2026/27' }).getByRole('button', { name: 'Delete', exact: true })).toBeEnabled();
+  await expect(
+    card
+      .getByRole('group', { name: 'Actions for Winter Semester 2026/27' })
+      .getByRole('button', { name: 'Delete', exact: true }),
+  ).toBeEnabled();
   const [createButton, mobilePeriodLink] = await Promise.all([
     page.getByRole('button', { name: 'Create', exact: true }).boundingBox(),
     card.getByRole('link', { name: 'Winter Semester 2026/27' }).boundingBox(),
@@ -835,10 +877,7 @@ test('wraps a long breadcrumb title and action menu at 390px without page overfl
   await page.goto(`/people/${person.id}`);
   const title = page.locator('.page-header__title');
   const actions = page.locator('.page-header__actions');
-  const [titleBounds, actionsBounds] = await Promise.all([
-    title.boundingBox(),
-    actions.boundingBox(),
-  ]);
+  const [titleBounds, actionsBounds] = await Promise.all([title.boundingBox(), actions.boundingBox()]);
   if (!titleBounds || !actionsBounds) throw new Error('Could not measure the mobile page header.');
   expect(actionsBounds.y).toBeGreaterThanOrEqual(titleBounds.y + titleBounds.height);
   await expect(page.getByLabel('Breadcrumb').getByText(/Grace Alexandra/)).toBeVisible();
@@ -854,17 +893,20 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
     {
       name: 'light',
       color: '#f4f4f4',
-      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#f4f4f4"/></svg>',
+      image:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#f4f4f4"/></svg>',
     },
     {
       name: 'dark',
       color: '#080808',
-      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#080808"/></svg>',
+      image:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#080808"/></svg>',
     },
     {
       name: 'detailed',
       color: '#111621',
-      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#111621"/><path d="M0 0L80 80M80 0L0 80M40 0V80M0 40H80" stroke="#ffbf3d" stroke-width="5"/><circle cx="40" cy="40" r="18" fill="#57569f"/></svg>',
+      image:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#111621"/><path d="M0 0L80 80M80 0L0 80M40 0V80M0 40H80" stroke="#ffbf3d" stroke-width="5"/><circle cx="40" cy="40" r="18" fill="#57569f"/></svg>',
     },
   ];
 
@@ -879,9 +921,9 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
 
     await page.goto(`/dashboard?background=${background.name}`);
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect.poll(() => page.evaluate(() =>
-      document.documentElement.style.getPropertyValue('--app-background-image'),
-    )).toContain('data:image/svg+xml');
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--app-background-image')))
+      .toContain('data:image/svg+xml');
 
     const header = page.locator('.page-shell > .page-header');
     const main = page.locator('#main-content');
@@ -895,10 +937,7 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
     expect(headerBounds.x).toBeGreaterThan(mainBounds.x);
     expect(headerBounds.width).toBeLessThan(mainBounds.width);
 
-    const contrast = await new AxeBuilder({ page })
-      .include('.page-header')
-      .withRules(['color-contrast'])
-      .analyze();
+    const contrast = await new AxeBuilder({ page }).include('.page-header').withRules(['color-contrast']).analyze();
     expect(contrast.violations).toEqual([]);
   }
 });
@@ -968,16 +1007,22 @@ test('shows an accessible destructive confirmation before deleting a custom role
   ]);
   expect(expandedFilterBounds?.x).toBe(filterBounds.x);
   expect(expandedSearchBounds?.x).toBe(toolbarBounds.x);
-  expect(expandedSearchBounds && expandedFilterBounds
-    ? Math.abs(expandedSearchBounds.x + expandedSearchBounds.width - expandedFilterBounds.x)
-    : Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  expect(
+    expandedSearchBounds && expandedFilterBounds
+      ? Math.abs(expandedSearchBounds.x + expandedSearchBounds.width - expandedFilterBounds.x)
+      : Number.POSITIVE_INFINITY,
+  ).toBeLessThanOrEqual(1);
   await expect(page.locator('.roles-matrix thead')).toHaveCount(0);
-  await page.locator('.roles-matrix-scroll').evaluate((element) => { element.scrollTop = 300; });
+  await page.locator('.roles-matrix-scroll').evaluate((element) => {
+    element.scrollTop = 300;
+  });
   const scrolledToolbarBounds = await page.locator('.roles-toolbar').boundingBox();
   expect(scrolledToolbarBounds?.y).toBe(toolbarBounds.y);
   const createIconBounds = await page.getByRole('button', { name: 'Create role' }).locator('svg').boundingBox();
   if (!createIconBounds) throw new Error('Could not measure create-role icon.');
-  expect(Math.abs((createIconBounds.y + createIconBounds.height / 2) - (createBounds.y + createBounds.height / 2))).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(createIconBounds.y + createIconBounds.height / 2 - (createBounds.y + createBounds.height / 2)),
+  ).toBeLessThanOrEqual(1);
   for (const buttonName of ['Create role', 'Discard changes', 'Review and save']) {
     await expect(page.getByRole('button', { name: buttonName })).toHaveCSS('align-items', 'center');
     await expect(page.getByRole('button', { name: buttonName })).toHaveCSS('padding-top', '0px');
@@ -993,7 +1038,9 @@ test('shows an accessible destructive confirmation before deleting a custom role
     roleActionsTooltip.boundingBox(),
   ]);
   if (!roleListBounds || !roleActionsTooltipBounds) throw new Error('Could not measure the role action tooltip.');
-  expect(roleActionsTooltipBounds.x + roleActionsTooltipBounds.width).toBeLessThanOrEqual(roleListBounds.x + roleListBounds.width);
+  expect(roleActionsTooltipBounds.x + roleActionsTooltipBounds.width).toBeLessThanOrEqual(
+    roleListBounds.x + roleListBounds.width,
+  );
   await roleActions.click();
   await page.getByRole('menuitem', { name: 'Delete role' }).click();
 
@@ -1055,7 +1102,8 @@ test('keeps selected read-only access states legible', async ({ page }) => {
 
   await page.getByRole('button', { name: 'View details for View all people' }).click();
   await expect(page.getByRole('heading', { name: 'View all people' })).toBeVisible();
-  await expect.poll(() => activeState.evaluate((element) => getComputedStyle(element).color))
+  await expect
+    .poll(() => activeState.evaluate((element) => getComputedStyle(element).color))
     .toBe('rgb(255, 255, 255)');
   const contrast = await new AxeBuilder({ page })
     .include('.roles-access-control')
@@ -1078,9 +1126,7 @@ test('redirects to sign in when an authenticated request reports session expiry'
   const passwordModal = page.getByRole('dialog', { name: 'Change password' });
   await expect(passwordModal).toBeVisible();
   await passwordModal.getByLabel('Current password').fill('old password value');
-  await passwordModal
-    .getByLabel('New password', { exact: true })
-    .fill('correct horse battery staple');
+  await passwordModal.getByLabel('New password', { exact: true }).fill('correct horse battery staple');
   await passwordModal.getByLabel('Confirm new password').fill('correct horse battery staple');
   await passwordModal.getByRole('button', { name: 'Change password' }).click();
 

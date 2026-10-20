@@ -2,20 +2,10 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type {
-  Account,
-  CreateAccountRequest,
-  SetAccountPinRequest,
-} from '../../api/generated/models';
+import type { Account, CreateAccountRequest, SetAccountPinRequest } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
-import {
-  accountFixture,
-  currentUserFixture,
-  otherPersonId,
-  personFixture,
-  roleFixture,
-} from '../../test/fixtures';
+import { accountFixture, currentUserFixture, otherPersonId, personFixture, roleFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -25,11 +15,11 @@ describe('User detail page', () => {
     let person = personFixture({ roles: [{ id: role.id, name: role.name, systemKey: null }] });
     let removalBody: unknown;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.peoplerolesassign,
-        PermissionId.rolesread,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.peoplerolesassign, PermissionId.rolesread]),
+        ),
+      ),
       http.get('*/api/v1/roles', () => HttpResponse.json({ items: [role], nextCursor: null })),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
       http.delete('*/api/v1/people/:personId/roles/:roleId', async ({ request }) => {
@@ -55,16 +45,9 @@ describe('User detail page', () => {
   it('starts person editing from the page header action', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(
-          currentUserFixture([
-            PermissionId.peoplereadall,
-            PermissionId.peopleupdateall,
-          ]),
-        ),
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.peopleupdateall])),
       ),
-      http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(personFixture()),
-      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture())),
     );
     const user = userEvent.setup();
 
@@ -99,18 +82,15 @@ describe('User detail page', () => {
           ]),
         ),
       ),
-      http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(person),
-      ),
-      http.post(
-        `*/api/v1/people/${otherPersonId}/account`,
-        async ({ request }) => {
-          accountRequest = (await request.json()) as CreateAccountRequest;
-          account = accountFixture({
-            loginEmail: accountRequest.loginEmail,
-            status: 'enabled',
-            passwordStatus: 'not_set',
-            authIdentities: [{
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
+      http.post(`*/api/v1/people/${otherPersonId}/account`, async ({ request }) => {
+        accountRequest = (await request.json()) as CreateAccountRequest;
+        account = accountFixture({
+          loginEmail: accountRequest.loginEmail,
+          status: 'enabled',
+          passwordStatus: 'not_set',
+          authIdentities: [
+            {
               id: '0192f6f8-743e-7c77-a349-cd07c3e8a909',
               kind: 'password',
               displayIdentifier: String(accountRequest.loginEmail),
@@ -118,31 +98,31 @@ describe('User detail page', () => {
               disabledAt: null,
               usable: false,
               createdAt: '2026-01-01T00:00:00Z',
-            }],
-          });
-          person = { ...person, account };
-          return HttpResponse.json(account, { status: 201 });
-        },
-      ),
+            },
+          ],
+        });
+        person = { ...person, account };
+        return HttpResponse.json(account, { status: 201 });
+      }),
       http.get('*/api/v1/accounts/:accountId', () =>
         account
           ? HttpResponse.json(account)
           : HttpResponse.json({ code: 'not_found', message: 'Missing' }, { status: 404 }),
       ),
-      http.post(
-        '*/api/v1/accounts/:accountId/invitations',
-        async () => {
-          invitationRequested = true;
-          account = { ...account!, provisioningSource: 'invitation', version: 2 };
-          person = { ...person, account };
-          return HttpResponse.json({
+      http.post('*/api/v1/accounts/:accountId/invitations', async () => {
+        invitationRequested = true;
+        account = { ...account!, provisioningSource: 'invitation', version: 2 };
+        person = { ...person, account };
+        return HttpResponse.json(
+          {
             account,
             expiresAt: '2026-01-01T00:30:00Z',
             deliveryStatus: 'manual',
             setupUrl: '/complete-invitation#account=example&code=secret',
-          }, { status: 201 });
-        },
-      ),
+          },
+          { status: 201 },
+        );
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/people/${otherPersonId}`);
@@ -153,9 +133,7 @@ describe('User detail page', () => {
     const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
     await user.clear(loginEmail);
     await user.type(loginEmail, '  member@example.test  ');
-    await user.click(
-      within(createDialog).getByRole('button', { name: 'Create account' }),
-    );
+    await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
 
     await waitFor(() =>
       expect(accountRequest).toEqual({
@@ -163,11 +141,14 @@ describe('User detail page', () => {
         expectedVersion: 1,
       }),
     );
-    const accountSection = (await screen.findByRole('heading', { name: 'Account access' }))
-      .closest('.person-detail-card');
+    const accountSection = (await screen.findByRole('heading', { name: 'Account access' })).closest(
+      '.person-detail-card',
+    );
     expect(accountSection).toBeInstanceOf(HTMLElement);
     expect(within(accountSection as HTMLElement).queryByText('member@example.test')).not.toBeInTheDocument();
-    const authenticationSection = screen.getByRole('heading', { name: 'Authentication methods' }).closest('.person-detail-card');
+    const authenticationSection = screen
+      .getByRole('heading', { name: 'Authentication methods' })
+      .closest('.person-detail-card');
     expect(within(authenticationSection as HTMLElement).getByText('member@example.test')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Actions' }));
@@ -193,30 +174,21 @@ describe('User detail page', () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
-          currentUserFixture([
-            PermissionId.peoplereadall,
-            PermissionId.accountsread,
-            PermissionId.accountscreate,
-          ]),
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountscreate]),
         ),
       ),
-      http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(person),
-      ),
-      http.post(
-        `*/api/v1/people/${otherPersonId}/account`,
-        async ({ request }) => {
-          accountRequest = (await request.json()) as CreateAccountRequest;
-          const account = accountFixture({
-            loginEmail: null,
-            status: 'enabled',
-            passwordStatus: 'not_set',
-            authIdentities: [],
-          });
-          person = { ...person, account };
-          return HttpResponse.json(account, { status: 201 });
-        },
-      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
+      http.post(`*/api/v1/people/${otherPersonId}/account`, async ({ request }) => {
+        accountRequest = (await request.json()) as CreateAccountRequest;
+        const account = accountFixture({
+          loginEmail: null,
+          status: 'enabled',
+          passwordStatus: 'not_set',
+          authIdentities: [],
+        });
+        person = { ...person, account };
+        return HttpResponse.json(account, { status: 201 });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/people/${otherPersonId}`);
@@ -224,16 +196,22 @@ describe('User detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
-    expect(within(createDialog).getByText('Create an active application account for this person. Authentication methods can be configured afterwards; without one, the person cannot sign in.')).toBeInTheDocument();
+    expect(
+      within(createDialog).getByText(
+        'Create an active application account for this person. Authentication methods can be configured afterwards; without one, the person cannot sign in.',
+      ),
+    ).toBeInTheDocument();
     const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
     expect(loginEmail).toHaveValue('');
     if (input) await user.type(loginEmail, input);
     await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
 
-    await waitFor(() => expect(accountRequest).toEqual({
-      loginEmail: null,
-      expectedVersion: 1,
-    }));
+    await waitFor(() =>
+      expect(accountRequest).toEqual({
+        loginEmail: null,
+        expectedVersion: 1,
+      }),
+    );
   });
 
   it('activates an identity-free Account and shows missing login methods separately', async () => {
@@ -244,11 +222,11 @@ describe('User detail page', () => {
       authIdentities: [],
     });
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.accountsread,
-        PermissionId.accountsenable,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsenable]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
       http.post('*/api/v1/accounts/:accountId/enable', () => {
         account = { ...account, status: 'enabled', version: account.version + 1 };
@@ -274,22 +252,24 @@ describe('User detail page', () => {
       loginEmail: null,
       status: 'disabled',
       passwordStatus: 'not_set',
-      authIdentities: [{
-        id: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
-        kind: 'pin',
-        displayIdentifier: 'phone.only',
-        verifiedAt: '2026-01-01T00:00:00Z',
-        disabledAt: null,
-        usable: true,
-        createdAt: '2026-01-01T00:00:00Z',
-      }],
+      authIdentities: [
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
+          kind: 'pin',
+          displayIdentifier: 'phone.only',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          usable: true,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
     });
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.accountsread,
-        PermissionId.accountsenable,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsenable]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
     );
     renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
@@ -305,11 +285,15 @@ describe('User detail page', () => {
     let removedIdentityId: string | undefined;
     let removalBody: unknown;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.accountsread,
-        PermissionId.accountspasswordremoveall,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountspasswordremoveall,
+          ]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
       http.delete('*/api/v1/accounts/:accountId/auth-identities/:identityId', async ({ params, request }) => {
         removedIdentityId = String(params.identityId);
@@ -352,11 +336,15 @@ describe('User detail page', () => {
     let pinRequest: SetAccountPinRequest | undefined;
     let setupLinkRequested = false;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.accountsread,
-        PermissionId.accountspinenrollall,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountspinenrollall,
+          ]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
       http.put('*/api/v1/accounts/:accountId/pin', async ({ request }) => {
         pinRequest = (await request.json()) as SetAccountPinRequest;
@@ -364,12 +352,15 @@ describe('User detail page', () => {
       }),
       http.post('*/api/v1/accounts/:accountId/pin-enrollment', () => {
         setupLinkRequested = true;
-        return HttpResponse.json({
-          account: { ...account, version: 2 },
-          expiresAt: '2026-01-01T00:30:00Z',
-          deliveryStatus: 'manual',
-          setupUrl: '/complete-pin-setup#account=example&code=secret',
-        }, { status: 201 });
+        return HttpResponse.json(
+          {
+            account: { ...account, version: 2 },
+            expiresAt: '2026-01-01T00:30:00Z',
+            deliveryStatus: 'manual',
+            setupUrl: '/complete-pin-setup#account=example&code=secret',
+          },
+          { status: 201 },
+        );
       }),
     );
     const user = userEvent.setup();
@@ -458,30 +449,35 @@ describe('User detail page', () => {
         }),
       ),
       http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(personFixture({
-          account,
-          roles: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a903', name: 'Workshop supervisors', systemKey: null }],
-        })),
+        HttpResponse.json(
+          personFixture({
+            account,
+            roles: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a903', name: 'Workshop supervisors', systemKey: null }],
+          }),
+        ),
       ),
       http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () =>
         HttpResponse.json({
-          upcomingOpenDayAssignments: [{
-            assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
-            openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
-            periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
-            periodName: 'Autumn Open Days',
-            startsAt: '2026-10-10T08:00:00Z',
-            endsAt: '2026-10-10T12:00:00Z',
-            role: 'supervisor',
-          }, {
-            assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a938',
-            openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a939',
-            periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a940',
-            periodName: 'Winter Open Days',
-            startsAt: '2026-12-05T09:00:00Z',
-            endsAt: '2026-12-05T13:00:00Z',
-            role: 'participant',
-          }],
+          upcomingOpenDayAssignments: [
+            {
+              assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
+              openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
+              periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+              periodName: 'Autumn Open Days',
+              startsAt: '2026-10-10T08:00:00Z',
+              endsAt: '2026-10-10T12:00:00Z',
+              role: 'supervisor',
+            },
+            {
+              assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a938',
+              openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a939',
+              periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a940',
+              periodName: 'Winter Open Days',
+              startsAt: '2026-12-05T09:00:00Z',
+              endsAt: '2026-12-05T13:00:00Z',
+              role: 'participant',
+            },
+          ],
           laborordnungStatus: {
             mode: 'warning',
             state: 'outdated',
@@ -521,8 +517,12 @@ describe('User detail page', () => {
     expect(screen.getByRole('heading', { name: 'Personal information' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Profile picture' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Roles' })).toBeInTheDocument();
-    expect(within(accountHeading.closest('.person-detail-card') as HTMLElement).queryByText('grace.login@example.test')).not.toBeInTheDocument();
-    expect(within(authenticationHeading.closest('.person-detail-card') as HTMLElement).getByText('grace.login@example.test')).toBeInTheDocument();
+    expect(
+      within(accountHeading.closest('.person-detail-card') as HTMLElement).queryByText('grace.login@example.test'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(authenticationHeading.closest('.person-detail-card') as HTMLElement).getByText('grace.login@example.test'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Username: grace')).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper · TU Graz')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Makerspace status' })).toBeInTheDocument();
@@ -541,25 +541,28 @@ describe('User detail page', () => {
   it('uses URL-backed focused tabs and preserves unrelated query parameters', async () => {
     const account = accountFixture();
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.peopleupdateall,
-        PermissionId.peopleprofile_imageupdateall,
-        PermissionId.accountsread,
-        PermissionId.rolesread,
-        PermissionId.open_daysread_assignments,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.peopleupdateall,
+            PermissionId.peopleprofile_imageupdateall,
+            PermissionId.accountsread,
+            PermissionId.rolesread,
+            PermissionId.open_daysread_assignments,
+          ]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
       http.get('*/api/v1/roles', () => HttpResponse.json({ items: [], nextCursor: null })),
-      http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () => HttpResponse.json({
-        upcomingOpenDayAssignments: [],
-      })),
+      http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () =>
+        HttpResponse.json({
+          upcomingOpenDayAssignments: [],
+        }),
+      ),
     );
     const user = userEvent.setup();
-    const { router } = renderRoute(
-      <App />,
-      `/people/${otherPersonId}?tab=account-access&from=directory`,
-    );
+    const { router } = renderRoute(<App />, `/people/${otherPersonId}?tab=account-access&from=directory`);
 
     expect(await screen.findByRole('tab', { name: 'Account access' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Authentication methods' })).toBeInTheDocument();
@@ -580,15 +583,10 @@ describe('User detail page', () => {
 
   it('keeps Person roles visible while hiding Account-only tabs and normalizes an unauthorized deep link', async () => {
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-      ]))),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account: undefined }))),
     );
-    const { router } = renderRoute(
-      <App />,
-      `/people/${otherPersonId}?tab=account-access&keep=1`,
-    );
+    const { router } = renderRoute(<App />, `/people/${otherPersonId}?tab=account-access&keep=1`);
 
     expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Personal information' })).toBeInTheDocument();
@@ -625,15 +623,19 @@ describe('User detail page', () => {
       ],
     });
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.peoplereadall,
-        PermissionId.accountsread,
-        PermissionId.accountspasswordreset,
-        PermissionId.accountspasswordremoveall,
-        PermissionId.accountspinreset,
-        PermissionId.accountspinremoveall,
-        PermissionId.identitiesoidcunlinkall,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountspasswordreset,
+            PermissionId.accountspasswordremoveall,
+            PermissionId.accountspinreset,
+            PermissionId.accountspinremoveall,
+            PermissionId.identitiesoidcunlinkall,
+          ]),
+        ),
+      ),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
     );
     const user = userEvent.setup();

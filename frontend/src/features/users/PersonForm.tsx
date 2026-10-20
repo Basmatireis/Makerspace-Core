@@ -1,10 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- form component and DTO mappers intentionally share one contract */
 import { Column, Grid, TextInput } from '@carbon/react';
 import type { FieldNamesMarkedBoolean, UseFormReturn } from 'react-hook-form';
-import type {
-  CreatePersonRequest,
-  UpdatePersonRequest,
-} from '../../api/generated/models';
+import type { CreatePersonRequest, UpdatePersonRequest } from '../../api/generated/models';
 
 export type PersonFormValues = {
   firstName: string;
@@ -20,12 +17,11 @@ type PersonFieldsProps = {
   editMatriculation: boolean;
 };
 
-export function PersonFields({
-  form,
-  showMatriculation,
-  editMatriculation,
-}: PersonFieldsProps) {
-  const { register, formState: { errors } } = form;
+export function PersonFields({ form, showMatriculation, editMatriculation }: PersonFieldsProps) {
+  const {
+    register,
+    formState: { errors },
+  } = form;
   const contactValidation = () =>
     Boolean(form.getValues('email').trim() || form.getValues('phone').trim()) ||
     'Provide an email address or phone number.';
@@ -88,11 +84,7 @@ export function PersonFields({
             id="person-matriculation-number"
             labelText="Matriculation number"
             disabled={!editMatriculation}
-            helperText={
-              editMatriculation
-                ? undefined
-                : 'You do not have permission to change this value.'
-            }
+            helperText={editMatriculation ? undefined : 'You do not have permission to change this value.'}
             invalid={Boolean(errors.matriculationNumber)}
             invalidText={errors.matriculationNumber?.message}
             {...register('matriculationNumber', {
@@ -110,18 +102,13 @@ function optional(value: string): string | null {
   return trimmed || null;
 }
 
-export function toPersonCreate(
-  values: PersonFormValues,
-  canWriteMatriculation: boolean,
-): CreatePersonRequest {
+export function toPersonCreate(values: PersonFormValues, canWriteMatriculation: boolean): CreatePersonRequest {
   return {
     firstName: values.firstName.trim(),
     lastName: values.lastName.trim(),
     email: optional(values.email),
     phone: optional(values.phone),
-    ...(canWriteMatriculation
-      ? { matriculationNumber: optional(values.matriculationNumber) }
-      : {}),
+    ...(canWriteMatriculation ? { matriculationNumber: optional(values.matriculationNumber) } : {}),
   };
 }
 

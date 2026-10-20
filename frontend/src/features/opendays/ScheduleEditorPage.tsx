@@ -1,13 +1,72 @@
 import './styles.scss';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Add, Calendar as CalendarIcon, CheckmarkFilled, Edit, Filter, InformationFilled, List, Misuse, Save, TrashCan, Undo, UserAvatarFilledAlt, View, WarningFilled } from '@carbon/icons-react';
-import { Button, Checkbox, DataTable, Dropdown, InlineNotification, Modal, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, Stack, Table, TableBatchAction, TableBatchActions, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableSelectAll, TableSelectRow, TableToolbar, TableToolbarContent, Tag, TextInput, TimePicker } from '@carbon/react';
+import {
+  Add,
+  Calendar as CalendarIcon,
+  CheckmarkFilled,
+  Edit,
+  Filter,
+  InformationFilled,
+  List,
+  Misuse,
+  Save,
+  TrashCan,
+  Undo,
+  UserAvatarFilledAlt,
+  View,
+  WarningFilled,
+} from '@carbon/icons-react';
+import {
+  Button,
+  Checkbox,
+  DataTable,
+  Dropdown,
+  InlineNotification,
+  Modal,
+  NumberInput,
+  RadioButton,
+  RadioButtonGroup,
+  Select,
+  SelectItem,
+  Stack,
+  Table,
+  TableBatchAction,
+  TableBatchActions,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSelectAll,
+  TableSelectRow,
+  TableToolbar,
+  TableToolbarContent,
+  Tag,
+  TextInput,
+  TimePicker,
+} from '@carbon/react';
 import { DragDropProvider, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { archiveOpenDayPeriod, openOpenDayPeriodForStaffing, previewOpenDayRecurrence, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing, saveOpenDaySchedule } from '../../api/generated/open-days/open-days';
-import type { CalendarEntry, EligibilityRole, OpenDay, OpenDayPeriodStatus, RecurrenceOccurrence, StaffingRequirementInput } from '../../api/generated/models';
+import {
+  archiveOpenDayPeriod,
+  openOpenDayPeriodForStaffing,
+  previewOpenDayRecurrence,
+  publishOpenDayPeriod,
+  returnOpenDayPeriodToDraft,
+  returnOpenDayPeriodToStaffing,
+  saveOpenDaySchedule,
+} from '../../api/generated/open-days/open-days';
+import type {
+  CalendarEntry,
+  EligibilityRole,
+  OpenDay,
+  OpenDayPeriodStatus,
+  RecurrenceOccurrence,
+  StaffingRequirementInput,
+} from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -17,14 +76,23 @@ import { DateInput } from '../../app/DateInput';
 import { formatDate } from '../../app/dateTime';
 import { CalendarEvent } from './CalendarEvent';
 import { CalendarLegend } from './CalendarLegend';
-import { calendarContextQueryOptions, eligibilityRolesQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
+import {
+  calendarContextQueryOptions,
+  eligibilityRolesQueryOptions,
+  openDayKeys,
+  scheduleQueryOptions,
+} from './queries';
 import { RoleMultiSelect } from './RoleMultiSelect';
 import { standardOpenDayScheduleDefaults, type OpenDayScheduleDefaults } from './scheduleDefaults';
 import { scheduleEditorReducer, type WorkingSlot } from './scheduleState';
 import { dateInTimeZone, nextCalendarDate, timeInTimeZone, validateLocalInstant, zonedDateTimeToISO } from './dateTime';
 import { longDate, periodRange, registeredPeopleCount, statusTagType, timeRange } from './format';
 import { OpenDayDateTimeFilters } from './OpenDayDateTimeFilters';
-import { allOpenDayDateTimeFilters, filterOpenDaysByDateTime, type OpenDayDateTimeFilter } from './openDayDateTimeFilter';
+import {
+  allOpenDayDateTimeFilters,
+  filterOpenDaysByDateTime,
+  type OpenDayDateTimeFilter,
+} from './openDayDateTimeFilter';
 import { filterOpenDays, openDayFilterOptions, type OpenDayFilter } from './openDayFilters';
 import { OpenDayRegistrationModal } from './OpenDayDetailPage';
 import { SemesterCalendar } from './SemesterCalendar';
@@ -33,7 +101,19 @@ import { OpenDayAgenda, type AgendaItem } from './OpenDayAgenda';
 import { useOpenDaysLayout } from './useOpenDaysLayout';
 
 function toWorking(day: OpenDay): WorkingSlot {
-  return { id: day.id, serverId: day.id, original: day, startsAt: day.startsAt, endsAt: day.endsAt, internalNote: day.internalNote, requirements: day.requirements.map((item) => ({ kind: item.kind, requiredCount: item.requiredCount, eligibleRoleIds: item.eligibleRoleIds ?? [] })) };
+  return {
+    id: day.id,
+    serverId: day.id,
+    original: day,
+    startsAt: day.startsAt,
+    endsAt: day.endsAt,
+    internalNote: day.internalNote,
+    requirements: day.requirements.map((item) => ({
+      kind: item.kind,
+      requiredCount: item.requiredCount,
+      eligibleRoleIds: item.eligibleRoleIds ?? [],
+    })),
+  };
 }
 
 function toPreviewOpenDay(slot: WorkingSlot, periodId: string): OpenDay {
@@ -41,9 +121,22 @@ function toPreviewOpenDay(slot: WorkingSlot, periodId: string): OpenDay {
     const original = slot.original?.requirements.find((item) => item.kind === requirement.kind);
     return original
       ? { ...original, requiredCount: requirement.requiredCount, eligibleRoleIds: requirement.eligibleRoleIds }
-      : { id: `${slot.id}-${requirement.kind}`, kind: requirement.kind, requiredCount: requirement.requiredCount, assignedCount: 0, eligibleRoleIds: requirement.eligibleRoleIds };
+      : {
+          id: `${slot.id}-${requirement.kind}`,
+          kind: requirement.kind,
+          requiredCount: requirement.requiredCount,
+          assignedCount: 0,
+          eligibleRoleIds: requirement.eligibleRoleIds,
+        };
   });
-  if (slot.original) return { ...slot.original, startsAt: slot.startsAt, endsAt: slot.endsAt, internalNote: slot.internalNote, requirements };
+  if (slot.original)
+    return {
+      ...slot.original,
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      internalNote: slot.internalNote,
+      requirements,
+    };
   return {
     id: slot.id,
     periodId,
@@ -69,7 +162,9 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
   const [defaults, setDefaults] = useState(standardOpenDayScheduleDefaults);
   const defaultsSeeded = useRef(false);
   const [createOpen, setCreateOpen] = useState(params.get('recurrence') === '1');
-  const [createMode, setCreateMode] = useState<'single' | 'series'>(params.get('recurrence') === '1' ? 'series' : 'single');
+  const [createMode, setCreateMode] = useState<'single' | 'series'>(
+    params.get('recurrence') === '1' ? 'series' : 'single',
+  );
   const [createTouched, setCreateTouched] = useState(false);
   const [localDiscard, setLocalDiscard] = useState<'create' | 'edit' | 'bulk' | null>(null);
   const [seriesStep, setSeriesStep] = useState<'inputs' | 'review'>('inputs');
@@ -85,7 +180,8 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
   const [pendingTransition, setPendingTransition] = useState<LifecycleAction | null>(null);
   const { isPhone, hasCoarsePointer } = useOpenDaysLayout();
   const explicitView = params.get('view');
-  const view: 'list' | 'calendar' = explicitView === 'list' || explicitView === 'calendar' ? explicitView : isPhone ? 'list' : 'calendar';
+  const view: 'list' | 'calendar' =
+    explicitView === 'list' || explicitView === 'calendar' ? explicitView : isPhone ? 'list' : 'calendar';
   const setView = (nextView: 'list' | 'calendar') => {
     const next = new URLSearchParams(params);
     next.set('view', nextView);
@@ -95,7 +191,14 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
   const [previewFilter, setPreviewFilter] = useState<OpenDayFilter>('all');
   const [selectedOpenDayId, setSelectedOpenDayId] = useState<string | null>(null);
   const [tableRevision, setTableRevision] = useState(0);
-  const [recurrence, setRecurrence] = useState({ weekday: 3, startsOn: '', endsOn: '', everyWeeks: 1, skipPublicHolidays: true, skipAcademicBreaks: true });
+  const [recurrence, setRecurrence] = useState({
+    weekday: 3,
+    startsOn: '',
+    endsOn: '',
+    everyWeeks: 1,
+    skipPublicHolidays: true,
+    skipAcademicBreaks: true,
+  });
   const [preview, setPreview] = useState<RecurrenceOccurrence[]>([]);
   const [selectedOccurrences, setSelectedOccurrences] = useState<Set<string>>(new Set());
   const localSlotSequence = useRef(0);
@@ -107,8 +210,22 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
       workingBaseline.current = scheduleQuery.data;
       dispatch({ type: 'reset', slots: scheduleQuery.data.items.map(toWorking) });
       const editId = params.get('edit');
-      if (editId && editId !== consumedEditId.current) { consumedEditId.current = editId; setEditing((current) => current ?? (scheduleQuery.data.items.find((item) => item.id === editId) ? toWorking(scheduleQuery.data.items.find((item) => item.id === editId)!) : null)); }
-      if (!createTouched) setRecurrence((value) => ({ ...value, startsOn: scheduleQuery.data!.period.startsOn, endsOn: scheduleQuery.data!.period.endsOn }));
+      if (editId && editId !== consumedEditId.current) {
+        consumedEditId.current = editId;
+        setEditing(
+          (current) =>
+            current ??
+            (scheduleQuery.data.items.find((item) => item.id === editId)
+              ? toWorking(scheduleQuery.data.items.find((item) => item.id === editId)!)
+              : null),
+        );
+      }
+      if (!createTouched)
+        setRecurrence((value) => ({
+          ...value,
+          startsOn: scheduleQuery.data!.period.startsOn,
+          endsOn: scheduleQuery.data!.period.endsOn,
+        }));
     }
   }, [scheduleQuery.data, params, state.dirty, createTouched, editing, bulkEditing]);
 
@@ -118,23 +235,48 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
     const firstRoleId = rolesQuery.data.items[0]?.id;
     if (firstRoleId) {
       setDefaults((value) => ({ ...value, supervisorRoleIds: [firstRoleId], traineeRoleIds: [firstRoleId] }));
-      if (createOpen) setCreateDraft((value) => ({ ...value, supervisorRoleIds: [firstRoleId], traineeRoleIds: [firstRoleId] }));
+      if (createOpen)
+        setCreateDraft((value) => ({ ...value, supervisorRoleIds: [firstRoleId], traineeRoleIds: [firstRoleId] }));
     }
   }, [createOpen, rolesQuery.data]);
 
-  const editingDirty = Boolean(editing && JSON.stringify(editing) !== JSON.stringify(state.slots.find((slot) => slot.id === editing.id)));
-  const formsDirty = (createOpen && createTouched) || editingDirty || Boolean(bulkEditing && hasBulkEditChanges(bulkEditing));
+  const editingDirty = Boolean(
+    editing && JSON.stringify(editing) !== JSON.stringify(state.slots.find((slot) => slot.id === editing.id)),
+  );
+  const formsDirty =
+    (createOpen && createTouched) || editingDirty || Boolean(bulkEditing && hasBulkEditChanges(bulkEditing));
   const unsavedChanges = useUnsavedChanges({
     isDirty: state.dirty || formsDirty,
     shouldBlockNavigation: (current, next) => current.pathname !== next.pathname || formsDirty,
     onDiscard: () => {
-      setCreateOpen(false); setEditing(null); setBulkEditing(null); setLocalDiscard(null);
-      if (scheduleQuery.data) { workingBaseline.current = scheduleQuery.data; dispatch({ type: 'reset', slots: scheduleQuery.data.items.map(toWorking) }); }
+      setCreateOpen(false);
+      setEditing(null);
+      setBulkEditing(null);
+      setLocalDiscard(null);
+      if (scheduleQuery.data) {
+        workingBaseline.current = scheduleQuery.data;
+        dispatch({ type: 'reset', slots: scheduleQuery.data.items.map(toWorking) });
+      }
     },
   });
-  const closeCreate = () => { setCreateOpen(false); setPreview([]); setTimeError(null); setCreateTouched(false); setLocalDiscard(null); previewMutation.reset(); };
-  const closeEditing = () => { setEditing(null); setTimeError(null); setLocalDiscard(null); };
-  const closeBulk = () => { setBulkEditing(null); setBulkEditError(null); setLocalDiscard(null); };
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setPreview([]);
+    setTimeError(null);
+    setCreateTouched(false);
+    setLocalDiscard(null);
+    previewMutation.reset();
+  };
+  const closeEditing = () => {
+    setEditing(null);
+    setTimeError(null);
+    setLocalDiscard(null);
+  };
+  const closeBulk = () => {
+    setBulkEditing(null);
+    setBulkEditError(null);
+    setLocalDiscard(null);
+  };
   const period = scheduleQuery.data?.period;
   const editingAllowed = canManage && period?.status !== 'archived';
   const editMode = params.get('mode') === 'edit' && editingAllowed;
@@ -163,26 +305,52 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
     setParams(next, { replace: true });
   }, [editingAllowed, params, scheduleQuery.data, setParams]);
   const makeRequirements = (configuration: OpenDayScheduleDefaults = defaults): StaffingRequirementInput[] => [
-    { kind: 'supervisor', requiredCount: configuration.supervisors, eligibleRoleIds: configuration.supervisors > 0 ? configuration.supervisorRoleIds : [] },
-    { kind: 'trainee', requiredCount: configuration.trainees, eligibleRoleIds: configuration.trainees > 0 ? configuration.traineeRoleIds : [] },
+    {
+      kind: 'supervisor',
+      requiredCount: configuration.supervisors,
+      eligibleRoleIds: configuration.supervisors > 0 ? configuration.supervisorRoleIds : [],
+    },
+    {
+      kind: 'trainee',
+      requiredCount: configuration.trainees,
+      eligibleRoleIds: configuration.trainees > 0 ? configuration.traineeRoleIds : [],
+    },
   ];
-  const makeLocalSlot = (startsAt: string, endsAt: string, configuration: OpenDayScheduleDefaults = defaults): WorkingSlot => {
+  const makeLocalSlot = (
+    startsAt: string,
+    endsAt: string,
+    configuration: OpenDayScheduleDefaults = defaults,
+  ): WorkingSlot => {
     localSlotSequence.current += 1;
-    return { id: `local-${localSlotSequence.current}`, startsAt, endsAt, requirements: makeRequirements(configuration) };
+    return {
+      id: `local-${localSlotSequence.current}`,
+      startsAt,
+      endsAt,
+      requirements: makeRequirements(configuration),
+    };
   };
   const beginBulkEdit = (slots: WorkingSlot[]) => {
     const first = slots[0];
     if (!first) return;
-    const requirements = (slot: WorkingSlot, kind: 'supervisor' | 'trainee') => slot.requirements.find((item) => item.kind === kind);
+    const requirements = (slot: WorkingSlot, kind: 'supervisor' | 'trainee') =>
+      slot.requirements.find((item) => item.kind === kind);
     setBulkEditError(null);
     setBulkEditing({
       slots,
       startTime: bulkEditField(slots.map((slot) => timeInTimeZone(slot.startsAt, scheduleQuery.data!.timeZone))),
       endTime: bulkEditField(slots.map((slot) => timeInTimeZone(slot.endsAt, scheduleQuery.data!.timeZone))),
-      supervisors: bulkEditField<number | ''>(slots.map((slot) => requirements(slot, 'supervisor')?.requiredCount ?? 0)),
+      supervisors: bulkEditField<number | ''>(
+        slots.map((slot) => requirements(slot, 'supervisor')?.requiredCount ?? 0),
+      ),
       trainees: bulkEditField<number | ''>(slots.map((slot) => requirements(slot, 'trainee')?.requiredCount ?? 0)),
-      supervisorRoleIds: bulkEditField(slots.map((slot) => requirements(slot, 'supervisor')?.eligibleRoleIds ?? []), sameStringSet),
-      traineeRoleIds: bulkEditField(slots.map((slot) => requirements(slot, 'trainee')?.eligibleRoleIds ?? []), sameStringSet),
+      supervisorRoleIds: bulkEditField(
+        slots.map((slot) => requirements(slot, 'supervisor')?.eligibleRoleIds ?? []),
+        sameStringSet,
+      ),
+      traineeRoleIds: bulkEditField(
+        slots.map((slot) => requirements(slot, 'trainee')?.eligibleRoleIds ?? []),
+        sameStringSet,
+      ),
       internalNote: bulkEditField(slots.map((slot) => slot.internalNote ?? '')),
     });
   };
@@ -192,29 +360,49 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
       const timeZone = scheduleQuery.data!.timeZone;
       if (bulkEditing.startTime.changed && !bulkEditing.startTime.value) throw new Error('Enter a start time.');
       if (bulkEditing.endTime.changed && !bulkEditing.endTime.value) throw new Error('Enter an end time.');
-      if (bulkEditing.supervisors.changed && bulkEditing.supervisors.value === '') throw new Error('Enter the number of supervisors required.');
-      if (bulkEditing.trainees.changed && bulkEditing.trainees.value === '') throw new Error('Enter the number of trainees required.');
+      if (bulkEditing.supervisors.changed && bulkEditing.supervisors.value === '')
+        throw new Error('Enter the number of supervisors required.');
+      if (bulkEditing.trainees.changed && bulkEditing.trainees.value === '')
+        throw new Error('Enter the number of trainees required.');
       const slots = bulkEditing.slots.map((slot) => {
         const date = dateInTimeZone(slot.startsAt, timeZone);
-        const startsAt = bulkEditing.startTime.changed ? zonedDateTimeToISO(date, bulkEditing.startTime.value, timeZone) : slot.startsAt;
+        const startsAt = bulkEditing.startTime.changed
+          ? zonedDateTimeToISO(date, bulkEditing.startTime.value, timeZone)
+          : slot.startsAt;
         const startTime = timeInTimeZone(startsAt, timeZone);
         const endDate = bulkEditing.endTime.value <= startTime ? nextCalendarDate(date) : date;
-        const endsAt = bulkEditing.endTime.changed ? zonedDateTimeToISO(endDate, bulkEditing.endTime.value, timeZone) : slot.endsAt;
-        if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) throw new Error('Every Open Day must end after it starts.');
+        const endsAt = bulkEditing.endTime.changed
+          ? zonedDateTimeToISO(endDate, bulkEditing.endTime.value, timeZone)
+          : slot.endsAt;
+        if (new Date(endsAt).getTime() <= new Date(startsAt).getTime())
+          throw new Error('Every Open Day must end after it starts.');
         const requirements = slot.requirements.map((requirement) => {
-          if (requirement.kind === 'supervisor') return {
-            ...requirement,
-            requiredCount: bulkEditing.supervisors.changed ? bulkEditing.supervisors.value as number : requirement.requiredCount,
-            eligibleRoleIds: bulkEditing.supervisorRoleIds.changed ? bulkEditing.supervisorRoleIds.value : requirement.eligibleRoleIds,
-          };
-          if (requirement.kind === 'trainee') return {
-            ...requirement,
-            requiredCount: bulkEditing.trainees.changed ? bulkEditing.trainees.value as number : requirement.requiredCount,
-            eligibleRoleIds: bulkEditing.traineeRoleIds.changed ? bulkEditing.traineeRoleIds.value : requirement.eligibleRoleIds,
-          };
+          if (requirement.kind === 'supervisor')
+            return {
+              ...requirement,
+              requiredCount: bulkEditing.supervisors.changed
+                ? (bulkEditing.supervisors.value as number)
+                : requirement.requiredCount,
+              eligibleRoleIds: bulkEditing.supervisorRoleIds.changed
+                ? bulkEditing.supervisorRoleIds.value
+                : requirement.eligibleRoleIds,
+            };
+          if (requirement.kind === 'trainee')
+            return {
+              ...requirement,
+              requiredCount: bulkEditing.trainees.changed
+                ? (bulkEditing.trainees.value as number)
+                : requirement.requiredCount,
+              eligibleRoleIds: bulkEditing.traineeRoleIds.changed
+                ? bulkEditing.traineeRoleIds.value
+                : requirement.eligibleRoleIds,
+            };
           return requirement;
         });
-        if (requirements.some((requirement) => requirement.requiredCount > 0 && requirement.eligibleRoleIds.length === 0)) throw new Error('Every enabled position type needs at least one eligible role.');
+        if (
+          requirements.some((requirement) => requirement.requiredCount > 0 && requirement.eligibleRoleIds.length === 0)
+        )
+          throw new Error('Every enabled position type needs at least one eligible role.');
         return {
           ...slot,
           startsAt,
@@ -227,7 +415,9 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
       setBulkEditing(null);
       setBulkEditError(null);
       setTableRevision((value) => value + 1);
-    } catch (error) { setBulkEditError(scheduleErrorMessage(error)); }
+    } catch (error) {
+      setBulkEditError(scheduleErrorMessage(error));
+    }
   };
   const confirmRemoval = () => {
     if (!pendingRemoval) return;
@@ -239,15 +429,23 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
   const addDate = (date: string, configuration: OpenDayScheduleDefaults = defaults) => {
     try {
       const timeZone = scheduleQuery.data!.timeZone;
-      if (date < scheduleQuery.data!.period.startsOn || date > scheduleQuery.data!.period.endsOn) throw new Error('Choose a date within this Open Day period.');
-      if ((configuration.supervisors > 0 && configuration.supervisorRoleIds.length === 0) || (configuration.trainees > 0 && configuration.traineeRoleIds.length === 0)) throw new Error('Every enabled position type needs at least one eligible role.');
+      if (date < scheduleQuery.data!.period.startsOn || date > scheduleQuery.data!.period.endsOn)
+        throw new Error('Choose a date within this Open Day period.');
+      if (
+        (configuration.supervisors > 0 && configuration.supervisorRoleIds.length === 0) ||
+        (configuration.trainees > 0 && configuration.traineeRoleIds.length === 0)
+      )
+        throw new Error('Every enabled position type needs at least one eligible role.');
       const startsAt = zonedDateTimeToISO(date, configuration.startTime, timeZone);
       const endDate = configuration.endTime <= configuration.startTime ? nextCalendarDate(date) : date;
       const endsAt = zonedDateTimeToISO(endDate, configuration.endTime, timeZone);
       dispatch({ type: 'add', slot: makeLocalSlot(startsAt, endsAt, configuration) });
       setTimeError(null);
       return true;
-    } catch (error) { setTimeError(scheduleErrorMessage(error)); return false; }
+    } catch (error) {
+      setTimeError(scheduleErrorMessage(error));
+      return false;
+    }
   };
   const openCreate = (mode: 'single' | 'series' = 'single', date = scheduleQuery.data!.period.startsOn) => {
     setCreateTouched(false);
@@ -263,12 +461,20 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
     mutationFn: async () => {
       const baseline = workingBaseline.current ?? scheduleQuery.data!;
       const original = new Map(baseline.items.map((item) => [item.id, item]));
-      const currentServerIds = new Set(state.slots.flatMap((slot) => slot.serverId ? [slot.serverId] : []));
+      const currentServerIds = new Set(state.slots.flatMap((slot) => (slot.serverId ? [slot.serverId] : [])));
       return saveOpenDaySchedule(periodId, {
         expectedPeriodVersion: baseline.period.version,
         creates: state.slots.filter((slot) => !slot.serverId).map(scheduleCreate),
-        updates: state.slots.filter((slot) => slot.serverId && changed(slot)).map((slot) => ({ id: slot.serverId!, expectedVersion: original.get(slot.serverId!)!.version, ...scheduleCreate(slot) })),
-        removals: baseline.items.filter((item) => !currentServerIds.has(item.id)).map((item) => ({ id: item.id, expectedVersion: item.version })),
+        updates: state.slots
+          .filter((slot) => slot.serverId && changed(slot))
+          .map((slot) => ({
+            id: slot.serverId!,
+            expectedVersion: original.get(slot.serverId!)!.version,
+            ...scheduleCreate(slot),
+          })),
+        removals: baseline.items
+          .filter((item) => !currentServerIds.has(item.id))
+          .map((item) => ({ id: item.id, expectedVersion: item.version })),
       });
     },
     onSuccess: async (saved) => {
@@ -282,144 +488,757 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
   const lifecycleMutation = useMutation({
     mutationFn: async (target: LifecycleTarget) => {
       const currentPeriod = scheduleQuery.data!.period;
-      if (target === 'draft') return returnOpenDayPeriodToDraft(currentPeriod.id, { expectedVersion: currentPeriod.version });
-      if (target === 'staffing' && currentPeriod.status === 'published') return returnOpenDayPeriodToStaffing(currentPeriod.id, { expectedVersion: currentPeriod.version });
-      if (target === 'staffing') return openOpenDayPeriodForStaffing(currentPeriod.id, { expectedVersion: currentPeriod.version });
-      if (target === 'published') return publishOpenDayPeriod(currentPeriod.id, { expectedVersion: currentPeriod.version });
+      if (target === 'draft')
+        return returnOpenDayPeriodToDraft(currentPeriod.id, { expectedVersion: currentPeriod.version });
+      if (target === 'staffing' && currentPeriod.status === 'published')
+        return returnOpenDayPeriodToStaffing(currentPeriod.id, { expectedVersion: currentPeriod.version });
+      if (target === 'staffing')
+        return openOpenDayPeriodForStaffing(currentPeriod.id, { expectedVersion: currentPeriod.version });
+      if (target === 'published')
+        return publishOpenDayPeriod(currentPeriod.id, { expectedVersion: currentPeriod.version });
       return archiveOpenDayPeriod(currentPeriod.id, { expectedVersion: currentPeriod.version });
     },
     onSuccess: async (updatedPeriod) => {
       setPendingTransition(null);
-      queryClient.setQueryData(openDayKeys.schedule(periodId), (current: typeof scheduleQuery.data) => current ? { ...current, period: updatedPeriod } : current);
+      queryClient.setQueryData(openDayKeys.schedule(periodId), (current: typeof scheduleQuery.data) =>
+        current ? { ...current, period: updatedPeriod } : current,
+      );
       await queryClient.invalidateQueries({ queryKey: openDayKeys.periods() });
       if (updatedPeriod.status === 'archived') showMode('preview');
     },
   });
   const previewMutation = useMutation({
-    mutationFn: () => previewOpenDayRecurrence(periodId, { ...recurrence, startTime: createDraft.startTime, endTime: createDraft.endTime }),
-    onSuccess: (value) => { setSeriesStep('review'); setPreview(value.occurrences); setSelectedOccurrences(new Set(value.occurrences.filter((item) => item.disposition === 'create').map((item) => item.startsAt))); },
+    mutationFn: () =>
+      previewOpenDayRecurrence(periodId, {
+        ...recurrence,
+        startTime: createDraft.startTime,
+        endTime: createDraft.endTime,
+      }),
+    onSuccess: (value) => {
+      setSeriesStep('review');
+      setPreview(value.occurrences);
+      setSelectedOccurrences(
+        new Set(value.occurrences.filter((item) => item.disposition === 'create').map((item) => item.startsAt)),
+      );
+    },
   });
 
-  const requestCreateClose = useLatestCallback(() => { if (previewMutation.isPending) return; if (localDiscard) setLocalDiscard(null); else if (createTouched) setLocalDiscard('create'); else closeCreate(); });
+  const requestCreateClose = useLatestCallback(() => {
+    if (previewMutation.isPending) return;
+    if (localDiscard) setLocalDiscard(null);
+    else if (createTouched) setLocalDiscard('create');
+    else closeCreate();
+  });
 
-  const requestEditClose = useLatestCallback(() => { if (localDiscard) setLocalDiscard(null); else if (editingDirty) setLocalDiscard('edit'); else closeEditing(); });
+  const requestEditClose = useLatestCallback(() => {
+    if (localDiscard) setLocalDiscard(null);
+    else if (editingDirty) setLocalDiscard('edit');
+    else closeEditing();
+  });
 
-  const requestBulkClose = useLatestCallback(() => { if (localDiscard) setLocalDiscard(null); else if (bulkEditing && hasBulkEditChanges(bulkEditing)) setLocalDiscard('bulk'); else closeBulk(); });
+  const requestBulkClose = useLatestCallback(() => {
+    if (localDiscard) setLocalDiscard(null);
+    else if (bulkEditing && hasBulkEditChanges(bulkEditing)) setLocalDiscard('bulk');
+    else closeBulk();
+  });
 
-  const requestPublishedSaveClose = useLatestCallback(() => { if (!saveMutation.isPending) setPublishedSaveConfirmation(false); });
+  const requestPublishedSaveClose = useLatestCallback(() => {
+    if (!saveMutation.isPending) setPublishedSaveConfirmation(false);
+  });
 
-  const requestLifecycleClose = useLatestCallback(() => { if (!lifecycleMutation.isPending) setPendingTransition(null); });
+  const requestLifecycleClose = useLatestCallback(() => {
+    if (!lifecycleMutation.isPending) setPendingTransition(null);
+  });
 
-  if (scheduleQuery.isPending || (canManage && rolesQuery.isPending)) return <InlineLoadingState label="Loading Open Day period" />;
-  if (scheduleQuery.isError || (canManage && rolesQuery.isError) || !scheduleQuery.data) return <ErrorState title="Unable to load this period" message="It may no longer be visible, or the connection failed." onRetry={() => { void scheduleQuery.refetch(); if (canManage) void rolesQuery.refetch(); }} />;
+  if (scheduleQuery.isPending || (canManage && rolesQuery.isPending))
+    return <InlineLoadingState label="Loading Open Day period" />;
+  if (scheduleQuery.isError || (canManage && rolesQuery.isError) || !scheduleQuery.data)
+    return (
+      <ErrorState
+        title="Unable to load this period"
+        message="It may no longer be visible, or the connection failed."
+        onRetry={() => {
+          void scheduleQuery.refetch();
+          if (canManage) void rolesQuery.refetch();
+        }}
+      />
+    );
 
-  const moveSlot = (id: string, date: string) => dispatch({ type: 'move', id, date, timeZone: scheduleQuery.data.timeZone });
+  const moveSlot = (id: string, date: string) =>
+    dispatch({ type: 'move', id, date, timeZone: scheduleQuery.data.timeZone });
   const lifecycleActions = actionsForStatus(scheduleQuery.data.period.status);
   const previewItems = state.slots.map((slot) => toPreviewOpenDay(slot, periodId));
   const handleDragEnd = (event: DragEndEvent) => {
     if (event.canceled || !event.operation.source?.id || !event.operation.target?.id) return;
     const id = String(event.operation.source.id);
     const date = String(event.operation.target.id);
-    const entries = (contextQuery.data?.entries ?? []).filter((entry) => entry.startsOn <= date && entry.endsOn >= date);
+    const entries = (contextQuery.data?.entries ?? []).filter(
+      (entry) => entry.startsOn <= date && entry.endsOn >= date,
+    );
     if (entries.length) setPendingMove({ id, date, entries });
     else moveSlot(id, date);
   };
 
-  return <DragDropProvider onDragEnd={handleDragEnd}>
-    <PageShell title={scheduleQuery.data.period.name} titleAdornment={<Tag type={statusTagType(scheduleQuery.data.period.status)}>{scheduleQuery.data.period.status}</Tag>} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: scheduleQuery.data.period.name }]} description={periodRange(scheduleQuery.data.period)} actions={editMode ? lifecycleActions.map((action) => <Button key={action.target} kind={action.danger ? 'danger--tertiary' : 'tertiary'} disabled={state.dirty || lifecycleMutation.isPending || saveMutation.isPending} onClick={() => setPendingTransition(action)}>{action.label}</Button>) : undefined} width="wide" className="open-day-period-page schedule-editor-page">
-      {editMode && saveMutation.isError && <InlineNotification kind="error" lowContrast title="Schedule was not saved" subtitle={scheduleErrorMessage(saveMutation.error)} />}
-      {editMode && lifecycleMutation.isError && <InlineNotification kind="error" lowContrast title="Status change failed" subtitle="The period may have changed. Reload and try again." onCloseButtonClick={() => lifecycleMutation.reset()} />}
-      {editMode && ((!createOpen && timeError) || state.error) && <InlineNotification kind="error" lowContrast hideCloseButton title="Choose a different local time" subtitle={state.error ?? timeError ?? undefined} />}
-      {contextQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Calendar context unavailable" subtitle="Open Days can still be edited, but holidays and academic breaks are temporarily hidden." />}
-      {editMode
-        ? <ScheduleWorkingView key={tableRevision} view={view} isPhone={isPhone} disableDrag={isPhone || hasCoarsePointer} onView={setView} dateTimeFilter={dateTimeFilter} onDateTimeFilter={setDateTimeFilter} slots={state.slots} startsOn={scheduleQuery.data.period.startsOn} endsOn={scheduleQuery.data.period.endsOn} entries={contextQuery.data?.entries ?? []} timeZone={scheduleQuery.data.timeZone} periodStatus={scheduleQuery.data.period.status} dirty={state.dirty} canUndo={Boolean(state.previous)} lifecyclePending={lifecycleMutation.isPending} savePending={saveMutation.isPending} onUndo={() => dispatch({ type: 'undo' })} onSave={() => period?.status === 'published' ? setPublishedSaveConfirmation(true) : saveMutation.mutate()} onCreate={() => openCreate()} onPreview={() => showMode('preview')} onAdd={(date) => openCreate('single', date)} onEdit={(slot) => { setTimeError(null); setEditing(slot); }} onRemove={(slots) => setPendingRemoval(slots)} onBulkEdit={beginBulkEdit} />
-        : <OpenDayPreviewView filter={previewFilter} dateTimeFilter={dateTimeFilter} items={previewItems} timeZone={scheduleQuery.data.timeZone} view={view} isPhone={isPhone} canEdit={editingAllowed} period={scheduleQuery.data.period} entries={contextQuery.data?.entries ?? []} onFilter={setPreviewFilter} onDateTimeFilter={setDateTimeFilter} onView={setView} onEdit={() => showMode('edit')} onOpenDay={(day) => { const slot = state.slots.find((item) => item.id === day.id); if (slot?.serverId) setSelectedOpenDayId(slot.serverId); }} />}
-      {selectedOpenDayId && !unsavedChanges.dialogOpen && <OpenDayRegistrationModal periodId={scheduleQuery.data.period.id} periodStatus={scheduleQuery.data.period.status} openDayId={selectedOpenDayId} onRequestClose={() => setSelectedOpenDayId(null)} />}
-      {editMode && <Modal open={Boolean(pendingTransition) && !unsavedChanges.dialogOpen} danger={pendingTransition?.danger} modalHeading={pendingTransition?.label ?? 'Change period status'} primaryButtonText={pendingTransition?.label ?? 'Continue'} secondaryButtonText="Cancel" primaryButtonDisabled={lifecycleMutation.isPending} onRequestClose={requestLifecycleClose} onRequestSubmit={() => { if (!pendingTransition) return; if (!lifecycleMutation.isPending) lifecycleMutation.mutate(pendingTransition.target); }}>
-        {lifecycleMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Status change failed" subtitle="The period may have changed. Your schedule is kept; try again." />}
-        <p>{pendingTransition?.confirmation}</p>
-      </Modal>}
-      {editMode && createOpen && <Modal
-        open={!unsavedChanges.dialogOpen}
-        size="sm"
-        danger={localDiscard === 'create'}
-        selectorPrimaryFocus={localDiscard === 'create' ? '.cds--btn--secondary' : undefined}
-        modalHeading={localDiscard === 'create' ? 'Discard Open Day inputs?' : seriesStep === 'review' ? 'Review Open Day series' : 'Create Open Day'}
-        primaryButtonText={localDiscard === 'create' ? 'Discard inputs' : createMode === 'single' ? 'Create' : seriesStep === 'review' ? 'Add selected' : previewMutation.isPending ? 'Previewing…' : 'Preview series'}
-        primaryButtonDisabled={previewMutation.isPending || (localDiscard !== 'create' && seriesStep === 'review' && selectedOccurrences.size === 0)}
-        secondaryButtonText={localDiscard === 'create' ? 'Keep editing' : seriesStep === 'review' ? 'Back to inputs' : 'Cancel'}
-        onSecondarySubmit={seriesStep === 'review' && !localDiscard ? () => setSeriesStep('inputs') : undefined}
-        onRequestClose={requestCreateClose}
-        onRequestSubmit={() => {
-          if (localDiscard === 'create') { closeCreate(); return; }
-          if (previewMutation.isPending) return;
-          const configurationError = createConfigurationError(createDraft);
-          if (configurationError) { setTimeError(configurationError); return; }
-          if (createMode === 'single') {
-            if (addDate(createDate, createDraft)) { setDefaults(createDraft); setCreateOpen(false); setCreateTouched(false); }
-            return;
-          }
-          if (seriesStep === 'inputs') { if (preview.length) setSeriesStep('review'); else previewMutation.mutate(); return; }
-          const slots = preview.filter((occurrence) => selectedOccurrences.has(occurrence.startsAt)).map((occurrence) => makeLocalSlot(occurrence.startsAt, occurrence.endsAt, createDraft));
-          dispatch({ type: 'addMany', slots });
-          setDefaults(createDraft);
-          setCreateOpen(false);
-          setCreateTouched(false);
-          setPreview([]);
-        }}
+  return (
+    <DragDropProvider onDragEnd={handleDragEnd}>
+      <PageShell
+        title={scheduleQuery.data.period.name}
+        titleAdornment={
+          <Tag type={statusTagType(scheduleQuery.data.period.status)}>{scheduleQuery.data.period.status}</Tag>
+        }
+        breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: scheduleQuery.data.period.name }]}
+        description={periodRange(scheduleQuery.data.period)}
+        actions={
+          editMode
+            ? lifecycleActions.map((action) => (
+                <Button
+                  key={action.target}
+                  kind={action.danger ? 'danger--tertiary' : 'tertiary'}
+                  disabled={state.dirty || lifecycleMutation.isPending || saveMutation.isPending}
+                  onClick={() => setPendingTransition(action)}
+                >
+                  {action.label}
+                </Button>
+              ))
+            : undefined
+        }
+        width="wide"
+        className="open-day-period-page schedule-editor-page"
       >
-        {localDiscard === 'create' ? <p>Your changes to this form have not been added to the schedule. The existing schedule working copy will be kept.</p> : <Stack gap={5} onChangeCapture={() => setCreateTouched(true)}>
-          {seriesStep === 'inputs' && <>
-          <RadioButtonGroup legendText="Creation type" name="open-day-create-mode" valueSelected={createMode} onChange={(value) => { setCreateMode(value as 'single' | 'series'); setPreview([]); setTimeError(null); }}>
-            <RadioButton id="create-single-open-day" labelText="Single Open Day" value="single" />
-            <RadioButton id="create-open-day-series" labelText="Series" value="series" />
-          </RadioButtonGroup>
-          {timeError && <InlineNotification kind="error" lowContrast hideCloseButton title="Open Day was not created" subtitle={timeError} />}
-          {createMode === 'single' ? (
-            <DateInput id="create-open-day-date" labelText="Date" value={createDate} onChange={(date) => { setCreateTouched(true); setCreateDate(date); setTimeError(null); }} />
-          ) : (
-            <Stack gap={4}>
-              <Select id="recurrence-weekday" labelText="Weekday" value={recurrence.weekday} onChange={(event) => { setRecurrence({ ...recurrence, weekday: Number(event.target.value) }); setPreview([]); }}>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((name,index) => <SelectItem key={name} value={index+1} text={name} />)}</Select>
-              <DateInput id="recurrence-start" labelText="From" value={recurrence.startsOn} onChange={(startsOn) => { setCreateTouched(true); setRecurrence({ ...recurrence, startsOn }); setPreview([]); }} />
-              <DateInput id="recurrence-end" labelText="Until" value={recurrence.endsOn} onChange={(endsOn) => { setCreateTouched(true); setRecurrence({ ...recurrence, endsOn }); setPreview([]); }} />
-              <NumberInput id="recurrence-weeks" label="Every number of weeks" min={1} max={52} value={recurrence.everyWeeks} onChange={(_, value) => { setCreateTouched(true); setRecurrence({ ...recurrence, everyWeeks: Number(value.value) }); setPreview([]); }} />
-              <Checkbox id="skip-holidays" labelText="Skip public holidays" checked={recurrence.skipPublicHolidays} onChange={(_, value) => { setRecurrence({ ...recurrence, skipPublicHolidays: value.checked }); setPreview([]); }} />
-              <Checkbox id="skip-breaks" labelText="Skip academic breaks" checked={recurrence.skipAcademicBreaks} onChange={(_, value) => { setRecurrence({ ...recurrence, skipAcademicBreaks: value.checked }); setPreview([]); }} />
-            </Stack>
-          )}
-          <div className="open-day-create__times"><TimePicker id="create-start" labelText="Start" value={createDraft.startTime} onChange={(event) => { setCreateDraft({ ...createDraft, startTime: event.target.value }); setPreview([]); setTimeError(null); }} /><TimePicker id="create-end" labelText="End" value={createDraft.endTime} onChange={(event) => { setCreateDraft({ ...createDraft, endTime: event.target.value }); setPreview([]); setTimeError(null); }} /></div>
-          <div className="open-day-create__requirements"><NumberInput id="create-supervisors" label="Supervisors" min={0} max={100} value={createDraft.supervisors} onChange={(_, value) => { setCreateTouched(true); setCreateDraft({ ...createDraft, supervisors: Number(value.value) }); setPreview([]); setTimeError(null); }} /><NumberInput id="create-trainees" label="Trainees" min={0} max={100} value={createDraft.trainees} onChange={(_, value) => { setCreateTouched(true); setCreateDraft({ ...createDraft, trainees: Number(value.value) }); setPreview([]); setTimeError(null); }} /></div>
-          <RoleMultiSelect id="create-supervisor-roles" titleText="Eligible supervisor roles" roles={rolesQuery.data?.items ?? []} selectedRoleIds={createDraft.supervisorRoleIds} onChange={(supervisorRoleIds) => { setCreateTouched(true); setCreateDraft({ ...createDraft, supervisorRoleIds }); setPreview([]); setTimeError(null); }} />
-          <RoleMultiSelect id="create-trainee-roles" titleText="Eligible trainee roles" roles={rolesQuery.data?.items ?? []} selectedRoleIds={createDraft.traineeRoleIds} onChange={(traineeRoleIds) => { setCreateTouched(true); setCreateDraft({ ...createDraft, traineeRoleIds }); setPreview([]); setTimeError(null); }} />
-          </>}
-          {seriesStep === 'review' && <p>Step 2 of 2: review the generated dates. Select the dates to add; holidays, academic breaks and other exceptions remain marked. {selectedOccurrences.size} selected.</p>}
-          {createMode === 'series' && previewMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Preview failed" subtitle={scheduleErrorMessage(previewMutation.error)} />}
-          {seriesStep === 'review' && preview.length === 0 && <p>No dates match this series. Return to the inputs to change the range or weekday.</p>}
-          {seriesStep === 'review' && preview.map((item) => <Checkbox key={item.startsAt} id={`occurrence-${item.startsAt}`} labelText={`${formatDate(dateInTimeZone(item.startsAt, scheduleQuery.data.timeZone))} · ${item.disposition}${item.reason ? ` — ${item.reason}` : ''}`} checked={selectedOccurrences.has(item.startsAt)} onChange={(_, value) => setSelectedOccurrences((current) => { const next = new Set(current); if (value.checked) next.add(item.startsAt); else next.delete(item.startsAt); return next; })} />)}
-        </Stack>}
-      </Modal>}
-      {editMode && <Modal open={Boolean(editing) && !unsavedChanges.dialogOpen} danger={localDiscard === 'edit'} selectorPrimaryFocus={localDiscard === 'edit' ? '.cds--btn--secondary' : undefined} modalHeading={localDiscard === 'edit' ? 'Discard Open Day inputs?' : 'Edit Open Day'} primaryButtonText={localDiscard === 'edit' ? 'Discard inputs' : 'Apply'} primaryButtonDisabled={localDiscard !== 'edit' && Boolean(timeError)} secondaryButtonText={localDiscard === 'edit' ? 'Keep editing' : 'Cancel'} onRequestClose={requestEditClose} onRequestSubmit={() => { if (localDiscard === 'edit') { closeEditing(); return; } if (!editing) return; dispatch({ type: 'update', slot: editing }); setEditing(null); }}>
-        {localDiscard === 'edit' ? <p>The form inputs will be discarded. Your existing schedule working copy will be kept.</p> : editing && <SlotForm error={timeError} onError={setTimeError} slot={editing} roles={rolesQuery.data?.items ?? []} timeZone={scheduleQuery.data.timeZone} removalLabel={removalButtonLabel([editing], scheduleQuery.data.period.status)} onChange={setEditing} onRemove={() => { setPendingRemoval([editing]); setEditing(null); }} />}
-      </Modal>}
-      {editMode && bulkEditing && <Modal open={!unsavedChanges.dialogOpen} size="sm" danger={localDiscard === 'bulk'} selectorPrimaryFocus={localDiscard === 'bulk' ? '.cds--btn--secondary' : undefined} modalHeading={localDiscard === 'bulk' ? 'Discard bulk inputs?' : `Edit ${bulkEditing.slots.length} selected Open Day${bulkEditing.slots.length === 1 ? '' : 's'}`} primaryButtonText={localDiscard === 'bulk' ? 'Discard inputs' : 'Apply to selected'} primaryButtonDisabled={localDiscard !== 'bulk' && !hasBulkEditChanges(bulkEditing)} secondaryButtonText={localDiscard === 'bulk' ? 'Keep editing' : 'Cancel'} onRequestClose={requestBulkClose} onRequestSubmit={localDiscard === 'bulk' ? closeBulk : applyBulkEdit}>
-        {localDiscard === 'bulk' ? <p>Your bulk form inputs will be discarded. The schedule working copy will be kept.</p> : <Stack gap={5}>
-          <p>Only values you change are applied.</p>
-          {bulkEditError && <InlineNotification kind="error" lowContrast hideCloseButton title="Selected Open Days were not changed" subtitle={bulkEditError} />}
-          <div className="bulk-slot-editor__times"><TimePicker id="bulk-start" labelText="Start" placeholder={bulkEditing.startTime.mixed ? 'Mixed' : 'HH:MM'} value={bulkEditing.startTime.mixed ? '' : bulkEditing.startTime.value} onChange={(event) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, startTime: changedBulkEditField(event.target.value) }); }} /><TimePicker id="bulk-end" labelText="End" placeholder={bulkEditing.endTime.mixed ? 'Mixed' : 'HH:MM'} value={bulkEditing.endTime.mixed ? '' : bulkEditing.endTime.value} onChange={(event) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, endTime: changedBulkEditField(event.target.value) }); }} /></div>
-          <div className="bulk-slot-editor__requirements"><NumberInput id="bulk-supervisors" label="Supervisors required" min={0} max={100} allowEmpty placeholder={bulkEditing.supervisors.mixed ? 'Mixed' : undefined} value={bulkEditing.supervisors.mixed ? '' : bulkEditing.supervisors.value} onChange={(_, value) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, supervisors: changedBulkEditField(value.value === '' ? '' : Number(value.value)) }); }} /><NumberInput id="bulk-trainees" label="Trainees required" min={0} max={100} allowEmpty placeholder={bulkEditing.trainees.mixed ? 'Mixed' : undefined} value={bulkEditing.trainees.mixed ? '' : bulkEditing.trainees.value} onChange={(_, value) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, trainees: changedBulkEditField(value.value === '' ? '' : Number(value.value)) }); }} /></div>
-          <RoleMultiSelect id="bulk-supervisor-roles" titleText="Eligible supervisor roles" roles={rolesQuery.data?.items ?? []} selectedRoleIds={bulkEditing.supervisorRoleIds.mixed ? [] : bulkEditing.supervisorRoleIds.value} label={bulkEditing.supervisorRoleIds.mixed ? 'Mixed' : 'Choose roles'} onChange={(supervisorRoleIds) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, supervisorRoleIds: changedBulkEditField(supervisorRoleIds) }); }} />
-          <RoleMultiSelect id="bulk-trainee-roles" titleText="Eligible trainee roles" roles={rolesQuery.data?.items ?? []} selectedRoleIds={bulkEditing.traineeRoleIds.mixed ? [] : bulkEditing.traineeRoleIds.value} label={bulkEditing.traineeRoleIds.mixed ? 'Mixed' : 'Choose roles'} onChange={(traineeRoleIds) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, traineeRoleIds: changedBulkEditField(traineeRoleIds) }); }} />
-          <TextInput id="bulk-note" labelText="Internal note" placeholder={bulkEditing.internalNote.mixed ? 'Mixed' : undefined} value={bulkEditing.internalNote.mixed ? '' : bulkEditing.internalNote.value} onChange={(event) => { setBulkEditError(null); setBulkEditing({ ...bulkEditing, internalNote: changedBulkEditField(event.target.value) }); }} />
-        </Stack>}
-      </Modal>}
-      {editMode && pendingRemoval && <Modal open={!unsavedChanges.dialogOpen} selectorPrimaryFocus=".cds--btn--secondary" danger modalHeading={removalHeading(pendingRemoval, scheduleQuery.data.period.status)} primaryButtonText={removalButtonLabel(pendingRemoval, scheduleQuery.data.period.status)} secondaryButtonText={`Keep Open Day${pendingRemoval.length === 1 ? '' : 's'}`} onRequestClose={() => setPendingRemoval(null)} onRequestSubmit={confirmRemoval}>
-        <p>{removalConfirmation(pendingRemoval, scheduleQuery.data.period.status)}</p>
-      </Modal>}
-      {editMode && <Modal open={publishedSaveConfirmation && !unsavedChanges.dialogOpen} selectorPrimaryFocus=".cds--btn--secondary" danger modalHeading="Save changes to published schedule?" primaryButtonText="Save published schedule" secondaryButtonText="Keep editing" primaryButtonDisabled={saveMutation.isPending} onRequestClose={requestPublishedSaveClose} onRequestSubmit={() => saveMutation.mutate()}><p>These changes update the public calendar and calendar feed. Subscribers may receive an update.</p></Modal>}
-      {editMode && <Modal open={Boolean(pendingMove) && !unsavedChanges.dialogOpen} modalHeading="Move onto calendar context?" primaryButtonText="Move Open Day" secondaryButtonText="Keep current date" onRequestClose={() => setPendingMove(null)} onRequestSubmit={() => { if (pendingMove) moveSlot(pendingMove.id, pendingMove.date); setPendingMove(null); }}><p>{pendingMove ? `${pendingMove.date} is marked as ${pendingMove.entries.map((entry) => entry.name).join(', ')}. This does not prevent scheduling.` : ''}</p></Modal>}
-      <UnsavedChangesDialog guard={unsavedChanges} title="Discard unsaved schedule changes?" message="Your local schedule changes and any open form inputs have not been saved." />
-    </PageShell>
-  </DragDropProvider>;
+        {editMode && saveMutation.isError && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            title="Schedule was not saved"
+            subtitle={scheduleErrorMessage(saveMutation.error)}
+          />
+        )}
+        {editMode && lifecycleMutation.isError && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            title="Status change failed"
+            subtitle="The period may have changed. Reload and try again."
+            onCloseButtonClick={() => lifecycleMutation.reset()}
+          />
+        )}
+        {editMode && ((!createOpen && timeError) || state.error) && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Choose a different local time"
+            subtitle={state.error ?? timeError ?? undefined}
+          />
+        )}
+        {contextQuery.isError && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Calendar context unavailable"
+            subtitle="Open Days can still be edited, but holidays and academic breaks are temporarily hidden."
+          />
+        )}
+        {editMode ? (
+          <ScheduleWorkingView
+            key={tableRevision}
+            view={view}
+            isPhone={isPhone}
+            disableDrag={isPhone || hasCoarsePointer}
+            onView={setView}
+            dateTimeFilter={dateTimeFilter}
+            onDateTimeFilter={setDateTimeFilter}
+            slots={state.slots}
+            startsOn={scheduleQuery.data.period.startsOn}
+            endsOn={scheduleQuery.data.period.endsOn}
+            entries={contextQuery.data?.entries ?? []}
+            timeZone={scheduleQuery.data.timeZone}
+            periodStatus={scheduleQuery.data.period.status}
+            dirty={state.dirty}
+            canUndo={Boolean(state.previous)}
+            lifecyclePending={lifecycleMutation.isPending}
+            savePending={saveMutation.isPending}
+            onUndo={() => dispatch({ type: 'undo' })}
+            onSave={() => (period?.status === 'published' ? setPublishedSaveConfirmation(true) : saveMutation.mutate())}
+            onCreate={() => openCreate()}
+            onPreview={() => showMode('preview')}
+            onAdd={(date) => openCreate('single', date)}
+            onEdit={(slot) => {
+              setTimeError(null);
+              setEditing(slot);
+            }}
+            onRemove={(slots) => setPendingRemoval(slots)}
+            onBulkEdit={beginBulkEdit}
+          />
+        ) : (
+          <OpenDayPreviewView
+            filter={previewFilter}
+            dateTimeFilter={dateTimeFilter}
+            items={previewItems}
+            timeZone={scheduleQuery.data.timeZone}
+            view={view}
+            isPhone={isPhone}
+            canEdit={editingAllowed}
+            period={scheduleQuery.data.period}
+            entries={contextQuery.data?.entries ?? []}
+            onFilter={setPreviewFilter}
+            onDateTimeFilter={setDateTimeFilter}
+            onView={setView}
+            onEdit={() => showMode('edit')}
+            onOpenDay={(day) => {
+              const slot = state.slots.find((item) => item.id === day.id);
+              if (slot?.serverId) setSelectedOpenDayId(slot.serverId);
+            }}
+          />
+        )}
+        {selectedOpenDayId && !unsavedChanges.dialogOpen && (
+          <OpenDayRegistrationModal
+            periodId={scheduleQuery.data.period.id}
+            periodStatus={scheduleQuery.data.period.status}
+            openDayId={selectedOpenDayId}
+            onRequestClose={() => setSelectedOpenDayId(null)}
+          />
+        )}
+        {editMode && (
+          <Modal
+            open={Boolean(pendingTransition) && !unsavedChanges.dialogOpen}
+            danger={pendingTransition?.danger}
+            modalHeading={pendingTransition?.label ?? 'Change period status'}
+            primaryButtonText={pendingTransition?.label ?? 'Continue'}
+            secondaryButtonText="Cancel"
+            primaryButtonDisabled={lifecycleMutation.isPending}
+            onRequestClose={requestLifecycleClose}
+            onRequestSubmit={() => {
+              if (!pendingTransition) return;
+              if (!lifecycleMutation.isPending) lifecycleMutation.mutate(pendingTransition.target);
+            }}
+          >
+            {lifecycleMutation.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Status change failed"
+                subtitle="The period may have changed. Your schedule is kept; try again."
+              />
+            )}
+            <p>{pendingTransition?.confirmation}</p>
+          </Modal>
+        )}
+        {editMode && createOpen && (
+          <Modal
+            open={!unsavedChanges.dialogOpen}
+            size="sm"
+            danger={localDiscard === 'create'}
+            selectorPrimaryFocus={localDiscard === 'create' ? '.cds--btn--secondary' : undefined}
+            modalHeading={
+              localDiscard === 'create'
+                ? 'Discard Open Day inputs?'
+                : seriesStep === 'review'
+                  ? 'Review Open Day series'
+                  : 'Create Open Day'
+            }
+            primaryButtonText={
+              localDiscard === 'create'
+                ? 'Discard inputs'
+                : createMode === 'single'
+                  ? 'Create'
+                  : seriesStep === 'review'
+                    ? 'Add selected'
+                    : previewMutation.isPending
+                      ? 'Previewing…'
+                      : 'Preview series'
+            }
+            primaryButtonDisabled={
+              previewMutation.isPending ||
+              (localDiscard !== 'create' && seriesStep === 'review' && selectedOccurrences.size === 0)
+            }
+            secondaryButtonText={
+              localDiscard === 'create' ? 'Keep editing' : seriesStep === 'review' ? 'Back to inputs' : 'Cancel'
+            }
+            onSecondarySubmit={seriesStep === 'review' && !localDiscard ? () => setSeriesStep('inputs') : undefined}
+            onRequestClose={requestCreateClose}
+            onRequestSubmit={() => {
+              if (localDiscard === 'create') {
+                closeCreate();
+                return;
+              }
+              if (previewMutation.isPending) return;
+              const configurationError = createConfigurationError(createDraft);
+              if (configurationError) {
+                setTimeError(configurationError);
+                return;
+              }
+              if (createMode === 'single') {
+                if (addDate(createDate, createDraft)) {
+                  setDefaults(createDraft);
+                  setCreateOpen(false);
+                  setCreateTouched(false);
+                }
+                return;
+              }
+              if (seriesStep === 'inputs') {
+                if (preview.length) setSeriesStep('review');
+                else previewMutation.mutate();
+                return;
+              }
+              const slots = preview
+                .filter((occurrence) => selectedOccurrences.has(occurrence.startsAt))
+                .map((occurrence) => makeLocalSlot(occurrence.startsAt, occurrence.endsAt, createDraft));
+              dispatch({ type: 'addMany', slots });
+              setDefaults(createDraft);
+              setCreateOpen(false);
+              setCreateTouched(false);
+              setPreview([]);
+            }}
+          >
+            {localDiscard === 'create' ? (
+              <p>
+                Your changes to this form have not been added to the schedule. The existing schedule working copy will
+                be kept.
+              </p>
+            ) : (
+              <Stack gap={5} onChangeCapture={() => setCreateTouched(true)}>
+                {seriesStep === 'inputs' && (
+                  <>
+                    <RadioButtonGroup
+                      legendText="Creation type"
+                      name="open-day-create-mode"
+                      valueSelected={createMode}
+                      onChange={(value) => {
+                        setCreateMode(value as 'single' | 'series');
+                        setPreview([]);
+                        setTimeError(null);
+                      }}
+                    >
+                      <RadioButton id="create-single-open-day" labelText="Single Open Day" value="single" />
+                      <RadioButton id="create-open-day-series" labelText="Series" value="series" />
+                    </RadioButtonGroup>
+                    {timeError && (
+                      <InlineNotification
+                        kind="error"
+                        lowContrast
+                        hideCloseButton
+                        title="Open Day was not created"
+                        subtitle={timeError}
+                      />
+                    )}
+                    {createMode === 'single' ? (
+                      <DateInput
+                        id="create-open-day-date"
+                        labelText="Date"
+                        value={createDate}
+                        onChange={(date) => {
+                          setCreateTouched(true);
+                          setCreateDate(date);
+                          setTimeError(null);
+                        }}
+                      />
+                    ) : (
+                      <Stack gap={4}>
+                        <Select
+                          id="recurrence-weekday"
+                          labelText="Weekday"
+                          value={recurrence.weekday}
+                          onChange={(event) => {
+                            setRecurrence({ ...recurrence, weekday: Number(event.target.value) });
+                            setPreview([]);
+                          }}
+                        >
+                          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+                            (name, index) => (
+                              <SelectItem key={name} value={index + 1} text={name} />
+                            ),
+                          )}
+                        </Select>
+                        <DateInput
+                          id="recurrence-start"
+                          labelText="From"
+                          value={recurrence.startsOn}
+                          onChange={(startsOn) => {
+                            setCreateTouched(true);
+                            setRecurrence({ ...recurrence, startsOn });
+                            setPreview([]);
+                          }}
+                        />
+                        <DateInput
+                          id="recurrence-end"
+                          labelText="Until"
+                          value={recurrence.endsOn}
+                          onChange={(endsOn) => {
+                            setCreateTouched(true);
+                            setRecurrence({ ...recurrence, endsOn });
+                            setPreview([]);
+                          }}
+                        />
+                        <NumberInput
+                          id="recurrence-weeks"
+                          label="Every number of weeks"
+                          min={1}
+                          max={52}
+                          value={recurrence.everyWeeks}
+                          onChange={(_, value) => {
+                            setCreateTouched(true);
+                            setRecurrence({ ...recurrence, everyWeeks: Number(value.value) });
+                            setPreview([]);
+                          }}
+                        />
+                        <Checkbox
+                          id="skip-holidays"
+                          labelText="Skip public holidays"
+                          checked={recurrence.skipPublicHolidays}
+                          onChange={(_, value) => {
+                            setRecurrence({ ...recurrence, skipPublicHolidays: value.checked });
+                            setPreview([]);
+                          }}
+                        />
+                        <Checkbox
+                          id="skip-breaks"
+                          labelText="Skip academic breaks"
+                          checked={recurrence.skipAcademicBreaks}
+                          onChange={(_, value) => {
+                            setRecurrence({ ...recurrence, skipAcademicBreaks: value.checked });
+                            setPreview([]);
+                          }}
+                        />
+                      </Stack>
+                    )}
+                    <div className="open-day-create__times">
+                      <TimePicker
+                        id="create-start"
+                        labelText="Start"
+                        value={createDraft.startTime}
+                        onChange={(event) => {
+                          setCreateDraft({ ...createDraft, startTime: event.target.value });
+                          setPreview([]);
+                          setTimeError(null);
+                        }}
+                      />
+                      <TimePicker
+                        id="create-end"
+                        labelText="End"
+                        value={createDraft.endTime}
+                        onChange={(event) => {
+                          setCreateDraft({ ...createDraft, endTime: event.target.value });
+                          setPreview([]);
+                          setTimeError(null);
+                        }}
+                      />
+                    </div>
+                    <div className="open-day-create__requirements">
+                      <NumberInput
+                        id="create-supervisors"
+                        label="Supervisors"
+                        min={0}
+                        max={100}
+                        value={createDraft.supervisors}
+                        onChange={(_, value) => {
+                          setCreateTouched(true);
+                          setCreateDraft({ ...createDraft, supervisors: Number(value.value) });
+                          setPreview([]);
+                          setTimeError(null);
+                        }}
+                      />
+                      <NumberInput
+                        id="create-trainees"
+                        label="Trainees"
+                        min={0}
+                        max={100}
+                        value={createDraft.trainees}
+                        onChange={(_, value) => {
+                          setCreateTouched(true);
+                          setCreateDraft({ ...createDraft, trainees: Number(value.value) });
+                          setPreview([]);
+                          setTimeError(null);
+                        }}
+                      />
+                    </div>
+                    <RoleMultiSelect
+                      id="create-supervisor-roles"
+                      titleText="Eligible supervisor roles"
+                      roles={rolesQuery.data?.items ?? []}
+                      selectedRoleIds={createDraft.supervisorRoleIds}
+                      onChange={(supervisorRoleIds) => {
+                        setCreateTouched(true);
+                        setCreateDraft({ ...createDraft, supervisorRoleIds });
+                        setPreview([]);
+                        setTimeError(null);
+                      }}
+                    />
+                    <RoleMultiSelect
+                      id="create-trainee-roles"
+                      titleText="Eligible trainee roles"
+                      roles={rolesQuery.data?.items ?? []}
+                      selectedRoleIds={createDraft.traineeRoleIds}
+                      onChange={(traineeRoleIds) => {
+                        setCreateTouched(true);
+                        setCreateDraft({ ...createDraft, traineeRoleIds });
+                        setPreview([]);
+                        setTimeError(null);
+                      }}
+                    />
+                  </>
+                )}
+                {seriesStep === 'review' && (
+                  <p>
+                    Step 2 of 2: review the generated dates. Select the dates to add; holidays, academic breaks and
+                    other exceptions remain marked. {selectedOccurrences.size} selected.
+                  </p>
+                )}
+                {createMode === 'series' && previewMutation.isError && (
+                  <InlineNotification
+                    kind="error"
+                    lowContrast
+                    hideCloseButton
+                    title="Preview failed"
+                    subtitle={scheduleErrorMessage(previewMutation.error)}
+                  />
+                )}
+                {seriesStep === 'review' && preview.length === 0 && (
+                  <p>No dates match this series. Return to the inputs to change the range or weekday.</p>
+                )}
+                {seriesStep === 'review' &&
+                  preview.map((item) => (
+                    <Checkbox
+                      key={item.startsAt}
+                      id={`occurrence-${item.startsAt}`}
+                      labelText={`${formatDate(dateInTimeZone(item.startsAt, scheduleQuery.data.timeZone))} · ${item.disposition}${item.reason ? ` — ${item.reason}` : ''}`}
+                      checked={selectedOccurrences.has(item.startsAt)}
+                      onChange={(_, value) =>
+                        setSelectedOccurrences((current) => {
+                          const next = new Set(current);
+                          if (value.checked) next.add(item.startsAt);
+                          else next.delete(item.startsAt);
+                          return next;
+                        })
+                      }
+                    />
+                  ))}
+              </Stack>
+            )}
+          </Modal>
+        )}
+        {editMode && (
+          <Modal
+            open={Boolean(editing) && !unsavedChanges.dialogOpen}
+            danger={localDiscard === 'edit'}
+            selectorPrimaryFocus={localDiscard === 'edit' ? '.cds--btn--secondary' : undefined}
+            modalHeading={localDiscard === 'edit' ? 'Discard Open Day inputs?' : 'Edit Open Day'}
+            primaryButtonText={localDiscard === 'edit' ? 'Discard inputs' : 'Apply'}
+            primaryButtonDisabled={localDiscard !== 'edit' && Boolean(timeError)}
+            secondaryButtonText={localDiscard === 'edit' ? 'Keep editing' : 'Cancel'}
+            onRequestClose={requestEditClose}
+            onRequestSubmit={() => {
+              if (localDiscard === 'edit') {
+                closeEditing();
+                return;
+              }
+              if (!editing) return;
+              dispatch({ type: 'update', slot: editing });
+              setEditing(null);
+            }}
+          >
+            {localDiscard === 'edit' ? (
+              <p>The form inputs will be discarded. Your existing schedule working copy will be kept.</p>
+            ) : (
+              editing && (
+                <SlotForm
+                  error={timeError}
+                  onError={setTimeError}
+                  slot={editing}
+                  roles={rolesQuery.data?.items ?? []}
+                  timeZone={scheduleQuery.data.timeZone}
+                  removalLabel={removalButtonLabel([editing], scheduleQuery.data.period.status)}
+                  onChange={setEditing}
+                  onRemove={() => {
+                    setPendingRemoval([editing]);
+                    setEditing(null);
+                  }}
+                />
+              )
+            )}
+          </Modal>
+        )}
+        {editMode && bulkEditing && (
+          <Modal
+            open={!unsavedChanges.dialogOpen}
+            size="sm"
+            danger={localDiscard === 'bulk'}
+            selectorPrimaryFocus={localDiscard === 'bulk' ? '.cds--btn--secondary' : undefined}
+            modalHeading={
+              localDiscard === 'bulk'
+                ? 'Discard bulk inputs?'
+                : `Edit ${bulkEditing.slots.length} selected Open Day${bulkEditing.slots.length === 1 ? '' : 's'}`
+            }
+            primaryButtonText={localDiscard === 'bulk' ? 'Discard inputs' : 'Apply to selected'}
+            primaryButtonDisabled={localDiscard !== 'bulk' && !hasBulkEditChanges(bulkEditing)}
+            secondaryButtonText={localDiscard === 'bulk' ? 'Keep editing' : 'Cancel'}
+            onRequestClose={requestBulkClose}
+            onRequestSubmit={localDiscard === 'bulk' ? closeBulk : applyBulkEdit}
+          >
+            {localDiscard === 'bulk' ? (
+              <p>Your bulk form inputs will be discarded. The schedule working copy will be kept.</p>
+            ) : (
+              <Stack gap={5}>
+                <p>Only values you change are applied.</p>
+                {bulkEditError && (
+                  <InlineNotification
+                    kind="error"
+                    lowContrast
+                    hideCloseButton
+                    title="Selected Open Days were not changed"
+                    subtitle={bulkEditError}
+                  />
+                )}
+                <div className="bulk-slot-editor__times">
+                  <TimePicker
+                    id="bulk-start"
+                    labelText="Start"
+                    placeholder={bulkEditing.startTime.mixed ? 'Mixed' : 'HH:MM'}
+                    value={bulkEditing.startTime.mixed ? '' : bulkEditing.startTime.value}
+                    onChange={(event) => {
+                      setBulkEditError(null);
+                      setBulkEditing({ ...bulkEditing, startTime: changedBulkEditField(event.target.value) });
+                    }}
+                  />
+                  <TimePicker
+                    id="bulk-end"
+                    labelText="End"
+                    placeholder={bulkEditing.endTime.mixed ? 'Mixed' : 'HH:MM'}
+                    value={bulkEditing.endTime.mixed ? '' : bulkEditing.endTime.value}
+                    onChange={(event) => {
+                      setBulkEditError(null);
+                      setBulkEditing({ ...bulkEditing, endTime: changedBulkEditField(event.target.value) });
+                    }}
+                  />
+                </div>
+                <div className="bulk-slot-editor__requirements">
+                  <NumberInput
+                    id="bulk-supervisors"
+                    label="Supervisors required"
+                    min={0}
+                    max={100}
+                    allowEmpty
+                    placeholder={bulkEditing.supervisors.mixed ? 'Mixed' : undefined}
+                    value={bulkEditing.supervisors.mixed ? '' : bulkEditing.supervisors.value}
+                    onChange={(_, value) => {
+                      setBulkEditError(null);
+                      setBulkEditing({
+                        ...bulkEditing,
+                        supervisors: changedBulkEditField(value.value === '' ? '' : Number(value.value)),
+                      });
+                    }}
+                  />
+                  <NumberInput
+                    id="bulk-trainees"
+                    label="Trainees required"
+                    min={0}
+                    max={100}
+                    allowEmpty
+                    placeholder={bulkEditing.trainees.mixed ? 'Mixed' : undefined}
+                    value={bulkEditing.trainees.mixed ? '' : bulkEditing.trainees.value}
+                    onChange={(_, value) => {
+                      setBulkEditError(null);
+                      setBulkEditing({
+                        ...bulkEditing,
+                        trainees: changedBulkEditField(value.value === '' ? '' : Number(value.value)),
+                      });
+                    }}
+                  />
+                </div>
+                <RoleMultiSelect
+                  id="bulk-supervisor-roles"
+                  titleText="Eligible supervisor roles"
+                  roles={rolesQuery.data?.items ?? []}
+                  selectedRoleIds={bulkEditing.supervisorRoleIds.mixed ? [] : bulkEditing.supervisorRoleIds.value}
+                  label={bulkEditing.supervisorRoleIds.mixed ? 'Mixed' : 'Choose roles'}
+                  onChange={(supervisorRoleIds) => {
+                    setBulkEditError(null);
+                    setBulkEditing({ ...bulkEditing, supervisorRoleIds: changedBulkEditField(supervisorRoleIds) });
+                  }}
+                />
+                <RoleMultiSelect
+                  id="bulk-trainee-roles"
+                  titleText="Eligible trainee roles"
+                  roles={rolesQuery.data?.items ?? []}
+                  selectedRoleIds={bulkEditing.traineeRoleIds.mixed ? [] : bulkEditing.traineeRoleIds.value}
+                  label={bulkEditing.traineeRoleIds.mixed ? 'Mixed' : 'Choose roles'}
+                  onChange={(traineeRoleIds) => {
+                    setBulkEditError(null);
+                    setBulkEditing({ ...bulkEditing, traineeRoleIds: changedBulkEditField(traineeRoleIds) });
+                  }}
+                />
+                <TextInput
+                  id="bulk-note"
+                  labelText="Internal note"
+                  placeholder={bulkEditing.internalNote.mixed ? 'Mixed' : undefined}
+                  value={bulkEditing.internalNote.mixed ? '' : bulkEditing.internalNote.value}
+                  onChange={(event) => {
+                    setBulkEditError(null);
+                    setBulkEditing({ ...bulkEditing, internalNote: changedBulkEditField(event.target.value) });
+                  }}
+                />
+              </Stack>
+            )}
+          </Modal>
+        )}
+        {editMode && pendingRemoval && (
+          <Modal
+            open={!unsavedChanges.dialogOpen}
+            selectorPrimaryFocus=".cds--btn--secondary"
+            danger
+            modalHeading={removalHeading(pendingRemoval, scheduleQuery.data.period.status)}
+            primaryButtonText={removalButtonLabel(pendingRemoval, scheduleQuery.data.period.status)}
+            secondaryButtonText={`Keep Open Day${pendingRemoval.length === 1 ? '' : 's'}`}
+            onRequestClose={() => setPendingRemoval(null)}
+            onRequestSubmit={confirmRemoval}
+          >
+            <p>{removalConfirmation(pendingRemoval, scheduleQuery.data.period.status)}</p>
+          </Modal>
+        )}
+        {editMode && (
+          <Modal
+            open={publishedSaveConfirmation && !unsavedChanges.dialogOpen}
+            selectorPrimaryFocus=".cds--btn--secondary"
+            danger
+            modalHeading="Save changes to published schedule?"
+            primaryButtonText="Save published schedule"
+            secondaryButtonText="Keep editing"
+            primaryButtonDisabled={saveMutation.isPending}
+            onRequestClose={requestPublishedSaveClose}
+            onRequestSubmit={() => saveMutation.mutate()}
+          >
+            <p>These changes update the public calendar and calendar feed. Subscribers may receive an update.</p>
+          </Modal>
+        )}
+        {editMode && (
+          <Modal
+            open={Boolean(pendingMove) && !unsavedChanges.dialogOpen}
+            modalHeading="Move onto calendar context?"
+            primaryButtonText="Move Open Day"
+            secondaryButtonText="Keep current date"
+            onRequestClose={() => setPendingMove(null)}
+            onRequestSubmit={() => {
+              if (pendingMove) moveSlot(pendingMove.id, pendingMove.date);
+              setPendingMove(null);
+            }}
+          >
+            <p>
+              {pendingMove
+                ? `${pendingMove.date} is marked as ${pendingMove.entries.map((entry) => entry.name).join(', ')}. This does not prevent scheduling.`
+                : ''}
+            </p>
+          </Modal>
+        )}
+        <UnsavedChangesDialog
+          guard={unsavedChanges}
+          title="Discard unsaved schedule changes?"
+          message="Your local schedule changes and any open form inputs have not been saved."
+        />
+      </PageShell>
+    </DragDropProvider>
+  );
 }
 
 type LifecycleTarget = 'draft' | 'staffing' | 'published' | 'archived';
@@ -427,18 +1246,44 @@ type LifecycleAction = { target: LifecycleTarget; label: string; confirmation: s
 
 function actionsForStatus(status: OpenDayPeriodStatus): LifecycleAction[] {
   if (status === 'draft') {
-    return [{ target: 'staffing', label: 'Open for staffing', confirmation: 'Staff will be able to view this period and sign up.' }];
+    return [
+      {
+        target: 'staffing',
+        label: 'Open for staffing',
+        confirmation: 'Staff will be able to view this period and sign up.',
+      },
+    ];
   }
   if (status === 'staffing') {
     return [
-      { target: 'draft', label: 'Move back to Draft', confirmation: 'This period will no longer be visible to staff. Existing assignments will be kept.', danger: true },
-      { target: 'published', label: 'Publish', confirmation: 'This period will appear in the public calendar. Internal staffing will remain available.' },
+      {
+        target: 'draft',
+        label: 'Move back to Draft',
+        confirmation: 'This period will no longer be visible to staff. Existing assignments will be kept.',
+        danger: true,
+      },
+      {
+        target: 'published',
+        label: 'Publish',
+        confirmation: 'This period will appear in the public calendar. Internal staffing will remain available.',
+      },
     ];
   }
   if (status === 'published') {
     return [
-      { target: 'staffing', label: 'Unpublish and return to staffing', confirmation: 'This period will no longer appear in the public calendar. Internal staffing will remain available.', danger: true },
-      { target: 'archived', label: 'Archive', confirmation: 'This period will become read-only. Existing Open Days and assignments will be kept.', danger: true },
+      {
+        target: 'staffing',
+        label: 'Unpublish and return to staffing',
+        confirmation:
+          'This period will no longer appear in the public calendar. Internal staffing will remain available.',
+        danger: true,
+      },
+      {
+        target: 'archived',
+        label: 'Archive',
+        confirmation: 'This period will become read-only. Existing Open Days and assignments will be kept.',
+        danger: true,
+      },
     ];
   }
   return [];
@@ -477,10 +1322,33 @@ function sameStringSet(left: string[], right: string[]) {
 }
 
 function hasBulkEditChanges(state: BulkEditState) {
-  return state.startTime.changed || state.endTime.changed || state.supervisors.changed || state.trainees.changed || state.supervisorRoleIds.changed || state.traineeRoleIds.changed || state.internalNote.changed;
+  return (
+    state.startTime.changed ||
+    state.endTime.changed ||
+    state.supervisors.changed ||
+    state.trainees.changed ||
+    state.supervisorRoleIds.changed ||
+    state.traineeRoleIds.changed ||
+    state.internalNote.changed
+  );
 }
 
-function OpenDayPreviewView({ filter, dateTimeFilter, items, timeZone, view, isPhone, canEdit, period, entries, onFilter, onDateTimeFilter, onView, onEdit, onOpenDay }: {
+function OpenDayPreviewView({
+  filter,
+  dateTimeFilter,
+  items,
+  timeZone,
+  view,
+  isPhone,
+  canEdit,
+  period,
+  entries,
+  onFilter,
+  onDateTimeFilter,
+  onView,
+  onEdit,
+  onOpenDay,
+}: {
   filter: OpenDayFilter;
   dateTimeFilter: OpenDayDateTimeFilter;
   items: OpenDay[];
@@ -504,7 +1372,13 @@ function OpenDayPreviewView({ filter, dateTimeFilter, items, timeZone, view, isP
     endsAt: day.endsAt,
     status: day.status,
     summary: timeRange(day, timeZone),
-    details: <><span>{previewRequirementCount(day, 'supervisor')} supervisors</span><span>{previewRequirementCount(day, 'trainee')} trainees</span>{day.myAssignment && <strong>Your assignment</strong>}</>,
+    details: (
+      <>
+        <span>{previewRequirementCount(day, 'supervisor')} supervisors</span>
+        <span>{previewRequirementCount(day, 'trainee')} trainees</span>
+        {day.myAssignment && <strong>Your assignment</strong>}
+      </>
+    ),
   }));
   const visibleItemsById = new Map(visibleItems.map((day) => [day.id, day]));
   const rows = visibleItems.map((day) => ({
@@ -513,7 +1387,9 @@ function OpenDayPreviewView({ filter, dateTimeFilter, items, timeZone, view, isP
     time: timeInTimeZone(day.startsAt, timeZone),
     supervisors: previewRequirementCount(day, 'supervisor'),
     trainees: previewRequirementCount(day, 'trainee'),
-    assignment: day.myAssignment ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned') : '—',
+    assignment: day.myAssignment
+      ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned')
+      : '—',
   }));
   const headers = [
     { key: 'date', header: 'Date' },
@@ -523,32 +1399,131 @@ function OpenDayPreviewView({ filter, dateTimeFilter, items, timeZone, view, isP
     { key: 'assignment', header: 'My assignment' },
   ];
 
-  return <DataTable rows={rows} headers={headers} isSortable>
-    {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
-      <TableContainer className="open-days-view-container">
-        <OpenDayPreviewToolbar filter={filter} dateTimeFilter={dateTimeFilter} items={items} timeZone={timeZone} view={view} canEdit={canEdit} onFilter={onFilter} onDateTimeFilter={onDateTimeFilter} onView={onView} onEdit={onEdit} />
-        {view === 'calendar' ? (
-          <div className="open-days-view-content open-days-view-content--calendar">
-            <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={entries} timeZone={timeZone} onOpenDay={onOpenDay} compact={isPhone} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-            {isPhone && selectedDate && <><SelectedCalendarContext date={selectedDate} entries={entries} /><OpenDayAgenda items={agendaItems.filter((item) => dateInTimeZone(item.startsAt, timeZone) === selectedDate)} timeZone={timeZone} emptyMessage="No Open Days on this date." onOpen={(id) => { const day = visibleItemsById.get(id); if (day) onOpenDay(day); }} /></>}
-          </div>
-        ) : (
-          isPhone ? <OpenDayAgenda items={agendaItems} timeZone={timeZone} emptyMessage="No Open Days match these filters." onOpen={(id) => { const day = visibleItemsById.get(id); if (day) onOpenDay(day); }} /> : <div className="responsive-table open-days-view-content">
-            <Table {...getTableProps()}>
-              <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header, isSortable: header.key === 'date' || header.key === 'time' })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
-              <TableBody>{tableRows.map((row) => {
-                const day = visibleItemsById.get(row.id);
-                return <TableRow {...getRowProps({ row })} key={row.id} onClick={() => { if (day) onOpenDay(day); }}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'date' && day ? <Button kind="ghost" size="sm" onClick={(event) => { event.stopPropagation(); onOpenDay(day); }}>{longDate(day.startsAt, timeZone)}</Button> : cell.info.header === 'time' && day ? timeRange(day, timeZone) : String(cell.value)}</TableCell>)}</TableRow>;
-              })}</TableBody>
-            </Table>
-          </div>
-        )}
-      </TableContainer>
-    )}
-  </DataTable>;
+  return (
+    <DataTable rows={rows} headers={headers} isSortable>
+      {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
+        <TableContainer className="open-days-view-container">
+          <OpenDayPreviewToolbar
+            filter={filter}
+            dateTimeFilter={dateTimeFilter}
+            items={items}
+            timeZone={timeZone}
+            view={view}
+            canEdit={canEdit}
+            onFilter={onFilter}
+            onDateTimeFilter={onDateTimeFilter}
+            onView={onView}
+            onEdit={onEdit}
+          />
+          {view === 'calendar' ? (
+            <div className="open-days-view-content open-days-view-content--calendar">
+              <SemesterCalendar
+                startsOn={period.startsOn}
+                endsOn={period.endsOn}
+                days={visibleItems}
+                entries={entries}
+                timeZone={timeZone}
+                onOpenDay={onOpenDay}
+                compact={isPhone}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+              />
+              {isPhone && selectedDate && (
+                <>
+                  <SelectedCalendarContext date={selectedDate} entries={entries} />
+                  <OpenDayAgenda
+                    items={agendaItems.filter((item) => dateInTimeZone(item.startsAt, timeZone) === selectedDate)}
+                    timeZone={timeZone}
+                    emptyMessage="No Open Days on this date."
+                    onOpen={(id) => {
+                      const day = visibleItemsById.get(id);
+                      if (day) onOpenDay(day);
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          ) : isPhone ? (
+            <OpenDayAgenda
+              items={agendaItems}
+              timeZone={timeZone}
+              emptyMessage="No Open Days match these filters."
+              onOpen={(id) => {
+                const day = visibleItemsById.get(id);
+                if (day) onOpenDay(day);
+              }}
+            />
+          ) : (
+            <div className="responsive-table open-days-view-content">
+              <Table {...getTableProps()}>
+                <TableHead>
+                  <TableRow>
+                    {tableHeaders.map((header) => (
+                      <TableHeader
+                        {...getHeaderProps({ header, isSortable: header.key === 'date' || header.key === 'time' })}
+                        key={header.key}
+                      >
+                        {header.header}
+                      </TableHeader>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tableRows.map((row) => {
+                    const day = visibleItemsById.get(row.id);
+                    return (
+                      <TableRow
+                        {...getRowProps({ row })}
+                        key={row.id}
+                        onClick={() => {
+                          if (day) onOpenDay(day);
+                        }}
+                      >
+                        {row.cells.map((cell) => (
+                          <TableCell key={cell.id}>
+                            {cell.info.header === 'date' && day ? (
+                              <Button
+                                kind="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onOpenDay(day);
+                                }}
+                              >
+                                {longDate(day.startsAt, timeZone)}
+                              </Button>
+                            ) : cell.info.header === 'time' && day ? (
+                              timeRange(day, timeZone)
+                            ) : (
+                              String(cell.value)
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </TableContainer>
+      )}
+    </DataTable>
+  );
 }
 
-function OpenDayPreviewToolbar({ filter, dateTimeFilter, items, timeZone, view, canEdit, onFilter, onDateTimeFilter, onView, onEdit }: {
+function OpenDayPreviewToolbar({
+  filter,
+  dateTimeFilter,
+  items,
+  timeZone,
+  view,
+  canEdit,
+  onFilter,
+  onDateTimeFilter,
+  onView,
+  onEdit,
+}: {
   filter: OpenDayFilter;
   dateTimeFilter: OpenDayDateTimeFilter;
   items: Array<{ startsAt: string }>;
@@ -561,23 +1536,71 @@ function OpenDayPreviewToolbar({ filter, dateTimeFilter, items, timeZone, view, 
   onEdit: () => void;
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
-  return <>
-    <div className="open-days-view-toolbar"><TableToolbar aria-label="Open Days tools">
-      <TableToolbarContent>
-        <div className="open-days-view-toolbar__actions">
-          <Button hasIconOnly kind="ghost" size="md" renderIcon={Filter} iconDescription="Filter" aria-expanded={filtersOpen} aria-controls="open-days-filters" onClick={() => setFiltersOpen((open) => !open)} />
-          {canEdit && <Button hasIconOnly kind="secondary" size="md" renderIcon={Edit} iconDescription="Edit" onClick={onEdit} />}
-          <Button hasIconOnly kind="ghost" size="md" renderIcon={view === 'calendar' ? List : CalendarIcon} iconDescription={view === 'calendar' ? 'List view' : 'Calendar view'} onClick={() => onView(view === 'calendar' ? 'list' : 'calendar')} />
-        </div>
-      </TableToolbarContent>
-    </TableToolbar></div>
-    {filtersOpen && <div id="open-days-filters" className="open-days-filter-panel">
-      <div className="open-days-filter-panel__fields">
-        <OpenDayDateTimeFilters idPrefix="open-days" items={items} timeZone={timeZone} value={dateTimeFilter} onChange={onDateTimeFilter} />
-        <Dropdown id="open-days-availability-filter" className="open-days-view-toolbar__status-filter" titleText="Filter Open Days" hideLabel size="md" label="Choose Open Days" items={openDayFilterOptions} itemToString={(option) => option?.label ?? ''} selectedItem={openDayFilterOptions.find((option) => option.value === filter)} onChange={({ selectedItem }) => onFilter(selectedItem?.value ?? 'all')} />
+  return (
+    <>
+      <div className="open-days-view-toolbar">
+        <TableToolbar aria-label="Open Days tools">
+          <TableToolbarContent>
+            <div className="open-days-view-toolbar__actions">
+              <Button
+                hasIconOnly
+                kind="ghost"
+                size="md"
+                renderIcon={Filter}
+                iconDescription="Filter"
+                aria-expanded={filtersOpen}
+                aria-controls="open-days-filters"
+                onClick={() => setFiltersOpen((open) => !open)}
+              />
+              {canEdit && (
+                <Button
+                  hasIconOnly
+                  kind="secondary"
+                  size="md"
+                  renderIcon={Edit}
+                  iconDescription="Edit"
+                  onClick={onEdit}
+                />
+              )}
+              <Button
+                hasIconOnly
+                kind="ghost"
+                size="md"
+                renderIcon={view === 'calendar' ? List : CalendarIcon}
+                iconDescription={view === 'calendar' ? 'List view' : 'Calendar view'}
+                onClick={() => onView(view === 'calendar' ? 'list' : 'calendar')}
+              />
+            </div>
+          </TableToolbarContent>
+        </TableToolbar>
       </div>
-    </div>}
-  </>;
+      {filtersOpen && (
+        <div id="open-days-filters" className="open-days-filter-panel">
+          <div className="open-days-filter-panel__fields">
+            <OpenDayDateTimeFilters
+              idPrefix="open-days"
+              items={items}
+              timeZone={timeZone}
+              value={dateTimeFilter}
+              onChange={onDateTimeFilter}
+            />
+            <Dropdown
+              id="open-days-availability-filter"
+              className="open-days-view-toolbar__status-filter"
+              titleText="Filter Open Days"
+              hideLabel
+              size="md"
+              label="Choose Open Days"
+              items={openDayFilterOptions}
+              itemToString={(option) => option?.label ?? ''}
+              selectedItem={openDayFilterOptions.find((option) => option.value === filter)}
+              onChange={({ selectedItem }) => onFilter(selectedItem?.value ?? 'all')}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function previewRequirementCount(day: OpenDay, kind: string) {
@@ -585,7 +1608,32 @@ function previewRequirementCount(day: OpenDay, kind: string) {
   return item ? `${item.assignedCount} / ${item.requiredCount}` : '0 / 0';
 }
 
-function ScheduleWorkingView({ view, isPhone, disableDrag, onView, dateTimeFilter, onDateTimeFilter, slots, startsOn, endsOn, entries, timeZone, periodStatus, dirty, canUndo, lifecyclePending, savePending, onUndo, onSave, onCreate, onPreview, onAdd, onEdit, onRemove, onBulkEdit }: {
+function ScheduleWorkingView({
+  view,
+  isPhone,
+  disableDrag,
+  onView,
+  dateTimeFilter,
+  onDateTimeFilter,
+  slots,
+  startsOn,
+  endsOn,
+  entries,
+  timeZone,
+  periodStatus,
+  dirty,
+  canUndo,
+  lifecyclePending,
+  savePending,
+  onUndo,
+  onSave,
+  onCreate,
+  onPreview,
+  onAdd,
+  onEdit,
+  onRemove,
+  onBulkEdit,
+}: {
   view: 'list' | 'calendar';
   isPhone: boolean;
   disableDrag: boolean;
@@ -642,70 +1690,414 @@ function ScheduleWorkingView({ view, isPhone, disableDrag, onView, dateTimeFilte
     status: slot.original?.status,
     disabled: slot.original?.status === 'cancelled',
     summary: timeRange(slot, timeZone),
-    details: <><span>{workingRequirementCount(slot, 'supervisor')} supervisors</span><span>{workingRequirementCount(slot, 'trainee')} trainees</span>{slot.internalNote && <span>{slot.internalNote}</span>}</>,
+    details: (
+      <>
+        <span>{workingRequirementCount(slot, 'supervisor')} supervisors</span>
+        <span>{workingRequirementCount(slot, 'trainee')} trainees</span>
+        {slot.internalNote && <span>{slot.internalNote}</span>}
+      </>
+    ),
   }));
 
-  return <DataTable key={view === 'list' ? orderedSlots.map((slot) => slot.id).join('|') : 'calendar'} rows={rows} headers={headers} isSortable>
-    {({ rows: tableRows, headers: tableHeaders, selectedRows, getBatchActionProps, getHeaderProps, getRowProps, getSelectionProps, getTableProps }) => {
-      const selectedSlots = (isPhone ? visibleSlots.filter((slot) => selectedIds.has(slot.id)).map((slot) => ({ id: slot.id })) : selectedRows).map((row) => slotsById.get(row.id)).filter((slot): slot is WorkingSlot => Boolean(slot));
-      return <TableContainer className="schedule-editor-view-container">
-        <div className="open-days-view-toolbar"><TableToolbar aria-label="Schedule editor tools">
-          {view === 'list' && !isPhone && selectedSlots.length > 0 && <TableBatchActions {...getBatchActionProps()}>
-            <TableBatchAction renderIcon={Edit} iconDescription="Edit selected Open Days" onClick={() => onBulkEdit(selectedSlots)}>Edit selected</TableBatchAction>
-            <TableBatchAction renderIcon={periodStatus === 'draft' ? TrashCan : Misuse} iconDescription={removalButtonLabel(selectedSlots, periodStatus)} onClick={() => onRemove(selectedSlots)}>{removalButtonLabel(selectedSlots, periodStatus)}</TableBatchAction>
-          </TableBatchActions>}
-          <TableToolbarContent>
-            <div className="schedule-editor-toolbar__actions">
-              <Button hasIconOnly kind="ghost" size="md" renderIcon={Filter} iconDescription="Filter" aria-expanded={filtersOpen} aria-controls="schedule-editor-filters" onClick={() => setFiltersOpen((open) => !open)} />
-              <Button hasIconOnly kind="secondary" size="md" renderIcon={Undo} iconDescription="Undo" disabled={!canUndo} onClick={onUndo} />
-              <Button hasIconOnly kind="secondary" size="md" renderIcon={Save} iconDescription={savePending ? 'Saving…' : 'Save'} disabled={!dirty || savePending || lifecyclePending} onClick={onSave} />
-              <Button renderIcon={Add} onClick={onCreate}>Create</Button>
-              <Button hasIconOnly kind="secondary" size="md" renderIcon={View} iconDescription="Preview" onClick={onPreview} />
-              <Button hasIconOnly kind="ghost" size="md" renderIcon={view === 'calendar' ? List : CalendarIcon} iconDescription={view === 'calendar' ? 'List view' : 'Calendar view'} onClick={() => onView(view === 'calendar' ? 'list' : 'calendar')} />
+  return (
+    <DataTable
+      key={view === 'list' ? orderedSlots.map((slot) => slot.id).join('|') : 'calendar'}
+      rows={rows}
+      headers={headers}
+      isSortable
+    >
+      {({
+        rows: tableRows,
+        headers: tableHeaders,
+        selectedRows,
+        getBatchActionProps,
+        getHeaderProps,
+        getRowProps,
+        getSelectionProps,
+        getTableProps,
+      }) => {
+        const selectedSlots = (
+          isPhone
+            ? visibleSlots.filter((slot) => selectedIds.has(slot.id)).map((slot) => ({ id: slot.id }))
+            : selectedRows
+        )
+          .map((row) => slotsById.get(row.id))
+          .filter((slot): slot is WorkingSlot => Boolean(slot));
+        return (
+          <TableContainer className="schedule-editor-view-container">
+            <div className="open-days-view-toolbar">
+              <TableToolbar aria-label="Schedule editor tools">
+                {view === 'list' && !isPhone && selectedSlots.length > 0 && (
+                  <TableBatchActions {...getBatchActionProps()}>
+                    <TableBatchAction
+                      renderIcon={Edit}
+                      iconDescription="Edit selected Open Days"
+                      onClick={() => onBulkEdit(selectedSlots)}
+                    >
+                      Edit selected
+                    </TableBatchAction>
+                    <TableBatchAction
+                      renderIcon={periodStatus === 'draft' ? TrashCan : Misuse}
+                      iconDescription={removalButtonLabel(selectedSlots, periodStatus)}
+                      onClick={() => onRemove(selectedSlots)}
+                    >
+                      {removalButtonLabel(selectedSlots, periodStatus)}
+                    </TableBatchAction>
+                  </TableBatchActions>
+                )}
+                <TableToolbarContent>
+                  <div className="schedule-editor-toolbar__actions">
+                    <Button
+                      hasIconOnly
+                      kind="ghost"
+                      size="md"
+                      renderIcon={Filter}
+                      iconDescription="Filter"
+                      aria-expanded={filtersOpen}
+                      aria-controls="schedule-editor-filters"
+                      onClick={() => setFiltersOpen((open) => !open)}
+                    />
+                    <Button
+                      hasIconOnly
+                      kind="secondary"
+                      size="md"
+                      renderIcon={Undo}
+                      iconDescription="Undo"
+                      disabled={!canUndo}
+                      onClick={onUndo}
+                    />
+                    <Button
+                      hasIconOnly
+                      kind="secondary"
+                      size="md"
+                      renderIcon={Save}
+                      iconDescription={savePending ? 'Saving…' : 'Save'}
+                      disabled={!dirty || savePending || lifecyclePending}
+                      onClick={onSave}
+                    />
+                    <Button renderIcon={Add} onClick={onCreate}>
+                      Create
+                    </Button>
+                    <Button
+                      hasIconOnly
+                      kind="secondary"
+                      size="md"
+                      renderIcon={View}
+                      iconDescription="Preview"
+                      onClick={onPreview}
+                    />
+                    <Button
+                      hasIconOnly
+                      kind="ghost"
+                      size="md"
+                      renderIcon={view === 'calendar' ? List : CalendarIcon}
+                      iconDescription={view === 'calendar' ? 'List view' : 'Calendar view'}
+                      onClick={() => onView(view === 'calendar' ? 'list' : 'calendar')}
+                    />
+                  </div>
+                </TableToolbarContent>
+              </TableToolbar>
             </div>
-          </TableToolbarContent>
-        </TableToolbar></div>
-        {isPhone && view === 'list' && selectedSlots.length > 0 && <div className="open-day-agenda__batch" role="group" aria-label="Selected Open Days"><span>{selectedSlots.length} selected</span><Button kind="secondary" renderIcon={Edit} onClick={() => onBulkEdit(selectedSlots)}>Edit selected</Button><Button kind="danger--tertiary" onClick={() => onRemove(selectedSlots)}>{removalButtonLabel(selectedSlots, periodStatus)}</Button><Button kind="ghost" onClick={() => setSelectedIds(new Set())}>Clear selection</Button></div>}
-        {filtersOpen && <div id="schedule-editor-filters" className="open-days-filter-panel"><OpenDayDateTimeFilters idPrefix="schedule-editor" items={slots} timeZone={timeZone} value={dateTimeFilter} onChange={onDateTimeFilter} /></div>}
-        {view === 'calendar' ? <div className="open-days-view-content open-days-view-content--calendar">
-          <CalendarLegend />
-          <SemesterCalendarGrid startsOn={startsOn} endsOn={endsOn} entries={entries} className={`semester-calendar--editor${isPhone ? ' semester-calendar--compact' : ''}`} ariaLabel="Schedule planning calendar" renderDay={(day) => isPhone
-            ? <CalendarDayCell key={day.date} day={day} className="calendar-cell--compact" selected={selectedDate === day.date} onSelectDate={day.withinRange ? () => setSelectedDate(day.date) : undefined} selectLabel={`Show Open Days on ${formatDate(day.date)}`}><span className="calendar-cell__event-count" aria-hidden="true">{visibleSlots.filter((slot) => dateInTimeZone(slot.startsAt, timeZone) === day.date).length || ''}</span></CalendarDayCell>
-            : <DropDate key={day.date} day={day} slots={visibleSlots.filter((slot) => dateInTimeZone(slot.startsAt, timeZone) === day.date)} timeZone={timeZone} periodStatus={periodStatus} disableDrag={disableDrag} onAdd={() => onAdd(day.date)} onEdit={onEdit} onRemove={(slot) => onRemove([slot])} />} />
-          {isPhone && selectedDate && <div className="open-day-agenda-selection"><SelectedCalendarContext date={selectedDate} entries={entries} /><Button renderIcon={Add} onClick={() => onAdd(selectedDate)}>Add Open Day</Button><OpenDayAgenda items={agendaItems.filter((item) => dateInTimeZone(item.startsAt, timeZone) === selectedDate)} timeZone={timeZone} emptyMessage="No Open Days on this date." periodStatus={periodStatus} onEdit={(id) => { const slot = slotsById.get(id); if (slot) onEdit(slot); }} onRemove={(id) => { const slot = slotsById.get(id); if (slot) onRemove([slot]); }} /></div>}
-        </div> : isPhone ? <OpenDayAgenda selectedIds={selectedIds} onSelect={(id, selected) => setSelectedIds((current) => { const next = new Set(current); if (selected) next.add(id); else next.delete(id); return next; })} items={agendaItems} timeZone={timeZone} emptyMessage="No Open Days match these filters." periodStatus={periodStatus} onEdit={(id) => { const slot = slotsById.get(id); if (slot) onEdit(slot); }} onRemove={(id) => { const slot = slotsById.get(id); if (slot) onRemove([slot]); }} /> : <div className="responsive-table open-days-view-content schedule-editor-table">
-          <Table {...getTableProps()} aria-label="Editable Open Days">
-            <TableHead><TableRow><TableSelectAll {...getSelectionProps()} />{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header, isSortable: header.key === 'date' || header.key === 'time' })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
-            <TableBody>{tableRows.map((row) => {
-              const slot = slotsById.get(row.id);
-              return <TableRow {...getRowProps({ row })} key={row.id}>
-                <TableSelectRow {...getSelectionProps({ row })} />
-                {row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'actions' ? (!slot || slot.original?.status === 'cancelled' ? '—' : <div className="table-actions"><Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription={`Edit Open Day on ${dateInTimeZone(slot.startsAt, timeZone)}`} onClick={() => onEdit(slot)} /><Button hasIconOnly kind="danger--ghost" size="sm" renderIcon={periodStatus === 'draft' || !slot.serverId ? TrashCan : Misuse} iconDescription={removalButtonLabel([slot], periodStatus)} onClick={() => onRemove([slot])} /></div>) : cell.info.header === 'date' && slot ? longDate(slot.startsAt, timeZone) : cell.info.header === 'time' && slot ? timeRange(slot, timeZone) : String(cell.value)}</TableCell>)}
-              </TableRow>;
-            })}</TableBody>
-          </Table>
-        </div>}
-      </TableContainer>;
-    }}
-  </DataTable>;
+            {isPhone && view === 'list' && selectedSlots.length > 0 && (
+              <div className="open-day-agenda__batch" role="group" aria-label="Selected Open Days">
+                <span>{selectedSlots.length} selected</span>
+                <Button kind="secondary" renderIcon={Edit} onClick={() => onBulkEdit(selectedSlots)}>
+                  Edit selected
+                </Button>
+                <Button kind="danger--tertiary" onClick={() => onRemove(selectedSlots)}>
+                  {removalButtonLabel(selectedSlots, periodStatus)}
+                </Button>
+                <Button kind="ghost" onClick={() => setSelectedIds(new Set())}>
+                  Clear selection
+                </Button>
+              </div>
+            )}
+            {filtersOpen && (
+              <div id="schedule-editor-filters" className="open-days-filter-panel">
+                <OpenDayDateTimeFilters
+                  idPrefix="schedule-editor"
+                  items={slots}
+                  timeZone={timeZone}
+                  value={dateTimeFilter}
+                  onChange={onDateTimeFilter}
+                />
+              </div>
+            )}
+            {view === 'calendar' ? (
+              <div className="open-days-view-content open-days-view-content--calendar">
+                <CalendarLegend />
+                <SemesterCalendarGrid
+                  startsOn={startsOn}
+                  endsOn={endsOn}
+                  entries={entries}
+                  className={`semester-calendar--editor${isPhone ? ' semester-calendar--compact' : ''}`}
+                  ariaLabel="Schedule planning calendar"
+                  renderDay={(day) =>
+                    isPhone ? (
+                      <CalendarDayCell
+                        key={day.date}
+                        day={day}
+                        className="calendar-cell--compact"
+                        selected={selectedDate === day.date}
+                        onSelectDate={day.withinRange ? () => setSelectedDate(day.date) : undefined}
+                        selectLabel={`Show Open Days on ${formatDate(day.date)}`}
+                      >
+                        <span className="calendar-cell__event-count" aria-hidden="true">
+                          {visibleSlots.filter((slot) => dateInTimeZone(slot.startsAt, timeZone) === day.date).length ||
+                            ''}
+                        </span>
+                      </CalendarDayCell>
+                    ) : (
+                      <DropDate
+                        key={day.date}
+                        day={day}
+                        slots={visibleSlots.filter((slot) => dateInTimeZone(slot.startsAt, timeZone) === day.date)}
+                        timeZone={timeZone}
+                        periodStatus={periodStatus}
+                        disableDrag={disableDrag}
+                        onAdd={() => onAdd(day.date)}
+                        onEdit={onEdit}
+                        onRemove={(slot) => onRemove([slot])}
+                      />
+                    )
+                  }
+                />
+                {isPhone && selectedDate && (
+                  <div className="open-day-agenda-selection">
+                    <SelectedCalendarContext date={selectedDate} entries={entries} />
+                    <Button renderIcon={Add} onClick={() => onAdd(selectedDate)}>
+                      Add Open Day
+                    </Button>
+                    <OpenDayAgenda
+                      items={agendaItems.filter((item) => dateInTimeZone(item.startsAt, timeZone) === selectedDate)}
+                      timeZone={timeZone}
+                      emptyMessage="No Open Days on this date."
+                      periodStatus={periodStatus}
+                      onEdit={(id) => {
+                        const slot = slotsById.get(id);
+                        if (slot) onEdit(slot);
+                      }}
+                      onRemove={(id) => {
+                        const slot = slotsById.get(id);
+                        if (slot) onRemove([slot]);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : isPhone ? (
+              <OpenDayAgenda
+                selectedIds={selectedIds}
+                onSelect={(id, selected) =>
+                  setSelectedIds((current) => {
+                    const next = new Set(current);
+                    if (selected) next.add(id);
+                    else next.delete(id);
+                    return next;
+                  })
+                }
+                items={agendaItems}
+                timeZone={timeZone}
+                emptyMessage="No Open Days match these filters."
+                periodStatus={periodStatus}
+                onEdit={(id) => {
+                  const slot = slotsById.get(id);
+                  if (slot) onEdit(slot);
+                }}
+                onRemove={(id) => {
+                  const slot = slotsById.get(id);
+                  if (slot) onRemove([slot]);
+                }}
+              />
+            ) : (
+              <div className="responsive-table open-days-view-content schedule-editor-table">
+                <Table {...getTableProps()} aria-label="Editable Open Days">
+                  <TableHead>
+                    <TableRow>
+                      <TableSelectAll {...getSelectionProps()} />
+                      {tableHeaders.map((header) => (
+                        <TableHeader
+                          {...getHeaderProps({ header, isSortable: header.key === 'date' || header.key === 'time' })}
+                          key={header.key}
+                        >
+                          {header.header}
+                        </TableHeader>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {tableRows.map((row) => {
+                      const slot = slotsById.get(row.id);
+                      return (
+                        <TableRow {...getRowProps({ row })} key={row.id}>
+                          <TableSelectRow {...getSelectionProps({ row })} />
+                          {row.cells.map((cell) => (
+                            <TableCell key={cell.id}>
+                              {cell.info.header === 'actions' ? (
+                                !slot || slot.original?.status === 'cancelled' ? (
+                                  '—'
+                                ) : (
+                                  <div className="table-actions">
+                                    <Button
+                                      hasIconOnly
+                                      kind="ghost"
+                                      size="sm"
+                                      renderIcon={Edit}
+                                      iconDescription={`Edit Open Day on ${dateInTimeZone(slot.startsAt, timeZone)}`}
+                                      onClick={() => onEdit(slot)}
+                                    />
+                                    <Button
+                                      hasIconOnly
+                                      kind="danger--ghost"
+                                      size="sm"
+                                      renderIcon={periodStatus === 'draft' || !slot.serverId ? TrashCan : Misuse}
+                                      iconDescription={removalButtonLabel([slot], periodStatus)}
+                                      onClick={() => onRemove([slot])}
+                                    />
+                                  </div>
+                                )
+                              ) : cell.info.header === 'date' && slot ? (
+                                longDate(slot.startsAt, timeZone)
+                              ) : cell.info.header === 'time' && slot ? (
+                                timeRange(slot, timeZone)
+                              ) : (
+                                String(cell.value)
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TableContainer>
+        );
+      }}
+    </DataTable>
+  );
 }
 
-function DropDate({ day, slots, timeZone, periodStatus, disableDrag, onAdd, onEdit, onRemove }: { day: CalendarGridDay; slots: WorkingSlot[]; timeZone: string; periodStatus: OpenDayPeriodStatus; disableDrag: boolean; onAdd: () => void; onEdit: (slot: WorkingSlot) => void; onRemove: (slot: WorkingSlot) => void }) {
+function DropDate({
+  day,
+  slots,
+  timeZone,
+  periodStatus,
+  disableDrag,
+  onAdd,
+  onEdit,
+  onRemove,
+}: {
+  day: CalendarGridDay;
+  slots: WorkingSlot[];
+  timeZone: string;
+  periodStatus: OpenDayPeriodStatus;
+  disableDrag: boolean;
+  onAdd: () => void;
+  onEdit: (slot: WorkingSlot) => void;
+  onRemove: (slot: WorkingSlot) => void;
+}) {
   const published = periodStatus === 'published';
   const { ref, isDropTarget } = useDroppable({ id: day.date, disabled: disableDrag || published || !day.withinRange });
-  return <CalendarDayCell ref={ref} day={day} className={isDropTarget ? 'calendar-cell--target' : ''} onSelectDate={day.withinRange ? onAdd : undefined}>{slots.map((slot) => <DraggableSlot key={slot.id} slot={slot} timeZone={timeZone} periodStatus={periodStatus} disabled={disableDrag || published || slot.original?.status === 'cancelled'} onEdit={() => onEdit(slot)} onRemove={() => onRemove(slot)} />)}</CalendarDayCell>;
+  return (
+    <CalendarDayCell
+      ref={ref}
+      day={day}
+      className={isDropTarget ? 'calendar-cell--target' : ''}
+      onSelectDate={day.withinRange ? onAdd : undefined}
+    >
+      {slots.map((slot) => (
+        <DraggableSlot
+          key={slot.id}
+          slot={slot}
+          timeZone={timeZone}
+          periodStatus={periodStatus}
+          disabled={disableDrag || published || slot.original?.status === 'cancelled'}
+          onEdit={() => onEdit(slot)}
+          onRemove={() => onRemove(slot)}
+        />
+      ))}
+    </CalendarDayCell>
+  );
 }
-function DraggableSlot({ slot, timeZone, periodStatus, disabled, onEdit, onRemove }: { slot: WorkingSlot; timeZone: string; periodStatus: OpenDayPeriodStatus; disabled: boolean; onEdit: () => void; onRemove: () => void }) {
+function DraggableSlot({
+  slot,
+  timeZone,
+  periodStatus,
+  disabled,
+  onEdit,
+  onRemove,
+}: {
+  slot: WorkingSlot;
+  timeZone: string;
+  periodStatus: OpenDayPeriodStatus;
+  disabled: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
   const { ref, handleRef, isDragging } = useDraggable({ id: slot.id, disabled });
   const presentation = workingSlotPresentation(slot);
   const cancelled = slot.original?.status === 'cancelled';
-  const actions = cancelled ? undefined : <><Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription="Edit Open Day" onClick={onEdit} /><Button hasIconOnly kind="danger--ghost" size="sm" renderIcon={periodStatus === 'draft' || !slot.serverId ? TrashCan : Misuse} iconDescription={removalButtonLabel([slot], periodStatus)} onClick={onRemove} /></>;
-  return <div ref={ref}><CalendarEvent kind={presentation.kind} timeLabel={`${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`} statusLabel={presentation.label} statusIcon={presentation.Icon} assignmentLabel={slot.original?.myAssignment ? 'Your assignment' : undefined} assignmentIcon={UserAvatarFilledAlt} registeredCount={slot.original ? registeredPeopleCount(slot.original) : 0} onActivate={onEdit} mainRef={handleRef} disabled={cancelled} dragging={isDragging} ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)} to ${timeInTimeZone(slot.endsAt, timeZone)}`} actions={actions} /></div>;
+  const actions = cancelled ? undefined : (
+    <>
+      <Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription="Edit Open Day" onClick={onEdit} />
+      <Button
+        hasIconOnly
+        kind="danger--ghost"
+        size="sm"
+        renderIcon={periodStatus === 'draft' || !slot.serverId ? TrashCan : Misuse}
+        iconDescription={removalButtonLabel([slot], periodStatus)}
+        onClick={onRemove}
+      />
+    </>
+  );
+  return (
+    <div ref={ref}>
+      <CalendarEvent
+        kind={presentation.kind}
+        timeLabel={`${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`}
+        statusLabel={presentation.label}
+        statusIcon={presentation.Icon}
+        assignmentLabel={slot.original?.myAssignment ? 'Your assignment' : undefined}
+        assignmentIcon={UserAvatarFilledAlt}
+        registeredCount={slot.original ? registeredPeopleCount(slot.original) : 0}
+        onActivate={onEdit}
+        mainRef={handleRef}
+        disabled={cancelled}
+        dragging={isDragging}
+        ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)} to ${timeInTimeZone(slot.endsAt, timeZone)}`}
+        actions={actions}
+      />
+    </div>
+  );
 }
-function SlotForm({ slot, roles, timeZone, removalLabel, onChange, onRemove, error, onError }: { slot: WorkingSlot; roles: EligibilityRole[]; timeZone: string; removalLabel: string; onChange: (slot: WorkingSlot) => void; onRemove: () => void; error: string | null; onError: (error: string | null) => void }) {
+function SlotForm({
+  slot,
+  roles,
+  timeZone,
+  removalLabel,
+  onChange,
+  onRemove,
+  error,
+  onError,
+}: {
+  slot: WorkingSlot;
+  roles: EligibilityRole[];
+  timeZone: string;
+  removalLabel: string;
+  onChange: (slot: WorkingSlot) => void;
+  onRemove: () => void;
+  error: string | null;
+  onError: (error: string | null) => void;
+}) {
   const supervisor = slot.requirements.find((item) => item.kind === 'supervisor')!;
   const trainee = slot.requirements.find((item) => item.kind === 'trainee')!;
-  const updateRequirement = (kind: 'supervisor' | 'trainee', patch: Partial<StaffingRequirementInput>) => onChange({ ...slot, requirements: slot.requirements.map((item) => item.kind === kind ? { ...item, ...patch } : item) });
+  const updateRequirement = (kind: 'supervisor' | 'trainee', patch: Partial<StaffingRequirementInput>) =>
+    onChange({
+      ...slot,
+      requirements: slot.requirements.map((item) => (item.kind === kind ? { ...item, ...patch } : item)),
+    });
   const updateTime = (change: () => WorkingSlot) => {
     try {
       const updated = change();
@@ -713,35 +2105,118 @@ function SlotForm({ slot, roles, timeZone, removalLabel, onChange, onRemove, err
       validateLocalInstant(updated.endsAt, timeZone);
       onChange(updated);
       onError(null);
-    } catch (error) { onError(scheduleErrorMessage(error)); }
+    } catch (error) {
+      onError(scheduleErrorMessage(error));
+    }
   };
-  return <Stack gap={5}>
-    {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Choose a different local time" subtitle={error} />}
-    <DateInput id="slot-date" labelText="Date" value={dateInTimeZone(slot.startsAt, timeZone)} onChange={(date) => updateTime(() => {
-      const duration = new Date(slot.endsAt).getTime() - new Date(slot.startsAt).getTime();
-      const start = zonedDateTimeToISO(date, timeInTimeZone(slot.startsAt, timeZone), timeZone);
-      return { ...slot, startsAt: start, endsAt: new Date(new Date(start).getTime() + duration).toISOString() };
-    })} />
-    <TimePicker id="slot-start" labelText="Start time (24-hour)" placeholder="HH:MM" value={timeInTimeZone(slot.startsAt, timeZone)} onChange={(event) => updateTime(() => ({ ...slot, startsAt: zonedDateTimeToISO(dateInTimeZone(slot.startsAt, timeZone), event.target.value, timeZone) }))} />
-    <TimePicker id="slot-end" labelText="End time (24-hour)" placeholder="HH:MM" value={timeInTimeZone(slot.endsAt, timeZone)} onChange={(event) => updateTime(() => ({ ...slot, endsAt: zonedDateTimeToISO(dateInTimeZone(slot.endsAt, timeZone), event.target.value, timeZone) }))} />
-    <TextInput id="slot-note" labelText="Internal note" value={slot.internalNote ?? ''} onChange={(event) => onChange({ ...slot, internalNote: event.target.value || null })} />
-    <NumberInput id="slot-supervisor-count" label="Supervisors required" min={0} max={100} value={supervisor.requiredCount} onChange={(_, value) => updateRequirement('supervisor', { requiredCount: Number(value.value) })} />
-    <RoleMultiSelect id="slot-supervisor-roles" titleText="Eligible supervisor roles" roles={roles} selectedRoleIds={supervisor.eligibleRoleIds} onChange={(eligibleRoleIds) => updateRequirement('supervisor', { eligibleRoleIds })} />
-    <NumberInput id="slot-trainee-count" label="Trainees required" min={0} max={100} value={trainee.requiredCount} onChange={(_, value) => updateRequirement('trainee', { requiredCount: Number(value.value) })} />
-    <RoleMultiSelect id="slot-trainee-roles" titleText="Eligible trainee roles" roles={roles} selectedRoleIds={trainee.eligibleRoleIds} onChange={(eligibleRoleIds) => updateRequirement('trainee', { eligibleRoleIds })} />
-    <Button kind="danger--ghost" renderIcon={TrashCan} onClick={onRemove}>{removalLabel}</Button>
-  </Stack>;
+  return (
+    <Stack gap={5}>
+      {error && (
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Choose a different local time"
+          subtitle={error}
+        />
+      )}
+      <DateInput
+        id="slot-date"
+        labelText="Date"
+        value={dateInTimeZone(slot.startsAt, timeZone)}
+        onChange={(date) =>
+          updateTime(() => {
+            const duration = new Date(slot.endsAt).getTime() - new Date(slot.startsAt).getTime();
+            const start = zonedDateTimeToISO(date, timeInTimeZone(slot.startsAt, timeZone), timeZone);
+            return { ...slot, startsAt: start, endsAt: new Date(new Date(start).getTime() + duration).toISOString() };
+          })
+        }
+      />
+      <TimePicker
+        id="slot-start"
+        labelText="Start time (24-hour)"
+        placeholder="HH:MM"
+        value={timeInTimeZone(slot.startsAt, timeZone)}
+        onChange={(event) =>
+          updateTime(() => ({
+            ...slot,
+            startsAt: zonedDateTimeToISO(dateInTimeZone(slot.startsAt, timeZone), event.target.value, timeZone),
+          }))
+        }
+      />
+      <TimePicker
+        id="slot-end"
+        labelText="End time (24-hour)"
+        placeholder="HH:MM"
+        value={timeInTimeZone(slot.endsAt, timeZone)}
+        onChange={(event) =>
+          updateTime(() => ({
+            ...slot,
+            endsAt: zonedDateTimeToISO(dateInTimeZone(slot.endsAt, timeZone), event.target.value, timeZone),
+          }))
+        }
+      />
+      <TextInput
+        id="slot-note"
+        labelText="Internal note"
+        value={slot.internalNote ?? ''}
+        onChange={(event) => onChange({ ...slot, internalNote: event.target.value || null })}
+      />
+      <NumberInput
+        id="slot-supervisor-count"
+        label="Supervisors required"
+        min={0}
+        max={100}
+        value={supervisor.requiredCount}
+        onChange={(_, value) => updateRequirement('supervisor', { requiredCount: Number(value.value) })}
+      />
+      <RoleMultiSelect
+        id="slot-supervisor-roles"
+        titleText="Eligible supervisor roles"
+        roles={roles}
+        selectedRoleIds={supervisor.eligibleRoleIds}
+        onChange={(eligibleRoleIds) => updateRequirement('supervisor', { eligibleRoleIds })}
+      />
+      <NumberInput
+        id="slot-trainee-count"
+        label="Trainees required"
+        min={0}
+        max={100}
+        value={trainee.requiredCount}
+        onChange={(_, value) => updateRequirement('trainee', { requiredCount: Number(value.value) })}
+      />
+      <RoleMultiSelect
+        id="slot-trainee-roles"
+        titleText="Eligible trainee roles"
+        roles={roles}
+        selectedRoleIds={trainee.eligibleRoleIds}
+        onChange={(eligibleRoleIds) => updateRequirement('trainee', { eligibleRoleIds })}
+      />
+      <Button kind="danger--ghost" renderIcon={TrashCan} onClick={onRemove}>
+        {removalLabel}
+      </Button>
+    </Stack>
+  );
 }
 
 function scheduleErrorMessage(error: unknown) {
-  if (error instanceof ApiError && typeof error.data?.details === 'object' && error.data.details !== null && 'reason' in error.data.details && typeof error.data.details.reason === 'string') return error.data.details.reason;
+  if (
+    error instanceof ApiError &&
+    typeof error.data?.details === 'object' &&
+    error.data.details !== null &&
+    'reason' in error.data.details &&
+    typeof error.data.details.reason === 'string'
+  )
+    return error.data.details.reason;
   return error instanceof Error ? error.message : 'Review the local date and time and try again.';
 }
 
 function createConfigurationError(configuration: OpenDayScheduleDefaults) {
   if (!configuration.startTime || !configuration.endTime) return 'Enter both a start and end time.';
-  if (configuration.supervisors > 0 && configuration.supervisorRoleIds.length === 0) return 'Choose at least one eligible supervisor role.';
-  if (configuration.trainees > 0 && configuration.traineeRoleIds.length === 0) return 'Choose at least one eligible trainee role.';
+  if (configuration.supervisors > 0 && configuration.supervisorRoleIds.length === 0)
+    return 'Choose at least one eligible supervisor role.';
+  if (configuration.trainees > 0 && configuration.traineeRoleIds.length === 0)
+    return 'Choose at least one eligible trainee role.';
   return null;
 }
 
@@ -764,10 +2239,12 @@ function removalHeading(slots: WorkingSlot[], periodStatus: OpenDayPeriodStatus)
 function removalConfirmation(slots: WorkingSlot[], periodStatus: OpenDayPeriodStatus) {
   const count = slots.length;
   if (count === 1 && !slots[0].serverId) return 'This unsaved Open Day will be removed from the working schedule.';
-  if (periodStatus === 'draft') return `${count === 1 ? 'This draft Open Day' : `These ${count} draft Open Days`} will be permanently deleted when you save the schedule.`;
+  if (periodStatus === 'draft')
+    return `${count === 1 ? 'This draft Open Day' : `These ${count} draft Open Days`} will be permanently deleted when you save the schedule.`;
   const unsaved = slots.filter((slot) => !slot.serverId).length;
   const existing = count - unsaved;
-  if (!unsaved) return `${existing === 1 ? 'This Open Day' : `These ${existing} Open Days`} will be marked as cancelled when you save the schedule. Existing assignments and history will be kept.`;
+  if (!unsaved)
+    return `${existing === 1 ? 'This Open Day' : `These ${existing} Open Days`} will be marked as cancelled when you save the schedule. Existing assignments and history will be kept.`;
   if (!existing) return `These ${unsaved} unsaved Open Days will be removed from the working schedule.`;
   return `${existing} existing Open Day${existing === 1 ? '' : 's'} will be cancelled and ${unsaved} unsaved Open Day${unsaved === 1 ? '' : 's'} will be removed when you save the schedule.`;
 }
@@ -777,16 +2254,57 @@ function workingSlotPresentation(slot: WorkingSlot) {
   const assigned = new Map(slot.original?.requirements.map((item) => [item.kind, item.assignedCount]) ?? []);
   const supervisor = slot.requirements.find((item) => item.kind === 'supervisor');
   const trainee = slot.requirements.find((item) => item.kind === 'trainee');
-  if (supervisor && supervisor.requiredCount > (assigned.get('supervisor') ?? 0)) return { kind: 'needs-supervisor' as const, label: `${supervisor.requiredCount - (assigned.get('supervisor') ?? 0)} supervisor position${supervisor.requiredCount - (assigned.get('supervisor') ?? 0) === 1 ? '' : 's'} open`, Icon: WarningFilled };
-  if (trainee && trainee.requiredCount > (assigned.get('trainee') ?? 0)) return { kind: 'needs-trainee' as const, label: `${trainee.requiredCount - (assigned.get('trainee') ?? 0)} trainee position${trainee.requiredCount - (assigned.get('trainee') ?? 0) === 1 ? '' : 's'} open`, Icon: InformationFilled };
+  if (supervisor && supervisor.requiredCount > (assigned.get('supervisor') ?? 0))
+    return {
+      kind: 'needs-supervisor' as const,
+      label: `${supervisor.requiredCount - (assigned.get('supervisor') ?? 0)} supervisor position${supervisor.requiredCount - (assigned.get('supervisor') ?? 0) === 1 ? '' : 's'} open`,
+      Icon: WarningFilled,
+    };
+  if (trainee && trainee.requiredCount > (assigned.get('trainee') ?? 0))
+    return {
+      kind: 'needs-trainee' as const,
+      label: `${trainee.requiredCount - (assigned.get('trainee') ?? 0)} trainee position${trainee.requiredCount - (assigned.get('trainee') ?? 0) === 1 ? '' : 's'} open`,
+      Icon: InformationFilled,
+    };
   return { kind: 'staffed' as const, label: 'Fully staffed', Icon: CheckmarkFilled };
 }
-function scheduleCreate(slot: WorkingSlot) { return { startsAt: slot.startsAt, endsAt: slot.endsAt, internalNote: slot.internalNote, requirements: slot.requirements }; }
-function changed(slot: WorkingSlot) { const original = slot.original; return !original || slot.startsAt !== original.startsAt || slot.endsAt !== original.endsAt || (slot.internalNote ?? null) !== (original.internalNote ?? null) || JSON.stringify(slot.requirements) !== JSON.stringify(original.requirements.map((item) => ({ kind: item.kind, requiredCount: item.requiredCount, eligibleRoleIds: item.eligibleRoleIds ?? [] }))); }
-
+function scheduleCreate(slot: WorkingSlot) {
+  return {
+    startsAt: slot.startsAt,
+    endsAt: slot.endsAt,
+    internalNote: slot.internalNote,
+    requirements: slot.requirements,
+  };
+}
+function changed(slot: WorkingSlot) {
+  const original = slot.original;
+  return (
+    !original ||
+    slot.startsAt !== original.startsAt ||
+    slot.endsAt !== original.endsAt ||
+    (slot.internalNote ?? null) !== (original.internalNote ?? null) ||
+    JSON.stringify(slot.requirements) !==
+      JSON.stringify(
+        original.requirements.map((item) => ({
+          kind: item.kind,
+          requiredCount: item.requiredCount,
+          eligibleRoleIds: item.eligibleRoleIds ?? [],
+        })),
+      )
+  );
+}
 
 function SelectedCalendarContext({ date, entries }: { date: string; entries: CalendarEntry[] }) {
   const context = entries.filter((entry) => entry.startsOn <= date && entry.endsOn >= date);
   if (!context.length) return null;
-  return <div className="open-day-selected-context"><strong>{formatDate(date)}</strong>{context.map((entry) => <p key={`${entry.source}-${entry.id ?? entry.name}`}>{entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: {entry.name}</p>)}</div>;
+  return (
+    <div className="open-day-selected-context">
+      <strong>{formatDate(date)}</strong>
+      {context.map((entry) => (
+        <p key={`${entry.source}-${entry.id ?? entry.name}`}>
+          {entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: {entry.name}
+        </p>
+      ))}
+    </div>
+  );
 }

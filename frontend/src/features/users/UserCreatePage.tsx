@@ -6,11 +6,7 @@ import { createPerson } from '../../api/generated/people/people';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import {
-  PersonFields,
-  type PersonFormValues,
-  toPersonCreate,
-} from './PersonForm';
+import { PersonFields, type PersonFormValues, toPersonCreate } from './PersonForm';
 import { peopleKeys } from './queries';
 
 const EMPTY_PERSON: PersonFormValues = {
@@ -26,13 +22,9 @@ export function UserCreatePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const form = useForm<PersonFormValues>({ defaultValues: EMPTY_PERSON });
-  const canWriteMatriculation = hasPermission(
-    currentUser,
-    PermissionId.peopleupdatematriculation,
-  );
+  const canWriteMatriculation = hasPermission(currentUser, PermissionId.peopleupdatematriculation);
   const createMutation = useMutation({
-    mutationFn: (request: Parameters<typeof createPerson>[0]) =>
-      createPerson(request),
+    mutationFn: (request: Parameters<typeof createPerson>[0]) => createPerson(request),
     onSuccess: async (person) => {
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
       navigate(`/people/${person.id}`, { replace: true });
@@ -41,9 +33,7 @@ export function UserCreatePage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await createMutation.mutateAsync(
-        toPersonCreate(values, canWriteMatriculation),
-      );
+      await createMutation.mutateAsync(toPersonCreate(values, canWriteMatriculation));
     } catch {
       // The mutation state renders the actionable error without leaking server details.
     }
@@ -52,10 +42,7 @@ export function UserCreatePage() {
   return (
     <PageShell
       title="Add person"
-      breadcrumbs={[
-        { label: 'Directory' },
-        { label: 'People', to: '/people' },
-      ]}
+      breadcrumbs={[{ label: 'Directory' }, { label: 'People', to: '/people' }]}
       description="Create a person record. A login account can be added afterward."
     >
       <Tile className="form-tile">

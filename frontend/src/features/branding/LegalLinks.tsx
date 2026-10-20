@@ -4,7 +4,13 @@ import { useBranding } from './branding';
 
 function LegalLink({ href, children }: { href: string; children: string }) {
   const external = /^https?:\/\//i.test(href);
-  return external ? <CarbonLink href={href}>{children}</CarbonLink> : <CarbonLink as={Link} to={href}>{children}</CarbonLink>;
+  return external ? (
+    <CarbonLink href={href}>{children}</CarbonLink>
+  ) : (
+    <CarbonLink as={Link} to={href}>
+      {children}
+    </CarbonLink>
+  );
 }
 
 export function LegalLinks({ className = '' }: { className?: string }) {

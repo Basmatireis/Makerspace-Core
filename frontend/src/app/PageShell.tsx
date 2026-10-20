@@ -20,9 +20,7 @@ export function PageShell({
   className,
   width = 'standard',
 }: PageShellProps) {
-  const classes = ['page-shell', `page-shell--${width}`, className]
-    .filter(Boolean)
-    .join(' ');
+  const classes = ['page-shell', `page-shell--${width}`, className].filter(Boolean).join(' ');
 
   return (
     <div className={classes} data-page-shell data-page-width={width}>

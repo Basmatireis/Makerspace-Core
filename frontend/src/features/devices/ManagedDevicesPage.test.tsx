@@ -2,10 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type {
-  CreateManagedDeviceRequest,
-  RotateManagedDeviceTokenRequest,
-} from '../../api/generated/models';
+import type { CreateManagedDeviceRequest, RotateManagedDeviceTokenRequest } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
@@ -31,13 +28,13 @@ const device = {
   expiresAt: null,
   revokedAt: null,
   lastSeenAt: null,
-	sessionPolicyId: null,
-	terminalEnabled: false,
-	allowedApplicationModes: ['staff_ui' as const],
-	checkInAssurance: 'low' as const,
-	checkOutAssurance: 'low' as const,
-	checkoutMode: 'verified' as const,
-	capabilities: [],
+  sessionPolicyId: null,
+  terminalEnabled: false,
+  allowedApplicationModes: ['staff_ui' as const],
+  checkInAssurance: 'low' as const,
+  checkOutAssurance: 'low' as const,
+  checkoutMode: 'verified' as const,
+  capabilities: [],
   version: 1,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -48,10 +45,9 @@ describe('Managed devices administration', () => {
     let deleteAttempts = 0;
     let types = [deviceType];
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.managed_devicesread,
-        PermissionId.managed_devicesmanage,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread, PermissionId.managed_devicesmanage])),
+      ),
       http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: types })),
       http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [], nextCursor: null })),
       http.delete('*/api/v1/managed-device-types/:typeId', () => {
@@ -70,7 +66,9 @@ describe('Managed devices administration', () => {
     const panel = typeHeading.closest('.cds--tile') as HTMLElement;
     await user.click(await within(panel).findByRole('button', { name: 'Delete' }));
     const dialog = screen.getByRole('alertdialog', { name: 'Delete device type Reception?' });
-    expect(within(dialog).getByText(/blocked while a device or role permission still references it/i)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/blocked while a device or role permission still references it/i),
+    ).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
     expect(deleteAttempts).toBe(0);
 
@@ -85,15 +83,17 @@ describe('Managed devices administration', () => {
   it('renders status and creates a device with a dismissible one-time token', async () => {
     let submitted: CreateManagedDeviceRequest | undefined;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.managed_devicesread,
-        PermissionId.managed_devicesmanage,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread, PermissionId.managed_devicesmanage])),
+      ),
       http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [deviceType] })),
       http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [device], nextCursor: null })),
       http.post('*/api/v1/managed-devices', async ({ request }) => {
-        submitted = await request.json() as CreateManagedDeviceRequest;
-        return HttpResponse.json({ device: { ...device, name: 'Lobby terminal' }, token: 'a'.repeat(43) }, { status: 201 });
+        submitted = (await request.json()) as CreateManagedDeviceRequest;
+        return HttpResponse.json(
+          { device: { ...device, name: 'Lobby terminal' }, token: 'a'.repeat(43) },
+          { status: 201 },
+        );
       }),
     );
     const user = userEvent.setup();
@@ -107,19 +107,21 @@ describe('Managed devices administration', () => {
     await user.type(screen.getByLabelText('Device name'), 'Lobby terminal');
     await user.selectOptions(screen.getByLabelText('Device type'), typeId);
     await user.click(screen.getByRole('button', { name: 'Create device' }));
-    await waitFor(() => expect(submitted).toEqual({
-      name: 'Lobby terminal',
-      deviceTypeId: typeId,
-      expiresAt: null,
-      credentialDelivery: 'nativeToken',
-	  sessionPolicyId: null,
-	  terminalEnabled: false,
-	  allowedApplicationModes: ['staff_ui'],
-	  checkInAssurance: 'low',
-	  checkOutAssurance: 'low',
-	  checkoutMode: 'verified',
-	  capabilities: [],
-    }));
+    await waitFor(() =>
+      expect(submitted).toEqual({
+        name: 'Lobby terminal',
+        deviceTypeId: typeId,
+        expiresAt: null,
+        credentialDelivery: 'nativeToken',
+        sessionPolicyId: null,
+        terminalEnabled: false,
+        allowedApplicationModes: ['staff_ui'],
+        checkInAssurance: 'low',
+        checkOutAssurance: 'low',
+        checkoutMode: 'verified',
+        capabilities: [],
+      }),
+    );
     expect(await screen.findByDisplayValue('a'.repeat(43))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss permanently' }));
     expect(screen.queryByDisplayValue('a'.repeat(43))).not.toBeInTheDocument();
@@ -135,14 +137,13 @@ describe('Managed devices administration', () => {
   it('rotates a token with confirmation and permanently dismisses the replacement', async () => {
     let submitted: RotateManagedDeviceTokenRequest | undefined;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.managed_devicesread,
-        PermissionId.managed_devicesmanage,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread, PermissionId.managed_devicesmanage])),
+      ),
       http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [deviceType] })),
       http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [device], nextCursor: null })),
       http.post('*/api/v1/managed-devices/:deviceId/token', async ({ request }) => {
-        submitted = await request.json() as RotateManagedDeviceTokenRequest;
+        submitted = (await request.json()) as RotateManagedDeviceTokenRequest;
         return HttpResponse.json({
           device: { ...device, version: 2 },
           token: 'b'.repeat(43),
@@ -160,7 +161,9 @@ describe('Managed devices administration', () => {
     expect(within(dialog).getByText('Rotate token for Front desk?')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Rotate token' }));
 
-    await waitFor(() => expect(submitted).toEqual({ expiresAt: null, expectedVersion: 1, credentialDelivery: 'nativeToken' }));
+    await waitFor(() =>
+      expect(submitted).toEqual({ expiresAt: null, expectedVersion: 1, credentialDelivery: 'nativeToken' }),
+    );
     expect(await screen.findByDisplayValue('b'.repeat(43))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss permanently' }));
     expect(screen.queryByDisplayValue('b'.repeat(43))).not.toBeInTheDocument();

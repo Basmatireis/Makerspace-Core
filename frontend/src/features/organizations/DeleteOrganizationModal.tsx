@@ -39,22 +39,57 @@ function DeleteOrganizationDialog({ organization, onClose }: Omit<Props, 'open'>
   const stale = code === 'stale_write';
   return (
     <Modal
-      open danger alert modalHeading="Delete this organization?" primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete organization'} secondaryButtonText="Cancel"
-      primaryButtonDisabled={remove.isPending || inUse} preventCloseOnClickOutside selectorPrimaryFocus=".cds--btn--secondary" shouldSubmitOnEnter={false}
-      onRequestClose={() => { if (!remove.isPending) onClose(); }} onSecondarySubmit={() => { if (!remove.isPending) onClose(); }}
-      onRequestSubmit={() => { if (!remove.isPending && !inUse) remove.mutate(); }}
+      open
+      danger
+      alert
+      modalHeading="Delete this organization?"
+      primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete organization'}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={remove.isPending || inUse}
+      preventCloseOnClickOutside
+      selectorPrimaryFocus=".cds--btn--secondary"
+      shouldSubmitOnEnter={false}
+      onRequestClose={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onSecondarySubmit={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onRequestSubmit={() => {
+        if (!remove.isPending && !inUse) remove.mutate();
+      }}
     >
       <p>
-        {organization.name} will be deleted permanently together with its people list, pricing group assignment and invoicing settings. This cannot be undone.
+        {organization.name} will be deleted permanently together with its people list, pricing group assignment and
+        invoicing settings. This cannot be undone.
       </p>
       {inUse && (
         <InlineNotification
-          kind="error" lowContrast hideCloseButton title="Organization is in use"
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Organization is in use"
           subtitle="Jobs, orders or invoice requests refer to this organization, so it cannot be deleted. Deactivate it instead to hide it from new billing selections."
         />
       )}
-      {stale && <InlineNotification kind="error" lowContrast hideCloseButton title="Organization changed" subtitle="Someone else changed this organization. Reload the page and try again." />}
-      {remove.isError && !inUse && !stale && <InlineNotification kind="error" lowContrast hideCloseButton title="Delete failed" subtitle="The organization could not be deleted. Reload the page and try again." />}
+      {stale && (
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Organization changed"
+          subtitle="Someone else changed this organization. Reload the page and try again."
+        />
+      )}
+      {remove.isError && !inUse && !stale && (
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Delete failed"
+          subtitle="The organization could not be deleted. Reload the page and try again."
+        />
+      )}
     </Modal>
   );
 }

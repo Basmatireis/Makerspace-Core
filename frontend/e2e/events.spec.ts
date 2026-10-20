@@ -24,7 +24,17 @@ function currentUser(permissions: string[]) {
     loginEmail: 'ada.login@example.test',
     provisioningSource: 'local',
     firstAuthenticatedAt: timestamp,
-    authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
+    authIdentities: [
+      {
+        id: passwordIdentityId,
+        kind: 'password',
+        displayIdentifier: 'ada.login@example.test',
+        verifiedAt: timestamp,
+        disabledAt: null,
+        usable: true,
+        createdAt: timestamp,
+      },
+    ],
     status: 'enabled',
     passwordStatus: 'active',
     version: 1,
@@ -32,14 +42,41 @@ function currentUser(permissions: string[]) {
     updatedAt: timestamp,
   };
   return {
-    person: { id: personId, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test', phone: null, roles: [], account, createdAt: timestamp, updatedAt: timestamp, version: 1 },
+    person: {
+      id: personId,
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.test',
+      phone: null,
+      roles: [],
+      account,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 1,
+    },
     account,
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
-    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
-    delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
-    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
+    session: {
+      idleExpiresAt: '2099-01-01T01:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    },
+    delegablePermissionGrants: permissions.map((permissionId) => ({
+      permissionId,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+      minimumAssurance: 'low',
+    })),
+    laborordnungStatus: {
+      mode: 'not_required',
+      state: 'not_required',
+      actionRequired: false,
+      currentVersion: null,
+      latestConfirmedVersion: null,
+      requestId: null,
+    },
   };
 }
 
@@ -84,21 +121,64 @@ function publicEvent() {
     timeZone: 'Europe/Vienna',
     publicSignupEnabled: true,
     hasBanner: false,
-    sessions: [{ id: sessionId, name: 'Exhibition', location: 'Hall', description: 'Public programme.', startsAt: '2026-11-02T16:00:00Z', endsAt: '2026-11-02T22:00:00Z' }],
-    shifts: [{
-      id: shiftId,
-      sessionId: null,
-      name: 'Setup',
-      description: 'Prepare the hall.',
-      startsAt: '2026-11-02T14:00:00Z',
-      endsAt: '2026-11-02T16:00:00Z',
-      requirements: [
-        { id: openRequirementId, name: 'Helper', description: null, requiredCount: 3, filledCount: 1, remainingCount: 2, availability: 'available' },
-        { id: alternateRequirementId, name: 'Welcome desk', description: null, requiredCount: 2, filledCount: 0, remainingCount: 2, availability: 'available' },
-        { id: roleRequirementId, name: 'Specialist', description: null, requiredCount: 1, filledCount: 0, remainingCount: 1, availability: 'authenticated_only' },
-      ],
-    }],
-    files: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8c012', originalFilename: 'visitor-guide.pdf', description: 'Visitor guide', contentType: 'application/pdf', sizeBytes: 1024 }],
+    sessions: [
+      {
+        id: sessionId,
+        name: 'Exhibition',
+        location: 'Hall',
+        description: 'Public programme.',
+        startsAt: '2026-11-02T16:00:00Z',
+        endsAt: '2026-11-02T22:00:00Z',
+      },
+    ],
+    shifts: [
+      {
+        id: shiftId,
+        sessionId: null,
+        name: 'Setup',
+        description: 'Prepare the hall.',
+        startsAt: '2026-11-02T14:00:00Z',
+        endsAt: '2026-11-02T16:00:00Z',
+        requirements: [
+          {
+            id: openRequirementId,
+            name: 'Helper',
+            description: null,
+            requiredCount: 3,
+            filledCount: 1,
+            remainingCount: 2,
+            availability: 'available',
+          },
+          {
+            id: alternateRequirementId,
+            name: 'Welcome desk',
+            description: null,
+            requiredCount: 2,
+            filledCount: 0,
+            remainingCount: 2,
+            availability: 'available',
+          },
+          {
+            id: roleRequirementId,
+            name: 'Specialist',
+            description: null,
+            requiredCount: 1,
+            filledCount: 0,
+            remainingCount: 1,
+            availability: 'authenticated_only',
+          },
+        ],
+      },
+    ],
+    files: [
+      {
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8c012',
+        originalFilename: 'visitor-guide.pdf',
+        description: 'Visitor guide',
+        contentType: 'application/pdf',
+        sizeBytes: 1024,
+      },
+    ],
   };
 }
 
@@ -114,7 +194,9 @@ async function expectAccessible(page: Page) {
 async function expectNoHorizontalOverflow(page: Page) {
   for (const width of [320, 390, 414, 768, 1440]) {
     await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(1);
   }
 }
 
@@ -126,7 +208,12 @@ test('uses the standard table toolbar, filters, and pagination for events', asyn
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, currentUser(['events.read', 'events.manage']));
@@ -169,43 +256,250 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
-    if (path === '/api/v1/auth/me') return json(route, currentUser(['events.read', 'events.manage', 'events.staffing.manage', 'events.assign']));
+    if (path === '/api/v1/auth/me')
+      return json(route, currentUser(['events.read', 'events.manage', 'events.staffing.manage', 'events.assign']));
     if (path === `/api/v1/events/${eventId}` && request.method() === 'GET') return json(route, event());
-    if (path === `/api/v1/events/${eventId}` && request.method() === 'PATCH') return json(route, { code: 'validation_failed', message: 'Add a public shift with at least one requirement before enabling public signup', requestId: 'event-request' }, 422);
-    if (path === `/api/v1/events/${eventId}/sessions`) return json(route, { items: [{ id: sessionId, eventId, name: 'Exhibition', location: 'Hall', description: null, startsAt: '2026-11-02T16:00:00Z', endsAt: '2026-11-02T22:00:00Z', isPublic: true, status: 'scheduled', version: 1, createdAt: timestamp, updatedAt: timestamp }] });
-    if (path === `/api/v1/events/${eventId}/task-lists`) return json(route, { items: [{ id: taskListId, eventId, name: 'Preparation', description: null, sortOrder: 0, version: 1, createdAt: timestamp, updatedAt: timestamp }] });
-    if (path === `/api/v1/events/${eventId}/tasks` && request.method() === 'GET') return json(route, { items: [{ id: taskId, eventId, taskListId, title: 'Prepare exhibits', description: null, status: taskStatus, priority: 'high', assigneePersonId: null, dueAt: '2026-10-30T12:00:00Z', completedAt: taskStatus === 'done' ? timestamp : null, completedByAccountId: taskStatus === 'done' ? accountId : null, sortOrder: 0, version: taskVersion, createdAt: timestamp, updatedAt: timestamp }] });
+    if (path === `/api/v1/events/${eventId}` && request.method() === 'PATCH')
+      return json(
+        route,
+        {
+          code: 'validation_failed',
+          message: 'Add a public shift with at least one requirement before enabling public signup',
+          requestId: 'event-request',
+        },
+        422,
+      );
+    if (path === `/api/v1/events/${eventId}/sessions`)
+      return json(route, {
+        items: [
+          {
+            id: sessionId,
+            eventId,
+            name: 'Exhibition',
+            location: 'Hall',
+            description: null,
+            startsAt: '2026-11-02T16:00:00Z',
+            endsAt: '2026-11-02T22:00:00Z',
+            isPublic: true,
+            status: 'scheduled',
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+    if (path === `/api/v1/events/${eventId}/task-lists`)
+      return json(route, {
+        items: [
+          {
+            id: taskListId,
+            eventId,
+            name: 'Preparation',
+            description: null,
+            sortOrder: 0,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+    if (path === `/api/v1/events/${eventId}/tasks` && request.method() === 'GET')
+      return json(route, {
+        items: [
+          {
+            id: taskId,
+            eventId,
+            taskListId,
+            title: 'Prepare exhibits',
+            description: null,
+            status: taskStatus,
+            priority: 'high',
+            assigneePersonId: null,
+            dueAt: '2026-10-30T12:00:00Z',
+            completedAt: taskStatus === 'done' ? timestamp : null,
+            completedByAccountId: taskStatus === 'done' ? accountId : null,
+            sortOrder: 0,
+            version: taskVersion,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
     if (path === `/api/v1/events/${eventId}/tasks/${taskId}` && request.method() === 'PATCH') {
       taskPatch = request.postDataJSON() as Record<string, unknown>;
       taskStatus = 'done';
       taskVersion++;
-      return json(route, { ...taskPatch, id: taskId, eventId, completedAt: timestamp, completedByAccountId: accountId, version: taskVersion, createdAt: timestamp, updatedAt: timestamp });
+      return json(route, {
+        ...taskPatch,
+        id: taskId,
+        eventId,
+        completedAt: timestamp,
+        completedByAccountId: accountId,
+        version: taskVersion,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
-    if (path === `/api/v1/events/${eventId}/shifts`) return json(route, { items: [{ id: shiftId, eventId, sessionId: null, name: 'Setup', description: null, startsAt: '2026-11-02T14:00:00Z', endsAt: '2026-11-02T16:00:00Z', signupOpensAt: null, signupClosesAt: null, isPublic: true, status: 'open', linkedSessionStatus: null, version: 1, createdAt: timestamp, updatedAt: timestamp }] });
+    if (path === `/api/v1/events/${eventId}/shifts`)
+      return json(route, {
+        items: [
+          {
+            id: shiftId,
+            eventId,
+            sessionId: null,
+            name: 'Setup',
+            description: null,
+            startsAt: '2026-11-02T14:00:00Z',
+            endsAt: '2026-11-02T16:00:00Z',
+            signupOpensAt: null,
+            signupClosesAt: null,
+            isPublic: true,
+            status: 'open',
+            linkedSessionStatus: null,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
     if (path === `/api/v1/events/${eventId}/shifts/${shiftId}` && request.method() === 'PATCH') {
       shiftPatch = request.postDataJSON() as Record<string, unknown>;
-      return json(route, { ...shiftPatch, id: shiftId, eventId, linkedSessionStatus: null, version: 2, createdAt: timestamp, updatedAt: timestamp });
+      return json(route, {
+        ...shiftPatch,
+        id: shiftId,
+        eventId,
+        linkedSessionStatus: null,
+        version: 2,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
-    if (path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements`) return json(route, { items: [{ id: openRequirementId, eventId, shiftId, name: 'Helper', description: null, requiredCount: 2, filledCount: 1, eligibilityMode: 'anyone', eligibleRoleIds: [], version: 1, createdAt: timestamp, updatedAt: timestamp }] });
-    if (path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements/${openRequirementId}` && request.method() === 'PATCH') {
+    if (path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements`)
+      return json(route, {
+        items: [
+          {
+            id: openRequirementId,
+            eventId,
+            shiftId,
+            name: 'Helper',
+            description: null,
+            requiredCount: 2,
+            filledCount: 1,
+            eligibilityMode: 'anyone',
+            eligibleRoleIds: [],
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+    if (
+      path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements/${openRequirementId}` &&
+      request.method() === 'PATCH'
+    ) {
       requirementPatch = request.postDataJSON() as Record<string, unknown>;
-      return json(route, { ...requirementPatch, id: openRequirementId, eventId, shiftId, filledCount: 1, version: 2, createdAt: timestamp, updatedAt: timestamp });
+      return json(route, {
+        ...requirementPatch,
+        id: openRequirementId,
+        eventId,
+        shiftId,
+        filledCount: 1,
+        version: 2,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
-    if (path === `/api/v1/events/${eventId}/assignments`) return json(route, { items: [{ id: assignmentId, eventId, shiftId, requirementId: openRequirementId, personId: null, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test', phone: null, source: 'staff_entry', status: 'active', conflictOverriddenByAccountId: null, cancelledAt: null, personalDataErasedAt: null, version: 1, createdAt: timestamp, updatedAt: timestamp }] });
-    if (path === `/api/v1/events/${eventId}/files` && request.method() === 'GET') return json(route, { items: bannerUploaded ? [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8c014', eventId, fileId: '0192f6f8-743e-7c77-a349-cd07c3e8c015', description: null, visibility: 'public', isBanner: true, originalFilename: 'banner.png', contentType: 'image/png', sizeBytes: 68, version: 1, createdAt: timestamp, updatedAt: timestamp }] : [] });
+    if (path === `/api/v1/events/${eventId}/assignments`)
+      return json(route, {
+        items: [
+          {
+            id: assignmentId,
+            eventId,
+            shiftId,
+            requirementId: openRequirementId,
+            personId: null,
+            firstName: 'Grace',
+            lastName: 'Hopper',
+            email: 'grace@example.test',
+            phone: null,
+            source: 'staff_entry',
+            status: 'active',
+            conflictOverriddenByAccountId: null,
+            cancelledAt: null,
+            personalDataErasedAt: null,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+    if (path === `/api/v1/events/${eventId}/files` && request.method() === 'GET')
+      return json(route, {
+        items: bannerUploaded
+          ? [
+              {
+                id: '0192f6f8-743e-7c77-a349-cd07c3e8c014',
+                eventId,
+                fileId: '0192f6f8-743e-7c77-a349-cd07c3e8c015',
+                description: null,
+                visibility: 'public',
+                isBanner: true,
+                originalFilename: 'banner.png',
+                contentType: 'image/png',
+                sizeBytes: 68,
+                version: 1,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+            ]
+          : [],
+      });
     if (path === `/api/v1/events/${eventId}/files` && request.method() === 'POST') {
       bannerUploaded = true;
       bannerPurpose = request.headers()['x-event-file-purpose'];
       bannerBodyContentType = request.headers()['content-type'];
       bannerDeclaredContentType = request.headers()['x-file-content-type'];
-      return json(route, { id: '0192f6f8-743e-7c77-a349-cd07c3e8c014', eventId, fileId: '0192f6f8-743e-7c77-a349-cd07c3e8c015', description: null, visibility: 'public', isBanner: true, originalFilename: 'banner.png', contentType: 'image/png', sizeBytes: 68, version: 1, createdAt: timestamp, updatedAt: timestamp }, 201);
+      return json(
+        route,
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8c014',
+          eventId,
+          fileId: '0192f6f8-743e-7c77-a349-cd07c3e8c015',
+          description: null,
+          visibility: 'public',
+          isBanner: true,
+          originalFilename: 'banner.png',
+          contentType: 'image/png',
+          sizeBytes: 68,
+          version: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+        201,
+      );
     }
-    if (path === `/api/v1/events/${eventId}/banner`) return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+    if (path === `/api/v1/events/${eventId}/banner`)
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      });
     if (path === '/api/v1/event-eligibility-roles') return json(route, { items: [] });
-    if (path === '/api/v1/event-people') return json(route, { items: [{ id: personId, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test', phone: null }] });
+    if (path === '/api/v1/event-people')
+      return json(route, {
+        items: [{ id: personId, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test', phone: null }],
+      });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 
@@ -224,18 +518,20 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await expect(page.getByRole('heading', { name: 'Edit shift' })).toBeVisible();
   await page.getByLabel('Name', { exact: true }).fill('Public setup');
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect.poll(() => shiftPatch).toEqual({
-    sessionId: null,
-    name: 'Public setup',
-    description: null,
-    startsAt: '2026-11-02T14:00:00.000Z',
-    endsAt: '2026-11-02T16:00:00.000Z',
-    signupOpensAt: null,
-    signupClosesAt: null,
-    isPublic: true,
-    status: 'open',
-    expectedVersion: 1,
-  });
+  await expect
+    .poll(() => shiftPatch)
+    .toEqual({
+      sessionId: null,
+      name: 'Public setup',
+      description: null,
+      startsAt: '2026-11-02T14:00:00.000Z',
+      endsAt: '2026-11-02T16:00:00.000Z',
+      signupOpensAt: null,
+      signupClosesAt: null,
+      isPublic: true,
+      status: 'open',
+      expectedVersion: 1,
+    });
   await page.getByRole('tab', { name: 'Staffing' }).click();
   await page.getByRole('button', { name: 'Requirements for Setup' }).click();
   await page.getByRole('button', { name: 'Actions for Helper' }).click();
@@ -243,17 +539,31 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await expect(page.getByRole('heading', { name: 'Edit requirement' })).toBeVisible();
   await page.getByLabel('Required people').fill('3');
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect.poll(() => requirementPatch).toEqual({
-    name: 'Helper',
-    description: null,
-    requiredCount: 3,
-    eligibilityMode: 'anyone',
-    eligibleRoleIds: [],
-    expectedVersion: 1,
-  });
+  await expect
+    .poll(() => requirementPatch)
+    .toEqual({
+      name: 'Helper',
+      description: null,
+      requiredCount: 3,
+      eligibilityMode: 'anyone',
+      eligibleRoleIds: [],
+      expectedVersion: 1,
+    });
   await page.getByRole('tab', { name: 'Planning' }).click();
   await page.getByLabel('Mark Prepare exhibits complete').evaluate((checkbox: HTMLInputElement) => checkbox.click());
-  await expect.poll(() => taskPatch).toEqual({ taskListId, title: 'Prepare exhibits', description: null, status: 'done', priority: 'high', assigneePersonId: null, dueAt: '2026-10-30T12:00:00Z', sortOrder: 0, expectedVersion: 1 });
+  await expect
+    .poll(() => taskPatch)
+    .toEqual({
+      taskListId,
+      title: 'Prepare exhibits',
+      description: null,
+      status: 'done',
+      priority: 'high',
+      assigneePersonId: null,
+      dueAt: '2026-10-30T12:00:00Z',
+      sortOrder: 0,
+      expectedVersion: 1,
+    });
   await page.getByRole('tab', { name: 'Staffing' }).click();
   await page.getByRole('button', { name: 'Requirements for Setup' }).click();
   await page.getByRole('button', { name: 'Helper', exact: true }).click();
@@ -266,7 +576,16 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await expect(page.getByLabel('Override a scheduling conflict (audited)')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Settings' }).click();
   await expect(page.getByText(/Before enabling signup, add a public shift in Schedule/)).toBeVisible();
-  await page.locator('#event-banner-upload').setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+  await page
+    .locator('#event-banner-upload')
+    .setInputFiles({
+      name: 'banner.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    });
   await expect(page.getByAltText('Event banner preview')).toBeVisible();
   await page.getByRole('button', { name: 'Upload banner' }).click();
   await expect.poll(() => bannerPurpose).toBe('banner');
@@ -274,7 +593,9 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   expect(bannerDeclaredContentType).toBe('image/png');
   await page.getByLabel('Public signup').check({ force: true });
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.getByText('Add a public shift with at least one requirement before enabling public signup')).toBeVisible();
+  await expect(
+    page.getByText('Add a public shift with at least one requirement before enabling public signup'),
+  ).toBeVisible();
   await page.getByRole('tab', { name: 'Staffing' }).click();
   await expect(page.getByRole('heading', { name: 'Discard unsaved changes?' })).toBeVisible();
   await page.getByRole('button', { name: 'Discard changes' }).click();
@@ -298,23 +619,80 @@ test('creates an anonymous signup and keeps its management token in the URL frag
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, { code: 'invalid_session', message: 'Sign in required.' }, 401);
     if (path === `/api/v1/public/events/${publicId}`) return json(route, publicEvent());
     if (path === `/api/v1/public/events/${publicId}/signups` && request.method() === 'POST') {
       signupBody = request.postDataJSON() as Record<string, unknown>;
-      return json(route, { assignment: { id: assignmentId, publicId, shiftId, requirementId: openRequirementId, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test', phone: null, source: 'public_signup', status: 'active', cancelledAt: null, version: 1, createdAt: timestamp, updatedAt: timestamp }, managementUrl: `/events/signup/manage#token=${token}` }, 201);
+      return json(
+        route,
+        {
+          assignment: {
+            id: assignmentId,
+            publicId,
+            shiftId,
+            requirementId: openRequirementId,
+            firstName: 'Grace',
+            lastName: 'Hopper',
+            email: 'grace@example.test',
+            phone: null,
+            source: 'public_signup',
+            status: 'active',
+            cancelledAt: null,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+          managementUrl: `/events/signup/manage#token=${token}`,
+        },
+        201,
+      );
     }
     if (path === '/api/v1/public/event-signups/current' && request.method() === 'GET') {
       receivedToken = request.headers()['x-event-signup-token'] ?? null;
-      return json(route, { id: assignmentId, publicId, shiftId, requirementId: openRequirementId, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test', phone: null, source: 'public_signup', status: 'active', cancelledAt: null, version: 1, createdAt: timestamp, updatedAt: timestamp });
+      return json(route, {
+        id: assignmentId,
+        publicId,
+        shiftId,
+        requirementId: openRequirementId,
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        email: 'grace@example.test',
+        phone: null,
+        source: 'public_signup',
+        status: 'active',
+        cancelledAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
     if (path === '/api/v1/public/event-signups/current' && request.method() === 'PATCH') {
       receivedToken = request.headers()['x-event-signup-token'] ?? null;
       moveBody = request.postDataJSON() as Record<string, unknown>;
-      return json(route, { id: assignmentId, publicId, shiftId, requirementId: alternateRequirementId, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test', phone: null, source: 'public_signup', status: 'active', cancelledAt: null, version: 2, createdAt: timestamp, updatedAt: timestamp });
+      return json(route, {
+        id: assignmentId,
+        publicId,
+        shiftId,
+        requirementId: alternateRequirementId,
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        email: 'grace@example.test',
+        phone: null,
+        source: 'public_signup',
+        status: 'active',
+        cancelledAt: null,
+        version: 2,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
@@ -329,7 +707,13 @@ test('creates an anonymous signup and keeps its management token in the URL frag
   await page.getByLabel('Email').fill('grace@example.test');
   await page.getByRole('button', { name: 'Confirm signup' }).click();
   const managementURL = await page.getByLabel('One-time management link').inputValue();
-  expect(signupBody).toMatchObject({ shiftId, requirementId: openRequirementId, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test' });
+  expect(signupBody).toMatchObject({
+    shiftId,
+    requirementId: openRequirementId,
+    firstName: 'Grace',
+    lastName: 'Hopper',
+    email: 'grace@example.test',
+  });
   expect(managementURL).toContain(`#token=${token}`);
   await expectNoHorizontalOverflow(page);
   await expectAccessible(page);
@@ -351,7 +735,12 @@ test('supports authenticated self and on-behalf public signup without exposing r
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, currentUser([]));
@@ -361,9 +750,28 @@ test('supports authenticated self and on-behalf public signup without exposing r
       const body = request.postDataJSON() as Record<string, unknown>;
       requests.push(body);
       const external = body.signupFor === 'other';
-      const assignment = { id: assignmentId, publicId, shiftId, requirementId: body.requirementId, firstName: body.firstName, lastName: body.lastName, email: body.email, phone: body.phone ?? null, source: external ? 'authenticated_on_behalf' : 'authenticated_self', status: 'active', cancelledAt: null, version: 1, createdAt: timestamp, updatedAt: timestamp };
+      const assignment = {
+        id: assignmentId,
+        publicId,
+        shiftId,
+        requirementId: body.requirementId,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        phone: body.phone ?? null,
+        source: external ? 'authenticated_on_behalf' : 'authenticated_self',
+        status: 'active',
+        cancelledAt: null,
+        version: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
       if (!external) ownAssignments = [assignment];
-      return json(route, { assignment, managementUrl: external ? '/events/signup/manage#token=on-behalf-secret' : null }, 201);
+      return json(
+        route,
+        { assignment, managementUrl: external ? '/events/signup/manage#token=on-behalf-secret' : null },
+        201,
+      );
     }
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
@@ -377,7 +785,9 @@ test('supports authenticated self and on-behalf public signup without exposing r
   await expect(page.getByText('Your signup has been added to this event.')).toBeVisible();
 
   await page.getByLabel('Someone else').check({ force: true });
-  await expect(page.getByLabel('Shift and requirement').locator(`option[value="${shiftId}:${roleRequirementId}"]`)).toBeDisabled();
+  await expect(
+    page.getByLabel('Shift and requirement').locator(`option[value="${shiftId}:${roleRequirementId}"]`),
+  ).toBeDisabled();
   await page.getByLabel('Shift and requirement').selectOption(`${shiftId}:${openRequirementId}`);
   await page.getByLabel('First name').fill('Katherine');
   await page.getByLabel('Last name').fill('Johnson');
@@ -386,7 +796,13 @@ test('supports authenticated self and on-behalf public signup without exposing r
   await expect(page.getByLabel('One-time management link')).toHaveValue(/#token=on-behalf-secret$/);
   expect(requests).toMatchObject([
     { signupFor: 'self', requirementId: roleRequirementId },
-    { signupFor: 'other', requirementId: openRequirementId, firstName: 'Katherine', lastName: 'Johnson', email: 'katherine@example.test' },
+    {
+      signupFor: 'other',
+      requirementId: openRequirementId,
+      firstName: 'Katherine',
+      lastName: 'Johnson',
+      email: 'katherine@example.test',
+    },
   ]);
   await expectAccessible(page);
 });

@@ -16,19 +16,53 @@ const timestamp = '2026-10-04T12:00:00Z';
 
 function mockStaffing() {
   server.use(
-    http.get(`*/api/v1/events/${eventId}/shifts`, () => HttpResponse.json({ items: [{
-      id: shiftId, eventId, sessionId: null, name: 'Setup', description: null,
-      startsAt: '2026-11-02T14:00:00Z', endsAt: '2026-11-02T16:00:00Z', signupOpensAt: null,
-      signupClosesAt: null, isPublic: true, status: 'open', linkedSessionStatus: null, version: 1,
-      createdAt: timestamp, updatedAt: timestamp,
-    }] })),
-    http.get(`*/api/v1/events/${eventId}/shifts/${shiftId}/requirements`, () => HttpResponse.json({ items: [{
-      id: requirementId, eventId, shiftId, name: 'Helper', description: null, requiredCount: 2,
-      filledCount: 0, eligibilityMode: 'roles', eligibleRoleIds: [roleId], version: 1,
-      createdAt: timestamp, updatedAt: timestamp,
-    }] })),
+    http.get(`*/api/v1/events/${eventId}/shifts`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: shiftId,
+            eventId,
+            sessionId: null,
+            name: 'Setup',
+            description: null,
+            startsAt: '2026-11-02T14:00:00Z',
+            endsAt: '2026-11-02T16:00:00Z',
+            signupOpensAt: null,
+            signupClosesAt: null,
+            isPublic: true,
+            status: 'open',
+            linkedSessionStatus: null,
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      }),
+    ),
+    http.get(`*/api/v1/events/${eventId}/shifts/${shiftId}/requirements`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: requirementId,
+            eventId,
+            shiftId,
+            name: 'Helper',
+            description: null,
+            requiredCount: 2,
+            filledCount: 0,
+            eligibilityMode: 'roles',
+            eligibleRoleIds: [roleId],
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      }),
+    ),
     http.get(`*/api/v1/events/${eventId}/assignments`, () => HttpResponse.json({ items: [] })),
-    http.get('*/api/v1/event-eligibility-roles', () => HttpResponse.json({ items: [{ id: roleId, name: 'Workshop helper' }] })),
+    http.get('*/api/v1/event-eligibility-roles', () =>
+      HttpResponse.json({ items: [{ id: roleId, name: 'Workshop helper' }] }),
+    ),
     http.get('*/api/v1/event-people', () => HttpResponse.json({ items: [] })),
   );
 }
@@ -94,14 +128,37 @@ describe('Event draft guards', () => {
 
   it('keeps an edit dialog open on Escape while saving and retains input after failure', async () => {
     let finishRequest!: () => void;
-    const pendingResponse = new Promise<void>((resolve) => { finishRequest = resolve; });
-    server.use(http.patch(`*/api/v1/events/${eventId}/task-lists/${requirementId}`, async () => {
-      await pendingResponse;
-      return HttpResponse.json({ code: 'stale_write', message: 'Resource changed', requestId: 'task-list' }, { status: 409 });
-    }));
+    const pendingResponse = new Promise<void>((resolve) => {
+      finishRequest = resolve;
+    });
+    server.use(
+      http.patch(`*/api/v1/events/${eventId}/task-lists/${requirementId}`, async () => {
+        await pendingResponse;
+        return HttpResponse.json(
+          { code: 'stale_write', message: 'Resource changed', requestId: 'task-list' },
+          { status: 409 },
+        );
+      }),
+    );
     const onClose = vi.fn();
     const user = userEvent.setup();
-    renderRoute(<TaskListEditDialog eventId={eventId} list={{ id: requirementId, eventId, name: 'Preparation', description: null, sortOrder: 0, version: 1, createdAt: timestamp, updatedAt: timestamp }} onClose={onClose} onSaved={async () => undefined} />);
+    renderRoute(
+      <TaskListEditDialog
+        eventId={eventId}
+        list={{
+          id: requirementId,
+          eventId,
+          name: 'Preparation',
+          description: null,
+          sortOrder: 0,
+          version: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }}
+        onClose={onClose}
+        onSaved={async () => undefined}
+      />,
+    );
     const dialog = screen.getByRole('dialog');
     await user.type(within(dialog).getByLabelText('Name'), ' draft');
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
@@ -110,8 +167,13 @@ describe('Event draft guards', () => {
     await user.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
     expect(dialog.closest('.cds--modal')).toHaveClass('is-visible');
-    await act(async () => { finishRequest(); await pendingResponse; });
-    expect(await screen.findByText('This event changed in another session. Reload it before saving again.')).toBeInTheDocument();
+    await act(async () => {
+      finishRequest();
+      await pendingResponse;
+    });
+    expect(
+      await screen.findByText('This event changed in another session. Reload it before saving again.'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveValue('Preparation draft');
     await user.click(screen.getByLabelText('Name'));
     await user.keyboard('{Escape}');

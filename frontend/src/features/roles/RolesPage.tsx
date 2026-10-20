@@ -19,12 +19,7 @@ import type {
   Role,
   UpdateRoleRequest,
 } from '../../api/generated/models';
-import {
-  createRole,
-  deleteRole,
-  replaceRolePermissions,
-  updateRole,
-} from '../../api/generated/roles/roles';
+import { createRole, deleteRole, replaceRolePermissions, updateRole } from '../../api/generated/roles/roles';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -41,18 +36,11 @@ import { PermissionEditor } from './PermissionEditor';
 import { PermissionMatrix } from './PermissionMatrix';
 import { permissionGroupOrder, presentPermission } from './permissionPresentation';
 import { CreateRoleDialog, DeleteRoleDialog, RoleSettingsDialog } from './RoleDialogs';
-import {
-  deviceTypeListOptions,
-  fullRoleCatalogOptions,
-  permissionListOptions,
-  roleKeys,
-} from './queries';
+import { deviceTypeListOptions, fullRoleCatalogOptions, permissionListOptions, roleKeys } from './queries';
 
 type SelectedCell = { roleId: string; permissionId: string };
 type RoleDraft = { baseRole: Role; permissionGrants: PermissionGrant[] };
-type PendingDraftAction =
-  | { kind: 'cell'; role: Role; permission: Permission }
-  | { kind: 'role'; role: Role };
+type PendingDraftAction = { kind: 'cell'; role: Role; permission: Permission } | { kind: 'role'; role: Role };
 
 export function RolesPage() {
   const currentUser = useCurrentUser();
@@ -82,34 +70,45 @@ export function RolesPage() {
   const settingsRole = roles.find((role) => role.id === routeRoleId);
   const deletingRole = roles.find((role) => role.id === deleteRoleId);
   const isMasterActor = currentUser.person.roles.some((role) => role.systemKey === 'master');
-  const canManageRole = (role: Role) => hasPermission(currentUser, PermissionId.rolesmanage) &&
+  const canManageRole = (role: Role) =>
+    hasPermission(currentUser, PermissionId.rolesmanage) &&
     role.systemKey !== 'master' &&
-    (isMasterActor || role.permissionGrants.every((grant) =>
-      currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant))));
-  const canManagePermission = (role: Role, permission: Permission) => canManageRole(role) &&
-    currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id);
-  const canSetPermissionState = (
-    _role: Role,
-    permission: Permission,
-    state: 'denied' | 'granted' | 'conditional',
-  ) => state === 'denied' || (state === 'granted'
-    ? permissionGrantCoveredBy(currentUser.delegablePermissionGrants, {
-      permissionId: permission.id,
-      scope: 'everywhere',
-      deviceTypeIds: [],
-      minimumAssurance: 'low',
-    })
-    : currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id));
-  const copySources = roles.filter((role) => role.systemKey !== 'master' || isMasterActor)
-    .filter((role) => isMasterActor || role.permissionGrants.every((grant) =>
-      currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant))));
+    (isMasterActor ||
+      role.permissionGrants.every((grant) =>
+        currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant)),
+      ));
+  const canManagePermission = (role: Role, permission: Permission) =>
+    canManageRole(role) && currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id);
+  const canSetPermissionState = (_role: Role, permission: Permission, state: 'denied' | 'granted' | 'conditional') =>
+    state === 'denied' ||
+    (state === 'granted'
+      ? permissionGrantCoveredBy(currentUser.delegablePermissionGrants, {
+          permissionId: permission.id,
+          scope: 'everywhere',
+          deviceTypeIds: [],
+          minimumAssurance: 'low',
+        })
+      : currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id));
+  const copySources = roles
+    .filter((role) => role.systemKey !== 'master' || isMasterActor)
+    .filter(
+      (role) =>
+        isMasterActor ||
+        role.permissionGrants.every((grant) =>
+          currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant)),
+        ),
+    );
   const availablePermissionGroups = permissionGroupOrder.filter((group) =>
-    permissions.some((permission) => presentPermission(permission).group === group));
+    permissions.some((permission) => presentPermission(permission).group === group),
+  );
   const searchQuery = permissionSearch.trim().toLocaleLowerCase();
   const visiblePermissions = permissions.filter((permission) => {
     const presented = presentPermission(permission);
     if (permissionGroup && presented.group !== permissionGroup) return false;
-    return !searchQuery || `${presented.label} ${permission.id} ${permission.description}`.toLocaleLowerCase().includes(searchQuery);
+    return (
+      !searchQuery ||
+      `${presented.label} ${permission.id} ${permission.description}`.toLocaleLowerCase().includes(searchQuery)
+    );
   });
 
   useEffect(() => {
@@ -117,21 +116,29 @@ export function RolesPage() {
     else if (selectedRoleId && !roles.some((role) => role.id === selectedRoleId)) setSelectedRoleId(roles[0]?.id);
   }, [roles, selectedRoleId]);
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0];
-  const matrixRoles = selectedRole ? [{
-    ...selectedRole,
-    permissionGrants: selectedRole.id === draft?.baseRole.id ? draft.permissionGrants : selectedRole.permissionGrants,
-  }] : [];
-  const changedPermissionIds = draft ? permissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants) : new Set<string>();
+  const matrixRoles = selectedRole
+    ? [
+        {
+          ...selectedRole,
+          permissionGrants:
+            selectedRole.id === draft?.baseRole.id ? draft.permissionGrants : selectedRole.permissionGrants,
+        },
+      ]
+    : [];
+  const changedPermissionIds = draft
+    ? permissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants)
+    : new Set<string>();
   const draftDirty = changedPermissionIds.size > 0;
   const draftValid = Boolean(draft && permissionGrantsValid(draft.permissionGrants));
   const selectedPermission = permissions.find((permission) => permission.id === selectedCell?.permissionId);
   const selectedPanelRole = roles.find((role) => role.id === selectedCell?.roleId);
-  const selectedRules = selectedPermission && selectedPanelRole
-    ? grantsForPermission(
-      draft?.baseRole.id === selectedPanelRole.id ? draft.permissionGrants : selectedPanelRole.permissionGrants,
-      selectedPermission.id,
-    )
-    : [];
+  const selectedRules =
+    selectedPermission && selectedPanelRole
+      ? grantsForPermission(
+          draft?.baseRole.id === selectedPanelRole.id ? draft.permissionGrants : selectedPanelRole.permissionGrants,
+          selectedPermission.id,
+        )
+      : [];
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (draftDirty) event.preventDefault();
@@ -170,10 +177,11 @@ export function RolesPage() {
     },
   });
   const permissionMutation = useMutation({
-    mutationFn: ({ role, rules }: { role: Role; rules: PermissionGrant[] }) => replaceRolePermissions(role.id, {
-      expectedVersion: role.version,
-      permissionGrants: normalizePermissionGrants(rules),
-    }),
+    mutationFn: ({ role, rules }: { role: Role; rules: PermissionGrant[] }) =>
+      replaceRolePermissions(role.id, {
+        expectedVersion: role.version,
+        permissionGrants: normalizePermissionGrants(rules),
+      }),
     onSuccess: async () => {
       setReviewOpen(false);
       setSelectedCell(undefined);
@@ -243,11 +251,7 @@ export function RolesPage() {
       ]),
     });
   };
-  const setPermissionState = (
-    role: Role,
-    permission: Permission,
-    state: 'denied' | 'granted' | 'conditional',
-  ) => {
+  const setPermissionState = (role: Role, permission: Permission, state: 'denied' | 'granted' | 'conditional') => {
     const continuingDraft = draft?.baseRole.id === role.id;
     const current = continuingDraft ? draft.permissionGrants : role.permissionGrants;
     const existing = grantsForPermission(current, permission.id);
@@ -259,14 +263,18 @@ export function RolesPage() {
       if (conditional.length > 0) rules = conditional;
       else {
         const envelope = currentUser.delegablePermissionGrants.find((grant) => grant.permissionId === permission.id);
-        if (envelope) rules = [{
-          permissionId: permission.id,
-          scope: envelope.scope,
-          deviceTypeIds: [...envelope.deviceTypeIds],
-          minimumAssurance: envelope.scope === 'everywhere' && envelope.minimumAssurance === 'low'
-            ? 'normal'
-            : envelope.minimumAssurance,
-        }];
+        if (envelope)
+          rules = [
+            {
+              permissionId: permission.id,
+              scope: envelope.scope,
+              deviceTypeIds: [...envelope.deviceTypeIds],
+              minimumAssurance:
+                envelope.scope === 'everywhere' && envelope.minimumAssurance === 'low'
+                  ? 'normal'
+                  : envelope.minimumAssurance,
+            },
+          ];
       }
     }
     setDraft({
@@ -287,10 +295,18 @@ export function RolesPage() {
   const loadError = rolesQuery.error ?? permissionQuery.error ?? deviceTypesQuery.error;
   if (isPending) return <InlineLoadingState label="Loading roles and permissions" />;
   if (loadError) {
-    return <ErrorState title="Unable to load roles and permissions" message="Check the connection and try again." onRetry={() => void Promise.all([rolesQuery.refetch(), permissionQuery.refetch(), deviceTypesQuery.refetch()])} />;
+    return (
+      <ErrorState
+        title="Unable to load roles and permissions"
+        message="Check the connection and try again."
+        onRetry={() => void Promise.all([rolesQuery.refetch(), permissionQuery.refetch(), deviceTypesQuery.refetch()])}
+      />
+    );
   }
 
-  const reviewChanges = draft ? describePermissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants, permissions) : [];
+  const reviewChanges = draft
+    ? describePermissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants, permissions)
+    : [];
 
   return (
     <PageShell
@@ -301,7 +317,13 @@ export function RolesPage() {
       className="roles-page"
     >
       {routeRoleId && !settingsRole && rolesQuery.data && (
-        <InlineNotification kind="error" lowContrast hideCloseButton title="Role not found" subtitle="The role may have been deleted." />
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Role not found"
+          subtitle="The role may have been deleted."
+        />
       )}
       <div className="roles-workspace roles-workspace--panel-open">
         <div className="roles-toolbar" role="toolbar" aria-label="Roles and permissions actions">
@@ -331,14 +353,27 @@ export function RolesPage() {
           </OverflowMenu>
           {draft && draftDirty && (
             <>
-              <Button kind="tertiary" size="sm" disabled={permissionMutation.isPending} onClick={discardDraft}>Discard changes</Button>
-              <Button size="sm" renderIcon={Save} disabled={permissionMutation.isPending || !draftValid} onClick={() => setReviewOpen(true)}>
+              <Button kind="tertiary" size="sm" disabled={permissionMutation.isPending} onClick={discardDraft}>
+                Discard changes
+              </Button>
+              <Button
+                size="sm"
+                renderIcon={Save}
+                disabled={permissionMutation.isPending || !draftValid}
+                onClick={() => setReviewOpen(true)}
+              >
                 Review and save
               </Button>
             </>
           )}
           {hasPermission(currentUser, PermissionId.rolesmanage) && (
-            <Button className="roles-toolbar__create" kind="primary" size="sm" renderIcon={Add} onClick={() => navigate('/settings/roles/new')}>
+            <Button
+              className="roles-toolbar__create"
+              kind="primary"
+              size="sm"
+              renderIcon={Add}
+              onClick={() => navigate('/settings/roles/new')}
+            >
               Create role
             </Button>
           )}
@@ -348,22 +383,55 @@ export function RolesPage() {
             {roles.map((role) => {
               const manageable = canManageRole(role);
               return (
-                <div key={role.id} className={`roles-list__item${role.id === selectedRole?.id ? ' roles-list__item--selected' : ''}`}>
+                <div
+                  key={role.id}
+                  className={`roles-list__item${role.id === selectedRole?.id ? ' roles-list__item--selected' : ''}`}
+                >
                   <button
                     type="button"
                     className="roles-list__select"
                     aria-current={role.id === selectedRole?.id ? 'true' : undefined}
                     onClick={() => requestRole(role)}
                   >
-                    <span className="roles-list__icon">{role.systemKey === 'master' ? <Locked size={24} aria-label="Protected system role" /> : <UserRole size={24} aria-hidden="true" />}</span>
+                    <span className="roles-list__icon">
+                      {role.systemKey === 'master' ? (
+                        <Locked size={24} aria-label="Protected system role" />
+                      ) : (
+                        <UserRole size={24} aria-hidden="true" />
+                      )}
+                    </span>
                     <span className="roles-list__copy">
                       <strong>{role.name}</strong>
                       <span>{role.description || 'No description'}</span>
                     </span>
                   </button>
-                  <OverflowMenu ref={(button) => { if (button) roleActionButtons.current.set(role.id, button); else roleActionButtons.current.delete(role.id); }} iconDescription={`Actions for ${role.name}`} align="left" size="sm" flipped>
-                    {manageable && <OverflowMenuItem itemText="Edit role details" onClick={() => navigate(`/settings/roles/${role.id}`)} />}
-                    {manageable && <OverflowMenuItem isDelete itemText="Delete role" onClick={() => { deleteLauncherRef.current = roleActionButtons.current.get(role.id) ?? null; deleteMutation.reset(); setDeleteRoleId(role.id); }} />}
+                  <OverflowMenu
+                    ref={(button) => {
+                      if (button) roleActionButtons.current.set(role.id, button);
+                      else roleActionButtons.current.delete(role.id);
+                    }}
+                    iconDescription={`Actions for ${role.name}`}
+                    align="left"
+                    size="sm"
+                    flipped
+                  >
+                    {manageable && (
+                      <OverflowMenuItem
+                        itemText="Edit role details"
+                        onClick={() => navigate(`/settings/roles/${role.id}`)}
+                      />
+                    )}
+                    {manageable && (
+                      <OverflowMenuItem
+                        isDelete
+                        itemText="Delete role"
+                        onClick={() => {
+                          deleteLauncherRef.current = roleActionButtons.current.get(role.id) ?? null;
+                          deleteMutation.reset();
+                          setDeleteRoleId(role.id);
+                        }}
+                      />
+                    )}
                     {!manageable && <OverflowMenuItem disabled itemText="Protected system role" />}
                   </OverflowMenu>
                 </div>
@@ -381,20 +449,24 @@ export function RolesPage() {
                 title={permissionStale ? 'Role changed before this draft was saved' : 'Role permissions were not saved'}
                 subtitle={`${permissionMutation.error.message} Your local draft is still intact.`}
               />
-              {permissionStale && <Button kind="tertiary" size="sm" onClick={() => setReloadConfirmOpen(true)}>Discard draft and reload</Button>}
+              {permissionStale && (
+                <Button kind="tertiary" size="sm" onClick={() => setReloadConfirmOpen(true)}>
+                  Discard draft and reload
+                </Button>
+              )}
             </div>
           )}
           <PermissionMatrix
-              permissions={visiblePermissions}
-              roles={matrixRoles}
-              deviceTypes={deviceTypes}
-              editingRoleId={draft?.baseRole.id}
-              selectedPermissionId={selectedCell?.permissionId}
-              changedPermissionIds={changedPermissionIds}
-              canManagePermission={canManagePermission}
-              canSetState={canSetPermissionState}
-              onSelectCell={requestCell}
-              onChangeState={setPermissionState}
+            permissions={visiblePermissions}
+            roles={matrixRoles}
+            deviceTypes={deviceTypes}
+            editingRoleId={draft?.baseRole.id}
+            selectedPermissionId={selectedCell?.permissionId}
+            changedPermissionIds={changedPermissionIds}
+            canManagePermission={canManagePermission}
+            canSetState={canSetPermissionState}
+            onSelectCell={requestCell}
+            onChangeState={setPermissionState}
           />
         </div>
         {selectedPanelRole && selectedPermission ? (
@@ -444,73 +516,81 @@ export function RolesPage() {
         onClose={() => setDeleteRoleId(undefined)}
         onConfirm={() => deletingRole && deleteMutation.mutate(deletingRole)}
       />
-      {reviewOpen && draft && <Modal
-        open
-        modalHeading={`Review permission changes for ${draft.baseRole.name}`}
-        primaryButtonText={permissionMutation.isPending ? 'Saving…' : 'Save role permissions'}
-        secondaryButtonText="Keep editing"
-        primaryButtonDisabled={permissionMutation.isPending || !draftDirty || !draftValid}
-        onRequestClose={() => setReviewOpen(false)}
-        onRequestSubmit={() => {
-          if (!draftDirty || !draftValid) return;
-          setReviewOpen(false);
-          permissionMutation.mutate({ role: draft.baseRole, rules: draft.permissionGrants });
-        }}
-      >
-        <Stack gap={5}>
-          <p>This replaces the role’s complete permission configuration in one atomic update.</p>
-          <ul className="roles-change-review">
-            {reviewChanges.map((change) => (
-              <li key={change.permissionId}>
-                <Tag type={change.kind === 'added' ? 'green' : change.kind === 'removed' ? 'red' : 'blue'} size="sm">
-                  {change.kind}
-                </Tag>
-                <span>{change.label}</span>
-              </li>
-            ))}
-          </ul>
-        </Stack>
-      </Modal>}
-      {pendingDraftAction && <Modal
-        open
-        danger
-        modalHeading="Discard unsaved permission changes?"
-        primaryButtonText="Discard and continue"
-        secondaryButtonText="Keep editing"
-        onRequestClose={() => setPendingDraftAction(undefined)}
-        onRequestSubmit={continueAfterDiscard}
-      >
-        <p>The staged changes for {draft?.baseRole.name ?? 'this role'} have not been saved.</p>
-      </Modal>}
-      {blocker.state === 'blocked' && <Modal
-        open
-        danger
-        modalHeading="Leave without saving role changes?"
-        primaryButtonText="Discard and leave"
-        secondaryButtonText="Stay on this page"
-        onRequestClose={() => blocker.reset?.()}
-        onRequestSubmit={() => {
-          discardDraft();
-          blocker.proceed?.();
-        }}
-      >
-        <p>The staged permission changes have not been saved.</p>
-      </Modal>}
-      {reloadConfirmOpen && <Modal
-        open
-        danger
-        modalHeading="Discard this stale draft?"
-        primaryButtonText="Discard and reload"
-        secondaryButtonText="Keep draft"
-        onRequestClose={() => setReloadConfirmOpen(false)}
-        onRequestSubmit={() => {
-          setReloadConfirmOpen(false);
-          discardDraft();
-          void rolesQuery.refetch();
-        }}
-      >
-        <p>Reloading fetches the current server version and permanently discards these local changes.</p>
-      </Modal>}
+      {reviewOpen && draft && (
+        <Modal
+          open
+          modalHeading={`Review permission changes for ${draft.baseRole.name}`}
+          primaryButtonText={permissionMutation.isPending ? 'Saving…' : 'Save role permissions'}
+          secondaryButtonText="Keep editing"
+          primaryButtonDisabled={permissionMutation.isPending || !draftDirty || !draftValid}
+          onRequestClose={() => setReviewOpen(false)}
+          onRequestSubmit={() => {
+            if (!draftDirty || !draftValid) return;
+            setReviewOpen(false);
+            permissionMutation.mutate({ role: draft.baseRole, rules: draft.permissionGrants });
+          }}
+        >
+          <Stack gap={5}>
+            <p>This replaces the role’s complete permission configuration in one atomic update.</p>
+            <ul className="roles-change-review">
+              {reviewChanges.map((change) => (
+                <li key={change.permissionId}>
+                  <Tag type={change.kind === 'added' ? 'green' : change.kind === 'removed' ? 'red' : 'blue'} size="sm">
+                    {change.kind}
+                  </Tag>
+                  <span>{change.label}</span>
+                </li>
+              ))}
+            </ul>
+          </Stack>
+        </Modal>
+      )}
+      {pendingDraftAction && (
+        <Modal
+          open
+          danger
+          modalHeading="Discard unsaved permission changes?"
+          primaryButtonText="Discard and continue"
+          secondaryButtonText="Keep editing"
+          onRequestClose={() => setPendingDraftAction(undefined)}
+          onRequestSubmit={continueAfterDiscard}
+        >
+          <p>The staged changes for {draft?.baseRole.name ?? 'this role'} have not been saved.</p>
+        </Modal>
+      )}
+      {blocker.state === 'blocked' && (
+        <Modal
+          open
+          danger
+          modalHeading="Leave without saving role changes?"
+          primaryButtonText="Discard and leave"
+          secondaryButtonText="Stay on this page"
+          onRequestClose={() => blocker.reset?.()}
+          onRequestSubmit={() => {
+            discardDraft();
+            blocker.proceed?.();
+          }}
+        >
+          <p>The staged permission changes have not been saved.</p>
+        </Modal>
+      )}
+      {reloadConfirmOpen && (
+        <Modal
+          open
+          danger
+          modalHeading="Discard this stale draft?"
+          primaryButtonText="Discard and reload"
+          secondaryButtonText="Keep draft"
+          onRequestClose={() => setReloadConfirmOpen(false)}
+          onRequestSubmit={() => {
+            setReloadConfirmOpen(false);
+            discardDraft();
+            void rolesQuery.refetch();
+          }}
+        >
+          <p>Reloading fetches the current server version and permanently discards these local changes.</p>
+        </Modal>
+      )}
     </PageShell>
   );
 }
@@ -521,10 +601,12 @@ function grantsForPermission(grants: readonly PermissionGrant[], permissionId: s
 
 function permissionChanges(original: readonly PermissionGrant[], next: readonly PermissionGrant[]) {
   const ids = new Set([...original, ...next].map((grant) => grant.permissionId));
-  return new Set([...ids].filter((permissionId) => !sameGrants(
-    grantsForPermission(original, permissionId),
-    grantsForPermission(next, permissionId),
-  )));
+  return new Set(
+    [...ids].filter(
+      (permissionId) =>
+        !sameGrants(grantsForPermission(original, permissionId), grantsForPermission(next, permissionId)),
+    ),
+  );
 }
 
 function sameGrants(left: readonly PermissionGrant[], right: readonly PermissionGrant[]) {
@@ -543,14 +625,16 @@ function describePermissionChanges(
   permissions: readonly Permission[],
 ) {
   const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
-  return [...permissionChanges(original, next)].map((permissionId) => {
-    const before = grantsForPermission(original, permissionId);
-    const after = grantsForPermission(next, permissionId);
-    const permission = permissionById.get(permissionId as Permission['id']);
-    return {
-      permissionId,
-      label: permission ? presentPermission(permission).label : permissionId,
-      kind: before.length === 0 ? 'added' : after.length === 0 ? 'removed' : 'changed',
-    } as const;
-  }).sort((left, right) => left.label.localeCompare(right.label));
+  return [...permissionChanges(original, next)]
+    .map((permissionId) => {
+      const before = grantsForPermission(original, permissionId);
+      const after = grantsForPermission(next, permissionId);
+      const permission = permissionById.get(permissionId as Permission['id']);
+      return {
+        permissionId,
+        label: permission ? presentPermission(permission).label : permissionId,
+        kind: before.length === 0 ? 'added' : after.length === 0 ? 'removed' : 'changed',
+      } as const;
+    })
+    .sort((left, right) => left.label.localeCompare(right.label));
 }

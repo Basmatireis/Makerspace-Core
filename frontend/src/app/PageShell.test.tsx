@@ -43,7 +43,12 @@ describe('PageShell', () => {
       <Tabs>
         <PageShell
           title="Tabbed page"
-          tabs={<TabList aria-label="Page sections"><Tab>Overview</Tab><Tab>Access</Tab></TabList>}
+          tabs={
+            <TabList aria-label="Page sections">
+              <Tab>Overview</Tab>
+              <Tab>Access</Tab>
+            </TabList>
+          }
         >
           <TabPanels>
             <TabPanel>Overview content</TabPanel>
@@ -60,7 +65,11 @@ describe('PageShell', () => {
   });
 
   it.each(['standard', 'wide', 'fluid'] as const)('exposes the %s width variant', (width) => {
-    const { container } = renderRoute(<PageShell title="Width test" width={width}>Body</PageShell>);
+    const { container } = renderRoute(
+      <PageShell title="Width test" width={width}>
+        Body
+      </PageShell>,
+    );
     expect(container.querySelector('[data-page-shell]')).toHaveClass(`page-shell--${width}`);
   });
 });

@@ -19,7 +19,13 @@ describe('player store', () => {
   it('caches an asset once, keyed by sha256', async () => {
     const caches = fakeCaches();
     let downloads = 0;
-    const store = createPlayerStore({ caches, fetch: (async () => { downloads += 1; return new Response('x'); }) as unknown as typeof fetch })!;
+    const store = createPlayerStore({
+      caches,
+      fetch: (async () => {
+        downloads += 1;
+        return new Response('x');
+      }) as unknown as typeof fetch,
+    })!;
     await store.ensureAsset(asset('img-1'));
     await store.ensureAsset(asset('img-1'));
     expect(downloads).toBe(1);
@@ -28,7 +34,10 @@ describe('player store', () => {
 
   it('rejects a failing download and caches nothing', async () => {
     const caches = fakeCaches();
-    const store = createPlayerStore({ caches, fetch: (async () => new Response('no', { status: 500 })) as unknown as typeof fetch })!;
+    const store = createPlayerStore({
+      caches,
+      fetch: (async () => new Response('no', { status: 500 })) as unknown as typeof fetch,
+    })!;
     await expect(store.ensureAsset(asset('img-1'))).rejects.toThrow('500');
     expect(caches.keysOf(ASSET_CACHE)).toEqual([]);
   });
@@ -42,7 +51,11 @@ describe('player store', () => {
 
   it('refuses assets that do not fit and counts only what is missing', async () => {
     const caches = fakeCaches();
-    const store = createPlayerStore({ caches, fetch: okFetch, storage: { estimate: async () => ({ usage: 900, quota: 1_000 }), persist: async () => true } })!;
+    const store = createPlayerStore({
+      caches,
+      fetch: okFetch,
+      storage: { estimate: async () => ({ usage: 900, quota: 1_000 }), persist: async () => true },
+    })!;
     await expect(store.assertFits([asset('big', 'video', 500)])).rejects.toBeInstanceOf(CacheQuotaError);
     await store.ensureAsset(asset('big', 'video', 500));
     await expect(store.assertFits([asset('big', 'video', 500)])).resolves.toBeUndefined();

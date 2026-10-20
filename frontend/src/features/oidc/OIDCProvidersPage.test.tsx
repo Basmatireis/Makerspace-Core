@@ -12,7 +12,7 @@ describe('OIDC provider secrets', () => {
     server.use(
       http.get('*/api/v1/oidc/providers', () => HttpResponse.json({ items: [] })),
       http.post('*/api/v1/oidc/providers', async ({ request }) => {
-        submittedSecret = (await request.json() as { clientSecret: string }).clientSecret;
+        submittedSecret = ((await request.json()) as { clientSecret: string }).clientSecret;
         return HttpResponse.json(status === 201 ? {} : { code: 'unavailable' }, { status });
       }),
     );
@@ -31,6 +31,11 @@ describe('OIDC provider secrets', () => {
       expect(await screen.findByText('Provider not saved')).toBeInTheDocument();
     }
     expect(submittedSecret).toBe('local-test-secret');
-    expect(queryClient.getMutationCache().getAll().every((mutation) => mutation.state.variables === undefined)).toBe(true);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .every((mutation) => mutation.state.variables === undefined),
+    ).toBe(true);
   });
 });

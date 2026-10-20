@@ -9,20 +9,75 @@ import { as, everything, finalized, ids, orderList, receipt } from './testData';
 
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
-const submitted = finalized({ activeExternalRequestId: ids.request, activeExternalRequestReference: 'W-2026-000001', activeExternalRequestState: 'submitted' });
-const unpaid = finalized({ id: 'u1', reference: 'O-2026-000020', customerName: 'Unpaid customer', outstandingAmount: '25.00', netCharge: '25.00', totalAmount: '25.00' });
+const submitted = finalized({
+  activeExternalRequestId: ids.request,
+  activeExternalRequestReference: 'W-2026-000001',
+  activeExternalRequestState: 'submitted',
+});
+const unpaid = finalized({
+  id: 'u1',
+  reference: 'O-2026-000020',
+  customerName: 'Unpaid customer',
+  outstandingAmount: '25.00',
+  netCharge: '25.00',
+  totalAmount: '25.00',
+});
 
 function serve() {
   orderList([submitted, unpaid]);
   server.use(
-    http.get('*/api/v1/payments', () => HttpResponse.json({ items: [receipt({ amount: '12.00' })], page: 1, pageSize: 100, total: 1 })),
-    http.get('*/api/v1/payments/cash-register', () => HttpResponse.json({ receipts: '12.00', refunds: '0.00', withdrawals: '0.00', deposits: '0.00', expected: '12.00', to: null })),
-    http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({
-      items: [
-        { kind: 'job', id: 'j1', displayId: 'J-1', runCount: 1, machineId: 'm', machineName: 'Laser', customer: { kind: 'person', id: 'p1', displayName: 'Ada', pricingGroupAssignmentVersion: 0 }, status: 'successful', source: 'manual', startedAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-01T11:00:00Z', effectivePrice: '7.50', version: 1 },
-        { kind: 'job', id: 'j2', displayId: 'J-2', runCount: 1, machineId: 'm', machineName: 'Laser', customer: { kind: 'person', id: 'p1', displayName: 'Ada', pricingGroupAssignmentVersion: 0 }, status: 'successful', source: 'manual', startedAt: '2026-10-02T10:00:00Z', endsAt: '2026-10-02T11:00:00Z', effectivePrice: '2.50', version: 1 },
-      ], page: 1, pageSize: 100, total: 2,
-    })),
+    http.get('*/api/v1/payments', () =>
+      HttpResponse.json({ items: [receipt({ amount: '12.00' })], page: 1, pageSize: 100, total: 1 }),
+    ),
+    http.get('*/api/v1/payments/cash-register', () =>
+      HttpResponse.json({
+        receipts: '12.00',
+        refunds: '0.00',
+        withdrawals: '0.00',
+        deposits: '0.00',
+        expected: '12.00',
+        to: null,
+      }),
+    ),
+    http.get('*/api/v1/machine-logbook/work-items', () =>
+      HttpResponse.json({
+        items: [
+          {
+            kind: 'job',
+            id: 'j1',
+            displayId: 'J-1',
+            runCount: 1,
+            machineId: 'm',
+            machineName: 'Laser',
+            customer: { kind: 'person', id: 'p1', displayName: 'Ada', pricingGroupAssignmentVersion: 0 },
+            status: 'successful',
+            source: 'manual',
+            startedAt: '2026-10-01T10:00:00Z',
+            endsAt: '2026-10-01T11:00:00Z',
+            effectivePrice: '7.50',
+            version: 1,
+          },
+          {
+            kind: 'job',
+            id: 'j2',
+            displayId: 'J-2',
+            runCount: 1,
+            machineId: 'm',
+            machineName: 'Laser',
+            customer: { kind: 'person', id: 'p1', displayName: 'Ada', pricingGroupAssignmentVersion: 0 },
+            status: 'successful',
+            source: 'manual',
+            startedAt: '2026-10-02T10:00:00Z',
+            endsAt: '2026-10-02T11:00:00Z',
+            effectivePrice: '2.50',
+            version: 1,
+          },
+        ],
+        page: 1,
+        pageSize: 100,
+        total: 2,
+      }),
+    ),
   );
 }
 

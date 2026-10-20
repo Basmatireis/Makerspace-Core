@@ -34,20 +34,17 @@ describe('Profile page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/profile');
 
-    const personalInformationCard = (await screen.findByRole('heading', { name: 'Personal information' }))
-      .closest('.person-detail-card') as HTMLElement;
+    const personalInformationCard = (await screen.findByRole('heading', { name: 'Personal information' })).closest(
+      '.person-detail-card',
+    ) as HTMLElement;
     await user.click(within(personalInformationCard).getByRole('button', { name: 'Edit' }));
     const firstName = screen.getByLabelText('First name');
     await user.clear(firstName);
     await user.type(firstName, 'Augusta');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() =>
-      expect(submitted).toEqual({ expectedVersion: 1, firstName: 'Augusta' }),
-    );
-    expect(
-      await screen.findByRole('cell', { name: 'Augusta' }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(submitted).toEqual({ expectedVersion: 1, firstName: 'Augusta' }));
+    expect(await screen.findByRole('cell', { name: 'Augusta' })).toBeInTheDocument();
     expect(screen.getByText('Matriculation number')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Account access' })).toBeInTheDocument();
     expect(screen.queryByText('Login email')).not.toBeInTheDocument();
@@ -56,9 +53,7 @@ describe('Profile page', () => {
   it('does not render the sensitive matriculation field without read permission', async () => {
     const currentUser = currentUserFixture([PermissionId.peopleupdateself]);
     currentUser.person.matriculationNumber = 'SECRET-42';
-    server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
-    );
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)));
 
     renderRoute(<App />, '/profile');
 
@@ -89,8 +84,9 @@ describe('Profile page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/profile');
 
-    const profilePictureCard = (await screen.findByRole('heading', { name: 'Profile picture' }))
-      .closest('.person-detail-card') as HTMLElement;
+    const profilePictureCard = (await screen.findByRole('heading', { name: 'Profile picture' })).closest(
+      '.person-detail-card',
+    ) as HTMLElement;
     await user.click(within(profilePictureCard).getByRole('button', { name: 'Edit' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Edit profile picture' });
@@ -110,9 +106,7 @@ describe('Profile page', () => {
     currentUser.account.loginEmail = null;
     currentUser.account.passwordStatus = 'not_set';
     currentUser.person.account = currentUser.account;
-    server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
-    );
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)));
 
     renderRoute(<App />, '/profile');
 
@@ -122,9 +116,7 @@ describe('Profile page', () => {
 
   it('allows the only password method to be removed', async () => {
     const currentUser = currentUserFixture([PermissionId.accountspasswordremoveself]);
-    server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
-    );
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)));
 
     renderRoute(<App />, '/profile');
 
@@ -139,19 +131,40 @@ it('lets an OIDC-only account request reauthentication and link without a passwo
   const current = currentUserFixture([PermissionId.identitiesoidclinkself]);
   current.account.passwordStatus = 'not_set';
   current.account.loginEmail = null;
-  current.account.authIdentities = [{ id: current.account.id, kind: 'oidc', providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, usable: true, createdAt: current.account.createdAt }];
+  current.account.authIdentities = [
+    {
+      id: current.account.id,
+      kind: 'oidc',
+      providerSlug: 'linked',
+      displayIdentifier: 'Linked provider',
+      verifiedAt: current.account.createdAt,
+      disabledAt: null,
+      usable: true,
+      createdAt: current.account.createdAt,
+    },
+  ];
   let reauthenticated = false;
   let linkBody: unknown;
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(current)),
-    http.get('*/api/v1/auth/oidc/providers', () => HttpResponse.json({ items: [{ slug: 'linked', displayName: 'Linked provider' }, { slug: 'another', displayName: 'Another provider' }] })),
+    http.get('*/api/v1/auth/oidc/providers', () =>
+      HttpResponse.json({
+        items: [
+          { slug: 'linked', displayName: 'Linked provider' },
+          { slug: 'another', displayName: 'Another provider' },
+        ],
+      }),
+    ),
     http.post('*/api/v1/auth/oidc/linked/reauthenticate', () => {
       reauthenticated = true;
       return HttpResponse.json({ code: 'oidc_provider_unavailable', message: 'Try again later' }, { status: 403 });
     }),
     http.post('*/api/v1/auth/oidc/another/link', async ({ request }) => {
       linkBody = await request.json();
-      return HttpResponse.json({ code: 'reauthentication_required', message: 'Authenticate again before linking' }, { status: 403 });
+      return HttpResponse.json(
+        { code: 'reauthentication_required', message: 'Authenticate again before linking' },
+        { status: 403 },
+      );
     }),
   );
   const user = userEvent.setup();
@@ -171,7 +184,16 @@ it('lets an OIDC-only account request reauthentication and link without a passwo
 
 it('confirms unlinking an OIDC identity before changing sign-in access', async () => {
   let current = currentUserFixture([PermissionId.identitiesoidcunlinkself]);
-  const identity = { id: current.account.id, kind: 'oidc' as const, providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, usable: true, createdAt: current.account.createdAt };
+  const identity = {
+    id: current.account.id,
+    kind: 'oidc' as const,
+    providerSlug: 'linked',
+    displayIdentifier: 'Linked provider',
+    verifiedAt: current.account.createdAt,
+    disabledAt: null,
+    usable: true,
+    createdAt: current.account.createdAt,
+  };
   current.account.authIdentities = [identity];
   let removed = false;
   server.use(

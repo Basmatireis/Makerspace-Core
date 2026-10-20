@@ -14,13 +14,13 @@ import {
   Tag,
   Theme,
 } from '@carbon/react';
-import {
-  Logout,
-  UserAvatar,
-} from '@carbon/icons-react';
+import { Logout, UserAvatar } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
+import {
+  getGetLaborordnungPDFUrl,
+  requestOwnLaborordnungConfirmation,
+} from '../api/generated/laborordnung/laborordnung';
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { PersonAvatar } from '../features/users/PersonAvatar';
@@ -32,34 +32,30 @@ import { useBranding } from '../features/branding/branding';
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
 function currentNarrowState(): boolean {
-  return typeof window.matchMedia === 'function'
-    ? window.matchMedia(NARROW_SHELL_QUERY).matches
-    : false;
+  return typeof window.matchMedia === 'function' ? window.matchMedia(NARROW_SHELL_QUERY).matches : false;
 }
 
 export function AppShell() {
   const currentUser = useCurrentUser();
-	const branding = useBranding();
-	const queryClient = useQueryClient();
+  const branding = useBranding();
+  const queryClient = useQueryClient();
   const logoutMutation = useLogout();
   const location = useLocation();
   const navigate = useNavigate();
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
-  const [sideNavExpanded, setSideNavExpanded] = useState(
-    () => !currentNarrowState(),
-  );
+  const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState());
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const profileActionRef = useRef<HTMLButtonElement>(null);
   const profilePanelRef = useRef<HTMLDivElement>(null);
-	const labRulesRequest = useMutation({
-		mutationFn: () => requestOwnLaborordnungConfirmation(),
-		onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
-	});
-	const admissionRequest = useMutation({
-		mutationFn: () => evaluateVisitorAdmission(),
-		onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
-	});
-	const useAdmissionAction = currentUser.laborordnungStatus.mode === 'blocking' && Boolean(currentUser.managedDevice);
+  const labRulesRequest = useMutation({
+    mutationFn: () => requestOwnLaborordnungConfirmation(),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+  });
+  const admissionRequest = useMutation({
+    mutationFn: () => evaluateVisitorAdmission(),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+  });
+  const useAdmissionAction = currentUser.laborordnungStatus.mode === 'blocking' && Boolean(currentUser.managedDevice);
 
   const displayName = `${currentUser.person.firstName} ${currentUser.person.lastName}`;
 
@@ -107,12 +103,7 @@ export function AppShell() {
             isCollapsible
             onClick={() => setSideNavExpanded((expanded) => !expanded)}
           />
-          <HeaderName
-            as={Link}
-            to="/dashboard"
-            prefix=""
-            className="app-header__brand"
-          >
+          <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
             <BrandMark kind="compact" className="app-header__logo" />
             <span className="app-header__wordmark">
               <span>{branding.identity.legalOrganizationName}</span>
@@ -122,11 +113,11 @@ export function AppShell() {
           <HeaderGlobalBar>
             <span className="header-account__name">{displayName}</span>
             <HeaderGlobalAction
-            aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
-            tooltipAlignment="end"
-            isActive={profilePanelOpen}
-            ref={profileActionRef}
-            onClick={() => setProfilePanelOpen((open) => !open)}
+              aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
+              tooltipAlignment="end"
+              isActive={profilePanelOpen}
+              ref={profileActionRef}
+              onClick={() => setProfilePanelOpen((open) => !open)}
             >
               {currentUser.person.profileImage ? (
                 <PersonAvatar
@@ -146,9 +137,7 @@ export function AppShell() {
             className="profile-panel"
             ref={profilePanelRef}
             onHeaderPanelFocus={() => {
-              const restoreFocus = profilePanelRef.current?.contains(
-                document.activeElement,
-              );
+              const restoreFocus = profilePanelRef.current?.contains(document.activeElement);
               setProfilePanelOpen(false);
               if (restoreFocus) {
                 profileActionRef.current?.focus();
@@ -159,19 +148,13 @@ export function AppShell() {
               <div>
                 <p className="profile-panel__name">{displayName}</p>
                 {(currentUser.person.email || currentUser.person.phone) && (
-                  <p className="profile-panel__email">
-                    {currentUser.person.email ?? currentUser.person.phone}
-                  </p>
+                  <p className="profile-panel__email">{currentUser.person.email ?? currentUser.person.phone}</p>
                 )}
               </div>
               <Tag type={currentUser.account.status === 'enabled' ? 'green' : 'gray'}>
                 {currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'}
               </Tag>
-              <Button
-                kind="ghost"
-                size="sm"
-                onClick={() => navigate('/profile')}
-              >
+              <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
                 View profile
               </Button>
               <Button
@@ -181,7 +164,11 @@ export function AppShell() {
                 disabled={logoutMutation.isPending}
                 onClick={() => logoutMutation.mutate()}
               >
-				{logoutMutation.isPending ? 'Ending staff session…' : currentUser.session.postSessionDestination === 'visitor_terminal' ? 'Return to public terminal' : 'Sign out'}
+                {logoutMutation.isPending
+                  ? 'Ending staff session…'
+                  : currentUser.session.postSessionDestination === 'visitor_terminal'
+                    ? 'Return to public terminal'
+                    : 'Sign out'}
               </Button>
               {logoutMutation.isError && (
                 <InlineNotification
@@ -201,11 +188,7 @@ export function AppShell() {
             isPersistent={false}
             onOverlayClick={() => setSideNavExpanded(false)}
           >
-            <AppNavigation
-              currentUser={currentUser}
-              legal={branding.legal}
-              onNavigate={handleNavigation}
-            />
+            <AppNavigation currentUser={currentUser} legal={branding.legal} onNavigate={handleNavigation} />
           </SideNav>
         </Header>
       </Theme>
@@ -215,25 +198,67 @@ export function AppShell() {
         tabIndex={-1}
         className={`app-main${sideNavExpanded && !isNarrow ? ' app-main--nav-expanded' : ''}`}
       >
-		{currentUser.laborordnungStatus.actionRequired && currentUser.laborordnungStatus.currentVersion && (
-			<section className="lab-rules-warning" aria-label="Lab Rules action required">
-				<InlineNotification
-					kind="warning"
-					lowContrast
-					hideCloseButton
-					title={currentUser.laborordnungStatus.mode === 'blocking' ? 'Current Lab Rules required for admission' : 'Your Lab Rules confirmation is outdated'}
-					subtitle={`Review revision ${currentUser.laborordnungStatus.currentVersion.humanRevision}. Normal application access remains available${currentUser.laborordnungStatus.mode === 'warning' ? '' : ', but admission remains blocked until physical confirmation'}.`}
-				/>
-				<div className="button-cluster">
-					<Button kind="tertiary" size="sm" href={getGetLaborordnungPDFUrl(currentUser.laborordnungStatus.currentVersion.id)} target="_blank">View current Lab Rules PDF</Button>
-					<Button kind="primary" size="sm" disabled={Boolean(currentUser.laborordnungStatus.requestId) || labRulesRequest.isPending || admissionRequest.isPending} onClick={() => useAdmissionAction ? admissionRequest.mutate() : labRulesRequest.mutate()}>
-						{currentUser.laborordnungStatus.requestId ? 'Signature confirmation requested' : labRulesRequest.isPending || admissionRequest.isPending ? 'Requesting…' : useAdmissionAction ? 'Request admission' : 'Request signature confirmation'}
-					</Button>
-				</div>
-				{labRulesRequest.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Request not created" subtitle="Try again or contact a supervisor." />}
-				{admissionRequest.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Admission not evaluated" subtitle="This action requires an approved visitor terminal." />}
-			</section>
-		)}
+        {currentUser.laborordnungStatus.actionRequired && currentUser.laborordnungStatus.currentVersion && (
+          <section className="lab-rules-warning" aria-label="Lab Rules action required">
+            <InlineNotification
+              kind="warning"
+              lowContrast
+              hideCloseButton
+              title={
+                currentUser.laborordnungStatus.mode === 'blocking'
+                  ? 'Current Lab Rules required for admission'
+                  : 'Your Lab Rules confirmation is outdated'
+              }
+              subtitle={`Review revision ${currentUser.laborordnungStatus.currentVersion.humanRevision}. Normal application access remains available${currentUser.laborordnungStatus.mode === 'warning' ? '' : ', but admission remains blocked until physical confirmation'}.`}
+            />
+            <div className="button-cluster">
+              <Button
+                kind="tertiary"
+                size="sm"
+                href={getGetLaborordnungPDFUrl(currentUser.laborordnungStatus.currentVersion.id)}
+                target="_blank"
+              >
+                View current Lab Rules PDF
+              </Button>
+              <Button
+                kind="primary"
+                size="sm"
+                disabled={
+                  Boolean(currentUser.laborordnungStatus.requestId) ||
+                  labRulesRequest.isPending ||
+                  admissionRequest.isPending
+                }
+                onClick={() => (useAdmissionAction ? admissionRequest.mutate() : labRulesRequest.mutate())}
+              >
+                {currentUser.laborordnungStatus.requestId
+                  ? 'Signature confirmation requested'
+                  : labRulesRequest.isPending || admissionRequest.isPending
+                    ? 'Requesting…'
+                    : useAdmissionAction
+                      ? 'Request admission'
+                      : 'Request signature confirmation'}
+              </Button>
+            </div>
+            {labRulesRequest.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Request not created"
+                subtitle="Try again or contact a supervisor."
+              />
+            )}
+            {admissionRequest.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Admission not evaluated"
+                subtitle="This action requires an approved visitor terminal."
+              />
+            )}
+          </section>
+        )}
         <Suspense fallback={<FullPageLoading label="Loading page" />}>
           <Outlet />
         </Suspense>

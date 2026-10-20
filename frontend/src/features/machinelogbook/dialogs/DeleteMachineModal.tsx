@@ -43,31 +43,76 @@ function DeleteMachineDialog({ machine, onClose }: Omit<Props, 'open'>) {
   const blocked = inUse || mounted || forbidden;
   return (
     <Modal
-      open danger alert modalHeading="Delete this machine?" primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete machine'} secondaryButtonText="Cancel"
-      primaryButtonDisabled={remove.isPending || blocked} preventCloseOnClickOutside selectorPrimaryFocus=".cds--btn--secondary" shouldSubmitOnEnter={false}
-      onRequestClose={() => { if (!remove.isPending) onClose(); }} onSecondarySubmit={() => { if (!remove.isPending) onClose(); }}
-      onRequestSubmit={() => { if (!remove.isPending && !blocked) remove.mutate(); }}
+      open
+      danger
+      alert
+      modalHeading="Delete this machine?"
+      primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete machine'}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={remove.isPending || blocked}
+      preventCloseOnClickOutside
+      selectorPrimaryFocus=".cds--btn--secondary"
+      shouldSubmitOnEnter={false}
+      onRequestClose={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onSecondarySubmit={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onRequestSubmit={() => {
+        if (!remove.isPending && !blocked) remove.mutate();
+      }}
     >
       <Stack gap={5}>
         <p>
-          {machine.name} will be deleted permanently together with its printer setup and connector connection. This cannot be undone.
-          Machines with jobs or runs cannot be deleted; retire them instead to keep their history.
+          {machine.name} will be deleted permanently together with its printer setup and connector connection. This
+          cannot be undone. Machines with jobs or runs cannot be deleted; retire them instead to keep their history.
         </p>
         {inUse && (
           <InlineNotification
-            kind="error" lowContrast hideCloseButton title="Machine has history"
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Machine has history"
             subtitle="Jobs or runs belong to this machine, so it cannot be deleted. Set its status to Retired instead, or delete its jobs and runs first."
           />
         )}
-        {mounted && <InlineNotification kind="error" lowContrast hideCloseButton title="Spools are mounted" subtitle="Unmount the spools of this machine first, then delete it." />}
+        {mounted && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Spools are mounted"
+            subtitle="Unmount the spools of this machine first, then delete it."
+          />
+        )}
         {forbidden && (
           <InlineNotification
-            kind="error" lowContrast hideCloseButton title="Not allowed"
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Not allowed"
             subtitle="Deleting a machine that is connected to a printer connector also needs the permission to manage printer connectors."
           />
         )}
-        {stale && <InlineNotification kind="error" lowContrast hideCloseButton title="Machine changed" subtitle="Someone else changed this machine. Reload the page and try again." />}
-        {remove.isError && !blocked && !stale && <InlineNotification kind="error" lowContrast hideCloseButton title="Delete failed" subtitle="The machine could not be deleted. Reload the page and try again." />}
+        {stale && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Machine changed"
+            subtitle="Someone else changed this machine. Reload the page and try again."
+          />
+        )}
+        {remove.isError && !blocked && !stale && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Delete failed"
+            subtitle="The machine could not be deleted. Reload the page and try again."
+          />
+        )}
       </Stack>
     </Modal>
   );

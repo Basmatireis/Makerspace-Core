@@ -204,7 +204,12 @@ export const resourceLabels: Record<string, string> = {
 export function presentAction(event: AuditEvent): string {
   const label = actionLabels[event.action] ?? humanizeIdentifier(event.action);
   const role = event.resolvedMetadata.roleId;
-  if ((event.action === 'person.role_assigned' || event.action === 'account.role_assigned' || event.action === 'role.assigned') && role) {
+  if (
+    (event.action === 'person.role_assigned' ||
+      event.action === 'account.role_assigned' ||
+      event.action === 'role.assigned') &&
+    role
+  ) {
     return `${label}: ${role}`;
   }
   return label;
@@ -224,7 +229,9 @@ export function presentTarget(event: AuditEvent): string {
     return [person, openDay && formatOpenDayLabel(openDay)].filter(Boolean).join(' · ');
   }
   if (event.resourceDisplayName) {
-    return event.resourceType === 'open_day' ? formatOpenDayLabel(event.resourceDisplayName) : event.resourceDisplayName;
+    return event.resourceType === 'open_day'
+      ? formatOpenDayLabel(event.resourceDisplayName)
+      : event.resourceDisplayName;
   }
   const type = resourceLabels[event.resourceType] ?? humanizeIdentifier(event.resourceType);
   return event.resourceId ? `${type} · ${shortID(event.resourceId)}` : type;

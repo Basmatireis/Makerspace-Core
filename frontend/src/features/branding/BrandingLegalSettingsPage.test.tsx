@@ -8,14 +8,59 @@ import { renderRoute } from '../../test/render';
 import { BrandingLegalSettingsPage } from './BrandingLegalSettingsPage';
 
 const configuration: BrandingConfiguration = {
-  identity: { legalOrganizationName: 'HTU Graz', displayName: 'Makerspace', applicationName: 'HTU Graz Makerspace', tagline: null },
+  identity: {
+    legalOrganizationName: 'HTU Graz',
+    displayName: 'Makerspace',
+    applicationName: 'HTU Graz Makerspace',
+    tagline: null,
+  },
   colors: { primary: '#57569f', secondary: '#ffbf3d', accent: '#e76f12', background: '#111621' },
   assets: {
-    logo: { slot: 'logo', mode: 'default', url: '/brand/htumkr-symbol.png', originalFilename: null, contentType: null, sizeBytes: null, updatedAt: null },
-    compactLogo: { slot: 'compact_logo', mode: 'default', url: '/brand/htumkr-symbol.png', originalFilename: null, contentType: null, sizeBytes: null, updatedAt: null },
-    favicon: { slot: 'favicon', mode: 'default', url: '/brand/htumkr-symbol.png', originalFilename: null, contentType: null, sizeBytes: null, updatedAt: null },
-    applicationBackground: { slot: 'application_background', mode: 'default', url: '/brand/blueprint-workshop.jpg', originalFilename: null, contentType: null, sizeBytes: null, updatedAt: null },
-    authenticationBackground: { slot: 'authentication_background', mode: 'default', url: '/brand/blueprint-details.jpg', originalFilename: null, contentType: null, sizeBytes: null, updatedAt: null },
+    logo: {
+      slot: 'logo',
+      mode: 'default',
+      url: '/brand/htumkr-symbol.png',
+      originalFilename: null,
+      contentType: null,
+      sizeBytes: null,
+      updatedAt: null,
+    },
+    compactLogo: {
+      slot: 'compact_logo',
+      mode: 'default',
+      url: '/brand/htumkr-symbol.png',
+      originalFilename: null,
+      contentType: null,
+      sizeBytes: null,
+      updatedAt: null,
+    },
+    favicon: {
+      slot: 'favicon',
+      mode: 'default',
+      url: '/brand/htumkr-symbol.png',
+      originalFilename: null,
+      contentType: null,
+      sizeBytes: null,
+      updatedAt: null,
+    },
+    applicationBackground: {
+      slot: 'application_background',
+      mode: 'default',
+      url: '/brand/blueprint-workshop.jpg',
+      originalFilename: null,
+      contentType: null,
+      sizeBytes: null,
+      updatedAt: null,
+    },
+    authenticationBackground: {
+      slot: 'authentication_background',
+      mode: 'default',
+      url: '/brand/blueprint-details.jpg',
+      originalFilename: null,
+      contentType: null,
+      sizeBytes: null,
+      updatedAt: null,
+    },
   },
   imprint: { mode: 'internal', markdown: '', externalUrl: '' },
   privacy: { mode: 'internal', markdown: '', externalUrl: '' },
@@ -48,7 +93,18 @@ describe('branding and legal settings', () => {
         return HttpResponse.json({
           ...customConfiguration,
           version: 2,
-          assets: { ...customConfiguration.assets, logo: { slot: 'logo', mode: 'none', url: null, originalFilename: null, contentType: null, sizeBytes: null, updatedAt: '2026-10-11T09:00:00Z' } },
+          assets: {
+            ...customConfiguration.assets,
+            logo: {
+              slot: 'logo',
+              mode: 'none',
+              url: null,
+              originalFilename: null,
+              contentType: null,
+              sizeBytes: null,
+              updatedAt: '2026-10-11T09:00:00Z',
+            },
+          },
         });
       }),
     );

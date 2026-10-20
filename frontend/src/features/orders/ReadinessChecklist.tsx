@@ -9,8 +9,20 @@ export function ReadinessChecklist({ label, items, hint }: { label: string; item
       <ul className="sales-checklist">
         {items.map((item) => (
           <li key={item.key}>
-            {item.ok ? <CheckmarkFilled className="sales-checklist__ok" aria-label="Done" /> : <Misuse className="sales-checklist__bad" aria-label="Missing" />}
-            <span className="mj-cell-stack"><span>{item.label}</span>{!item.ok && <span className="mj-secondary">{item.hint}{item.key === 'po' && hint ? ` · ${hint}` : ''}</span>}</span>
+            {item.ok ? (
+              <CheckmarkFilled className="sales-checklist__ok" aria-label="Done" />
+            ) : (
+              <Misuse className="sales-checklist__bad" aria-label="Missing" />
+            )}
+            <span className="mj-cell-stack">
+              <span>{item.label}</span>
+              {!item.ok && (
+                <span className="mj-secondary">
+                  {item.hint}
+                  {item.key === 'po' && hint ? ` · ${hint}` : ''}
+                </span>
+              )}
+            </span>
           </li>
         ))}
       </ul>

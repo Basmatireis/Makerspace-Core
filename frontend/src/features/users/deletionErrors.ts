@@ -27,9 +27,11 @@ export function deletionFailureReasons(error: unknown, target: DeletionTarget): 
   }
   if (data?.code && knownReasons[data.code]) return [knownReasons[data.code]];
   if (error.status === 403) {
-    return [target === 'person'
-      ? 'You are not allowed to delete this person or their account.'
-      : 'You are not allowed to delete this account.'];
+    return [
+      target === 'person'
+        ? 'You are not allowed to delete this person or their account.'
+        : 'You are not allowed to delete this account.',
+    ];
   }
   if (error.status === 404) return ['Already deleted or no longer visible to you.'];
   return [`Unexpected server error${error.requestId ? ` (request ${error.requestId})` : ''}.`];

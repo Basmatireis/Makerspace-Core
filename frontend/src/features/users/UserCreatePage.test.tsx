@@ -5,11 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CreatePersonRequest } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
-import {
-  currentUserFixture,
-  otherPersonId,
-  personFixture,
-} from '../../test/fixtures';
+import { currentUserFixture, otherPersonId, personFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -37,19 +33,14 @@ describe('Create person page', () => {
         submitted = (await request.json()) as CreatePersonRequest;
         return HttpResponse.json(created, { status: 201 });
       }),
-      http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(created),
-      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(created)),
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/people/new');
 
     await user.type(await screen.findByLabelText('First name'), '  Katherine  ');
     await user.type(screen.getByLabelText('Last name'), 'Johnson');
-    await user.type(
-      screen.getByLabelText('Contact email'),
-      'katherine@example.test',
-    );
+    await user.type(screen.getByLabelText('Contact email'), 'katherine@example.test');
     await user.type(screen.getByLabelText('Matriculation number'), 'M-2042');
     await user.click(screen.getByRole('button', { name: 'Create person' }));
 
@@ -62,8 +53,6 @@ describe('Create person page', () => {
         matriculationNumber: 'M-2042',
       }),
     );
-    expect(
-      await screen.findByRole('heading', { name: 'Katherine Johnson' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Katherine Johnson' })).toBeInTheDocument();
   });
 });

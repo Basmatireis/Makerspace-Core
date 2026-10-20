@@ -8,10 +8,7 @@ export function DashboardPage() {
   const branding = useBranding();
 
   return (
-    <PageShell
-      title="Dashboard"
-      description={`Welcome, ${currentUser.person.firstName}.`}
-    >
+    <PageShell title="Dashboard" description={`Welcome, ${currentUser.person.firstName}.`}>
       <Tile className="dashboard-intro">
         <Stack gap={4}>
           <h2>Welcome to {branding.identity.displayName}</h2>

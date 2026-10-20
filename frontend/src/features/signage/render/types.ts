@@ -4,7 +4,17 @@ import type { SignageOrientation, SignageScene, SignageTone } from '../../../api
 // Data contract of the shared scene renderer. The renderer is plain React and plain CSS: no Carbon, no TanStack Query
 // and no imports from src/app, because the separate player app imports it too. Widgets get everything through props.
 
-export type RenderScene = Pick<SignageScene, 'orientation' | 'layoutId' | 'backgroundColor' | 'backgroundAssetId' | 'backgroundFit' | 'backgroundDim' | 'theme' | 'zones'>;
+export type RenderScene = Pick<
+  SignageScene,
+  | 'orientation'
+  | 'layoutId'
+  | 'backgroundColor'
+  | 'backgroundAssetId'
+  | 'backgroundFit'
+  | 'backgroundDim'
+  | 'theme'
+  | 'zones'
+>;
 
 export type MachineState = 'idle' | 'preparing' | 'printing' | 'paused' | 'finished' | 'failed' | 'unknown';
 
@@ -19,10 +29,18 @@ export type RenderMachine = {
 };
 
 /** A machine counts as printing while a job is prepared, running or paused. */
-export const isPrinting = (machine: Pick<RenderMachine, 'state' | 'stale'>) => !machine.stale && (machine.state === 'preparing' || machine.state === 'printing' || machine.state === 'paused');
+export const isPrinting = (machine: Pick<RenderMachine, 'state' | 'stale'>) =>
+  !machine.stale && (machine.state === 'preparing' || machine.state === 'printing' || machine.state === 'paused');
 
 /** An announcement already rendered to text (see engine/announcements.ts or the live response). */
-export type RenderAnnouncement = { id: string; templateId: string; tone: SignageTone; title: string; body: string; startsAt: number };
+export type RenderAnnouncement = {
+  id: string;
+  templateId: string;
+  tone: SignageTone;
+  title: string;
+  body: string;
+  startsAt: number;
+};
 
 export type RenderOpenDay = { startsAt: string; endsAt: string; status: string };
 export type RenderEvent = { title: string; startsAt: string; location: string | null };

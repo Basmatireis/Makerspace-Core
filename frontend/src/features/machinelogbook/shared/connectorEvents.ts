@@ -8,7 +8,8 @@ const text = (payload: Payload, key: string) => {
   return typeof value === 'string' && value.trim() ? value.trim() : typeof value === 'number' ? String(value) : null;
 };
 const isZeroIdentifier = (value: string | null) => !value || /^0+$/.test(value);
-const slotName = (payload: Payload) => text(payload, 'slotExternalId') ?? text(payload, 'externalSlotKey') ?? 'unknown slot';
+const slotName = (payload: Payload) =>
+  text(payload, 'slotExternalId') ?? text(payload, 'externalSlotKey') ?? 'unknown slot';
 
 /** One readable line per connector event, built from the normalized payload the connector reports. */
 export function describeConnectorEvent(event: PrinterConnectorEvent): string {
@@ -36,24 +37,38 @@ export function describeConnectorEvent(event: PrinterConnectorEvent): string {
       const material = text(payload, 'productName') ?? text(payload, 'trayType') ?? 'unknown material';
       return `Slot ${slotName(payload)}: ${material}${isZeroIdentifier(text(payload, 'tagUid')) ? '' : ' (RFID)'}`;
     }
-    case 'terminal_outcome': return `Print ended: ${text(payload, 'outcome') ?? 'unknown'}`;
+    case 'terminal_outcome':
+      return `Print ended: ${text(payload, 'outcome') ?? 'unknown'}`;
     case 'printer_error': {
       const family = (text(payload, 'sourceFamily') ?? 'printer').toUpperCase();
       const code = text(payload, 'code') ?? 'unknown code';
       return text(payload, 'transition') === 'cleared' ? `${family} ${code} cleared` : `${family} ${code} reported`;
     }
-    case 'filament_change': return `Switched from slot ${text(payload, 'fromSlotExternalId') ?? '?'} to ${text(payload, 'toSlotExternalId') ?? '?'}`;
+    case 'filament_change':
+      return `Switched from slot ${text(payload, 'fromSlotExternalId') ?? '?'} to ${text(payload, 'toSlotExternalId') ?? '?'}`;
     case 'consumption_report': {
       const items = Array.isArray(payload.items) ? payload.items.length : 0;
       const grams = text(payload, 'quantityGrams');
-      return items > 0 ? `Material use reported for ${items} slot${items === 1 ? '' : 's'}` : grams ? `${grams} g material use reported` : 'Material use reported';
+      return items > 0
+        ? `Material use reported for ${items} slot${items === 1 ? '' : 's'}`
+        : grams
+          ? `${grams} g material use reported`
+          : 'Material use reported';
     }
-    case 'identity': return 'Printer identified';
-    default: return 'Event received';
+    case 'identity':
+      return 'Printer identified';
+    default:
+      return 'Event received';
   }
 }
 
-export type EventGroup = { id: string; summary: string; count: number; newest: PrinterConnectorEvent; oldest: PrinterConnectorEvent };
+export type EventGroup = {
+  id: string;
+  summary: string;
+  count: number;
+  newest: PrinterConnectorEvent;
+  oldest: PrinterConnectorEvent;
+};
 
 /** Collapses consecutive events (newest first) that say the same thing, e.g. a printer reported offline every minute. */
 export function groupConnectorEvents(events: PrinterConnectorEvent[]): EventGroup[] {
@@ -62,7 +77,12 @@ export function groupConnectorEvents(events: PrinterConnectorEvent[]): EventGrou
   for (const event of sorted) {
     const summary = describeConnectorEvent(event);
     const last = groups[groups.length - 1];
-    if (last && last.summary === summary && last.newest.kind === event.kind && last.newest.applicationState === event.applicationState) {
+    if (
+      last &&
+      last.summary === summary &&
+      last.newest.kind === event.kind &&
+      last.newest.applicationState === event.applicationState
+    ) {
       last.count += 1;
       last.oldest = event;
     } else {

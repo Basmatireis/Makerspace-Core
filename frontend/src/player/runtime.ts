@@ -1,4 +1,9 @@
-import type { SignagePlayerHeartbeat, SignagePlayerLive, SignagePlayerManifest, SignageResolution } from '../api/generated/models';
+import type {
+  SignagePlayerHeartbeat,
+  SignagePlayerLive,
+  SignagePlayerManifest,
+  SignageResolution,
+} from '../api/generated/models';
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
 import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
@@ -87,12 +92,19 @@ export class PlayerRuntime {
     this.store = deps.store === undefined ? createPlayerStore() : deps.store;
     this.camera = deps.camera ?? new CameraManager();
     this.camera.setErrorSink?.((message) => this.note(message));
-    this.camera.subscribe?.(() => { if (!this.stopped) this.publish(); });
+    this.camera.subscribe?.(() => {
+      if (!this.stopped) this.publish();
+    });
     this.now = deps.now ?? Date.now;
     this.playerVersion = deps.playerVersion ?? PLAYER_VERSION;
   }
 
-  readonly subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
+  readonly subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
   readonly getSnapshot = () => this.snapshot;
 
   start() {
@@ -100,7 +112,10 @@ export class PlayerRuntime {
     this.stopped = false;
     this.loopsStarted = false;
     this.startedAt = this.now();
-    this.every(() => { this.publish(); return 1_000; });
+    this.every(() => {
+      this.publish();
+      return 1_000;
+    });
     void this.begin();
   }
 
@@ -109,7 +124,12 @@ export class PlayerRuntime {
     void this.store?.requestPersistence();
     await this.restore();
     if (this.stopped) return;
-    this.every(async () => { await this.refreshManifest(); return this.unpublished || this.manifestFailures > 0 ? Math.min(UNPUBLISHED_INTERVAL_MS * 2 ** this.manifestFailures, MAX_BACKOFF_MS) : MANIFEST_INTERVAL_MS; }, true);
+    this.every(async () => {
+      await this.refreshManifest();
+      return this.unpublished || this.manifestFailures > 0
+        ? Math.min(UNPUBLISHED_INTERVAL_MS * 2 ** this.manifestFailures, MAX_BACKOFF_MS)
+        : MANIFEST_INTERVAL_MS;
+    }, true);
     // A restored revision proves the device was paired. Without one the loops wait for the first answer of the manifest call:
     // before that the device may have no credential and live/heartbeat would only produce 401s.
     if (this.active) this.startPlayingLoops();
@@ -118,8 +138,16 @@ export class PlayerRuntime {
   private startPlayingLoops() {
     if (this.loopsStarted || this.stopped || this.revoked) return;
     this.loopsStarted = true;
-    this.every(async () => { await this.pollLive(); return this.online ? LIVE_INTERVAL_MS : backoffMs(this.liveFailures, LIVE_INTERVAL_MS, MAX_BACKOFF_MS); }, true);
-    this.every(async () => { await this.sendHeartbeat(); return this.heartbeatFailures > 0 ? backoffMs(this.heartbeatFailures, HEARTBEAT_INTERVAL_MS, MAX_BACKOFF_MS) : HEARTBEAT_INTERVAL_MS; }, true);
+    this.every(async () => {
+      await this.pollLive();
+      return this.online ? LIVE_INTERVAL_MS : backoffMs(this.liveFailures, LIVE_INTERVAL_MS, MAX_BACKOFF_MS);
+    }, true);
+    this.every(async () => {
+      await this.sendHeartbeat();
+      return this.heartbeatFailures > 0
+        ? backoffMs(this.heartbeatFailures, HEARTBEAT_INTERVAL_MS, MAX_BACKOFF_MS)
+        : HEARTBEAT_INTERVAL_MS;
+    }, true);
   }
 
   private async restore() {
@@ -131,9 +159,18 @@ export class PlayerRuntime {
       const saved = await this.store.loadLive();
       if (saved && this.now() - saved.savedAt <= PERSISTED_LIVE_MAX_AGE_MS) {
         // Machines are never restored: their status is only fresh when polled, so the view treats live data as unavailable.
-        this.live = { machines: [], announcements: saved.announcements, openDays: saved.openDays, events: saved.events, streams: [], skewMs: saved.skewMs };
+        this.live = {
+          machines: [],
+          announcements: saved.announcements,
+          openDays: saved.openDays,
+          events: saved.events,
+          streams: [],
+          skewMs: saved.skewMs,
+        };
       }
-    } catch { /* An unreadable cache just means a normal start. */ }
+    } catch {
+      /* An unreadable cache just means a normal start. */
+    }
     this.publish();
   }
 
@@ -149,14 +186,24 @@ export class PlayerRuntime {
     const run = async () => {
       if (this.stopped) return;
       let delay = 1_000;
-      try { delay = await task(); } catch { delay = MAX_BACKOFF_MS; }
+      try {
+        delay = await task();
+      } catch {
+        delay = MAX_BACKOFF_MS;
+      }
       if (this.stopped) return;
-      const timer = setTimeout(() => { this.timers.delete(timer); void run(); }, delay);
+      const timer = setTimeout(() => {
+        this.timers.delete(timer);
+        void run();
+      }, delay);
       this.timers.add(timer);
     };
     if (immediately) void run();
     else {
-      const timer = setTimeout(() => { this.timers.delete(timer); void run(); }, 1_000);
+      const timer = setTimeout(() => {
+        this.timers.delete(timer);
+        void run();
+      }, 1_000);
       this.timers.add(timer);
     }
   }
@@ -193,11 +240,17 @@ export class PlayerRuntime {
   private async sendHeartbeat() {
     try {
       const use = await this.store?.usage();
-      if (use) { this.cacheUsedBytes = use.usedBytes; this.cacheQuotaBytes = use.quotaBytes; }
+      if (use) {
+        this.cacheUsedBytes = use.usedBytes;
+        this.cacheQuotaBytes = use.quotaBytes;
+      }
       await this.api.heartbeat(this.heartbeatPayload());
       this.heartbeatFailures = 0;
     } catch (error) {
-      if (isRevoked(error)) { this.markRevoked(); return; }
+      if (isRevoked(error)) {
+        this.markRevoked();
+        return;
+      }
       this.heartbeatFailures += 1;
     }
   }
@@ -209,9 +262,17 @@ export class PlayerRuntime {
       this.liveFailures = 0;
       this.online = true;
       // Another revision was published: fetch it right away instead of waiting for the next manifest poll.
-      if (live.revision !== null && live.revision !== (this.active?.manifest.revision ?? null) && this.now() >= this.manifestRetryAt) void this.refreshManifest();
+      if (
+        live.revision !== null &&
+        live.revision !== (this.active?.manifest.revision ?? null) &&
+        this.now() >= this.manifestRetryAt
+      )
+        void this.refreshManifest();
     } catch (error) {
-      if (isRevoked(error)) { this.markRevoked(); return; }
+      if (isRevoked(error)) {
+        this.markRevoked();
+        return;
+      }
       this.liveFailures += 1;
       this.online = false;
     } finally {
@@ -222,7 +283,14 @@ export class PlayerRuntime {
 
   private applyLive(live: SignagePlayerLive) {
     this.lastLiveAt = this.now();
-    this.live = { machines: live.machines, announcements: live.announcements, openDays: live.openDays, events: live.events, streams: live.streams, skewMs: Date.parse(live.serverTime) - this.now() || 0 };
+    this.live = {
+      machines: live.machines,
+      announcements: live.announcements,
+      openDays: live.openDays,
+      events: live.events,
+      streams: live.streams,
+      skewMs: Date.parse(live.serverTime) - this.now() || 0,
+    };
     this.camera.setStreams?.(live.streams);
     this.persistLive(this.live);
   }
@@ -234,13 +302,21 @@ export class PlayerRuntime {
     const now = this.now();
     if (this.savedLive && this.savedLive.key === key && now - this.savedLive.at < LIVE_SAVE_INTERVAL_MS) return;
     this.savedLive = { key, at: now };
-    const payload: PersistedLive = { savedAt: now, skewMs: live.skewMs, announcements: live.announcements, openDays: live.openDays, events: live.events };
+    const payload: PersistedLive = {
+      savedAt: now,
+      skewMs: live.skewMs,
+      announcements: live.announcements,
+      openDays: live.openDays,
+      events: live.events,
+    };
     void this.store.saveLive(payload).catch(() => undefined);
   }
 
   /** Fetches the manifest and switches to it once every asset is loaded. Concurrent calls share one run. */
   refreshManifest(): Promise<void> {
-    this.manifestInFlight ??= this.fetchManifest().finally(() => { this.manifestInFlight = null; });
+    this.manifestInFlight ??= this.fetchManifest().finally(() => {
+      this.manifestInFlight = null;
+    });
     return this.manifestInFlight;
   }
 
@@ -249,7 +325,10 @@ export class PlayerRuntime {
       const response = await this.api.manifest(this.active?.manifest.revision ?? null);
       this.unpublished = false;
       this.startPlayingLoops();
-      if (response.unchanged || !response.manifest) { this.manifestFailures = 0; return; }
+      if (response.unchanged || !response.manifest) {
+        this.manifestFailures = 0;
+        return;
+      }
       const manifest = response.manifest;
       if (manifest.revision === this.active?.manifest.revision) return;
       await this.cacheRevision(manifest);
@@ -260,10 +339,21 @@ export class PlayerRuntime {
       // The new revision is on screen and persisted: assets only the old one used can go.
       await this.store?.retain(manifest.assets).catch(() => undefined);
     } catch (error) {
-      if (isRevoked(error)) { this.markRevoked(); return; }
-      if (error instanceof PlayerApiError && error.status === 404 && error.code === 'signage_not_published') { this.unpublished = true; this.startPlayingLoops(); this.manifestFailures = 0; return; }
+      if (isRevoked(error)) {
+        this.markRevoked();
+        return;
+      }
+      if (error instanceof PlayerApiError && error.status === 404 && error.code === 'signage_not_published') {
+        this.unpublished = true;
+        this.startPlayingLoops();
+        this.manifestFailures = 0;
+        return;
+      }
       // Any other 404 means the device has no display any more: it must be paired again.
-      if (error instanceof PlayerApiError && error.status === 404) { this.markRevoked(); return; }
+      if (error instanceof PlayerApiError && error.status === 404) {
+        this.markRevoked();
+        return;
+      }
       this.manifestFailures += 1;
       this.manifestRetryAt = this.now() + backoffMs(this.manifestFailures, UNPUBLISHED_INTERVAL_MS, MAX_BACKOFF_MS);
       if (!(error instanceof Error && error.message === 'preload failed')) this.online = false;
@@ -277,8 +367,13 @@ export class PlayerRuntime {
     const store = this.store;
     if (!store) {
       const results = await settleLimited(manifest.assets, PRELOAD_CONCURRENCY, (asset) => this.loadAsset(asset));
-      const failed = results.flatMap((result, index) => (result.status === 'rejected' ? [manifest.assets[index].id] : []));
-      results.forEach((result, index) => { if (result.status === 'fulfilled' && result.value === 'slow') this.note(`Video ${manifest.assets[index].id} was slow to buffer`); });
+      const failed = results.flatMap((result, index) =>
+        result.status === 'rejected' ? [manifest.assets[index].id] : [],
+      );
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value === 'slow')
+          this.note(`Video ${manifest.assets[index].id} was slow to buffer`);
+      });
       if (failed.length > 0) {
         // Keep the current revision on screen; the next poll tries again.
         this.note(`Revision ${manifest.revision}: ${failed.length} asset(s) failed to load`);
@@ -311,17 +406,33 @@ export class PlayerRuntime {
 
   private publish() {
     const now = this.now();
-    let status: RuntimeStatus = this.revoked ? 'revoked' : this.active ? 'playing' : this.unpublished ? 'unpublished' : 'starting';
+    let status: RuntimeStatus = this.revoked
+      ? 'revoked'
+      : this.active
+        ? 'playing'
+        : this.unpublished
+          ? 'unpublished'
+          : 'starting';
     let view: PlayerView | null = null;
     const gate = this.liveAttempted || now - this.startedAt >= FIRST_LIVE_GRACE_MS;
     if (this.active && gate && !this.revoked) {
       const urls = this.active.urls;
-      const resolved = resolveView({ manifest: this.active.manifest, live: this.live, lastLiveAt: this.lastLiveAt, now, hold: this.hold, camera: this.camera, assetUrl: (id) => urls.get(id) ?? null });
+      const resolved = resolveView({
+        manifest: this.active.manifest,
+        live: this.live,
+        lastLiveAt: this.lastLiveAt,
+        now,
+        hold: this.hold,
+        camera: this.camera,
+        assetUrl: (id) => urls.get(id) ?? null,
+      });
       this.hold = resolved.hold;
       view = resolved.view;
     }
     if (this.revoked) status = 'revoked';
-    const display = this.active ? { orientation: this.active.manifest.display.orientation, resolution: this.active.manifest.display.resolution } : null;
+    const display = this.active
+      ? { orientation: this.active.manifest.display.orientation, resolution: this.active.manifest.display.resolution }
+      : null;
     this.snapshot = { status, view, display, online: this.online, revision: this.active?.manifest.revision ?? null };
     this.listeners.forEach((listener) => listener());
   }

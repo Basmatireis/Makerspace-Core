@@ -79,9 +79,8 @@ export function SupervisorStaffingPage() {
   }
 
   const dashboard = query.data;
-  const selectedPeriod = dashboard.periods.find((period) => period.id === selectedPeriodId)
-    ?? dashboard.periods[0]
-    ?? null;
+  const selectedPeriod =
+    dashboard.periods.find((period) => period.id === selectedPeriodId) ?? dashboard.periods[0] ?? null;
   const headers = [
     { key: 'name', header: 'Member' },
     { key: 'photo', header: 'Profile picture' },
@@ -103,27 +102,38 @@ export function SupervisorStaffingPage() {
     };
   });
   const normalizedSearch = search.trim().toLocaleLowerCase();
-  const selectedProfilePictureStatuses = PROFILE_PICTURE_STATUS_OPTIONS.filter((option) => filters.photo?.includes(option.value));
-  const selectedLabRulesStatuses = LAB_RULES_STATUS_OPTIONS.filter((option) => filters.labRules?.includes(option.value));
-  const hasActiveFilters = selectedProfilePictureStatuses.length > 0
-    || selectedLabRulesStatuses.length > 0;
+  const selectedProfilePictureStatuses = PROFILE_PICTURE_STATUS_OPTIONS.filter((option) =>
+    filters.photo?.includes(option.value),
+  );
+  const selectedLabRulesStatuses = LAB_RULES_STATUS_OPTIONS.filter((option) =>
+    filters.labRules?.includes(option.value),
+  );
+  const hasActiveFilters = selectedProfilePictureStatuses.length > 0 || selectedLabRulesStatuses.length > 0;
   const filterCategories: FilterCategory[] = [
-    { key: 'photo', label: 'Profile picture', options: PROFILE_PICTURE_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) },
-    { key: 'labRules', label: 'Lab Rules', options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) },
+    {
+      key: 'photo',
+      label: 'Profile picture',
+      options: PROFILE_PICTURE_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
+    },
+    {
+      key: 'labRules',
+      label: 'Lab Rules',
+      options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
+    },
   ];
   const filteredRows = rows.filter((row) => {
     if (normalizedSearch && !row.name.toLocaleLowerCase().includes(normalizedSearch)) {
       return false;
     }
     if (
-      selectedProfilePictureStatuses.length > 0
-      && !selectedProfilePictureStatuses.some((option) => option.label === row.photo)
+      selectedProfilePictureStatuses.length > 0 &&
+      !selectedProfilePictureStatuses.some((option) => option.label === row.photo)
     ) {
       return false;
     }
     if (
-      selectedLabRulesStatuses.length > 0
-      && !selectedLabRulesStatuses.some((option) => option.value === row.laborordnung)
+      selectedLabRulesStatuses.length > 0 &&
+      !selectedLabRulesStatuses.some((option) => option.value === row.laborordnung)
     ) {
       return false;
     }
@@ -131,10 +141,7 @@ export function SupervisorStaffingPage() {
   });
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const visibleRows = filteredRows.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
+  const visibleRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <PageShell
@@ -149,125 +156,135 @@ export function SupervisorStaffingPage() {
       className="supervisor-staffing-page"
     >
       <section className="supervisor-staffing-main" aria-label="Members table">
-          {dashboard.periods.length === 0 && (
-            <InlineNotification
-              kind="info"
-              lowContrast
-              hideCloseButton
-              title="No active staffing periods"
-              subtitle="Members are shown without assignment totals."
-            />
-          )}
+        {dashboard.periods.length === 0 && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="No active staffing periods"
+            subtitle="Members are shown without assignment totals."
+          />
+        )}
 
-          <DataTable rows={visibleRows} headers={headers} isSortable>
-            {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
-              <TableContainer className="people-table-container supervisor-staffing-table">
-                <TableToolbar aria-label="Members table toolbar">
-                  <TableToolbarContent>
-                    <TableToolbarSearch
-                      id="members-search"
-                      labelText="Search members"
-                      placeholder="Search members"
-                      value={search}
-                      onChange={(_event, value) => {
-                        setSearch(value ?? '');
-                        setPage(1);
-                      }}
-                      onClear={() => {
-                        setSearch('');
-                        setPage(1);
-                      }}
-                    />
-                    <BatchFilter
-                      id="members" label="Members" categories={filterCategories} applied={filters}
-                      onApply={(values) => { setFilters(values); setPage(1); }} onReset={() => { setFilters({}); setPage(1); }}
-                    />
-                    <Dropdown
-                      id="members-period-selector"
-                      className="supervisor-staffing-period-selector"
-                      titleText="Open Days period"
-                      hideLabel
-                      size="lg"
-                      label={dashboard.periods.length === 0 ? 'No active periods' : 'Select a period'}
-                      items={dashboard.periods}
-                      itemToString={(period) => period?.name ?? ''}
-                      selectedItem={selectedPeriod}
-                      disabled={dashboard.periods.length === 0}
-                      onChange={({ selectedItem }) => {
-                        setSelectedPeriodId(selectedItem?.id ?? null);
-                        setPage(1);
-                      }}
-                    />
-                    {canOpenPeople && (
-                      <Button kind="tertiary" onClick={() => navigate('/people')}>
-                        People
-                      </Button>
-                    )}
-                  </TableToolbarContent>
-                </TableToolbar>
-                <Table {...getTableProps()}>
-                  <TableHead>
-                    <TableRow>
-                      {tableHeaders.map((header) => (
-                        <TableHeader {...getHeaderProps({ header })} key={header.key}>
-                          {header.header}
-                        </TableHeader>
+        <DataTable rows={visibleRows} headers={headers} isSortable>
+          {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
+            <TableContainer className="people-table-container supervisor-staffing-table">
+              <TableToolbar aria-label="Members table toolbar">
+                <TableToolbarContent>
+                  <TableToolbarSearch
+                    id="members-search"
+                    labelText="Search members"
+                    placeholder="Search members"
+                    value={search}
+                    onChange={(_event, value) => {
+                      setSearch(value ?? '');
+                      setPage(1);
+                    }}
+                    onClear={() => {
+                      setSearch('');
+                      setPage(1);
+                    }}
+                  />
+                  <BatchFilter
+                    id="members"
+                    label="Members"
+                    categories={filterCategories}
+                    applied={filters}
+                    onApply={(values) => {
+                      setFilters(values);
+                      setPage(1);
+                    }}
+                    onReset={() => {
+                      setFilters({});
+                      setPage(1);
+                    }}
+                  />
+                  <Dropdown
+                    id="members-period-selector"
+                    className="supervisor-staffing-period-selector"
+                    titleText="Open Days period"
+                    hideLabel
+                    size="lg"
+                    label={dashboard.periods.length === 0 ? 'No active periods' : 'Select a period'}
+                    items={dashboard.periods}
+                    itemToString={(period) => period?.name ?? ''}
+                    selectedItem={selectedPeriod}
+                    disabled={dashboard.periods.length === 0}
+                    onChange={({ selectedItem }) => {
+                      setSelectedPeriodId(selectedItem?.id ?? null);
+                      setPage(1);
+                    }}
+                  />
+                  {canOpenPeople && (
+                    <Button kind="tertiary" onClick={() => navigate('/people')}>
+                      People
+                    </Button>
+                  )}
+                </TableToolbarContent>
+              </TableToolbar>
+              <Table {...getTableProps()}>
+                <TableHead>
+                  <TableRow>
+                    {tableHeaders.map((header) => (
+                      <TableHeader {...getHeaderProps({ header })} key={header.key}>
+                        {header.header}
+                      </TableHeader>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tableRows.map((row) => (
+                    <TableRow {...getRowProps({ row })} key={row.id}>
+                      {row.cells.map((cell) => (
+                        <TableCell key={cell.id}>
+                          {cell.info.header === 'name' && canOpenPeople ? (
+                            <CarbonLink
+                              href={`/people/${row.id}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                navigate(`/people/${row.id}`);
+                              }}
+                            >
+                              {String(cell.value)}
+                            </CarbonLink>
+                          ) : cell.info.header === 'photo' ? (
+                            <Tag type={cell.value === 'Complete' ? 'green' : 'red'}>{String(cell.value)}</Tag>
+                          ) : cell.info.header === 'laborordnung' ? (
+                            <Tag type={cell.value === 'current' || cell.value === 'not_required' ? 'green' : 'red'}>
+                              {labRulesLabel(String(cell.value))}
+                            </Tag>
+                          ) : (
+                            String(cell.value)
+                          )}
+                        </TableCell>
                       ))}
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {tableRows.map((row) => (
-                      <TableRow {...getRowProps({ row })} key={row.id}>
-                        {row.cells.map((cell) => (
-                          <TableCell key={cell.id}>
-                            {cell.info.header === 'name' && canOpenPeople ? (
-                              <CarbonLink
-                                href={`/people/${row.id}`}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  navigate(`/people/${row.id}`);
-                                }}
-                              >
-                                {String(cell.value)}
-                              </CarbonLink>
-                            ) : cell.info.header === 'photo' ? (
-                              <Tag type={cell.value === 'Complete' ? 'green' : 'red'}>{String(cell.value)}</Tag>
-                            ) : cell.info.header === 'laborordnung' ? (
-                              <Tag type={cell.value === 'current' || cell.value === 'not_required' ? 'green' : 'red'}>
-                                {labRulesLabel(String(cell.value))}
-                              </Tag>
-                            ) : (
-                              String(cell.value)
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {filteredRows.length === 0 && (
-                  <div className="empty-state">
-                    <h2>{search || hasActiveFilters ? 'No members found' : 'No designated supervisors'}</h2>
-                    <p>
-                      {search || hasActiveFilters
-                        ? 'Try different search terms or filters.'
-                        : 'Assign a role configured as a supervisor role to include someone here.'}
-                    </p>
-                  </div>
-                )}
-                <Pagination
-                  page={currentPage}
-                  pageSize={pageSize}
-                  totalItems={filteredRows.length}
-                  pageSizes={PAGE_SIZES}
-                  onChange={({ page: nextPage, pageSize: nextPageSize }) => {
-                    setPage(nextPage);
-                    setPageSize(nextPageSize);
-                  }}
-                />
-              </TableContainer>
-            )}
-          </DataTable>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredRows.length === 0 && (
+                <div className="empty-state">
+                  <h2>{search || hasActiveFilters ? 'No members found' : 'No designated supervisors'}</h2>
+                  <p>
+                    {search || hasActiveFilters
+                      ? 'Try different search terms or filters.'
+                      : 'Assign a role configured as a supervisor role to include someone here.'}
+                  </p>
+                </div>
+              )}
+              <Pagination
+                page={currentPage}
+                pageSize={pageSize}
+                totalItems={filteredRows.length}
+                pageSizes={PAGE_SIZES}
+                onChange={({ page: nextPage, pageSize: nextPageSize }) => {
+                  setPage(nextPage);
+                  setPageSize(nextPageSize);
+                }}
+              />
+            </TableContainer>
+          )}
+        </DataTable>
       </section>
     </PageShell>
   );

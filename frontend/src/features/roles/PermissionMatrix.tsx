@@ -1,23 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from '@carbon/react';
-import {
-  Checkmark,
-  ChevronDown,
-  ChevronRight,
-  Filter,
-  Subtract,
-} from '@carbon/icons-react';
-import type {
-  ManagedDeviceType,
-  Permission,
-  PermissionGrant,
-  Role,
-} from '../../api/generated/models';
+import { Table, TableBody, TableCell, TableRow } from '@carbon/react';
+import { Checkmark, ChevronDown, ChevronRight, Filter, Subtract } from '@carbon/icons-react';
+import type { ManagedDeviceType, Permission, PermissionGrant, Role } from '../../api/generated/models';
 import { permissionGrantDeviceTypeIds } from '../auth/permissions';
 import { permissionGroupOrder, presentPermission } from './permissionPresentation';
 
@@ -64,61 +48,69 @@ export function PermissionMatrix({
     .map((group) => ({ name: group, permissions: byGroup.get(group) ?? [] }));
 
   if (groups.length === 0) {
-    return <div className="roles-matrix-empty"><h2>No permissions available</h2></div>;
+    return (
+      <div className="roles-matrix-empty">
+        <h2>No permissions available</h2>
+      </div>
+    );
   }
 
   return (
     <div className="roles-matrix-scroll" data-testid="permission-matrix">
       <div className="roles-matrix__sizing">
-      <Table className="roles-matrix" useZebraStyles={false}>
-        <caption className="cds--visually-hidden">Permissions and access</caption>
-        <colgroup>
-          <col className="roles-matrix__permission-col" />
-          <col className="roles-matrix__access-col" />
-        </colgroup>
-        <TableBody>
-          {groups.map((group) => {
-            const isCollapsed = collapsed.has(group.name);
-            return [
-              <TableRow key={`group-${group.name}`} className="roles-matrix__group-row">
-                <TableCell className="roles-matrix__permission-column roles-matrix__group-heading">
-                  <button
-                    type="button"
-                    className="roles-matrix__group-toggle"
-                    aria-expanded={!isCollapsed}
-                    onClick={() => setCollapsed((current) => {
-                      const next = new Set(current);
-                      if (next.has(group.name)) next.delete(group.name);
-                      else next.add(group.name);
-                      return next;
-                    })}
-                  >
-                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                    <span>{group.name}</span>
-                    <span className="roles-matrix__group-count">({group.permissions.length})</span>
-                  </button>
-                </TableCell>
-                <TableCell aria-hidden="true" />
-              </TableRow>,
-              ...(!isCollapsed ? group.permissions.map((permission) => (
-                <PermissionRow
-                  key={permission.id}
-                  permission={permission}
-                  roles={roles}
-                  deviceTypes={deviceTypes}
-                  editingRoleId={editingRoleId}
-                  selectedPermissionId={selectedPermissionId}
-                  changedPermissionIds={changedPermissionIds}
-                  canManagePermission={canManagePermission}
-                  canSetState={canSetState}
-                  onSelectCell={onSelectCell}
-                  onChangeState={onChangeState}
-                />
-              )) : []),
-            ];
-          })}
-        </TableBody>
-      </Table>
+        <Table className="roles-matrix" useZebraStyles={false}>
+          <caption className="cds--visually-hidden">Permissions and access</caption>
+          <colgroup>
+            <col className="roles-matrix__permission-col" />
+            <col className="roles-matrix__access-col" />
+          </colgroup>
+          <TableBody>
+            {groups.map((group) => {
+              const isCollapsed = collapsed.has(group.name);
+              return [
+                <TableRow key={`group-${group.name}`} className="roles-matrix__group-row">
+                  <TableCell className="roles-matrix__permission-column roles-matrix__group-heading">
+                    <button
+                      type="button"
+                      className="roles-matrix__group-toggle"
+                      aria-expanded={!isCollapsed}
+                      onClick={() =>
+                        setCollapsed((current) => {
+                          const next = new Set(current);
+                          if (next.has(group.name)) next.delete(group.name);
+                          else next.add(group.name);
+                          return next;
+                        })
+                      }
+                    >
+                      {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                      <span>{group.name}</span>
+                      <span className="roles-matrix__group-count">({group.permissions.length})</span>
+                    </button>
+                  </TableCell>
+                  <TableCell aria-hidden="true" />
+                </TableRow>,
+                ...(!isCollapsed
+                  ? group.permissions.map((permission) => (
+                      <PermissionRow
+                        key={permission.id}
+                        permission={permission}
+                        roles={roles}
+                        deviceTypes={deviceTypes}
+                        editingRoleId={editingRoleId}
+                        selectedPermissionId={selectedPermissionId}
+                        changedPermissionIds={changedPermissionIds}
+                        canManagePermission={canManagePermission}
+                        canSetState={canSetState}
+                        onSelectCell={onSelectCell}
+                        onChangeState={onChangeState}
+                      />
+                    ))
+                  : []),
+              ];
+            })}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -135,7 +127,18 @@ function PermissionRow({
   canSetState,
   onSelectCell,
   onChangeState,
-}: Pick<Props, 'roles' | 'deviceTypes' | 'editingRoleId' | 'selectedPermissionId' | 'changedPermissionIds' | 'canManagePermission' | 'canSetState' | 'onSelectCell' | 'onChangeState'> & { permission: Permission }) {
+}: Pick<
+  Props,
+  | 'roles'
+  | 'deviceTypes'
+  | 'editingRoleId'
+  | 'selectedPermissionId'
+  | 'changedPermissionIds'
+  | 'canManagePermission'
+  | 'canSetState'
+  | 'onSelectCell'
+  | 'onChangeState'
+> & { permission: Permission }) {
   const presentation = presentPermission(permission);
   const role = roles[0];
   if (!role) return null;
@@ -169,14 +172,28 @@ function PermissionRow({
     </TableRow>
   );
 
-  function AccessOption({ state: option, current, label, icon }: { state: 'denied' | 'granted' | 'conditional'; current: string; label: string; icon: ReactNode }) {
+  function AccessOption({
+    state: option,
+    current,
+    label,
+    icon,
+  }: {
+    state: 'denied' | 'granted' | 'conditional';
+    current: string;
+    label: string;
+    icon: ReactNode;
+  }) {
     const active = option === current;
     const optionDisabled = !editable || !canSetState(role, permission, option);
     return (
       <button
         type="button"
         className={`roles-access-control__option${active ? ' roles-access-control__option--active' : ''}`}
-        aria-label={active ? `${editable ? 'Edit' : 'View'} ${presentation.label} for ${role.name}: ${summary}` : `Set ${presentation.label} for ${role.name} to ${label}`}
+        aria-label={
+          active
+            ? `${editable ? 'Edit' : 'View'} ${presentation.label} for ${role.name}: ${summary}`
+            : `Set ${presentation.label} for ${role.name} to ${label}`
+        }
         aria-pressed={active}
         disabled={optionDisabled}
         title={active ? summary : undefined}
@@ -186,7 +203,8 @@ function PermissionRow({
           else onChangeState?.(role, permission, option);
         }}
       >
-        {icon}<span>{label}</span>
+        {icon}
+        <span>{label}</span>
       </button>
     );
   }
@@ -203,14 +221,16 @@ function configuredSummary(grants: readonly PermissionGrant[], deviceTypes: read
   if (grants.length === 0) return 'Not granted';
   if (configuredState(grants) === 'granted') return 'Granted without additional conditions';
   const names = new Map(deviceTypes.map((type) => [type.id, type.name]));
-  return grants.map((grant) => {
-    const parts: string[] = [];
-    if (grant.minimumAssurance !== 'low') parts.push(assuranceLabels[grant.minimumAssurance]);
-    if (grant.scope === 'anyManagedDevice') parts.push('Any managed device');
-    if (grant.scope === 'selectedDeviceTypes') {
-      const selected = permissionGrantDeviceTypeIds(grant).map((id) => names.get(id) ?? 'Unknown device type');
-      parts.push(selected.join(', '));
-    }
-    return parts.join(' · ') || 'Granted without additional conditions';
-  }).join(' OR ');
+  return grants
+    .map((grant) => {
+      const parts: string[] = [];
+      if (grant.minimumAssurance !== 'low') parts.push(assuranceLabels[grant.minimumAssurance]);
+      if (grant.scope === 'anyManagedDevice') parts.push('Any managed device');
+      if (grant.scope === 'selectedDeviceTypes') {
+        const selected = permissionGrantDeviceTypeIds(grant).map((id) => names.get(id) ?? 'Unknown device type');
+        parts.push(selected.join(', '));
+      }
+      return parts.join(' · ') || 'Granted without additional conditions';
+    })
+    .join(' OR ');
 }

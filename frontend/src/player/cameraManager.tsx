@@ -48,9 +48,18 @@ export class CameraManager implements CameraSource {
 
   constructor(private readonly options: Options = {}) {}
 
-  readonly subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
-  setErrorSink(sink: (message: string) => void) { this.report = sink; }
-  private notify() { this.listeners.forEach((listener) => listener()); }
+  readonly subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+  setErrorSink(sink: (message: string) => void) {
+    this.report = sink;
+  }
+  private notify() {
+    this.listeners.forEach((listener) => listener());
+  }
 
   hasStream(machineId: string) {
     const entry = this.entries.get(machineId);
@@ -80,7 +89,10 @@ export class CameraManager implements CameraSource {
       released = true;
       entry.refs -= 1;
       if (entry.refs === 0 && this.entries.get(machineId) === entry) {
-        entry.grace = setTimeout(() => { this.stop(entry); if (entry.phase !== 'failed') entry.phase = 'pending'; }, IDLE_GRACE_MS);
+        entry.grace = setTimeout(() => {
+          this.stop(entry);
+          if (entry.phase !== 'failed') entry.phase = 'pending';
+        }, IDLE_GRACE_MS);
       }
     };
   }
@@ -89,13 +101,26 @@ export class CameraManager implements CameraSource {
     let changed = false;
     const offered = new Set(streams.map((stream) => stream.machineId));
     for (const entry of [...this.entries.values()]) {
-      if (!offered.has(entry.machineId)) { this.remove(entry); changed = true; }
+      if (!offered.has(entry.machineId)) {
+        this.remove(entry);
+        changed = true;
+      }
     }
     for (const stream of streams) {
       const offer: StreamOffer = { webrtcUrl: stream.webrtcUrl, mseUrl: stream.mseUrl, ticket: stream.ticket };
       const entry = this.entries.get(stream.machineId);
       if (!entry) {
-        this.entries.set(stream.machineId, { machineId: stream.machineId, offer, refs: 0, phase: 'pending', conn: null, abort: null, ticketRefused: false, failures: 0, quick: 0 });
+        this.entries.set(stream.machineId, {
+          machineId: stream.machineId,
+          offer,
+          refs: 0,
+          phase: 'pending',
+          conn: null,
+          abort: null,
+          ticketRefused: false,
+          failures: 0,
+          quick: 0,
+        });
         changed = true;
         continue;
       }
@@ -110,7 +135,11 @@ export class CameraManager implements CameraSource {
       } else if (renewed && entry.ticketRefused) {
         // The only way out of a refused ticket: try again right away with the new one.
         entry.ticketRefused = false;
-        if (entry.phase === 'failed') { clearTimeout(entry.revive); entry.phase = 'pending'; changed = true; }
+        if (entry.phase === 'failed') {
+          clearTimeout(entry.revive);
+          entry.phase = 'pending';
+          changed = true;
+        }
         this.begin(entry);
       }
     }
@@ -123,28 +152,37 @@ export class CameraManager implements CameraSource {
   }
 
   private begin(entry: Entry) {
-    if (entry.refs === 0 || entry.conn || entry.abort || entry.retry || entry.phase === 'failed' || entry.ticketRefused) return;
+    if (entry.refs === 0 || entry.conn || entry.abort || entry.retry || entry.phase === 'failed' || entry.ticketRefused)
+      return;
     entry.phase = 'connecting';
     entry.deadline ??= setTimeout(() => this.fail(entry), STREAM_DEADLINE_MS);
     const abort = new AbortController();
     entry.abort = abort;
-    connectStream(entry.offer, this.options.env ?? {}, abort.signal).then((conn) => {
-      if (entry.abort !== abort || abort.signal.aborted) { conn.close(); return; }
-      entry.abort = null;
-      entry.conn = conn;
-      entry.phase = 'live';
-      entry.failures = 0;
-      entry.quick = 0;
-      clearTimeout(entry.deadline);
-      entry.deadline = undefined;
-      void conn.closed.then(() => { if (entry.conn === conn) this.lost(entry); });
-      this.notify();
-    }, (error: unknown) => {
-      if (entry.abort !== abort || abort.signal.aborted) return;
-      entry.abort = null;
-      if (error instanceof StreamError && error.code === 'rejected') entry.ticketRefused = true;
-      this.lost(entry, error instanceof StreamError ? error.message : 'connection error');
-    });
+    connectStream(entry.offer, this.options.env ?? {}, abort.signal).then(
+      (conn) => {
+        if (entry.abort !== abort || abort.signal.aborted) {
+          conn.close();
+          return;
+        }
+        entry.abort = null;
+        entry.conn = conn;
+        entry.phase = 'live';
+        entry.failures = 0;
+        entry.quick = 0;
+        clearTimeout(entry.deadline);
+        entry.deadline = undefined;
+        void conn.closed.then(() => {
+          if (entry.conn === conn) this.lost(entry);
+        });
+        this.notify();
+      },
+      (error: unknown) => {
+        if (entry.abort !== abort || abort.signal.aborted) return;
+        entry.abort = null;
+        if (error instanceof StreamError && error.code === 'rejected') entry.ticketRefused = true;
+        this.lost(entry, error instanceof StreamError ? error.message : 'connection error');
+      },
+    );
   }
 
   /** The connection ended or could not be made: try again shortly until the deadline turns it into a failure. */
@@ -159,7 +197,13 @@ export class CameraManager implements CameraSource {
     entry.deadline ??= setTimeout(() => this.fail(entry), STREAM_DEADLINE_MS);
     if (wasLive) this.notify();
     if (entry.ticketRefused) return; // waits for a new ticket from the next live poll
-    entry.retry = setTimeout(() => { entry.retry = undefined; this.begin(entry); }, Math.min(QUICK_RETRY_MS * 2 ** entry.quick, QUICK_RETRY_MAX_MS));
+    entry.retry = setTimeout(
+      () => {
+        entry.retry = undefined;
+        this.begin(entry);
+      },
+      Math.min(QUICK_RETRY_MS * 2 ** entry.quick, QUICK_RETRY_MAX_MS),
+    );
     entry.quick += 1;
   }
 
@@ -169,19 +213,24 @@ export class CameraManager implements CameraSource {
     entry.phase = 'failed';
     entry.failures += 1;
     this.report(`Camera ${entry.machineId.slice(0, 8)} unavailable: ${reason}`);
-    entry.revive = setTimeout(() => {
-      entry.revive = undefined;
-      entry.phase = 'pending';
-      entry.ticketRefused = false;
-      entry.quick = 0;
-      this.notify(); // the tile appears again and connects
-    }, backoffMs(entry.failures - 1, REVIVE_BASE_MS, REVIVE_MAX_MS));
+    entry.revive = setTimeout(
+      () => {
+        entry.revive = undefined;
+        entry.phase = 'pending';
+        entry.ticketRefused = false;
+        entry.quick = 0;
+        this.notify(); // the tile appears again and connects
+      },
+      backoffMs(entry.failures - 1, REVIVE_BASE_MS, REVIVE_MAX_MS),
+    );
     this.notify();
   }
 
   private stop(entry: Entry) {
-    clearTimeout(entry.deadline); entry.deadline = undefined;
-    clearTimeout(entry.retry); entry.retry = undefined;
+    clearTimeout(entry.deadline);
+    entry.deadline = undefined;
+    clearTimeout(entry.retry);
+    entry.retry = undefined;
     entry.abort?.abort();
     entry.abort = null;
     entry.conn?.close();

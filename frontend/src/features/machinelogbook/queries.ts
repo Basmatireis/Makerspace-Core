@@ -1,16 +1,38 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getMachineLogbookOverview, getMachineLogbookStatistics, listMachineActivity, listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
-import { getMachineJob, listMachineJobs, searchMachineJobOperators } from '../../api/generated/machine-jobs/machine-jobs';
+import {
+  getMachineLogbookOverview,
+  getMachineLogbookStatistics,
+  listMachineActivity,
+  listMachineLogbookWorkItems,
+} from '../../api/generated/machine-logbook/machine-logbook';
+import {
+  getMachineJob,
+  listMachineJobs,
+  searchMachineJobOperators,
+} from '../../api/generated/machine-jobs/machine-jobs';
 import { getMachine, listMachineTypes, listMachines } from '../../api/generated/machines/machines';
 import { getMaterial, listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
 import { searchBillingParties } from '../../api/generated/organizations/organizations';
 import { listPricingGroups } from '../../api/generated/pricing/pricing';
-import { getFilamentSpool, listFilamentSpoolTransactions, listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
+import {
+  getFilamentSpool,
+  listFilamentSpoolTransactions,
+  listFilamentSpools,
+} from '../../api/generated/filament-spools/filament-spools';
 import { getFilamentProduct, listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile } from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
-import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListMachineRunsParams } from '../../api/generated/models';
+import type {
+  GetMachineLogbookStatisticsParams,
+  ListFilamentProductsParams,
+  ListFilamentSpoolsParams,
+  ListMachineJobsParams,
+  ListMachineLogbookWorkItemsParams,
+  ListMachinesParams,
+  ListMaterialsParams,
+  ListMachineRunsParams,
+} from '../../api/generated/models';
 
 export const machineLogbookKeys = {
   all: ['machine-logbook'] as const,
@@ -38,27 +60,81 @@ export const machineLogbookKeys = {
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
 };
 
-export const overviewQuery = () => queryOptions({ queryKey: machineLogbookKeys.overview(), queryFn: () => getMachineLogbookOverview() });
-export const jobsQuery = (params: ListMachineJobsParams) => queryOptions({ queryKey: machineLogbookKeys.jobs(params), queryFn: () => listMachineJobs(params) });
-export const jobQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.job(id), queryFn: () => getMachineJob(id) });
-export const machinesQuery = (params: ListMachinesParams) => queryOptions({ queryKey: machineLogbookKeys.machines(params), queryFn: () => listMachines(params) });
-export const machineQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.machine(id), queryFn: () => getMachine(id) });
-export const machineTypesQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineTypes(), queryFn: () => listMachineTypes() });
-export const materialsQuery = (params: ListMaterialsParams) => queryOptions({ queryKey: machineLogbookKeys.materials(params), queryFn: () => listMaterials(params) });
-export const materialQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.material(id), queryFn: () => getMaterial(id) });
-export const transactionsQuery = (id: string, page: number) => queryOptions({ queryKey: machineLogbookKeys.transactions(id, page), queryFn: () => listMaterialTransactions(id, { page, pageSize: 25 }) });
-export const spoolsQuery = (params: ListFilamentSpoolsParams) => queryOptions({ queryKey: machineLogbookKeys.spools(params), queryFn: () => listFilamentSpools(params) });
-export const spoolQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.spool(id), queryFn: () => getFilamentSpool(id) });
-export const spoolTransactionsQuery = (id: string, page: number) => queryOptions({ queryKey: machineLogbookKeys.spoolTransactions(id, page), queryFn: () => listFilamentSpoolTransactions(id, { page, pageSize: 25 }) });
-export const printerQuery = (machineId: string) => queryOptions({ queryKey: machineLogbookKeys.printer(machineId), queryFn: () => getPrinterProfile(machineId) });
-export const workItemsQuery = (params: ListMachineLogbookWorkItemsParams) => queryOptions({ queryKey: machineLogbookKeys.workItems(params), queryFn: ({ signal }) => listMachineLogbookWorkItems(params, { signal }) });
-export const machineActivityQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineActivity(), queryFn: ({ signal }) => listMachineActivity({ signal }) });
-export const runsQuery = (params: ListMachineRunsParams) => queryOptions({ queryKey: machineLogbookKeys.runs(params), queryFn: ({ signal }) => listMachineRuns(params, { signal }) });
-export const runQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.run(id), queryFn: ({ signal }) => getMachineRun(id, { signal }) });
-export const artifactQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.artifact(id), queryFn: ({ signal }) => getPrintArtifact(id, { signal }) });
-export const productsQuery = (params: ListFilamentProductsParams) => queryOptions({ queryKey: machineLogbookKeys.products(params), queryFn: ({ signal }) => listFilamentProducts(params, { signal }) });
-export const productQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.product(id), queryFn: ({ signal }) => getFilamentProduct(id, { signal }) });
-export const pricingQuery = () => queryOptions({ queryKey: machineLogbookKeys.pricing(), queryFn: () => listPricingGroups() });
-export const statisticsQuery = (params: GetMachineLogbookStatisticsParams) => queryOptions({ queryKey: machineLogbookKeys.statistics(params), queryFn: () => getMachineLogbookStatistics(params) });
-export const billingPartySearchQuery = (search: string) => queryOptions({ queryKey: [...machineLogbookKeys.all, 'billing-parties', search], queryFn: () => searchBillingParties({ search, limit: 25 }) });
-export const operatorSearchQuery = (search: string) => queryOptions({ queryKey: [...machineLogbookKeys.all, 'operators', search], queryFn: () => searchMachineJobOperators({ search, limit: 25 }) });
+export const overviewQuery = () =>
+  queryOptions({ queryKey: machineLogbookKeys.overview(), queryFn: () => getMachineLogbookOverview() });
+export const jobsQuery = (params: ListMachineJobsParams) =>
+  queryOptions({ queryKey: machineLogbookKeys.jobs(params), queryFn: () => listMachineJobs(params) });
+export const jobQuery = (id: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.job(id), queryFn: () => getMachineJob(id) });
+export const machinesQuery = (params: ListMachinesParams) =>
+  queryOptions({ queryKey: machineLogbookKeys.machines(params), queryFn: () => listMachines(params) });
+export const machineQuery = (id: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.machine(id), queryFn: () => getMachine(id) });
+export const machineTypesQuery = () =>
+  queryOptions({ queryKey: machineLogbookKeys.machineTypes(), queryFn: () => listMachineTypes() });
+export const materialsQuery = (params: ListMaterialsParams) =>
+  queryOptions({ queryKey: machineLogbookKeys.materials(params), queryFn: () => listMaterials(params) });
+export const materialQuery = (id: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.material(id), queryFn: () => getMaterial(id) });
+export const transactionsQuery = (id: string, page: number) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.transactions(id, page),
+    queryFn: () => listMaterialTransactions(id, { page, pageSize: 25 }),
+  });
+export const spoolsQuery = (params: ListFilamentSpoolsParams) =>
+  queryOptions({ queryKey: machineLogbookKeys.spools(params), queryFn: () => listFilamentSpools(params) });
+export const spoolQuery = (id: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.spool(id), queryFn: () => getFilamentSpool(id) });
+export const spoolTransactionsQuery = (id: string, page: number) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.spoolTransactions(id, page),
+    queryFn: () => listFilamentSpoolTransactions(id, { page, pageSize: 25 }),
+  });
+export const printerQuery = (machineId: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.printer(machineId), queryFn: () => getPrinterProfile(machineId) });
+export const workItemsQuery = (params: ListMachineLogbookWorkItemsParams) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.workItems(params),
+    queryFn: ({ signal }) => listMachineLogbookWorkItems(params, { signal }),
+  });
+export const machineActivityQuery = () =>
+  queryOptions({
+    queryKey: machineLogbookKeys.machineActivity(),
+    queryFn: ({ signal }) => listMachineActivity({ signal }),
+  });
+export const runsQuery = (params: ListMachineRunsParams) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.runs(params),
+    queryFn: ({ signal }) => listMachineRuns(params, { signal }),
+  });
+export const runQuery = (id: string) =>
+  queryOptions({ queryKey: machineLogbookKeys.run(id), queryFn: ({ signal }) => getMachineRun(id, { signal }) });
+export const artifactQuery = (id: string) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.artifact(id),
+    queryFn: ({ signal }) => getPrintArtifact(id, { signal }),
+  });
+export const productsQuery = (params: ListFilamentProductsParams) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.products(params),
+    queryFn: ({ signal }) => listFilamentProducts(params, { signal }),
+  });
+export const productQuery = (id: string) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.product(id),
+    queryFn: ({ signal }) => getFilamentProduct(id, { signal }),
+  });
+export const pricingQuery = () =>
+  queryOptions({ queryKey: machineLogbookKeys.pricing(), queryFn: () => listPricingGroups() });
+export const statisticsQuery = (params: GetMachineLogbookStatisticsParams) =>
+  queryOptions({ queryKey: machineLogbookKeys.statistics(params), queryFn: () => getMachineLogbookStatistics(params) });
+export const billingPartySearchQuery = (search: string) =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'billing-parties', search],
+    queryFn: () => searchBillingParties({ search, limit: 25 }),
+  });
+export const operatorSearchQuery = (search: string) =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'operators', search],
+    queryFn: () => searchMachineJobOperators({ search, limit: 25 }),
+  });

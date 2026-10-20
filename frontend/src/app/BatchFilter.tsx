@@ -18,7 +18,11 @@ export type FilterCategory = {
   /** Every key this category writes; defaults to `[key]`. A custom column may own several (a date range). */
   keys?: string[];
   /** Replaces the checkbox list, e.g. with dates or a combobox. */
-  render?: (context: { idPrefix: string; staged: FilterValues; set: (key: string, value: string[]) => void }) => ReactNode;
+  render?: (context: {
+    idPrefix: string;
+    staged: FilterValues;
+    set: (key: string, value: string[]) => void;
+  }) => ReactNode;
 };
 
 type Props = {
@@ -38,7 +42,8 @@ const keysOf = (category: FilterCategory) => category.keys ?? [category.key];
 /** Reads a comma separated URL parameter as the list this component works with. */
 export const toList = (value: string | null | undefined) => (value ?? '').split(',').filter(Boolean);
 /** Turns applied values into a URL parameter patch (empty -> null). */
-export const toPatch = (values: FilterValues, keys: string[]) => Object.fromEntries(keys.map((key) => [key, (values[key] ?? []).join(',') || null]));
+export const toPatch = (values: FilterValues, keys: string[]) =>
+  Object.fromEntries(keys.map((key) => [key, (values[key] ?? []).join(',') || null]));
 
 /**
  * Carbon "multiple filters with batch updates": the toolbar filter button opens a panel of filter columns. Choices are
@@ -53,18 +58,29 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const headingId = useId();
-  const count = categories.reduce((total, category) => total + keysOf(category).reduce((sum, key) => sum + (applied[key]?.length ?? 0), 0), 0);
+  const count = categories.reduce(
+    (total, category) => total + keysOf(category).reduce((sum, key) => sum + (applied[key]?.length ?? 0), 0),
+    0,
+  );
 
-  const close = (returnFocus: boolean) => { setOpen(false); if (returnFocus) trigger.current?.focus(); };
+  const close = (returnFocus: boolean) => {
+    setOpen(false);
+    if (returnFocus) trigger.current?.focus();
+  };
   const toggle = () => {
-    if (open) { close(false); return; }
+    if (open) {
+      close(false);
+      return;
+    }
     setStaged(applied);
     const rect = trigger.current?.getBoundingClientRect();
     setAlign(rect && rect.right < window.innerWidth / 2 ? 'bottom-start' : 'bottom-end');
     setOpen(true);
   };
 
-  useEffect(() => { if (open) panel.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (open) panel.current?.focus();
+  }, [open]);
   useEffect(() => {
     if (!open) return undefined;
     // The date picker's calendar lives outside the panel, so it counts as inside.
@@ -78,62 +94,120 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
   }, [open]);
 
   const set = (key: string, value: string[]) => setStaged((current) => ({ ...current, [key]: value }));
-  const toggleOption = (key: string, optionId: string, checked: boolean) => setStaged((current) => {
-    const list = current[key] ?? [];
-    return { ...current, [key]: checked ? [...list.filter((item) => item !== optionId), optionId] : list.filter((item) => item !== optionId) };
-  });
-  const apply = () => { onApply(staged); close(true); };
-  const reset = () => { setStaged({}); onReset(); };
+  const toggleOption = (key: string, optionId: string, checked: boolean) =>
+    setStaged((current) => {
+      const list = current[key] ?? [];
+      return {
+        ...current,
+        [key]: checked
+          ? [...list.filter((item) => item !== optionId), optionId]
+          : list.filter((item) => item !== optionId),
+      };
+    });
+  const apply = () => {
+    onApply(staged);
+    close(true);
+  };
+  const reset = () => {
+    setStaged({});
+    onReset();
+  };
 
   return (
     <div
-      ref={wrapper} className="app-batch-filter"
-      onKeyDown={(event) => { if (event.key === 'Escape' && open && !(event.target as Element).closest('.flatpickr-calendar')) { event.stopPropagation(); close(true); } }}
+      ref={wrapper}
+      className="app-batch-filter"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open && !(event.target as Element).closest('.flatpickr-calendar')) {
+          event.stopPropagation();
+          close(true);
+        }
+      }}
     >
       <Popover open={open} align={align} isTabTip className="app-batch-filter__popover">
         <Button
-          ref={trigger} hasIconOnly kind="ghost" size="md" renderIcon={Filter} tooltipPosition="bottom"
+          ref={trigger}
+          hasIconOnly
+          kind="ghost"
+          size="md"
+          renderIcon={Filter}
+          tooltipPosition="bottom"
           className={`app-batch-filter__trigger${open ? ' app-batch-filter__trigger--open' : ''}${count ? ' app-batch-filter__trigger--active' : ''}`}
-          iconDescription={count ? `Filters (${count} applied)` : 'Filters'} aria-expanded={open} aria-controls={`${id}-filters`} onClick={toggle}
+          iconDescription={count ? `Filters (${count} applied)` : 'Filters'}
+          aria-expanded={open}
+          aria-controls={`${id}-filters`}
+          onClick={toggle}
         />
-        {count > 0 && <span className="app-batch-filter__badge" aria-hidden="true">{count}</span>}
+        {count > 0 && (
+          <span className="app-batch-filter__badge" aria-hidden="true">
+            {count}
+          </span>
+        )}
         <PopoverContent>
           {open && (
-          <div id={`${id}-filters`} ref={panel} className="app-batch-filter__panel" role="group" aria-labelledby={headingId} tabIndex={-1}>
-            <h2 id={headingId} className="cds--visually-hidden">{label} filters</h2>
-            <div className="app-batch-filter__columns">
-              {categories.map((category) => (
-                <div key={category.key} className="app-batch-filter__column">
-                  {category.render
-                    ? <div className="app-batch-filter__custom"><p className="app-batch-filter__label">{category.label}</p>{category.render({ idPrefix: `${id}-${category.key}`, staged, set })}</div>
-                    : category.single
-                      ? (
-                        <RadioButtonGroup
-                          legendText={category.label} helperText={category.helperText} name={`${id}-${category.key}`} orientation="vertical"
-                          valueSelected={staged[category.key]?.[0] ?? ANY} onChange={(value) => set(category.key, value === ANY ? [] : [String(value)])}
-                        >
-                          <RadioButton id={`${id}-${category.key}-${ANY}`} value={ANY} labelText="All" />
-                          {(category.options ?? []).map((option) => <RadioButton key={option.id} id={`${id}-${category.key}-${option.id}`} value={option.id} labelText={option.label} />)}
-                        </RadioButtonGroup>
-                      )
-                    : (
+            <div
+              id={`${id}-filters`}
+              ref={panel}
+              className="app-batch-filter__panel"
+              role="group"
+              aria-labelledby={headingId}
+              tabIndex={-1}
+            >
+              <h2 id={headingId} className="cds--visually-hidden">
+                {label} filters
+              </h2>
+              <div className="app-batch-filter__columns">
+                {categories.map((category) => (
+                  <div key={category.key} className="app-batch-filter__column">
+                    {category.render ? (
+                      <div className="app-batch-filter__custom">
+                        <p className="app-batch-filter__label">{category.label}</p>
+                        {category.render({ idPrefix: `${id}-${category.key}`, staged, set })}
+                      </div>
+                    ) : category.single ? (
+                      <RadioButtonGroup
+                        legendText={category.label}
+                        helperText={category.helperText}
+                        name={`${id}-${category.key}`}
+                        orientation="vertical"
+                        valueSelected={staged[category.key]?.[0] ?? ANY}
+                        onChange={(value) => set(category.key, value === ANY ? [] : [String(value)])}
+                      >
+                        <RadioButton id={`${id}-${category.key}-${ANY}`} value={ANY} labelText="All" />
+                        {(category.options ?? []).map((option) => (
+                          <RadioButton
+                            key={option.id}
+                            id={`${id}-${category.key}-${option.id}`}
+                            value={option.id}
+                            labelText={option.label}
+                          />
+                        ))}
+                      </RadioButtonGroup>
+                    ) : (
                       <CheckboxGroup legendText={category.label} helperText={category.helperText}>
                         {(category.options ?? []).map((option) => (
                           <Checkbox
-                            key={option.id} id={`${id}-${category.key}-${option.id}`} labelText={option.label}
-                            checked={(staged[category.key] ?? []).includes(option.id)} onChange={(_event, { checked }) => toggleOption(category.key, option.id, checked)}
+                            key={option.id}
+                            id={`${id}-${category.key}-${option.id}`}
+                            labelText={option.label}
+                            checked={(staged[category.key] ?? []).includes(option.id)}
+                            onChange={(_event, { checked }) => toggleOption(category.key, option.id, checked)}
                           />
                         ))}
                       </CheckboxGroup>
                     )}
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
+              <div className="app-batch-filter__footer">
+                <Button kind="secondary" size="xl" onClick={reset}>
+                  Reset filters
+                </Button>
+                <Button kind="primary" size="xl" onClick={apply}>
+                  Apply filters
+                </Button>
+              </div>
             </div>
-            <div className="app-batch-filter__footer">
-              <Button kind="secondary" size="xl" onClick={reset}>Reset filters</Button>
-              <Button kind="primary" size="xl" onClick={apply}>Apply filters</Button>
-            </div>
-          </div>
           )}
         </PopoverContent>
       </Popover>

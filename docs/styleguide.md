@@ -78,9 +78,13 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 
 ## TypeScript and React
 
+### Formatting **(checked)**
+
+- Prettier (`frontend/.prettierrc.json`: 120 columns, single quotes, trailing commas); `pnpm format` rewrites, CI runs `pnpm format:check`. Generated client code is excluded.
+
 ### Structure
 
-- `src/features/<feature>/` with `XPage.tsx` for routes, `queries.ts` for query keys and options, `components/` and `dialogs/`. Pages stay below ~400 lines; larger pages are split into sections and dialogs.
+- `src/features/<feature>/` with `XPage.tsx` for routes, `queries.ts` for query keys and options, `components/` and `dialogs/`. Components stay below ~600 formatted lines; larger pages are split into sections, dialogs and hooks.
 - Shared building blocks live in `src/app/`. The generated client in `src/api/generated/` is the only way to call the API; `apiFetch` directly is reserved for binary downloads and is commented where used.
 
 ### State

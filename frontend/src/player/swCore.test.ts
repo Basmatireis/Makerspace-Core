@@ -3,15 +3,30 @@ import { ASSET_CACHE, assetKey, respond, type WorkerDeps } from './swCore';
 import { fakeCaches } from './testCaches';
 
 const SHA = 'cd'.repeat(32);
-const request = (path: string, init: { mode?: string; range?: string; method?: string } = {}) => ({ url: `https://core.test${path}`, method: init.method ?? 'GET', mode: init.mode ?? 'cors', headers: new Headers(init.range ? { Range: init.range } : {}) }) as unknown as Request;
+const request = (path: string, init: { mode?: string; range?: string; method?: string } = {}) =>
+  ({
+    url: `https://core.test${path}`,
+    method: init.method ?? 'GET',
+    mode: init.mode ?? 'cors',
+    headers: new Headers(init.range ? { Range: init.range } : {}),
+  }) as unknown as Request;
 
-async function setup(network: WorkerDeps['fetch'] = async () => { throw new TypeError('offline'); }) {
+async function setup(
+  network: WorkerDeps['fetch'] = async () => {
+    throw new TypeError('offline');
+  },
+) {
   const caches = fakeCaches();
-  await (await caches.open(ASSET_CACHE)).put(assetKey(SHA), new Response('0123456789', { headers: { 'Content-Type': 'video/mp4' } }));
+  await (
+    await caches.open(ASSET_CACHE)
+  ).put(assetKey(SHA), new Response('0123456789', { headers: { 'Content-Type': 'video/mp4' } }));
   const shell = await caches.open('signage-player-shell-v1');
   await shell.put('/player/', new Response('<html>cached</html>'));
   await shell.put('/assets/player-1.js', new Response('js'));
-  return { caches, deps: { caches, fetch: network, shellCache: 'signage-player-shell-v1', timeoutMs: 20 } satisfies WorkerDeps };
+  return {
+    caches,
+    deps: { caches, fetch: network, shellCache: 'signage-player-shell-v1', timeoutMs: 20 } satisfies WorkerDeps,
+  };
 }
 
 describe('player service worker', () => {
@@ -52,9 +67,15 @@ describe('player service worker', () => {
 
   it('prefers the network page and refreshes the cache, but falls back after the timeout', async () => {
     const fresh = await setup(async () => new Response('<html>fresh</html>'));
-    expect(await (await respond(request('/player/', { mode: 'navigate' }), fresh.deps))?.text()).toBe('<html>fresh</html>');
-    expect(await (await (await fresh.caches.open('signage-player-shell-v1')).match('/player/'))?.text()).toBe('<html>fresh</html>');
+    expect(await (await respond(request('/player/', { mode: 'navigate' }), fresh.deps))?.text()).toBe(
+      '<html>fresh</html>',
+    );
+    expect(await (await (await fresh.caches.open('signage-player-shell-v1')).match('/player/'))?.text()).toBe(
+      '<html>fresh</html>',
+    );
     const hung = await setup(() => new Promise<Response>(() => undefined));
-    expect(await (await respond(request('/player/', { mode: 'navigate' }), hung.deps))?.text()).toBe('<html>cached</html>');
+    expect(await (await respond(request('/player/', { mode: 'navigate' }), hung.deps))?.text()).toBe(
+      '<html>cached</html>',
+    );
   });
 });

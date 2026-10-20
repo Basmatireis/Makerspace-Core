@@ -11,9 +11,29 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
       contexts += 1;
       await route.fulfill({ status: 204 });
     } else if (path.endsWith('/visitor-enrollment/state')) {
-      await route.fulfill({ json: { allowedMethods: ['pin'], currentLabRules: { id: '0192f6f8-743e-7c77-a349-cd07c3e8ab01', humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' }, expiresAt: '2030-01-01T00:00:00Z' } });
+      await route.fulfill({
+        json: {
+          allowedMethods: ['pin'],
+          currentLabRules: {
+            id: '0192f6f8-743e-7c77-a349-cd07c3e8ab01',
+            humanRevision: '2026-09',
+            effectiveAt: '2026-09-01T00:00:00Z',
+          },
+          expiresAt: '2030-01-01T00:00:00Z',
+        },
+      });
     } else if (path.endsWith('/visitor-enrollment/submissions')) {
-      await route.fulfill({ status: 201, json: { personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02', accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03', accountStatus: 'enabled', invitationDelivery: null, labRulesRequestId: null, admission: 'admitted' } });
+      await route.fulfill({
+        status: 201,
+        json: {
+          personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+          accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+          accountStatus: 'enabled',
+          invitationDelivery: null,
+          labRulesRequestId: null,
+          admission: 'admitted',
+        },
+      });
     } else {
       await route.fulfill({ status: 401, json: { code: 'invalid_session', message: 'Sign in required' } });
     }
@@ -25,8 +45,14 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
   await page.getByText('Username and PIN', { exact: true }).click();
   await page.getByLabel('PIN login username', { exact: true }).fill('local.visitor');
   await page.getByLabel('PIN (6–12 digits)', { exact: true }).fill('654321');
-  await page.getByLabel('or upload a profile photo', { exact: true }).setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
-  await page.getByText('I am ready to sign the physical Lab Rules document and request supervisor confirmation', { exact: true }).click();
+  await page
+    .getByLabel('or upload a profile photo', { exact: true })
+    .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
+  await page
+    .getByText('I am ready to sign the physical Lab Rules document and request supervisor confirmation', {
+      exact: true,
+    })
+    .click();
   await page.getByRole('button', { name: 'Submit enrollment and request confirmation' }).click();
   await expect(page.getByRole('heading', { name: 'Enrollment submitted' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);

@@ -27,15 +27,16 @@ describe('Attendance corrections', () => {
     let currentVisits = [visit];
     let submitted: VoidVisitRequest | undefined;
     let finishRequest!: () => void;
-    const responseReady = new Promise<void>((resolve) => { finishRequest = resolve; });
+    const responseReady = new Promise<void>((resolve) => {
+      finishRequest = resolve;
+    });
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
-        PermissionId.attendanceread,
-        PermissionId.attendancecorrect,
-      ]))),
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.attendanceread, PermissionId.attendancecorrect])),
+      ),
       http.get('*/api/v1/visits', () => HttpResponse.json({ items: currentVisits })),
       http.post('*/api/v1/visits/:visitId/void', async ({ request }) => {
-        submitted = await request.json() as VoidVisitRequest;
+        submitted = (await request.json()) as VoidVisitRequest;
         await responseReady;
         currentVisits = [];
         return HttpResponse.json({ ...visit, status: 'voided', correctionReason: submitted.reason, version: 4 });

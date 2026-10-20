@@ -5,10 +5,14 @@ import { formatDateTime, formatTime } from '../../../app/dateTime';
 
 export { formatDateTime, formatTime };
 
-export const formatMoney = (value: string | number | null | undefined) => value == null || value === '' ? '—' : new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(value));
+export const formatMoney = (value: string | number | null | undefined) =>
+  value == null || value === ''
+    ? '—'
+    : new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(value));
 
 /** "12.5" for "12.500": trailing zeros of API decimals are not shown. */
-export const formatQuantity = (value: string | number, maximumFractionDigits = 2) => new Intl.NumberFormat('en-GB', { maximumFractionDigits }).format(Number(value));
+export const formatQuantity = (value: string | number, maximumFractionDigits = 2) =>
+  new Intl.NumberFormat('en-GB', { maximumFractionDigits }).format(Number(value));
 
 export const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -16,7 +20,8 @@ export const formatDuration = (seconds: number) => {
   return h ? `${h} h ${m} min` : `${m} min`;
 };
 
-export const formatHours = (seconds: number) => `${new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 }).format(seconds / 3600)} h`;
+export const formatHours = (seconds: number) =>
+  `${new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 }).format(seconds / 3600)} h`;
 
 export function formatRelative(value: string) {
   const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60_000);

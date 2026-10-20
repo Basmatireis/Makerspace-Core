@@ -97,11 +97,13 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
 };
 
 export function presentPermission(permission: Pick<Permission, 'id'>): PermissionPresentation {
-  return presentation[permission.id] ?? {
-    group: 'Other',
-    label: permission.id
-      .split('.')
-      .map((part) => part.replaceAll('_', ' '))
-      .join(' · '),
-  };
+  return (
+    presentation[permission.id] ?? {
+      group: 'Other',
+      label: permission.id
+        .split('.')
+        .map((part) => part.replaceAll('_', ' '))
+        .join(' · '),
+    }
+  );
 }

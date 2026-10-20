@@ -14,9 +14,15 @@ export function registerServiceWorker() {
     window.location.reload();
   });
   const register = () => {
-    navigator.serviceWorker.register('/player/sw.js', { scope: '/player/', updateViaCache: 'none' })
-      .then((registration) => { setInterval(() => { void registration.update().catch(() => undefined); }, UPDATE_CHECK_MS); })
+    navigator.serviceWorker
+      .register('/player/sw.js', { scope: '/player/', updateViaCache: 'none' })
+      .then((registration) => {
+        setInterval(() => {
+          void registration.update().catch(() => undefined);
+        }, UPDATE_CHECK_MS);
+      })
       .catch(() => undefined);
   };
-  if (document.readyState === 'complete') register(); else window.addEventListener('load', register, { once: true });
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register, { once: true });
 }

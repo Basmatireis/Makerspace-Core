@@ -13,7 +13,10 @@ for (const width of widths) {
     await expectNoHorizontalScroll(page);
     await expectNoAccessibilityViolations(page);
     await page.screenshot({ path: testInfo.outputPath(`pricing-${width}.png`), fullPage: true });
-    await page.getByRole('button', { name: /^Edit .* for Partner institute$/ }).first().click();
+    await page
+      .getByRole('button', { name: /^Edit .* for Partner institute$/ })
+      .first()
+      .click();
     await expect(page.getByRole('button', { name: 'Save rate', exact: true })).toBeVisible();
     await expectNoAccessibilityViolations(page);
     await page.getByRole('button', { name: 'Discard', exact: true }).click();
@@ -32,7 +35,8 @@ for (const width of widths) {
       await page.goto(path);
       await expect(page.getByRole('heading', { name: title, exact: true, level: 1 })).toBeVisible();
       await page.waitForLoadState('networkidle');
-      if (label === 'statistics') await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
+      if (label === 'statistics')
+        await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
       await expectNoHorizontalScroll(page);
       await expectNoAccessibilityViolations(page);
       await page.screenshot({ path: testInfo.outputPath(`${label}-${width}.png`), fullPage: true });

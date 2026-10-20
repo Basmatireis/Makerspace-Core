@@ -30,9 +30,13 @@ describe('password reset code handling', () => {
     await user.type(screen.getByLabelText('Confirm new password'), 'Workshop satellite passphrase 48');
     await user.click(screen.getByRole('button', { name: 'Update password' }));
 
-    await waitFor(() => expect(completed).toHaveBeenCalledWith({
-      email: 'member@example.test', code: 'ABCD2345', newPassword: 'Workshop satellite passphrase 48',
-    }));
+    await waitFor(() =>
+      expect(completed).toHaveBeenCalledWith({
+        email: 'member@example.test',
+        code: 'ABCD2345',
+        newPassword: 'Workshop satellite passphrase 48',
+      }),
+    );
     expect(await screen.findByRole('link', { name: 'Continue to sign in' })).toBeInTheDocument();
     expect(queryClient.getMutationCache().getAll()).toHaveLength(2);
     for (const mutation of queryClient.getMutationCache().getAll()) {
@@ -57,10 +61,12 @@ describe('standalone email verification', () => {
     await user.type(screen.getByLabelText('Verification code'), 'abcd2345');
     await user.click(screen.getByRole('button', { name: 'Verify email' }));
 
-    await waitFor(() => expect(completed).toHaveBeenCalledWith({
-      email: 'member@example.test',
-      code: 'ABCD2345',
-    }));
+    await waitFor(() =>
+      expect(completed).toHaveBeenCalledWith({
+        email: 'member@example.test',
+        code: 'ABCD2345',
+      }),
+    );
     expect(await screen.findByText('Email verified')).toBeInTheDocument();
     const mutations = queryClient.getMutationCache().getAll();
     expect(mutations).toHaveLength(1);

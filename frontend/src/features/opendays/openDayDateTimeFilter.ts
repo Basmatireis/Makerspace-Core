@@ -13,11 +13,16 @@ export const allOpenDayDateTimeFilters: OpenDayDateTimeFilter = {
   startTimes: [],
 };
 
-export function filterOpenDaysByDateTime<T extends { startsAt: string }>(items: T[], filter: OpenDayDateTimeFilter, timeZone: string) {
-  return items.filter((item) => (
-    (filter.weekdays.length === 0 || filter.weekdays.includes(weekdayInTimeZone(item.startsAt, timeZone)))
-    && (filter.startTimes.length === 0 || filter.startTimes.includes(timeInTimeZone(item.startsAt, timeZone)))
-  ));
+export function filterOpenDaysByDateTime<T extends { startsAt: string }>(
+  items: T[],
+  filter: OpenDayDateTimeFilter,
+  timeZone: string,
+) {
+  return items.filter(
+    (item) =>
+      (filter.weekdays.length === 0 || filter.weekdays.includes(weekdayInTimeZone(item.startsAt, timeZone))) &&
+      (filter.startTimes.length === 0 || filter.startTimes.includes(timeInTimeZone(item.startsAt, timeZone))),
+  );
 }
 
 function weekdayInTimeZone(instant: string, timeZone: string): OpenDayWeekday {

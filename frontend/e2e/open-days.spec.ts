@@ -28,7 +28,17 @@ function currentUser(permissions: string[]) {
         loginEmail: 'ada.login@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: timestamp,
-        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
+        authIdentities: [
+          {
+            id: passwordIdentityId,
+            kind: 'password',
+            displayIdentifier: 'ada.login@example.test',
+            verifiedAt: timestamp,
+            disabledAt: null,
+            usable: true,
+            createdAt: timestamp,
+          },
+        ],
         status: 'enabled',
         passwordStatus: 'active',
         version: 1,
@@ -43,7 +53,17 @@ function currentUser(permissions: string[]) {
       loginEmail: 'ada.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: timestamp,
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
+      authIdentities: [
+        {
+          id: passwordIdentityId,
+          kind: 'password',
+          displayIdentifier: 'ada.login@example.test',
+          verifiedAt: timestamp,
+          disabledAt: null,
+          usable: true,
+          createdAt: timestamp,
+        },
+      ],
       status: 'enabled',
       passwordStatus: 'active',
       createdAt: timestamp,
@@ -53,9 +73,25 @@ function currentUser(permissions: string[]) {
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
-    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
-    delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
-    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
+    session: {
+      idleExpiresAt: '2099-01-01T01:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    },
+    delegablePermissionGrants: permissions.map((permissionId) => ({
+      permissionId,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+      minimumAssurance: 'low',
+    })),
+    laborordnungStatus: {
+      mode: 'not_required',
+      state: 'not_required',
+      actionRequired: false,
+      currentVersion: null,
+      latestConfirmedVersion: null,
+      requestId: null,
+    },
   };
 }
 
@@ -127,9 +163,7 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 async function expectAccessible(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(results.violations).toEqual([]);
 }
 
@@ -144,15 +178,17 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('keeps other identities and management fields private while staff sign up', async ({
-  page,
-}, testInfo) => {
+test('keeps other identities and management fields private while staff sign up', async ({ page }, testInfo) => {
   let joined = false;
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
-      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      await json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
       return;
     }
     if (path === '/api/v1/auth/oidc/providers') {
@@ -171,10 +207,7 @@ test('keeps other identities and management fields private while staff sign up',
       await json(route, staffOpenDay(joined));
       return;
     }
-    if (
-      path === `/api/v1/open-day-periods/${periodId}/calendar-context` &&
-      request.method() === 'GET'
-    ) {
+    if (path === `/api/v1/open-day-periods/${periodId}/calendar-context` && request.method() === 'GET') {
       await json(route, {
         timeZone: 'Europe/Vienna',
         countryCode: 'AT',
@@ -185,10 +218,7 @@ test('keeps other identities and management fields private while staff sign up',
       });
       return;
     }
-    if (
-      path === `/api/v1/open-days/${openDayId}/assignments/me` &&
-      request.method() === 'PUT'
-    ) {
+    if (path === `/api/v1/open-days/${openDayId}/assignments/me` && request.method() === 'PUT') {
       expect(request.postDataJSON()).toEqual({ requirementId: traineeRequirementId });
       joined = true;
       await json(route, staffOpenDay(true).myAssignment);
@@ -198,9 +228,7 @@ test('keeps other identities and management fields private while staff sign up',
   });
 
   await page.goto(`/open-days/${periodId}/days/${openDayId}`);
-  await expect(
-    page.getByRole('heading', { name: /Friday, 02\.10\.2026/ }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Friday, 02\.10\.2026/ })).toBeVisible();
   await expect(page.getByText('1 position filled')).toBeVisible();
   await expect(page.getByText('Internal note:')).toHaveCount(0);
   await expect(page.getByText('Grace Hopper')).toHaveCount(0);
@@ -213,16 +241,18 @@ test('keeps other identities and management fields private while staff sign up',
   await expect(page.getByRole('button', { name: 'Leave Open Day' })).toBeVisible();
 });
 
-test('creates and atomically saves a manager schedule working copy', async ({
-  page,
-}, testInfo) => {
+test('creates and atomically saves a manager schedule working copy', async ({ page }, testInfo) => {
   let savedRequest: Record<string, unknown> | undefined;
   const draftPeriod = period('draft');
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
-      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      await json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
       return;
     }
     if (path === '/api/v1/auth/oidc/providers') {
@@ -245,10 +275,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
       await json(route, { items: [{ id: roleId, name: 'Open Day team' }] });
       return;
     }
-    if (
-      path === `/api/v1/open-day-periods/${periodId}/calendar-context` &&
-      request.method() === 'GET'
-    ) {
+    if (path === `/api/v1/open-day-periods/${periodId}/calendar-context` && request.method() === 'GET') {
       await json(route, {
         timeZone: 'Europe/Vienna',
         countryCode: 'AT',
@@ -259,10 +286,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
       });
       return;
     }
-    if (
-      path === `/api/v1/open-day-periods/${periodId}/schedule` &&
-      request.method() === 'PUT'
-    ) {
+    if (path === `/api/v1/open-day-periods/${periodId}/schedule` && request.method() === 'PUT') {
       savedRequest = request.postDataJSON();
       const create = (savedRequest.creates as Array<Record<string, unknown>>)[0];
       await json(route, {
@@ -318,14 +342,26 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}$`));
   await expect(page.getByRole('group', { name: 'Open Days tools' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Supervisor position open/ })).toBeVisible();
-  await expect.poll(() => page.locator('.app-main').evaluate((main) => main.getBoundingClientRect().height)).toBe(editWorkspaceHeight);
-  const previewOutsideBackground = await page.locator('.calendar-cell--outside-period').first().evaluate((cell) => getComputedStyle(cell).backgroundColor);
+  await expect
+    .poll(() => page.locator('.app-main').evaluate((main) => main.getBoundingClientRect().height))
+    .toBe(editWorkspaceHeight);
+  const previewOutsideBackground = await page
+    .locator('.calendar-cell--outside-period')
+    .first()
+    .evaluate((cell) => getComputedStyle(cell).backgroundColor);
   await capture(page, testInfo, 'open-days-manager-unsaved-preview.png');
   await page.getByRole('button', { name: 'Edit' }).click();
   await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}\\?mode=edit$`));
   await expect(page.getByRole('group', { name: 'Schedule editor tools' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
-  await expect.poll(() => page.locator('.calendar-cell--outside-period').first().evaluate((cell) => getComputedStyle(cell).backgroundColor)).toBe(previewOutsideBackground);
+  await expect
+    .poll(() =>
+      page
+        .locator('.calendar-cell--outside-period')
+        .first()
+        .evaluate((cell) => getComputedStyle(cell).backgroundColor),
+    )
+    .toBe(previewOutsideBackground);
   await page.getByRole('button', { name: 'List view' }).click();
   const editableTable = page.getByRole('table', { name: 'Editable Open Days' });
   await expect(editableTable).toBeVisible();
@@ -337,15 +373,17 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await dateTimeFilters.getByRole('combobox', { name: 'Filter by weekday' }).click();
   const clippedWeekdayLabels = await dateTimeFilters
     .locator('.open-days-weekday-filter .cds--list-box__menu-item')
-    .evaluateAll((options) => options.flatMap((option) => {
-      const label = option.querySelector<HTMLElement>('.cds--checkbox-label-text');
-      if (!label) return [option.getAttribute('aria-label') ?? 'missing label'];
-      const labelBounds = label.getBoundingClientRect();
-      const optionBounds = option.getBoundingClientRect();
-      return getComputedStyle(label).textOverflow === 'ellipsis' || labelBounds.right > optionBounds.right
-        ? [option.getAttribute('aria-label') ?? label.textContent ?? 'unknown']
-        : [];
-    }));
+    .evaluateAll((options) =>
+      options.flatMap((option) => {
+        const label = option.querySelector<HTMLElement>('.cds--checkbox-label-text');
+        if (!label) return [option.getAttribute('aria-label') ?? 'missing label'];
+        const labelBounds = label.getBoundingClientRect();
+        const optionBounds = option.getBoundingClientRect();
+        return getComputedStyle(label).textOverflow === 'ellipsis' || labelBounds.right > optionBounds.right
+          ? [option.getAttribute('aria-label') ?? label.textContent ?? 'unknown']
+          : [];
+      }),
+    );
   expect(clippedWeekdayLabels).toEqual([]);
   await capture(page, testInfo, 'open-days-weekday-filter.png');
   await dateTimeFilters.getByRole('option', { name: 'Friday' }).click();
@@ -376,22 +414,22 @@ test('creates and atomically saves a manager schedule working copy', async ({
   });
   const created = (savedRequest!.creates as Array<{ startsAt: string; endsAt: string }>)[0];
   expect(created.startsAt).toContain('2026-10-02');
-  expect(new Date(created.endsAt).getTime() - new Date(created.startsAt).getTime()).toBe(
-    3 * 60 * 60 * 1000,
-  );
+  expect(new Date(created.endsAt).getTime() - new Date(created.startsAt).getTime()).toBe(3 * 60 * 60 * 1000);
   await page.getByRole('button', { name: 'Preview' }).click();
   await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}\\?view=list$`));
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
 });
 
-test('manages inclusive academic-break context on a focused screen', async ({
-  page,
-}, testInfo) => {
+test('manages inclusive academic-break context on a focused screen', async ({ page }, testInfo) => {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
-      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      await json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
       return;
     }
     if (path === '/api/v1/auth/oidc/providers') {
@@ -426,10 +464,7 @@ test('manages inclusive academic-break context on a focused screen', async ({
       });
       return;
     }
-    if (
-      path === `/api/v1/open-day-periods/${periodId}/calendar-context` &&
-      request.method() === 'GET'
-    ) {
+    if (path === `/api/v1/open-day-periods/${periodId}/calendar-context` && request.method() === 'GET') {
       await json(route, {
         timeZone: 'Europe/Vienna',
         countryCode: 'AT',
@@ -476,14 +511,20 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   page.on('pageerror', (error) => errors.push(error));
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('/auth/activity') && route.request().method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path.endsWith('/auth/activity') && route.request().method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
     if (path.endsWith('/public/config')) {
       return json(route, defaultPublicBrandingConfiguration());
     }
     if (path.endsWith('/auth/me')) return json(route, currentUser(['open_days.manage']));
     if (path.endsWith('/open-days')) return json(route, { period: draft, items: [], timeZone: 'Europe/Vienna' });
     if (path.endsWith('/open-day-eligibility-roles')) return json(route, { items: [{ id: roleId, name: 'Team' }] });
-    if (path.endsWith('/calendar-context')) return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
+    if (path.endsWith('/calendar-context'))
+      return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
     return json(route, { items: [] });
   });
   await page.goto(`/open-days/${periodId}/schedule`);
@@ -505,30 +546,62 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   expect(errors).toEqual([]);
 });
 
-
 async function mockResponsivePeriod(page: Page) {
   const draft = { ...period('draft'), totalOpenDays: 1 };
-  const assigned = { id: assignmentId, openDayId, requirementId: supervisorRequirementId, personId, displayName: 'Ada Lovelace', isCurrentUser: true, createdAt: timestamp };
-  const day = { ...staffOpenDay(), internalNote: 'Workshop preparation', requirements: [
-    { ...staffOpenDay().requirements[0], eligibleRoleIds: [roleId], assignments: [assigned] },
-    { ...staffOpenDay().requirements[1], eligibleRoleIds: [roleId], assignments: [] },
-  ] };
+  const assigned = {
+    id: assignmentId,
+    openDayId,
+    requirementId: supervisorRequirementId,
+    personId,
+    displayName: 'Ada Lovelace',
+    isCurrentUser: true,
+    createdAt: timestamp,
+  };
+  const day = {
+    ...staffOpenDay(),
+    internalNote: 'Workshop preparation',
+    requirements: [
+      { ...staffOpenDay().requirements[0], eligibleRoleIds: [roleId], assignments: [assigned] },
+      { ...staffOpenDay().requirements[1], eligibleRoleIds: [roleId], assignments: [] },
+    ],
+  };
   const saveRequests: unknown[] = [];
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
-    if (path.endsWith('/auth/activity')) return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
-    if (path.endsWith('/auth/me')) return json(route, currentUser(['open_days.read', 'open_days.manage', 'open_days.assign', 'open_days.signup']));
+    if (path.endsWith('/auth/activity'))
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
+    if (path.endsWith('/auth/me'))
+      return json(route, currentUser(['open_days.read', 'open_days.manage', 'open_days.assign', 'open_days.signup']));
     if (path.endsWith('/public/config')) return json(route, defaultPublicBrandingConfiguration());
     if (path.endsWith('/auth/oidc/providers')) return json(route, { items: [] });
     if (path === '/api/v1/open-day-periods') return json(route, { items: [draft] });
-    if (path === `/api/v1/open-day-periods/${periodId}/open-days`) return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' });
+    if (path === `/api/v1/open-day-periods/${periodId}/open-days`)
+      return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' });
     if (path === `/api/v1/open-days/${openDayId}`) return json(route, day);
-    if (path.endsWith('/calendar-context')) return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
+    if (path.endsWith('/calendar-context'))
+      return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
     if (path.endsWith('/open-day-eligibility-roles')) return json(route, { items: [{ id: roleId, name: 'Team' }] });
     if (path.endsWith('/eligible-people')) return json(route, { items: [{ personId, displayName: 'Ada Lovelace' }] });
-    if (path.endsWith('/recurrence-preview')) return json(route, { occurrences: [{ date: '2026-10-03', startsAt: '2026-10-03T14:00:00Z', endsAt: '2026-10-03T17:00:00Z', disposition: 'create' }] });
-    if (path.endsWith('/schedule') && method === 'PUT') { saveRequests.push(route.request().postDataJSON()); return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' }); }
+    if (path.endsWith('/recurrence-preview'))
+      return json(route, {
+        occurrences: [
+          {
+            date: '2026-10-03',
+            startsAt: '2026-10-03T14:00:00Z',
+            endsAt: '2026-10-03T17:00:00Z',
+            disposition: 'create',
+          },
+        ],
+      });
+    if (path.endsWith('/schedule') && method === 'PUT') {
+      saveRequests.push(route.request().postDataJSON());
+      return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' });
+    }
     throw new Error(`Unexpected API request: ${method} ${path}`);
   });
   return { saveRequests };
@@ -566,7 +639,9 @@ for (const width of [320, 390, 414, 768, 1440]) {
     if (phone) {
       await expect(page.getByRole('button', { name: /Drag or edit/ })).toHaveCount(0);
       await page.getByRole('button', { name: 'Show Open Days on 02.10.2026' }).click();
-      await expect(page.locator('.open-day-agenda-selection').getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+      await expect(
+        page.locator('.open-day-agenda-selection').getByRole('button', { name: 'Edit', exact: true }),
+      ).toBeVisible();
       await expect(page.getByText('Mobile working copy')).toBeVisible();
     }
     await expectAccessible(page);
@@ -617,7 +692,9 @@ test('protects period inputs and keeps its controlled dialog open during creatio
   let releaseCreation: (() => void) | undefined;
   await page.route('**/api/v1/open-day-periods', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
-    await new Promise<void>((resolve) => { releaseCreation = resolve; });
+    await new Promise<void>((resolve) => {
+      releaseCreation = resolve;
+    });
     return json(route, period('draft'), 201);
   });
   await page.goto('/open-days');
@@ -647,7 +724,6 @@ test('protects period inputs and keeps its controlled dialog open during creatio
   await expect(page).toHaveURL(/mode=edit/);
 });
 
-
 test('protects a creation date chosen through the calendar picker', async ({ page }) => {
   await mockResponsivePeriod(page);
   await page.goto(`/open-days/${periodId}?mode=edit`);
@@ -670,7 +746,11 @@ test('creates a period whose calendar range spans several months', async ({ page
   let activityReports = 0;
   await page.route('**/api/v1/auth/activity', async (route) => {
     activityReports += 1;
-    return json(route, { idleExpiresAt: new Date(Date.UTC(2099, 0, 1, 1, activityReports)).toISOString(), absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    return json(route, {
+      idleExpiresAt: new Date(Date.UTC(2099, 0, 1, 1, activityReports)).toISOString(),
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    });
   });
   let body: unknown;
   await page.route('**/api/v1/open-day-periods', async (route) => {

@@ -32,7 +32,10 @@ describe('layouts', () => {
   it('remaps widgets by position and drops or empties the rest', () => {
     const text: SignageWidget = { type: 'text', text: 'Hello', size: 'm', align: 'start' };
     const clock: SignageWidget = { type: 'clock', mode: 'time' };
-    expect(remapZones({ header: text, main: clock, footer: text }, 'stack3', 'split')).toEqual({ left: text, right: clock });
+    expect(remapZones({ header: text, main: clock, footer: text }, 'stack3', 'split')).toEqual({
+      left: text,
+      right: clock,
+    });
     expect(remapZones({ main: clock }, 'full', 'banner_main')).toEqual({ banner: clock, main: { type: 'empty' } });
     expect(emptyZones('split')).toEqual({ left: { type: 'empty' }, right: { type: 'empty' } });
   });

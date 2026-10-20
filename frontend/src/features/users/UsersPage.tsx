@@ -67,14 +67,8 @@ export function UsersPage() {
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
-  const mayReadLabRules = hasPermission(
-    currentUser,
-    PermissionId.laborordnungrequestsread,
-  );
-  const mayViewSupervisorStaffing = hasPermission(
-    currentUser,
-    PermissionId.supervisor_dashboardread,
-  );
+  const mayReadLabRules = hasPermission(currentUser, PermissionId.laborordnungrequestsread);
+  const mayViewSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
 
   useEffect(() => setSearchValue(search), [search]);
   useEffect(() => {
@@ -105,25 +99,19 @@ export function UsersPage() {
     }),
     placeholderData: keepPreviousData,
   });
-  const mayCreateAccounts =
-    showAccounts && hasPermission(currentUser, PermissionId.accountscreate);
+  const mayCreateAccounts = showAccounts && hasPermission(currentUser, PermissionId.accountscreate);
   const mayAssignRoles =
-    hasPermission(currentUser, PermissionId.peoplerolesassign) &&
-    hasPermission(currentUser, PermissionId.rolesread);
-  const hasDeleteAccountsPermission = hasPermission(
-    currentUser,
-    PermissionId.accountsdelete,
-  );
+    hasPermission(currentUser, PermissionId.peoplerolesassign) && hasPermission(currentUser, PermissionId.rolesread);
+  const hasDeleteAccountsPermission = hasPermission(currentUser, PermissionId.accountsdelete);
   const mayDeleteAccounts = showAccounts && hasDeleteAccountsPermission;
-  const mayDeletePeople = hasPermission(currentUser, PermissionId.peopledelete) &&
-    (showAccounts || hasDeleteAccountsPermission);
-  const canBatchManage =
-    mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople;
+  const mayDeletePeople =
+    hasPermission(currentUser, PermissionId.peopledelete) && (showAccounts || hasDeleteAccountsPermission);
+  const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
-  const supervisorRoleIds = new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id));
-  const assignableRoles = (rolesQuery.data ?? []).filter((role) =>
-    canManageRoleMembership(currentUser, role),
+  const supervisorRoleIds = new Set(
+    (rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id),
   );
+  const assignableRoles = (rolesQuery.data ?? []).filter((role) => canManageRoleMembership(currentUser, role));
   const refreshPeople = async () => {
     await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
     setTableKey((value) => value + 1);
@@ -136,8 +124,7 @@ export function UsersPage() {
     queries: mayReadLabRules
       ? people.map((person) => ({
           queryKey: [...peopleKeys.detail(person.id), 'makerspace-status'],
-          queryFn: ({ signal }: { signal: AbortSignal }) =>
-            getPersonMakerspaceStatus(person.id, { signal }),
+          queryFn: ({ signal }: { signal: AbortSignal }) => getPersonMakerspaceStatus(person.id, { signal }),
           staleTime: 30_000,
         }))
       : [],
@@ -161,9 +148,7 @@ export function UsersPage() {
     contact: person.email ?? person.phone ?? 'Not provided',
     ...(mayReadLabRules
       ? {
-          labRules: formatLabRulesStatus(
-            makerspaceStatusByPersonId.get(person.id)?.data?.laborordnungStatus,
-          ).label,
+          labRules: formatLabRulesStatus(makerspaceStatusByPersonId.get(person.id)?.data?.laborordnungStatus).label,
         }
       : {}),
     roles: person.roles.length === 0 ? '—' : person.roles.map((role) => role.name).join(', '),
@@ -174,22 +159,51 @@ export function UsersPage() {
               ? 'Restricted'
               : person.account === null
                 ? 'No account'
-                : person.account.status === 'enabled' ? 'Active' : 'Inactive',
+                : person.account.status === 'enabled'
+                  ? 'Active'
+                  : 'Inactive',
         }
       : {}),
   }));
 
   const canFilter = showAccounts || mayReadRoles || mayReadLabRules;
-  const hasActiveFilters = (mayReadRoles && selectedRoleIds.length > 0)
-    || (showAccounts && selectedAccountStatusOptions.length > 0)
-    || (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
+  const hasActiveFilters =
+    (mayReadRoles && selectedRoleIds.length > 0) ||
+    (showAccounts && selectedAccountStatusOptions.length > 0) ||
+    (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
   const filterCategories: FilterCategory[] = [
-    ...(mayReadRoles ? [{
-      key: 'role', label: 'Role', options: (rolesQuery.data ?? []).map((role) => ({ id: role.id, label: role.name })),
-      helperText: rolesQuery.isPending ? 'Loading roles…' : rolesQuery.isError ? 'Roles could not be loaded.' : undefined,
-    }] : []),
-    ...(mayReadLabRules ? [{ key: 'labRules', label: 'Lab Rules', options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) }] : []),
-    ...(showAccounts ? [{ key: 'status', label: 'Status', options: ACCOUNT_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) }] : []),
+    ...(mayReadRoles
+      ? [
+          {
+            key: 'role',
+            label: 'Role',
+            options: (rolesQuery.data ?? []).map((role) => ({ id: role.id, label: role.name })),
+            helperText: rolesQuery.isPending
+              ? 'Loading roles…'
+              : rolesQuery.isError
+                ? 'Roles could not be loaded.'
+                : undefined,
+          },
+        ]
+      : []),
+    ...(mayReadLabRules
+      ? [
+          {
+            key: 'labRules',
+            label: 'Lab Rules',
+            options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
+          },
+        ]
+      : []),
+    ...(showAccounts
+      ? [
+          {
+            key: 'status',
+            label: 'Status',
+            options: ACCOUNT_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
+          },
+        ]
+      : []),
   ];
   const appliedFilters: FilterValues = {
     role: selectedRoleIds,
@@ -223,7 +237,6 @@ export function UsersPage() {
       description="Manage people, login accounts, roles, and access."
       width="wide"
     >
-
       {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
       {peopleQuery.isError && (
         <ErrorState
@@ -241,16 +254,26 @@ export function UsersPage() {
             subtitle={batchResult.subtitle}
             onCloseButtonClick={() => setBatchResult(null)}
           />
-          {Boolean(batchResult.failures?.length) && <Accordion isFlush size="sm" aria-label="Failed deletions">
-            {batchResult.failures!.map((failure, index) => <AccordionItem
-              key={`${failure.name}-${index}`}
-              title={failure.reasons.length === 1 ? `${failure.name} — ${failure.reasons[0]}` : `${failure.name} — ${failure.reasons.length} reasons`}
-            >
-              <UnorderedList>
-                {failure.reasons.map((reason) => <ListItem key={reason}>{reason}</ListItem>)}
-              </UnorderedList>
-            </AccordionItem>)}
-          </Accordion>}
+          {Boolean(batchResult.failures?.length) && (
+            <Accordion isFlush size="sm" aria-label="Failed deletions">
+              {batchResult.failures!.map((failure, index) => (
+                <AccordionItem
+                  key={`${failure.name}-${index}`}
+                  title={
+                    failure.reasons.length === 1
+                      ? `${failure.name} — ${failure.reasons[0]}`
+                      : `${failure.name} — ${failure.reasons.length} reasons`
+                  }
+                >
+                  <UnorderedList>
+                    {failure.reasons.map((reason) => (
+                      <ListItem key={reason}>{reason}</ListItem>
+                    ))}
+                  </UnorderedList>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
         </Stack>
       )}
       {peopleQuery.data && (
@@ -276,7 +299,12 @@ export function UsersPage() {
                     <PeopleBatchActions
                       batchActionProps={getBatchActionProps()}
                       selectedMembers={selectedMembers}
-                      can={{ createAccounts: mayCreateAccounts, assignRoles: mayAssignRoles, deleteAccounts: mayDeleteAccounts, deletePeople: mayDeletePeople }}
+                      can={{
+                        createAccounts: mayCreateAccounts,
+                        assignRoles: mayAssignRoles,
+                        deleteAccounts: mayDeleteAccounts,
+                        deletePeople: mayDeletePeople,
+                      }}
                       canDeleteAccounts={hasDeleteAccountsPermission}
                       hasAssignableRoles={assignableRoles.length > 0}
                       batch={batch}
@@ -292,23 +320,22 @@ export function UsersPage() {
                       onClear={() => setSearchValue('')}
                     />
                     {canFilter && (
-                      <BatchFilter id="people" label="People" categories={filterCategories} applied={appliedFilters} onApply={applyFilters} onReset={clearFilters} />
+                      <BatchFilter
+                        id="people"
+                        label="People"
+                        categories={filterCategories}
+                        applied={appliedFilters}
+                        onApply={applyFilters}
+                        onReset={clearFilters}
+                      />
                     )}
                     {mayCreate && (
-                      <Button
-                        kind="primary"
-                        renderIcon={Add}
-                        onClick={() => navigate('/people/new')}
-                      >
+                      <Button kind="primary" renderIcon={Add} onClick={() => navigate('/people/new')}>
                         Add person
                       </Button>
                     )}
                     {mayViewSupervisorStaffing && (
-                      <Button
-                        kind="tertiary"
-                        renderIcon={UserRole}
-                        onClick={() => navigate('/people/staffing')}
-                      >
+                      <Button kind="tertiary" renderIcon={UserRole} onClick={() => navigate('/people/staffing')}>
                         Members
                       </Button>
                     )}
@@ -320,7 +347,10 @@ export function UsersPage() {
                       {canBatchManage && <TableSelectAll {...getSelectionProps()} />}
                       {tableHeaders.map((header) => (
                         <TableHeader
-                          {...getHeaderProps({ header, isSortable: header.key !== 'avatar' && header.key !== 'status' })}
+                          {...getHeaderProps({
+                            header,
+                            isSortable: header.key !== 'avatar' && header.key !== 'status',
+                          })}
                           key={header.key}
                           className={header.key === 'status' ? 'people-table__status-column' : undefined}
                         >
@@ -332,17 +362,17 @@ export function UsersPage() {
                   <TableBody>
                     {tableRows.map((row) => (
                       <TableRow {...getRowProps({ row })} key={row.id}>
-                        {canBatchManage && (
-                          <TableSelectRow {...getSelectionProps({ row })} />
-                        )}
+                        {canBatchManage && <TableSelectRow {...getSelectionProps({ row })} />}
                         {row.cells.map((cell) => (
                           <TableCell
                             key={cell.id}
-                            className={cell.info.header === 'avatar'
-                              ? 'people-table__avatar-cell'
-                              : cell.info.header === 'status'
-                                ? 'people-table__status-column'
-                                : undefined}
+                            className={
+                              cell.info.header === 'avatar'
+                                ? 'people-table__avatar-cell'
+                                : cell.info.header === 'status'
+                                  ? 'people-table__status-column'
+                                  : undefined
+                            }
                           >
                             <PeopleCell
                               column={cell.info.header}
@@ -366,7 +396,11 @@ export function UsersPage() {
                 {rows.length === 0 && (
                   <div className="empty-state">
                     <h2>No people found</h2>
-                    <p>{search || hasActiveFilters ? 'Try different search terms or filters.' : 'No people have been added yet.'}</p>
+                    <p>
+                      {search || hasActiveFilters
+                        ? 'Try different search terms or filters.'
+                        : 'No people have been added yet.'}
+                    </p>
                   </div>
                 )}
                 <Pagination

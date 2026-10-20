@@ -15,16 +15,24 @@ export function useAttachRun(onDone: () => void) {
   const client = useQueryClient();
   const notify = useNotify();
   const mutation = useMutation({
-    mutationFn: ({ run, job, replaceManualRuns }: { run: AttachTarget; job: AttachJob; replaceManualRuns: boolean }) => attachMachineRun(run.id, { machineJobId: job.id, replaceManualRuns, expectedJobVersion: job.version }),
+    mutationFn: ({ run, job, replaceManualRuns }: { run: AttachTarget; job: AttachJob; replaceManualRuns: boolean }) =>
+      attachMachineRun(run.id, { machineJobId: job.id, replaceManualRuns, expectedJobVersion: job.version }),
     onSuccess: async (_attached, { run, job, replaceManualRuns }) => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       notify({
-        kind: 'success', title: replaceManualRuns ? 'Manual runs replaced' : 'Run attached',
-        subtitle: replaceManualRuns ? `${job.displayId} now uses the data from ${run.displayId}.` : `${run.displayId} is part of ${job.displayId}.`,
+        kind: 'success',
+        title: replaceManualRuns ? 'Manual runs replaced' : 'Run attached',
+        subtitle: replaceManualRuns
+          ? `${job.displayId} now uses the data from ${run.displayId}.`
+          : `${run.displayId} is part of ${job.displayId}.`,
       });
       onDone();
     },
   });
-  const attach = (run: AttachTarget, job: AttachJob, replaceManualRuns: boolean) => mutation.mutateAsync({ run, job, replaceManualRuns }).then(() => true, () => false);
+  const attach = (run: AttachTarget, job: AttachJob, replaceManualRuns: boolean) =>
+    mutation.mutateAsync({ run, job, replaceManualRuns }).then(
+      () => true,
+      () => false,
+    );
   return { attach, pending: mutation.isPending, error: mutation.error, reset: mutation.reset };
 }

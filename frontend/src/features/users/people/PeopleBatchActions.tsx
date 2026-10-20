@@ -6,7 +6,14 @@ import { peopleEligibleForDeletion, peopleWithAccounts } from './peopleList';
 import type { useBatchPeopleActions } from './useBatchPeopleActions';
 
 /** The bulk actions the person may use on the selected rows of the People table. */
-export function PeopleBatchActions({ batchActionProps, selectedMembers, can, canDeleteAccounts, hasAssignableRoles, batch }: {
+export function PeopleBatchActions({
+  batchActionProps,
+  selectedMembers,
+  can,
+  canDeleteAccounts,
+  hasAssignableRoles,
+  batch,
+}: {
   batchActionProps: ComponentProps<typeof TableBatchActions>;
   selectedMembers: Person[];
   can: { createAccounts: boolean; assignRoles: boolean; deleteAccounts: boolean; deletePeople: boolean };
@@ -38,10 +45,7 @@ export function PeopleBatchActions({ batchActionProps, selectedMembers, can, can
         <TableBatchAction
           renderIcon={UserRole}
           iconDescription="Assign role"
-          disabled={
-            selectedForRoleAssignment.length === 0 ||
-            !hasAssignableRoles
-          }
+          disabled={selectedForRoleAssignment.length === 0 || !hasAssignableRoles}
           onClick={() => {
             batch.setBatchMembers(selectedMembers);
             batch.setBatchAction('assign-role');

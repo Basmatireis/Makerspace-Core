@@ -17,31 +17,22 @@ export type PageHeaderProps = {
   tabs?: ReactNode;
 };
 
-export function PageHeader({
-  title,
-  titleAdornment,
-  description,
-  breadcrumbs = [],
-  actions,
-  tabs,
-}: PageHeaderProps) {
+export function PageHeader({ title, titleAdornment, description, breadcrumbs = [], actions, tabs }: PageHeaderProps) {
   usePageTitle(title);
   const titleId = useId();
-  const resolvedBreadcrumbs: PageCrumb[] = breadcrumbs.length === 0
-    ? [{ label: title }]
-    : breadcrumbs.at(-1)?.to
-      ? [...breadcrumbs, { label: title }]
-      : breadcrumbs;
+  const resolvedBreadcrumbs: PageCrumb[] =
+    breadcrumbs.length === 0
+      ? [{ label: title }]
+      : breadcrumbs.at(-1)?.to
+        ? [...breadcrumbs, { label: title }]
+        : breadcrumbs;
 
   return (
     <header className={`page-header${tabs ? ' page-header--with-tabs' : ''}`} aria-labelledby={titleId}>
       <Stack gap={5} className="page-header__body">
         <Breadcrumb noTrailingSlash>
           {resolvedBreadcrumbs.map((crumb) => (
-            <BreadcrumbItem
-              key={`${crumb.label}-${crumb.to ?? 'current'}`}
-              isCurrentPage={!crumb.to}
-            >
+            <BreadcrumbItem key={`${crumb.label}-${crumb.to ?? 'current'}`} isCurrentPage={!crumb.to}>
               {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : crumb.label}
             </BreadcrumbItem>
           ))}

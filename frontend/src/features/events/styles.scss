@@ -662,7 +662,11 @@ progress::-moz-progress-bar {
 
 .public-event-hero {
   padding: $spacing-09 max($spacing-05, calc((100vw - 80rem) / 2));
-  background: linear-gradient(115deg, color-mix(in srgb, var(--app-brand-primary) 12%, white), color-mix(in srgb, var(--app-brand-secondary) 12%, white));
+  background: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--app-brand-primary) 12%, white),
+    color-mix(in srgb, var(--app-brand-secondary) 12%, white)
+  );
 }
 
 .public-event-banner {
@@ -930,9 +934,15 @@ progress::-moz-progress-bar {
     font-size: 0.75rem;
   }
 
-  .event-requirement-row > :nth-child(2)::before { content: 'Required'; }
-  .event-requirement-row > :nth-child(3)::before { content: 'Filled'; }
-  .event-requirement-row > :nth-child(4)::before { content: 'Eligibility'; }
+  .event-requirement-row > :nth-child(2)::before {
+    content: 'Required';
+  }
+  .event-requirement-row > :nth-child(3)::before {
+    content: 'Filled';
+  }
+  .event-requirement-row > :nth-child(4)::before {
+    content: 'Eligibility';
+  }
 
   .event-task-workspace .cds--data-table,
   .event-files-table table,
@@ -983,26 +993,75 @@ progress::-moz-progress-bar {
   }
 }
 
-
-.event-staffing { display: grid; gap: $spacing-06; }
-.event-staffing__summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: $spacing-03; align-items: end; }
-.event-staffing__summary .cds--tile { display: grid; gap: $spacing-02; }
-.event-staffing__summary .cds--tile span { @include type-style('label-01'); color: var(--cds-text-secondary); }
-.event-staffing__summary .cds--tile strong { @include type-style('heading-04'); }
-.event-staffing__short { color: var(--cds-text-error); }
-.event-staffing__workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); gap: $spacing-05; align-items: start; }
-.event-staffing__meta { display: block; @include type-style('helper-text-01'); color: var(--cds-text-secondary); }
-.event-staffing .cds--progress-bar { min-inline-size: 6rem; }
-.event-staffing__detail { display: grid; gap: $spacing-05; position: sticky; inset-block-start: $spacing-05; }
-.event-staffing__detail-heading { display: flex; justify-content: space-between; gap: $spacing-03; }
-.event-staffing__detail h3 { @include type-style('heading-02'); }
+.event-staffing {
+  display: grid;
+  gap: $spacing-06;
+}
+.event-staffing__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: $spacing-03;
+  align-items: end;
+}
+.event-staffing__summary .cds--tile {
+  display: grid;
+  gap: $spacing-02;
+}
+.event-staffing__summary .cds--tile span {
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+.event-staffing__summary .cds--tile strong {
+  @include type-style('heading-04');
+}
+.event-staffing__short {
+  color: var(--cds-text-error);
+}
+.event-staffing__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: $spacing-05;
+  align-items: start;
+}
+.event-staffing__meta {
+  display: block;
+  @include type-style('helper-text-01');
+  color: var(--cds-text-secondary);
+}
+.event-staffing .cds--progress-bar {
+  min-inline-size: 6rem;
+}
+.event-staffing__detail {
+  display: grid;
+  gap: $spacing-05;
+  position: sticky;
+  inset-block-start: $spacing-05;
+}
+.event-staffing__detail-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+.event-staffing__detail h3 {
+  @include type-style('heading-02');
+}
 
 @media (max-width: 66rem) {
-  .event-staffing__summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .event-staffing__summary .cds--toggle { grid-column: 1 / -1; }
-  .event-staffing__workspace { grid-template-columns: minmax(0, 1fr); }
-  .event-staffing__detail { position: static; }
+  .event-staffing__summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .event-staffing__summary .cds--toggle {
+    grid-column: 1 / -1;
+  }
+  .event-staffing__workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .event-staffing__detail {
+    position: static;
+  }
 }
 @media (max-width: 42rem) {
-  .event-staffing__summary { grid-template-columns: minmax(0, 1fr); }
+  .event-staffing__summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -77,14 +77,21 @@ export function timeWindowActive(rule: Pick<PlaybackRule, 'weekdays' | 'timeFrom
 
 export function conditionMatches(rule: PlaybackRule, context: PlaybackContext): boolean {
   switch (rule.kind) {
-    case 'time_window': return timeWindowActive(rule, context.now);
+    case 'time_window':
+      return timeWindowActive(rule, context.now);
     case 'machine_printing': {
       if (rule.machineIds.length === 0) return false;
       const printing = context.printingMachineIds;
-      return rule.machineMatch === 'all' ? rule.machineIds.every((id) => printing.includes(id)) : rule.machineIds.some((id) => printing.includes(id));
+      return rule.machineMatch === 'all'
+        ? rule.machineIds.every((id) => printing.includes(id))
+        : rule.machineIds.some((id) => printing.includes(id));
     }
-    case 'announcement_active': return rule.announcementTemplateIds.length === 0 ? context.activeAnnouncementTemplateIds.length > 0 : context.activeAnnouncementTemplateIds.some((id) => rule.announcementTemplateIds.includes(id));
-    case 'live_data_unavailable': return !context.liveDataAvailable;
+    case 'announcement_active':
+      return rule.announcementTemplateIds.length === 0
+        ? context.activeAnnouncementTemplateIds.length > 0
+        : context.activeAnnouncementTemplateIds.some((id) => rule.announcementTemplateIds.includes(id));
+    case 'live_data_unavailable':
+      return !context.liveDataAvailable;
   }
 }
 
@@ -96,28 +103,55 @@ export function describeDays(days: readonly number[]): string {
   const runs: number[][] = [];
   for (const day of sorted) {
     const last = runs.at(-1);
-    if (last && last.at(-1) === day - 1) last.push(day); else runs.push([day]);
+    if (last && last.at(-1) === day - 1) last.push(day);
+    else runs.push([day]);
   }
-  return runs.map((run) => run.length >= 3 ? `${DAY_NAMES[run[0] - 1]}–${DAY_NAMES[run.at(-1)! - 1]}` : run.map((day) => DAY_NAMES[day - 1]).join(', ')).join(', ');
+  return runs
+    .map((run) =>
+      run.length >= 3
+        ? `${DAY_NAMES[run[0] - 1]}–${DAY_NAMES[run.at(-1)! - 1]}`
+        : run.map((day) => DAY_NAMES[day - 1]).join(', '),
+    )
+    .join(', ');
 }
 
-export function describeCondition(rule: Pick<PlaybackRule, 'kind' | 'weekdays' | 'timeFrom' | 'timeTo' | 'machineIds' | 'machineMatch' | 'announcementTemplateIds'>, names: Names = defaultNames): string {
+export function describeCondition(
+  rule: Pick<
+    PlaybackRule,
+    'kind' | 'weekdays' | 'timeFrom' | 'timeTo' | 'machineIds' | 'machineMatch' | 'announcementTemplateIds'
+  >,
+  names: Names = defaultNames,
+): string {
   switch (rule.kind) {
-    case 'time_window': return `${describeDays(rule.weekdays)} ${rule.timeFrom ?? ''}–${rule.timeTo ?? ''}`;
-    case 'machine_printing': return `${rule.machineMatch === 'all' ? 'All' : 'Any'} of ${rule.machineIds.map(names.machine).join(', ')} printing`;
-    case 'announcement_active': return rule.announcementTemplateIds.length === 0 ? 'Announcement active' : `Announcement active (${rule.announcementTemplateIds.map(names.template).join(', ')})`;
-    case 'live_data_unavailable': return 'Live data unavailable';
+    case 'time_window':
+      return `${describeDays(rule.weekdays)} ${rule.timeFrom ?? ''}–${rule.timeTo ?? ''}`;
+    case 'machine_printing':
+      return `${rule.machineMatch === 'all' ? 'All' : 'Any'} of ${rule.machineIds.map(names.machine).join(', ')} printing`;
+    case 'announcement_active':
+      return rule.announcementTemplateIds.length === 0
+        ? 'Announcement active'
+        : `Announcement active (${rule.announcementTemplateIds.map(names.template).join(', ')})`;
+    case 'live_data_unavailable':
+      return 'Live data unavailable';
   }
 }
 
 /** Short condition text for "why is this on screen": template names are left out of announcement conditions. */
 function reasonOf(rule: PlaybackRule, names: Names): string {
   if (rule.kind === 'time_window') return describeCondition(rule, names);
-  const text = describeCondition(rule.kind === 'announcement_active' ? { ...rule, announcementTemplateIds: [] } : rule, names);
+  const text = describeCondition(
+    rule.kind === 'announcement_active' ? { ...rule, announcementTemplateIds: [] } : rule,
+    names,
+  );
   return text.replace(/^./, (char) => char.toLowerCase());
 }
 
-export function resolvePlayback(defaultPlaylistId: string, rules: readonly PlaybackRule[], context: PlaybackContext, names: Names = defaultNames): PlaybackResult {
+export function resolvePlayback(
+  defaultPlaylistId: string,
+  rules: readonly PlaybackRule[],
+  context: PlaybackContext,
+  names: Names = defaultNames,
+): PlaybackResult {
   const activeMachineIds = [...context.printingMachineIds];
   for (let index = 0; index < rules.length; index += 1) {
     const rule = rules[index];
@@ -133,19 +167,33 @@ export function resolvePlayback(defaultPlaylistId: string, rules: readonly Playb
       minSeconds: rule.minSeconds,
     };
   }
-  return { ruleId: DEFAULT_RULE_ID, rulePosition: null, target: { kind: 'playlist', id: defaultPlaylistId }, reason: 'Otherwise: default playlist', activeMachineIds, multiMode: null, alternateSeconds: 10, minSeconds: 0 };
+  return {
+    ruleId: DEFAULT_RULE_ID,
+    rulePosition: null,
+    target: { kind: 'playlist', id: defaultPlaylistId },
+    reason: 'Otherwise: default playlist',
+    activeMachineIds,
+    multiMode: null,
+    alternateSeconds: 10,
+    minSeconds: 0,
+  };
 }
 
 /** Seconds of one pass through a playlist. */
-export const loopSeconds = (items: readonly { seconds: number }[]) => items.reduce((sum, item) => sum + item.seconds, 0);
+export const loopSeconds = (items: readonly { seconds: number }[]) =>
+  items.reduce((sum, item) => sum + item.seconds, 0);
 
 /** The playlist item that is on screen `elapsedSeconds` after the loop started, and the seconds left of it. */
-export function playlistPosition<T extends { seconds: number }>(items: readonly T[], elapsedSeconds: number): { item: T; index: number; secondsLeft: number } | null {
+export function playlistPosition<T extends { seconds: number }>(
+  items: readonly T[],
+  elapsedSeconds: number,
+): { item: T; index: number; secondsLeft: number } | null {
   const loop = loopSeconds(items);
   if (items.length === 0 || loop <= 0) return null;
   let position = ((elapsedSeconds % loop) + loop) % loop;
   for (let index = 0; index < items.length; index += 1) {
-    if (position < items[index].seconds) return { item: items[index], index, secondsLeft: Math.ceil(items[index].seconds - position) };
+    if (position < items[index].seconds)
+      return { item: items[index], index, secondsLeft: Math.ceil(items[index].seconds - position) };
     position -= items[index].seconds;
   }
   return { item: items[0], index: 0, secondsLeft: items[0].seconds };

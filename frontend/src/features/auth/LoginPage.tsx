@@ -76,7 +76,9 @@ export function LoginPage() {
     try {
       await pinLoginMutation.mutateAsync(values);
       navigate(safeReturnPath(location.state as LocationState), { replace: true });
-    } catch { /* generic error below */ }
+    } catch {
+      /* generic error below */
+    }
   });
 
   const rateLimited =
@@ -105,55 +107,74 @@ export function LoginPage() {
               lowContrast
               hideCloseButton
               title={rateLimited ? 'Too many attempts' : 'Unable to sign in'}
-              subtitle={
-                rateLimited
-                  ? 'Wait a moment before trying again.'
-                  : 'The credentials are incorrect.'
-              }
+              subtitle={rateLimited ? 'Wait a moment before trying again.' : 'The credentials are incorrect.'}
             />
           )}
 
           <div className="button-cluster" aria-label="Authentication method">
-            <Button size="sm" kind={method === 'password' ? 'primary' : 'ghost'} onClick={() => setMethod('password')}>Password</Button>
-            <Button size="sm" kind={method === 'pin' ? 'primary' : 'ghost'} onClick={() => setMethod('pin')}>PIN</Button>
+            <Button size="sm" kind={method === 'password' ? 'primary' : 'ghost'} onClick={() => setMethod('password')}>
+              Password
+            </Button>
+            <Button size="sm" kind={method === 'pin' ? 'primary' : 'ghost'} onClick={() => setMethod('pin')}>
+              PIN
+            </Button>
           </div>
 
-          {method === 'password' ? <Form onSubmit={onSubmit}>
-            <Stack gap={6}>
-              <TextInput
-                id="login-email"
-                type="email"
-                autoComplete="username"
-                labelText="Email"
-                invalid={Boolean(errors.email)}
-                invalidText={errors.email?.message}
-                {...register('email', {
-                  required: 'Enter your email address.',
-                })}
-              />
-              <PasswordInput
-                id="login-password"
-                autoComplete="current-password"
-                labelText="Password"
-                invalid={Boolean(errors.password)}
-                invalidText={errors.password?.message}
-                {...register('password', { required: 'Enter your password.' })}
-              />
-              <Button
-                type="submit"
-                renderIcon={Login}
-                disabled={loginMutation.isPending}
-              >
-                {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
-              </Button>
-            </Stack>
-          </Form> : <Form onSubmit={submitPIN}>
-            <Stack gap={6}>
-              <TextInput id="pin-login-name" autoComplete="username" labelText="Login name" invalid={Boolean(pinForm.formState.errors.loginName)} invalidText={pinForm.formState.errors.loginName?.message} {...pinForm.register('loginName', { required: 'Enter your login name.' })} />
-              <PasswordInput id="login-pin" autoComplete="current-password" labelText="PIN" invalid={Boolean(pinForm.formState.errors.pin)} invalidText={pinForm.formState.errors.pin?.message} {...pinForm.register('pin', { required: 'Enter your PIN.', pattern: { value: /^[0-9]{6,12}$/, message: 'Enter 6 to 12 digits.' } })} />
-              <Button type="submit" renderIcon={Login} disabled={pinLoginMutation.isPending}>{pinLoginMutation.isPending ? 'Signing in…' : 'Sign in with PIN'}</Button>
-            </Stack>
-          </Form>}
+          {method === 'password' ? (
+            <Form onSubmit={onSubmit}>
+              <Stack gap={6}>
+                <TextInput
+                  id="login-email"
+                  type="email"
+                  autoComplete="username"
+                  labelText="Email"
+                  invalid={Boolean(errors.email)}
+                  invalidText={errors.email?.message}
+                  {...register('email', {
+                    required: 'Enter your email address.',
+                  })}
+                />
+                <PasswordInput
+                  id="login-password"
+                  autoComplete="current-password"
+                  labelText="Password"
+                  invalid={Boolean(errors.password)}
+                  invalidText={errors.password?.message}
+                  {...register('password', { required: 'Enter your password.' })}
+                />
+                <Button type="submit" renderIcon={Login} disabled={loginMutation.isPending}>
+                  {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+                </Button>
+              </Stack>
+            </Form>
+          ) : (
+            <Form onSubmit={submitPIN}>
+              <Stack gap={6}>
+                <TextInput
+                  id="pin-login-name"
+                  autoComplete="username"
+                  labelText="Login name"
+                  invalid={Boolean(pinForm.formState.errors.loginName)}
+                  invalidText={pinForm.formState.errors.loginName?.message}
+                  {...pinForm.register('loginName', { required: 'Enter your login name.' })}
+                />
+                <PasswordInput
+                  id="login-pin"
+                  autoComplete="current-password"
+                  labelText="PIN"
+                  invalid={Boolean(pinForm.formState.errors.pin)}
+                  invalidText={pinForm.formState.errors.pin?.message}
+                  {...pinForm.register('pin', {
+                    required: 'Enter your PIN.',
+                    pattern: { value: /^[0-9]{6,12}$/, message: 'Enter 6 to 12 digits.' },
+                  })}
+                />
+                <Button type="submit" renderIcon={Login} disabled={pinLoginMutation.isPending}>
+                  {pinLoginMutation.isPending ? 'Signing in…' : 'Sign in with PIN'}
+                </Button>
+              </Stack>
+            </Form>
+          )}
 
           {oidcProviders.data && oidcProviders.data.items.length > 0 && (
             <Stack gap={4}>
@@ -173,8 +194,8 @@ export function LoginPage() {
           <Tile className="auth-card__support">
             <p className="auth-card__support-title">Need access?</p>
             <p className="auth-card__help">
-              Accounts are provided by the {branding.identity.displayName} team. If you already have
-              one but cannot sign in, request a one-time reset code.
+              Accounts are provided by the {branding.identity.displayName} team. If you already have one but cannot sign
+              in, request a one-time reset code.
             </p>
             <CarbonLink as={Link} to="/reset-password">
               Reset password

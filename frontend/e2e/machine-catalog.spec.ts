@@ -22,7 +22,11 @@ for (const width of [320, 390, 414, 768, 1440]) {
       await page.waitForLoadState('networkidle');
       await expectNoHorizontalScroll(page);
       await expectNoAccessibilityViolations(page);
-      if (width === 320 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`${route.split('/').at(-1)!.replace(/\W/g, '-')}.png`), fullPage: true });
+      if (width === 320 || width === 1440)
+        await page.screenshot({
+          path: testInfo.outputPath(`${route.split('/').at(-1)!.replace(/\W/g, '-')}.png`),
+          fullPage: true,
+        });
     }
 
     // The edit dialog is reachable and fits the viewport; cancelling leaves the machine unchanged.
@@ -54,7 +58,11 @@ test('saves a machine with the version it was opened with and shows the new name
   await edit.getByLabel('Name', { exact: true }).fill('Laser cutter 2');
   await edit.getByRole('button', { name: 'Save machine' }).click();
   await expect(page.getByRole('heading', { name: 'Laser cutter 2', level: 1 })).toBeVisible();
-  expect(world.bodyOf('PATCH', `/api/v1/machines/${ids.laser}`)).toMatchObject({ name: 'Laser cutter 2', status: 'active', expectedVersion: 3 });
+  expect(world.bodyOf('PATCH', `/api/v1/machines/${ids.laser}`)).toMatchObject({
+    name: 'Laser cutter 2',
+    status: 'active',
+    expectedVersion: 3,
+  });
 });
 
 test('adds a machine from the list', async ({ page, world }) => {
@@ -65,7 +73,13 @@ test('adds a machine from the list', async ({ page, world }) => {
   await dialog.getByLabel('Machine type').selectOption({ label: 'Laser cutter' });
   await dialog.getByRole('button', { name: 'Create and continue' }).click();
   await expect.poll(() => world.sent('POST', '/api/v1/machines')).toHaveLength(1);
-  expect(world.bodyOf('POST', '/api/v1/machines')).toEqual({ name: 'Vinyl cutter', machineTypeId: ids.typeLaser, status: 'active', externalIdentifier: null, automaticCollectionEnabled: false });
+  expect(world.bodyOf('POST', '/api/v1/machines')).toEqual({
+    name: 'Vinyl cutter',
+    machineTypeId: ids.typeLaser,
+    status: 'active',
+    externalIdentifier: null,
+    automaticCollectionEnabled: false,
+  });
   await expect(page.getByRole('link', { name: 'Vinyl cutter' })).toBeVisible();
 });
 
@@ -77,5 +91,12 @@ test('saves the spool inputs of a printer atomically', async ({ page, world }) =
   await dialog.getByLabel('Input unit name').last().fill('Rear feed');
   await dialog.getByRole('button', { name: 'Save spool inputs' }).click();
   await expect.poll(() => world.sent('PUT', `/api/v1/machines/${ids.bambu}/printer/setup`)).toHaveLength(1);
-  expect(world.bodyOf('PUT', `/api/v1/machines/${ids.bambu}/printer/setup`)).toMatchObject({ expectedVersion: 4, enabled: true, inputUnits: [{ id: ids.unit, name: 'AMS A' }, { name: 'Rear feed', slots: [{ name: 'Slot 1' }] }] });
+  expect(world.bodyOf('PUT', `/api/v1/machines/${ids.bambu}/printer/setup`)).toMatchObject({
+    expectedVersion: 4,
+    enabled: true,
+    inputUnits: [
+      { id: ids.unit, name: 'AMS A' },
+      { name: 'Rear feed', slots: [{ name: 'Slot 1' }] },
+    ],
+  });
 });

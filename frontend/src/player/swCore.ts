@@ -30,9 +30,20 @@ export async function rangeResponse(request: Request, cached: Response): Promise
   const size = blob.size;
   let start: number;
   let end: number;
-  if (match[1] === '') { start = Math.max(0, size - Number(match[2])); end = size - 1; } else { start = Number(match[1]); end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1); }
-  if (start >= size || start > end) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
-  const headers = new Headers({ 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' });
+  if (match[1] === '') {
+    start = Math.max(0, size - Number(match[2]));
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1);
+  }
+  if (start >= size || start > end)
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+  const headers = new Headers({
+    'Content-Range': `bytes ${start}-${end}/${size}`,
+    'Content-Length': String(end - start + 1),
+    'Accept-Ranges': 'bytes',
+  });
   const type = cached.headers.get('Content-Type');
   if (type) headers.set('Content-Type', type);
   return new Response(blob.slice(start, end + 1), { status: 206, headers });
@@ -47,7 +58,9 @@ async function navigation(request: Request, deps: WorkerDeps): Promise<Response>
   });
   // A slow request keeps running after the timeout and refreshes the cache for the next start.
   network.catch(() => undefined);
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), deps.timeoutMs ?? NAVIGATION_TIMEOUT_MS));
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), deps.timeoutMs ?? NAVIGATION_TIMEOUT_MS),
+  );
   try {
     return (await Promise.race([network, timeout])) ?? (await fromCache());
   } catch {

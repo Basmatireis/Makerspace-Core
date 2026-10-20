@@ -61,9 +61,8 @@ export function formatDateTimeRange(startsAt: string | Date, endsAt: string | Da
 }
 
 export function formatLongDate(value: string | Date): string {
-  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T12:00:00Z`)
-    : instant(value);
+  const date =
+    typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00Z`) : instant(value);
   if (!date) return String(value);
   const weekday = new Intl.DateTimeFormat(APP_LOCALE, {
     weekday: 'long',
@@ -86,10 +85,11 @@ export function parseDisplayDate(value: string): string | null {
   const [, day, month, year] = match;
   const candidate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   if (
-    candidate.getUTCFullYear() !== Number(year)
-    || candidate.getUTCMonth() !== Number(month) - 1
-    || candidate.getUTCDate() !== Number(day)
-  ) return null;
+    candidate.getUTCFullYear() !== Number(year) ||
+    candidate.getUTCMonth() !== Number(month) - 1 ||
+    candidate.getUTCDate() !== Number(day)
+  )
+    return null;
   return `${year}-${month}-${day}`;
 }
 
@@ -121,12 +121,23 @@ export function zonedDateTimeToISO(date: string, clock: string, timeZone = APP_T
   for (const hours of [-48, -24, 0, 24, 48]) {
     const sample = wallTimestamp + hours * 3_600_000;
     const parts = partsInTimeZone(new Date(sample), timeZone)!;
-    offsets.add(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)) - sample);
+    offsets.add(
+      Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day),
+        Number(parts.hour),
+        Number(parts.minute),
+        Number(parts.second),
+      ) - sample,
+    );
   }
-  const candidates = [...offsets].map((offset) => wallTimestamp - offset).filter((candidate) => {
-    const parts = partsInTimeZone(new Date(candidate), timeZone)!;
-    return `${parts.year}-${parts.month}-${parts.day}` === date && `${parts.hour}:${parts.minute}` === clock;
-  });
+  const candidates = [...offsets]
+    .map((offset) => wallTimestamp - offset)
+    .filter((candidate) => {
+      const parts = partsInTimeZone(new Date(candidate), timeZone)!;
+      return `${parts.year}-${parts.month}-${parts.day}` === date && `${parts.hour}:${parts.minute}` === clock;
+    });
   if (candidates.length !== 1) {
     const reason = candidates.length > 1 ? 'is ambiguous' : 'does not exist';
     throw new Error(`Local time ${formatDate(date)} ${clock} ${reason} in ${timeZone}. Choose a different time.`);

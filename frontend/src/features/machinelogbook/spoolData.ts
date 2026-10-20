@@ -22,37 +22,55 @@ export async function fetchAllPages<T>(load: (page: number) => Promise<{ items: 
 export type SpoolListFilter = Omit<ListFilamentSpoolsParams, 'page' | 'pageSize'>;
 
 /** All spools matching the server-side filters (the table filters the rest). */
-export const allSpoolsQuery = (filter: SpoolListFilter) => queryOptions({
-  queryKey: [...machineLogbookKeys.all, 'spools-all', filter] as const,
-  queryFn: ({ signal }) => fetchAllPages((page) => listFilamentSpools({ ...filter, page, pageSize: PAGE_SIZE }, { signal })),
-});
+export const allSpoolsQuery = (filter: SpoolListFilter) =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'spools-all', filter] as const,
+    queryFn: ({ signal }) =>
+      fetchAllPages((page) => listFilamentSpools({ ...filter, page, pageSize: PAGE_SIZE }, { signal })),
+  });
 
 /** The complete ledger of one spool. */
-export const allSpoolTransactionsQuery = (spoolId: string) => queryOptions({
-  queryKey: [...machineLogbookKeys.all, 'spool-transactions-all', spoolId] as const,
-  queryFn: ({ signal }) => fetchAllPages((page) => listFilamentSpoolTransactions(spoolId, { page, pageSize: PAGE_SIZE }, { signal })),
-});
+export const allSpoolTransactionsQuery = (spoolId: string) =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'spool-transactions-all', spoolId] as const,
+    queryFn: ({ signal }) =>
+      fetchAllPages((page) => listFilamentSpoolTransactions(spoolId, { page, pageSize: PAGE_SIZE }, { signal })),
+  });
 
 /** Filament materials with their stock split (quantity, assigned to spools, loose) and inventory version. */
-export const filamentMaterialsQuery = () => queryOptions({
-  queryKey: [...machineLogbookKeys.all, 'filament-materials'] as const,
-  queryFn: async ({ signal }) => (await fetchAllPages((page) => listMaterials({ page, pageSize: PAGE_SIZE }, { signal }))).filter(isFilament),
-});
+export const filamentMaterialsQuery = () =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'filament-materials'] as const,
+    queryFn: async ({ signal }) =>
+      (await fetchAllPages((page) => listMaterials({ page, pageSize: PAGE_SIZE }, { signal }))).filter(isFilament),
+  });
 
 /** Active catalog products for the pickers. */
-export const activeProductsQuery = () => queryOptions({
-  queryKey: [...machineLogbookKeys.all, 'products-active'] as const,
-  queryFn: ({ signal }) => fetchAllPages((page) => listFilamentProducts({ page, pageSize: PAGE_SIZE }, { signal })),
-});
+export const activeProductsQuery = () =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'products-active'] as const,
+    queryFn: ({ signal }) => fetchAllPages((page) => listFilamentProducts({ page, pageSize: PAGE_SIZE }, { signal })),
+  });
 
 /**
  * Body for updateFilamentSpool. The backend takes the whole descriptive record (an omitted or null field is cleared),
  * so a change starts from the spool as loaded and overrides only what it changes.
  */
-export const spoolUpdateBody = (spool: FilamentSpool, changes: Partial<UpdateFilamentSpoolRequest> = {}): UpdateFilamentSpoolRequest => ({
-  label: spool.label ?? null, manufacturer: spool.manufacturer ?? null, productName: spool.productName ?? null, tareWeightG: spool.tareWeightG ?? null,
-  acquiredOn: spool.acquiredOn ?? null, acquisitionReference: spool.acquisitionReference ?? null, storageLocation: spool.storageLocation ?? null, notes: spool.notes ?? null,
-  lifecycle: spool.lifecycle, expectedVersion: spool.version, ...changes,
+export const spoolUpdateBody = (
+  spool: FilamentSpool,
+  changes: Partial<UpdateFilamentSpoolRequest> = {},
+): UpdateFilamentSpoolRequest => ({
+  label: spool.label ?? null,
+  manufacturer: spool.manufacturer ?? null,
+  productName: spool.productName ?? null,
+  tareWeightG: spool.tareWeightG ?? null,
+  acquiredOn: spool.acquiredOn ?? null,
+  acquisitionReference: spool.acquisitionReference ?? null,
+  storageLocation: spool.storageLocation ?? null,
+  notes: spool.notes ?? null,
+  lifecycle: spool.lifecycle,
+  expectedVersion: spool.version,
+  ...changes,
 });
 
 /** Refreshes every Machines & Jobs query after a mutation: spools, materials, ledger and counts depend on each other. */
@@ -81,7 +99,8 @@ const messages: Record<string, string> = {
   stale_write: 'Someone changed this in the meantime. The latest data was reloaded; check it and try again.',
 };
 
-export const errorCode = (error: unknown) => error instanceof ApiError ? (error.data as { code?: string } | undefined)?.code : undefined;
+export const errorCode = (error: unknown) =>
+  error instanceof ApiError ? (error.data as { code?: string } | undefined)?.code : undefined;
 
 /** Plain-language text for a failed spool request, keyed by the backend error code. */
 export function spoolErrorMessage(error: unknown, fallback = 'The change could not be saved. Try again.') {

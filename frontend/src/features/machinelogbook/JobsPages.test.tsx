@@ -3,12 +3,33 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type {
-  AddManualMachineRunRequest, AttachMachineRunRequest, CreateMachineJobRequest, DetachMachineRunRequest, Material, SetMachineJobPriceAdjustmentRequest, UpdateMachineRunRequest, VersionRequest,
+  AddManualMachineRunRequest,
+  AttachMachineRunRequest,
+  CreateMachineJobRequest,
+  DetachMachineRunRequest,
+  Material,
+  SetMachineJobPriceAdjustmentRequest,
+  UpdateMachineRunRequest,
+  VersionRequest,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
-import { customer, ids, iso, jobFixture, machine, manualRun, needsOutcomeJob, operator, recordedRun, runningJob, unassignedItem, usage, workItem } from '../../test/machineRuns';
+import {
+  customer,
+  ids,
+  iso,
+  jobFixture,
+  machine,
+  manualRun,
+  needsOutcomeJob,
+  operator,
+  recordedRun,
+  runningJob,
+  unassignedItem,
+  usage,
+  workItem,
+} from '../../test/machineRuns';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -17,18 +38,50 @@ vi.mock('@carbon/charts-react', () => ({
   SimpleBarChart: () => <div data-testid="bar-chart" />,
 }));
 
-const { machine: machineId, material: materialId, job: jobId, organization: organizationId, operator: operatorId, recordedRun: recordedRunId, manualRun: manualRunId } = ids;
+const {
+  machine: machineId,
+  material: materialId,
+  job: jobId,
+  organization: organizationId,
+  operator: operatorId,
+  recordedRun: recordedRunId,
+  manualRun: manualRunId,
+} = ids;
 
 const material: Material = {
-  id: materialId, name: 'PLA Black', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '500', quantity: '8420', assignedQuantity: '0', unassignedQuantity: '8420',
-  averageUnitCost: '0.018', inventoryValue: '151.56', stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '2140', version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-09-15T11:26:00Z',
+  id: materialId,
+  name: 'PLA Black',
+  materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001',
+  materialTypeName: 'PLA',
+  colorName: 'Black',
+  colorHex: '#1A1A1A',
+  unit: 'g',
+  active: true,
+  lowStockThreshold: '500',
+  quantity: '8420',
+  assignedQuantity: '0',
+  unassignedQuantity: '8420',
+  averageUnitCost: '0.018',
+  inventoryValue: '151.56',
+  stockState: 'in_stock',
+  inventoryVersion: 7,
+  recentConsumption: '2140',
+  version: 2,
+  createdAt: '2026-08-01T00:00:00Z',
+  updatedAt: '2026-09-15T11:26:00Z',
 };
 
-const as = (...permissions: PermissionId[]) => http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions)));
-const noUnassignedRuns = http.get('*/api/v1/machine-runs', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 }));
+const as = (...permissions: PermissionId[]) =>
+  http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions)));
+const noUnassignedRuns = http.get('*/api/v1/machine-runs', () =>
+  HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 }),
+);
 // Carbon's icon-only overflow trigger is named by an aria-hidden tooltip that jsdom does not resolve, so find it by class.
 const overflowButton = () => document.querySelector<HTMLButtonElement>('.page-header__actions .cds--overflow-menu')!;
-const orderAssociation = (orderId: string | null = null) => http.get(`*/api/v1/machine-jobs/${jobId}/order-association`, () => HttpResponse.json({ orderId, orderReference: orderId ? 'O-2026-0004' : null, sourceChanged: false }));
+const orderAssociation = (orderId: string | null = null) =>
+  http.get(`*/api/v1/machine-jobs/${jobId}/order-association`, () =>
+    HttpResponse.json({ orderId, orderReference: orderId ? 'O-2026-0004' : null, sourceChanged: false }),
+  );
 
 /** Opens the overflow menu in the table row of a run and clicks one of its actions. */
 async function runAction(user: ReturnType<typeof userEvent.setup>, runDisplayId: string, action: string) {
@@ -38,7 +91,12 @@ async function runAction(user: ReturnType<typeof userEvent.setup>, runDisplayId:
   await user.click(await screen.findByText(action));
 }
 
-const jobItem = workItem({ fileName: 'gearbox_housing_v3.gcode', source: 'recorded', startedAt: '2026-09-15T08:12:00Z', runCount: 2 });
+const jobItem = workItem({
+  fileName: 'gearbox_housing_v3.gcode',
+  source: 'recorded',
+  startedAt: '2026-09-15T08:12:00Z',
+  runCount: 2,
+});
 const runItem = unassignedItem();
 
 describe('Jobs page', () => {
@@ -58,9 +116,15 @@ describe('Jobs page', () => {
     expect(requests[0].searchParams.get('sort')).toBe('startedAt');
     expect(requests[0].searchParams.get('direction')).toBe('desc');
 
-    expect(within(table).getByRole('link', { name: 'Gearbox housing' })).toHaveAttribute('href', `/machine-logbook/jobs/${jobId}`);
+    expect(within(table).getByRole('link', { name: 'Gearbox housing' })).toHaveAttribute(
+      'href',
+      `/machine-logbook/jobs/${jobId}`,
+    );
     expect(within(table).getByText('J-2026-000001 · gearbox_housing_v3.gcode · 2 runs')).toBeInTheDocument();
-    expect(within(table).getByRole('link', { name: 'bracket_v2.gcode' })).toHaveAttribute('href', `/machine-logbook/jobs/runs/${recordedRunId}`);
+    expect(within(table).getByRole('link', { name: 'bracket_v2.gcode' })).toHaveAttribute(
+      'href',
+      `/machine-logbook/jobs/runs/${recordedRunId}`,
+    );
     expect(within(table).getByText('RN-2026-000008 · Unassigned')).toBeInTheDocument();
     expect(within(table).getByText('Successful')).toBeInTheDocument();
     expect(within(table).getByText('Unassigned run')).toBeInTheDocument();
@@ -73,14 +137,24 @@ describe('Jobs page', () => {
     const run = recordedRun({ usages: [] });
     server.use(
       as(PermissionId.machine_jobsread, PermissionId.machine_jobsdelete),
-      http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 })),
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 }),
+      ),
       http.get(`*/api/v1/machine-runs/${recordedRunId}`, () => HttpResponse.json(run)),
-      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/machine-logbook/jobs');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
-    await user.click(within(table).getByRole('link', { name: 'bracket_v2.gcode' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    await user.click(
+      within(table)
+        .getByRole('link', { name: 'bracket_v2.gcode' })
+        .closest('tr')!
+        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
+    );
     await user.click(await screen.findByText('Delete run'));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(await within(dialog).findByRole('button', { name: 'Delete run' }));
@@ -88,7 +162,12 @@ describe('Jobs page', () => {
   });
 
   it('has no row menu for unassigned runs without machine_jobs.delete', async () => {
-    server.use(as(PermissionId.machine_jobsread), http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 })));
+    server.use(
+      as(PermissionId.machine_jobsread),
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 }),
+      ),
+    );
     renderRoute(<App />, '/machine-logbook/jobs');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     expect(table.querySelector('.cds--overflow-menu')).toBeNull();
@@ -104,7 +183,10 @@ describe('Jobs page', () => {
       }),
     );
     const user = userEvent.setup();
-    const { router } = renderRoute(<App />, '/machine-logbook/jobs?status=running,running_unassigned&source=manual,recorded&billing=on_order,order_outdated');
+    const { router } = renderRoute(
+      <App />,
+      '/machine-logbook/jobs?status=running,running_unassigned&source=manual,recorded&billing=on_order,order_outdated',
+    );
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     expect(requests[0].searchParams.getAll('status')).toEqual(['running', 'running_unassigned']);
     expect(requests[0].searchParams.getAll('source')).toEqual(['manual', 'recorded']);
@@ -121,7 +203,9 @@ describe('Jobs page', () => {
   it('shows the empty state and offers New job only with machine_jobs.create', async () => {
     server.use(
       as(PermissionId.machine_jobsread, PermissionId.machine_jobscreate),
-      http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 })),
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
+      ),
     );
     renderRoute(<App />, '/machine-logbook/jobs');
     expect(await screen.findByText('No jobs yet', {}, { timeout: 5000 })).toBeInTheDocument();
@@ -132,11 +216,43 @@ describe('Jobs page', () => {
 describe('Job form', () => {
   function lookups() {
     return [
-      as(PermissionId.machine_jobsread, PermissionId.machine_jobscreate, PermissionId.machinesread, PermissionId.inventoryread, PermissionId.pricingread),
-      http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [{ id: ids.pricingGroup, name: 'Partner', description: null, active: true, isDefault: false, rules: [], version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' }] })),
-      http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 })),
+      as(
+        PermissionId.machine_jobsread,
+        PermissionId.machine_jobscreate,
+        PermissionId.machinesread,
+        PermissionId.inventoryread,
+        PermissionId.pricingread,
+      ),
+      http.get('*/api/v1/pricing-groups', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: ids.pricingGroup,
+              name: 'Partner',
+              description: null,
+              active: true,
+              isDefault: false,
+              rules: [],
+              version: 1,
+              createdAt: '2026-09-01T00:00:00Z',
+              updatedAt: '2026-09-01T00:00:00Z',
+            },
+          ],
+        }),
+      ),
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
+      ),
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
-      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [material], page: 1, pageSize: 100, total: 1, totalInventoryValue: material.inventoryValue })),
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({
+          items: [material],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+          totalInventoryValue: material.inventoryValue,
+        }),
+      ),
       http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [customer] })),
       http.get('*/api/v1/machine-job-operators', () => HttpResponse.json({ items: [operator] })),
@@ -164,7 +280,7 @@ describe('Job form', () => {
     server.use(
       ...lookups(),
       http.post('*/api/v1/machine-jobs', async ({ request }) => {
-        submitted = await request.json() as CreateMachineJobRequest;
+        submitted = (await request.json()) as CreateMachineJobRequest;
         return HttpResponse.json(jobFixture(), { status: 201 });
       }),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
@@ -185,20 +301,38 @@ describe('Job form', () => {
     await user.selectOptions(within(dialog).getByLabelText('Pricing group (optional)'), ids.pricingGroup);
     await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
     // The first run carries start, end, outcome and material; the job itself has none of them.
-    await waitFor(() => expect(submitted).toMatchObject({
-      machineId, title: 'Gearbox housing', customer: { kind: 'organization', id: organizationId }, operatorPersonId: operatorId, pricingGroupId: ids.pricingGroup,
-      run: { outcome: 'successful', usages: [{ ownership: 'makerspace', materialId, spoolId: null, quantity: '25', quantityBasis: 'actual' }] },
-    }));
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        machineId,
+        title: 'Gearbox housing',
+        customer: { kind: 'organization', id: organizationId },
+        operatorPersonId: operatorId,
+        pricingGroupId: ids.pricingGroup,
+        run: {
+          outcome: 'successful',
+          usages: [{ ownership: 'makerspace', materialId, spoolId: null, quantity: '25', quantityBasis: 'actual' }],
+        },
+      }),
+    );
     expect(submitted).not.toHaveProperty('outcome');
     expect(submitted).not.toHaveProperty('startsAt');
-    expect(submitted?.run.startsAt && submitted.run.endsAt && new Date(submitted.run.endsAt) > new Date(submitted.run.startsAt)).toBe(true);
+    expect(
+      submitted?.run.startsAt &&
+        submitted.run.endsAt &&
+        new Date(submitted.run.endsAt) > new Date(submitted.run.startsAt),
+    ).toBe(true);
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('shows a server rejection of the outcome as an inline error', async () => {
     server.use(
       ...lookups(),
-      http.post('*/api/v1/machine-jobs', () => HttpResponse.json({ code: 'outcome_before_run_end', message: 'An outcome cannot be recorded before the run has ended' }, { status: 422 })),
+      http.post('*/api/v1/machine-jobs', () =>
+        HttpResponse.json(
+          { code: 'outcome_before_run_end', message: 'An outcome cannot be recorded before the run has ended' },
+          { status: 422 },
+        ),
+      ),
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/machine-logbook/jobs');
@@ -212,7 +346,9 @@ describe('Job form', () => {
     await user.click(await screen.findByText('Maria Hoffmann'));
     await user.click(dialog.querySelector('.mj-usage-row .cds--btn--icon-only')!);
     await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
-    expect(await within(dialog).findByText('The outcome can only be recorded once the run has ended.')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('The outcome can only be recorded once the run has ended.'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -221,13 +357,25 @@ describe('Job detail page', () => {
 
   it('lists the runs with source, state, "From machine" labels and adds up the runtime', async () => {
     const recorded = recordedRun({
-      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, startedAt: iso(-100), endedAt: iso(-40), durationSeconds: 3600,
-      usages: [usage({ id: ids.otherJob, quantity: '42.000', materialName: 'PETG Grey' })], usagesFromMachine: true,
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      startedAt: iso(-100),
+      endedAt: iso(-40),
+      durationSeconds: 3600,
+      usages: [usage({ id: ids.otherJob, quantity: '42.000', materialName: 'PETG Grey' })],
+      usagesFromMachine: true,
     });
-    const replaced = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', state: 'replaced', outcome: null, usages: [] });
+    const replaced = manualRun({
+      id: ids.otherJob,
+      displayId: 'RN-2026-000002',
+      state: 'replaced',
+      outcome: null,
+      usages: [],
+    });
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), recorded, replaced] }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(jobFixture({ runs: [manualRun(), recorded, replaced] })),
+      ),
       noUnassignedRuns,
     );
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -262,7 +410,7 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(job)),
       noUnassignedRuns,
       http.post(`*/api/v1/machine-runs/${manualRunId}/cancellation`, async ({ request }) => {
-        cancelled = await request.json() as VersionRequest;
+        cancelled = (await request.json()) as VersionRequest;
         return HttpResponse.json(jobFixture({ outcome: 'cancelled', status: 'cancelled' }));
       }),
     );
@@ -300,15 +448,27 @@ describe('Job detail page', () => {
   });
 
   it('records the outcome of every run that has ended without one', async () => {
-    const second = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', outcome: null, version: 4, startedAt: iso(-60), endedAt: iso(-10), durationSeconds: 3000 });
-    const job = jobFixture({ runs: [manualRun({ outcome: null }), second], outcome: 'unknown', status: 'needs_outcome' });
+    const second = manualRun({
+      id: ids.otherJob,
+      displayId: 'RN-2026-000002',
+      outcome: null,
+      version: 4,
+      startedAt: iso(-60),
+      endedAt: iso(-10),
+      durationSeconds: 3000,
+    });
+    const job = jobFixture({
+      runs: [manualRun({ outcome: null }), second],
+      outcome: 'unknown',
+      status: 'needs_outcome',
+    });
     const updates: { id: string; body: UpdateMachineRunRequest }[] = [];
     server.use(
       as(...editor),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(job)),
       noUnassignedRuns,
       http.patch('*/api/v1/machine-runs/:runId', async ({ request, params }) => {
-        updates.push({ id: String(params.runId), body: await request.json() as UpdateMachineRunRequest });
+        updates.push({ id: String(params.runId), body: (await request.json()) as UpdateMachineRunRequest });
         return HttpResponse.json({ run: manualRun({ outcome: 'failed' }), job });
       }),
     );
@@ -322,22 +482,42 @@ describe('Job detail page', () => {
     // Each run is recorded on its own.
     await user.selectOptions(screen.getByLabelText('Outcome of RN-2026-000002'), 'failed');
     await user.click(screen.getAllByRole('button', { name: 'Save outcome' })[1]);
-    await waitFor(() => expect(updates).toEqual([{ id: ids.otherJob, body: { outcome: 'failed', expectedVersion: 4 } }]));
+    await waitFor(() =>
+      expect(updates).toEqual([{ id: ids.otherJob, body: { outcome: 'failed', expectedVersion: 4 } }]),
+    );
     expect(await screen.findByText('Outcome recorded')).toBeInTheDocument();
   });
 
   it('adds a run (a reprint) and shows both runs with the summed runtime', async () => {
     let added: AddManualMachineRunRequest | undefined;
-    const reprint = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', startedAt: iso(-60), endedAt: iso(-10), durationSeconds: 3000, usages: [usage({ id: ids.usage, quantity: '25.000' })], version: 1 });
+    const reprint = manualRun({
+      id: ids.otherJob,
+      displayId: 'RN-2026-000002',
+      startedAt: iso(-60),
+      endedAt: iso(-10),
+      durationSeconds: 3000,
+      usages: [usage({ id: ids.usage, quantity: '25.000' })],
+      version: 1,
+    });
     const before = jobFixture();
     server.use(
       as(...editor, PermissionId.machinesread, PermissionId.inventoryread),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(added ? jobFixture({ runs: [manualRun(), reprint], version: 4 }) : before)),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(added ? jobFixture({ runs: [manualRun(), reprint], version: 4 }) : before),
+      ),
       noUnassignedRuns,
-      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [material], page: 1, pageSize: 100, total: 1, totalInventoryValue: material.inventoryValue })),
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({
+          items: [material],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+          totalInventoryValue: material.inventoryValue,
+        }),
+      ),
       http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.post(`*/api/v1/machine-jobs/${jobId}/runs`, async ({ request }) => {
-        added = await request.json() as AddManualMachineRunRequest;
+        added = (await request.json()) as AddManualMachineRunRequest;
         return HttpResponse.json(jobFixture({ runs: [manualRun(), reprint], version: 4 }), { status: 201 });
       }),
     );
@@ -352,10 +532,15 @@ describe('Job detail page', () => {
     await user.type(within(dialog).getByLabelText('Quantity (g)'), '25');
     await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
 
-    await waitFor(() => expect(added).toMatchObject({
-      expectedJobVersion: 3,
-      run: { outcome: 'successful', usages: [{ ownership: 'makerspace', materialId, quantity: '25', quantityBasis: 'actual' }] },
-    }));
+    await waitFor(() =>
+      expect(added).toMatchObject({
+        expectedJobVersion: 3,
+        run: {
+          outcome: 'successful',
+          usages: [{ ownership: 'makerspace', materialId, quantity: '25', quantityBasis: 'actual' }],
+        },
+      }),
+    );
     expect(new Date(added!.run.endsAt).getTime()).toBeGreaterThan(new Date(added!.run.startsAt).getTime());
     expect(await screen.findByText('Run added')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: 'Runs' });
@@ -367,7 +552,16 @@ describe('Job detail page', () => {
 
   it('attaches a running recorded run of the job machine and replaces the manual runs', async () => {
     let attached: AttachMachineRunRequest | undefined;
-    const running = recordedRun({ state: 'running', endedAt: null, estimatedEndAt: iso(30), startedAt: iso(-30), progressPercent: 50, outcome: null, outcomeFromMachine: false, durationSeconds: 3600 });
+    const running = recordedRun({
+      state: 'running',
+      endedAt: null,
+      estimatedEndAt: iso(30),
+      startedAt: iso(-30),
+      progressPercent: 50,
+      outcome: null,
+      outcomeFromMachine: false,
+      durationSeconds: 3600,
+    });
     server.use(
       as(...editor),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
@@ -379,7 +573,7 @@ describe('Job detail page', () => {
         return HttpResponse.json({ items: [running], page: 1, pageSize: 100, total: 1 });
       }),
       http.put(`*/api/v1/machine-runs/${recordedRunId}/job`, async ({ request }) => {
-        attached = await request.json() as AttachMachineRunRequest;
+        attached = (await request.json()) as AttachMachineRunRequest;
         return HttpResponse.json(jobFixture());
       }),
     );
@@ -393,11 +587,17 @@ describe('Job detail page', () => {
     expect(within(dialog).getByRole('checkbox', { name: 'Replace manual runs' })).toBeChecked();
     expect(within(dialog).getByText('Manual runs replaced')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Attach and replace' }));
-    await waitFor(() => expect(attached).toEqual({ machineJobId: jobId, replaceManualRuns: true, expectedJobVersion: 3 }));
+    await waitFor(() =>
+      expect(attached).toEqual({ machineJobId: jobId, replaceManualRuns: true, expectedJobVersion: 3 }),
+    );
   });
 
   it('does not offer to attach a recorded run when the machine has none', async () => {
-    server.use(as(...editor), http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())), noUnassignedRuns);
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+      noUnassignedRuns,
+    );
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     expect(await screen.findByRole('button', { name: 'Add run' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Attach recorded run' })).not.toBeInTheDocument();
@@ -405,13 +605,19 @@ describe('Job detail page', () => {
 
   it('detaches the only recorded run of a job and explains the manual copy', async () => {
     let detached: DetachMachineRunRequest | undefined;
-    const recorded = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true, usages: [usage()] });
+    const recorded = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usagesFromMachine: true,
+      usages: [usage()],
+    });
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded], startedAt: recorded.startedAt }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(jobFixture({ runs: [recorded], startedAt: recorded.startedAt })),
+      ),
       noUnassignedRuns,
       http.delete(`*/api/v1/machine-runs/${recordedRunId}/job`, async ({ request }) => {
-        detached = await request.json() as DetachMachineRunRequest;
+        detached = (await request.json()) as DetachMachineRunRequest;
         return HttpResponse.json(jobFixture());
       }),
     );
@@ -419,26 +625,43 @@ describe('Job detail page', () => {
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000007', 'Detach from job');
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/gets a manual run with the same start, end and outcome, but without material/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/gets a manual run with the same start, end and outcome, but without material/),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Detach' }));
     await waitFor(() => expect(detached).toEqual({ expectedJobVersion: 3 }));
     expect(await screen.findByText('Run detached')).toBeInTheDocument();
   });
 
   it('offers Delete run for a manual run with edit access only, and hides it for recorded runs without machine_jobs.delete', async () => {
-    const recorded = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true });
+    const recorded = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usagesFromMachine: true,
+    });
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), recorded] }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(jobFixture({ runs: [manualRun(), recorded] })),
+      ),
       noUnassignedRuns,
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     const runs = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
-    await user.click(within(runs).getByRole('link', { name: 'RN-2026-000001' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    await user.click(
+      within(runs)
+        .getByRole('link', { name: 'RN-2026-000001' })
+        .closest('tr')!
+        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
+    );
     expect(await screen.findByText('Delete run')).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    await user.click(within(runs).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    await user.click(
+      within(runs)
+        .getByRole('link', { name: 'RN-2026-000007' })
+        .closest('tr')!
+        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
+    );
     expect(await screen.findByText('Detach from job')).toBeInTheDocument();
     expect(screen.queryByText('Delete run')).not.toBeInTheDocument();
     expect(screen.queryByText('Delete job')).not.toBeInTheDocument();
@@ -446,19 +669,29 @@ describe('Job detail page', () => {
 
   it('requires an explicit consumption choice and sends it when a manual run is deleted', async () => {
     let removed: unknown;
-    const second = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', version: 6, usages: [usage({ spoolDisplayId: 'SP-0001' })] });
+    const second = manualRun({
+      id: ids.otherJob,
+      displayId: 'RN-2026-000002',
+      version: 6,
+      usages: [usage({ spoolDisplayId: 'SP-0001' })],
+    });
     server.use(
       as(...editor),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), second] }))),
       noUnassignedRuns,
-      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, async ({ request }) => { removed = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, async ({ request }) => {
+        removed = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000002', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     const confirm = within(dialog).getByRole('button', { name: 'Delete run' });
-    expect(within(dialog).getByRole('radio', { name: 'Reverse consumption (183 g back to SP-0001)' })).not.toBeChecked();
+    expect(
+      within(dialog).getByRole('radio', { name: 'Reverse consumption (183 g back to SP-0001)' }),
+    ).not.toBeChecked();
     expect(within(dialog).getByRole('radio', { name: 'Keep consumption' })).not.toBeChecked();
     expect(confirm).toBeDisabled();
     await user.click(within(dialog).getByRole('radio', { name: 'Keep consumption' }));
@@ -471,7 +704,11 @@ describe('Job detail page', () => {
   it('omits the consumption choice when the run booked no material', async () => {
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(
+          jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }),
+        ),
+      ),
       noUnassignedRuns,
     );
     const user = userEvent.setup();
@@ -500,7 +737,11 @@ describe('Job detail page', () => {
   });
 
   it('shows no Delete job instead without machine_jobs.delete', async () => {
-    server.use(as(...editor), http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())), noUnassignedRuns);
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+      noUnassignedRuns,
+    );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Delete run');
@@ -512,9 +753,15 @@ describe('Job detail page', () => {
   it('treats a last_run answer from the server like the last run', async () => {
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json(
+          jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }),
+        ),
+      ),
       noUnassignedRuns,
-      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, () => HttpResponse.json({ code: 'last_run', message: 'last run' }, { status: 409 })),
+      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, () =>
+        HttpResponse.json({ code: 'last_run', message: 'last run' }, { status: 409 }),
+      ),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -525,7 +772,11 @@ describe('Job detail page', () => {
   });
 
   it('shows Delete job only with machine_jobs.delete', async () => {
-    server.use(as(...editor), http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())), noUnassignedRuns);
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+      noUnassignedRuns,
+    );
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     expect(document.querySelector('.page-header__actions .cds--overflow-menu')).toBeNull();
@@ -534,7 +785,12 @@ describe('Job detail page', () => {
 
   describe('delete job dialog', () => {
     const deleter = [...editor, PermissionId.machine_jobsdelete, PermissionId.ordersread] as const;
-    const recorded = () => recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true, usages: [usage({ id: ids.otherJob, quantity: '40.000', spoolDisplayId: 'SP-0002' })] });
+    const recorded = () =>
+      recordedRun({
+        job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+        usagesFromMachine: true,
+        usages: [usage({ id: ids.otherJob, quantity: '40.000', spoolDisplayId: 'SP-0002' })],
+      });
     const jobWithBoth = () => jobFixture({ runs: [manualRun(), recorded()] });
 
     it('requires the consumption choice, deletes recorded runs by default and sends the payload', async () => {
@@ -542,8 +798,12 @@ describe('Job detail page', () => {
       server.use(
         as(...deleter),
         http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobWithBoth())),
-        orderAssociation(null), noUnassignedRuns,
-        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+        orderAssociation(null),
+        noUnassignedRuns,
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => {
+          body = await request.json();
+          return new HttpResponse(null, { status: 204 });
+        }),
       );
       const user = userEvent.setup();
       renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -557,7 +817,9 @@ describe('Job detail page', () => {
       expect(confirm).toBeDisabled();
       await user.click(within(dialog).getByRole('radio', { name: /Reverse consumption/ }));
       await user.click(confirm);
-      await waitFor(() => expect(body).toEqual({ expectedVersion: 3, reverseConsumption: true, deleteRecordedRuns: true }));
+      await waitFor(() =>
+        expect(body).toEqual({ expectedVersion: 3, reverseConsumption: true, deleteRecordedRuns: true }),
+      );
       expect(await screen.findByText('Job deleted')).toBeInTheDocument();
     });
 
@@ -565,9 +827,15 @@ describe('Job detail page', () => {
       let body: unknown;
       server.use(
         as(...deleter),
-        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] }), recorded()] }))),
-        orderAssociation(null), noUnassignedRuns,
-        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+          HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] }), recorded()] })),
+        ),
+        orderAssociation(null),
+        noUnassignedRuns,
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => {
+          body = await request.json();
+          return new HttpResponse(null, { status: 204 });
+        }),
       );
       const user = userEvent.setup();
       renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -578,14 +846,17 @@ describe('Job detail page', () => {
       await user.click(within(dialog).getByRole('checkbox', { name: /Also delete recorded runs/ }));
       expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument();
       await user.click(within(dialog).getByRole('button', { name: 'Delete job' }));
-      await waitFor(() => expect(body).toEqual({ expectedVersion: 3, reverseConsumption: false, deleteRecordedRuns: false }));
+      await waitFor(() =>
+        expect(body).toEqual({ expectedVersion: 3, reverseConsumption: false, deleteRecordedRuns: false }),
+      );
     });
 
     it('blocks the delete and links the order when the job is on an order', async () => {
       server.use(
         as(...deleter),
         http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
-        orderAssociation('0192f6f8-743e-7c77-a349-cd07c3e8a999'), noUnassignedRuns,
+        orderAssociation('0192f6f8-743e-7c77-a349-cd07c3e8a999'),
+        noUnassignedRuns,
       );
       const user = userEvent.setup();
       renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -594,16 +865,23 @@ describe('Job detail page', () => {
       await user.click(await screen.findByText('Delete job'));
       const dialog = await screen.findByRole('alertdialog');
       expect(await within(dialog).findByText('This job is on an order')).toBeInTheDocument();
-      expect(within(dialog).getByRole('link', { name: /O-2026-0004/ })).toHaveAttribute('href', '/orders/0192f6f8-743e-7c77-a349-cd07c3e8a999');
+      expect(within(dialog).getByRole('link', { name: /O-2026-0004/ })).toHaveAttribute(
+        'href',
+        '/orders/0192f6f8-743e-7c77-a349-cd07c3e8a999',
+      );
       expect(within(dialog).getByRole('button', { name: 'Delete job' })).toBeDisabled();
     });
 
     it('shows the job-on-order notification when the server answers 409 job_on_order', async () => {
       server.use(
         as(...editor, PermissionId.machine_jobsdelete),
-        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] })] }))),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+          HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] })] })),
+        ),
         noUnassignedRuns,
-        http.delete(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json({ code: 'job_on_order', message: 'on order' }, { status: 409 })),
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, () =>
+          HttpResponse.json({ code: 'job_on_order', message: 'on order' }, { status: 409 }),
+        ),
       );
       const user = userEvent.setup();
       renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -619,31 +897,50 @@ describe('Job detail page', () => {
 
   it('offers deleting a recorded run with machine_jobs.delete and warns about a running one', async () => {
     let body: unknown;
-    const running = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, state: 'running', endedAt: null, usages: [], startedAt: iso(-30), estimatedEndAt: iso(30) });
+    const running = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      state: 'running',
+      endedAt: null,
+      usages: [],
+      startedAt: iso(-30),
+      estimatedEndAt: iso(30),
+    });
     server.use(
       as(...editor, PermissionId.machine_jobsdelete),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), running] }))),
       noUnassignedRuns,
-      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000007', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText('Further printer reports for this run are ignored after it is deleted.')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Further printer reports for this run are ignored after it is deleted.'),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete run' }));
     await waitFor(() => expect(body).toEqual({ expectedVersion: running.version, reverseConsumption: false }));
   });
 
   it('offers only the outcome for a recorded run and start, runtime and outcome for a manual one', async () => {
     const updates: UpdateMachineRunRequest[] = [];
-    const recorded = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true, version: 7 });
+    const recorded = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usagesFromMachine: true,
+      version: 7,
+    });
     const job = jobFixture({ runs: [manualRun(), recorded] });
     server.use(
       as(...editor),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(job)),
       noUnassignedRuns,
-      http.patch('*/api/v1/machine-runs/:runId', async ({ request }) => { updates.push(await request.json() as UpdateMachineRunRequest); return HttpResponse.json({ run: recorded, job }); }),
+      http.patch('*/api/v1/machine-runs/:runId', async ({ request }) => {
+        updates.push((await request.json()) as UpdateMachineRunRequest);
+        return HttpResponse.json({ run: recorded, job });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
@@ -669,10 +966,18 @@ describe('Job detail page', () => {
       as(...editor, PermissionId.inventoryread),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
       noUnassignedRuns,
-      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [material], page: 1, pageSize: 100, total: 1, totalInventoryValue: material.inventoryValue })),
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({
+          items: [material],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+          totalInventoryValue: material.inventoryValue,
+        }),
+      ),
       http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.put(`*/api/v1/machine-runs/${manualRunId}/usages`, async ({ request }) => {
-        body = await request.json() as typeof body;
+        body = (await request.json()) as typeof body;
         return HttpResponse.json({ run: manualRun(), job: jobFixture() });
       }),
     );
@@ -684,7 +989,12 @@ describe('Job detail page', () => {
     await user.clear(quantity);
     await user.type(quantity, '200');
     await user.click(within(dialog).getByRole('button', { name: 'Save usage' }));
-    await waitFor(() => expect(body).toMatchObject({ expectedVersion: 2, usages: [{ ownership: 'makerspace', materialId, quantity: '200' }] }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        expectedVersion: 2,
+        usages: [{ ownership: 'makerspace', materialId, quantity: '200' }],
+      }),
+    );
   });
 
   it('edits the outcome override of the job', async () => {
@@ -695,7 +1005,7 @@ describe('Job detail page', () => {
       noUnassignedRuns,
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
       http.patch(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => {
-        updated = await request.json() as typeof updated;
+        updated = (await request.json()) as typeof updated;
         return HttpResponse.json(jobFixture({ outcome: 'failed', outcomeOverridden: true }));
       }),
     );
@@ -719,8 +1029,18 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
       orderAssociation(),
       http.put(`*/api/v1/machine-jobs/${jobId}/price-adjustment`, async ({ request }) => {
-        adjusted = await request.json() as SetMachineJobPriceAdjustmentRequest;
-        return HttpResponse.json(jobFixture({ effectivePrice: '10.00', priceAdjustment: { kind: 'discount_percent', value: '20.0000', reason: 'Member discount', adjustedAt: '2026-09-16T10:00:00Z' } }));
+        adjusted = (await request.json()) as SetMachineJobPriceAdjustmentRequest;
+        return HttpResponse.json(
+          jobFixture({
+            effectivePrice: '10.00',
+            priceAdjustment: {
+              kind: 'discount_percent',
+              value: '20.0000',
+              reason: 'Member discount',
+              adjustedAt: '2026-09-16T10:00:00Z',
+            },
+          }),
+        );
       }),
     );
     const user = userEvent.setup();
@@ -737,18 +1057,33 @@ describe('Job detail page', () => {
     expect(discount).toHaveValue('12,5');
     await user.type(within(dialog).getByLabelText('Reason'), 'Member discount');
     await user.click(within(dialog).getByRole('button', { name: 'Save adjustment' }));
-    await waitFor(() => expect(adjusted).toEqual({ kind: 'discount_percent', value: '12.5', reason: 'Member discount', expectedVersion: 3 }));
+    await waitFor(() =>
+      expect(adjusted).toEqual({
+        kind: 'discount_percent',
+        value: '12.5',
+        reason: 'Member discount',
+        expectedVersion: 3,
+      }),
+    );
     expect(await screen.findByText('Price adjusted')).toBeInTheDocument();
   });
 
   it('shows calculated, adjustment and final price and lets the adjustment be removed', async () => {
     let cleared: VersionRequest | undefined;
-    const adjusted = jobFixture({ effectivePrice: '10.00', priceAdjustment: { kind: 'discount_percent', value: '20.0000', reason: 'Member discount', adjustedAt: '2026-09-16T10:00:00Z' } });
+    const adjusted = jobFixture({
+      effectivePrice: '10.00',
+      priceAdjustment: {
+        kind: 'discount_percent',
+        value: '20.0000',
+        reason: 'Member discount',
+        adjustedAt: '2026-09-16T10:00:00Z',
+      },
+    });
     server.use(
       as(PermissionId.machine_jobsread, PermissionId.machine_jobsoverride_price),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(adjusted)),
       http.delete(`*/api/v1/machine-jobs/${jobId}/price-adjustment`, async ({ request }) => {
-        cleared = await request.json() as VersionRequest;
+        cleared = (await request.json()) as VersionRequest;
         return HttpResponse.json(jobFixture());
       }),
     );
@@ -778,7 +1113,9 @@ describe('Job detail page', () => {
   it('says so when the job does not exist', async () => {
     server.use(
       as(PermissionId.machine_jobsread),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 })),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+        HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 }),
+      ),
     );
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     expect(await screen.findByText('This job does not exist')).toBeInTheDocument();

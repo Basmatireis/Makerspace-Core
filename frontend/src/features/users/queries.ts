@@ -24,10 +24,7 @@ export function personOptions(personId: string) {
   });
 }
 
-export async function refreshPersonData(
-  queryClient: QueryClient,
-  personId: string,
-) {
+export async function refreshPersonData(queryClient: QueryClient, personId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: peopleKeys.lists() }),
     queryClient.invalidateQueries({ queryKey: peopleKeys.detail(personId) }),

@@ -14,8 +14,12 @@ function playerRoute(): Plugin {
   };
   return {
     name: 'player-route',
-    configureServer: (server) => { server.middlewares.use(rewrite); },
-    configurePreviewServer: (server) => { server.middlewares.use(rewrite); },
+    configureServer: (server) => {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer: (server) => {
+      server.middlewares.use(rewrite);
+    },
   };
 }
 
@@ -27,11 +31,16 @@ function playerServiceWorker(): Plugin {
   return {
     name: 'player-service-worker',
     apply: 'build',
-    configResolved: (config) => { outDir = resolve(config.root, config.build.outDir); },
+    configResolved: (config) => {
+      outDir = resolve(config.root, config.build.outDir);
+    },
     closeBundle: {
       order: 'post',
       handler() {
-        const manifest = JSON.parse(readFileSync(resolve(outDir, '.vite/manifest.json'), 'utf8')) as Record<string, { file: string; imports?: string[]; css?: string[] }>;
+        const manifest = JSON.parse(readFileSync(resolve(outDir, '.vite/manifest.json'), 'utf8')) as Record<
+          string,
+          { file: string; imports?: string[]; css?: string[] }
+        >;
         const files = new Set<string>();
         const visit = (key: string) => {
           const chunk = manifest[key];
@@ -46,7 +55,9 @@ function playerServiceWorker(): Plugin {
         const path = resolve(outDir, 'player/sw.js');
         let code = readFileSync(path, 'utf8');
         const before = code;
-        code = code.replace(/(["'`])__PLAYER_SHELL_FILES__\1/, JSON.stringify(list)).replace(/__PLAYER_SHELL_VERSION__/, version);
+        code = code
+          .replace(/(["'`])__PLAYER_SHELL_FILES__\1/, JSON.stringify(list))
+          .replace(/__PLAYER_SHELL_VERSION__/, version);
         if (code === before) throw new Error('player service worker: placeholders not found in player/sw.js');
         writeFileSync(path, code);
       },

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { describeCondition, describeDays, loopSeconds, playlistPosition, resolvePlayback, timeWindowActive, type PlaybackContext, type PlaybackRule } from './playback';
+import {
+  describeCondition,
+  describeDays,
+  loopSeconds,
+  playlistPosition,
+  resolvePlayback,
+  timeWindowActive,
+  type PlaybackContext,
+  type PlaybackRule,
+} from './playback';
 
 const H2D = 'machine-h2d';
 const X1C = 'machine-x1c';
@@ -8,15 +17,39 @@ const monday = (hours: number, minutes = 0) => new Date(2026, 9, 19, hours, minu
 const saturday = (hours: number, minutes = 0) => new Date(2026, 9, 24, hours, minutes);
 
 const base: Omit<PlaybackRule, 'id'> = {
-  kind: 'live_data_unavailable', weekdays: [], timeFrom: null, timeTo: null, machineIds: [], machineMatch: null, announcementTemplateIds: [],
-  targetKind: 'scene', targetId: 'scene-x', minSeconds: 20, multiMode: 'split', alternateSeconds: 10, enabled: true,
+  kind: 'live_data_unavailable',
+  weekdays: [],
+  timeFrom: null,
+  timeTo: null,
+  machineIds: [],
+  machineMatch: null,
+  announcementTemplateIds: [],
+  targetKind: 'scene',
+  targetId: 'scene-x',
+  minSeconds: 20,
+  multiMode: 'split',
+  alternateSeconds: 10,
+  enabled: true,
 };
-const rule = (id: string, patch: Partial<PlaybackRule>): PlaybackRule => ({ ...base, id, targetId: `scene-${id}`, ...patch });
+const rule = (id: string, patch: Partial<PlaybackRule>): PlaybackRule => ({
+  ...base,
+  id,
+  targetId: `scene-${id}`,
+  ...patch,
+});
 const weekdays = rule('time', { kind: 'time_window', weekdays: [1, 2, 3, 4, 5], timeFrom: '08:00', timeTo: '10:00' });
-const printing = (id: string, machineIds: string[], machineMatch: 'any' | 'all', patch: Partial<PlaybackRule> = {}) => rule(id, { kind: 'machine_printing', machineIds, machineMatch, ...patch });
-const announcement = (id: string, announcementTemplateIds: string[] = []) => rule(id, { kind: 'announcement_active', announcementTemplateIds });
+const printing = (id: string, machineIds: string[], machineMatch: 'any' | 'all', patch: Partial<PlaybackRule> = {}) =>
+  rule(id, { kind: 'machine_printing', machineIds, machineMatch, ...patch });
+const announcement = (id: string, announcementTemplateIds: string[] = []) =>
+  rule(id, { kind: 'announcement_active', announcementTemplateIds });
 
-const idle = (now: Date, patch: Partial<PlaybackContext> = {}): PlaybackContext => ({ now, printingMachineIds: [], activeAnnouncementTemplateIds: [], liveDataAvailable: true, ...patch });
+const idle = (now: Date, patch: Partial<PlaybackContext> = {}): PlaybackContext => ({
+  now,
+  printingMachineIds: [],
+  activeAnnouncementTemplateIds: [],
+  liveDataAvailable: true,
+  ...patch,
+});
 const resolve = (rules: PlaybackRule[], context: PlaybackContext) => resolvePlayback('pl-ads', rules, context);
 
 describe('time windows', () => {
@@ -52,7 +85,12 @@ describe('resolvePlayback', () => {
     expect(result.target).toEqual({ kind: 'playlist', id: 'pl-ads' });
   });
   it('matches "any" machines and names the reason', () => {
-    const result = resolvePlayback('pl-ads', [printing('a', [H2D, X1C], 'any')], idle(monday(12), { printingMachineIds: [X1C] }), { machine: (id) => id.replace('machine-', '').toUpperCase(), template: (id) => id });
+    const result = resolvePlayback(
+      'pl-ads',
+      [printing('a', [H2D, X1C], 'any')],
+      idle(monday(12), { printingMachineIds: [X1C] }),
+      { machine: (id) => id.replace('machine-', '').toUpperCase(), template: (id) => id },
+    );
     expect(result.ruleId).toBe('a');
     expect(result.activeMachineIds).toEqual([X1C]);
     expect(result.reason).toBe('Rule 1: any of H2D, X1C printing');
@@ -88,7 +126,9 @@ describe('resolvePlayback', () => {
   it('lets an announcement rule win only by its position in the list', () => {
     const rules = [printing('print', [H2D], 'any'), announcement('notice'), weekdays];
     const closed = ['tpl-closed'];
-    expect(resolve(rules, idle(monday(9), { printingMachineIds: [H2D], activeAnnouncementTemplateIds: closed })).ruleId).toBe('print');
+    expect(
+      resolve(rules, idle(monday(9), { printingMachineIds: [H2D], activeAnnouncementTemplateIds: closed })).ruleId,
+    ).toBe('print');
     expect(resolve(rules, idle(monday(9), { activeAnnouncementTemplateIds: closed })).ruleId).toBe('notice');
     expect(resolve(rules, idle(monday(9))).ruleId).toBe('time');
   });
@@ -96,7 +136,9 @@ describe('resolvePlayback', () => {
     const rules = [announcement('closed', ['tpl-closed']), announcement('any')];
     expect(resolve(rules, idle(monday(12), { activeAnnouncementTemplateIds: ['tpl-closed'] })).ruleId).toBe('closed');
     expect(resolve(rules, idle(monday(12), { activeAnnouncementTemplateIds: ['tpl-other'] })).ruleId).toBe('any');
-    expect(resolve([rules[0]], idle(monday(12), { activeAnnouncementTemplateIds: ['tpl-other'] })).ruleId).toBe('default');
+    expect(resolve([rules[0]], idle(monday(12), { activeAnnouncementTemplateIds: ['tpl-other'] })).ruleId).toBe(
+      'default',
+    );
   });
   it('matches the live-data rule only while live data is unavailable', () => {
     const rules = [rule('stale', {})];
@@ -104,8 +146,17 @@ describe('resolvePlayback', () => {
     expect(resolve(rules, idle(monday(12), { liveDataAvailable: false })).ruleId).toBe('stale');
   });
   it('reports the printing machines and the rule settings of the winner', () => {
-    const result = resolve([rule('a', { kind: 'live_data_unavailable', multiMode: 'alternate', alternateSeconds: 15, minSeconds: 30 })], idle(monday(12), { printingMachineIds: [H2D, X1C], liveDataAvailable: false }));
-    expect(result).toMatchObject({ activeMachineIds: [H2D, X1C], multiMode: 'alternate', alternateSeconds: 15, minSeconds: 30, rulePosition: 1 });
+    const result = resolve(
+      [rule('a', { kind: 'live_data_unavailable', multiMode: 'alternate', alternateSeconds: 15, minSeconds: 30 })],
+      idle(monday(12), { printingMachineIds: [H2D, X1C], liveDataAvailable: false }),
+    );
+    expect(result).toMatchObject({
+      activeMachineIds: [H2D, X1C],
+      multiMode: 'alternate',
+      alternateSeconds: 15,
+      minSeconds: 30,
+      rulePosition: 1,
+    });
   });
 });
 

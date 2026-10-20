@@ -17,20 +17,31 @@ class FakePeer {
   onconnectionstatechange: (() => void) | null = null;
   closed = false;
   stream = { id: 'stream' };
-  constructor() { FakePeer.all.push(this); }
+  constructor() {
+    FakePeer.all.push(this);
+  }
   addEventListener() {}
   removeEventListener() {}
   addTransceiver() {}
-  async createOffer() { return { type: 'offer', sdp: 'v=0 offer' }; }
+  async createOffer() {
+    return { type: 'offer', sdp: 'v=0 offer' };
+  }
   async setLocalDescription() {}
-  async setRemoteDescription() { if (FakePeer.autoConnect) this.up(); }
+  async setRemoteDescription() {
+    if (FakePeer.autoConnect) this.up();
+  }
   up() {
     this.ontrack?.({ streams: [this.stream], track: {} });
     this.connectionState = 'connected';
     this.onconnectionstatechange?.();
   }
-  drop() { this.connectionState = 'failed'; this.onconnectionstatechange?.(); }
-  close() { this.closed = true; }
+  drop() {
+    this.connectionState = 'failed';
+    this.onconnectionstatechange?.();
+  }
+  close() {
+    this.closed = true;
+  }
 }
 
 class FakeSocket {
@@ -42,10 +53,18 @@ class FakeSocket {
   onmessage: ((event: { data: unknown }) => void) | null = null;
   sent: string[] = [];
   closed = false;
-  constructor(readonly url: string) { FakeSocket.all.push(this); }
-  send(text: string) { this.sent.push(text); }
-  close() { this.closed = true; }
-  receive(data: unknown) { this.onmessage?.({ data }); }
+  constructor(readonly url: string) {
+    FakeSocket.all.push(this);
+  }
+  send(text: string) {
+    this.sent.push(text);
+  }
+  close() {
+    this.closed = true;
+  }
+  receive(data: unknown) {
+    this.onmessage?.({ data });
+  }
 }
 
 class FakeBuffer {
@@ -53,7 +72,9 @@ class FakeBuffer {
   mode = '';
   appended: unknown[] = [];
   addEventListener() {}
-  appendBuffer(data: unknown) { this.appended.push(data); }
+  appendBuffer(data: unknown) {
+    this.appended.push(data);
+  }
   remove() {}
 }
 
@@ -63,10 +84,18 @@ class FakeMediaSource {
   readyState = 'open';
   buffer = new FakeBuffer();
   private opener: (() => void) | null = null;
-  constructor() { FakeMediaSource.last = this; }
-  addEventListener(_name: string, listener: () => void) { this.opener = listener; }
-  open() { this.opener?.(); }
-  addSourceBuffer() { return this.buffer; }
+  constructor() {
+    FakeMediaSource.last = this;
+  }
+  addEventListener(_name: string, listener: () => void) {
+    this.opener = listener;
+  }
+  open() {
+    this.opener?.();
+  }
+  addSourceBuffer() {
+    return this.buffer;
+  }
   endOfStream() {}
 }
 
@@ -85,21 +114,38 @@ const env: StreamEnv = {
   fetch: fakeFetch,
 };
 
-const stream = (machineId = MACHINE, ticket = 'ticket-1'): LiveStreams[number] => ({
-  machineId, ticket, expiresAt: new Date(Date.now() + 300_000).toISOString(),
-  webrtcUrl: `https://gw.example.org:8443/api/webrtc?src=cam-${machineId}`, mseUrl: `wss://gw.example.org:8443/api/ws?src=cam-${machineId}`,
-} as LiveStreams[number]);
+const stream = (machineId = MACHINE, ticket = 'ticket-1'): LiveStreams[number] =>
+  ({
+    machineId,
+    ticket,
+    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    webrtcUrl: `https://gw.example.org:8443/api/webrtc?src=cam-${machineId}`,
+    mseUrl: `wss://gw.example.org:8443/api/ws?src=cam-${machineId}`,
+  }) as LiveStreams[number];
 
-const settle = (ms = 0) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+const settle = (ms = 0) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
 
 describe('CameraManager', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-    FakePeer.all = []; FakePeer.autoConnect = true; FakeSocket.all = []; fetchCalls.length = 0; fetchPlan = { status: 200 };
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:camera', revokeObjectURL: () => undefined }));
+    FakePeer.all = [];
+    FakePeer.autoConnect = true;
+    FakeSocket.all = [];
+    fetchCalls.length = 0;
+    fetchPlan = { status: 200 };
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: () => 'blob:camera', revokeObjectURL: () => undefined }),
+    );
     HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
   });
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it('offers no stream for a machine without a ticket', () => {
     const manager = new CameraManager({ env });
@@ -113,7 +159,18 @@ describe('CameraManager', () => {
   it('connects over WebRTC with the ticket as query parameter and shows the stream muted and inline', async () => {
     const manager = new CameraManager({ env });
     manager.setStreams([stream()]);
-    const view = render(<>{manager.view({ machineId: MACHINE, name: 'Prusa', state: 'printing', progressPercent: null, remainingMinutes: null, stale: false })}</>);
+    const view = render(
+      <>
+        {manager.view({
+          machineId: MACHINE,
+          name: 'Prusa',
+          state: 'printing',
+          progressPercent: null,
+          remainingMinutes: null,
+          stale: false,
+        })}
+      </>,
+    );
     await settle();
     expect(fetchCalls).toHaveLength(1);
     const url = new URL(fetchCalls[0].url);

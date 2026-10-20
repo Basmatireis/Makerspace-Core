@@ -34,17 +34,39 @@ export function RefLink({ reference, id, kind: knownKind, children, onNavigate }
   const to = refRoute(kind, id);
   if (to === pathname) return <>{label}</>;
   return (
-    <CarbonLink as={Link} to={to} inline onClick={(event: MouseEvent) => { event.stopPropagation(); onNavigate?.(); }}>{label}</CarbonLink>
+    <CarbonLink
+      as={Link}
+      to={to}
+      inline
+      onClick={(event: MouseEvent) => {
+        event.stopPropagation();
+        onNavigate?.();
+      }}
+    >
+      {label}
+    </CarbonLink>
   );
 }
 
 /** Renders generated text (summaries, reasons, messages) and turns every reference listed in `targets` into a RefLink. */
-export function LinkifiedText({ text, targets, onNavigate }: { text: string; targets: RefTargets; onNavigate?: () => void }) {
+export function LinkifiedText({
+  text,
+  targets,
+  onNavigate,
+}: {
+  text: string;
+  targets: RefTargets;
+  onNavigate?: () => void;
+}) {
   return (
     <>
-      {splitRefs(text).map((part, index) => index % 2 === 1
-        ? <RefLink key={index} reference={part} id={targets[part]} onNavigate={onNavigate} />
-        : <Fragment key={index}>{part}</Fragment>)}
+      {splitRefs(text).map((part, index) =>
+        index % 2 === 1 ? (
+          <RefLink key={index} reference={part} id={targets[part]} onNavigate={onNavigate} />
+        ) : (
+          <Fragment key={index}>{part}</Fragment>
+        ),
+      )}
     </>
   );
 }

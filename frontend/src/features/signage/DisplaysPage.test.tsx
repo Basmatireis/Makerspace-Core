@@ -9,8 +9,20 @@ import { server } from '../../test/server';
 import { displayFixture, ids, mockSignage } from './testFixtures';
 
 const offline = displayFixture({
-  id: '0192f6f8-743e-7c77-a349-cd07c3e8a152', name: 'Laser room', location: '', orientation: 'landscape', resolution: { width: 1920, height: 1080 }, status: 'offline',
-  lastHeartbeatAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), publishedRevision: 1, pendingChanges: [{ kind: 'scene', name: 'Open days poster', change: 'modified' }, { kind: 'rule', name: '', change: 'added' }], currentRule: null, currentSceneId: null,
+  id: '0192f6f8-743e-7c77-a349-cd07c3e8a152',
+  name: 'Laser room',
+  location: '',
+  orientation: 'landscape',
+  resolution: { width: 1920, height: 1080 },
+  status: 'offline',
+  lastHeartbeatAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+  publishedRevision: 1,
+  pendingChanges: [
+    { kind: 'scene', name: 'Open days poster', change: 'modified' },
+    { kind: 'rule', name: '', change: 'added' },
+  ],
+  currentRule: null,
+  currentSceneId: null,
 });
 
 describe('Displays page', () => {
@@ -47,7 +59,12 @@ describe('Displays page', () => {
   it('pairs a display by code and opens it', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     let body: unknown;
-    server.use(http.post('*/api/v1/signage/displays', async ({ request }) => { body = await request.json(); return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/displays', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Pair display' }));
@@ -57,16 +74,29 @@ describe('Displays page', () => {
     await user.click(within(dialog).getByRole('radio', { name: 'Portrait' }));
     await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
-    await waitFor(() => expect(body).toEqual({
-      code: 'K7F2QX', name: 'Workshop', location: '', orientation: 'portrait', resolution: { width: 1080, height: 1920 }, visibleFromOutside: false, defaultPlaylistId: ids.playlist,
-    }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        code: 'K7F2QX',
+        name: 'Workshop',
+        location: '',
+        orientation: 'portrait',
+        resolution: { width: 1080, height: 1920 },
+        visibleFromOutside: false,
+        defaultPlaylistId: ids.playlist,
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
   });
 
   it('submits the pair modal on Enter from a single-line field', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     let posts = 0;
-    server.use(http.post('*/api/v1/signage/displays', () => { posts += 1; return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/displays', () => {
+        posts += 1;
+        return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Pair display' }));
@@ -95,7 +125,10 @@ describe('Displays page', () => {
     expect(code).toHaveValue('K7F2QX');
   });
 
-  it.each([[422, { code: 'pairing_code_invalid', message: 'The code is not valid' }], [429, { code: 'rate_limited', message: 'Too many attempts' }]])('answers a rejected code (%s) the same way', async (status, error) => {
+  it.each([
+    [422, { code: 'pairing_code_invalid', message: 'The code is not valid' }],
+    [429, { code: 'rate_limited', message: 'Too many attempts' }],
+  ])('answers a rejected code (%s) the same way', async (status, error) => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     server.use(http.post('*/api/v1/signage/displays', () => HttpResponse.json(error, { status })));
     renderRoute(<App />, '/signage');
@@ -113,7 +146,12 @@ describe('Displays page', () => {
   it('checks the code format before sending', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage]);
     let posts = 0;
-    server.use(http.post('*/api/v1/signage/displays', () => { posts += 1; return HttpResponse.json(displayFixture(), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/displays', () => {
+        posts += 1;
+        return HttpResponse.json(displayFixture(), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Pair display' }));
@@ -127,10 +165,19 @@ describe('Displays page', () => {
   it('deletes an active display from its row action', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     let deleted: unknown;
-    server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete('*/api/v1/signage/displays/:id', async ({ request }) => {
+        deleted = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     renderRoute(<App />, '/signage');
     const user = userEvent.setup();
-    await user.click(within(await screen.findByRole('group', { name: 'Actions for Entrance window' })).getByRole('button', { name: 'Delete' }));
+    await user.click(
+      within(await screen.findByRole('group', { name: 'Actions for Entrance window' })).getByRole('button', {
+        name: 'Delete',
+      }),
+    );
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
   });

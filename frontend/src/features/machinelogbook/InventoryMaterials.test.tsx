@@ -5,7 +5,16 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { CreateMaterialRequest, FilamentProduct, FilamentProductInput, InventoryTransaction, MarkMaterialEmptyRequest, Material, MaterialType, UpdateFilamentProductRequest } from '../../api/generated/models';
+import type {
+  CreateMaterialRequest,
+  FilamentProduct,
+  FilamentProductInput,
+  InventoryTransaction,
+  MarkMaterialEmptyRequest,
+  Material,
+  MaterialType,
+  UpdateFilamentProductRequest,
+} from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
@@ -18,12 +27,22 @@ const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
 // The spools tab, its table and the spool dialogs are covered with the spools screens.
 vi.mock('./components/InventorySpoolsTable', () => ({
-  InventorySpoolsTable: ({ materialId, compact, switcher }: { materialId?: string; compact?: boolean; switcher?: ReactNode }) => (
-    <div data-testid="spools-table" data-material={materialId ?? ''} data-compact={String(Boolean(compact))}>{switcher}</div>
+  InventorySpoolsTable: ({
+    materialId,
+    compact,
+    switcher,
+  }: {
+    materialId?: string;
+    compact?: boolean;
+    switcher?: ReactNode;
+  }) => (
+    <div data-testid="spools-table" data-material={materialId ?? ''} data-compact={String(Boolean(compact))}>
+      {switcher}
+    </div>
   ),
 }));
 vi.mock('./dialogs/SpoolFormModal', () => ({
-  SpoolFormModal: ({ open }: { open: boolean }) => open ? <div role="dialog" aria-label="Spool form stub" /> : null,
+  SpoolFormModal: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Spool form stub" /> : null),
 }));
 
 const ids = {
@@ -36,46 +55,147 @@ const ids = {
 };
 
 const filament: Material = {
-  id: ids.pla, name: 'PLA Black', materialTypeId: ids.plaType, materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '1000',
-  quantity: '6107', assignedQuantity: '5000', unassignedQuantity: '1107', filamentDiameterMm: '1.75', averageUnitCost: '0.018', inventoryValue: '109.93',
-  stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '240', version: 3, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-09-15T11:26:00Z',
+  id: ids.pla,
+  name: 'PLA Black',
+  materialTypeId: ids.plaType,
+  materialTypeName: 'PLA',
+  colorName: 'Black',
+  colorHex: '#1A1A1A',
+  unit: 'g',
+  active: true,
+  lowStockThreshold: '1000',
+  quantity: '6107',
+  assignedQuantity: '5000',
+  unassignedQuantity: '1107',
+  filamentDiameterMm: '1.75',
+  averageUnitCost: '0.018',
+  inventoryValue: '109.93',
+  stockState: 'in_stock',
+  inventoryVersion: 7,
+  recentConsumption: '240',
+  version: 3,
+  createdAt: '2026-08-01T00:00:00Z',
+  updatedAt: '2026-09-15T11:26:00Z',
 };
 const sheet: Material = {
-  ...filament, id: ids.sheet, name: 'Birch plywood', materialTypeId: ids.sheetType, materialTypeName: 'Plywood', colorName: null, colorHex: null, unit: 'm2', lowStockThreshold: null, quantity: '12', assignedQuantity: '0', unassignedQuantity: '12',
-  filamentDiameterMm: null, averageUnitCost: '9', inventoryValue: '108', inventoryVersion: 4, version: 1,
+  ...filament,
+  id: ids.sheet,
+  name: 'Birch plywood',
+  materialTypeId: ids.sheetType,
+  materialTypeName: 'Plywood',
+  colorName: null,
+  colorHex: null,
+  unit: 'm2',
+  lowStockThreshold: null,
+  quantity: '12',
+  assignedQuantity: '0',
+  unassignedQuantity: '12',
+  filamentDiameterMm: null,
+  averageUnitCost: '9',
+  inventoryValue: '108',
+  inventoryVersion: 4,
+  version: 1,
 };
 const product: FilamentProduct = {
-  id: ids.product, manufacturer: 'Bambu Lab', name: 'PLA Basic Black', materialId: ids.pla, materialName: 'PLA Black', netWeightG: '1000', defaultPrice: '19.99', packaging: 'spool',
-  notes: null, active: true, inUseCount: 2, version: 5, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z',
+  id: ids.product,
+  manufacturer: 'Bambu Lab',
+  name: 'PLA Basic Black',
+  materialId: ids.pla,
+  materialName: 'PLA Black',
+  netWeightG: '1000',
+  defaultPrice: '19.99',
+  packaging: 'spool',
+  notes: null,
+  active: true,
+  inUseCount: 2,
+  version: 5,
+  createdAt: '2026-08-01T00:00:00Z',
+  updatedAt: '2026-08-01T00:00:00Z',
 };
 
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
 
 function transaction(overrides: Partial<InventoryTransaction>): InventoryTransaction {
   return {
-    id: '0192f6f8-743e-7c77-a349-cd07c3e8d100', materialId: ids.pla, kind: 'purchase', quantityDelta: '1000', unitAcquisitionCost: '0.02', inventoryValueDelta: '20', totalPurchasePrice: '20',
-    occurredAt: '2026-09-10T10:00:00Z', supplier: null, note: null, adjustmentReason: null, machineJobId: null, machineJobDisplayId: null, spoolId: null, spoolDisplayId: null, fillNumber: null,
-    fromSpoolId: null, fromSpoolDisplayId: null, fromFillNumber: null, toSpoolId: null, toSpoolDisplayId: null, toFillNumber: null, transferQuantity: null, createdAt: '2026-09-10T10:00:00Z',
+    id: '0192f6f8-743e-7c77-a349-cd07c3e8d100',
+    materialId: ids.pla,
+    kind: 'purchase',
+    quantityDelta: '1000',
+    unitAcquisitionCost: '0.02',
+    inventoryValueDelta: '20',
+    totalPurchasePrice: '20',
+    occurredAt: '2026-09-10T10:00:00Z',
+    supplier: null,
+    note: null,
+    adjustmentReason: null,
+    machineJobId: null,
+    machineJobDisplayId: null,
+    spoolId: null,
+    spoolDisplayId: null,
+    fillNumber: null,
+    fromSpoolId: null,
+    fromSpoolDisplayId: null,
+    fromFillNumber: null,
+    toSpoolId: null,
+    toSpoolDisplayId: null,
+    toFillNumber: null,
+    transferQuantity: null,
+    createdAt: '2026-09-10T10:00:00Z',
     ...overrides,
   };
 }
 
 function renderPage(element: React.ReactElement, path: string, route = '*') {
   const queryClient = testQueryClient();
-  const router = createMemoryRouter([{ path: route, element: <ToastProvider>{element}</ToastProvider> }], { initialEntries: [path] });
-  render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>);
+  const router = createMemoryRouter([{ path: route, element: <ToastProvider>{element}</ToastProvider> }], {
+    initialEntries: [path],
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
   return { router };
 }
 
 const materialTypes: MaterialType[] = [
-  { id: ids.plaType, name: 'PLA', unit: 'g', processes: ['fdm_printing'], active: true, materialCount: 1, pricingRuleCount: 2, version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
-  { id: ids.sheetType, name: 'Plywood', unit: 'm2', processes: ['laser_cutting'], active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
+  {
+    id: ids.plaType,
+    name: 'PLA',
+    unit: 'g',
+    processes: ['fdm_printing'],
+    active: true,
+    materialCount: 1,
+    pricingRuleCount: 2,
+    version: 2,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: ids.sheetType,
+    name: 'Plywood',
+    unit: 'm2',
+    processes: ['laser_cutting'],
+    active: true,
+    materialCount: 1,
+    pricingRuleCount: 0,
+    version: 1,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
 ];
 
 function serveInventory(materials: Material[] = [filament, sheet], products: FilamentProduct[] = [product]) {
   server.use(
     http.get('*/api/v1/materials', () => HttpResponse.json({ ...page(materials), totalInventoryValue: '218' })),
-    http.get('*/api/v1/filament-spools', () => HttpResponse.json(page([{ id: ids.spool, materialId: ids.pla }, { id: ids.spool + '1', materialId: ids.pla }]))),
+    http.get('*/api/v1/filament-spools', () =>
+      HttpResponse.json(
+        page([
+          { id: ids.spool, materialId: ids.pla },
+          { id: ids.spool + '1', materialId: ids.pla },
+        ]),
+      ),
+    ),
     http.get('*/api/v1/filament-products', () => HttpResponse.json(page(products))),
     http.get('*/api/v1/material-types', () => HttpResponse.json({ items: materialTypes })),
   );
@@ -107,7 +227,13 @@ describe('Inventory page', () => {
     const plaRow = (await within(table).findByRole('link', { name: 'PLA Black' })).closest('tr') as HTMLElement;
     expect(within(plaRow).getByText('6,107 g')).toBeInTheDocument();
     expect(within(plaRow).getByText('5,000 g on spools · 1,107 g loose')).toBeInTheDocument();
-    await waitFor(() => expect(within(plaRow).getAllByRole('cell').some((cell) => cell.textContent === '2')).toBe(true));
+    await waitFor(() =>
+      expect(
+        within(plaRow)
+          .getAllByRole('cell')
+          .some((cell) => cell.textContent === '2'),
+      ).toBe(true),
+    );
     const sheetRow = within(table).getByRole('link', { name: 'Birch plywood' }).closest('tr') as HTMLElement;
     expect(within(sheetRow).getByText('12 m²')).toBeInTheDocument();
     expect(within(sheetRow).queryByText(/on spools/)).not.toBeInTheDocument();
@@ -128,10 +254,12 @@ describe('Inventory page', () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveInventory([]);
     let submitted: CreateMaterialRequest | undefined;
-    server.use(http.post('*/api/v1/materials', async ({ request }) => {
-      submitted = await request.json() as CreateMaterialRequest;
-      return HttpResponse.json({ ...filament, ...submitted, id: ids.pla + '9' }, { status: 201 });
-    }));
+    server.use(
+      http.post('*/api/v1/materials', async ({ request }) => {
+        submitted = (await request.json()) as CreateMaterialRequest;
+        return HttpResponse.json({ ...filament, ...submitted, id: ids.pla + '9' }, { status: 201 });
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory());
     // The toolbar button comes first; the empty state repeats it.
@@ -144,7 +272,16 @@ describe('Inventory page', () => {
     await user.type(within(dialog).getByLabelText('Filament diameter in mm (optional)'), '1.75');
     await user.type(within(dialog).getByLabelText('Low-stock threshold in g (optional)'), '1,5');
     await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
-    await waitFor(() => expect(submitted).toEqual({ name: 'PETG Clear', materialTypeId: ids.plaType, colorName: 'Clear', colorHex: '#DDE8EE', lowStockThreshold: '1.5', filamentDiameterMm: '1.75' }));
+    await waitFor(() =>
+      expect(submitted).toEqual({
+        name: 'PETG Clear',
+        materialTypeId: ids.plaType,
+        colorName: 'Clear',
+        colorHex: '#DDE8EE',
+        lowStockThreshold: '1.5',
+        filamentDiameterMm: '1.75',
+      }),
+    );
     expect(await screen.findByText('Material added')).toBeInTheDocument();
   });
 
@@ -164,10 +301,15 @@ describe('Inventory page', () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveInventory();
     let submitted: FilamentProductInput | undefined;
-    server.use(http.post('*/api/v1/filament-products', async ({ request }) => {
-      submitted = await request.json() as FilamentProductInput;
-      return HttpResponse.json({ ...product, ...submitted, id: ids.product + '9', inUseCount: 0, version: 1 }, { status: 201 });
-    }));
+    server.use(
+      http.post('*/api/v1/filament-products', async ({ request }) => {
+        submitted = (await request.json()) as FilamentProductInput;
+        return HttpResponse.json(
+          { ...product, ...submitted, id: ids.product + '9', inUseCount: 0, version: 1 },
+          { status: 201 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory('products'));
     await user.click(await screen.findByRole('button', { name: 'Add product' }));
@@ -178,7 +320,17 @@ describe('Inventory page', () => {
     await user.type(within(dialog).getByLabelText('Default price (€, optional)'), '24.5');
     await user.click(within(dialog).getByLabelText(/Refill/));
     await user.click(within(dialog).getByRole('button', { name: 'Add product' }));
-    await waitFor(() => expect(submitted).toEqual({ manufacturer: 'Prusament', name: 'PETG Orange', materialId: ids.pla, netWeightG: '1000', defaultPrice: '24.50', packaging: 'refill', notes: null }));
+    await waitFor(() =>
+      expect(submitted).toEqual({
+        manufacturer: 'Prusament',
+        name: 'PETG Orange',
+        materialId: ids.pla,
+        netWeightG: '1000',
+        defaultPrice: '24.50',
+        packaging: 'refill',
+        notes: null,
+      }),
+    );
     expect(await screen.findByText('Product added')).toBeInTheDocument();
   });
 
@@ -186,10 +338,15 @@ describe('Inventory page', () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveInventory();
     const submissions: UpdateFilamentProductRequest[] = [];
-    server.use(http.patch(`*/api/v1/filament-products/${ids.product}`, async ({ request }) => {
-      submissions.push(await request.json() as UpdateFilamentProductRequest);
-      return HttpResponse.json({ code: 'product_exists', message: 'A product with this manufacturer and name already exists' }, { status: 409 });
-    }));
+    server.use(
+      http.patch(`*/api/v1/filament-products/${ids.product}`, async ({ request }) => {
+        submissions.push((await request.json()) as UpdateFilamentProductRequest);
+        return HttpResponse.json(
+          { code: 'product_exists', message: 'A product with this manufacturer and name already exists' },
+          { status: 409 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory('products'));
     await user.click(await screen.findByRole('button', { name: 'PLA Basic Black' }));
@@ -201,8 +358,19 @@ describe('Inventory page', () => {
     await user.type(name, 'PLA Matte Black');
     await user.click(within(dialog).getByRole('button', { name: 'Save product' }));
     await waitFor(() => expect(submissions).toHaveLength(1));
-    expect(submissions[0]).toMatchObject({ manufacturer: 'Bambu Lab', name: 'PLA Matte Black', materialId: ids.pla, netWeightG: '1000', defaultPrice: '19.99', packaging: 'spool', active: true, expectedVersion: 5 });
-    expect(await within(dialog).findByText('This manufacturer already has a product with this name.')).toBeInTheDocument();
+    expect(submissions[0]).toMatchObject({
+      manufacturer: 'Bambu Lab',
+      name: 'PLA Matte Black',
+      materialId: ids.pla,
+      netWeightG: '1000',
+      defaultPrice: '19.99',
+      packaging: 'spool',
+      active: true,
+      expectedVersion: 5,
+    });
+    expect(
+      await within(dialog).findByText('This manufacturer already has a product with this name.'),
+    ).toBeInTheDocument();
     expect(JSON.stringify(submissions)).not.toContain(ids.product);
   });
 });
@@ -213,7 +381,9 @@ describe('Material detail page', () => {
       http.get(`*/api/v1/materials/${material.id}`, () => HttpResponse.json(material)),
       http.get(`*/api/v1/materials/${material.id}/transactions`, () => HttpResponse.json(page(transactions))),
       http.get('*/api/v1/filament-products', () => HttpResponse.json(page([product]))),
-      http.get('*/api/v1/materials', () => HttpResponse.json({ ...page([filament, sheet]), totalInventoryValue: '218' })),
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({ ...page([filament, sheet]), totalInventoryValue: '218' }),
+      ),
     );
   }
   const route = '/machine-logbook/inventory/materials/:materialId';
@@ -248,10 +418,46 @@ describe('Material detail page', () => {
   it('writes spool snapshots and transfers into the ledger as text', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveMaterial(filament, [
-      transaction({ id: ids.spool + 'a', kind: 'purchase', spoolId: null, spoolDisplayId: 'S-2026-000007', fillNumber: 2, occurredAt: '2026-09-12T10:00:00Z' }),
-      transaction({ id: ids.spool + 'b', kind: 'spool_transfer', quantityDelta: '0', inventoryValueDelta: '0', transferQuantity: '1000', toSpoolId: ids.spool, toSpoolDisplayId: 'S-2026-000008', toFillNumber: 1, occurredAt: '2026-09-11T10:00:00Z' }),
-      transaction({ id: ids.spool + 'c', kind: 'spool_transfer', quantityDelta: '0', inventoryValueDelta: '0', transferQuantity: '37', fromSpoolId: ids.spool, fromSpoolDisplayId: 'S-2026-000008', fromFillNumber: 1, occurredAt: '2026-09-10T12:00:00Z' }),
-      transaction({ id: ids.spool + 'd', kind: 'spool_transfer', quantityDelta: '0', inventoryValueDelta: '0', transferQuantity: '500', toSpoolId: null, toSpoolDisplayId: 'S-2026-000009', occurredAt: '2026-09-09T12:00:00Z' }),
+      transaction({
+        id: ids.spool + 'a',
+        kind: 'purchase',
+        spoolId: null,
+        spoolDisplayId: 'S-2026-000007',
+        fillNumber: 2,
+        occurredAt: '2026-09-12T10:00:00Z',
+      }),
+      transaction({
+        id: ids.spool + 'b',
+        kind: 'spool_transfer',
+        quantityDelta: '0',
+        inventoryValueDelta: '0',
+        transferQuantity: '1000',
+        toSpoolId: ids.spool,
+        toSpoolDisplayId: 'S-2026-000008',
+        toFillNumber: 1,
+        occurredAt: '2026-09-11T10:00:00Z',
+      }),
+      transaction({
+        id: ids.spool + 'c',
+        kind: 'spool_transfer',
+        quantityDelta: '0',
+        inventoryValueDelta: '0',
+        transferQuantity: '37',
+        fromSpoolId: ids.spool,
+        fromSpoolDisplayId: 'S-2026-000008',
+        fromFillNumber: 1,
+        occurredAt: '2026-09-10T12:00:00Z',
+      }),
+      transaction({
+        id: ids.spool + 'd',
+        kind: 'spool_transfer',
+        quantityDelta: '0',
+        inventoryValueDelta: '0',
+        transferQuantity: '500',
+        toSpoolId: null,
+        toSpoolDisplayId: 'S-2026-000009',
+        occurredAt: '2026-09-09T12:00:00Z',
+      }),
     ]);
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
 
@@ -263,29 +469,47 @@ describe('Material detail page', () => {
     // A deleted spool is plain text, an existing one links to its page.
     const deleted = within(ledger).getByText('S-2026-000007 (deleted) · fill 2');
     expect(deleted.closest('a')).toBeNull();
-    expect(within(ledger).getAllByRole('link', { name: /S-2026-000008/ })[0]).toHaveAttribute('href', machineLogbookPaths.spool(ids.spool));
+    expect(within(ledger).getAllByRole('link', { name: /S-2026-000008/ })[0]).toHaveAttribute(
+      'href',
+      machineLogbookPaths.spool(ids.spool),
+    );
   });
 
   it('labels the stock a machine run consumed and names the job it belongs to', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.machine_jobsread];
     serveMaterial(filament, [
-      transaction({ id: ids.spool + 'e', kind: 'machine_run_consumption', quantityDelta: '-183', machineJobId: ids.spool, machineJobDisplayId: 'J-2026-000001', occurredAt: '2026-09-12T10:00:00Z' }),
+      transaction({
+        id: ids.spool + 'e',
+        kind: 'machine_run_consumption',
+        quantityDelta: '-183',
+        machineJobId: ids.spool,
+        machineJobDisplayId: 'J-2026-000001',
+        occurredAt: '2026-09-12T10:00:00Z',
+      }),
     ]);
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
 
     const ledger = await screen.findByRole('table', { name: 'Ledger' });
     expect(await within(ledger).findByText('Run consumption')).toBeInTheDocument();
-    expect(within(ledger).getByRole('link', { name: 'J-2026-000001' })).toHaveAttribute('href', machineLogbookPaths.job(ids.spool));
+    expect(within(ledger).getByRole('link', { name: 'J-2026-000001' })).toHaveAttribute(
+      'href',
+      machineLogbookPaths.job(ids.spool),
+    );
   });
 
   it('asks for confirmation and sends the latest inventory version when marking a material empty', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(sheet);
     let submitted: MarkMaterialEmptyRequest | undefined;
-    server.use(http.post(`*/api/v1/materials/${ids.sheet}/mark-empty`, async ({ request }) => {
-      submitted = await request.json() as MarkMaterialEmptyRequest;
-      return HttpResponse.json({ material: { ...sheet, quantity: '0', stockState: 'empty', inventoryVersion: 5 }, transaction: transaction({ materialId: ids.sheet, kind: 'adjustment', quantityDelta: '-12' }) });
-    }));
+    server.use(
+      http.post(`*/api/v1/materials/${ids.sheet}/mark-empty`, async ({ request }) => {
+        submitted = (await request.json()) as MarkMaterialEmptyRequest;
+        return HttpResponse.json({
+          material: { ...sheet, quantity: '0', stockState: 'empty', inventoryVersion: 5 },
+          transaction: transaction({ materialId: ids.sheet, kind: 'adjustment', quantityDelta: '-12' }),
+        });
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.sheet), route);
 
@@ -304,10 +528,15 @@ describe('Material detail page', () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(filament);
     let submitted: Record<string, unknown> | undefined;
-    server.use(http.post(`*/api/v1/materials/${ids.pla}/consumptions`, async ({ request }) => {
-      submitted = await request.json() as Record<string, unknown>;
-      return HttpResponse.json({ material: filament, transaction: transaction({ kind: 'manual_consumption', quantityDelta: '-100' }) }, { status: 201 });
-    }));
+    server.use(
+      http.post(`*/api/v1/materials/${ids.pla}/consumptions`, async ({ request }) => {
+        submitted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { material: filament, transaction: transaction({ kind: 'manual_consumption', quantityDelta: '-100' }) },
+          { status: 201 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
 
@@ -323,17 +552,24 @@ describe('Material detail page', () => {
     await user.clear(within(dialog).getByLabelText('Quantity used (g)'));
     await user.type(within(dialog).getByLabelText('Quantity used (g)'), '100');
     await user.click(within(dialog).getByRole('button', { name: 'Record consumption' }));
-    await waitFor(() => expect(submitted).toMatchObject({ quantity: '100', disposal: false, reason: null, expectedInventoryVersion: 7 }));
+    await waitFor(() =>
+      expect(submitted).toMatchObject({ quantity: '100', disposal: false, reason: null, expectedInventoryVersion: 7 }),
+    );
   });
 
   it('records a purchase against the material with its price', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(sheet);
     let submitted: Record<string, unknown> | undefined;
-    server.use(http.post(`*/api/v1/materials/${ids.sheet}/purchases`, async ({ request }) => {
-      submitted = await request.json() as Record<string, unknown>;
-      return HttpResponse.json({ material: sheet, transaction: transaction({ materialId: ids.sheet }) }, { status: 201 });
-    }));
+    server.use(
+      http.post(`*/api/v1/materials/${ids.sheet}/purchases`, async ({ request }) => {
+        submitted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { material: sheet, transaction: transaction({ materialId: ids.sheet }) },
+          { status: 201 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.sheet), route);
 
@@ -342,6 +578,13 @@ describe('Material detail page', () => {
     await user.type(within(dialog).getByLabelText('Quantity received (m²)'), '5');
     await user.type(within(dialog).getByLabelText('Total price in EUR'), '45');
     await user.click(within(dialog).getByRole('button', { name: 'Add stock' }));
-    await waitFor(() => expect(submitted).toMatchObject({ quantity: '5', totalPrice: '45.00', supplier: null, expectedInventoryVersion: 4 }));
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        quantity: '5',
+        totalPrice: '45.00',
+        supplier: null,
+        expectedInventoryVersion: 4,
+      }),
+    );
   });
 });

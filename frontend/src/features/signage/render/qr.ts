@@ -12,11 +12,40 @@ const BLOCKS: readonly BlockPlan[] = [
   { ecPerBlock: 24, groups: [[2, 43]] },
   { ecPerBlock: 16, groups: [[4, 27]] },
   { ecPerBlock: 18, groups: [[4, 31]] },
-  { ecPerBlock: 22, groups: [[2, 38], [2, 39]] },
-  { ecPerBlock: 22, groups: [[3, 36], [2, 37]] },
-  { ecPerBlock: 26, groups: [[4, 43], [1, 44]] },
+  {
+    ecPerBlock: 22,
+    groups: [
+      [2, 38],
+      [2, 39],
+    ],
+  },
+  {
+    ecPerBlock: 22,
+    groups: [
+      [3, 36],
+      [2, 37],
+    ],
+  },
+  {
+    ecPerBlock: 26,
+    groups: [
+      [4, 43],
+      [1, 44],
+    ],
+  },
 ];
-const ALIGNMENT: readonly (readonly number[])[] = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
+const ALIGNMENT: readonly (readonly number[])[] = [
+  [],
+  [6, 18],
+  [6, 22],
+  [6, 26],
+  [6, 30],
+  [6, 34],
+  [6, 22, 38],
+  [6, 24, 42],
+  [6, 26, 46],
+  [6, 28, 50],
+];
 
 export const QR_MAX_BYTES = 213;
 
@@ -56,7 +85,9 @@ function reedSolomon(data: readonly number[], degree: number): number[] {
 /** Data codewords (mode, length, payload, terminator, padding) for the version. */
 function dataCodewords(bytes: Uint8Array, version: number): number[] {
   const bits: number[] = [];
-  const push = (value: number, length: number) => { for (let i = length - 1; i >= 0; i -= 1) bits.push((value >>> i) & 1); };
+  const push = (value: number, length: number) => {
+    for (let i = length - 1; i >= 0; i -= 1) bits.push((value >>> i) & 1);
+  };
   push(0b0100, 4);
   push(bytes.length, version < 10 ? 8 : 16);
   bytes.forEach((byte) => push(byte, 8));
@@ -75,12 +106,18 @@ function interleave(words: readonly number[], version: number): number[] {
   const blocks: number[][] = [];
   let offset = 0;
   for (const [count, size] of plan.groups) {
-    for (let i = 0; i < count; i += 1) { blocks.push(words.slice(offset, offset + size)); offset += size; }
+    for (let i = 0; i < count; i += 1) {
+      blocks.push(words.slice(offset, offset + size));
+      offset += size;
+    }
   }
   const corrections = blocks.map((block) => reedSolomon(block, plan.ecPerBlock));
   const result: number[] = [];
   const longest = Math.max(...blocks.map((block) => block.length));
-  for (let i = 0; i < longest; i += 1) blocks.forEach((block) => { if (i < block.length) result.push(block[i]); });
+  for (let i = 0; i < longest; i += 1)
+    blocks.forEach((block) => {
+      if (i < block.length) result.push(block[i]);
+    });
   for (let i = 0; i < plan.ecPerBlock; i += 1) corrections.forEach((block) => result.push(block[i]));
   return result;
 }
@@ -96,19 +133,40 @@ function baseMatrix(version: number): Matrix {
     modules[y][x] = dark;
     reserved[y][x] = true;
   };
-  for (let i = 0; i < size; i += 1) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
-  for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]]) {
-    for (let dy = -4; dy <= 4; dy += 1) for (let dx = -4; dx <= 4; dx += 1) { const distance = Math.max(Math.abs(dx), Math.abs(dy)); set(cx + dx, cy + dy, distance !== 2 && distance !== 4); }
+  for (let i = 0; i < size; i += 1) {
+    set(6, i, i % 2 === 0);
+    set(i, 6, i % 2 === 0);
+  }
+  for (const [cx, cy] of [
+    [3, 3],
+    [size - 4, 3],
+    [3, size - 4],
+  ]) {
+    for (let dy = -4; dy <= 4; dy += 1)
+      for (let dx = -4; dx <= 4; dx += 1) {
+        const distance = Math.max(Math.abs(dx), Math.abs(dy));
+        set(cx + dx, cy + dy, distance !== 2 && distance !== 4);
+      }
   }
   const centers = ALIGNMENT[version - 1];
-  centers.forEach((cx, i) => centers.forEach((cy, j) => {
-    const onFinder = (i === 0 && j === 0) || (i === 0 && j === centers.length - 1) || (i === centers.length - 1 && j === 0);
-    if (onFinder) return;
-    for (let dy = -2; dy <= 2; dy += 1) for (let dx = -2; dx <= 2; dx += 1) set(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
-  }));
+  centers.forEach((cx, i) =>
+    centers.forEach((cy, j) => {
+      const onFinder =
+        (i === 0 && j === 0) || (i === 0 && j === centers.length - 1) || (i === centers.length - 1 && j === 0);
+      if (onFinder) return;
+      for (let dy = -2; dy <= 2; dy += 1)
+        for (let dx = -2; dx <= 2; dx += 1) set(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }),
+  );
   // Reserve the format areas (written per mask).
-  for (let i = 0; i < 9; i += 1) { reserved[8][i] = true; reserved[i][8] = true; }
-  for (let i = 0; i < 8; i += 1) { reserved[8][size - 1 - i] = true; reserved[size - 1 - i][8] = true; }
+  for (let i = 0; i < 9; i += 1) {
+    reserved[8][i] = true;
+    reserved[i][8] = true;
+  }
+  for (let i = 0; i < 8; i += 1) {
+    reserved[8][size - 1 - i] = true;
+    reserved[size - 1 - i][8] = true;
+  }
   if (version >= 7) {
     let remainder = version;
     for (let i = 0; i < 12; i += 1) remainder = (remainder << 1) ^ ((remainder >>> 11) * 0x1f25);
@@ -160,7 +218,8 @@ function withMask(base: Matrix, codewords: readonly number[], mask: number): boo
       }
     }
   }
-  for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) if (!base.reserved[y][x] && MASKS[mask](x, y)) modules[y][x] = !modules[y][x];
+  for (let y = 0; y < size; y += 1)
+    for (let x = 0; x < size; x += 1) if (!base.reserved[y][x] && MASKS[mask](x, y)) modules[y][x] = !modules[y][x];
   const bits = formatBits(mask);
   const bit = (i: number) => ((bits >>> i) & 1) !== 0;
   for (let i = 0; i <= 5; i += 1) modules[i][8] = bit(i);
@@ -180,7 +239,11 @@ function penalty(modules: boolean[][]): number {
   const line = (get: (i: number) => boolean) => {
     let run = 1;
     for (let i = 1; i < size; i += 1) {
-      if (get(i) === get(i - 1)) { run += 1; if (run === 5) score += 3; else if (run > 5) score += 1; } else run = 1;
+      if (get(i) === get(i - 1)) {
+        run += 1;
+        if (run === 5) score += 3;
+        else if (run > 5) score += 1;
+      } else run = 1;
     }
     // Finder-like 1:1:3:1:1 with four light modules on one side.
     for (let i = 0; i + 11 <= size; i += 1) {
@@ -189,11 +252,15 @@ function penalty(modules: boolean[][]): number {
       if (slice === '10111010000' || slice === '00001011101') score += 40;
     }
   };
-  for (let a = 0; a < size; a += 1) { line((i) => modules[a][i]); line((i) => modules[i][a]); }
-  for (let y = 0; y + 1 < size; y += 1) for (let x = 0; x + 1 < size; x += 1) {
-    const color = modules[y][x];
-    if (color === modules[y][x + 1] && color === modules[y + 1][x] && color === modules[y + 1][x + 1]) score += 3;
+  for (let a = 0; a < size; a += 1) {
+    line((i) => modules[a][i]);
+    line((i) => modules[i][a]);
   }
+  for (let y = 0; y + 1 < size; y += 1)
+    for (let x = 0; x + 1 < size; x += 1) {
+      const color = modules[y][x];
+      if (color === modules[y][x + 1] && color === modules[y + 1][x] && color === modules[y + 1][x + 1]) score += 3;
+    }
   const dark = modules.reduce((sum, row) => sum + row.filter(Boolean).length, 0);
   const total = size * size;
   score += (Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1) * 10;
@@ -220,7 +287,10 @@ export function qrModules(text: string): boolean[][] | null {
   for (let mask = 0; mask < 8; mask += 1) {
     const candidate = withMask(base, codewords, mask);
     const score = penalty(candidate);
-    if (score < bestScore) { best = candidate; bestScore = score; }
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
   }
   return best;
 }

@@ -1,5 +1,15 @@
 import type { ReactNode } from 'react';
-import { DataTable, Link as CarbonLink, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@carbon/react';
+import {
+  DataTable,
+  Link as CarbonLink,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@carbon/react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { WorkItem } from '../../../api/generated/models';
 import { formatDateTime, formatMoney } from '../shared/format';
@@ -7,14 +17,24 @@ import { machineLogbookPaths } from '../shared/paths';
 import { BillingTag, JobRowStatusTag, workItemName } from '../shared/status';
 import '../styles/jobs.scss';
 
-type Props = { jobs: WorkItem[]; hideMachine?: boolean; size?: 'sm' | 'md' | 'lg'; title?: string; emptyState?: ReactNode };
+type Props = {
+  jobs: WorkItem[];
+  hideMachine?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  title?: string;
+  emptyState?: ReactNode;
+};
 
 const sortRow = (a: unknown, b: unknown, { sortDirection }: { sortDirection: string }) => {
-  const result = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'en', { numeric: true });
+  const result =
+    typeof a === 'number' && typeof b === 'number'
+      ? a - b
+      : String(a).localeCompare(String(b), 'en', { numeric: true });
   return sortDirection === 'DESC' ? -result : result;
 };
 
-const hrefOf = (item: WorkItem) => item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
+const hrefOf = (item: WorkItem) =>
+  item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
 
 /** Plain sortable table of work items (jobs and unassigned runs), for places that embed a short list. */
 export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, emptyState }: Props) {
@@ -29,7 +49,12 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
     { key: 'price', header: 'Price', isSortable: true },
   ];
   const rows = jobs.map((job) => ({
-    id: job.id, job: job.startedAt, machine: job.machineName, customer: job.customer?.displayName ?? '', status: job.status, price: job.effectivePrice == null ? -1 : Number(job.effectivePrice),
+    id: job.id,
+    job: job.startedAt,
+    machine: job.machineName,
+    customer: job.customer?.displayName ?? '',
+    status: job.status,
+    price: job.effectivePrice == null ? -1 : Number(job.effectivePrice),
   }));
 
   return (
@@ -41,7 +66,15 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
               <TableRow>
                 {tableHeaders.map((header) => {
                   const { key, ...props } = getHeaderProps({ header, isSortable: header.isSortable });
-                  return <TableHeader key={key} {...props} className={header.key === 'machine' || header.key === 'customer' ? 'mj-hide-narrow' : undefined}>{header.header}</TableHeader>;
+                  return (
+                    <TableHeader
+                      key={key}
+                      {...props}
+                      className={header.key === 'machine' || header.key === 'customer' ? 'mj-hide-narrow' : undefined}
+                    >
+                      {header.header}
+                    </TableHeader>
+                  );
                 })}
               </TableRow>
             </TableHead>
@@ -55,8 +88,16 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
                   <TableRow key={key} {...rowProps} className="mj-table-row" onClick={() => navigate(hrefOf(job))}>
                     <TableCell>
                       <div className="mj-cell-stack">
-                        <CarbonLink as={Link} to={hrefOf(job)} onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}>{workItemName(job)}</CarbonLink>
-                        <span className="mj-secondary">{job.displayId} · {formatDateTime(job.startedAt)}</span>
+                        <CarbonLink
+                          as={Link}
+                          to={hrefOf(job)}
+                          onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+                        >
+                          {workItemName(job)}
+                        </CarbonLink>
+                        <span className="mj-secondary">
+                          {job.displayId} · {formatDateTime(job.startedAt)}
+                        </span>
                         {!hideMachine && <span className="mj-secondary mj-show-narrow">{job.machineName}</span>}
                       </div>
                     </TableCell>
@@ -67,11 +108,15 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
                         {job.operator && <span className="mj-secondary">{job.operator.displayName}</span>}
                       </div>
                     </TableCell>
-                    <TableCell><JobRowStatusTag status={job.status} size="sm" /></TableCell>
+                    <TableCell>
+                      <JobRowStatusTag status={job.status} size="sm" />
+                    </TableCell>
                     <TableCell>
                       <div className="mj-cell-stack">
                         <span>{formatMoney(job.effectivePrice)}</span>
-                        <span><BillingTag billing={job.billing} /></span>
+                        <span>
+                          <BillingTag billing={job.billing} />
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>

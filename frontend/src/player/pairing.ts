@@ -26,7 +26,12 @@ export type PairingDeps = {
   deniedRetryMs?: number;
 };
 
-const troubleOf = (error: unknown): PairingTrouble => (error instanceof PlayerNetworkError ? 'offline' : error instanceof PlayerApiError && error.status === 429 ? 'rate_limited' : 'error');
+const troubleOf = (error: unknown): PairingTrouble =>
+  error instanceof PlayerNetworkError
+    ? 'offline'
+    : error instanceof PlayerApiError && error.status === 429
+      ? 'rate_limited'
+      : 'error';
 
 export const POLL_MS = 3_000;
 export const DENIED_RETRY_MS = 30_000;
@@ -70,7 +75,7 @@ export async function runPairing(deps: PairingDeps): Promise<boolean> {
         await retry('rate_limited', error.retryAfterMs ?? 0);
         continue;
       } else {
-        await retry(troubleOf(error), error instanceof PlayerApiError ? error.retryAfterMs ?? 0 : 0);
+        await retry(troubleOf(error), error instanceof PlayerApiError ? (error.retryAfterMs ?? 0) : 0);
         continue;
       }
     }
@@ -81,15 +86,24 @@ export async function runPairing(deps: PairingDeps): Promise<boolean> {
       try {
         const poll = await api.pollPairing();
         failures = 0;
-        if (poll.status === 'paired') { onState({ kind: 'paired' }); return true; }
+        if (poll.status === 'paired') {
+          onState({ kind: 'paired' });
+          return true;
+        }
         if (poll.status === 'expired') break;
-        if (troubled) { troubled = false; onState(shown); }
+        if (troubled) {
+          troubled = false;
+          onState(shown);
+        }
       } catch (error) {
         if (signal.aborted) break;
         const trouble = troubleOf(error);
         troubled = true;
         onState({ ...shown, trouble });
-        const delay = Math.max(error instanceof PlayerApiError ? error.retryAfterMs ?? 0 : 0, backoffMs(failures, pollMs));
+        const delay = Math.max(
+          error instanceof PlayerApiError ? (error.retryAfterMs ?? 0) : 0,
+          backoffMs(failures, pollMs),
+        );
         failures += 1;
         await sleep(delay, signal);
       }

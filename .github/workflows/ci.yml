@@ -142,6 +142,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Audit dependencies
         run: pnpm audit --audit-level moderate
+      - name: Check formatting
+        run: pnpm format:check
       - name: Lint
         run: pnpm lint
       - name: Type-check

@@ -47,7 +47,9 @@ class IntersectionObserverMock {
   observe() {}
   unobserve() {}
   disconnect() {}
-  takeRecords() { return []; }
+  takeRecords() {
+    return [];
+  }
 }
 
 vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);

@@ -28,12 +28,7 @@ export const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<PeopleLaborordnungStat
   { value: 'not_required', label: 'Not required' },
 ];
 
-export type BatchAction =
-  | 'create-accounts'
-  | 'assign-role'
-  | 'delete-accounts'
-  | 'delete-people'
-  | null;
+export type BatchAction = 'create-accounts' | 'assign-role' | 'delete-accounts' | 'delete-people' | null;
 export type BatchResult = {
   kind: 'success' | 'warning';
   title: string;

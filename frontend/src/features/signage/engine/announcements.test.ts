@@ -1,10 +1,21 @@
 import vectorFile from '../../../../../api/testdata/signage-announcement-render.json';
 import { describe, expect, it } from 'vitest';
-import { fieldKeyFor, placeholdersIn, renderAnnouncement, unknownPlaceholders, type EngineTemplate } from './announcements';
+import {
+  fieldKeyFor,
+  placeholdersIn,
+  renderAnnouncement,
+  unknownPlaceholders,
+  type EngineTemplate,
+} from './announcements';
 
 type Vector = {
   name: string;
-  template: { fields: { key: string; type: EngineTemplate['fields'][number]['type'] }[]; title: string; body: string; tone: EngineTemplate['tone'] };
+  template: {
+    fields: { key: string; type: EngineTemplate['fields'][number]['type'] }[];
+    title: string;
+    body: string;
+    tone: EngineTemplate['tone'];
+  };
   values: Record<string, string>;
   startsAt: string;
   endsAt: string | null;
@@ -26,7 +37,13 @@ describe('shared announcement render vectors', () => {
       vector.template,
       vector.values,
       { startsAt: new Date(vector.startsAt), endsAt: vector.endsAt ? new Date(vector.endsAt) : null },
-      { now: new Date(vector.now), timeZone: vector.timeZone, displayName: vector.displayName, location: vector.location, machines: vector.machines },
+      {
+        now: new Date(vector.now),
+        timeZone: vector.timeZone,
+        displayName: vector.displayName,
+        location: vector.location,
+        machines: vector.machines,
+      },
     );
     expect(result).toEqual(vector.expected);
   });
@@ -35,7 +52,12 @@ describe('shared announcement render vectors', () => {
 describe('does not resolve inherited object keys', () => {
   it('keeps {constructor} as typed', () => {
     const template: EngineTemplate = { fields: [], title: '{constructor}', body: '', tone: 'info' };
-    const result = renderAnnouncement(template, {}, { startsAt: new Date(0), endsAt: null }, { now: new Date(0), timeZone: 'UTC', displayName: '', location: '', machines: {} });
+    const result = renderAnnouncement(
+      template,
+      {},
+      { startsAt: new Date(0), endsAt: null },
+      { now: new Date(0), timeZone: 'UTC', displayName: '', location: '', machines: {} },
+    );
     expect(result.title).toBe('{constructor}');
   });
 });
@@ -43,7 +65,9 @@ describe('does not resolve inherited object keys', () => {
 describe('template helpers', () => {
   it('lists placeholders in order', () => expect(placeholdersIn('{a} x {b_1} {a}')).toEqual(['a', 'b_1', 'a']));
   it('flags placeholders that are neither fields nor built-ins, sorted and unique', () => {
-    expect(unknownPlaceholders({ fields: [{ key: 'reason' }], title: '{reason} {ends} {oops}', body: '{oops} {other}' })).toEqual(['oops', 'other']);
+    expect(
+      unknownPlaceholders({ fields: [{ key: 'reason' }], title: '{reason} {ends} {oops}', body: '{oops} {other}' }),
+    ).toEqual(['oops', 'other']);
   });
   it('derives unique field keys that never collide with built-ins and match the backend pattern', () => {
     expect(fieldKeyFor('Back on', [])).toBe('back_on');

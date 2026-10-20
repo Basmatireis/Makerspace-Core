@@ -1,4 +1,9 @@
-import type { SignagePlayerLiveAnnouncement, SignagePlayerAsset, SignagePlayerLive, SignagePlayerManifest } from '../api/generated/models';
+import type {
+  SignagePlayerLiveAnnouncement,
+  SignagePlayerAsset,
+  SignagePlayerLive,
+  SignagePlayerManifest,
+} from '../api/generated/models';
 import { ASSET_CACHE, assetKey, LIVE_KEY, MANIFEST_KEY, STATE_CACHE } from './cacheKeys';
 
 // The offline cache. Only published signage content lives here (the manifest, its assets and the last announcements, open
@@ -48,10 +53,12 @@ export type StoreEnv = {
   storage?: Pick<StorageManager, 'estimate' | 'persist'>;
 };
 
-const isQuotaError = (error: unknown) => error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22);
+const isQuotaError = (error: unknown) =>
+  error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22);
 const mb = (bytes: number) => `${Math.max(0, Math.round(bytes / 1024 / 1024))} MB`;
 
-const jsonResponse = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
+const jsonResponse = (value: unknown) =>
+  new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
 
 /** The store on top of Cache Storage; null when the browser has none (insecure origin), then the player preloads in memory only. */
 export function createPlayerStore(env: Partial<StoreEnv> = {}): PlayerStore | null {
@@ -64,16 +71,22 @@ export function createPlayerStore(env: Partial<StoreEnv> = {}): PlayerStore | nu
     try {
       const response = await (await cacheStorage.open(STATE_CACHE)).match(key);
       return response ? ((await response.json()) as T) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
-  const writeJson = async (key: string, value: unknown) => { await (await cacheStorage.open(STATE_CACHE)).put(key, jsonResponse(value)); };
+  const writeJson = async (key: string, value: unknown) => {
+    await (await cacheStorage.open(STATE_CACHE)).put(key, jsonResponse(value));
+  };
 
   const usage = async (): Promise<StorageUse | null> => {
     try {
       const estimate = await storage?.estimate();
       if (!estimate || estimate.quota === undefined || estimate.usage === undefined) return null;
       return { usedBytes: estimate.usage, quotaBytes: estimate.quota };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const missing = async (assets: readonly SignagePlayerAsset[]) => {
@@ -97,7 +110,9 @@ export function createPlayerStore(env: Partial<StoreEnv> = {}): PlayerStore | nu
         throw error;
       }
     },
-    async hasAll(assets) { return (await missing(assets)).length === 0; },
+    async hasAll(assets) {
+      return (await missing(assets)).length === 0;
+    },
     async assertFits(assets) {
       const use = await usage();
       if (!use) return;
@@ -121,7 +136,11 @@ export function createPlayerStore(env: Partial<StoreEnv> = {}): PlayerStore | nu
     },
     usage,
     async requestPersistence() {
-      try { await storage?.persist?.(); } catch { /* Best effort. */ }
+      try {
+        await storage?.persist?.();
+      } catch {
+        /* Best effort. */
+      }
     },
   };
 }

@@ -1,8 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import { Modal, Select, SelectItem, Stack, StructuredListBody, StructuredListCell, StructuredListHead, StructuredListRow, StructuredListWrapper, TextInput } from '@carbon/react';
+import {
+  Modal,
+  Select,
+  SelectItem,
+  Stack,
+  StructuredListBody,
+  StructuredListCell,
+  StructuredListHead,
+  StructuredListRow,
+  StructuredListWrapper,
+  TextInput,
+} from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormProvider, useForm } from 'react-hook-form';
-import { bulkCombineMachineRuns, bulkCreateMachineJobsFromRuns } from '../../../api/generated/machine-runs/machine-runs';
+import {
+  bulkCombineMachineRuns,
+  bulkCreateMachineJobsFromRuns,
+} from '../../../api/generated/machine-runs/machine-runs';
 import type { WorkItem } from '../../../api/generated/models';
 import { plural, referenceTargets } from '../bulkWork';
 import { workItemConsumption } from '../processConfig';
@@ -39,15 +53,20 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
   const can = useCan();
   const canReadPricing = can('pricing.read');
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing });
-  const form = useForm<Values>({ defaultValues: { title: '', customer: null, operator: null, notes: '', pricingGroupId: '' } });
+  const form = useForm<Values>({
+    defaultValues: { title: '', customer: null, operator: null, notes: '', pricingGroupId: '' },
+  });
   const targets = referenceTargets(runs);
   const machineName = runs[0]?.machineName ?? 'the machine';
 
   const create = useMutation({
     mutationFn: async (values: Values) => {
       const shared = {
-        runs: runs.map(BULK_ITEM), customer: { kind: values.customer!.kind, id: values.customer!.id }, operatorPersonId: values.operator!.personId,
-        notes: values.notes.trim() || null, pricingGroupId: values.pricingGroupId || undefined,
+        runs: runs.map(BULK_ITEM),
+        customer: { kind: values.customer!.kind, id: values.customer!.id },
+        operatorPersonId: values.operator!.personId,
+        notes: values.notes.trim() || null,
+        pricingGroupId: values.pricingGroupId || undefined,
       };
       return mode === 'separate'
         ? { jobs: (await bulkCreateMachineJobsFromRuns(shared)).jobs, combined: null }
@@ -58,9 +77,17 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
       onDone();
       onClose();
       if (created.jobs) {
-        notify({ kind: 'success', title: `${plural(created.jobs.length, 'job')} created`, subtitle: `${created.jobs.map((job) => job.displayId).join(', ')}. Each job uses the data of its run.` });
+        notify({
+          kind: 'success',
+          title: `${plural(created.jobs.length, 'job')} created`,
+          subtitle: `${created.jobs.map((job) => job.displayId).join(', ')}. Each job uses the data of its run.`,
+        });
       } else {
-        notify({ kind: 'success', title: `${plural(runs.length, 'run')} combined`, subtitle: `${created.combined.displayId} holds all selected runs.` });
+        notify({
+          kind: 'success',
+          title: `${plural(runs.length, 'run')} combined`,
+          subtitle: `${created.combined.displayId} holds all selected runs.`,
+        });
         navigate(machineLogbookPaths.job(created.combined.id));
       }
     },
@@ -70,9 +97,23 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
 
   return (
     <Modal
-      open size="md" modalHeading={mode === 'separate' ? `Create ${plural(runs.length, 'separate job')}` : `Combine ${runs.length} runs into one job`} secondaryButtonText="Cancel"
-      primaryButtonText={pending ? 'Creating…' : label} primaryButtonDisabled={pending} preventCloseOnClickOutside
-      onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void form.handleSubmit((values) => create.mutate(values))(); }}
+      open
+      size="md"
+      modalHeading={
+        mode === 'separate'
+          ? `Create ${plural(runs.length, 'separate job')}`
+          : `Combine ${runs.length} runs into one job`
+      }
+      secondaryButtonText="Cancel"
+      primaryButtonText={pending ? 'Creating…' : label}
+      primaryButtonDisabled={pending}
+      preventCloseOnClickOutside
+      onRequestClose={() => {
+        if (!pending) onClose();
+      }}
+      onRequestSubmit={() => {
+        void form.handleSubmit((values) => create.mutate(values))();
+      }}
     >
       <FormProvider {...form}>
         <Stack gap={6}>
@@ -83,18 +124,34 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
           </p>
           {mode === 'combined' && (
             <TextInput
-              id="bulk-job-title" labelText="Name (optional)" placeholder={runs[0]?.fileName ? nameFromFile(runs[0].fileName) : undefined} maxLength={120}
-              helperText="Leave empty to show the file name of the latest run." {...form.register('title')}
+              id="bulk-job-title"
+              labelText="Name (optional)"
+              placeholder={runs[0]?.fileName ? nameFromFile(runs[0].fileName) : undefined}
+              maxLength={120}
+              helperText="Leave empty to show the file name of the latest run."
+              {...form.register('title')}
             />
           )}
           <JobPartyFields idPrefix="bulk-job" />
           {canReadPricing && (
-            <Select id="bulk-job-pricing-group" labelText="Pricing group (optional)" helperText="Leave empty to use the customer’s pricing group." {...form.register('pricingGroupId')}>
+            <Select
+              id="bulk-job-pricing-group"
+              labelText="Pricing group (optional)"
+              helperText="Leave empty to use the customer’s pricing group."
+              {...form.register('pricingGroupId')}
+            >
               <SelectItem value="" text="Customer’s pricing group" />
-              {(pricing.data?.items ?? []).filter((group) => group.active).map((group) => <SelectItem key={group.id} value={group.id} text={group.name} />)}
+              {(pricing.data?.items ?? [])
+                .filter((group) => group.active)
+                .map((group) => (
+                  <SelectItem key={group.id} value={group.id} text={group.name} />
+                ))}
             </Select>
           )}
-          <StructuredListWrapper isCondensed aria-label={mode === 'separate' ? 'Jobs that will be created' : 'Runs that will be combined'}>
+          <StructuredListWrapper
+            isCondensed
+            aria-label={mode === 'separate' ? 'Jobs that will be created' : 'Runs that will be combined'}
+          >
             <StructuredListHead>
               <StructuredListRow head>
                 <StructuredListCell head>{mode === 'separate' ? 'Job name (run file)' : 'Run file'}</StructuredListCell>
@@ -112,7 +169,12 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
               ))}
             </StructuredListBody>
           </StructuredListWrapper>
-          <BulkError error={create.error} title={mode === 'separate' ? 'The jobs could not be created' : 'The runs could not be combined'} targets={targets} onNavigate={onClose} />
+          <BulkError
+            error={create.error}
+            title={mode === 'separate' ? 'The jobs could not be created' : 'The runs could not be combined'}
+            targets={targets}
+            onNavigate={onClose}
+          />
         </Stack>
       </FormProvider>
     </Modal>

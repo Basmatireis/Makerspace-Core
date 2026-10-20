@@ -14,39 +14,49 @@ import { peopleEligibleForDeletion, peopleWithAccounts } from './peopleList';
 import type { useBatchPeopleActions } from './useBatchPeopleActions';
 
 /** Confirmation dialogs of the People table's bulk actions. */
-export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, canDeleteAccounts }: {
+export function BatchPeopleDialogs({
+  batch,
+  assignableRoles,
+  currentPersonId,
+  canDeleteAccounts,
+}: {
   batch: ReturnType<typeof useBatchPeopleActions>;
   assignableRoles: Role[];
   currentPersonId: string;
   canDeleteAccounts: boolean;
 }) {
   const {
-    batchAction, setBatchAction, batchMembers, batchRole, setBatchRole,
-    batchCreateAccounts, batchAssignRole, batchDeleteAccounts, batchDeletePeople,
-    deleteAccountsLauncher, deletePeopleLauncher, closeDeleteAccounts, closeDeletePeople,
+    batchAction,
+    setBatchAction,
+    batchMembers,
+    batchRole,
+    setBatchRole,
+    batchCreateAccounts,
+    batchAssignRole,
+    batchDeleteAccounts,
+    batchDeletePeople,
+    deleteAccountsLauncher,
+    deletePeopleLauncher,
+    closeDeleteAccounts,
+    closeDeletePeople,
   } = batch;
   const membersEligibleForAccountCreation = batchMembers.filter((member) => member.account === null);
   const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
   const membersEligibleForPersonDeletion = peopleEligibleForDeletion(batchMembers, canDeleteAccounts);
   const membersEligibleForRoleAssignment = batchRole
-    ? batchMembers.filter(
-        (member) => !member.roles.some((assigned) => assigned.id === batchRole.id),
-      )
+    ? batchMembers.filter((member) => !member.roles.some((assigned) => assigned.id === batchRole.id))
     : batchMembers;
 
   return (
     <>
-      <ComposedModal
-        open={batchAction === 'create-accounts'}
-        onClose={() => setBatchAction(null)}
-      >
+      <ComposedModal open={batchAction === 'create-accounts'} onClose={() => setBatchAction(null)}>
         <ModalHeader title="Create login accounts" />
         <ModalBody>
           <Stack gap={5}>
             <p>
-              This creates active accounts for {membersEligibleForAccountCreation.length}{' '}
-              selected {membersEligibleForAccountCreation.length === 1 ? 'person' : 'people'}.
-              Authentication methods can be configured separately afterwards; without one, the person cannot sign in.
+              This creates active accounts for {membersEligibleForAccountCreation.length} selected{' '}
+              {membersEligibleForAccountCreation.length === 1 ? 'person' : 'people'}. Authentication methods can be
+              configured separately afterwards; without one, the person cannot sign in.
             </p>
             {batchMembers.length !== membersEligibleForAccountCreation.length && (
               <InlineNotification
@@ -64,9 +74,7 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
             Cancel
           </Button>
           <Button
-            disabled={
-              membersEligibleForAccountCreation.length === 0 || batchCreateAccounts.isPending
-            }
+            disabled={membersEligibleForAccountCreation.length === 0 || batchCreateAccounts.isPending}
             onClick={() => batchCreateAccounts.mutate(batchMembers)}
           >
             {batchCreateAccounts.isPending ? 'Creating…' : 'Create accounts'}
@@ -74,10 +82,7 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
         </ModalFooter>
       </ComposedModal>
 
-      <ComposedModal
-        open={batchAction === 'assign-role'}
-        onClose={() => setBatchAction(null)}
-      >
+      <ComposedModal open={batchAction === 'assign-role'} onClose={() => setBatchAction(null)}>
         <ModalHeader title="Assign role to people" />
         <ModalBody>
           <Form>
@@ -112,14 +117,8 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
             Cancel
           </Button>
           <Button
-            disabled={
-              !batchRole ||
-              membersEligibleForRoleAssignment.length === 0 ||
-              batchAssignRole.isPending
-            }
-            onClick={() =>
-              batchRole && batchAssignRole.mutate({ members: batchMembers, role: batchRole })
-            }
+            disabled={!batchRole || membersEligibleForRoleAssignment.length === 0 || batchAssignRole.isPending}
+            onClick={() => batchRole && batchAssignRole.mutate({ members: batchMembers, role: batchRole })}
           >
             {batchAssignRole.isPending ? 'Assigning…' : 'Assign role'}
           </Button>
@@ -139,10 +138,9 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
         <ModalBody>
           <Stack gap={5}>
             <p>
-              This permanently deletes {membersEligibleForAccountDeletion.length}{' '}
-              selected {membersEligibleForAccountDeletion.length === 1 ? 'account' : 'accounts'},
-              including their authentication methods and sessions. The people records and their
-              assigned roles remain. This cannot be undone.
+              This permanently deletes {membersEligibleForAccountDeletion.length} selected{' '}
+              {membersEligibleForAccountDeletion.length === 1 ? 'account' : 'accounts'}, including their authentication
+              methods and sessions. The people records and their assigned roles remain. This cannot be undone.
             </p>
             {batchMembers.some((member) => member.id === currentPersonId && member.account) && (
               <InlineNotification
@@ -165,19 +163,12 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
           </Stack>
         </ModalBody>
         <ModalFooter>
-          <Button
-            kind="secondary"
-            disabled={batchDeleteAccounts.isPending}
-            onClick={() => setBatchAction(null)}
-          >
+          <Button kind="secondary" disabled={batchDeleteAccounts.isPending} onClick={() => setBatchAction(null)}>
             Cancel
           </Button>
           <Button
             kind="danger"
-            disabled={
-              membersEligibleForAccountDeletion.length === 0 ||
-              batchDeleteAccounts.isPending
-            }
+            disabled={membersEligibleForAccountDeletion.length === 0 || batchDeleteAccounts.isPending}
             onClick={() => batchDeleteAccounts.mutate(batchMembers)}
           >
             {batchDeleteAccounts.isPending ? 'Deleting…' : 'Delete accounts'}
@@ -198,16 +189,13 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
         <ModalBody>
           <Stack gap={5}>
             <p>
-              This permanently deletes {membersEligibleForPersonDeletion.length}{' '}
-              selected {membersEligibleForPersonDeletion.length === 1 ? 'person' : 'people'},
-              including their accounts, authentication methods, and role assignments. Operational
-              links are detached and assignment identity data is scrubbed. Existing order customer
-              and external-invoice recipient snapshots are retained as financial records. This
-              cannot be undone.
+              This permanently deletes {membersEligibleForPersonDeletion.length} selected{' '}
+              {membersEligibleForPersonDeletion.length === 1 ? 'person' : 'people'}, including their accounts,
+              authentication methods, and role assignments. Operational links are detached and assignment identity data
+              is scrubbed. Existing order customer and external-invoice recipient snapshots are retained as financial
+              records. This cannot be undone.
             </p>
-            {membersEligibleForPersonDeletion.some(
-              (member) => member.id === currentPersonId,
-            ) && (
+            {membersEligibleForPersonDeletion.some((member) => member.id === currentPersonId) && (
               <InlineNotification
                 kind="warning"
                 lowContrast
@@ -228,19 +216,12 @@ export function BatchPeopleDialogs({ batch, assignableRoles, currentPersonId, ca
           </Stack>
         </ModalBody>
         <ModalFooter>
-          <Button
-            kind="secondary"
-            disabled={batchDeletePeople.isPending}
-            onClick={() => setBatchAction(null)}
-          >
+          <Button kind="secondary" disabled={batchDeletePeople.isPending} onClick={() => setBatchAction(null)}>
             Cancel
           </Button>
           <Button
             kind="danger"
-            disabled={
-              membersEligibleForPersonDeletion.length === 0 ||
-              batchDeletePeople.isPending
-            }
+            disabled={membersEligibleForPersonDeletion.length === 0 || batchDeletePeople.isPending}
             onClick={() => batchDeletePeople.mutate(batchMembers)}
           >
             {batchDeletePeople.isPending ? 'Deleting…' : 'Delete people'}

@@ -1,23 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- auth context and hooks are a cohesive module */
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  type ReactNode,
-} from 'react';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import type {
-  CurrentUser,
-  LoginRequest,
-  PinLoginRequest,
-  PermissionId,
-} from '../../api/generated/models';
+import type { CurrentUser, LoginRequest, PinLoginRequest, PermissionId } from '../../api/generated/models';
 import {
   getCurrentUser,
   login,
@@ -79,9 +64,9 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => logout(),
     onSuccess: () => {
-	  const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
+      const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-	  navigate(sessionDestination(currentUser), { replace: true });
+      navigate(sessionDestination(currentUser), { replace: true });
     },
   });
 }
@@ -128,7 +113,12 @@ function sessionDestination(currentUser: CurrentUser | undefined, errorData?: un
   if (currentUser?.session.postSessionDestination === 'visitor_terminal') return '/terminal';
   if (typeof errorData === 'object' && errorData !== null && 'details' in errorData) {
     const details = errorData.details;
-    if (typeof details === 'object' && details !== null && 'postSessionDestination' in details && details.postSessionDestination === 'visitor_terminal') {
+    if (
+      typeof details === 'object' &&
+      details !== null &&
+      'postSessionDestination' in details &&
+      details.postSessionDestination === 'visitor_terminal'
+    ) {
       return '/terminal';
     }
   }
@@ -142,27 +132,40 @@ function SessionActivityHandler({ currentUser }: { currentUser: CurrentUser }) {
   // resetting the throttle there turned every click into a report and a re-render.
   const activity = useRef({ lastRecordedAt: 0, pending: false });
   useEffect(() => {
-    const expireAt = Math.min(new Date(currentUser.session.idleExpiresAt).getTime(), new Date(currentUser.session.absoluteExpiresAt).getTime());
-	let timeout = 0;
-	const scheduleExpiry = () => {
-	  const remaining = expireAt - Date.now();
-	  if (remaining <= 0) {
-		clearPrivateQueryData();
-		navigate(sessionDestination(currentUser), { replace: true });
-		return;
-	  }
-	  timeout = window.setTimeout(scheduleExpiry, Math.min(remaining + 100, 2_147_000_000));
-	};
-	scheduleExpiry();
+    const expireAt = Math.min(
+      new Date(currentUser.session.idleExpiresAt).getTime(),
+      new Date(currentUser.session.absoluteExpiresAt).getTime(),
+    );
+    let timeout = 0;
+    const scheduleExpiry = () => {
+      const remaining = expireAt - Date.now();
+      if (remaining <= 0) {
+        clearPrivateQueryData();
+        navigate(sessionDestination(currentUser), { replace: true });
+        return;
+      }
+      timeout = window.setTimeout(scheduleExpiry, Math.min(remaining + 100, 2_147_000_000));
+    };
+    scheduleExpiry();
     const record = () => {
       const state = activity.current;
       if (state.pending || Date.now() - state.lastRecordedAt < 60_000) return;
-      state.pending = true; state.lastRecordedAt = Date.now();
-      void recordSessionActivity().then((session) => queryClient.setQueryData<CurrentUser>(authQueryKey, (value) => value ? { ...value, session } : value)).finally(() => { state.pending = false; });
+      state.pending = true;
+      state.lastRecordedAt = Date.now();
+      void recordSessionActivity()
+        .then((session) =>
+          queryClient.setQueryData<CurrentUser>(authQueryKey, (value) => (value ? { ...value, session } : value)),
+        )
+        .finally(() => {
+          state.pending = false;
+        });
     };
     const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, record, { passive: true }));
-    return () => { window.clearTimeout(timeout); events.forEach((event) => window.removeEventListener(event, record)); };
+    return () => {
+      window.clearTimeout(timeout);
+      events.forEach((event) => window.removeEventListener(event, record));
+    };
   }, [currentUser, navigate, queryClient]);
   return null;
 }
@@ -195,11 +198,24 @@ export function SessionEventHandler() {
       // A 401 can arrive after sign-out already navigated away, so read the
       // live location instead of the one captured at the last render.
       const location = window.location;
-	  const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
+      const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-      const publicPath = ['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email', '/visitor-enrollment', '/terminal', '/events/signup/manage'].includes(location.pathname) || location.pathname.startsWith('/legal/') || location.pathname.startsWith('/events/public/') || location.pathname.startsWith('/survey/');
+      const publicPath =
+        [
+          '/login',
+          '/reset-password',
+          '/complete-invitation',
+          '/complete-pin-setup',
+          '/verify-email',
+          '/visitor-enrollment',
+          '/terminal',
+          '/events/signup/manage',
+        ].includes(location.pathname) ||
+        location.pathname.startsWith('/legal/') ||
+        location.pathname.startsWith('/events/public/') ||
+        location.pathname.startsWith('/survey/');
       if (!publicPath) {
-		navigate(sessionDestination(currentUser, event instanceof CustomEvent ? event.detail : undefined), {
+        navigate(sessionDestination(currentUser, event instanceof CustomEvent ? event.detail : undefined), {
           replace: true,
           state: { from: `${location.pathname}${location.search}` },
         });

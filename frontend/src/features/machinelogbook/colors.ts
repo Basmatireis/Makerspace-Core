@@ -20,7 +20,10 @@ export function colorDistance(a: string | null | undefined, b: string | null | u
 }
 
 /** True when the material colour and the colour the printer reports for the slot clearly differ. Skipped (false) when either is missing. */
-export function colorsClearlyDiffer(materialHex: string | null | undefined, reportedHex: string | null | undefined): boolean {
+export function colorsClearlyDiffer(
+  materialHex: string | null | undefined,
+  reportedHex: string | null | undefined,
+): boolean {
   const distance = colorDistance(materialHex, reportedHex);
   return distance != null && distance > COLOR_MISMATCH_THRESHOLD;
 }

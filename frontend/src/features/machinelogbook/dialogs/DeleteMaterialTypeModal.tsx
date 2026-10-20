@@ -7,7 +7,13 @@ import { machineLogbookKeys } from '../queries';
 import { useNotify } from '../shared/toasts';
 
 /** Mount only while open so an earlier error never shows in a fresh dialog. */
-export function DeleteMaterialTypeModal({ materialType, onClose }: { materialType: MaterialType; onClose: () => void }) {
+export function DeleteMaterialTypeModal({
+  materialType,
+  onClose,
+}: {
+  materialType: MaterialType;
+  onClose: () => void;
+}) {
   const client = useQueryClient();
   const notify = useNotify();
   const remove = useMutation({
@@ -22,19 +28,45 @@ export function DeleteMaterialTypeModal({ materialType, onClose }: { materialTyp
   const inUse = code === 'material_type_in_use';
   return (
     <Modal
-      open danger alert modalHeading="Delete this material type?" primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete material type'} secondaryButtonText="Cancel"
-      primaryButtonDisabled={remove.isPending || inUse} preventCloseOnClickOutside selectorPrimaryFocus=".cds--btn--secondary" shouldSubmitOnEnter={false}
-      onRequestClose={() => { if (!remove.isPending) onClose(); }} onSecondarySubmit={() => { if (!remove.isPending) onClose(); }}
-      onRequestSubmit={() => { if (!remove.isPending && !inUse) remove.mutate(); }}
+      open
+      danger
+      alert
+      modalHeading="Delete this material type?"
+      primaryButtonText={remove.isPending ? 'Deleting…' : 'Delete material type'}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={remove.isPending || inUse}
+      preventCloseOnClickOutside
+      selectorPrimaryFocus=".cds--btn--secondary"
+      shouldSubmitOnEnter={false}
+      onRequestClose={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onSecondarySubmit={() => {
+        if (!remove.isPending) onClose();
+      }}
+      onRequestSubmit={() => {
+        if (!remove.isPending && !inUse) remove.mutate();
+      }}
     >
       <p>{materialType.name} will be deleted permanently. This cannot be undone.</p>
       {inUse && (
         <InlineNotification
-          kind="error" lowContrast hideCloseButton title="Material type is in use"
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Material type is in use"
           subtitle="Materials or pricing rules use this type, so it cannot be deleted. Deactivate it instead to stop using it for new materials."
         />
       )}
-      {remove.isError && !inUse && <InlineNotification kind="error" lowContrast hideCloseButton title="Delete failed" subtitle="The material type could not be deleted. Reload the page and try again." />}
+      {remove.isError && !inUse && (
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Delete failed"
+          subtitle="The material type could not be deleted. Reload the page and try again."
+        />
+      )}
     </Modal>
   );
 }

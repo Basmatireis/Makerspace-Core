@@ -1,24 +1,59 @@
 import { useState } from 'react';
 import { RefLink } from '../../../app/RefLink';
 import {
-  Button, DataTable, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent,
+  Button,
+  DataTable,
+  OverflowMenu,
+  OverflowMenuItem,
+  ProgressBar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableToolbar,
+  TableToolbarContent,
 } from '@carbon/react';
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
 import { formatDateTime, formatDuration, formatTime } from '../shared/format';
-import { FromMachineTag, isRunLive, RunOutcomeTag, runEnd, RunSourceTag, RunStateTag, runName, runProgress, runConsumptionText, runStateNow } from '../shared/status';
+import {
+  FromMachineTag,
+  isRunLive,
+  RunOutcomeTag,
+  runEnd,
+  RunSourceTag,
+  RunStateTag,
+  runName,
+  runProgress,
+  runConsumptionText,
+  runStateNow,
+} from '../shared/status';
 import '../styles/jobs.scss';
 
 export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
 
 const headers = [
-  { key: 'run', header: 'Run' }, { key: 'source', header: 'Source' }, { key: 'state', header: 'State' }, { key: 'start', header: 'Start' },
-  { key: 'end', header: 'End' }, { key: 'runtime', header: 'Runtime' }, { key: 'outcome', header: 'Outcome' }, { key: 'material', header: 'Material' },
+  { key: 'run', header: 'Run' },
+  { key: 'source', header: 'Source' },
+  { key: 'state', header: 'State' },
+  { key: 'start', header: 'Start' },
+  { key: 'end', header: 'End' },
+  { key: 'runtime', header: 'Runtime' },
+  { key: 'outcome', header: 'Outcome' },
+  { key: 'material', header: 'Material' },
 ];
 const hideNarrow = new Set(['source', 'start', 'runtime']);
 
 /** Row actions available for one run, depending on the permissions of the viewer. */
-function actionsFor(run: MachineRun, now: number, canEdit: boolean, canDelete: boolean): { action: RunAction; label: string; isDelete?: boolean }[] {
+function actionsFor(
+  run: MachineRun,
+  now: number,
+  canEdit: boolean,
+  canDelete: boolean,
+): { action: RunAction; label: string; isDelete?: boolean }[] {
   if (run.state === 'replaced') return [];
   const live = isRunLive(run, now);
   const mayDelete = canDelete || (run.source === 'manual' && canEdit);
@@ -27,7 +62,9 @@ function actionsFor(run: MachineRun, now: number, canEdit: boolean, canDelete: b
     ...(canEdit && (run.source === 'manual' || !live) ? [{ action: 'edit' as const, label: 'Edit run' }] : []),
     ...(canEdit ? [{ action: 'usage' as const, label: 'Edit material usage' }] : []),
     ...(canEdit && run.source === 'manual' && live ? [{ action: 'cancel' as const, label: 'Cancel run' }] : []),
-    ...(canEdit && run.source === 'recorded' ? [{ action: 'detach' as const, label: 'Detach from job', isDelete: true }] : []),
+    ...(canEdit && run.source === 'recorded'
+      ? [{ action: 'detach' as const, label: 'Detach from job', isDelete: true }]
+      : []),
     ...(mayDelete ? [{ action: 'delete' as const, label: 'Delete run', isDelete: true }] : []),
   ];
 }
@@ -50,27 +87,60 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
   const [showReplaced, setShowReplaced] = useState(false);
   const ordered = [...job.runs].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const replaced = ordered.filter((run) => run.state === 'replaced');
-  const visible = showReplaced ? [...ordered.filter((run) => run.state !== 'replaced'), ...replaced] : ordered.filter((run) => run.state !== 'replaced');
+  const visible = showReplaced
+    ? [...ordered.filter((run) => run.state !== 'replaced'), ...replaced]
+    : ordered.filter((run) => run.state !== 'replaced');
   const showActions = canEdit || canDelete;
-  const rows = visible.map((run) => ({ id: run.id, run: run.displayId, source: run.source, state: run.state, start: run.startedAt, end: runEnd(run) ?? '', runtime: run.durationSeconds, outcome: run.outcome ?? '', material: '' }));
+  const rows = visible.map((run) => ({
+    id: run.id,
+    run: run.displayId,
+    source: run.source,
+    state: run.state,
+    start: run.startedAt,
+    end: runEnd(run) ?? '',
+    runtime: run.durationSeconds,
+    outcome: run.outcome ?? '',
+    material: '',
+  }));
 
   return (
     <div className="mj-stack">
       <DataTable rows={rows} headers={headers} size="md">
         {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
-          <TableContainer title="Runs" description="Every machine run of this job. Runtime and material add up; replaced runs are history only." className="mj-table-container">
+          <TableContainer
+            title="Runs"
+            description="Every machine run of this job. Runtime and material add up; replaced runs are history only."
+            className="mj-table-container"
+          >
             {canEdit && (
               <TableToolbar aria-label="Run actions">
                 <TableToolbarContent>
-                  {canAttach && <Button kind="ghost" size="lg" renderIcon={LinkIcon} onClick={onAttach}>Attach recorded run</Button>}
-                  <Button kind="tertiary" size="lg" renderIcon={Add} onClick={onAdd}>Add run</Button>
+                  {canAttach && (
+                    <Button kind="ghost" size="lg" renderIcon={LinkIcon} onClick={onAttach}>
+                      Attach recorded run
+                    </Button>
+                  )}
+                  <Button kind="tertiary" size="lg" renderIcon={Add} onClick={onAdd}>
+                    Add run
+                  </Button>
                 </TableToolbarContent>
               </TableToolbar>
             )}
             <Table {...getTableProps()} aria-label="Runs">
               <TableHead>
                 <TableRow>
-                  {tableHeaders.map((header) => { const { key, ...props } = getHeaderProps({ header }); return <TableHeader key={key} {...props} className={hideNarrow.has(header.key) ? 'mj-hide-narrow' : undefined}>{header.header}</TableHeader>; })}
+                  {tableHeaders.map((header) => {
+                    const { key, ...props } = getHeaderProps({ header });
+                    return (
+                      <TableHeader
+                        key={key}
+                        {...props}
+                        className={hideNarrow.has(header.key) ? 'mj-hide-narrow' : undefined}
+                      >
+                        {header.header}
+                      </TableHeader>
+                    );
+                  })}
                   {showActions && <TableHeader aria-label="Actions" />}
                 </TableRow>
               </TableHead>
@@ -91,42 +161,94 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                         <div className="mj-cell-stack">
                           <RefLink kind="run" reference={run.displayId} id={run.id} />
                           <span className="mj-secondary">{run.fileName ? runName(run) : 'No file name'}</span>
-                          <span className="mj-secondary mj-show-narrow">{run.source === 'recorded' ? `Recorded${run.connectorName ? ` via ${run.connectorName}` : ''}` : 'Manual'} · {formatDateTime(run.startedAt)}</span>
+                          <span className="mj-secondary mj-show-narrow">
+                            {run.source === 'recorded'
+                              ? `Recorded${run.connectorName ? ` via ${run.connectorName}` : ''}`
+                              : 'Manual'}{' '}
+                            · {formatDateTime(run.startedAt)}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="mj-hide-narrow">
                         <div className="mj-cell-stack">
-                          <span><RunSourceTag source={run.source} size="sm" /></span>
+                          <span>
+                            <RunSourceTag source={run.source} size="sm" />
+                          </span>
                           {run.connectorName && <span className="mj-secondary">{run.connectorName}</span>}
                         </div>
                       </TableCell>
-                      <TableCell>{isReplaced ? <RunStateTag state="replaced" size="sm" /> : <RunStateTag state={state} size="sm" />}</TableCell>
+                      <TableCell>
+                        {isReplaced ? (
+                          <RunStateTag state="replaced" size="sm" />
+                        ) : (
+                          <RunStateTag state={state} size="sm" />
+                        )}
+                      </TableCell>
                       <TableCell className="mj-hide-narrow">{formatDateTime(run.startedAt)}</TableCell>
                       <TableCell>
                         {live ? (
-                          <ProgressBar label="Run progress" hideLabel size="small" value={progress} max={100} helperText={`${progress} %${end ? ` · ends ~${formatTime(end)}` : ''}`} />
-                        ) : end ? formatDateTime(end) : '—'}
+                          <ProgressBar
+                            label="Run progress"
+                            hideLabel
+                            size="small"
+                            value={progress}
+                            max={100}
+                            helperText={`${progress} %${end ? ` · ends ~${formatTime(end)}` : ''}`}
+                          />
+                        ) : end ? (
+                          formatDateTime(end)
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
-                      <TableCell className="mj-hide-narrow">{formatDuration(run.durationSeconds)}{live ? ' so far' : ''}</TableCell>
+                      <TableCell className="mj-hide-narrow">
+                        {formatDuration(run.durationSeconds)}
+                        {live ? ' so far' : ''}
+                      </TableCell>
                       <TableCell>
-                        {live || isReplaced ? <span className="mj-secondary">—</span> : (
+                        {live || isReplaced ? (
+                          <span className="mj-secondary">—</span>
+                        ) : (
                           <div className="mj-cell-stack">
-                            <span><RunOutcomeTag outcome={run.outcome} size="sm" /></span>
-                            {run.outcomeFromMachine && <span><FromMachineTag /></span>}
+                            <span>
+                              <RunOutcomeTag outcome={run.outcome} size="sm" />
+                            </span>
+                            {run.outcomeFromMachine && (
+                              <span>
+                                <FromMachineTag />
+                              </span>
+                            )}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
                         <div className="mj-cell-stack">
                           <span>{runConsumptionText(run)}</span>
-                          {run.usagesFromMachine && <span><FromMachineTag /></span>}
+                          {run.usagesFromMachine && (
+                            <span>
+                              <FromMachineTag />
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       {showActions && (
                         <TableCell className="cds--table-column-menu">
                           {actions.length > 0 && (
-                            <OverflowMenu aria-label={`Actions for ${run.displayId}`} iconDescription={`Actions for ${run.displayId}`} flipped size="md">
-                              {actions.map((item) => <OverflowMenuItem key={item.action} itemText={item.label} isDelete={item.isDelete} hasDivider={item.isDelete} onClick={() => onAction(item.action, run)} />)}
+                            <OverflowMenu
+                              aria-label={`Actions for ${run.displayId}`}
+                              iconDescription={`Actions for ${run.displayId}`}
+                              flipped
+                              size="md"
+                            >
+                              {actions.map((item) => (
+                                <OverflowMenuItem
+                                  key={item.action}
+                                  itemText={item.label}
+                                  isDelete={item.isDelete}
+                                  hasDivider={item.isDelete}
+                                  onClick={() => onAction(item.action, run)}
+                                />
+                              ))}
                             </OverflowMenu>
                           )}
                         </TableCell>

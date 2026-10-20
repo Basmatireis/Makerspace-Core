@@ -4,13 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
-import {
-  accountFixture,
-  currentUserFixture,
-  otherPersonId,
-  personFixture,
-  roleFixture,
-} from '../../test/fixtures';
+import { accountFixture, currentUserFixture, otherPersonId, personFixture, roleFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -21,12 +15,8 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
 describe('People page', () => {
   it('redirects the legacy directory URL and preserves its filters', async () => {
     server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
-      ),
-      http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([])),
-      ),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
+      http.get('*/api/v1/people', () => HttpResponse.json(peoplePage([]))),
     );
 
     const { router } = renderRoute(<App />, '/settings/users?search=Ada&page=2');
@@ -53,15 +43,14 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.get('*/api/v1/roles', () =>
-        HttpResponse.json({ items: [supervisorRole], nextCursor: null }),
-      ),
+      http.get('*/api/v1/roles', () => HttpResponse.json({ items: [supervisorRole], nextCursor: null })),
       http.get('*/api/v1/people', () =>
         HttpResponse.json(
           peoplePage([
             personFixture({
               matriculationNumber: 'M-0042',
-              account: accountFixture(), roles: [supervisorRole],
+              account: accountFixture(),
+              roles: [supervisorRole],
               profileImage: {
                 fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
                 source: 'admin_upload',
@@ -91,21 +80,15 @@ describe('People page', () => {
     expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
     const addPersonButton = screen.getByRole('button', { name: 'Add person' });
     expect(addPersonButton).toBeInTheDocument();
-    expect(screen.getByLabelText('People table toolbar')).toContainElement(
-      addPersonButton,
-    );
+    expect(screen.getByLabelText('People table toolbar')).toContainElement(addPersonButton);
     const statusHeader = screen.getByRole('columnheader', { name: /Status/ });
     const rolesHeader = screen.getByRole('columnheader', { name: /Roles/ });
     const labRulesHeader = screen.getByRole('columnheader', { name: /Lab Rules/ });
     expect(statusHeader).toHaveClass('people-table__status-column');
     expect(rolesHeader).toBeInTheDocument();
     expect(labRulesHeader).toBeInTheDocument();
-    expect(rolesHeader.compareDocumentPosition(labRulesHeader)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(labRulesHeader.compareDocumentPosition(statusHeader)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(rolesHeader.compareDocumentPosition(labRulesHeader)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(labRulesHeader.compareDocumentPosition(statusHeader)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByRole('columnheader', { name: /Matriculation number/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Supervisor' })).not.toBeInTheDocument();
     expect(screen.queryByText('M-0042')).not.toBeInTheDocument();
@@ -114,9 +97,7 @@ describe('People page', () => {
     const supervisorRoleTag = screen.getByText('Workshop supervisors').closest('.cds--tag');
     expect(supervisorRoleTag).toHaveClass('cds--tag--blue');
     expect(supervisorRoleTag).toHaveAttribute('aria-label', 'Workshop supervisors, supervisor role');
-    expect((await screen.findByText('Current')).closest('.cds--tag')).toHaveClass(
-      'cds--tag--green',
-    );
+    expect((await screen.findByText('Current')).closest('.cds--tag')).toHaveClass('cds--tag--green');
     expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent('Status');
     const filtersButton = screen.getByRole('button', { name: 'Filters' });
     expect(filtersButton).toHaveAttribute('aria-expanded', 'false');
@@ -156,9 +137,7 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.get('*/api/v1/roles', () =>
-        HttpResponse.json({ items: [roleFixture(), secondRole], nextCursor: null }),
-      ),
+      http.get('*/api/v1/roles', () => HttpResponse.json({ items: [roleFixture(), secondRole], nextCursor: null })),
       http.get('*/api/v1/people', ({ request }) => {
         const params = new URL(request.url).searchParams;
         requestedRoleIds = params.getAll('roleIds');
@@ -174,9 +153,7 @@ describe('People page', () => {
     );
     const user = userEvent.setup();
 
-    await waitFor(() =>
-      expect(requestedRoleIds).toEqual([roleFixture().id, secondRole.id]),
-    );
+    await waitFor(() => expect(requestedRoleIds).toEqual([roleFixture().id, secondRole.id]));
     expect(requestedAccountStatuses).toEqual(['enabled', 'no_account']);
     expect(requestedLaborordnungStatuses).toEqual(['current', 'pending']);
 
@@ -190,9 +167,7 @@ describe('People page', () => {
 
   it('keeps Person roles visible while omitting sensitive and Account columns', async () => {
     server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
-      ),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
       http.get('*/api/v1/people', () =>
         HttpResponse.json(
           peoplePage([
@@ -208,12 +183,8 @@ describe('People page', () => {
     renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('columnheader', { name: /Matriculation number/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('columnheader', { name: /Status/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Matriculation number/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Status/ })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Roles/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Lab Rules/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
@@ -225,11 +196,7 @@ describe('People page', () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
-          currentUserFixture([
-            PermissionId.peoplereadall,
-            PermissionId.accountsread,
-            PermissionId.accountscreate,
-          ]),
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountscreate]),
         ),
       ),
       http.get('*/api/v1/people', () =>
@@ -274,12 +241,8 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([personFixture({ account, roles: [] })])),
-      ),
-      http.get('*/api/v1/roles', () =>
-        HttpResponse.json({ items: [role], nextCursor: null }),
-      ),
+      http.get('*/api/v1/people', () => HttpResponse.json(peoplePage([personFixture({ account, roles: [] })]))),
+      http.get('*/api/v1/roles', () => HttpResponse.json({ items: [role], nextCursor: null })),
       http.put('*/api/v1/people/:personId/roles/:roleId', async ({ request }) => {
         roleRequest = await request.json();
         return HttpResponse.json(personFixture({ account, roles: [role] }));
@@ -291,9 +254,7 @@ describe('People page', () => {
 
     await screen.findByText('Grace Hopper');
     await user.click(screen.getByRole('checkbox', { name: /select row/i }));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Assign role' })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Assign role' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Assign role' }));
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: 'Role' }));
@@ -311,19 +272,11 @@ describe('People page', () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
-          currentUserFixture([
-            PermissionId.peoplereadall,
-            PermissionId.accountsread,
-            PermissionId.accountsdelete,
-          ]),
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsdelete]),
         ),
       ),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(
-          peoplePage([
-            personFixture({ account: accountDeleted ? null : account }),
-          ]),
-        ),
+        HttpResponse.json(peoplePage([personFixture({ account: accountDeleted ? null : account })])),
       ),
       http.delete('*/api/v1/accounts/:accountId', async ({ params, request }) => {
         deletedAccountId = String(params.accountId);
@@ -383,9 +336,7 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage(people)),
-      ),
+      http.get('*/api/v1/people', () => HttpResponse.json(peoplePage(people))),
       http.delete('*/api/v1/people/:personId', async ({ params, request }) => {
         const personId = String(params.personId);
         deleteRequests.set(personId, await request.json());
@@ -404,7 +355,9 @@ describe('People page', () => {
       name: 'Delete people permanently?',
     });
     expect(within(dialog).getByText(/permanently deletes 2 selected people/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/order customer and external-invoice recipient snapshots are retained/i)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/order customer and external-invoice recipient snapshots are retained/i),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
 
@@ -420,11 +373,7 @@ describe('People page', () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
-          currentUserFixture([
-            PermissionId.peoplereadall,
-            PermissionId.accountsread,
-            PermissionId.peopledelete,
-          ]),
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.peopledelete]),
         ),
       ),
       http.get('*/api/v1/people', () =>
@@ -484,9 +433,14 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.delete('*/api/v1/people/:personId', ({ params }) => params.personId === scimPersonId
-        ? HttpResponse.json({ code: 'person_scim_managed', message: 'This person is provisioned through SCIM.', requestId: 'req-1' }, { status: 409 })
-        : new HttpResponse(null, { status: 204 })),
+      http.delete('*/api/v1/people/:personId', ({ params }) =>
+        params.personId === scimPersonId
+          ? HttpResponse.json(
+              { code: 'person_scim_managed', message: 'This person is provisioned through SCIM.', requestId: 'req-1' },
+              { status: 409 },
+            )
+          : new HttpResponse(null, { status: 204 }),
+      ),
     );
     const user = userEvent.setup();
 
@@ -500,30 +454,49 @@ describe('People page', () => {
 
     const title = await screen.findByText('Some people were not deleted');
     expect(title).toBeInTheDocument();
-    expect(screen.getByRole('button', {
-      name: /Katherine Johnson — Provisioned through SCIM\. Remove them in the identity provider instead\./,
-    })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: /Katherine Johnson — Provisioned through SCIM\. Remove them in the identity provider instead\./,
+      }),
+    ).toBeInTheDocument();
   });
 
   it('lists every reason when a person deletion is blocked for several reasons', async () => {
     const blockedId = '019df000-0000-7000-8000-00000000b10c';
     server.use(
       http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsdelete, PermissionId.peopledelete])),
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsdelete,
+            PermissionId.peopledelete,
+          ]),
+        ),
       ),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([personFixture({ id: blockedId, firstName: 'Grace', lastName: 'Hopper', account: accountFixture() })])),
+        HttpResponse.json(
+          peoplePage([
+            personFixture({ id: blockedId, firstName: 'Grace', lastName: 'Hopper', account: accountFixture() }),
+          ]),
+        ),
       ),
       http.delete('*/api/v1/people/:personId', () =>
-        HttpResponse.json({
-          code: 'person_deletion_blocked',
-          message: 'Deletion blocked.',
-          requestId: 'req-2',
-          details: { reasons: [
-            { code: 'account_scim_managed', message: 'Account is SCIM managed.' },
-            { code: 'deletion_referenced', message: 'Still referenced by open orders.' },
-          ] },
-        }, { status: 409 })),
+        HttpResponse.json(
+          {
+            code: 'person_deletion_blocked',
+            message: 'Deletion blocked.',
+            requestId: 'req-2',
+            details: {
+              reasons: [
+                { code: 'account_scim_managed', message: 'Account is SCIM managed.' },
+                { code: 'deletion_referenced', message: 'Still referenced by open orders.' },
+              ],
+            },
+          },
+          { status: 409 },
+        ),
+      ),
     );
     const user = userEvent.setup();
 
@@ -537,15 +510,15 @@ describe('People page', () => {
 
     await screen.findByText('People were not deleted');
     await user.click(screen.getByRole('button', { name: 'Grace Hopper — 2 reasons' }));
-    expect(screen.getByText('Provisioned through SCIM. Remove the account in the identity provider instead.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Provisioned through SCIM. Remove the account in the identity provider instead.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Still referenced by open orders.')).toBeInTheDocument();
   });
 
   it('moves from the loading state to the empty state', async () => {
     server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
-      ),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
       http.get('*/api/v1/people', async () => {
         await delay(75);
         return HttpResponse.json(peoplePage([]));
@@ -561,14 +534,9 @@ describe('People page', () => {
 
   it('shows a retryable error state', async () => {
     server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
-      ),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(
-          { code: 'server_error', message: 'Unavailable' },
-          { status: 500 },
-        ),
+        HttpResponse.json({ code: 'server_error', message: 'Unavailable' }, { status: 500 }),
       ),
     );
 

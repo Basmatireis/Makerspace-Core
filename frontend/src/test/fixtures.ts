@@ -1,10 +1,4 @@
-import type {
-  Account,
-  CurrentUser,
-  PermissionId,
-  Person,
-  Role,
-} from '../api/generated/models';
+import type { Account, CurrentUser, PermissionId, Person, Role } from '../api/generated/models';
 
 export const fixturePersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
 export const fixtureAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8a902';
@@ -30,17 +24,23 @@ export function roleFixture(overrides: Partial<Role> = {}): Role {
 }
 
 export function accountFixture(overrides: Partial<Account> = {}): Account {
-	return {
+  return {
     id: otherAccountId,
     personId: otherPersonId,
     loginEmail: 'grace.login@example.test',
     provisioningSource: 'local',
     firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-    authIdentities: [{
-      id: '0192f6f8-743e-7c77-a349-cd07c3e8a906', kind: 'password',
-      displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z',
-      disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z',
-    }],
+    authIdentities: [
+      {
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8a906',
+        kind: 'password',
+        displayIdentifier: 'grace.login@example.test',
+        verifiedAt: '2026-01-01T00:00:00Z',
+        disabledAt: null,
+        usable: true,
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ],
     status: 'enabled',
     passwordStatus: 'active',
     createdAt: '2026-01-01T00:00:00Z',
@@ -67,14 +67,15 @@ export function personFixture(overrides: Partial<Person> = {}): Person {
   };
 }
 
-export function currentUserFixture(
-  permissions: PermissionId[] = [],
-  master = false,
-): CurrentUser {
+export function currentUserFixture(permissions: PermissionId[] = [], master = false): CurrentUser {
   const personId = fixturePersonId;
   const accountId = fixtureAccountId;
   return {
-	session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
+    session: {
+      idleExpiresAt: '2099-01-01T01:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    },
     person: {
       id: personId,
       firstName: 'Ada',
@@ -82,16 +83,24 @@ export function currentUserFixture(
       email: 'ada@example.test',
       phone: null,
       matriculationNumber: null,
-      roles: master
-        ? [{ id: fixtureRoleId, name: 'Master', systemKey: 'master' }]
-        : [],
+      roles: master ? [{ id: fixtureRoleId, name: 'Master', systemKey: 'master' }] : [],
       account: {
         id: accountId,
         personId,
         loginEmail: 'ada@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-        authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a907', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
+        authIdentities: [
+          {
+            id: '0192f6f8-743e-7c77-a349-cd07c3e8a907',
+            kind: 'password',
+            displayIdentifier: 'ada@example.test',
+            verifiedAt: '2026-01-01T00:00:00Z',
+            disabledAt: null,
+            usable: true,
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ],
         status: 'enabled',
         passwordStatus: 'active',
         version: 1,
@@ -106,7 +115,17 @@ export function currentUserFixture(
       loginEmail: 'ada@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a908', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a908',
+          kind: 'password',
+          displayIdentifier: 'ada@example.test',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          usable: true,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
       status: 'enabled',
       passwordStatus: 'active',
       createdAt: '2026-01-01T00:00:00Z',
@@ -116,14 +135,19 @@ export function currentUserFixture(
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
-    delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
-		laborordnungStatus: {
-			mode: 'not_required',
-			state: 'not_required',
-			actionRequired: false,
-			currentVersion: null,
-			latestConfirmedVersion: null,
-			requestId: null,
-		},
+    delegablePermissionGrants: permissions.map((permissionId) => ({
+      permissionId,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+      minimumAssurance: 'low',
+    })),
+    laborordnungStatus: {
+      mode: 'not_required',
+      state: 'not_required',
+      actionRequired: false,
+      currentVersion: null,
+      latestConfirmedVersion: null,
+      requestId: null,
+    },
   };
 }

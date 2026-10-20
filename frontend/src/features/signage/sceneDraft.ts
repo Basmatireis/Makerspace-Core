@@ -2,8 +2,20 @@ import type { SignageScene } from '../../api/generated/models';
 import { layoutById } from './layouts';
 import { HEX_COLOR, widgetError } from './widgets';
 
-export type Draft = Pick<SignageScene, 'name' | 'layoutId' | 'backgroundColor' | 'backgroundAssetId' | 'backgroundFit' | 'backgroundDim' | 'theme' | 'zones'>;
-export const toDraft = (scene: SignageScene): Draft => ({ name: scene.name, layoutId: scene.layoutId, backgroundColor: scene.backgroundColor, backgroundAssetId: scene.backgroundAssetId, backgroundFit: scene.backgroundFit, backgroundDim: scene.backgroundDim, theme: scene.theme, zones: scene.zones });
+export type Draft = Pick<
+  SignageScene,
+  'name' | 'layoutId' | 'backgroundColor' | 'backgroundAssetId' | 'backgroundFit' | 'backgroundDim' | 'theme' | 'zones'
+>;
+export const toDraft = (scene: SignageScene): Draft => ({
+  name: scene.name,
+  layoutId: scene.layoutId,
+  backgroundColor: scene.backgroundColor,
+  backgroundAssetId: scene.backgroundAssetId,
+  backgroundFit: scene.backgroundFit,
+  backgroundDim: scene.backgroundDim,
+  theme: scene.theme,
+  zones: scene.zones,
+});
 
 /** What certainly would be rejected is not sent; the person sees why instead of a failed save. */
 export function draftError(draft: Draft): string | null {
@@ -16,4 +28,3 @@ export function draftError(draft: Draft): string | null {
   }
   return null;
 }
-

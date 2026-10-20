@@ -8,5 +8,17 @@ type InformationPageProps = {
 
 export function InformationPage({ title }: InformationPageProps) {
   const branding = useBranding();
-  return <PageShell title={title}><Tile><Stack gap={4}><h2>{branding.identity.applicationName}</h2><p>{branding.identity.tagline || `${branding.identity.displayName}, operated by ${branding.identity.legalOrganizationName}.`}</p></Stack></Tile></PageShell>;
+  return (
+    <PageShell title={title}>
+      <Tile>
+        <Stack gap={4}>
+          <h2>{branding.identity.applicationName}</h2>
+          <p>
+            {branding.identity.tagline ||
+              `${branding.identity.displayName}, operated by ${branding.identity.legalOrganizationName}.`}
+          </p>
+        </Stack>
+      </Tile>
+    </PageShell>
+  );
 }

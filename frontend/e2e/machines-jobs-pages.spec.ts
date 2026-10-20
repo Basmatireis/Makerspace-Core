@@ -11,35 +11,108 @@ type Target = { name: string; path: string; ready: (page: Page) => Locator };
 const targets: Target[] = [
   { name: 'Overview', path: base, ready: heading('Overview', 1) },
   { name: 'Jobs', path: `${base}/jobs`, ready: (page) => page.getByRole('table', { name: 'Jobs' }) },
-  { name: 'Jobs filtered to unassigned runs', path: `${base}/jobs?status=unassigned`, ready: (page) => page.getByRole('link', { name: 'bracket_v2.gcode' }) },
+  {
+    name: 'Jobs filtered to unassigned runs',
+    path: `${base}/jobs?status=unassigned`,
+    ready: (page) => page.getByRole('link', { name: 'bracket_v2.gcode' }),
+  },
   { name: 'Job detail (finished)', path: `${base}/jobs/${ids.jobSuccess}`, ready: heading('Gearbox housing', 1) },
   { name: 'Job detail (running)', path: `${base}/jobs/${ids.jobRunning}`, ready: heading('Engraving run', 1) },
-  { name: 'Job detail (needs outcome)', path: `${base}/jobs/${ids.jobNeedsOutcome}`, ready: text('Record the outcome') },
-  { name: 'Job detail (manual run, recorded runs available)', path: `${base}/jobs/${ids.jobManualBambu}`, ready: (page) => page.getByRole('button', { name: 'Attach recorded run' }) },
-  { name: 'Job detail (recorded run)', path: `${base}/jobs/${ids.jobLinked}`, ready: (page) => page.getByRole('table', { name: 'Runs' }).getByText('From machine').first() },
-  { name: 'Run detail (unassigned)', path: `${base}/jobs/runs/${ids.runUnassigned}`, ready: (page) => page.getByRole('button', { name: 'Create job' }) },
+  {
+    name: 'Job detail (needs outcome)',
+    path: `${base}/jobs/${ids.jobNeedsOutcome}`,
+    ready: text('Record the outcome'),
+  },
+  {
+    name: 'Job detail (manual run, recorded runs available)',
+    path: `${base}/jobs/${ids.jobManualBambu}`,
+    ready: (page) => page.getByRole('button', { name: 'Attach recorded run' }),
+  },
+  {
+    name: 'Job detail (recorded run)',
+    path: `${base}/jobs/${ids.jobLinked}`,
+    ready: (page) => page.getByRole('table', { name: 'Runs' }).getByText('From machine').first(),
+  },
+  {
+    name: 'Run detail (unassigned)',
+    path: `${base}/jobs/runs/${ids.runUnassigned}`,
+    ready: (page) => page.getByRole('button', { name: 'Create job' }),
+  },
   { name: 'Run detail (running)', path: `${base}/jobs/runs/${ids.runRunning}`, ready: text('Run in progress') },
-  { name: 'Run detail (in a job)', path: `${base}/jobs/runs/${ids.runLinked}`, ready: (page) => page.getByRole('link', { name: /J-2026-000004/ }) },
+  {
+    name: 'Run detail (in a job)',
+    path: `${base}/jobs/runs/${ids.runLinked}`,
+    ready: (page) => page.getByRole('link', { name: /J-2026-000004/ }),
+  },
   { name: 'Machines', path: `${base}/machines`, ready: (page) => page.getByRole('link', { name: 'Bambu H2D #1' }) },
-  { name: 'Machine detail, Overview tab', path: `${base}/machines/${ids.bambu}`, ready: text('Connector degraded · E42') },
-  { name: 'Machine detail, Jobs tab', path: `${base}/machines/${ids.bambu}?tab=jobs`, ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }) },
-  { name: 'Machine detail, Printer setup tab', path: `${base}/machines/${ids.bambu}?tab=printer`, ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }) },
-  { name: 'Machines, Machine types tab', path: `${base}/machines?tab=types`, ready: (page) => page.getByRole('table', { name: 'Machine types' }) },
-  { name: 'Inventory, Materials tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black' }) },
-  { name: 'Inventory, Spools tab', path: `${base}/inventory?tab=spools`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }) },
-  { name: 'Inventory, Spools tab with archived spools', path: `${base}/inventory?tab=spools&spoolsarchived=1`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }) },
-  { name: 'Inventory, Products tab', path: `${base}/inventory?tab=products`, ready: (page) => page.getByRole('table', { name: 'Products' }).getByText('PLA Basic Black') },
-  { name: 'Material detail (filament)', path: `${base}/inventory/materials/${ids.pla}`, ready: heading('PLA Black', 1) },
-  { name: 'Material detail (sheet)', path: `${base}/inventory/materials/${ids.plywood}`, ready: heading('Birch plywood', 1) },
-  { name: 'Spool detail (reusable, with fill history)', path: `${base}/inventory/spools/${ids.spoolReusable}`, ready: (page) => page.getByRole('table', { name: 'Fills' }) },
-  { name: 'Spool detail (single-use)', path: `${base}/inventory/spools/${ids.spoolSingle}`, ready: (page) => page.getByRole('button', { name: 'Record consumption' }) },
+  {
+    name: 'Machine detail, Overview tab',
+    path: `${base}/machines/${ids.bambu}`,
+    ready: text('Connector degraded · E42'),
+  },
+  {
+    name: 'Machine detail, Jobs tab',
+    path: `${base}/machines/${ids.bambu}?tab=jobs`,
+    ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }),
+  },
+  {
+    name: 'Machine detail, Printer setup tab',
+    path: `${base}/machines/${ids.bambu}?tab=printer`,
+    ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }),
+  },
+  {
+    name: 'Machines, Machine types tab',
+    path: `${base}/machines?tab=types`,
+    ready: (page) => page.getByRole('table', { name: 'Machine types' }),
+  },
+  {
+    name: 'Inventory, Materials tab',
+    path: `${base}/inventory`,
+    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black' }),
+  },
+  {
+    name: 'Inventory, Spools tab',
+    path: `${base}/inventory?tab=spools`,
+    ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }),
+  },
+  {
+    name: 'Inventory, Spools tab with archived spools',
+    path: `${base}/inventory?tab=spools&spoolsarchived=1`,
+    ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }),
+  },
+  {
+    name: 'Inventory, Products tab',
+    path: `${base}/inventory?tab=products`,
+    ready: (page) => page.getByRole('table', { name: 'Products' }).getByText('PLA Basic Black'),
+  },
+  {
+    name: 'Material detail (filament)',
+    path: `${base}/inventory/materials/${ids.pla}`,
+    ready: heading('PLA Black', 1),
+  },
+  {
+    name: 'Material detail (sheet)',
+    path: `${base}/inventory/materials/${ids.plywood}`,
+    ready: heading('Birch plywood', 1),
+  },
+  {
+    name: 'Spool detail (reusable, with fill history)',
+    path: `${base}/inventory/spools/${ids.spoolReusable}`,
+    ready: (page) => page.getByRole('table', { name: 'Fills' }),
+  },
+  {
+    name: 'Spool detail (single-use)',
+    path: `${base}/inventory/spools/${ids.spoolSingle}`,
+    ready: (page) => page.getByRole('button', { name: 'Record consumption' }),
+  },
   { name: 'Statistics', path: `${base}/statistics`, ready: (page) => page.getByRole('table', { name: 'Machines' }) },
 ];
 
 async function settle(page: Page) {
   await page.waitForLoadState('networkidle');
   // Carbon Charts load lazily behind the statistics boundary.
-  if (page.url().includes('/statistics')) await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
+  if (page.url().includes('/statistics'))
+    await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
 }
 
 test.describe('every page passes axe and fits a 375px phone', () => {
@@ -100,7 +173,10 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await page.goto(`${base}/jobs/${ids.jobSuccess}`);
     await page.locator('.page-header__actions .cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Adjust price' }).click();
-    await checkDialog(page, page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Adjust price' }) }));
+    await checkDialog(
+      page,
+      page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Adjust price' }) }),
+    );
   });
 
   test('cancel run confirmation', async ({ page }) => {
@@ -151,7 +227,11 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
   });
 
   // Opened from a spool, the dialog starts on the leftover step.
-  for (const [step, nextClicks] of [['leftover', 0], ['new filament', 1], ['tags and review', 2]] as const) {
+  for (const [step, nextClicks] of [
+    ['leftover', 0],
+    ['new filament', 1],
+    ['tags and review', 2],
+  ] as const) {
     test(`change filament, ${step} step`, async ({ page }) => {
       await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
       await page.getByRole('button', { name: 'Change filament' }).click();
@@ -309,7 +389,14 @@ test.describe('read-only role', () => {
 
   test('every page of the area stays readable and passes axe', async ({ page, world }) => {
     test.slow(); // six pages with a full axe scan each; ~20s alone, so it exceeds 30s when workers compete for CPU
-    for (const path of [base, `${base}/jobs`, `${base}/jobs/${ids.jobSuccess}`, `${base}/machines`, `${base}/inventory`, `${base}/statistics`]) {
+    for (const path of [
+      base,
+      `${base}/jobs`,
+      `${base}/jobs/${ids.jobSuccess}`,
+      `${base}/machines`,
+      `${base}/inventory`,
+      `${base}/statistics`,
+    ]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -322,9 +409,14 @@ test.describe('read-only role', () => {
 test.describe('role without job access', () => {
   test.use({ userPermissions: ['statistics.read'] });
 
-  test('shows Overview and Statistics only and sends Jobs, Machines and Inventory back to the dashboard', async ({ page }) => {
+  test('shows Overview and Statistics only and sends Jobs, Machines and Inventory back to the dashboard', async ({
+    page,
+  }) => {
     await page.goto(base);
-    const group = page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Workshop' }) });
+    const group = page
+      .getByRole('navigation', { name: 'Primary navigation' })
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('button', { name: 'Workshop' }) });
     await expect(group.getByRole('link')).toHaveText(['Overview', 'Statistics']);
     for (const path of ['jobs', 'machines', 'inventory']) {
       await page.goto(`${base}/${path}`);

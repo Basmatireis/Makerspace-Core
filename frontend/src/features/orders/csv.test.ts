@@ -31,11 +31,34 @@ describe('cashbook CSV', () => {
   it('exports payments and cash movements with decimal commas', () => {
     const lines = [
       {
-        type: 'movement', id: 'm', at: '2026-10-19T08:00:00Z', reference: 'C-2026-000001', signed: -5000, method: 'cash', recordedBy: 'Sara', movement: { kind: 'withdrawal', reason: 'bank_deposit', note: '=bad', createdAt: '2026-10-19T08:00:00Z' },
+        type: 'movement',
+        id: 'm',
+        at: '2026-10-19T08:00:00Z',
+        reference: 'C-2026-000001',
+        signed: -5000,
+        method: 'cash',
+        recordedBy: 'Sara',
+        movement: { kind: 'withdrawal', reason: 'bank_deposit', note: '=bad', createdAt: '2026-10-19T08:00:00Z' },
       },
       {
-        type: 'payment', id: 'p', at: '2026-10-19T09:00:00Z', reference: 'P-2026-000001', signed: 1250, method: 'card', recordedBy: 'Sara', orderReference: 'O-2026-000001', order: { id: 'o' }, customerLabel: 'Ada; Lovelace',
-        payment: { externalSource: 'Terminal 1', externalReference: 'T-1', reasonKind: null, reason: '', recordedAt: '2026-10-19T09:00:00Z', entryKind: 'receipt' },
+        type: 'payment',
+        id: 'p',
+        at: '2026-10-19T09:00:00Z',
+        reference: 'P-2026-000001',
+        signed: 1250,
+        method: 'card',
+        recordedBy: 'Sara',
+        orderReference: 'O-2026-000001',
+        order: { id: 'o' },
+        customerLabel: 'Ada; Lovelace',
+        payment: {
+          externalSource: 'Terminal 1',
+          externalReference: 'T-1',
+          reasonKind: null,
+          reason: '',
+          recordedAt: '2026-10-19T09:00:00Z',
+          entryKind: 'receipt',
+        },
       },
     ] as unknown as CashbookLine[];
     const rows = cashbookCsv(lines).slice(1).split('\r\n');

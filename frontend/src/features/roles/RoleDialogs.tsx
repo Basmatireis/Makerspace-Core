@@ -65,14 +65,25 @@ export function CreateRoleDialog({
       <ModalBody hasScrollingContent>
         <Form id="create-role-form" onSubmit={submit}>
           <Stack gap={6}>
-            {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Role not created" subtitle={error.message} />}
+            {error && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Role not created"
+                subtitle={error.message}
+              />
+            )}
             <TextInput
               id="create-role-name"
               labelText="Role name"
               placeholder="e.g. Workshop lead"
               invalid={Boolean(form.formState.errors.name)}
               invalidText={form.formState.errors.name?.message}
-              {...form.register('name', { required: 'Enter a role name.', maxLength: { value: 100, message: 'Use at most 100 characters.' } })}
+              {...form.register('name', {
+                required: 'Enter a role name.',
+                maxLength: { value: 100, message: 'Use at most 100 characters.' },
+              })}
             />
             <TextArea
               id="create-role-description"
@@ -83,9 +94,15 @@ export function CreateRoleDialog({
               invalidText={form.formState.errors.description?.message}
               {...form.register('description', { maxLength: { value: 500, message: 'Use at most 500 characters.' } })}
             />
-            <Select id="copy-role-permissions" labelText="Copy permissions from (optional)" {...form.register('copyFromRoleId')}>
+            <Select
+              id="copy-role-permissions"
+              labelText="Copy permissions from (optional)"
+              {...form.register('copyFromRoleId')}
+            >
               <SelectItem value="" text="— Start from scratch —" />
-              {roles.map((role) => <SelectItem key={role.id} value={role.id} text={role.name} />)}
+              {roles.map((role) => (
+                <SelectItem key={role.id} value={role.id} text={role.name} />
+              ))}
             </Select>
             <div>
               <h3 className="role-dialog__section-title">Role requirements</h3>
@@ -101,7 +118,9 @@ export function CreateRoleDialog({
               id="create-role-lab-rules"
               labelText="Lab Rules requirement"
               value={form.watch('laborordnungMode')}
-              onChange={(event) => form.setValue('laborordnungMode', event.target.value as Role['laborordnungMode'], { shouldDirty: true })}
+              onChange={(event) =>
+                form.setValue('laborordnungMode', event.target.value as Role['laborordnungMode'], { shouldDirty: true })
+              }
             >
               <SelectItem value="not_required" text="Not required" />
               <SelectItem value="warning" text="Warning" />
@@ -117,8 +136,12 @@ export function CreateRoleDialog({
         </Form>
       </ModalBody>
       <ModalFooter>
-        <Button kind="secondary" type="button" disabled={isPending} onClick={onClose}>Cancel</Button>
-        <Button type="submit" form="create-role-form" disabled={isPending}>{isPending ? 'Creating…' : 'Create role'}</Button>
+        <Button kind="secondary" type="button" disabled={isPending} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" form="create-role-form" disabled={isPending}>
+          {isPending ? 'Creating…' : 'Create role'}
+        </Button>
       </ModalFooter>
     </ComposedModal>
   );
@@ -139,14 +162,15 @@ export function RoleSettingsDialog({
 }) {
   const form = useForm<RoleForm>({ defaultValues: emptyRoleForm });
   useEffect(() => {
-    if (role) form.reset({
-      name: role.name,
-      description: role.description ?? '',
-      copyFromRoleId: '',
-      profileImageRequired: role.profileImageRequired,
-      laborordnungMode: role.laborordnungMode,
-      supervisorDashboard: role.supervisorDashboard,
-    });
+    if (role)
+      form.reset({
+        name: role.name,
+        description: role.description ?? '',
+        copyFromRoleId: '',
+        profileImageRequired: role.profileImageRequired,
+        laborordnungMode: role.laborordnungMode,
+        supervisorDashboard: role.supervisorDashboard,
+      });
   }, [form, role]);
   const submit = form.handleSubmit((values) => {
     if (!role) return;
@@ -166,23 +190,70 @@ export function RoleSettingsDialog({
         {role && (
           <Form id="edit-role-form" onSubmit={submit}>
             <Stack gap={6}>
-              {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Role not updated" subtitle={error.message} />}
-              <TextInput id="edit-role-name" labelText="Role name" invalid={Boolean(form.formState.errors.name)} invalidText={form.formState.errors.name?.message} {...form.register('name', { required: 'Enter a role name.', maxLength: { value: 100, message: 'Use at most 100 characters.' } })} />
-              <TextArea id="edit-role-description" labelText="Description (optional)" rows={3} invalid={Boolean(form.formState.errors.description)} invalidText={form.formState.errors.description?.message} {...form.register('description', { maxLength: { value: 500, message: 'Use at most 500 characters.' } })} />
-              <Checkbox id="edit-role-profile-image-required" labelText="Require a profile image" checked={form.watch('profileImageRequired')} onChange={(_, data) => form.setValue('profileImageRequired', data.checked, { shouldDirty: true })} />
-              <Select id="edit-role-lab-rules" labelText="Lab Rules requirement" value={form.watch('laborordnungMode')} onChange={(event) => form.setValue('laborordnungMode', event.target.value as Role['laborordnungMode'], { shouldDirty: true })}>
+              {error && (
+                <InlineNotification
+                  kind="error"
+                  lowContrast
+                  hideCloseButton
+                  title="Role not updated"
+                  subtitle={error.message}
+                />
+              )}
+              <TextInput
+                id="edit-role-name"
+                labelText="Role name"
+                invalid={Boolean(form.formState.errors.name)}
+                invalidText={form.formState.errors.name?.message}
+                {...form.register('name', {
+                  required: 'Enter a role name.',
+                  maxLength: { value: 100, message: 'Use at most 100 characters.' },
+                })}
+              />
+              <TextArea
+                id="edit-role-description"
+                labelText="Description (optional)"
+                rows={3}
+                invalid={Boolean(form.formState.errors.description)}
+                invalidText={form.formState.errors.description?.message}
+                {...form.register('description', { maxLength: { value: 500, message: 'Use at most 500 characters.' } })}
+              />
+              <Checkbox
+                id="edit-role-profile-image-required"
+                labelText="Require a profile image"
+                checked={form.watch('profileImageRequired')}
+                onChange={(_, data) => form.setValue('profileImageRequired', data.checked, { shouldDirty: true })}
+              />
+              <Select
+                id="edit-role-lab-rules"
+                labelText="Lab Rules requirement"
+                value={form.watch('laborordnungMode')}
+                onChange={(event) =>
+                  form.setValue('laborordnungMode', event.target.value as Role['laborordnungMode'], {
+                    shouldDirty: true,
+                  })
+                }
+              >
                 <SelectItem value="not_required" text="Not required" />
                 <SelectItem value="warning" text="Warning" />
                 <SelectItem value="blocking" text="Block admission" />
               </Select>
-              <Checkbox id="edit-role-supervisor-dashboard" labelText="Designate as a supervisor role" checked={form.watch('supervisorDashboard')} onChange={(_, data) => form.setValue('supervisorDashboard', data.checked, { shouldDirty: true })} />
+              <Checkbox
+                id="edit-role-supervisor-dashboard"
+                labelText="Designate as a supervisor role"
+                checked={form.watch('supervisorDashboard')}
+                onChange={(_, data) => form.setValue('supervisorDashboard', data.checked, { shouldDirty: true })}
+              />
             </Stack>
           </Form>
         )}
       </ModalBody>
       <ModalFooter>
-        <Button kind="secondary" type="button" disabled={isPending} onClick={onClose}>Cancel</Button>
-        <Button type="submit" form="edit-role-form" disabled={isPending}>{isPending ? 'Saving…' : 'Save role'}</Button>
+        <Button kind="secondary" type="button" disabled={isPending} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" form="edit-role-form" disabled={isPending}>
+          {isPending ? 'Saving…' : 'Save role'}
+        </Button>
       </ModalFooter>
     </ComposedModal>
   );
@@ -216,7 +287,10 @@ export function DeleteRoleDialog({
       onClose={onClose}
       onConfirm={onConfirm}
     >
-      <p>{role.name} will be removed from every person who has it. The role and its permission grants will be permanently deleted. This cannot be undone.</p>
+      <p>
+        {role.name} will be removed from every person who has it. The role and its permission grants will be permanently
+        deleted. This cannot be undone.
+      </p>
     </DestructiveActionDialog>
   );
 }

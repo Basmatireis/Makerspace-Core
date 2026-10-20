@@ -68,7 +68,10 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     }),
     'create machine',
   );
-  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g', processes: ['fdm_printing'] }), 'create material type');
+  const materialType = await parse<Identified>(
+    await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g', processes: ['fdm_printing'] }),
+    'create material type',
+  );
   let material = await parse<Material>(
     await post('/materials', {
       name: 'E2E PLA blue',
@@ -137,7 +140,12 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
       customer: { kind: 'organization', id: organization.id },
       operatorPersonId: me.person.id,
       notes: 'Created by the live Playwright slice.',
-      run: { startsAt, endsAt, outcome: 'successful', usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }] },
+      run: {
+        startsAt,
+        endsAt,
+        outcome: 'successful',
+        usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }],
+      },
     }),
     'create finished manual job',
   );
@@ -168,7 +176,10 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     'create running manual job',
   );
   expect(running.status).toBe('running');
-  const runningItems = await parse<WorkItemPage>(await get(`/machine-logbook/work-items?status=running&machineId=${machine.id}`), 'running work items');
+  const runningItems = await parse<WorkItemPage>(
+    await get(`/machine-logbook/work-items?status=running&machineId=${machine.id}`),
+    'running work items',
+  );
   expect(runningItems.items.map((item) => item.id)).toContain(running.id);
 
   const cancelled = await parse<MachineJob>(
@@ -178,7 +189,10 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   expect(cancelled.status).toBe('cancelled');
   expect(cancelled.outcome).toBe('cancelled');
   expect(cancelled.version).toBeGreaterThan(running.version);
-  const cancelledItems = await parse<WorkItemPage>(await get(`/machine-logbook/work-items?status=cancelled&machineId=${machine.id}`), 'cancelled work items');
+  const cancelledItems = await parse<WorkItemPage>(
+    await get(`/machine-logbook/work-items?status=cancelled&machineId=${machine.id}`),
+    'cancelled work items',
+  );
   expect(cancelledItems.items.map((item) => item.id)).toEqual([running.id]);
 
   // A price adjustment keeps the calculated price and changes the effective one.
@@ -196,7 +210,10 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   expect(adjusted.calculatedPrice).toBe(finished.calculatedPrice);
 
   // No machine has reported a run yet (they come from connectors); the unassigned recorded runs list is empty.
-  const recorded = await parse<{ items: unknown[] }>(await get(`/machine-runs?machineId=${machine.id}&assigned=false&source=recorded`), 'list unassigned runs');
+  const recorded = await parse<{ items: unknown[] }>(
+    await get(`/machine-runs?machineId=${machine.id}&assigned=false&source=recorded`),
+    'list unassigned runs',
+  );
   expect(recorded.items).toEqual([]);
 
   // Statistics take a half-open range, so the end is the day after today.
@@ -220,5 +237,4 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   await expect(page.getByRole('heading', { name: 'E2E long run', level: 1 })).toBeVisible();
   await expect(page.getByText('Cancelled', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('table', { name: 'Runs' }).getByRole('progressbar')).toHaveCount(0);
-
 });

@@ -24,11 +24,20 @@ function validate(file: File): string | null {
 }
 
 /** Header values are ASCII-only, so the name travels percent-encoded as UTF-8 (the server stores at most 150 characters). */
-const encodedName = (name: string) => encodeURIComponent(Array.from(name.replace(/\p{Cc}/gu, '')).slice(0, 150).join('') || 'upload');
+const encodedName = (name: string) =>
+  encodeURIComponent(
+    Array.from(name.replace(/\p{Cc}/gu, ''))
+      .slice(0, 150)
+      .join('') || 'upload',
+  );
 
 /** Sends the raw bytes with the headers the API expects. Images are measured by the server, videos by the browser. */
 async function uploadFile(file: File): Promise<SignageAsset> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodedName(file.name), 'X-File-Content-Type': file.type };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/octet-stream',
+    'X-File-Name': encodedName(file.name),
+    'X-File-Content-Type': file.type,
+  };
   if (VIDEO_TYPES.includes(file.type)) {
     const metadata = await readVideoMetadata(file);
     headers['X-Asset-Width'] = String(metadata.width);
@@ -42,10 +51,15 @@ export function UploadMediaModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<Picked[]>([]);
   const [busy, setBusy] = useState(false);
-  const patch = (id: number, change: Partial<Picked>) => setPicked((current) => current.map((entry) => entry.id === id ? { ...entry, ...change } : entry));
+  const patch = (id: number, change: Partial<Picked>) =>
+    setPicked((current) => current.map((entry) => (entry.id === id ? { ...entry, ...change } : entry)));
   const ready = picked.filter((entry) => !entry.error && entry.status === 'edit');
 
-  const add = (files: File[]) => setPicked((current) => [...current, ...files.map((file) => ({ id: (nextId += 1), file, error: validate(file), status: 'edit' as const }))]);
+  const add = (files: File[]) =>
+    setPicked((current) => [
+      ...current,
+      ...files.map((file) => ({ id: (nextId += 1), file, error: validate(file), status: 'edit' as const })),
+    ]);
 
   const upload = async () => {
     setBusy(true);
@@ -66,18 +80,58 @@ export function UploadMediaModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal open size="md" modalHeading="Upload media" modalLabel="Media" primaryButtonText={busy ? 'Uploading…' : 'Upload'} secondaryButtonText={busy ? 'Close when finished' : 'Cancel'} primaryButtonDisabled={busy || ready.length === 0}
-      preventCloseOnClickOutside onRequestClose={() => { if (!busy) onClose(); }} onRequestSubmit={() => { void upload(); }}>
+    <Modal
+      open
+      size="md"
+      modalHeading="Upload media"
+      modalLabel="Media"
+      primaryButtonText={busy ? 'Uploading…' : 'Upload'}
+      secondaryButtonText={busy ? 'Close when finished' : 'Cancel'}
+      primaryButtonDisabled={busy || ready.length === 0}
+      preventCloseOnClickOutside
+      onRequestClose={() => {
+        if (!busy) onClose();
+      }}
+      onRequestSubmit={() => {
+        void upload();
+      }}
+    >
       <Stack gap={5}>
-        <FileUploaderDropContainer labelText="Drag and drop files here or click to upload" accept={[...IMAGE_TYPES, ...VIDEO_TYPES]} multiple name="signage-media" disabled={busy} onAddFiles={(_, { addedFiles }) => add(addedFiles)} />
-        <p className="sg-secondary">Images: JPG, PNG, WebP up to 20 MB and 8192 px per side. Videos: H.264 MP4 up to 200 MB. Videos are played as uploaded.</p>
+        <FileUploaderDropContainer
+          labelText="Drag and drop files here or click to upload"
+          accept={[...IMAGE_TYPES, ...VIDEO_TYPES]}
+          multiple
+          name="signage-media"
+          disabled={busy}
+          onAddFiles={(_, { addedFiles }) => add(addedFiles)}
+        />
+        <p className="sg-secondary">
+          Images: JPG, PNG, WebP up to 20 MB and 8192 px per side. Videos: H.264 MP4 up to 200 MB. Videos are played as
+          uploaded.
+        </p>
         {picked.map((entry) => (
           <FileUploaderItem
-            key={entry.id} name={entry.file.name} status={entry.status} invalid={Boolean(entry.error)} errorSubject={entry.error ?? undefined} errorBody="" size="md"
-            onDelete={() => { if (!busy) setPicked((current) => current.filter((item) => item.id !== entry.id)); }}
+            key={entry.id}
+            name={entry.file.name}
+            status={entry.status}
+            invalid={Boolean(entry.error)}
+            errorSubject={entry.error ?? undefined}
+            errorBody=""
+            size="md"
+            onDelete={() => {
+              if (!busy) setPicked((current) => current.filter((item) => item.id !== entry.id));
+            }}
           />
         ))}
-        {picked.some((entry) => entry.error) && <InlineNotification kind="warning" lowContrast hideCloseButton title="Some files are not uploaded" subtitle="Remove them or pick other files." />}
+        {picked.some((entry) => entry.error) && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Some files are not uploaded"
+            subtitle="Remove them or pick other files."
+          />
+        )}
       </Stack>
     </Modal>
   );

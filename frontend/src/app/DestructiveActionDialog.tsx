@@ -31,8 +31,8 @@ export function DestructiveActionDialog({
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   if (open && !wasOpenRef.current) {
-    returnFocusRef.current = launcherButtonRef?.current
-      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    returnFocusRef.current =
+      launcherButtonRef?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     wasOpenRef.current = true;
   }
 
@@ -78,13 +78,7 @@ export function DestructiveActionDialog({
       <Stack gap={5}>
         {children}
         {error && (
-          <InlineNotification
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title="Action failed"
-            subtitle={error}
-          />
+          <InlineNotification kind="error" lowContrast hideCloseButton title="Action failed" subtitle={error} />
         )}
       </Stack>
     </Modal>

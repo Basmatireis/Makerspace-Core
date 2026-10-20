@@ -8,7 +8,9 @@
   align-items: start;
 }
 
-.organization-form-grid__wide { grid-column: 1 / -1; }
+.organization-form-grid__wide {
+  grid-column: 1 / -1;
+}
 
 .organization-member-add {
   display: grid;
@@ -18,5 +20,7 @@
 }
 
 @media (max-width: 41.98rem) {
-  .organization-member-add { grid-template-columns: minmax(0, 1fr); }
+  .organization-member-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

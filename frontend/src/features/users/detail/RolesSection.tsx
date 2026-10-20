@@ -4,7 +4,14 @@ import { canManageRoleMembership } from '../../auth/permissions';
 import type { useCurrentUser } from '../../auth/auth';
 import { DetailSection } from '../PersonDetailComponents';
 
-export function RolesSection({ person, currentUser, rolesById, canAssignRole, onManageRoles, onRemoveRole }: {
+export function RolesSection({
+  person,
+  currentUser,
+  rolesById,
+  canAssignRole,
+  onManageRoles,
+  onRemoveRole,
+}: {
   person: Person;
   currentUser: ReturnType<typeof useCurrentUser>;
   rolesById: ReadonlyMap<string, Role>;
@@ -16,7 +23,13 @@ export function RolesSection({ person, currentUser, rolesById, canAssignRole, on
     <DetailSection
       title="Roles"
       meta={<span className="section-description">{person.roles.length} assigned</span>}
-      action={canAssignRole ? <Button kind="ghost" size="sm" onClick={onManageRoles}>Manage roles</Button> : undefined}
+      action={
+        canAssignRole ? (
+          <Button kind="ghost" size="sm" onClick={onManageRoles}>
+            Manage roles
+          </Button>
+        ) : undefined
+      }
     >
       <div className="tag-list" aria-label="Assigned roles">
         {person.roles.length === 0 && <span>No roles assigned</span>}
@@ -24,9 +37,24 @@ export function RolesSection({ person, currentUser, rolesById, canAssignRole, on
           const roleDetails = rolesById.get(role.id);
           const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
           if (mayRemove) {
-            return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => { onRemoveRole(role); }} />;
+            return (
+              <DismissibleTag
+                key={role.id}
+                type={role.systemKey === 'master' ? 'purple' : 'blue'}
+                text={role.name}
+                title={`Remove ${role.name} role`}
+                dismissTooltipLabel={`Remove ${role.name} role`}
+                onClose={() => {
+                  onRemoveRole(role);
+                }}
+              />
+            );
           }
-          return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
+          return (
+            <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>
+              {role.name}
+            </Tag>
+          );
         })}
       </div>
     </DetailSection>

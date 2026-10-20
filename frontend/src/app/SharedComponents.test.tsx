@@ -29,8 +29,12 @@ describe('shared application components', () => {
   it('groups visible row actions under an accessible label', () => {
     renderRoute(
       <RowActions label="Actions for Ada Lovelace">
-        <Button kind="ghost" size="sm">Edit</Button>
-        <Button kind="danger--ghost" size="sm">Delete</Button>
+        <Button kind="ghost" size="sm">
+          Edit
+        </Button>
+        <Button kind="danger--ghost" size="sm">
+          Delete
+        </Button>
       </RowActions>,
     );
 
@@ -41,11 +45,7 @@ describe('shared application components', () => {
 
   it('renders an optional empty-state action', () => {
     renderRoute(
-      <EmptyState
-        title="Nothing here"
-        description="Create the first item."
-        action={<Button>Create item</Button>}
-      />,
+      <EmptyState title="Nothing here" description="Create the first item." action={<Button>Create item</Button>} />,
     );
 
     expect(screen.getByRole('heading', { name: 'Nothing here' })).toBeInTheDocument();
@@ -59,10 +59,18 @@ describe('DestructiveActionDialog', () => {
     const onClose = vi.fn();
     function Harness() {
       const [pending, setPending] = useState(false);
-      return <DestructiveActionDialog open title="Remove record?" confirmLabel="Remove record"
-        pending={pending} onClose={onClose} onConfirm={() => setPending(true)}>
-        <p>The selected record will be removed.</p>
-      </DestructiveActionDialog>;
+      return (
+        <DestructiveActionDialog
+          open
+          title="Remove record?"
+          confirmLabel="Remove record"
+          pending={pending}
+          onClose={onClose}
+          onConfirm={() => setPending(true)}
+        >
+          <p>The selected record will be removed.</p>
+        </DestructiveActionDialog>
+      );
     }
     renderRoute(<Harness />);
     await user.click(screen.getByRole('button', { name: 'Remove record' }));
@@ -76,16 +84,22 @@ describe('DestructiveActionDialog', () => {
     const user = userEvent.setup();
     function Harness() {
       const [open, setOpen] = useState(false);
-      return <>
-        <Button onClick={() => setOpen(true)}>Remove selected record</Button>
-        {open && <DestructiveActionDialog
-          open
-          title="Remove record?"
-          confirmLabel="Remove record"
-          onClose={() => setOpen(false)}
-          onConfirm={() => setOpen(false)}
-        ><p>The selected record will be removed.</p></DestructiveActionDialog>}
-      </>;
+      return (
+        <>
+          <Button onClick={() => setOpen(true)}>Remove selected record</Button>
+          {open && (
+            <DestructiveActionDialog
+              open
+              title="Remove record?"
+              confirmLabel="Remove record"
+              onClose={() => setOpen(false)}
+              onConfirm={() => setOpen(false)}
+            >
+              <p>The selected record will be removed.</p>
+            </DestructiveActionDialog>
+          )}
+        </>
+      );
     }
     renderRoute(<Harness />);
     const launcher = screen.getByRole('button', { name: 'Remove selected record' });
@@ -103,19 +117,26 @@ describe('DestructiveActionDialog', () => {
     function Harness() {
       const [open, setOpen] = useState(false);
       const launcherRef = useRef<HTMLButtonElement>(null);
-      return <>
-        <Button ref={launcherRef} onClick={() => setOpen(true)}>Open delete dialog</Button>
-        <DestructiveActionDialog
-          open={open}
-          title="Delete person?"
-          confirmLabel="Delete person"
-          launcherButtonRef={launcherRef}
-          onClose={() => { onClose(); setOpen(false); }}
-          onConfirm={onConfirm}
-        >
-          <p>This permanently removes the profile.</p>
-        </DestructiveActionDialog>
-      </>;
+      return (
+        <>
+          <Button ref={launcherRef} onClick={() => setOpen(true)}>
+            Open delete dialog
+          </Button>
+          <DestructiveActionDialog
+            open={open}
+            title="Delete person?"
+            confirmLabel="Delete person"
+            launcherButtonRef={launcherRef}
+            onClose={() => {
+              onClose();
+              setOpen(false);
+            }}
+            onConfirm={onConfirm}
+          >
+            <p>This permanently removes the profile.</p>
+          </DestructiveActionDialog>
+        </>
+      );
     }
     renderRoute(<Harness />);
 

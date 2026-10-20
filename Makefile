@@ -132,6 +132,7 @@ check-backend: ## Run Go formatting, vet, golangci-lint, govulncheck and tests.
 
 check-frontend: ## Run the dependency audit, lint, type checking, tests, and a production build.
 	docker compose run --rm --no-deps -e CI=true frontend pnpm audit --audit-level moderate
+	docker compose run --rm --no-deps -e CI=true frontend pnpm format:check
 	docker compose run --rm --no-deps -e CI=true frontend pnpm lint
 	docker compose run --rm --no-deps -e CI=true frontend pnpm typecheck
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test

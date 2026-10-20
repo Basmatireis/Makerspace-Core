@@ -12,14 +12,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<(Toast & { id: number })[]>([]);
   const nextId = useRef(0);
   // Stable identity: notify is the context value, and consumers list it as a dependency.
-  const notify = useCallback<Notify>((toast) => setToasts((current) => [...current, { ...toast, id: ++nextId.current }]), []);
+  const notify = useCallback<Notify>(
+    (toast) => setToasts((current) => [...current, { ...toast, id: ++nextId.current }]),
+    [],
+  );
   const dismiss = (id: number) => setToasts((current) => current.filter((toast) => toast.id !== id));
   return (
     <NotifyContext.Provider value={notify}>
       {children}
       <div className="mj-toasts" aria-live="polite">
         {toasts.map((toast) => (
-          <ToastNotification key={toast.id} kind={toast.kind} lowContrast timeout={5000} title={toast.title} subtitle={toast.subtitle} onClose={() => { dismiss(toast.id); return false; }} onCloseButtonClick={() => dismiss(toast.id)} />
+          <ToastNotification
+            key={toast.id}
+            kind={toast.kind}
+            lowContrast
+            timeout={5000}
+            title={toast.title}
+            subtitle={toast.subtitle}
+            onClose={() => {
+              dismiss(toast.id);
+              return false;
+            }}
+            onCloseButtonClick={() => dismiss(toast.id)}
+          />
         ))}
       </div>
     </NotifyContext.Provider>

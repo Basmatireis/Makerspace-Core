@@ -16,10 +16,33 @@ const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a916';
 const otherPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a917';
 const groupId = '0192f6f8-743e-7c77-a349-cd07c3e8a930';
 const organization: Organization = {
-  id: organizationId, name: 'Atelier GmbH', kind: 'company', active: true, addressLine: 'Hauptstr. 1', postalCode: '1010', locality: 'Wien', countryCode: 'AT',
-  contactName: 'Erika Muster', contactEmail: 'erika@atelier.example.test', memberCount: 1, pricingGroupAssignmentVersion: 0, version: 4, createdAt: now, updatedAt: now,
+  id: organizationId,
+  name: 'Atelier GmbH',
+  kind: 'company',
+  active: true,
+  addressLine: 'Hauptstr. 1',
+  postalCode: '1010',
+  locality: 'Wien',
+  countryCode: 'AT',
+  contactName: 'Erika Muster',
+  contactEmail: 'erika@atelier.example.test',
+  memberCount: 1,
+  pricingGroupAssignmentVersion: 0,
+  version: 4,
+  createdAt: now,
+  updatedAt: now,
 };
-const group: PricingGroup = { id: groupId, name: 'Partners', description: null, active: true, isDefault: false, version: 2, createdAt: now, updatedAt: now, rules: [] };
+const group: PricingGroup = {
+  id: groupId,
+  name: 'Partners',
+  description: null,
+  active: true,
+  isDefault: false,
+  version: 2,
+  createdAt: now,
+  updatedAt: now,
+  rules: [],
+};
 
 function as(...permissions: PermissionId[]) {
   server.use(
@@ -32,19 +55,29 @@ describe('Organizations list', () => {
   it('lists organizations, sends search and filters to the API, and hides creation without manage', async () => {
     const requests: URL[] = [];
     as(PermissionId.organizationsread, PermissionId.pricingread);
-    server.use(http.get('*/api/v1/organizations', ({ request }) => {
-      requests.push(new URL(request.url));
-      return HttpResponse.json({ items: [organization], page: 1, pageSize: 10, total: 1 });
-    }));
+    server.use(
+      http.get('*/api/v1/organizations', ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json({ items: [organization], page: 1, pageSize: 10, total: 1 });
+      }),
+    );
     const user = userEvent.setup();
     renderRoute(<App />, '/organizations');
     expect(await screen.findByRole('heading', { name: 'Organizations' })).toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: 'Atelier GmbH' })).toHaveAttribute('href', `/organizations/${organizationId}`);
+    expect(await screen.findByRole('link', { name: 'Atelier GmbH' })).toHaveAttribute(
+      'href',
+      `/organizations/${organizationId}`,
+    );
     expect(screen.queryByRole('button', { name: 'New organization' })).not.toBeInTheDocument();
     const breadcrumbs = within(screen.getByLabelText('Breadcrumb'));
     expect(breadcrumbs.getByText('Directory')).toBeInTheDocument();
 
-    await user.click(screen.getByText('Filters', { selector: '.cds--tooltip-content' }).closest('.cds--popover-container')!.querySelector('button') as HTMLElement);
+    await user.click(
+      screen
+        .getByText('Filters', { selector: '.cds--tooltip-content' })
+        .closest('.cds--popover-container')!
+        .querySelector('button') as HTMLElement,
+    );
     await user.click(screen.getByRole('radio', { name: 'Institute' }));
     await user.click(screen.getByRole('radio', { name: 'Inactive' }));
     await user.click(screen.getByRole('radio', { name: 'Partners' }));
@@ -66,7 +99,10 @@ describe('Organizations list', () => {
       http.get('*/api/v1/organizations', () => HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 })),
       http.get(`*/api/v1/organizations/${organizationId}`, () => HttpResponse.json(organization)),
       http.get(`*/api/v1/organizations/${organizationId}/members`, () => HttpResponse.json({ items: [] })),
-      http.post('*/api/v1/organizations', async ({ request }) => { body = await request.json() as Record<string, unknown>; return HttpResponse.json(organization, { status: 201 }); }),
+      http.post('*/api/v1/organizations', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(organization, { status: 201 });
+      }),
     );
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, '/organizations');
@@ -88,27 +124,64 @@ describe('Organizations list', () => {
 
 describe('Organization page', () => {
   function serve(overrides: { requirePo?: boolean } = {}) {
-    const calls: { organization?: Record<string, unknown>; requirements?: Record<string, unknown>; pricing?: Record<string, unknown>; added?: Record<string, unknown>; removed?: string } = {};
+    const calls: {
+      organization?: Record<string, unknown>;
+      requirements?: Record<string, unknown>;
+      pricing?: Record<string, unknown>;
+      added?: Record<string, unknown>;
+      removed?: string;
+    } = {};
     server.use(
       http.get(`*/api/v1/organizations/${organizationId}`, () => HttpResponse.json(organization)),
-      http.get(`*/api/v1/organizations/${organizationId}/members`, () => HttpResponse.json({ items: [{ personId, displayName: 'Maria Hoffmann', addedAt: now }] })),
-      http.get(`*/api/v1/organizations/${organizationId}/invoicing-requirements`, () => HttpResponse.json({ requirePurchaseOrderReference: overrides.requirePo ?? false, version: 2 })),
-      http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [
-        { kind: 'person', id: personId, displayName: 'Maria Hoffmann', pricingGroupAssignmentVersion: 0 },
-        { kind: 'person', id: otherPersonId, displayName: 'Jonas Weber', pricingGroupAssignmentVersion: 0 },
-        { kind: 'organization', id: organizationId, displayName: 'Atelier GmbH', pricingGroupAssignmentVersion: 0 },
-      ] })),
-      http.patch(`*/api/v1/organizations/${organizationId}`, async ({ request }) => { calls.organization = await request.json() as Record<string, unknown>; return HttpResponse.json({ ...organization, version: 5 }); }),
-      http.put(`*/api/v1/organizations/${organizationId}/invoicing-requirements`, async ({ request }) => { calls.requirements = await request.json() as Record<string, unknown>; return HttpResponse.json({ requirePurchaseOrderReference: true, version: 3 }); }),
-      http.put('*/api/v1/billing-party-pricing-group', async ({ request }) => { calls.pricing = await request.json() as Record<string, unknown>; return new HttpResponse(null, { status: 204 }); }),
-      http.post(`*/api/v1/organizations/${organizationId}/members`, async ({ request }) => { calls.added = await request.json() as Record<string, unknown>; return HttpResponse.json({ personId: otherPersonId, displayName: 'Jonas Weber', addedAt: now }, { status: 201 }); }),
-      http.delete(`*/api/v1/organizations/${organizationId}/members/${personId}`, () => { calls.removed = personId; return new HttpResponse(null, { status: 204 }); }),
+      http.get(`*/api/v1/organizations/${organizationId}/members`, () =>
+        HttpResponse.json({ items: [{ personId, displayName: 'Maria Hoffmann', addedAt: now }] }),
+      ),
+      http.get(`*/api/v1/organizations/${organizationId}/invoicing-requirements`, () =>
+        HttpResponse.json({ requirePurchaseOrderReference: overrides.requirePo ?? false, version: 2 }),
+      ),
+      http.get('*/api/v1/billing-parties', () =>
+        HttpResponse.json({
+          items: [
+            { kind: 'person', id: personId, displayName: 'Maria Hoffmann', pricingGroupAssignmentVersion: 0 },
+            { kind: 'person', id: otherPersonId, displayName: 'Jonas Weber', pricingGroupAssignmentVersion: 0 },
+            { kind: 'organization', id: organizationId, displayName: 'Atelier GmbH', pricingGroupAssignmentVersion: 0 },
+          ],
+        }),
+      ),
+      http.patch(`*/api/v1/organizations/${organizationId}`, async ({ request }) => {
+        calls.organization = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...organization, version: 5 });
+      }),
+      http.put(`*/api/v1/organizations/${organizationId}/invoicing-requirements`, async ({ request }) => {
+        calls.requirements = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ requirePurchaseOrderReference: true, version: 3 });
+      }),
+      http.put('*/api/v1/billing-party-pricing-group', async ({ request }) => {
+        calls.pricing = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post(`*/api/v1/organizations/${organizationId}/members`, async ({ request }) => {
+        calls.added = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { personId: otherPersonId, displayName: 'Jonas Weber', addedAt: now },
+          { status: 201 },
+        );
+      }),
+      http.delete(`*/api/v1/organizations/${organizationId}/members/${personId}`, () => {
+        calls.removed = personId;
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     return calls;
   }
 
   it('shows master data, invoice data and people read-only for organizations.read', async () => {
-    as(PermissionId.organizationsread, PermissionId.ordersread, PermissionId.machine_jobsread, PermissionId.peoplereadall);
+    as(
+      PermissionId.organizationsread,
+      PermissionId.ordersread,
+      PermissionId.machine_jobsread,
+      PermissionId.peoplereadall,
+    );
     serve({ requirePo: true });
     renderRoute(<App />, `/organizations/${organizationId}`);
     expect(await screen.findByRole('heading', { name: 'Atelier GmbH' })).toBeInTheDocument();
@@ -117,7 +190,10 @@ describe('Organization page', () => {
     expect(screen.getByLabelText('Contact email')).toHaveValue('erika@atelier.example.test');
     expect(await screen.findByRole('switch', { name: /Purchase order number required/ })).toBeChecked();
     expect(await screen.findByRole('link', { name: 'Maria Hoffmann' })).toHaveAttribute('href', `/people/${personId}`);
-    expect(screen.getByRole('link', { name: 'Show jobs' })).toHaveAttribute('href', `/machine-logbook/jobs?customer=${organizationId}`);
+    expect(screen.getByRole('link', { name: 'Show jobs' })).toHaveAttribute(
+      'href',
+      `/machine-logbook/jobs?customer=${organizationId}`,
+    );
     expect(screen.queryByRole('button', { name: /^Save/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
     expect(screen.queryByText(/^Remove /, { selector: '.cds--tooltip-content' })).not.toBeInTheDocument();
@@ -133,17 +209,35 @@ describe('Organization page', () => {
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Atelier Wien GmbH');
     await user.click(screen.getByRole('button', { name: 'Save master data' }));
-    await waitFor(() => expect(calls.organization).toEqual({ name: 'Atelier Wien GmbH', kind: 'company', active: true, expectedVersion: 4 }));
+    await waitFor(() =>
+      expect(calls.organization).toEqual({
+        name: 'Atelier Wien GmbH',
+        kind: 'company',
+        active: true,
+        expectedVersion: 4,
+      }),
+    );
 
     calls.organization = undefined;
     await user.clear(await screen.findByLabelText('Contact person'));
     await user.type(screen.getByLabelText('Contact person'), 'Max Muster');
     await user.click(await screen.findByRole('switch', { name: /Purchase order number required/ }));
     await user.click(screen.getByRole('button', { name: 'Save invoice data' }));
-    await waitFor(() => expect(calls.organization).toMatchObject({
-      name: 'Atelier GmbH', expectedVersion: 4, addressLine: 'Hauptstr. 1', postalCode: '1010', locality: 'Wien', countryCode: 'AT', contactName: 'Max Muster', contactEmail: 'erika@atelier.example.test',
-    }));
-    await waitFor(() => expect(calls.requirements).toEqual({ requirePurchaseOrderReference: true, expectedVersion: 2 }));
+    await waitFor(() =>
+      expect(calls.organization).toMatchObject({
+        name: 'Atelier GmbH',
+        expectedVersion: 4,
+        addressLine: 'Hauptstr. 1',
+        postalCode: '1010',
+        locality: 'Wien',
+        countryCode: 'AT',
+        contactName: 'Max Muster',
+        contactEmail: 'erika@atelier.example.test',
+      }),
+    );
+    await waitFor(() =>
+      expect(calls.requirements).toEqual({ requirePurchaseOrderReference: true, expectedVersion: 2 }),
+    );
   });
 
   it('rejects an invalid country code and email before saving', async () => {
@@ -160,14 +254,25 @@ describe('Organization page', () => {
   });
 
   it('assigns a pricing group with the assignment version, and adds and removes people', async () => {
-    as(PermissionId.organizationsread, PermissionId.organizationsmanage, PermissionId.pricingread, PermissionId.pricingmanage);
+    as(
+      PermissionId.organizationsread,
+      PermissionId.organizationsmanage,
+      PermissionId.pricingread,
+      PermissionId.pricingmanage,
+    );
     const calls = serve();
     const user = userEvent.setup();
     renderRoute(<App />, `/organizations/${organizationId}`);
     await screen.findByRole('heading', { name: 'Atelier GmbH' });
 
     await user.selectOptions(await screen.findByLabelText('Pricing group'), groupId);
-    await waitFor(() => expect(calls.pricing).toEqual({ party: { kind: 'organization', id: organizationId }, pricingGroupId: groupId, expectedVersion: 0 }));
+    await waitFor(() =>
+      expect(calls.pricing).toEqual({
+        party: { kind: 'organization', id: organizationId },
+        pricingGroupId: groupId,
+        expectedVersion: 0,
+      }),
+    );
 
     await user.click(screen.getByPlaceholderText('Search people'));
     // Existing members and organizations are not offered.
@@ -177,7 +282,11 @@ describe('Organization page', () => {
     await user.click(screen.getByRole('button', { name: 'Add person' }));
     await waitFor(() => expect(calls.added).toEqual({ personId: otherPersonId }));
 
-    await user.click((await screen.findByText('Remove Maria Hoffmann', { selector: '.cds--tooltip-content' })).closest('.cds--popover-container')!.querySelector('button') as HTMLElement);
+    await user.click(
+      (await screen.findByText('Remove Maria Hoffmann', { selector: '.cds--tooltip-content' }))
+        .closest('.cds--popover-container')!
+        .querySelector('button') as HTMLElement,
+    );
     await waitFor(() => expect(calls.removed).toBe(personId));
   });
 });
@@ -203,7 +312,12 @@ describe('Delete organization', () => {
     let body: Record<string, unknown> | undefined;
     as(PermissionId.organizationsread, PermissionId.organizationsmanage);
     serveDetail();
-    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, async ({ request }) => { body = await request.json() as Record<string, unknown>; return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete(`*/api/v1/organizations/${organizationId}`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, `/organizations/${organizationId}`);
     await screen.findByRole('heading', { name: 'Atelier GmbH' });
@@ -221,7 +335,12 @@ describe('Delete organization', () => {
     const deleted = vi.fn();
     as(PermissionId.organizationsread, PermissionId.organizationsmanage);
     serveDetail();
-    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, () => { deleted(); return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete(`*/api/v1/organizations/${organizationId}`, () => {
+        deleted();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     const user = userEvent.setup();
     renderRoute(<App />, `/organizations/${organizationId}`);
     await screen.findByRole('heading', { name: 'Atelier GmbH' });
@@ -233,7 +352,11 @@ describe('Delete organization', () => {
   it('shows organization_in_use inline with the hint to deactivate and stays on the page', async () => {
     as(PermissionId.organizationsread, PermissionId.organizationsmanage);
     serveDetail();
-    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, () => HttpResponse.json({ code: 'organization_in_use', message: 'in use' }, { status: 409 })));
+    server.use(
+      http.delete(`*/api/v1/organizations/${organizationId}`, () =>
+        HttpResponse.json({ code: 'organization_in_use', message: 'in use' }, { status: 409 }),
+      ),
+    );
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, `/organizations/${organizationId}`);
     await screen.findByRole('heading', { name: 'Atelier GmbH' });

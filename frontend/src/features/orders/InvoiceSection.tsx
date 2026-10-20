@@ -1,6 +1,19 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Accordion, AccordionItem, Button, ContainedList, ContainedListItem, InlineNotification, OverflowMenu, OverflowMenuItem, ProgressIndicator, ProgressStep, Stack, Tile } from '@carbon/react';
+import {
+  Accordion,
+  AccordionItem,
+  Button,
+  ContainedList,
+  ContainedListItem,
+  InlineNotification,
+  OverflowMenu,
+  OverflowMenuItem,
+  ProgressIndicator,
+  ProgressStep,
+  Stack,
+  Tile,
+} from '@carbon/react';
 import { Copy, Receipt } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { updateExternalInvoiceRequest } from '../../api/generated/external-invoicing/external-invoicing';
@@ -15,7 +28,17 @@ import { useNotify } from '../machinelogbook/shared/toasts';
 import { organizationRequirementsQuery } from '../organizations/queries';
 import { useMediaQuery } from './useMediaQuery';
 import { requestEventLabel, requestStateLabel, reconciliationLabels } from './labels';
-import { cancellationOf, INVOICE_STEPS, invoiceNumberOf, invoiceRequestBlocker, isPaid, latestReturn, requestNext, requestProgress, requestReadiness } from './logic';
+import {
+  cancellationOf,
+  INVOICE_STEPS,
+  invoiceNumberOf,
+  invoiceRequestBlocker,
+  isPaid,
+  latestReturn,
+  requestNext,
+  requestProgress,
+  requestReadiness,
+} from './logic';
 import { formatCents, toCents } from './money';
 import { orderRequestsQuery, requestQuery, useFinanceMutation } from './queries';
 import { ReadinessChecklist } from './ReadinessChecklist';
@@ -27,15 +50,43 @@ import { RequestStateTag } from './status';
 
 function Frozen({ request }: { request: ExternalInvoiceRequest }) {
   const details = request.details;
-  const period = details.serviceStartsOn ? `${formatDate(`${details.serviceStartsOn}T12:00:00Z`)} to ${details.serviceEndsOn ? formatDate(`${details.serviceEndsOn}T12:00:00Z`) : '—'}` : '—';
+  const period = details.serviceStartsOn
+    ? `${formatDate(`${details.serviceStartsOn}T12:00:00Z`)} to ${details.serviceEndsOn ? formatDate(`${details.serviceEndsOn}T12:00:00Z`) : '—'}`
+    : '—';
   return (
     <dl className="mj-facts sales-facts">
-      <div><dt>Recipient</dt><dd>{details.recipientName || '—'}</dd></div>
-      <div><dt>Address</dt><dd>{[details.addressLine1, `${details.postalCode ?? ''} ${details.locality ?? ''}`.trim(), details.countryCode].filter(Boolean).join(', ') || '—'}</dd></div>
-      {details.contactName && <div><dt>Contact person</dt><dd>{details.contactName}</dd></div>}
-      {details.purchaseOrderReference && <div><dt>Purchase order</dt><dd>{details.purchaseOrderReference}</dd></div>}
-      <div><dt>Service period</dt><dd>{period}</dd></div>
-      <div><dt>Description</dt><dd>{details.serviceDescription || '—'}</dd></div>
+      <div>
+        <dt>Recipient</dt>
+        <dd>{details.recipientName || '—'}</dd>
+      </div>
+      <div>
+        <dt>Address</dt>
+        <dd>
+          {[details.addressLine1, `${details.postalCode ?? ''} ${details.locality ?? ''}`.trim(), details.countryCode]
+            .filter(Boolean)
+            .join(', ') || '—'}
+        </dd>
+      </div>
+      {details.contactName && (
+        <div>
+          <dt>Contact person</dt>
+          <dd>{details.contactName}</dd>
+        </div>
+      )}
+      {details.purchaseOrderReference && (
+        <div>
+          <dt>Purchase order</dt>
+          <dd>{details.purchaseOrderReference}</dd>
+        </div>
+      )}
+      <div>
+        <dt>Service period</dt>
+        <dd>{period}</dd>
+      </div>
+      <div>
+        <dt>Description</dt>
+        <dd>{details.serviceDescription || '—'}</dd>
+      </div>
     </dl>
   );
 }
@@ -54,12 +105,21 @@ export function InvoiceSection({ order }: { order: Order }) {
   if (!canRead) {
     return (
       <Tile id="invoice" className="sales-invoice">
-        <h2 className="mj-section-title mj-inline">Invoice <RequestStateTag state={order.latestExternalRequestState ?? ''} size="md" /></h2>
-        <p className="mj-secondary">{order.latestExternalRequestReference}. Recipient details need the permission to read invoice requests.</p>
+        <h2 className="mj-section-title mj-inline">
+          Invoice <RequestStateTag state={order.latestExternalRequestState ?? ''} size="md" />
+        </h2>
+        <p className="mj-secondary">
+          {order.latestExternalRequestReference}. Recipient details need the permission to read invoice requests.
+        </p>
       </Tile>
     );
   }
-  if (query.isPending) return <Tile id="invoice"><InlineLoadingState label="Loading invoice" /></Tile>;
+  if (query.isPending)
+    return (
+      <Tile id="invoice">
+        <InlineLoadingState label="Loading invoice" />
+      </Tile>
+    );
   if (query.isError) return <ErrorState message="The invoice could not be loaded." onRetry={() => query.refetch()} />;
   return <InvoiceContent key={query.data.id} order={order} request={query.data} />;
 }
@@ -73,13 +133,27 @@ function RequestHistory({ events }: { events: ExternalInvoiceRequest['events'] }
         <ContainedListItem key={event.id} renderIcon={Receipt}>
           <span className="mj-cell-stack">
             <strong>{requestEventLabel[event.kind] ?? event.kind.replaceAll('_', ' ')}</strong>
-            {event.reason && <span><LinkifiedText text={event.reason} targets={{}} /></span>}
-            {(event.reconciliationKind || event.externalReference) && (
-              <span className="mj-secondary">
-                {[event.reconciliationKind && (reconciliationLabels[event.reconciliationKind as keyof typeof reconciliationLabels]?.label ?? event.reconciliationKind), event.externalReference && `Reference ${event.externalReference}`, event.effectiveAt && `effective ${formatDate(event.effectiveAt)}`].filter(Boolean).join(' · ')}
+            {event.reason && (
+              <span>
+                <LinkifiedText text={event.reason} targets={{}} />
               </span>
             )}
-            <span className="mj-secondary">{event.recordedBy?.displayName ?? 'Unknown'} · {formatDateTime(event.recordedAt)}</span>
+            {(event.reconciliationKind || event.externalReference) && (
+              <span className="mj-secondary">
+                {[
+                  event.reconciliationKind &&
+                    (reconciliationLabels[event.reconciliationKind as keyof typeof reconciliationLabels]?.label ??
+                      event.reconciliationKind),
+                  event.externalReference && `Reference ${event.externalReference}`,
+                  event.effectiveAt && `effective ${formatDate(event.effectiveAt)}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            )}
+            <span className="mj-secondary">
+              {event.recordedBy?.displayName ?? 'Unknown'} · {formatDateTime(event.recordedAt)}
+            </span>
           </span>
         </ContainedListItem>
       ))}
@@ -97,9 +171,17 @@ function EarlierRequests({ orderId, latestId }: { orderId: string; latestId: str
       <AccordionItem title={`Earlier requests (${earlier.length})`}>
         <Accordion size="md">
           {earlier.map((request) => (
-            <AccordionItem key={request.id} title={`${request.reference} · ${requestStateLabel[request.state] ?? request.state} · ${formatDate(request.createdAt)}`}>
+            <AccordionItem
+              key={request.id}
+              title={`${request.reference} · ${requestStateLabel[request.state] ?? request.state} · ${formatDate(request.createdAt)}`}
+            >
               <Stack gap={5}>
-                <dl className="mj-facts sales-facts"><div><dt>Invoice amount</dt><dd>{formatCents(toCents(request.requestedAmount))}</dd></div></dl>
+                <dl className="mj-facts sales-facts">
+                  <div>
+                    <dt>Invoice amount</dt>
+                    <dd>{formatCents(toCents(request.requestedAmount))}</dd>
+                  </div>
+                </dl>
                 <Frozen request={request} />
                 <RequestHistory events={[...request.events].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))} />
               </Stack>
@@ -134,30 +216,57 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
   const invoiceNumber = invoiceNumberOf(request);
   const returned = latestReturn(request);
   // The organization's purchase-order flag is shown when the request was made before the flag changed.
-  const requirements = useQuery({ ...organizationRequirementsQuery(order.customer?.id ?? ''), enabled: isOrganization && !!order.customer && draft });
-  const needsPurchaseOrder = request.requirePurchaseOrderReference || !!requirements.data?.requirePurchaseOrderReference;
+  const requirements = useQuery({
+    ...organizationRequirementsQuery(order.customer?.id ?? ''),
+    enabled: isOrganization && !!order.customer && draft,
+  });
+  const needsPurchaseOrder =
+    request.requirePurchaseOrderReference || !!requirements.data?.requirePurchaseOrderReference;
   const readiness = requestReadiness(live, order.customerKind, needsPurchaseOrder);
   const ready = readiness.every((item) => item.ok);
 
-  const save = useFinanceMutation(() => updateExternalInvoiceRequest(request.id, { expectedVersion: request.version, details: toRequestDetails(form.getValues(), request.details) }), () => {
-    notify({ kind: 'success', title: 'Recipient details saved' });
-  });
+  const save = useFinanceMutation(
+    () =>
+      updateExternalInvoiceRequest(request.id, {
+        expectedVersion: request.version,
+        details: toRequestDetails(form.getValues(), request.details),
+      }),
+    () => {
+      notify({ kind: 'success', title: 'Recipient details saved' });
+    },
+  );
 
   let primary: { label: string; disabled?: boolean; run: () => void } | null = null;
   let secondary: { label: string; run: () => void } | null = null;
   if (canManage) {
     if (draft) primary = { label: 'Submit for approval', disabled: !ready || dirty, run: () => setDialog('submit') };
-    else if (request.state === 'cancellation_requested') primary = { label: 'Confirm cancellation', run: () => setDialog('confirm-cancellation') };
+    else if (request.state === 'cancellation_requested')
+      primary = { label: 'Confirm cancellation', run: () => setDialog('confirm-cancellation') };
   }
-  if (cancelled && canManage && invoiceRequestBlocker(order) === null) primary = { label: 'Request invoice again', run: () => setDialog('again') };
+  if (cancelled && canManage && invoiceRequestBlocker(order) === null)
+    primary = { label: 'Request invoice again', run: () => setDialog('again') };
   if (awaiting && canApprove) {
     primary = { label: 'Copy for wiRef', disabled: !ready || dirty, run: () => setDialog('forward') };
     secondary = { label: 'Return for correction', run: () => setDialog('return') };
   }
   const menu = [
-    ((draft && canManage) || (awaiting && canApprove)) && <OverflowMenuItem key="cancel" itemText="Cancel request" isDelete onClick={() => setDialog('cancel')} />,
-    canManage && request.state === 'issued' && <OverflowMenuItem key="request-cancellation" itemText="Request cancellation…" onClick={() => setDialog('request-cancellation')} />,
-    (canManage || canApprove) && (request.state === 'issued' || request.state === 'cancellation_requested') && <OverflowMenuItem key="reference" itemText={invoiceNumber ? 'Correct invoice number…' : 'Add wiRef invoice number…'} onClick={() => setDialog('reference')} />,
+    ((draft && canManage) || (awaiting && canApprove)) && (
+      <OverflowMenuItem key="cancel" itemText="Cancel request" isDelete onClick={() => setDialog('cancel')} />
+    ),
+    canManage && request.state === 'issued' && (
+      <OverflowMenuItem
+        key="request-cancellation"
+        itemText="Request cancellation…"
+        onClick={() => setDialog('request-cancellation')}
+      />
+    ),
+    (canManage || canApprove) && (request.state === 'issued' || request.state === 'cancellation_requested') && (
+      <OverflowMenuItem
+        key="reference"
+        itemText={invoiceNumber ? 'Correct invoice number…' : 'Add wiRef invoice number…'}
+        onClick={() => setDialog('reference')}
+      />
+    ),
   ].filter(Boolean);
   const history = [...request.events].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   const requested = toCents(request.requestedAmount);
@@ -167,77 +276,222 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
   return (
     <Tile id="invoice" className="sales-invoice">
       <div className="sales-invoice__head">
-        <h2 className="mj-section-title mj-inline">Invoice <RequestStateTag state={request.state} size="md" /></h2>
+        <h2 className="mj-section-title mj-inline">
+          Invoice <RequestStateTag state={request.state} size="md" />
+        </h2>
         <span className="mj-inline">
-          {secondary && <Button kind="tertiary" size="md" onClick={secondary.run}>{secondary.label}</Button>}
-          {primary && <Button kind="primary" size="md" renderIcon={primary.label === 'Copy for wiRef' ? Copy : undefined} disabled={primary.disabled} onClick={primary.run}>{primary.label}</Button>}
-          {menu.length > 0 && <OverflowMenu aria-label="More invoice actions" iconDescription="More invoice actions" flipped>{menu}</OverflowMenu>}
+          {secondary && (
+            <Button kind="tertiary" size="md" onClick={secondary.run}>
+              {secondary.label}
+            </Button>
+          )}
+          {primary && (
+            <Button
+              kind="primary"
+              size="md"
+              renderIcon={primary.label === 'Copy for wiRef' ? Copy : undefined}
+              disabled={primary.disabled}
+              onClick={primary.run}
+            >
+              {primary.label}
+            </Button>
+          )}
+          {menu.length > 0 && (
+            <OverflowMenu aria-label="More invoice actions" iconDescription="More invoice actions" flipped>
+              {menu}
+            </OverflowMenu>
+          )}
         </span>
       </div>
       {returned && (
         <RichNotification kind="warning" title="Returned for correction" className="sales-invoice__returned">
           <LinkifiedText text={returned.reason} targets={{}} />
-          <br /><span className="mj-secondary">{returned.recordedBy?.displayName ?? 'An approver'} · {formatDateTime(returned.recordedAt)}</span>
+          <br />
+          <span className="mj-secondary">
+            {returned.recordedBy?.displayName ?? 'An approver'} · {formatDateTime(returned.recordedAt)}
+          </span>
         </RichNotification>
       )}
       <ProgressIndicator currentIndex={progress.index} spaceEqually vertical={narrow} className="sales-progress">
         {INVOICE_STEPS.map((label, index) => (
-          <ProgressStep key={label} label={label} invalid={progress.invalid && index === progress.index} secondaryLabel={progress.invalid && index === progress.index ? requestStateLabel[request.state] : undefined} />
+          <ProgressStep
+            key={label}
+            label={label}
+            invalid={progress.invalid && index === progress.index}
+            secondaryLabel={progress.invalid && index === progress.index ? requestStateLabel[request.state] : undefined}
+          />
         ))}
       </ProgressIndicator>
-      <p className="mj-secondary sales-top-gap">{request.reference} · {cancelled ? 'This request is cancelled' : `Next step: ${requestNext(request, paid, ready)}`}</p>
+      <p className="mj-secondary sales-top-gap">
+        {request.reference} ·{' '}
+        {cancelled ? 'This request is cancelled' : `Next step: ${requestNext(request, paid, ready)}`}
+      </p>
 
       <dl className="mj-facts sales-facts sales-top-gap">
-        <div><dt>Invoice amount</dt><dd>{formatCents(requested)}{toCents(order.netCharge) !== requested && ` (the order is now ${formatCents(toCents(order.netCharge))})`}</dd></div>
-        <div><dt>Already paid (cash or card)</dt><dd>{formatCents(alreadyPaid)}{draft && alreadyPaid > 0 ? ' · follows payments until it is submitted' : ''}</dd></div>
-        <div><dt>{request.state === 'issued' ? 'Settled by this invoice' : 'Open on the order'}</dt><dd>{request.state === 'issued' ? formatCents(Math.max(0, requested - alreadyPaid)) : formatCents(toCents(order.outstandingAmount))}</dd></div>
-        {invoiceNumber && <div><dt>wiRef invoice number</dt><dd>{invoiceNumber.externalReference}{invoiceNumber.effectiveAt && <span className="mj-secondary"> · {formatDate(invoiceNumber.effectiveAt)}</span>}</dd></div>}
+        <div>
+          <dt>Invoice amount</dt>
+          <dd>
+            {formatCents(requested)}
+            {toCents(order.netCharge) !== requested && ` (the order is now ${formatCents(toCents(order.netCharge))})`}
+          </dd>
+        </div>
+        <div>
+          <dt>Already paid (cash or card)</dt>
+          <dd>
+            {formatCents(alreadyPaid)}
+            {draft && alreadyPaid > 0 ? ' · follows payments until it is submitted' : ''}
+          </dd>
+        </div>
+        <div>
+          <dt>{request.state === 'issued' ? 'Settled by this invoice' : 'Open on the order'}</dt>
+          <dd>
+            {request.state === 'issued'
+              ? formatCents(Math.max(0, requested - alreadyPaid))
+              : formatCents(toCents(order.outstandingAmount))}
+          </dd>
+        </div>
+        {invoiceNumber && (
+          <div>
+            <dt>wiRef invoice number</dt>
+            <dd>
+              {invoiceNumber.externalReference}
+              {invoiceNumber.effectiveAt && (
+                <span className="mj-secondary"> · {formatDate(invoiceNumber.effectiveAt)}</span>
+              )}
+            </dd>
+          </div>
+        )}
         {!invoiceNumber && request.state === 'issued' && (
-          <div><dt>wiRef invoice number</dt><dd>{canManage || canApprove ? <Button kind="ghost" size="sm" onClick={() => setDialog('reference')}>Add wiRef invoice number</Button> : <span className="mj-secondary">Not recorded yet</span>}</dd></div>
+          <div>
+            <dt>wiRef invoice number</dt>
+            <dd>
+              {canManage || canApprove ? (
+                <Button kind="ghost" size="sm" onClick={() => setDialog('reference')}>
+                  Add wiRef invoice number
+                </Button>
+              ) : (
+                <span className="mj-secondary">Not recorded yet</span>
+              )}
+            </dd>
+          </div>
         )}
       </dl>
 
       <Stack gap={5} className="sales-top-gap">
         {cancelled && (
           <InlineNotification
-            kind="warning" lowContrast hideCloseButton title="This request is cancelled"
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="This request is cancelled"
             subtitle={[
-              cancellation?.reconciliationKind && (reconciliationLabels[cancellation.reconciliationKind as keyof typeof reconciliationLabels]?.label ?? cancellation.reconciliationKind),
+              cancellation?.reconciliationKind &&
+                (reconciliationLabels[cancellation.reconciliationKind as keyof typeof reconciliationLabels]?.label ??
+                  cancellation.reconciliationKind),
               cancellation?.externalReference && `Cancellation reference ${cancellation.externalReference}`,
               cancellation?.reason,
-              cancellation && `${cancellation.recordedBy?.displayName ?? 'Unknown'}, ${formatDateTime(cancellation.recordedAt)}`,
+              cancellation &&
+                `${cancellation.recordedBy?.displayName ?? 'Unknown'}, ${formatDateTime(cancellation.recordedAt)}`,
               'It no longer counts for the order.',
-            ].filter(Boolean).join(' · ')}
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           />
         )}
-        {request.state === 'cancellation_requested' && <InlineNotification kind="warning" lowContrast hideCloseButton title="Waiting for the cancellation in wiRef" subtitle="Cash and card stay switched off for the order. Once wiRef cancelled or corrected the invoice, confirm it with the reference." />}
-        {request.state === 'issued' && paid && <InlineNotification kind="success" lowContrast hideCloseButton title="Issued, the order is paid" subtitle={`${order.reference} counts as paid: the invoice settles the balance. The customer pays wiRef by bank transfer outside Core.`} />}
-        {awaiting && !canApprove && <InlineNotification kind="info" lowContrast hideCloseButton title="Waiting for approval" subtitle="An approver checks the data and forwards it to wiRef. Until then the request is read-only." />}
-        {awaiting && canApprove && <InlineNotification kind="info" lowContrast hideCloseButton title="Approval needed" subtitle="Check the data and correct it here if needed. Then copy it to wiRef and mark the request as forwarded, or return it with a comment." />}
-        {!canManage && !canApprove && <InlineNotification kind="info" lowContrast hideCloseButton title="Read-only" subtitle="Changing an invoice request needs the permission to manage invoice requests." />}
-        {(draft || (awaiting && canApprove)) && <ReadinessChecklist label={draft ? 'Ready to submit?' : 'Ready to forward?'} items={readiness} hint="set under Directory › Organizations" />}
+        {request.state === 'cancellation_requested' && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Waiting for the cancellation in wiRef"
+            subtitle="Cash and card stay switched off for the order. Once wiRef cancelled or corrected the invoice, confirm it with the reference."
+          />
+        )}
+        {request.state === 'issued' && paid && (
+          <InlineNotification
+            kind="success"
+            lowContrast
+            hideCloseButton
+            title="Issued, the order is paid"
+            subtitle={`${order.reference} counts as paid: the invoice settles the balance. The customer pays wiRef by bank transfer outside Core.`}
+          />
+        )}
+        {awaiting && !canApprove && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="Waiting for approval"
+            subtitle="An approver checks the data and forwards it to wiRef. Until then the request is read-only."
+          />
+        )}
+        {awaiting && canApprove && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="Approval needed"
+            subtitle="Check the data and correct it here if needed. Then copy it to wiRef and mark the request as forwarded, or return it with a comment."
+          />
+        )}
+        {!canManage && !canApprove && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="Read-only"
+            subtitle="Changing an invoice request needs the permission to manage invoice requests."
+          />
+        )}
+        {(draft || (awaiting && canApprove)) && (
+          <ReadinessChecklist
+            label={draft ? 'Ready to submit?' : 'Ready to forward?'}
+            items={readiness}
+            hint="set under Directory › Organizations"
+          />
+        )}
         {editable && dirty && <p className="mj-secondary">Save the details to continue.</p>}
         <Accordion size="md">
           <AccordionItem title="Recipient and service" open={editable}>
-            {editable
-              ? (
-                <Stack gap={5}>
-                  <RecipientFields form={form} idPrefix={`recipient-${request.id}`} organization={isOrganization} requiresPurchaseOrder={needsPurchaseOrder} disabled={save.isPending} />
-                  {save.error && <InlineNotification kind="error" lowContrast hideCloseButton title="Details not saved" subtitle={save.error.message} />}
-                  <div className="mj-inline">
-                    <Button kind="primary" size="md" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Saving…' : 'Save details'}</Button>
-                    <Button kind="ghost" size="md" disabled={!dirty || save.isPending} onClick={() => form.reset()}>Discard changes</Button>
-                    {dirty && <span className="mj-secondary">Unsaved changes</span>}
-                    {!dirty && awaiting && <span className="mj-secondary">Changes are recorded in the audit log.</span>}
-                  </div>
-                </Stack>
-              )
-              : (
-                <>
-                  <Frozen request={request} />
-                  {(request.state === 'issued' || request.state === 'cancellation_requested') && <p className="mj-secondary sales-top-gap">These details are frozen. To change them, cancel the request and request the invoice again.</p>}
-                </>
-              )}
+            {editable ? (
+              <Stack gap={5}>
+                <RecipientFields
+                  form={form}
+                  idPrefix={`recipient-${request.id}`}
+                  organization={isOrganization}
+                  requiresPurchaseOrder={needsPurchaseOrder}
+                  disabled={save.isPending}
+                />
+                {save.error && (
+                  <InlineNotification
+                    kind="error"
+                    lowContrast
+                    hideCloseButton
+                    title="Details not saved"
+                    subtitle={save.error.message}
+                  />
+                )}
+                <div className="mj-inline">
+                  <Button kind="primary" size="md" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+                    {save.isPending ? 'Saving…' : 'Save details'}
+                  </Button>
+                  <Button kind="ghost" size="md" disabled={!dirty || save.isPending} onClick={() => form.reset()}>
+                    Discard changes
+                  </Button>
+                  {dirty && <span className="mj-secondary">Unsaved changes</span>}
+                  {!dirty && awaiting && <span className="mj-secondary">Changes are recorded in the audit log.</span>}
+                </div>
+              </Stack>
+            ) : (
+              <>
+                <Frozen request={request} />
+                {(request.state === 'issued' || request.state === 'cancellation_requested') && (
+                  <p className="mj-secondary sales-top-gap">
+                    These details are frozen. To change them, cancel the request and request the invoice again.
+                  </p>
+                )}
+              </>
+            )}
           </AccordionItem>
           <AccordionItem title={`History (${history.length})`}>
             <RequestHistory events={history} />
@@ -247,7 +501,14 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
       </Stack>
       {dialog === 'again' && <RequestInvoiceModal order={order} onClose={() => setDialog(null)} />}
       {dialog && dialog !== 'again' && (
-        <RequestDialog kind={dialog} request={request} customerKind={order.customerKind} requirePurchaseOrder={needsPurchaseOrder} externalPaid={externalPaid} onClose={() => setDialog(null)} />
+        <RequestDialog
+          kind={dialog}
+          request={request}
+          customerKind={order.customerKind}
+          requirePurchaseOrder={needsPurchaseOrder}
+          externalPaid={externalPaid}
+          onClose={() => setDialog(null)}
+        />
       )}
     </Tile>
   );

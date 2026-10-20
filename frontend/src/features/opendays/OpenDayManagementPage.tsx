@@ -39,12 +39,7 @@ import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useOpenDaysLayout } from './useOpenDaysLayout';
 import { RowActions } from '../../app/RowActions';
-import {
-  APP_DATE_PLACEHOLDER,
-  formatDate,
-  parseDisplayDate,
-  pickerDateToDateOnly,
-} from '../../app/dateTime';
+import { APP_DATE_PLACEHOLDER, formatDate, parseDisplayDate, pickerDateToDateOnly } from '../../app/dateTime';
 import { usePickerDateRange } from '../../app/usePickerDateRange';
 import { academicBreaksQueryOptions, openDayKeys, periodsQueryOptions } from './queries';
 
@@ -75,7 +70,12 @@ export function OpenDayManagementPage() {
   const breakRange = usePickerDateRange(breakDraft?.startsOn ?? '', breakDraft?.endsOn ?? '');
   const [deleteBreak, setDeleteBreak] = useState<AcademicBreak | null>(null);
   const originalBreak = breaksQuery.data?.items.find((item) => item.id === breakDraft?.id) ?? emptyBreak;
-  const dirty = Boolean(breakDraft && ['name', 'startsOn', 'endsOn'].some((key) => breakDraft[key as keyof BreakDraft] !== originalBreak[key as keyof BreakDraft]));
+  const dirty = Boolean(
+    breakDraft &&
+    ['name', 'startsOn', 'endsOn'].some(
+      (key) => breakDraft[key as keyof BreakDraft] !== originalBreak[key as keyof BreakDraft],
+    ),
+  );
   const guard = useUnsavedChanges({ isDirty: dirty, onDiscard: () => setBreakDraft(null) });
   const breakMutation = useMutation({
     mutationFn: (value: BreakDraft) =>
@@ -97,15 +97,20 @@ export function OpenDayManagementPage() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: (value: AcademicBreak) =>
-      deleteOpenDayAcademicBreak(value.id, { expectedVersion: value.version }),
+    mutationFn: (value: AcademicBreak) => deleteOpenDayAcademicBreak(value.id, { expectedVersion: value.version }),
     onSuccess: async () => {
       setDeleteBreak(null);
       await queryClient.invalidateQueries({ queryKey: openDayKeys.all });
     },
   });
 
-  const requestFormClose = useLatestCallback(() => { if (!breakMutation.isPending) guard.requestDiscard(() => { setBreakDraft(null); breakMutation.reset(); }); });
+  const requestFormClose = useLatestCallback(() => {
+    if (!breakMutation.isPending)
+      guard.requestDiscard(() => {
+        setBreakDraft(null);
+        breakMutation.reset();
+      });
+  });
   if (periodsQuery.isPending) {
     return <InlineLoadingState label="Loading Open Day management" />;
   }
@@ -119,17 +124,15 @@ export function OpenDayManagementPage() {
     );
   }
 
-  const selectedPeriods = periodsQuery.data.items.filter((item) =>
-    selectedPeriodIds.includes(item.id),
-  );
-  const mutationFailed =
-    breakMutation.isError || deleteMutation.isError;
+  const selectedPeriods = periodsQuery.data.items.filter((item) => selectedPeriodIds.includes(item.id));
+  const mutationFailed = breakMutation.isError || deleteMutation.isError;
   const allAcademicBreaks = breaksQuery.data?.items ?? [];
-  const academicBreaks = selectedPeriods.length === 0
-    ? allAcademicBreaks
-    : allAcademicBreaks.filter((item) => selectedPeriods.some(
-        (period) => item.startsOn <= period.endsOn && item.endsOn >= period.startsOn,
-      ));
+  const academicBreaks =
+    selectedPeriods.length === 0
+      ? allAcademicBreaks
+      : allAcademicBreaks.filter((item) =>
+          selectedPeriods.some((period) => item.startsOn <= period.endsOn && item.endsOn >= period.startsOn),
+        );
   const academicBreaksById = new Map(academicBreaks.map((item) => [item.id, item]));
   const rows = academicBreaks.map((item) => ({
     id: item.id,
@@ -155,7 +158,9 @@ export function OpenDayManagementPage() {
         />
       )}
       <section className="academic-breaks-section" aria-labelledby="academic-breaks-heading">
-        <h2 id="academic-breaks-heading" className="open-days-section-title">Academic breaks</h2>
+        <h2 id="academic-breaks-heading" className="open-days-section-title">
+          Academic breaks
+        </h2>
         <TableContainer className="academic-breaks-table">
           <TableToolbar aria-label="Academic breaks table toolbar">
             <TableToolbarContent>
@@ -169,9 +174,7 @@ export function OpenDayManagementPage() {
                 items={periodsQuery.data.items}
                 itemToString={(item) => item?.name ?? ''}
                 selectedItems={selectedPeriods}
-                onChange={({ selectedItems }) =>
-                  setSelectedPeriodIds((selectedItems ?? []).map((item) => item.id))
-                }
+                onChange={({ selectedItems }) => setSelectedPeriodIds((selectedItems ?? []).map((item) => item.id))}
               />
               <Button
                 renderIcon={Add}
@@ -187,9 +190,7 @@ export function OpenDayManagementPage() {
               </Button>
             </TableToolbarContent>
           </TableToolbar>
-          {breaksQuery.isPending && (
-            <InlineLoadingState label="Loading academic breaks" />
-          )}
+          {breaksQuery.isPending && <InlineLoadingState label="Loading academic breaks" />}
           {breaksQuery.isError && (
             <InlineNotification
               kind="error"
@@ -199,81 +200,80 @@ export function OpenDayManagementPage() {
             />
           )}
           {breaksQuery.data && (
-            <DataTable
-              key={rows.map((row) => row.id).join('|')}
-              rows={rows}
-              headers={academicBreakHeaders}
-              isSortable
-            >
+            <DataTable key={rows.map((row) => row.id).join('|')} rows={rows} headers={academicBreakHeaders} isSortable>
               {({ rows: tableRows, headers, getHeaderProps, getRowProps, getTableProps }) => (
                 <>
-                  {!isPhone && <Table {...getTableProps()} size="lg" aria-label="Academic breaks">
-                    <TableHead>
-                      <TableRow>
-                        {headers.map((header) => (
-                          <TableHeader
-                            {...getHeaderProps({
-                              header,
-                              isSortable: header.key !== 'actions',
-                            })}
-                            key={header.key}
-                            className={
-                              header.key === 'actions'
-                                ? 'academic-breaks-table__actions-column'
-                                : undefined
-                            }
-                          >
-                            {header.header}
-                          </TableHeader>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {tableRows.map((row) => {
-                        const item = academicBreaksById.get(row.id);
-                        if (!item) return null;
-                        return (
-                          <TableRow {...getRowProps({ row })} key={row.id}>
-                            {row.cells.map((cell) => (
-                              <TableCell
-                                key={cell.id}
-                                className={
-                                  cell.info.header === 'actions'
-                                    ? 'academic-breaks-table__actions-column'
-                                    : undefined
-                                }
-                              >
-                                {cell.info.header === 'actions' ? (
-                                  <OverflowMenu
-                                    iconDescription={`Actions for ${item.name}`}
-                                    size="sm"
-                                    flipped
-                                  >
-                                    <OverflowMenuItem
-                                      itemText="Edit"
-                                      onClick={() => setBreakDraft(item)}
-                                    />
-                                    <OverflowMenuItem
-                                      isDelete
-                                      itemText="Delete"
-                                      onClick={() => setDeleteBreak(item)}
-                                    />
-                                  </OverflowMenu>
-                                ) : String(cell.value)}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>}
-                  {isPhone && <div className="academic-break-cards" aria-label="Academic breaks">
-                    {academicBreaks.map((item) => <Tile key={item.id} className="academic-break-card">
-                      <h3>{item.name}</h3>
-                      <p>{formatDate(item.startsOn)} – {formatDate(item.endsOn)}</p>
-                      <RowActions label={`Actions for ${item.name}`}><Button kind="ghost" size="sm" onClick={() => setBreakDraft(item)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteBreak(item)}>Delete</Button></RowActions>
-                    </Tile>)}
-                  </div>}
+                  {!isPhone && (
+                    <Table {...getTableProps()} size="lg" aria-label="Academic breaks">
+                      <TableHead>
+                        <TableRow>
+                          {headers.map((header) => (
+                            <TableHeader
+                              {...getHeaderProps({
+                                header,
+                                isSortable: header.key !== 'actions',
+                              })}
+                              key={header.key}
+                              className={header.key === 'actions' ? 'academic-breaks-table__actions-column' : undefined}
+                            >
+                              {header.header}
+                            </TableHeader>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {tableRows.map((row) => {
+                          const item = academicBreaksById.get(row.id);
+                          if (!item) return null;
+                          return (
+                            <TableRow {...getRowProps({ row })} key={row.id}>
+                              {row.cells.map((cell) => (
+                                <TableCell
+                                  key={cell.id}
+                                  className={
+                                    cell.info.header === 'actions' ? 'academic-breaks-table__actions-column' : undefined
+                                  }
+                                >
+                                  {cell.info.header === 'actions' ? (
+                                    <OverflowMenu iconDescription={`Actions for ${item.name}`} size="sm" flipped>
+                                      <OverflowMenuItem itemText="Edit" onClick={() => setBreakDraft(item)} />
+                                      <OverflowMenuItem
+                                        isDelete
+                                        itemText="Delete"
+                                        onClick={() => setDeleteBreak(item)}
+                                      />
+                                    </OverflowMenu>
+                                  ) : (
+                                    String(cell.value)
+                                  )}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                  {isPhone && (
+                    <div className="academic-break-cards" aria-label="Academic breaks">
+                      {academicBreaks.map((item) => (
+                        <Tile key={item.id} className="academic-break-card">
+                          <h3>{item.name}</h3>
+                          <p>
+                            {formatDate(item.startsOn)} – {formatDate(item.endsOn)}
+                          </p>
+                          <RowActions label={`Actions for ${item.name}`}>
+                            <Button kind="ghost" size="sm" onClick={() => setBreakDraft(item)}>
+                              Edit
+                            </Button>
+                            <Button kind="danger--ghost" size="sm" onClick={() => setDeleteBreak(item)}>
+                              Delete
+                            </Button>
+                          </RowActions>
+                        </Tile>
+                      ))}
+                    </div>
+                  )}
                   {academicBreaks.length === 0 && (
                     <div className="empty-state">
                       <h3>No academic breaks</h3>
@@ -296,25 +296,42 @@ export function OpenDayManagementPage() {
         modalHeading={breakDraft?.id ? 'Edit academic break' : 'Create academic break'}
         primaryButtonText={breakDraft?.id ? 'Save break' : 'Create break'}
         secondaryButtonText="Cancel"
-        primaryButtonDisabled={breakMutation.isPending || !breakDraft?.name.trim() || !breakDraft.startsOn || !breakDraft.endsOn}
+        primaryButtonDisabled={
+          breakMutation.isPending || !breakDraft?.name.trim() || !breakDraft.startsOn || !breakDraft.endsOn
+        }
         onRequestClose={requestFormClose}
         onRequestSubmit={() => breakDraft && !breakMutation.isPending && breakMutation.mutate(breakDraft)}
       >
         {breakDraft && (
           <Stack gap={5}>
-            {breakMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Break was not saved" subtitle="Your inputs are kept. The break may have changed; review and try again." />}
-            <TextInput id="academic-break-name" labelText="Name" value={breakDraft.name} onChange={(event) => setBreakDraft({ ...breakDraft, name: event.target.value })} />
+            {breakMutation.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Break was not saved"
+                subtitle="Your inputs are kept. The break may have changed; review and try again."
+              />
+            )}
+            <TextInput
+              id="academic-break-name"
+              labelText="Name"
+              value={breakDraft.name}
+              onChange={(event) => setBreakDraft({ ...breakDraft, name: event.target.value })}
+            />
             <DatePicker
               allowInput
               datePickerType="range"
               dateFormat="d.m.Y"
               locale="en"
               value={breakRange}
-              onChange={(dates) => setBreakDraft({
-                ...breakDraft,
-                startsOn: dates[0] ? pickerDateToDateOnly(dates[0]) : '',
-                endsOn: dates[1] ? pickerDateToDateOnly(dates[1]) : '',
-              })}
+              onChange={(dates) =>
+                setBreakDraft({
+                  ...breakDraft,
+                  startsOn: dates[0] ? pickerDateToDateOnly(dates[0]) : '',
+                  endsOn: dates[1] ? pickerDateToDateOnly(dates[1]) : '',
+                })
+              }
             >
               <DatePickerInput
                 id="academic-break-start"
@@ -346,7 +363,18 @@ export function OpenDayManagementPage() {
           </Stack>
         )}
       </Modal>
-      <DestructiveActionDialog open={Boolean(deleteBreak)} title="Delete academic break?" confirmLabel="Delete break" pending={deleteMutation.isPending} error={deleteMutation.isError ? 'The break may have changed. Reload and try again.' : undefined} onClose={() => { setDeleteBreak(null); deleteMutation.reset(); }} onConfirm={() => deleteBreak && deleteMutation.mutate(deleteBreak)}>
+      <DestructiveActionDialog
+        open={Boolean(deleteBreak)}
+        title="Delete academic break?"
+        confirmLabel="Delete break"
+        pending={deleteMutation.isPending}
+        error={deleteMutation.isError ? 'The break may have changed. Reload and try again.' : undefined}
+        onClose={() => {
+          setDeleteBreak(null);
+          deleteMutation.reset();
+        }}
+        onConfirm={() => deleteBreak && deleteMutation.mutate(deleteBreak)}
+      >
         <p>{deleteBreak?.name} will no longer appear as calendar context. Existing Open Days are unchanged.</p>
       </DestructiveActionDialog>
       <UnsavedChangesDialog guard={guard} />

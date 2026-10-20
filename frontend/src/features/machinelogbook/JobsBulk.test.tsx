@@ -2,7 +2,13 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { BulkAttachMachineRunsRequest, BulkCombineMachineRunsRequest, BulkCreateMachineJobsRequest, BulkDeleteMachineWorkRequest, WorkItem } from '../../api/generated/models';
+import type {
+  BulkAttachMachineRunsRequest,
+  BulkCombineMachineRunsRequest,
+  BulkCreateMachineJobsRequest,
+  BulkDeleteMachineWorkRequest,
+  WorkItem,
+} from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
@@ -23,18 +29,49 @@ const otherMachineId = '0192f6f8-743e-7c77-a349-cd07c3e8a923';
 
 const run1 = unassignedItem({ version: 5 });
 const run2 = unassignedItem({ id: secondRunId, displayId: 'RN-2026-000009', fileName: 'cover_v1.gcode', version: 2 });
-const runElsewhere = unassignedItem({ id: secondRunId, displayId: 'RN-2026-000010', fileName: 'other.gcode', machineId: otherMachineId, machineName: 'Laser #2', version: 2 });
-const runRunning = unassignedItem({ id: secondRunId, displayId: 'RN-2026-000011', fileName: 'live.gcode', status: 'running_unassigned' });
+const runElsewhere = unassignedItem({
+  id: secondRunId,
+  displayId: 'RN-2026-000010',
+  fileName: 'other.gcode',
+  machineId: otherMachineId,
+  machineName: 'Laser #2',
+  version: 2,
+});
+const runRunning = unassignedItem({
+  id: secondRunId,
+  displayId: 'RN-2026-000011',
+  fileName: 'live.gcode',
+  status: 'running_unassigned',
+});
 const plainJob = workItem({ version: 3 });
-const orderJob = workItem({ id: secondJobId, displayId: 'J-2026-000002', title: 'Bracket', billing: { state: 'on_order', orderId: ids.otherJob, orderReference: 'O-2026-000004' }, version: 7 });
+const orderJob = workItem({
+  id: secondJobId,
+  displayId: 'J-2026-000002',
+  title: 'Bracket',
+  billing: { state: 'on_order', orderId: ids.otherJob, orderReference: 'O-2026-000004' },
+  version: 7,
+});
 const recordedJob = workItem({
-  source: 'recorded', runCount: 2, version: 3,
+  source: 'recorded',
+  runCount: 2,
+  version: 3,
   consumption: { materials: [{ materialTypeName: 'PLA', unit: 'g', quantity: '183.000' }], measures: {} },
 });
 
-const allPermissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate, PermissionId.machine_jobsedit, PermissionId.machine_jobsdelete, PermissionId.machinesread, PermissionId.ordersread];
-const as = (...permissions: PermissionId[]) => http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions)));
-const listing = (items: WorkItem[]) => http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items, page: 1, pageSize: 10, total: items.length }));
+const allPermissions = [
+  PermissionId.machine_jobsread,
+  PermissionId.machine_jobscreate,
+  PermissionId.machine_jobsedit,
+  PermissionId.machine_jobsdelete,
+  PermissionId.machinesread,
+  PermissionId.ordersread,
+];
+const as = (...permissions: PermissionId[]) =>
+  http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions)));
+const listing = (items: WorkItem[]) =>
+  http.get('*/api/v1/machine-logbook/work-items', () =>
+    HttpResponse.json({ items, page: 1, pageSize: 10, total: items.length }),
+  );
 const lookups = () => [
   http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [customer] })),
   http.get('*/api/v1/machine-job-operators', () => HttpResponse.json({ items: [operator] })),
@@ -48,12 +85,24 @@ async function openJobs(...items: WorkItem[]) {
 }
 
 describe('batch action rules', () => {
-  const can = (...granted: string[]) => (permission: string) => granted.includes(permission);
+  const can =
+    (...granted: string[]) =>
+    (permission: string) =>
+      granted.includes(permission);
   const everything = can('machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete');
 
   it('offers run actions only for unassigned runs of one machine and needs two runs to combine', () => {
-    expect(batchAvailability([run1], everything as never)).toMatchObject({ delete: { enabled: true }, separate: { enabled: true }, combined: { enabled: false }, attach: { enabled: true } });
-    expect(batchAvailability([run1, run2], everything as never)).toMatchObject({ separate: { enabled: true }, combined: { enabled: true }, attach: { enabled: true } });
+    expect(batchAvailability([run1], everything as never)).toMatchObject({
+      delete: { enabled: true },
+      separate: { enabled: true },
+      combined: { enabled: false },
+      attach: { enabled: true },
+    });
+    expect(batchAvailability([run1, run2], everything as never)).toMatchObject({
+      separate: { enabled: true },
+      combined: { enabled: true },
+      attach: { enabled: true },
+    });
     const mixed = batchAvailability([run1, plainJob], everything as never);
     expect(mixed.separate.reason).toMatch(/only unassigned runs/);
     expect(mixed.delete.enabled).toBe(true);
@@ -65,9 +114,21 @@ describe('batch action rules', () => {
   });
 
   it('follows the permission of the single operation', () => {
-    expect(batchAvailability([run1], can('machine_jobs.edit') as never)).toMatchObject({ delete: { enabled: false }, separate: { enabled: false }, attach: { enabled: true } });
-    expect(batchAvailability([run1], can('machine_jobs.create') as never)).toMatchObject({ delete: { enabled: false }, separate: { enabled: true }, attach: { enabled: false } });
-    expect(batchAvailability([run1], can('machine_jobs.delete') as never)).toMatchObject({ delete: { enabled: true }, separate: { enabled: false }, combined: { enabled: false } });
+    expect(batchAvailability([run1], can('machine_jobs.edit') as never)).toMatchObject({
+      delete: { enabled: false },
+      separate: { enabled: false },
+      attach: { enabled: true },
+    });
+    expect(batchAvailability([run1], can('machine_jobs.create') as never)).toMatchObject({
+      delete: { enabled: false },
+      separate: { enabled: true },
+      attach: { enabled: false },
+    });
+    expect(batchAvailability([run1], can('machine_jobs.delete') as never)).toMatchObject({
+      delete: { enabled: true },
+      separate: { enabled: false },
+      combined: { enabled: false },
+    });
     expect(batchAvailability([], everything as never).delete.enabled).toBe(false);
   });
 
@@ -80,13 +141,27 @@ describe('batch action rules', () => {
 
   it('asks about material only when own material was consumed', () => {
     expect(hasBookedMaterial(recordedJob)).toBe(true);
-    expect(hasBookedMaterial(workItem({ consumption: { materials: [{ materialTypeName: 'External', unit: 'g', quantity: '50' }], measures: {} } }))).toBe(false);
+    expect(
+      hasBookedMaterial(
+        workItem({
+          consumption: { materials: [{ materialTypeName: 'External', unit: 'g', quantity: '50' }], measures: {} },
+        }),
+      ),
+    ).toBe(false);
     expect(hasBookedMaterial(workItem({ consumption: { materials: [], measures: {} } }))).toBe(false);
     expect(referenceTargets([orderJob])).toEqual({ 'J-2026-000002': secondJobId, 'O-2026-000004': ids.otherJob });
   });
 
   it('reads the blocking items of a refused request', () => {
-    const items = [{ kind: 'job', id: secondJobId, displayId: 'J-2026-000002', code: 'job_on_order', message: 'J-2026-000002 is on an order' }];
+    const items = [
+      {
+        kind: 'job',
+        id: secondJobId,
+        displayId: 'J-2026-000002',
+        code: 'job_on_order',
+        message: 'J-2026-000002 is on an order',
+      },
+    ];
     expect(blockedItems(new ApiError(409, { code: 'bulk_blocked', message: 'x', details: { items } }))).toEqual(items);
     expect(blockedItems(new ApiError(409, { code: 'stale_write', message: 'x' }))).toBeNull();
     expect(blockedItems(new Error('x'))).toBeNull();
@@ -139,8 +214,12 @@ describe('Delete selection', () => {
   it('lists skipped items, asks about material and sends one request with the expected versions', async () => {
     let body: BulkDeleteMachineWorkRequest | undefined;
     server.use(
-      as(...allPermissions), listing([recordedJob, orderJob, run1]),
-      http.post('*/api/v1/machine-jobs/bulk-delete', async ({ request }) => { body = await request.json() as BulkDeleteMachineWorkRequest; return new HttpResponse(null, { status: 204 }); }),
+      as(...allPermissions),
+      listing([recordedJob, orderJob, run1]),
+      http.post('*/api/v1/machine-jobs/bulk-delete', async ({ request }) => {
+        body = (await request.json()) as BulkDeleteMachineWorkRequest;
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     const table = await openJobs(run1);
@@ -149,16 +228,26 @@ describe('Delete selection', () => {
     const dialog = await screen.findByRole('alertdialog', { name: /Delete 1 job, 1 run/ });
     expect(within(dialog).getByText('Delete 1 job, 1 run?')).toBeInTheDocument();
     expect(within(dialog).getByText('1 item will be skipped')).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'O-2026-000004' })).toHaveAttribute('href', `/orders/${ids.otherJob}`);
+    expect(within(dialog).getByRole('link', { name: 'O-2026-000004' })).toHaveAttribute(
+      'href',
+      `/orders/${ids.otherJob}`,
+    );
     expect(within(dialog).getByLabelText('Also delete their recorded runs (in 1 job)')).toBeChecked();
     const confirm = within(dialog).getByRole('button', { name: 'Delete' });
     expect(confirm).toBeDisabled();
     await user.click(within(dialog).getByLabelText(/^Reverse consumption/));
     await user.click(confirm);
-    await waitFor(() => expect(body).toEqual({
-      jobs: [{ id: ids.job, expectedVersion: 3 }], runs: [{ id: ids.recordedRun, expectedVersion: 5 }], deleteRuns: true, material: 'reverse',
-    }));
-    await waitFor(() => expect(screen.queryByRole('alertdialog', { name: /Delete 1 job, 1 run/ })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(body).toEqual({
+        jobs: [{ id: ids.job, expectedVersion: 3 }],
+        runs: [{ id: ids.recordedRun, expectedVersion: 5 }],
+        deleteRuns: true,
+        material: 'reverse',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog', { name: /Delete 1 job, 1 run/ })).not.toBeInTheDocument(),
+    );
     expect(await screen.findByText('Deleted 1 job and 1 run')).toBeInTheDocument();
     expect(screen.getByText('0 items selected')).toBeInTheDocument();
   });
@@ -166,8 +255,12 @@ describe('Delete selection', () => {
   it('keeps recorded runs when the box is cleared and sends no material choice without booked material', async () => {
     let body: BulkDeleteMachineWorkRequest | undefined;
     server.use(
-      as(...allPermissions), listing([workItem({ source: 'recorded', runCount: 2, version: 3 })]),
-      http.post('*/api/v1/machine-jobs/bulk-delete', async ({ request }) => { body = await request.json() as BulkDeleteMachineWorkRequest; return new HttpResponse(null, { status: 204 }); }),
+      as(...allPermissions),
+      listing([workItem({ source: 'recorded', runCount: 2, version: 3 })]),
+      http.post('*/api/v1/machine-jobs/bulk-delete', async ({ request }) => {
+        body = (await request.json()) as BulkDeleteMachineWorkRequest;
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     const table = await openJobs(plainJob);
@@ -177,16 +270,41 @@ describe('Delete selection', () => {
     expect(within(dialog).queryByText('Material consumption')).not.toBeInTheDocument();
     await user.click(within(dialog).getByLabelText(/^Also delete their recorded runs/));
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(body).toEqual({ jobs: [{ id: ids.job, expectedVersion: 3 }], runs: [], deleteRuns: false, material: null }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        jobs: [{ id: ids.job, expectedVersion: 3 }],
+        runs: [],
+        deleteRuns: false,
+        material: null,
+      }),
+    );
   });
 
   it('shows every blocking item when the server refuses the request', async () => {
     server.use(
-      as(...allPermissions), listing([plainJob, run1]),
-      http.post('*/api/v1/machine-jobs/bulk-delete', () => HttpResponse.json({
-        code: 'bulk_blocked', message: 'Some items cannot be processed; nothing was changed', requestId: 'r1',
-        details: { items: [{ kind: 'job', id: ids.job, displayId: 'J-2026-000001', code: 'stale_write', message: 'J-2026-000001 changed; reload the list and try again' }] },
-      }, { status: 409 })),
+      as(...allPermissions),
+      listing([plainJob, run1]),
+      http.post('*/api/v1/machine-jobs/bulk-delete', () =>
+        HttpResponse.json(
+          {
+            code: 'bulk_blocked',
+            message: 'Some items cannot be processed; nothing was changed',
+            requestId: 'r1',
+            details: {
+              items: [
+                {
+                  kind: 'job',
+                  id: ids.job,
+                  displayId: 'J-2026-000001',
+                  code: 'stale_write',
+                  message: 'J-2026-000001 changed; reload the list and try again',
+                },
+              ],
+            },
+          },
+          { status: 409 },
+        ),
+      ),
     );
     const user = userEvent.setup();
     const table = await openJobs(plainJob);
@@ -194,8 +312,12 @@ describe('Delete selection', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-    expect(await within(dialog).findByText('The selection could not be deleted. Nothing was changed')).toBeInTheDocument();
-    expect(within(dialog).getByRole('listitem')).toHaveTextContent('J-2026-000001 changed; reload the list and try again');
+    expect(
+      await within(dialog).findByText('The selection could not be deleted. Nothing was changed'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('listitem')).toHaveTextContent(
+      'J-2026-000001 changed; reload the list and try again',
+    );
     expect(screen.getByText('1 item selected')).toBeInTheDocument();
   });
 
@@ -220,10 +342,20 @@ describe('Create jobs from runs', () => {
   it('creates one job per selected run with shared customer and operator', async () => {
     let body: BulkCreateMachineJobsRequest | undefined;
     server.use(
-      as(...allPermissions), listing([run1, run2]), ...lookups(),
+      as(...allPermissions),
+      listing([run1, run2]),
+      ...lookups(),
       http.post('*/api/v1/machine-runs/bulk-create-jobs', async ({ request }) => {
-        body = await request.json() as BulkCreateMachineJobsRequest;
-        return HttpResponse.json({ jobs: [{ id: ids.job, displayId: 'J-2026-000010', title: null }, { id: secondJobId, displayId: 'J-2026-000011', title: null }] }, { status: 201 });
+        body = (await request.json()) as BulkCreateMachineJobsRequest;
+        return HttpResponse.json(
+          {
+            jobs: [
+              { id: ids.job, displayId: 'J-2026-000010', title: null },
+              { id: secondJobId, displayId: 'J-2026-000011', title: null },
+            ],
+          },
+          { status: 201 },
+        );
       }),
     );
     const user = userEvent.setup();
@@ -238,9 +370,17 @@ describe('Create jobs from runs', () => {
     expect(body).toBeUndefined(); // customer and operator are required
     await fillParty(user, dialog);
     await user.click(create);
-    await waitFor(() => expect(body).toEqual({
-      runs: [{ id: ids.recordedRun, expectedVersion: 5 }, { id: secondRunId, expectedVersion: 2 }], customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, notes: null,
-    }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        runs: [
+          { id: ids.recordedRun, expectedVersion: 5 },
+          { id: secondRunId, expectedVersion: 2 },
+        ],
+        customer: { kind: 'organization', id: ids.organization },
+        operatorPersonId: ids.operator,
+        notes: null,
+      }),
+    );
     expect(await screen.findByText('2 jobs created')).toBeInTheDocument();
     expect(screen.getByText(/J-2026-000010, J-2026-000011/)).toBeInTheDocument();
     expect(screen.getByText('0 items selected')).toBeInTheDocument();
@@ -249,8 +389,13 @@ describe('Create jobs from runs', () => {
   it('combines the selected runs into one job and opens it', async () => {
     let body: BulkCombineMachineRunsRequest | undefined;
     server.use(
-      as(...allPermissions), listing([run1, run2]), ...lookups(),
-      http.post('*/api/v1/machine-runs/bulk-combine', async ({ request }) => { body = await request.json() as BulkCombineMachineRunsRequest; return HttpResponse.json(jobFixture(), { status: 201 }); }),
+      as(...allPermissions),
+      listing([run1, run2]),
+      ...lookups(),
+      http.post('*/api/v1/machine-runs/bulk-combine', async ({ request }) => {
+        body = (await request.json()) as BulkCombineMachineRunsRequest;
+        return HttpResponse.json(jobFixture(), { status: 201 });
+      }),
       http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture())),
     );
     const user = userEvent.setup();
@@ -261,16 +406,36 @@ describe('Create jobs from runs', () => {
     await user.type(within(dialog).getByLabelText('Name (optional)'), ' Housing set ');
     await fillParty(user, dialog);
     await user.click(within(dialog).getByRole('button', { name: 'Create combined job' }));
-    await waitFor(() => expect(body).toEqual({
-      runs: [{ id: ids.recordedRun, expectedVersion: 5 }, { id: secondRunId, expectedVersion: 2 }], title: 'Housing set', customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, notes: null,
-    }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        runs: [
+          { id: ids.recordedRun, expectedVersion: 5 },
+          { id: secondRunId, expectedVersion: 2 },
+        ],
+        title: 'Housing set',
+        customer: { kind: 'organization', id: ids.organization },
+        operatorPersonId: ids.operator,
+        notes: null,
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('explains a refused combination in the dialog', async () => {
     server.use(
-      as(...allPermissions), listing([run1, run2]), ...lookups(),
-      http.post('*/api/v1/machine-runs/bulk-combine', () => HttpResponse.json({ code: 'runs_on_different_machines', message: 'A job has one machine; the runs were recorded on different machines', requestId: 'r' }, { status: 422 })),
+      as(...allPermissions),
+      listing([run1, run2]),
+      ...lookups(),
+      http.post('*/api/v1/machine-runs/bulk-combine', () =>
+        HttpResponse.json(
+          {
+            code: 'runs_on_different_machines',
+            message: 'A job has one machine; the runs were recorded on different machines',
+            requestId: 'r',
+          },
+          { status: 422 },
+        ),
+      ),
     );
     const user = userEvent.setup();
     const table = await openJobs(run1);
@@ -279,7 +444,9 @@ describe('Create jobs from runs', () => {
     const dialog = await screen.findByRole('dialog');
     await fillParty(user, dialog);
     await user.click(within(dialog).getByRole('button', { name: 'Create combined job' }));
-    expect(await within(dialog).findByText('A job has one machine; the runs were recorded on different machines')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('A job has one machine; the runs were recorded on different machines'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -294,7 +461,10 @@ describe('Attach to job', () => {
         return HttpResponse.json({ items: [plainJob, run1, run2], page: 1, pageSize: 10, total: 3 });
       }),
       http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture())),
-      http.post(`*/api/v1/machine-jobs/${ids.job}/runs/bulk-attach`, async ({ request }) => { body = await request.json() as BulkAttachMachineRunsRequest; return HttpResponse.json(jobFixture()); }),
+      http.post(`*/api/v1/machine-jobs/${ids.job}/runs/bulk-attach`, async ({ request }) => {
+        body = (await request.json()) as BulkAttachMachineRunsRequest;
+        return HttpResponse.json(jobFixture());
+      }),
     );
     const user = userEvent.setup();
     const table = await openJobs(run1);
@@ -310,11 +480,23 @@ describe('Attach to job', () => {
     expect(within(dialog).getByText('Manual entry replaced')).toBeInTheDocument();
     await waitFor(() => expect(submit).toBeEnabled());
     // The candidates are the jobs of the machine the runs were recorded on.
-    expect(requests.some((url) => url.searchParams.getAll('machineId').includes(ids.machine) && url.searchParams.get('pageSize') === '50')).toBe(true);
+    expect(
+      requests.some(
+        (url) =>
+          url.searchParams.getAll('machineId').includes(ids.machine) && url.searchParams.get('pageSize') === '50',
+      ),
+    ).toBe(true);
     await user.click(submit);
-    await waitFor(() => expect(body).toEqual({
-      runs: [{ id: ids.recordedRun, expectedVersion: 5 }, { id: secondRunId, expectedVersion: 2 }], replaceManualRuns: true, expectedJobVersion: 3,
-    }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        runs: [
+          { id: ids.recordedRun, expectedVersion: 5 },
+          { id: secondRunId, expectedVersion: 2 },
+        ],
+        replaceManualRuns: true,
+        expectedJobVersion: 3,
+      }),
+    );
     expect(await screen.findByText('2 runs attached')).toBeInTheDocument();
   });
 

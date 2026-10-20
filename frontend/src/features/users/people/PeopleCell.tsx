@@ -4,7 +4,15 @@ import { PersonAvatar } from '../PersonAvatar';
 import { LabRulesStatusTag } from './LabRulesStatusTag';
 
 /** Content of one People table cell; the cell's column decides how its value is shown. */
-export function PeopleCell({ column, value, rowId, person, supervisorRoleIds, labRules, onOpenPerson }: {
+export function PeopleCell({
+  column,
+  value,
+  rowId,
+  person,
+  supervisorRoleIds,
+  labRules,
+  onOpenPerson,
+}: {
   column: string;
   value: unknown;
   rowId: string;
@@ -14,7 +22,15 @@ export function PeopleCell({ column, value, rowId, person, supervisorRoleIds, la
   onOpenPerson: (personId: string) => void;
 }) {
   if (column === 'avatar') {
-    return person ? <PersonAvatar firstName={person.firstName} lastName={person.lastName} profileImage={person.profileImage} size="sm" decorative /> : null;
+    return person ? (
+      <PersonAvatar
+        firstName={person.firstName}
+        lastName={person.lastName}
+        profileImage={person.profileImage}
+        size="sm"
+        decorative
+      />
+    ) : null;
   }
   if (column === 'name') {
     return (
@@ -30,11 +46,7 @@ export function PeopleCell({ column, value, rowId, person, supervisorRoleIds, la
     );
   }
   if (column === 'status' && value !== 'No account' && value !== 'Restricted') {
-    return (
-      <Tag type={value === 'Active' ? 'green' : 'gray'}>
-        {String(value)}
-      </Tag>
-    );
+    return <Tag type={value === 'Active' ? 'green' : 'gray'}>{String(value)}</Tag>;
   }
   if (column === 'roles') {
     if (!person || person.roles.length === 0) {

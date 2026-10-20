@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PrinterConnector, PrinterConnectorAssignment, PrinterLiveStatus } from '../../../../api/generated/models';
 import {
-  createPrinterConnectorAssignment, listPrinterConnectorAssignments, updatePrinterConnectorAssignment,
+  createPrinterConnectorAssignment,
+  listPrinterConnectorAssignments,
+  updatePrinterConnectorAssignment,
 } from '../../../../api/generated/printer-connectors/printer-connectors';
 import { fetchLiveStatus, type PrinterConnection } from '../../connectorQueries';
 import type { AdapterKind } from './wizardTypes';
@@ -28,25 +30,52 @@ export type AssignmentInput = {
   secrets: Record<string, string>;
 };
 
-const sleep = (ms: number) => new Promise<void>((resolve) => { window.setTimeout(resolve, ms); });
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 
 /** Creates or updates the printer's connector assignment (ending one on another connector first). Resolves with the saved assignment. */
-export async function saveAssignment({ machineId, connector, existing, adapterKind, settings, secrets }: AssignmentInput): Promise<PrinterConnectorAssignment> {
+export async function saveAssignment({
+  machineId,
+  connector,
+  existing,
+  adapterKind,
+  settings,
+  secrets,
+}: AssignmentInput): Promise<PrinterConnectorAssignment> {
   const sameConnector = existing && existing.connector.id === connector.id;
   if (existing && !sameConnector) {
     const old = existing.assignment;
     await updatePrinterConnectorAssignment(existing.connector.id, old.id, {
-      adapterKind: old.adapterKind, adapterSchemaVersion: old.adapterSchemaVersion, settings: old.settings, enabled: false, end: true, expectedVersion: old.version,
+      adapterKind: old.adapterKind,
+      adapterSchemaVersion: old.adapterSchemaVersion,
+      settings: old.settings,
+      enabled: false,
+      end: true,
+      expectedVersion: old.version,
     });
   }
   if (existing && sameConnector) {
     const current = existing.assignment;
     return updatePrinterConnectorAssignment(connector.id, current.id, {
-      adapterKind, adapterSchemaVersion: 1, settings, enabled: true, end: false, expectedVersion: current.version,
+      adapterKind,
+      adapterSchemaVersion: 1,
+      settings,
+      enabled: true,
+      end: false,
+      expectedVersion: current.version,
       ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
     });
   }
-  return createPrinterConnectorAssignment(connector.id, { machineId, adapterKind, adapterSchemaVersion: 1, settings, secrets, enabled: true });
+  return createPrinterConnectorAssignment(connector.id, {
+    machineId,
+    adapterKind,
+    adapterSchemaVersion: 1,
+    settings,
+    secrets,
+    enabled: true,
+  });
 }
 
 /**
@@ -56,12 +85,23 @@ export async function saveAssignment({ machineId, connector, existing, adapterKi
 export function useConnectionTest() {
   const [state, setState] = useState<TestState>({ phase: 'idle' });
   const run = useRef(0);
-  useEffect(() => () => { run.current += 1; }, []);
+  useEffect(
+    () => () => {
+      run.current += 1;
+    },
+    [],
+  );
 
   // Stable identity: the setup wizard lists reset as an effect dependency.
-  const reset = useCallback(() => { run.current += 1; setState({ phase: 'idle' }); }, []);
+  const reset = useCallback(() => {
+    run.current += 1;
+    setState({ phase: 'idle' });
+  }, []);
 
-  const start = async (input: AssignmentInput, onSaved?: (assignment: PrinterConnectorAssignment) => void): Promise<{ assignment: PrinterConnectorAssignment; live?: PrinterLiveStatus }> => {
+  const start = async (
+    input: AssignmentInput,
+    onSaved?: (assignment: PrinterConnectorAssignment) => void,
+  ): Promise<{ assignment: PrinterConnectorAssignment; live?: PrinterLiveStatus }> => {
     const id = ++run.current;
     const current = () => run.current === id;
     setState({ phase: 'saving', connectorName: input.connector.name });
@@ -89,7 +129,10 @@ export function useConnectionTest() {
         configured = latest.appliedConfigurationVersion >= latest.configurationVersion;
         errorCode = latest.runtimeErrorCode;
       }
-      const fresh = live && live.assignmentId === assignment.id && (!previous || previous.assignmentId !== assignment.id || previous.receivedAt !== live.receivedAt);
+      const fresh =
+        live &&
+        live.assignmentId === assignment.id &&
+        (!previous || previous.assignmentId !== assignment.id || previous.receivedAt !== live.receivedAt);
       if (fresh) {
         setState({ phase: 'success', connectorName: input.connector.name, live });
         return { assignment, live };

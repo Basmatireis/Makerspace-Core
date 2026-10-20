@@ -5,13 +5,24 @@ import type { BrandingConfiguration, PublicConfiguration } from '../../api/gener
 import { getPublicConfiguration } from '../../api/generated/branding/branding';
 
 export const defaultPublicConfiguration: PublicConfiguration = {
-  identity: { legalOrganizationName: 'HTU Graz', displayName: 'Makerspace', applicationName: 'HTU Graz Makerspace', tagline: null },
+  identity: {
+    legalOrganizationName: 'HTU Graz',
+    displayName: 'Makerspace',
+    applicationName: 'HTU Graz Makerspace',
+    tagline: null,
+  },
   colors: { primary: '#57569f', secondary: '#ffbf3d', accent: '#e76f12', background: '#111621' },
   assets: {
-    logoUrl: '/brand/htumkr-symbol.png', compactLogoUrl: '/brand/htumkr-symbol.png', faviconUrl: '/brand/htumkr-symbol.png',
-    applicationBackgroundUrl: '/brand/blueprint-workshop.jpg', authenticationBackgroundUrl: '/brand/blueprint-details.jpg',
+    logoUrl: '/brand/htumkr-symbol.png',
+    compactLogoUrl: '/brand/htumkr-symbol.png',
+    faviconUrl: '/brand/htumkr-symbol.png',
+    applicationBackgroundUrl: '/brand/blueprint-workshop.jpg',
+    authenticationBackgroundUrl: '/brand/blueprint-details.jpg',
   },
-  legal: { imprint: { mode: 'internal', href: '/legal/imprint' }, privacy: { mode: 'internal', href: '/legal/privacy' } },
+  legal: {
+    imprint: { mode: 'internal', href: '/legal/imprint' },
+    privacy: { mode: 'internal', href: '/legal/privacy' },
+  },
   timeZone: 'Europe/Vienna',
   version: 1,
 };
@@ -80,7 +91,9 @@ function applyDocumentBranding(configuration: PublicConfiguration) {
   } else {
     favicon?.remove();
   }
-  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', configuration.colors.background);
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute('content', configuration.colors.background);
 }
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
@@ -98,12 +111,17 @@ export function usePageTitle(title: string) {
   const branding = useBranding();
   useEffect(() => {
     document.title = `${title} · ${branding.identity.applicationName}`;
-    return () => { document.title = branding.identity.applicationName; };
+    return () => {
+      document.title = branding.identity.applicationName;
+    };
   }, [branding.identity.applicationName, title]);
 }
 
 /** The admin configuration carries no time zone (it is deployment configuration), so the current one is kept. */
-export function publicConfigurationFromAdmin(configuration: BrandingConfiguration, timeZone: string): PublicConfiguration {
+export function publicConfigurationFromAdmin(
+  configuration: BrandingConfiguration,
+  timeZone: string,
+): PublicConfiguration {
   const link = (kind: 'imprint' | 'privacy') => {
     const legal = configuration[kind];
     return { mode: legal.mode, href: legal.mode === 'external' ? legal.externalUrl : `/legal/${kind}` };

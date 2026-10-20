@@ -1,7 +1,9 @@
 /** Route builders for the Machines & Jobs area, so links never hard-code path strings. */
 const root = '/machine-logbook';
 const withQuery = (path: string, query?: Record<string, string | undefined>) => {
-  const search = new URLSearchParams(Object.entries(query ?? {}).filter((entry): entry is [string, string] => Boolean(entry[1]))).toString();
+  const search = new URLSearchParams(
+    Object.entries(query ?? {}).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
   return search ? `${path}?${search}` : path;
 };
 const segment = (id: string) => encodeURIComponent(id);

@@ -6,10 +6,22 @@ import { assignPersonRole, deletePerson } from '../../../api/generated/people/pe
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import { deletionFailureReasons } from '../deletionErrors';
 import { peopleKeys } from '../queries';
-import { fullName, peopleEligibleForDeletion, peopleWithAccounts, type BatchAction, type BatchResult } from './peopleList';
+import {
+  fullName,
+  peopleEligibleForDeletion,
+  peopleWithAccounts,
+  type BatchAction,
+  type BatchResult,
+} from './peopleList';
 
 /** Selection, confirmation state and the four bulk operations of the People table. */
-export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDeleteAccounts: boolean; onChanged: () => Promise<void> }) {
+export function useBatchPeopleActions({
+  canDeleteAccounts,
+  onChanged,
+}: {
+  canDeleteAccounts: boolean;
+  onChanged: () => Promise<void>;
+}) {
   const queryClient = useQueryClient();
   const [batchAction, setBatchAction] = useState<BatchAction>(null);
   const [batchMembers, setBatchMembers] = useState<Person[]>([]);
@@ -44,9 +56,7 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
   });
   const batchAssignRole = useMutation({
     mutationFn: async ({ members, role }: { members: Person[]; role: Role }) => {
-      const eligible = members.filter(
-        (person) => !person.roles.some((assigned) => assigned.id === role.id),
-      );
+      const eligible = members.filter((person) => !person.roles.some((assigned) => assigned.id === role.id));
       const results = await Promise.allSettled(
         eligible.map((person) =>
           assignPersonRole(person.id, role.id, {
@@ -89,7 +99,9 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
         deleted: results.filter((result) => result.status === 'fulfilled').length,
         failed: results.filter((result) => result.status === 'rejected').length,
         failures: results.flatMap((result, index) =>
-          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'account') }] : [],
+          result.status === 'rejected'
+            ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'account') }]
+            : [],
         ),
         skipped: members.length - eligible.length,
       };
@@ -102,11 +114,12 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
       }
       setBatchResult({
         kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0
-          ? 'Accounts deleted'
-          : deleted === 0
-            ? 'Accounts were not deleted'
-            : 'Some accounts were not deleted',
+        title:
+          failed === 0
+            ? 'Accounts deleted'
+            : deleted === 0
+              ? 'Accounts were not deleted'
+              : 'Some accounts were not deleted',
         subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because no visible account exists` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
         failures,
       });
@@ -130,7 +143,9 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
         deleted: results.filter((result) => result.status === 'fulfilled').length,
         failed: results.filter((result) => result.status === 'rejected').length,
         failures: results.flatMap((result, index) =>
-          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'person') }] : [],
+          result.status === 'rejected'
+            ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'person') }]
+            : [],
         ),
         skipped: members.length - eligible.length,
       };
@@ -143,11 +158,8 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
       }
       setBatchResult({
         kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0
-          ? 'People deleted'
-          : deleted === 0
-            ? 'People were not deleted'
-            : 'Some people were not deleted',
+        title:
+          failed === 0 ? 'People deleted' : deleted === 0 ? 'People were not deleted' : 'Some people were not deleted',
         subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because deleting their account is not permitted` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
         failures,
       });
@@ -157,12 +169,31 @@ export function useBatchPeopleActions({ canDeleteAccounts, onChanged }: { canDel
 
   const deleteAccountsLauncher = useRef<HTMLButtonElement>(null);
   const deletePeopleLauncher = useRef<HTMLButtonElement>(null);
-  const closeDeleteAccounts = useLatestCallback(() => { if (!batchDeleteAccounts.isPending) setBatchAction(null); return false; });
-  const closeDeletePeople = useLatestCallback(() => { if (!batchDeletePeople.isPending) setBatchAction(null); return false; });
+  const closeDeleteAccounts = useLatestCallback(() => {
+    if (!batchDeleteAccounts.isPending) setBatchAction(null);
+    return false;
+  });
+  const closeDeletePeople = useLatestCallback(() => {
+    if (!batchDeletePeople.isPending) setBatchAction(null);
+    return false;
+  });
 
   return {
-    batchAction, setBatchAction, batchMembers, setBatchMembers, batchRole, setBatchRole, batchResult, setBatchResult,
-    batchCreateAccounts, batchAssignRole, batchDeleteAccounts, batchDeletePeople,
-    deleteAccountsLauncher, deletePeopleLauncher, closeDeleteAccounts, closeDeletePeople,
+    batchAction,
+    setBatchAction,
+    batchMembers,
+    setBatchMembers,
+    batchRole,
+    setBatchRole,
+    batchResult,
+    setBatchResult,
+    batchCreateAccounts,
+    batchAssignRole,
+    batchDeleteAccounts,
+    batchDeletePeople,
+    deleteAccountsLauncher,
+    deletePeopleLauncher,
+    closeDeleteAccounts,
+    closeDeletePeople,
   };
 }

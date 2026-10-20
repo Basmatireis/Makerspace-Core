@@ -7,35 +7,74 @@ import { fakeCaches, type FakeCaches } from './testCaches';
 import { asset, fakeApi, live, manifest, rule, scene } from './testFixtures';
 
 /** Advances the fake clock and lets the chains of cache promises finish. */
-const settle = async (ms = 0) => { await vi.advanceTimersByTimeAsync(ms); for (let i = 0; i < 100; i += 1) await Promise.resolve(); };
-const deferred = <T = void>() => { let resolve!: (value: T) => void; const promise = new Promise<T>((a) => { resolve = a; }); return { promise, resolve }; };
-const offlineApi = (patch: Partial<PlayerApi> = {}) => fakeApi({
-  manifest: async () => { throw new PlayerNetworkError(); },
-  live: async () => { throw new PlayerNetworkError(); },
-  heartbeat: async () => { throw new PlayerNetworkError(); },
-  ...patch,
-});
+const settle = async (ms = 0) => {
+  await vi.advanceTimersByTimeAsync(ms);
+  for (let i = 0; i < 100; i += 1) await Promise.resolve();
+};
+const deferred = <T = void>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((a) => {
+    resolve = a;
+  });
+  return { promise, resolve };
+};
+const offlineApi = (patch: Partial<PlayerApi> = {}) =>
+  fakeApi({
+    manifest: async () => {
+      throw new PlayerNetworkError();
+    },
+    live: async () => {
+      throw new PlayerNetworkError();
+    },
+    heartbeat: async () => {
+      throw new PlayerNetworkError();
+    },
+    ...patch,
+  });
 
-type Env = { caches: FakeCaches; downloads: string[]; usage: { usage: number; quota: number }; store: PlayerStore; gate?: Promise<unknown> };
+type Env = {
+  caches: FakeCaches;
+  downloads: string[];
+  usage: { usage: number; quota: number };
+  store: PlayerStore;
+  gate?: Promise<unknown>;
+};
 function env(options: { gate?: (url: string) => Promise<unknown> | undefined } = {}): Env {
   const caches = fakeCaches();
   const downloads: string[] = [];
   const usage = { usage: 1_000, quota: 100_000 };
-  const fetchImpl = (async (url: string) => { downloads.push(url); await options.gate?.(url); return new Response(`content of ${url}`); }) as unknown as typeof fetch;
-  const store = createPlayerStore({ caches, fetch: fetchImpl, storage: { estimate: async () => ({ ...usage }), persist: async () => true } })!;
+  const fetchImpl = (async (url: string) => {
+    downloads.push(url);
+    await options.gate?.(url);
+    return new Response(`content of ${url}`);
+  }) as unknown as typeof fetch;
+  const store = createPlayerStore({
+    caches,
+    fetch: fetchImpl,
+    storage: { estimate: async () => ({ ...usage }), persist: async () => true },
+  })!;
   return { caches, downloads, usage, store };
 }
 
 describe('PlayerRuntime offline cache', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0)); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 19, 12, 0, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('activates a revision only after every asset is in the cache, and persists it', async () => {
     const gate = deferred();
     const slow = asset('img-2');
     const { store, caches } = env({ gate: (url) => (url === slow.url ? gate.promise : undefined) });
     let latest = manifest(1);
-    const api = fakeApi({ manifest: async (known) => (known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest }), live: async () => live({ revision: latest.revision }) });
+    const api = fakeApi({
+      manifest: async (known) =>
+        known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+      live: async () => live({ revision: latest.revision }),
+    });
     const runtime = new PlayerRuntime({ api, store });
     runtime.start();
     await settle();
@@ -59,7 +98,11 @@ describe('PlayerRuntime offline cache', () => {
   it('evicts assets the active revision no longer references', async () => {
     const { store, caches } = env();
     let latest = manifest(1, { assets: [asset('old-1'), asset('shared')] });
-    const api = fakeApi({ manifest: async (known) => (known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest }), live: async () => live({ revision: latest.revision }) });
+    const api = fakeApi({
+      manifest: async (known) =>
+        known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+      live: async () => live({ revision: latest.revision }),
+    });
     const runtime = new PlayerRuntime({ api, store });
     runtime.start();
     await settle();
@@ -67,13 +110,20 @@ describe('PlayerRuntime offline cache', () => {
     latest = manifest(2, { assets: [asset('shared'), asset('new-1')] });
     await settle(10_000);
     expect(runtime.getSnapshot().revision).toBe(2);
-    expect(caches.keysOf(ASSET_CACHE).sort()).toEqual([assetKey(asset('new-1').sha256), assetKey(asset('shared').sha256)].sort());
+    expect(caches.keysOf(ASSET_CACHE).sort()).toEqual(
+      [assetKey(asset('new-1').sha256), assetKey(asset('shared').sha256)].sort(),
+    );
     runtime.stop();
   });
 
   it('plays the persisted revision on a cold start without network (and does not show pairing)', async () => {
     const { store } = env();
-    const first = new PlayerRuntime({ api: fakeApi({ manifest: async () => ({ unchanged: false, manifest: manifest(7, { assets: [asset('img-1')] }) }) }), store });
+    const first = new PlayerRuntime({
+      api: fakeApi({
+        manifest: async () => ({ unchanged: false, manifest: manifest(7, { assets: [asset('img-1')] }) }),
+      }),
+      store,
+    });
     first.start();
     await settle();
     first.stop();
@@ -102,7 +152,14 @@ describe('PlayerRuntime offline cache', () => {
     const { store, caches } = env();
     await store.ensureAsset(asset('img-1'));
     await store.saveManifest(manifest(7, { assets: [asset('img-1')] }));
-    const runtime = new PlayerRuntime({ api: fakeApi({ manifest: async () => { throw new PlayerApiError(401, null, 'x'); } }), store });
+    const runtime = new PlayerRuntime({
+      api: fakeApi({
+        manifest: async () => {
+          throw new PlayerApiError(401, null, 'x');
+        },
+      }),
+      store,
+    });
     runtime.start();
     await settle();
     expect(runtime.getSnapshot().status).toBe('revoked');
@@ -111,12 +168,39 @@ describe('PlayerRuntime offline cache', () => {
   });
 
   describe('live data lifetime', () => {
-    const announcement = (id: string, endsAt: string | null) => ({ id, templateId: 't', tone: 'info', title: id, body: '', startsAt: new Date(2026, 9, 19, 8).toISOString(), endsAt }) as never;
-    const machine = { machineId: 'm1', name: 'H2D', state: 'printing' as const, progressPercent: 10, remainingMinutes: 5, observedAt: null, stale: false };
+    const announcement = (id: string, endsAt: string | null) =>
+      ({
+        id,
+        templateId: 't',
+        tone: 'info',
+        title: id,
+        body: '',
+        startsAt: new Date(2026, 9, 19, 8).toISOString(),
+        endsAt,
+      }) as never;
+    const machine = {
+      machineId: 'm1',
+      name: 'H2D',
+      state: 'printing' as const,
+      progressPercent: 10,
+      remainingMinutes: 5,
+      observedAt: null,
+      stale: false,
+    };
 
     async function seed(store: PlayerStore, savedAgoMs: number) {
       await store.saveManifest(manifest(1));
-      await store.saveLive({ savedAt: Date.now() - savedAgoMs, skewMs: 0, announcements: [announcement('timed', new Date(2026, 9, 19, 14).toISOString()), announcement('expired', new Date(2026, 9, 19, 11).toISOString()), announcement('open', null)], openDays: [{ startsAt: 'a', endsAt: 'b', status: 'open' }], events: [] });
+      await store.saveLive({
+        savedAt: Date.now() - savedAgoMs,
+        skewMs: 0,
+        announcements: [
+          announcement('timed', new Date(2026, 9, 19, 14).toISOString()),
+          announcement('expired', new Date(2026, 9, 19, 11).toISOString()),
+          announcement('open', null),
+        ],
+        openDays: [{ startsAt: 'a', endsAt: 'b', status: 'open' }],
+        events: [],
+      });
     }
 
     it('shows persisted announcements and open days after an offline restart, never machines', async () => {
@@ -148,7 +232,18 @@ describe('PlayerRuntime offline cache', () => {
       const { store } = env();
       let offline = false;
       const endsAt = new Date(2026, 9, 19, 12, 5, 0).toISOString();
-      const runtime = new PlayerRuntime({ api: fakeApi({ live: async () => { if (offline) throw new PlayerNetworkError(); return live({ announcements: [announcement('a', endsAt), announcement('open', null)], machines: [machine] }); } }), store });
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          live: async () => {
+            if (offline) throw new PlayerNetworkError();
+            return live({
+              announcements: [announcement('a', endsAt), announcement('open', null)],
+              machines: [machine],
+            });
+          },
+        }),
+        store,
+      });
       runtime.start();
       await settle();
       expect(runtime.getSnapshot().view?.data).toMatchObject({ liveAvailable: true });
@@ -179,7 +274,16 @@ describe('PlayerRuntime offline cache', () => {
     it('sends no live poll or heartbeat while the device has no credential', async () => {
       const heartbeat = vi.fn(async () => undefined);
       const liveCall = vi.fn(async () => live());
-      const runtime = new PlayerRuntime({ api: fakeApi({ manifest: async () => { throw new PlayerApiError(401, null, 'x'); }, heartbeat, live: liveCall }), store: null });
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => {
+            throw new PlayerApiError(401, null, 'x');
+          },
+          heartbeat,
+          live: liveCall,
+        }),
+        store: null,
+      });
       runtime.start();
       await settle(60_000);
       expect(heartbeat).not.toHaveBeenCalled();
@@ -191,7 +295,18 @@ describe('PlayerRuntime offline cache', () => {
       const first = deferred<void>();
       const heartbeat = vi.fn(async () => undefined);
       const liveCall = vi.fn(async () => live());
-      const runtime = new PlayerRuntime({ api: fakeApi({ manifest: async () => { await first.promise; return { unchanged: false, manifest: manifest(1) }; }, heartbeat, live: liveCall }), store: null, loadAsset: async () => 'ready' });
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => {
+            await first.promise;
+            return { unchanged: false, manifest: manifest(1) };
+          },
+          heartbeat,
+          live: liveCall,
+        }),
+        store: null,
+        loadAsset: async () => 'ready',
+      });
       runtime.start();
       await settle(5_000);
       expect(heartbeat).not.toHaveBeenCalled();
@@ -205,7 +320,9 @@ describe('PlayerRuntime offline cache', () => {
 
     it('stays quiet and keeps retrying when a first start has no network and nothing cached', async () => {
       const heartbeat = vi.fn(async () => undefined);
-      const manifestCall = vi.fn(async () => { throw new PlayerNetworkError(); });
+      const manifestCall = vi.fn(async () => {
+        throw new PlayerNetworkError();
+      });
       const runtime = new PlayerRuntime({ api: fakeApi({ manifest: manifestCall, heartbeat }), store: env().store });
       runtime.start();
       await settle(60_000);
@@ -217,7 +334,15 @@ describe('PlayerRuntime offline cache', () => {
 
     it('starts the loops when the display is paired but not published yet', async () => {
       const heartbeat = vi.fn(async () => undefined);
-      const runtime = new PlayerRuntime({ api: fakeApi({ manifest: async () => { throw new PlayerApiError(404, 'signage_not_published', 'x'); }, heartbeat }), store: null });
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => {
+            throw new PlayerApiError(404, 'signage_not_published', 'x');
+          },
+          heartbeat,
+        }),
+        store: null,
+      });
       runtime.start();
       await settle();
       expect(heartbeat).toHaveBeenCalledTimes(1);
@@ -226,7 +351,15 @@ describe('PlayerRuntime offline cache', () => {
 
     it('still returns to pairing on a 401 while playing', async () => {
       let revoked = false;
-      const runtime = new PlayerRuntime({ api: fakeApi({ live: async () => { if (revoked) throw new PlayerApiError(401, null, 'x'); return live(); } }), store: env().store });
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          live: async () => {
+            if (revoked) throw new PlayerApiError(401, null, 'x');
+            return live();
+          },
+        }),
+        store: env().store,
+      });
       runtime.start();
       await settle();
       revoked = true;
@@ -240,7 +373,11 @@ describe('PlayerRuntime offline cache', () => {
       const { store, usage, downloads } = env();
       usage.quota = 10_000;
       let latest = manifest(1);
-      const api = fakeApi({ manifest: async (known) => (known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest }), live: async () => live({ revision: latest.revision }) });
+      const api = fakeApi({
+        manifest: async (known) =>
+          known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+        live: async () => live({ revision: latest.revision }),
+      });
       const runtime = new PlayerRuntime({ api, store });
       runtime.start();
       await settle();
@@ -256,7 +393,11 @@ describe('PlayerRuntime offline cache', () => {
     it('refuses when the disk fills up during the download and removes the partial download', async () => {
       const { store, caches } = env();
       let latest = manifest(1, { assets: [asset('keep')] });
-      const api = fakeApi({ manifest: async (known) => (known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest }), live: async () => live({ revision: latest.revision }) });
+      const api = fakeApi({
+        manifest: async (known) =>
+          known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+        live: async () => live({ revision: latest.revision }),
+      });
       const runtime = new PlayerRuntime({ api, store });
       runtime.start();
       await settle();
@@ -280,13 +421,18 @@ describe('PlayerRuntime offline cache', () => {
       const runtime = new PlayerRuntime({ api: fakeApi({ heartbeat }), store });
       runtime.start();
       await settle(1_000);
-      expect(heartbeat).toHaveBeenLastCalledWith(expect.objectContaining({ cacheUsedBytes: 123, cacheQuotaBytes: 456_789 }));
+      expect(heartbeat).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cacheUsedBytes: 123, cacheQuotaBytes: 456_789 }),
+      );
       runtime.stop();
     });
 
     it('asks for persistent storage', async () => {
       const persist = vi.fn(async () => true);
-      const store = createPlayerStore({ caches: fakeCaches(), storage: { estimate: async () => ({ usage: 0, quota: 1 }), persist } })!;
+      const store = createPlayerStore({
+        caches: fakeCaches(),
+        storage: { estimate: async () => ({ usage: 0, quota: 1 }), persist },
+      })!;
       const runtime = new PlayerRuntime({ api: fakeApi(), store });
       runtime.start();
       await settle();

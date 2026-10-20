@@ -6,10 +6,15 @@ import { defaultPublicConfiguration } from '../branding/branding';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 
-const renderNavigation = (permissions: PermissionId[], route = '/dashboard') => renderRoute(
-  <AppNavigation currentUser={currentUserFixture(permissions)} legal={defaultPublicConfiguration.legal} onNavigate={vi.fn()} />,
-  route,
-);
+const renderNavigation = (permissions: PermissionId[], route = '/dashboard') =>
+  renderRoute(
+    <AppNavigation
+      currentUser={currentUserFixture(permissions)}
+      legal={defaultPublicConfiguration.legal}
+      onNavigate={vi.fn()}
+    />,
+    route,
+  );
 
 describe('Signage navigation', () => {
   it('shows no Signage group without signage.read', () => {
@@ -21,7 +26,12 @@ describe('Signage navigation', () => {
     renderNavigation([PermissionId.signageread], '/signage/scenes/some-scene');
     expect(screen.getByRole('button', { name: 'Signage' })).toHaveAttribute('aria-expanded', 'true');
     const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/signage'));
-    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([['Displays', '/signage'], ['Announcements', '/signage/announcements'], ['Content', '/signage/content'], ['Media', '/signage/media']]);
+    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['Displays', '/signage'],
+      ['Announcements', '/signage/announcements'],
+      ['Content', '/signage/content'],
+      ['Media', '/signage/media'],
+    ]);
     expect(screen.getByRole('link', { name: 'Content' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Media' })).not.toHaveAttribute('aria-current');
   });

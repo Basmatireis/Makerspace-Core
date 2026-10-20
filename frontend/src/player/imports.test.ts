@@ -9,7 +9,11 @@ import { describe, expect, it } from 'vitest';
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = resolve(SRC, 'player/main.tsx');
 const ALLOWED_PACKAGES = new Set(['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']);
-const ALLOWED_SHARED = [/^features\/signage\/engine\//, /^features\/signage\/render\//, /^features\/signage\/layouts\.ts$/];
+const ALLOWED_SHARED = [
+  /^features\/signage\/engine\//,
+  /^features\/signage\/render\//,
+  /^features\/signage\/layouts\.ts$/,
+];
 
 const resolveFile = (from: string, specifier: string): string | null => {
   const base = resolve(dirname(from), specifier);
@@ -21,7 +25,8 @@ const resolveFile = (from: string, specifier: string): string | null => {
 
 function runtimeImports(source: string): string[] {
   const specifiers: string[] = [];
-  for (const match of source.matchAll(/^\s*(?:import|export)\s+(?!type\s)[^'"]*?from\s+['"]([^'"]+)['"]/gm)) specifiers.push(match[1]);
+  for (const match of source.matchAll(/^\s*(?:import|export)\s+(?!type\s)[^'"]*?from\s+['"]([^'"]+)['"]/gm))
+    specifiers.push(match[1]);
   for (const match of source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) specifiers.push(match[1]);
   for (const match of source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) specifiers.push(match[1]);
   return specifiers;
@@ -39,7 +44,10 @@ function importGraph() {
       if (specifier.startsWith('.')) {
         const target = resolveFile(file, specifier);
         if (target === null) throw new Error(`Cannot resolve ${specifier} from ${relative(SRC, file)}`);
-        if (/\.(css|scss)$/.test(target)) { files.add(target); continue; }
+        if (/\.(css|scss)$/.test(target)) {
+          files.add(target);
+          continue;
+        }
         queue.push(target);
       } else packages.add(specifier);
     }
@@ -60,7 +68,9 @@ describe('player import graph', () => {
   });
 
   it('stays out of the application, the generated client and other features', () => {
-    const outside = graph.files.filter((file) => !file.startsWith('player/') && !ALLOWED_SHARED.some((pattern) => pattern.test(file)));
+    const outside = graph.files.filter(
+      (file) => !file.startsWith('player/') && !ALLOWED_SHARED.some((pattern) => pattern.test(file)),
+    );
     expect(outside).toEqual([]);
   });
 

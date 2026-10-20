@@ -10,17 +10,24 @@ export function useRuleNames(): Names {
   const { machines } = useMachineOptions();
   const templates = useQuery(templatesQuery()).data?.items;
   // Stable identity: the names are a dependency of the published-view memo.
-  return useMemo(() => ({
-    machine: (id) => machines.find((item) => item.id === id)?.name ?? 'a machine',
-    template: (id) => templates?.find((item) => item.id === id)?.name ?? 'a removed template',
-  }), [machines, templates]);
+  return useMemo(
+    () => ({
+      machine: (id) => machines.find((item) => item.id === id)?.name ?? 'a machine',
+      template: (id) => templates?.find((item) => item.id === id)?.name ?? 'a removed template',
+    }),
+    [machines, templates],
+  );
 }
 
 /**
  * The display's latest publication run through the shared engine with its current live data. Polls like a player.
  * A new `options` object only makes the view resolve again.
  */
-export function usePublishedView(displayId: string, options: Pick<PublishedOptions, 'extra' | 'omitAnnouncementId'> = {}, enabled = true) {
+export function usePublishedView(
+  displayId: string,
+  options: Pick<PublishedOptions, 'extra' | 'omitAnnouncementId'> = {},
+  enabled = true,
+) {
   const preview = useQuery(previewQuery(displayId, enabled));
   const timeZone = useMakerspaceTimeZone();
   const names = useRuleNames();
@@ -40,9 +47,23 @@ export function usePublishedView(displayId: string, options: Pick<PublishedOptio
 export function useCameraBlockedDisplays(sceneId: string): string[] {
   const displays = useQuery(displaysQuery()).data?.items;
   const playlists = useQuery(playlistsQuery()).data?.items;
-  const blocked = useMemo(() => (displays ?? []).filter((display) => display.visibleFromOutside && display.status !== 'revoked' && !display.allowCameraOutside), [displays]);
+  const blocked = useMemo(
+    () =>
+      (displays ?? []).filter(
+        (display) => display.visibleFromOutside && display.status !== 'revoked' && !display.allowCameraOutside,
+      ),
+    [displays],
+  );
   const rules = useQueries({ queries: blocked.map((display) => rulesQuery(display.id)) });
-  const plays = (playlistId: string) => playlists?.find((item) => item.id === playlistId)?.items.some((item) => item.sceneId === sceneId) ?? false;
-  return blocked.filter((display, index) => plays(display.defaultPlaylistId)
-    || (rules[index]?.data?.items ?? []).some((rule) => (rule.targetKind === 'scene' ? rule.targetId === sceneId : plays(rule.targetId)))).map((display) => display.name);
+  const plays = (playlistId: string) =>
+    playlists?.find((item) => item.id === playlistId)?.items.some((item) => item.sceneId === sceneId) ?? false;
+  return blocked
+    .filter(
+      (display, index) =>
+        plays(display.defaultPlaylistId) ||
+        (rules[index]?.data?.items ?? []).some((rule) =>
+          rule.targetKind === 'scene' ? rule.targetId === sceneId : plays(rule.targetId),
+        ),
+    )
+    .map((display) => display.name);
 }

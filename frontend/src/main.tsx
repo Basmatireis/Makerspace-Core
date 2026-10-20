@@ -9,7 +9,15 @@ import { BrandingProvider } from './features/branding/branding';
 import './styles/index.scss';
 
 const router = createBrowserRouter([
-  { path: '*', element: <><SessionEventHandler /><App /></> },
+  {
+    path: '*',
+    element: (
+      <>
+        <SessionEventHandler />
+        <App />
+      </>
+    ),
+  },
 ]);
 
 createRoot(document.getElementById('root')!).render(

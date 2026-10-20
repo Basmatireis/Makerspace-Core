@@ -6,46 +6,110 @@ import { PermissionId, type PrinterProfile } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { connectionTestTiming } from './components/wizard/useConnectionTest';
 import {
-  assignmentId, assignmentOf, connectorId, connectorOf, liveStatusOf, machineOf, printer, printerId, printerTypeId, renderPage, templateProfile, types,
+  assignmentId,
+  assignmentOf,
+  connectorId,
+  connectorOf,
+  liveStatusOf,
+  machineOf,
+  printer,
+  printerId,
+  printerTypeId,
+  renderPage,
+  templateProfile,
+  types,
 } from './printerTestData';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
 
-const MANAGE = [PermissionId.machinesread, PermissionId.machinesmanage, PermissionId.printer_connectorsread, PermissionId.printer_connectorsmanage];
+const MANAGE = [
+  PermissionId.machinesread,
+  PermissionId.machinesmanage,
+  PermissionId.printer_connectorsread,
+  PermissionId.printer_connectorsmanage,
+];
 const newId = '0192f6f8-743e-7c77-a349-cd07c3e8c201';
 const created = machineOf(newId, 'Lab printer');
 const originalTiming = { ...connectionTestTiming };
-beforeEach(() => { connectionTestTiming.pollMs = 20; });
-afterEach(() => { Object.assign(connectionTestTiming, originalTiming); });
+beforeEach(() => {
+  connectionTestTiming.pollMs = 20;
+});
+afterEach(() => {
+  Object.assign(connectionTestTiming, originalTiming);
+});
 
-type Recorded = { machine?: unknown; setup: Record<string, unknown>[]; assignment?: Record<string, unknown>; patch?: Record<string, unknown> };
+type Recorded = {
+  machine?: unknown;
+  setup: Record<string, unknown>[];
+  assignment?: Record<string, unknown>;
+  patch?: Record<string, unknown>;
+};
 
 /** Backend stand-in for the create flow: machine, profile, assignment and (after a delay) the connector's status report. */
-function backend(permissions: PermissionId[], { reportAfterPolls = 5, appliedAfterPolls = 3, runtimeErrorCode = null as string | null, report = true } = {}) {
+function backend(
+  permissions: PermissionId[],
+  { reportAfterPolls = 5, appliedAfterPolls = 3, runtimeErrorCode = null as string | null, report = true } = {},
+) {
   auth.permissions = permissions;
   const recorded: Recorded = { setup: [] };
   let profileVersion = 0;
   let polls = 0;
   let assigned = false;
-  const profile = (version: number): PrinterProfile => templateProfile({ machineId: newId, machineName: 'Lab printer', version });
+  const profile = (version: number): PrinterProfile =>
+    templateProfile({ machineId: newId, machineName: 'Lab printer', version });
   server.use(
     http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
     http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
     http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [connectorOf()] })),
-    http.post('*/api/v1/machines', async ({ request }) => { recorded.machine = await request.json(); return HttpResponse.json(created, { status: 201 }); }),
-    http.put(`*/api/v1/machines/${newId}/printer/setup`, async ({ request }) => { recorded.setup.push(await request.json() as Record<string, unknown>); profileVersion += 1; return HttpResponse.json(profile(profileVersion)); }),
+    http.post('*/api/v1/machines', async ({ request }) => {
+      recorded.machine = await request.json();
+      return HttpResponse.json(created, { status: 201 });
+    }),
+    http.put(`*/api/v1/machines/${newId}/printer/setup`, async ({ request }) => {
+      recorded.setup.push((await request.json()) as Record<string, unknown>);
+      profileVersion += 1;
+      return HttpResponse.json(profile(profileVersion));
+    }),
     http.post(`*/api/v1/printer-connectors/${connectorId}/assignments`, async ({ request }) => {
-      recorded.assignment = await request.json() as Record<string, unknown>; assigned = true;
-      return HttpResponse.json(assignmentOf({ machineId: newId, machineName: 'Lab printer', configurationVersion: 1, appliedConfigurationVersion: 0, runtimeState: null, version: 1 }), { status: 201 });
+      recorded.assignment = (await request.json()) as Record<string, unknown>;
+      assigned = true;
+      return HttpResponse.json(
+        assignmentOf({
+          machineId: newId,
+          machineName: 'Lab printer',
+          configurationVersion: 1,
+          appliedConfigurationVersion: 0,
+          runtimeState: null,
+          version: 1,
+        }),
+        { status: 201 },
+      );
     }),
     http.get(`*/api/v1/printer-connectors/${connectorId}/assignments`, () => {
       polls += 1;
-      return HttpResponse.json({ items: assigned ? [assignmentOf({ machineId: newId, machineName: 'Lab printer', configurationVersion: 1, appliedConfigurationVersion: polls > appliedAfterPolls ? 1 : 0, runtimeErrorCode, runtimeState: runtimeErrorCode ? 'degraded' : 'connected', version: 1 })] : [] });
+      return HttpResponse.json({
+        items: assigned
+          ? [
+              assignmentOf({
+                machineId: newId,
+                machineName: 'Lab printer',
+                configurationVersion: 1,
+                appliedConfigurationVersion: polls > appliedAfterPolls ? 1 : 0,
+                runtimeErrorCode,
+                runtimeState: runtimeErrorCode ? 'degraded' : 'connected',
+                version: 1,
+              }),
+            ]
+          : [],
+      });
     }),
-    http.get(`*/api/v1/machines/${newId}/printer/live-status`, () => report && assigned && polls > reportAfterPolls
-      ? HttpResponse.json({ ...liveStatusOf(), machineId: newId, assignmentId }) : HttpResponse.json({ code: 'not_found' }, { status: 404 })),
+    http.get(`*/api/v1/machines/${newId}/printer/live-status`, () =>
+      report && assigned && polls > reportAfterPolls
+        ? HttpResponse.json({ ...liveStatusOf(), machineId: newId, assignmentId })
+        : HttpResponse.json({ code: 'not_found' }, { status: 404 }),
+    ),
     http.get(`*/api/v1/machines/${newId}`, () => HttpResponse.json(created)),
     http.get(`*/api/v1/machines/${newId}/printer`, () => HttpResponse.json(profile(profileVersion || 1))),
   );
@@ -62,7 +126,9 @@ async function fillMachineStep(user: ReturnType<typeof userEvent.setup>, dialog:
 
 async function clickAddMachine(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(() => expect(document.querySelector('.cds--table-toolbar')).not.toBeNull(), { timeout: 5000 });
-  await user.click(within(document.querySelector('.cds--table-toolbar') as HTMLElement).getByRole('button', { name: 'Add machine' }));
+  await user.click(
+    within(document.querySelector('.cds--table-toolbar') as HTMLElement).getByRole('button', { name: 'Add machine' }),
+  );
 }
 
 async function openWizard(user: ReturnType<typeof userEvent.setup>) {
@@ -82,9 +148,13 @@ describe('Add machine wizard for a printer', () => {
     await user.click(within(dialog).getByRole('radio', { name: /Bambu Lab X1C/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
     await waitFor(() => expect(recorded.setup).toHaveLength(1));
-    expect(recorded.setup[0]).toMatchObject({ model: 'bambu_x1c', inputUnits: [
-      { name: 'AMS', externalIdentifier: '0' }, { name: 'External spool', externalIdentifier: '255' },
-    ] });
+    expect(recorded.setup[0]).toMatchObject({
+      model: 'bambu_x1c',
+      inputUnits: [
+        { name: 'AMS', externalIdentifier: '0' },
+        { name: 'External spool', externalIdentifier: '255' },
+      ],
+    });
     expect(await within(dialog).findByDisplayValue('Bambu Lab X1C')).toBeInTheDocument();
   });
 
@@ -97,11 +167,30 @@ describe('Add machine wizard for a printer', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
 
     // Step Machine: machine and template profile are created right away.
-    await waitFor(() => expect(recorded.machine).toEqual({ name: 'Lab printer', machineTypeId: printerTypeId, status: 'active', externalIdentifier: null, automaticCollectionEnabled: false }));
+    await waitFor(() =>
+      expect(recorded.machine).toEqual({
+        name: 'Lab printer',
+        machineTypeId: printerTypeId,
+        status: 'active',
+        externalIdentifier: null,
+        automaticCollectionEnabled: false,
+      }),
+    );
     await waitFor(() => expect(recorded.setup).toHaveLength(1));
-    const template = recorded.setup[0] as { expectedVersion: unknown; enabled: unknown; model: unknown; inputUnits: { name: string; nozzle: string; externalIdentifier: string; slots: unknown[] }[] };
+    const template = recorded.setup[0] as {
+      expectedVersion: unknown;
+      enabled: unknown;
+      model: unknown;
+      inputUnits: { name: string; nozzle: string; externalIdentifier: string; slots: unknown[] }[];
+    };
     expect(template).toMatchObject({ expectedVersion: null, enabled: true, model: 'bambu_h2d' });
-    expect(template.inputUnits.map((unit) => [unit.name, unit.nozzle, unit.externalIdentifier, unit.slots.length])).toEqual([['AMS 2 Pro', 'left', '0', 4], ['External spool L', 'left', '255', 1], ['External spool R', 'right', '254', 1]]);
+    expect(
+      template.inputUnits.map((unit) => [unit.name, unit.nozzle, unit.externalIdentifier, unit.slots.length]),
+    ).toEqual([
+      ['AMS 2 Pro', 'left', '0', 4],
+      ['External spool L', 'left', '255', 1],
+      ['External spool R', 'right', '254', 1],
+    ]);
     expect(template.inputUnits[0].slots[0]).toEqual({ name: 'Slot 1', status: 'available', externalIdentifier: '0' });
 
     // Step Connection: Save and test creates the assignment and waits for the connector.
@@ -111,13 +200,23 @@ describe('Add machine wizard for a printer', () => {
     expect(within(dialog).getByLabelText('Serial number')).toHaveValue('01P00A123456789');
     connectionTestTiming.pollMs = 150;
     await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
-    await waitFor(() => expect(recorded.assignment).toEqual({
-      machineId: newId, adapterKind: 'bambu_h2d', adapterSchemaVersion: 1, settings: { ipAddress: '192.168.1.42', serialNumber: '01P00A123456789', autoDetectSpools: true },
-      secrets: { lanAccessCode: 'secret-code' }, enabled: true,
-    }));
-    expect(await within(dialog).findByText('Waiting for Print room agent to pick up the configuration…')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(recorded.assignment).toEqual({
+        machineId: newId,
+        adapterKind: 'bambu_h2d',
+        adapterSchemaVersion: 1,
+        settings: { ipAddress: '192.168.1.42', serialNumber: '01P00A123456789', autoDetectSpools: true },
+        secrets: { lanAccessCode: 'secret-code' },
+        enabled: true,
+      }),
+    );
+    expect(
+      await within(dialog).findByText('Waiting for Print room agent to pick up the configuration…'),
+    ).toBeInTheDocument();
     expect(await within(dialog).findByText('Connected')).toBeInTheDocument();
-    expect(within(dialog).getByText(/Firmware 01\.04\.00\.00 · 2 nozzles · AMS 2 Pro, AMS HT · 2 external spool holders/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Firmware 01\.04\.00\.00 · 2 nozzles · AMS 2 Pro, AMS HT · 2 external spool holders/),
+    ).toBeInTheDocument();
     expect(screen.queryByText('secret-code')).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText('New LAN access code (optional)')).toHaveValue('');
 
@@ -128,12 +227,32 @@ describe('Add machine wizard for a printer', () => {
     expect(await within(dialog).findByDisplayValue('AMS HT')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Save and continue' }));
     await waitFor(() => expect(recorded.setup).toHaveLength(2));
-    const saved = recorded.setup[1] as { expectedVersion: number; model: string; inputUnits: { id?: string; name: string; nozzle: string | null; externalIdentifier: string | null; slots: { id?: string; externalIdentifier: string | null }[] }[] };
+    const saved = recorded.setup[1] as {
+      expectedVersion: number;
+      model: string;
+      inputUnits: {
+        id?: string;
+        name: string;
+        nozzle: string | null;
+        externalIdentifier: string | null;
+        slots: { id?: string; externalIdentifier: string | null }[];
+      }[];
+    };
     expect(saved.expectedVersion).toBe(1);
     expect(saved.model).toBe('bambu_h2d');
     expect(saved.inputUnits.map((unit) => unit.id)).toEqual(['unit-ams', 'unit-l', 'unit-r', undefined]);
-    expect(saved.inputUnits[3]).toEqual({ name: 'AMS HT', nozzle: null, externalIdentifier: '128', slots: [{ name: 'Slot 1', status: 'available', externalIdentifier: '0' }] });
-    expect(saved.inputUnits[0].slots.map((slot) => slot.id)).toEqual(['slot-ams-0', 'slot-ams-1', 'slot-ams-2', 'slot-ams-3']);
+    expect(saved.inputUnits[3]).toEqual({
+      name: 'AMS HT',
+      nozzle: null,
+      externalIdentifier: '128',
+      slots: [{ name: 'Slot 1', status: 'available', externalIdentifier: '0' }],
+    });
+    expect(saved.inputUnits[0].slots.map((slot) => slot.id)).toEqual([
+      'slot-ams-0',
+      'slot-ams-1',
+      'slot-ams-2',
+      'slot-ams-3',
+    ]);
 
     // Review shows what is stored.
     const connection = await within(dialog).findByLabelText('Connection summary');
@@ -182,10 +301,12 @@ describe('Add machine wizard for a printer', () => {
   it('tests again after a timeout and asks for a new test once a connection field changes', async () => {
     const recorded = backend(MANAGE, { report: false });
     const patches: Record<string, unknown>[] = [];
-    server.use(http.patch(`*/api/v1/printer-connectors/${connectorId}/assignments/${assignmentId}`, async ({ request }) => {
-      patches.push(await request.json() as Record<string, unknown>);
-      return HttpResponse.json(assignmentOf({ machineId: newId, machineName: 'Lab printer', version: 2 }));
-    }));
+    server.use(
+      http.patch(`*/api/v1/printer-connectors/${connectorId}/assignments/${assignmentId}`, async ({ request }) => {
+        patches.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(assignmentOf({ machineId: newId, machineName: 'Lab printer', version: 2 }));
+      }),
+    );
     connectionTestTiming.timeoutMs = 300;
     const user = userEvent.setup();
     const dialog = await openWizard(user);
@@ -214,17 +335,27 @@ describe('Add machine wizard for a printer', () => {
 
   it('takes the serial number from the external identifier until it is edited', async () => {
     const recorded = backend(MANAGE);
-    server.use(http.post('*/api/v1/machines', async ({ request }) => {
-      recorded.machine = await request.json();
-      return HttpResponse.json({ ...created, automaticCollectionEnabled: true, externalIdentifier: '01p00a123456789' }, { status: 201 });
-    }));
+    server.use(
+      http.post('*/api/v1/machines', async ({ request }) => {
+        recorded.machine = await request.json();
+        return HttpResponse.json(
+          { ...created, automaticCollectionEnabled: true, externalIdentifier: '01p00a123456789' },
+          { status: 201 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     const dialog = await openWizard(user);
     await fillMachineStep(user, dialog);
     await user.click(within(dialog).getByRole('switch', { name: 'Automatic collection' }));
     await user.type(within(dialog).getByLabelText('External identifier (optional)'), '01p00a123456789');
     await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
-    await waitFor(() => expect(recorded.machine).toMatchObject({ externalIdentifier: '01p00a123456789', automaticCollectionEnabled: true }));
+    await waitFor(() =>
+      expect(recorded.machine).toMatchObject({
+        externalIdentifier: '01p00a123456789',
+        automaticCollectionEnabled: true,
+      }),
+    );
     expect(await within(dialog).findByLabelText('Serial number')).toHaveValue('01P00A123456789');
   });
 
@@ -239,7 +370,9 @@ describe('Add machine wizard for a printer', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Back' }));
     expect(await within(dialog).findByRole('button', { name: 'Save and continue' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByText('Lab printer was saved. Finish its setup from the machine page.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Lab printer was saved. Finish its setup from the machine page.'),
+    ).toBeInTheDocument();
   });
 
   it('shows a read-only note for the connection step without printer_connectors.manage', async () => {
@@ -258,7 +391,14 @@ describe('Add machine wizard for a printer', () => {
 });
 
 describe('Printer setup tab', () => {
-  function detail(permissions: PermissionId[], { profile = templateProfile(), live = liveStatusOf() as ReturnType<typeof liveStatusOf> | null, assignments = [assignmentOf()] } = {}) {
+  function detail(
+    permissions: PermissionId[],
+    {
+      profile = templateProfile(),
+      live = liveStatusOf() as ReturnType<typeof liveStatusOf> | null,
+      assignments = [assignmentOf()],
+    } = {},
+  ) {
     auth.permissions = permissions;
     const requests: { setup: Record<string, unknown>[]; patch: Record<string, unknown>[] } = { setup: [], patch: [] };
     let currentProfile = profile;
@@ -267,16 +407,23 @@ describe('Printer setup tab', () => {
       http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/machines/${printerId}/printer`, () => HttpResponse.json(currentProfile)),
-      http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () => live ? HttpResponse.json(live) : HttpResponse.json({ code: 'not_found' }, { status: 404 })),
+      http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () =>
+        live ? HttpResponse.json(live) : HttpResponse.json({ code: 'not_found' }, { status: 404 }),
+      ),
       http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [connectorOf()] })),
-      http.get(`*/api/v1/printer-connectors/${connectorId}/assignments`, () => HttpResponse.json({ items: assignments })),
+      http.get(`*/api/v1/printer-connectors/${connectorId}/assignments`, () =>
+        HttpResponse.json({ items: assignments }),
+      ),
       http.put(`*/api/v1/machines/${printerId}/printer/setup`, async ({ request }) => {
-        const body = await request.json() as Record<string, unknown>;
+        const body = (await request.json()) as Record<string, unknown>;
         requests.setup.push(body);
         currentProfile = { ...currentProfile, version: currentProfile.version + 1 };
         return HttpResponse.json(currentProfile);
       }),
-      http.patch(`*/api/v1/printer-connectors/${connectorId}/assignments/${assignmentId}`, async ({ request }) => { requests.patch.push(await request.json() as Record<string, unknown>); return HttpResponse.json(assignmentOf({ version: 4 })); }),
+      http.patch(`*/api/v1/printer-connectors/${connectorId}/assignments/${assignmentId}`, async ({ request }) => {
+        requests.patch.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(assignmentOf({ version: 4 }));
+      }),
     );
     return requests;
   }
@@ -289,20 +436,32 @@ describe('Printer setup tab', () => {
   it('offers detected units that are not set up and saves them with the existing units', async () => {
     const requests = detail([PermissionId.machinesread, PermissionId.machinesmanage]);
     const user = await open();
-    expect(await screen.findByText("The printer reports AMS HT (128), which isn't set up", undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText("The printer reports AMS HT (128), which isn't set up", undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add as input unit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit spool inputs' });
     expect(within(dialog).getByDisplayValue('AMS HT')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Save spool inputs' }));
     await waitFor(() => expect(requests.setup).toHaveLength(1));
-    const body = requests.setup[0] as { expectedVersion: number; inputUnits: { name: string; externalIdentifier: string | null; nozzle: string | null }[] };
+    const body = requests.setup[0] as {
+      expectedVersion: number;
+      inputUnits: { name: string; externalIdentifier: string | null; nozzle: string | null }[];
+    };
     expect(body.expectedVersion).toBe(4);
-    expect(body.inputUnits.map((unit) => [unit.name, unit.externalIdentifier])).toEqual([['AMS 2 Pro', '0'], ['External spool L', '255'], ['External spool R', '254'], ['AMS HT', '128']]);
+    expect(body.inputUnits.map((unit) => [unit.name, unit.externalIdentifier])).toEqual([
+      ['AMS 2 Pro', '0'],
+      ['External spool L', '255'],
+      ['External spool R', '254'],
+      ['AMS HT', '128'],
+    ]);
   });
 
   it('matches slots automatically by the identifiers the printer reports', async () => {
     const profile = templateProfile();
-    profile.slots = profile.slots.map((slot) => slot.inputUnitId === 'unit-ams' ? { ...slot, externalIdentifier: null } : slot);
+    profile.slots = profile.slots.map((slot) =>
+      slot.inputUnitId === 'unit-ams' ? { ...slot, externalIdentifier: null } : slot,
+    );
     const requests = detail([PermissionId.machinesread, PermissionId.machinesmanage], { profile });
     const user = await open();
     await user.click(await screen.findByRole('button', { name: 'Edit spool inputs' }, { timeout: 5000 }));
@@ -311,13 +470,17 @@ describe('Printer setup tab', () => {
     expect(await screen.findByText('6 of 6 slots matched')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Save spool inputs' }));
     await waitFor(() => expect(requests.setup).toHaveLength(1));
-    const body = requests.setup[0] as { inputUnits: { name: string; slots: { externalIdentifier: string | null }[] }[] };
+    const body = requests.setup[0] as {
+      inputUnits: { name: string; slots: { externalIdentifier: string | null }[] }[];
+    };
     expect(body.inputUnits[0].slots.map((slot) => slot.externalIdentifier)).toEqual(['0', '1', '2', '3']);
   });
 
   it('blocks saving when two slots use the same printer slot', async () => {
     const profile = templateProfile();
-    profile.slots = profile.slots.map((slot) => slot.id === 'slot-ams-1' ? { ...slot, externalIdentifier: '0' } : slot);
+    profile.slots = profile.slots.map((slot) =>
+      slot.id === 'slot-ams-1' ? { ...slot, externalIdentifier: '0' } : slot,
+    );
     const requests = detail([PermissionId.machinesread, PermissionId.machinesmanage], { profile });
     const user = await open();
     await user.click(await screen.findByRole('button', { name: 'Edit spool inputs' }, { timeout: 5000 }));
@@ -332,7 +495,10 @@ describe('Printer setup tab', () => {
     const user = await open();
     expect(await screen.findByText('192.168.1.42', undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getAllByText('01P00A123456789').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Print room agent' })).toHaveAttribute('href', '/machine-logbook/machines?tab=connectors');
+    expect(screen.getByRole('link', { name: 'Print room agent' })).toHaveAttribute(
+      'href',
+      '/machine-logbook/machines?tab=connectors',
+    );
     await user.click(screen.getByRole('button', { name: 'Edit connection' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit connection' });
     expect(within(dialog).getByLabelText('New LAN access code (optional)')).toHaveValue('');
@@ -341,17 +507,26 @@ describe('Printer setup tab', () => {
     await user.type(ip, '192.168.1.50');
     await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
     await waitFor(() => expect(requests.patch).toHaveLength(1));
-    expect(requests.patch[0]).toMatchObject({ adapterKind: 'bambu_h2d', adapterSchemaVersion: 1, settings: { ipAddress: '192.168.1.50', serialNumber: '01P00A123456789', autoDetectSpools: true }, enabled: true, end: false, expectedVersion: 3 });
+    expect(requests.patch[0]).toMatchObject({
+      adapterKind: 'bambu_h2d',
+      adapterSchemaVersion: 1,
+      settings: { ipAddress: '192.168.1.50', serialNumber: '01P00A123456789', autoDetectSpools: true },
+      enabled: true,
+      end: false,
+      expectedVersion: 3,
+    });
     expect(requests.patch[0]).not.toHaveProperty('secrets');
   });
 
   it('connects a printer later through the live adapter of its model, not only the simulator', async () => {
     const requests = detail([...MANAGE], { live: null, assignments: [] });
     let created: Record<string, unknown> | undefined;
-    server.use(http.post(`*/api/v1/printer-connectors/${connectorId}/assignments`, async ({ request }) => {
-      created = await request.json() as Record<string, unknown>;
-      return HttpResponse.json(assignmentOf(), { status: 201 });
-    }));
+    server.use(
+      http.post(`*/api/v1/printer-connectors/${connectorId}/assignments`, async ({ request }) => {
+        created = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(assignmentOf(), { status: 201 });
+      }),
+    );
     const user = await open();
     await user.click(await screen.findByRole('button', { name: 'Connect printer' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit connection' });
@@ -361,7 +536,13 @@ describe('Printer setup tab', () => {
     await user.type(within(dialog).getByLabelText('Serial number'), 'SN1');
     await user.type(within(dialog).getByLabelText('LAN access code'), 'code');
     await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
-    await waitFor(() => expect(created).toMatchObject({ adapterKind: 'bambu_h2d', settings: { ipAddress: '192.168.1.42', serialNumber: 'SN1' }, secrets: { lanAccessCode: 'code' } }));
+    await waitFor(() =>
+      expect(created).toMatchObject({
+        adapterKind: 'bambu_h2d',
+        settings: { ipAddress: '192.168.1.42', serialNumber: 'SN1' },
+        secrets: { lanAccessCode: 'code' },
+      }),
+    );
     expect(requests.patch).toHaveLength(0);
   });
 
@@ -385,10 +566,20 @@ describe('Printer setup tab', () => {
       http.get(`*/api/v1/machines/${printerId}`, () => HttpResponse.json(printer)),
       http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
-      http.get(`*/api/v1/machines/${printerId}/printer`, () => HttpResponse.json({ code: 'not_found' }, { status: 404 })),
-      http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () => HttpResponse.json({ code: 'not_found' }, { status: 404 })),
-      http.patch(`*/api/v1/machines/${printerId}`, () => { patched = true; return HttpResponse.json(printer); }),
-      http.put(`*/api/v1/machines/${printerId}/printer/setup`, async ({ request }) => { bodies.push(await request.json() as Record<string, unknown>); return HttpResponse.json(templateProfile()); }),
+      http.get(`*/api/v1/machines/${printerId}/printer`, () =>
+        HttpResponse.json({ code: 'not_found' }, { status: 404 }),
+      ),
+      http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () =>
+        HttpResponse.json({ code: 'not_found' }, { status: 404 }),
+      ),
+      http.patch(`*/api/v1/machines/${printerId}`, () => {
+        patched = true;
+        return HttpResponse.json(printer);
+      }),
+      http.put(`*/api/v1/machines/${printerId}/printer/setup`, async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(templateProfile());
+      }),
     );
     const user = userEvent.setup();
     renderPage(`/machine-logbook/machines/${printerId}?tab=printer`);
@@ -400,7 +591,12 @@ describe('Printer setup tab', () => {
     expect(patched).toBe(true);
     expect(bodies[0]).toMatchObject({ expectedVersion: null, enabled: true, model: 'prusa_core_one' });
     expect((bodies[0] as { inputUnits: { name: string; externalIdentifier: unknown }[] }).inputUnits).toEqual([
-      { name: 'Direct feed', nozzle: null, externalIdentifier: null, slots: [{ name: 'Extruder', status: 'available', externalIdentifier: null }] },
+      {
+        name: 'Direct feed',
+        nozzle: null,
+        externalIdentifier: null,
+        slots: [{ name: 'Extruder', status: 'available', externalIdentifier: null }],
+      },
     ]);
   });
 });

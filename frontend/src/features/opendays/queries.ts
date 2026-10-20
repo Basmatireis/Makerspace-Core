@@ -1,4 +1,11 @@
-import { getOpenDay, getOpenDayCalendarContext, listOpenDayAcademicBreaks, listOpenDayEligibilityRoles, listOpenDayPeriods, listOpenDays } from '../../api/generated/open-days/open-days';
+import {
+  getOpenDay,
+  getOpenDayCalendarContext,
+  listOpenDayAcademicBreaks,
+  listOpenDayEligibilityRoles,
+  listOpenDayPeriods,
+  listOpenDays,
+} from '../../api/generated/open-days/open-days';
 
 export const openDayKeys = {
   all: ['open-days'] as const,

@@ -4,15 +4,52 @@ const personId = '0192f6f8-743e-7c77-a349-cd07c3e8c001';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8c002';
 
 function currentUser() {
-  const account = { id: accountId, personId, loginEmail: 'brand.admin@example.test', provisioningSource: 'local', firstAuthenticatedAt: '2026-10-03T10:00:00Z', authIdentities: [], status: 'enabled', passwordStatus: 'active', createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 };
+  const account = {
+    id: accountId,
+    personId,
+    loginEmail: 'brand.admin@example.test',
+    provisioningSource: 'local',
+    firstAuthenticatedAt: '2026-10-03T10:00:00Z',
+    authIdentities: [],
+    status: 'enabled',
+    passwordStatus: 'active',
+    createdAt: '2026-10-03T10:00:00Z',
+    updatedAt: '2026-10-03T10:00:00Z',
+    version: 1,
+  };
   return {
-    person: { id: personId, firstName: 'Brand', lastName: 'Administrator', email: 'brand.admin@example.test', phone: null, roles: [], account, createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 },
+    person: {
+      id: personId,
+      firstName: 'Brand',
+      lastName: 'Administrator',
+      email: 'brand.admin@example.test',
+      phone: null,
+      roles: [],
+      account,
+      createdAt: '2026-10-03T10:00:00Z',
+      updatedAt: '2026-10-03T10:00:00Z',
+      version: 1,
+    },
     account,
     permissions: ['branding.manage'],
-    authenticationAssurance: 'normal', managedDevice: null,
-    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
-    delegablePermissionGrants: [{ permissionId: 'branding.manage', scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' }],
-    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
+    authenticationAssurance: 'normal',
+    managedDevice: null,
+    session: {
+      idleExpiresAt: '2099-01-01T01:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+      postSessionDestination: 'login',
+    },
+    delegablePermissionGrants: [
+      { permissionId: 'branding.manage', scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
+    ],
+    laborordnungStatus: {
+      mode: 'not_required',
+      state: 'not_required',
+      actionRequired: false,
+      currentVersion: null,
+      latestConfirmedVersion: null,
+      requestId: null,
+    },
   };
 }
 
@@ -22,7 +59,12 @@ function defaultAsset(slot: string, url: string) {
 
 function initialConfiguration() {
   return {
-    identity: { legalOrganizationName: 'HTU Graz', displayName: 'Makerspace', applicationName: 'HTU Graz Makerspace', tagline: null },
+    identity: {
+      legalOrganizationName: 'HTU Graz',
+      displayName: 'Makerspace',
+      applicationName: 'HTU Graz Makerspace',
+      tagline: null,
+    },
     colors: { primary: '#57569f', secondary: '#ffbf3d', accent: '#e76f12', background: '#111621' },
     assets: {
       logo: defaultAsset('logo', '/brand/htumkr-symbol.png'),
@@ -44,10 +86,16 @@ function publicConfiguration(configuration: ReturnType<typeof initialConfigurati
     identity: configuration.identity,
     colors: configuration.colors,
     assets: {
-      logoUrl: assetURL(configuration.assets.logo), compactLogoUrl: assetURL(configuration.assets.compactLogo), faviconUrl: assetURL(configuration.assets.favicon),
-      applicationBackgroundUrl: assetURL(configuration.assets.applicationBackground), authenticationBackgroundUrl: assetURL(configuration.assets.authenticationBackground),
+      logoUrl: assetURL(configuration.assets.logo),
+      compactLogoUrl: assetURL(configuration.assets.compactLogo),
+      faviconUrl: assetURL(configuration.assets.favicon),
+      applicationBackgroundUrl: assetURL(configuration.assets.applicationBackground),
+      authenticationBackgroundUrl: assetURL(configuration.assets.authenticationBackground),
     },
-    legal: { imprint: { mode: configuration.imprint.mode, href: '/legal/imprint' }, privacy: { mode: configuration.privacy.mode, href: '/legal/privacy' } },
+    legal: {
+      imprint: { mode: configuration.imprint.mode, href: '/legal/imprint' },
+      privacy: { mode: configuration.privacy.mode, href: '/legal/privacy' },
+    },
     version: configuration.version,
   };
 }
@@ -56,7 +104,9 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
-test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal content anonymously', async ({ page }) => {
+test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal content anonymously', async ({
+  page,
+}) => {
   let configuration = initialConfiguration();
   let uploaded = 0;
 
@@ -64,15 +114,36 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
-    if (path === '/api/v1/public/config' && request.method() === 'GET') return json(route, publicConfiguration(configuration));
-    if (path === '/api/v1/public/legal/imprint' && request.method() === 'GET') return json(route, { kind: 'imprint', title: 'Imprint', mode: 'internal', markdown: configuration.imprint.markdown, externalUrl: null });
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST')
+      return json(route, {
+        idleExpiresAt: '2099-01-01T01:00:00Z',
+        absoluteExpiresAt: '2099-01-02T00:00:00Z',
+        postSessionDestination: 'login',
+      });
+    if (path === '/api/v1/public/config' && request.method() === 'GET')
+      return json(route, publicConfiguration(configuration));
+    if (path === '/api/v1/public/legal/imprint' && request.method() === 'GET')
+      return json(route, {
+        kind: 'imprint',
+        title: 'Imprint',
+        mode: 'internal',
+        markdown: configuration.imprint.markdown,
+        externalUrl: null,
+      });
     if (path === '/api/v1/auth/me' && request.method() === 'GET') return json(route, currentUser());
     if (path === '/api/v1/branding/configuration' && request.method() === 'GET') return json(route, configuration);
     if (path === '/api/v1/branding/configuration' && request.method() === 'PUT') {
       const body = request.postDataJSON();
       expect(body.expectedVersion).toBe(configuration.version);
-      configuration = { ...configuration, identity: body.identity, colors: body.colors, imprint: body.imprint, privacy: body.privacy, version: configuration.version + 1, updatedAt: '2026-10-03T10:01:00Z' };
+      configuration = {
+        ...configuration,
+        identity: body.identity,
+        colors: body.colors,
+        imprint: body.imprint,
+        privacy: body.privacy,
+        version: configuration.version + 1,
+        updatedAt: '2026-10-03T10:01:00Z',
+      };
       return json(route, configuration);
     }
     if (path === '/api/v1/branding/assets/logo' && request.method() === 'PUT') {
@@ -85,7 +156,18 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
         ...configuration,
         version: configuration.version + 1,
         updatedAt: `2026-10-03T10:0${uploaded + 1}:00Z`,
-        assets: { ...configuration.assets, logo: { slot: 'logo', mode: 'custom', url: `/api/v1/public/branding/assets/logo/${digest}`, originalFilename: request.headers()['x-file-name'] ?? 'logo.png', contentType: 'image/png', sizeBytes: request.postDataBuffer()?.length ?? 0, updatedAt: '2026-10-03T10:02:00Z' } },
+        assets: {
+          ...configuration.assets,
+          logo: {
+            slot: 'logo',
+            mode: 'custom',
+            url: `/api/v1/public/branding/assets/logo/${digest}`,
+            originalFilename: request.headers()['x-file-name'] ?? 'logo.png',
+            contentType: 'image/png',
+            sizeBytes: request.postDataBuffer()?.length ?? 0,
+            updatedAt: '2026-10-03T10:02:00Z',
+          },
+        },
       };
       return json(route, configuration);
     }
@@ -111,8 +193,14 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
   await page.getByLabel('Markdown', { exact: true }).first().fill('# Publisher\n\nOpen Workshop Association\n');
   const saveButton = page.getByRole('button', { name: 'Save configuration' });
   await expect(saveButton).toBeEnabled();
-  await expect.poll(() => saveButton.evaluate((element) => getComputedStyle(element).getPropertyValue('--cds-button-primary').trim())).toBe('#654321');
-  expect(await saveButton.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe('rgb(15, 98, 254)');
+  await expect
+    .poll(() =>
+      saveButton.evaluate((element) => getComputedStyle(element).getPropertyValue('--cds-button-primary').trim()),
+    )
+    .toBe('#654321');
+  expect(await saveButton.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(
+    'rgb(15, 98, 254)',
+  );
 
   await page.reload();
   await expect(page.getByLabel('Display name')).toHaveValue('Open Workshop');

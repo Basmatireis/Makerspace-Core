@@ -39,7 +39,7 @@ export function staffingLabel(day: OpenDay) {
   if (isFullyStaffed(day)) return 'Fully staffed';
   const missing = day.requirements
     .filter((item) => item.assignedCount < item.requiredCount)
-    .map((item) => item.kind === 'supervisor' ? 'supervisor' : 'trainee');
+    .map((item) => (item.kind === 'supervisor' ? 'supervisor' : 'trainee'));
   return `Needs ${missing.join(' and ')}`;
 }
 

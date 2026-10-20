@@ -41,7 +41,9 @@ describe('AppNavigation', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Workshop' })).toHaveAttribute('aria-expanded', 'true');
-    const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/machine-logbook'));
+    const links = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href')?.startsWith('/machine-logbook'));
     expect(links.map((link) => link.textContent)).toEqual(['Machines', 'Inventory']);
     expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();

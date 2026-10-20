@@ -8,33 +8,75 @@ import { StatisticsPage } from './StatisticsPage';
 
 vi.mock('../../app/charting', () => ({
   ScaleTypes: { LINEAR: 'linear', LABELS: 'labels' },
-  LineChart: ({ data }: { data: { group: string }[] }) => <div data-testid="line-chart">{[...new Set(data.map((point) => point.group))].join('|')}</div>,
+  LineChart: ({ data }: { data: { group: string }[] }) => (
+    <div data-testid="line-chart">{[...new Set(data.map((point) => point.group))].join('|')}</div>
+  ),
   SimpleBarChart: () => <div data-testid="bar-chart" />,
 }));
 
-const ids = ['0192f6f8-743e-7c77-a349-cd07c3e8a911', '0192f6f8-743e-7c77-a349-cd07c3e8a912', '0192f6f8-743e-7c77-a349-cd07c3e8a913', '0192f6f8-743e-7c77-a349-cd07c3e8a914'];
-const totals = (jobs: number, runtimeHours: string, charges: string, materialCost: string, failureRate: string) => ({ jobs, runtimeHours, charges, materialCost, failureRate });
+const ids = [
+  '0192f6f8-743e-7c77-a349-cd07c3e8a911',
+  '0192f6f8-743e-7c77-a349-cd07c3e8a912',
+  '0192f6f8-743e-7c77-a349-cd07c3e8a913',
+  '0192f6f8-743e-7c77-a349-cd07c3e8a914',
+];
+const totals = (jobs: number, runtimeHours: string, charges: string, materialCost: string, failureRate: string) => ({
+  jobs,
+  runtimeHours,
+  charges,
+  materialCost,
+  failureRate,
+});
 const machine = (index: number, name: string, runtimeHours: string, jobs: number) => ({
-  machineId: ids[index], name, machineTypeName: index === 3 ? 'Laser cutter' : '3D printer', jobs, runtimeHours, failureRate: '5.0', charges: '100.00', runtimeShare: '10.0',
+  machineId: ids[index],
+  name,
+  machineTypeName: index === 3 ? 'Laser cutter' : '3D printer',
+  jobs,
+  runtimeHours,
+  failureRate: '5.0',
+  charges: '100.00',
+  runtimeShare: '10.0',
 });
 const statistics = {
   totals: totals(120, '300.0', '1500.00', '400.00', '7.5'),
   previousTotals: totals(100, '0', '1500.00', '200.00', '5.0'),
-  months: [{ month: '2026-09', charges: '900.00', materialCost: '200.00', losses: '12.00' }, { month: '2026-10', charges: '600.00', materialCost: '200.00', losses: '0.00' }],
+  months: [
+    { month: '2026-09', charges: '900.00', materialCost: '200.00', losses: '12.00' },
+    { month: '2026-10', charges: '600.00', materialCost: '200.00', losses: '0.00' },
+  ],
   runtimeGranularity: 'month',
   runtime: [{ bucketStart: '2026-09-01', machineId: ids[0], hours: '10.0' }],
   materialCostByType: [{ key: 'type-pla', label: 'PLA', value: '300.00' }],
-  machines: [machine(0, 'Alpha', '50.0', 10), machine(1, 'Bravo', '120.0', 40), machine(2, 'Charlie', '90.0', 30), machine(3, 'Delta', '10.0', 5)],
-  materialUsageByType: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [],
+  machines: [
+    machine(0, 'Alpha', '50.0', 10),
+    machine(1, 'Bravo', '120.0', 40),
+    machine(2, 'Charlie', '90.0', 30),
+    machine(3, 'Delta', '10.0', 5),
+  ],
+  materialUsageByType: [],
+  machineRuntimeHours: [],
+  machineJobCounts: [],
+  acquisitionCost: [],
+  customerCharges: [],
+  adjustmentLoss: [],
+  machineFailureRates: [],
 };
 
 let requests: URLSearchParams[] = [];
 function serve(body: object = statistics) {
-  server.use(http.get('*/api/v1/machine-logbook/statistics', ({ request }) => { requests.push(new URL(request.url).searchParams); return HttpResponse.json(body); }));
+  server.use(
+    http.get('*/api/v1/machine-logbook/statistics', ({ request }) => {
+      requests.push(new URL(request.url).searchParams);
+      return HttpResponse.json(body);
+    }),
+  );
 }
 
 describe('Statistics page', () => {
-  beforeEach(() => { requests = []; vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-15T10:00:00Z') }); });
+  beforeEach(() => {
+    requests = [];
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-15T10:00:00Z') });
+  });
   afterEach(() => vi.useRealTimers());
 
   it('requests the six month default with an exclusive end and shows key figures with changes', async () => {
@@ -118,7 +160,10 @@ describe('Statistics page', () => {
     const table = await screen.findByRole('table', { name: 'Machines' });
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(5);
-    expect(within(rows[1]).getByRole('link', { name: 'Bravo' })).toHaveAttribute('href', `/machine-logbook/machines/${ids[1]}`);
+    expect(within(rows[1]).getByRole('link', { name: 'Bravo' })).toHaveAttribute(
+      'href',
+      `/machine-logbook/machines/${ids[1]}`,
+    );
     expect(within(rows[1]).getByText('120')).toBeInTheDocument();
     expect(within(rows[1]).getByText('€100.00')).toBeInTheDocument();
   });
@@ -130,7 +175,9 @@ describe('Statistics page', () => {
   });
 
   it('shows an error state', async () => {
-    server.use(http.get('*/api/v1/machine-logbook/statistics', () => HttpResponse.json({ message: 'x' }, { status: 500 })));
+    server.use(
+      http.get('*/api/v1/machine-logbook/statistics', () => HttpResponse.json({ message: 'x' }, { status: 500 })),
+    );
     renderRoute(<StatisticsPage />);
     expect(await screen.findByText('Statistics could not be loaded.')).toBeInTheDocument();
   });

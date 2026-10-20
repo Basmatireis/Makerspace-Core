@@ -16,12 +16,14 @@ export const fromCents = (value: number): string => {
   return `${value < 0 ? '-' : ''}${Math.floor(absolute / 100)}.${String(absolute % 100).padStart(2, '0')}`;
 };
 
-export const sumCents = (values: Array<string | null | undefined>) => values.reduce<number>((total, value) => total + toCents(value), 0);
+export const sumCents = (values: Array<string | null | undefined>) =>
+  values.reduce<number>((total, value) => total + toCents(value), 0);
 
 export const formatCents = (value: number) => formatMoney(fromCents(value));
 
 /** "+€5.00" / "-€5.00" for a signed cashbook amount. */
-export const formatSignedCents = (value: number) => value === 0 ? formatCents(0) : `${value > 0 ? '+' : '−'}${formatCents(Math.abs(value))}`;
+export const formatSignedCents = (value: number) =>
+  value === 0 ? formatCents(0) : `${value > 0 ? '+' : '−'}${formatCents(Math.abs(value))}`;
 
 /** Accepts "12,5" or "12.50" and returns cents; null when it is not a money amount with at most two decimals. Thousands separators are not supported. */
 export function parseMoneyInput(text: string): number | null {

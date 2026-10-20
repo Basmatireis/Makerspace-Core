@@ -3,12 +3,46 @@ import { describe, expect, it } from 'vitest';
 import { SceneRenderer } from './SceneRenderer';
 import type { RenderData, RenderMachine, RenderScene } from './types';
 
-const machine = (id: string, name: string, state: RenderMachine['state'] = 'printing'): RenderMachine => ({ machineId: id, name, state, progressPercent: 10, remainingMinutes: 5, stale: false });
-const data = (machines: RenderMachine[]): RenderData => ({ now: Date.now(), liveAvailable: true, machines, announcements: [], openDays: [], events: [], assetUrl: () => null });
-const scene = (camera: Record<string, unknown>): RenderScene => ({
-  orientation: 'landscape', layoutId: 'full', backgroundColor: '#161616', backgroundAssetId: null, backgroundFit: 'cover', backgroundDim: 0, theme: 'dark',
-  zones: { main: { type: 'camera', source: 'auto', machineId: null, multi: 'split', showProgress: false, showRemaining: false, fallback: 'text', fallbackMediaId: null, ...camera } },
-}) as RenderScene;
+const machine = (id: string, name: string, state: RenderMachine['state'] = 'printing'): RenderMachine => ({
+  machineId: id,
+  name,
+  state,
+  progressPercent: 10,
+  remainingMinutes: 5,
+  stale: false,
+});
+const data = (machines: RenderMachine[]): RenderData => ({
+  now: Date.now(),
+  liveAvailable: true,
+  machines,
+  announcements: [],
+  openDays: [],
+  events: [],
+  assetUrl: () => null,
+});
+const scene = (camera: Record<string, unknown>): RenderScene =>
+  ({
+    orientation: 'landscape',
+    layoutId: 'full',
+    backgroundColor: '#161616',
+    backgroundAssetId: null,
+    backgroundFit: 'cover',
+    backgroundDim: 0,
+    theme: 'dark',
+    zones: {
+      main: {
+        type: 'camera',
+        source: 'auto',
+        machineId: null,
+        multi: 'split',
+        showProgress: false,
+        showRemaining: false,
+        fallback: 'text',
+        fallbackMediaId: null,
+        ...camera,
+      },
+    },
+  }) as RenderScene;
 
 describe('camera widget machine list', () => {
   const machines = [machine('a', 'Alpha'), machine('b', 'Beta'), machine('c', 'Gamma', 'idle')];

@@ -49,7 +49,10 @@ export function ProfilePictureEditor({
   const fullName = `${firstName} ${lastName}`;
   const canEdit = canUpdate || Boolean(profileImage && canRemove);
   const pending = isUploading || isRemoving;
-  const closeEditor = useLatestCallback(() => { if (!pending) setOpen(false); return false; });
+  const closeEditor = useLatestCallback(() => {
+    if (!pending) setOpen(false);
+    return false;
+  });
 
   useEffect(() => {
     if (confirmRemove && !profileImage && !isRemoving) {
@@ -63,13 +66,7 @@ export function ProfilePictureEditor({
       <div className="profile-picture-editor">
         {canEdit ? (
           trigger === 'button' ? (
-            <Button
-              kind="ghost"
-              size="sm"
-              renderIcon={Edit}
-              disabled={pending}
-              onClick={() => setOpen(true)}
-            >
+            <Button kind="ghost" size="sm" renderIcon={Edit} disabled={pending} onClick={() => setOpen(true)}>
               Edit
             </Button>
           ) : (
@@ -92,34 +89,17 @@ export function ProfilePictureEditor({
               </Tag>
             </Button>
           )
-        ) : (
-          trigger === 'avatar' ? (
-            <PersonAvatar
-              firstName={firstName}
-              lastName={lastName}
-              profileImage={profileImage}
-              size="lg"
-            />
-          ) : null
-        )}
+        ) : trigger === 'avatar' ? (
+          <PersonAvatar firstName={firstName} lastName={lastName} profileImage={profileImage} size="lg" />
+        ) : null}
       </div>
 
-      <ComposedModal
-        open={open && !confirmRemove}
-        aria-label="Edit profile picture"
-        onClose={closeEditor}
-        size="sm"
-      >
+      <ComposedModal open={open && !confirmRemove} aria-label="Edit profile picture" onClose={closeEditor} size="sm">
         <ModalHeader title="Edit profile picture" />
         <ModalBody>
           <Stack gap={6}>
             <div className="profile-picture-editor__modal-preview">
-              <PersonAvatar
-                firstName={firstName}
-                lastName={lastName}
-                profileImage={profileImage}
-                size="lg"
-              />
+              <PersonAvatar firstName={firstName} lastName={lastName} profileImage={profileImage} size="lg" />
             </div>
             {canUpdate && (
               <FileUploaderDropContainer
@@ -128,7 +108,9 @@ export function ProfilePictureEditor({
                 maxFileSize={8 << 20}
                 multiple={false}
                 disabled={pending}
-                labelText={isUploading ? 'Uploading…' : profileImage ? 'Choose a replacement picture' : 'Choose a picture'}
+                labelText={
+                  isUploading ? 'Uploading…' : profileImage ? 'Choose a replacement picture' : 'Choose a picture'
+                }
                 onAddFiles={(_, { addedFiles }) => {
                   const file = addedFiles[0];
                   if (!file) return;
@@ -141,12 +123,7 @@ export function ProfilePictureEditor({
               JPEG, PNG, or WebP up to 8 MiB. Images are normalized to a private JPEG and metadata is removed.
             </p>
             {profileImage && canRemove && (
-              <Button
-                kind="danger--tertiary"
-                size="sm"
-                disabled={pending}
-                onClick={() => setConfirmRemove(true)}
-              >
+              <Button kind="danger--tertiary" size="sm" disabled={pending} onClick={() => setConfirmRemove(true)}>
                 Remove picture
               </Button>
             )}

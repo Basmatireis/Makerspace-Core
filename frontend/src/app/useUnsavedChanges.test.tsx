@@ -8,7 +8,10 @@ import { render } from '@testing-library/react';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 import { useUnsavedChanges, type UseUnsavedChangesOptions } from './useUnsavedChanges';
 
-function GuardHarness({ onDiscard = () => undefined, shouldBlockNavigation }: Pick<UseUnsavedChangesOptions, 'onDiscard' | 'shouldBlockNavigation'>) {
+function GuardHarness({
+  onDiscard = () => undefined,
+  shouldBlockNavigation,
+}: Pick<UseUnsavedChangesOptions, 'onDiscard' | 'shouldBlockNavigation'>) {
   const [dirty, setDirty] = useState(true);
   const navigate = useNavigate();
   const guard = useUnsavedChanges({ isDirty: dirty, onDiscard, shouldBlockNavigation });
@@ -19,21 +22,31 @@ function GuardHarness({ onDiscard = () => undefined, shouldBlockNavigation }: Pi
       <Button onClick={() => guard.requestDiscard(() => navigate('/closed'))}>Cancel editor</Button>
       <Button onClick={() => guard.requestDiscard(() => navigate('?tab=local'))}>Change local tab</Button>
       <Button onClick={() => navigate('?tab=settings')}>Settings tab</Button>
-      <Button onClick={() => {
-        setDirty(false);
-        guard.bypassAfterSubmit(() => navigate('/saved'));
-      }}>Save and leave</Button>
+      <Button
+        onClick={() => {
+          setDirty(false);
+          guard.bypassAfterSubmit(() => navigate('/saved'));
+        }}
+      >
+        Save and leave
+      </Button>
       <UnsavedChangesDialog guard={guard} />
     </>
   );
 }
 
-function renderHarness(onDiscard?: () => void, shouldBlockNavigation?: UseUnsavedChangesOptions['shouldBlockNavigation']) {
-  const router = createMemoryRouter([
-    { path: '/edit', element: <GuardHarness onDiscard={onDiscard} shouldBlockNavigation={shouldBlockNavigation} /> },
-    { path: '/closed', element: <p>Closed</p> },
-    { path: '/saved', element: <p>Saved</p> },
-  ], { initialEntries: ['/edit?tab=overview'] });
+function renderHarness(
+  onDiscard?: () => void,
+  shouldBlockNavigation?: UseUnsavedChangesOptions['shouldBlockNavigation'],
+) {
+  const router = createMemoryRouter(
+    [
+      { path: '/edit', element: <GuardHarness onDiscard={onDiscard} shouldBlockNavigation={shouldBlockNavigation} /> },
+      { path: '/closed', element: <p>Closed</p> },
+      { path: '/saved', element: <p>Saved</p> },
+    ],
+    { initialEntries: ['/edit?tab=overview'] },
+  );
   return { router, ...render(<RouterProvider router={router} />) };
 }
 
@@ -44,13 +57,19 @@ describe('useUnsavedChanges', () => {
     function ModalHarness() {
       const [dirty, setDirty] = useState(false);
       const guard = useUnsavedChanges({ isDirty: dirty });
-      return <>
-        <Modal open={!guard.dialogOpen} modalHeading="Edit record" passiveModal
-          onRequestClose={() => guard.requestDiscard(onClose)}>
-          <Button onClick={() => setDirty(true)}>Make an edit</Button>
-        </Modal>
-        <UnsavedChangesDialog guard={guard} />
-      </>;
+      return (
+        <>
+          <Modal
+            open={!guard.dialogOpen}
+            modalHeading="Edit record"
+            passiveModal
+            onRequestClose={() => guard.requestDiscard(onClose)}
+          >
+            <Button onClick={() => setDirty(true)}>Make an edit</Button>
+          </Modal>
+          <UnsavedChangesDialog guard={guard} />
+        </>
+      );
     }
     const router = createMemoryRouter([{ path: '/', element: <ModalHarness /> }]);
     render(<RouterProvider router={router} />);

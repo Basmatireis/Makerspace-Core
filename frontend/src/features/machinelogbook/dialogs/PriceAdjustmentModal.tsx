@@ -23,7 +23,11 @@ const valueField: Record<PriceAdjustmentKind, { label: string; max?: number; hel
   fixed: { label: 'Final price (EUR)', helper: 'Replaces the calculated price and stays fixed.' },
   discount_percent: { label: 'Discount (%)', max: 100, helper: 'Re-applied if the calculated price changes.' },
   discount_amount: { label: 'Discount (EUR)', helper: 'Subtracted from the calculated price; never below zero.' },
-  multiplier: { label: 'Multiplier', max: 100, helper: 'E.g. 0.5 for half price, 1.5 for a surcharge. Re-applied if the calculated price changes.' },
+  multiplier: {
+    label: 'Multiplier',
+    max: 100,
+    helper: 'E.g. 0.5 for half price, 1.5 for a surcharge. Re-applied if the calculated price changes.',
+  },
 };
 
 const validValue = (kind: PriceAdjustmentKind, input: string) => {
@@ -50,58 +54,135 @@ function AdjustmentForm({ onClose, job }: { onClose: () => void; job: MachineJob
   const preview = typedValue === null ? null : adjustPrice(calculated, { kind, value: typedValue });
   const field = valueField[kind];
   const mutation = useMutation({
-    mutationFn: (values: Values) => setMachineJobPriceAdjustment(job.id, { kind: values.kind, value: parseDecimalText(values.value, { places: 4 }) ?? values.value, reason: values.reason.trim(), expectedVersion: job.version }),
+    mutationFn: (values: Values) =>
+      setMachineJobPriceAdjustment(job.id, {
+        kind: values.kind,
+        value: parseDecimalText(values.value, { places: 4 }) ?? values.value,
+        reason: values.reason.trim(),
+        expectedVersion: job.version,
+      }),
     onSuccess: async (saved) => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      notify({ kind: 'success', title: 'Price adjusted', subtitle: `${job.displayId} now costs ${formatMoney(saved.effectivePrice ?? preview)}.` });
+      notify({
+        kind: 'success',
+        title: 'Price adjusted',
+        subtitle: `${job.displayId} now costs ${formatMoney(saved.effectivePrice ?? preview)}.`,
+      });
       onClose();
     },
     onError: (cause) => setError(saveError(cause, 'The price adjustment could not be saved.').message),
   });
   const pending = mutation.isPending;
 
-  const submit = form.handleSubmit((values) => { setError(null); mutation.mutate(values); });
+  const submit = form.handleSubmit((values) => {
+    setError(null);
+    mutation.mutate(values);
+  });
 
   return (
     <Modal
-      open size="sm" modalHeading="Adjust price" modalLabel={job.displayId} aria-label={`Adjust price ${job.displayId}`} primaryButtonText={pending ? 'Saving…' : 'Save adjustment'} secondaryButtonText="Cancel"
-      primaryButtonDisabled={pending} preventCloseOnClickOutside selectorPrimaryFocus={`#adjust-value-${job.displayId}`}
-      onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={submit}
+      open
+      size="sm"
+      modalHeading="Adjust price"
+      modalLabel={job.displayId}
+      aria-label={`Adjust price ${job.displayId}`}
+      primaryButtonText={pending ? 'Saving…' : 'Save adjustment'}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={pending}
+      preventCloseOnClickOutside
+      selectorPrimaryFocus={`#adjust-value-${job.displayId}`}
+      onRequestClose={() => {
+        if (!pending) onClose();
+      }}
+      onRequestSubmit={submit}
     >
       <Stack gap={6}>
         <p>The calculated price stays visible on the job. Existing order charges are not changed.</p>
-        {association.data?.orderId && <InlineNotification kind="warning" lowContrast hideCloseButton title={`On ${association.data.orderReference}`} subtitle="The order is not updated automatically." />}
-        {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Adjustment not saved" subtitle={error} />}
-        <Controller control={form.control} name="kind" render={({ field: kindField }) => (
-          <RadioButtonGroup
-            legendText="Adjustment" name={`adjust-kind-${job.displayId}`} orientation="vertical" valueSelected={kindField.value}
-            helperText={relativeUnavailable ? 'Discounts and multipliers need a calculated price; this job has none yet.' : undefined}
-            onChange={(next) => { kindField.onChange(next); form.setValue('value', ''); }}
-          >
-            {KINDS.map((option) => (
-              <RadioButton key={option} id={`adjust-kind-${job.displayId}-${option}`} value={option} labelText={adjustmentKindLabels[option]} disabled={option !== 'fixed' && relativeUnavailable} />
-            ))}
-          </RadioButtonGroup>
-        )} />
+        {association.data?.orderId && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title={`On ${association.data.orderReference}`}
+            subtitle="The order is not updated automatically."
+          />
+        )}
+        {error && (
+          <InlineNotification kind="error" lowContrast hideCloseButton title="Adjustment not saved" subtitle={error} />
+        )}
         <Controller
-          control={form.control} name="value"
+          control={form.control}
+          name="kind"
+          render={({ field: kindField }) => (
+            <RadioButtonGroup
+              legendText="Adjustment"
+              name={`adjust-kind-${job.displayId}`}
+              orientation="vertical"
+              valueSelected={kindField.value}
+              helperText={
+                relativeUnavailable
+                  ? 'Discounts and multipliers need a calculated price; this job has none yet.'
+                  : undefined
+              }
+              onChange={(next) => {
+                kindField.onChange(next);
+                form.setValue('value', '');
+              }}
+            >
+              {KINDS.map((option) => (
+                <RadioButton
+                  key={option}
+                  id={`adjust-kind-${job.displayId}-${option}`}
+                  value={option}
+                  labelText={adjustmentKindLabels[option]}
+                  disabled={option !== 'fixed' && relativeUnavailable}
+                />
+              ))}
+            </RadioButtonGroup>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="value"
           rules={{ validate: (input) => validValue(kind, input) }}
           render={({ field: valueInput, fieldState }) => (
             <DecimalField
-              key={kind} id={`adjust-value-${job.displayId}`} labelText={field.label} value={valueInput.value}
-              helperText={field.helper} invalid={fieldState.invalid}
-              invalidText={kind === 'fixed' ? 'Enter a value of zero or more.' : field.max ? `Enter a value above zero, up to ${field.max}.` : 'Enter a value above zero.'}
+              key={kind}
+              id={`adjust-value-${job.displayId}`}
+              labelText={field.label}
+              value={valueInput.value}
+              helperText={field.helper}
+              invalid={fieldState.invalid}
+              invalidText={
+                kind === 'fixed'
+                  ? 'Enter a value of zero or more.'
+                  : field.max
+                    ? `Enter a value above zero, up to ${field.max}.`
+                    : 'Enter a value above zero.'
+              }
               onChange={valueInput.onChange}
             />
           )}
         />
         <dl className="mj-price-details mj-price-preview">
-          <div><dt>Calculated</dt><dd>{formatMoney(job.calculatedPrice)}</dd></div>
-          <div><dt>New price</dt><dd><strong>{formatMoney(preview)}</strong></dd></div>
+          <div>
+            <dt>Calculated</dt>
+            <dd>{formatMoney(job.calculatedPrice)}</dd>
+          </div>
+          <div>
+            <dt>New price</dt>
+            <dd>
+              <strong>{formatMoney(preview)}</strong>
+            </dd>
+          </div>
         </dl>
         <TextArea
-          id={`adjust-reason-${job.displayId}`} labelText="Reason" rows={3} helperText="Shown to everyone who can see this job."
-          invalid={!!form.formState.errors.reason} invalidText="Give a reason for the adjustment."
+          id={`adjust-reason-${job.displayId}`}
+          labelText="Reason"
+          rows={3}
+          helperText="Shown to everyone who can see this job."
+          invalid={!!form.formState.errors.reason}
+          invalidText="Give a reason for the adjustment."
           {...form.register('reason', { validate: (input) => input.trim().length > 0 })}
         />
       </Stack>

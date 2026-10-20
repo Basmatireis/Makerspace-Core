@@ -11,24 +11,32 @@ export function gatewayStatus(gateway: StreamingGateway, now: number): { label: 
   if (gateway.lifecycle === 'revoked') return { label: 'Revoked', type: 'gray' };
   if (gateway.lifecycle === 'disabled') return { label: 'Disabled', type: 'gray' };
   if (gateway.lifecycle === 'pending') return { label: 'Awaiting enrollment', type: 'blue' };
-  if (!gateway.lastHeartbeatAt || now - Date.parse(gateway.lastHeartbeatAt) > ONLINE_MS) return { label: 'Offline', type: 'red' };
-  return gateway.healthState === 'degraded' ? { label: 'Degraded', type: 'magenta' } : { label: 'Online', type: 'green' };
+  if (!gateway.lastHeartbeatAt || now - Date.parse(gateway.lastHeartbeatAt) > ONLINE_MS)
+    return { label: 'Offline', type: 'red' };
+  return gateway.healthState === 'degraded'
+    ? { label: 'Degraded', type: 'magenta' }
+    : { label: 'Online', type: 'green' };
 }
 
 export const dateOrDash = (value: string | null | undefined) => (value ? formatDateTime(value) : '—');
 
-export const errorText = (error: unknown, fallback = 'The request failed. Try again.') => (error instanceof Error && error.message ? error.message : fallback);
+export const errorText = (error: unknown, fallback = 'The request failed. Try again.') =>
+  error instanceof Error && error.message ? error.message : fallback;
 
-const codeOf = (error: unknown) => (error instanceof ApiError ? (error.data as { code?: string } | undefined)?.code : undefined);
-export const isStale = (error: unknown) => error instanceof ApiError && error.status === 409 && codeOf(error) === 'stale_write';
+const codeOf = (error: unknown) =>
+  error instanceof ApiError ? (error.data as { code?: string } | undefined)?.code : undefined;
+export const isStale = (error: unknown) =>
+  error instanceof ApiError && error.status === 409 && codeOf(error) === 'stale_write';
 
 /** Explains why a camera could not be assigned, from the API's validation and conflict errors. */
 export function cameraAssignError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 422) return `${error.message} Only printers with an active Bambu H2D or X1 Carbon assignment can stream. Assign the printer under Machines, Connectors first.`;
-    if (error.status === 409 && codeOf(error) === 'streaming_camera_exists') return 'This machine already has a camera on a streaming gateway. Remove that camera first.';
-    if (error.status === 409 && codeOf(error) === 'streaming_gateway_revoked') return 'This gateway is revoked and cannot receive cameras.';
+    if (error.status === 422)
+      return `${error.message} Only printers with an active Bambu H2D or X1 Carbon assignment can stream. Assign the printer under Machines, Connectors first.`;
+    if (error.status === 409 && codeOf(error) === 'streaming_camera_exists')
+      return 'This machine already has a camera on a streaming gateway. Remove that camera first.';
+    if (error.status === 409 && codeOf(error) === 'streaming_gateway_revoked')
+      return 'This gateway is revoked and cannot receive cameras.';
   }
   return errorText(error);
 }
-

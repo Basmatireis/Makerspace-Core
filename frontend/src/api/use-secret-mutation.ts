@@ -1,13 +1,7 @@
 import { useRef } from 'react';
-import {
-  useMutation,
-  type UseMutationOptions,
-} from '@tanstack/react-query';
+import { useMutation, type UseMutationOptions } from '@tanstack/react-query';
 
-type SecretMutationOptions<TData, TError> = Omit<
-  UseMutationOptions<TData, TError, void, unknown>,
-  'mutationFn'
->;
+type SecretMutationOptions<TData, TError> = Omit<UseMutationOptions<TData, TError, void, unknown>, 'mutationFn'>;
 
 /**
  * Runs a mutation without placing its secret-bearing input in TanStack Query's

@@ -6,19 +6,11 @@ export type RowActionsProps = {
   className?: string;
 };
 
-export function RowActions({
-  label,
-  children,
-  className,
-}: RowActionsProps) {
+export function RowActions({ label, children, className }: RowActionsProps) {
   const classes = ['row-actions', className].filter(Boolean).join(' ');
 
   return (
-    <div
-      role="group"
-      aria-label={label}
-      className={classes}
-    >
+    <div role="group" aria-label={label} className={classes}>
       {children}
     </div>
   );

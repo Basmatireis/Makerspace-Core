@@ -20,13 +20,12 @@ const scopedRole = (permissionGrants: PermissionGrant[]) => ({
 });
 
 describe('billing-party and operator lookup authorization UX', () => {
-  it.each([
-    PermissionId.ordersread,
-    PermissionId.machine_jobscreate,
-    PermissionId.organizationsread,
-  ])('allows the backend lookup grant %s independently', (permission) => {
-    expect(canLookupJobParties(currentUserFixture([permission]))).toBe(true);
-  });
+  it.each([PermissionId.ordersread, PermissionId.machine_jobscreate, PermissionId.organizationsread])(
+    'allows the backend lookup grant %s independently',
+    (permission) => {
+      expect(canLookupJobParties(currentUserFixture([permission]))).toBe(true);
+    },
+  );
 
   it.each([
     PermissionId.machine_jobsread,
@@ -49,15 +48,32 @@ describe('settings navigation', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.organizationsread]))).toBe(false);
     expect(canAccessSettings(currentUserFixture([PermissionId.pricingread]))).toBe(true);
     expect(canAccessSettings(currentUserFixture([PermissionId.machinesread]))).toBe(false);
-    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsmanage, PermissionId.pricingmanage]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsmanage, PermissionId.pricingmanage]))).toBe(
+      false,
+    );
   });
 });
 
 describe('role membership authorization UX', () => {
   it('handles legacy null device lists without crashing while preserving scope rules', () => {
-    const legacyEverywhere = { permissionId: PermissionId.peoplereadall, scope: 'everywhere', deviceTypeIds: null, minimumAssurance: 'normal' } as unknown as PermissionGrant;
-    const legacyManaged = { permissionId: PermissionId.peopleupdateall, scope: 'anyManagedDevice', deviceTypeIds: null, minimumAssurance: 'strong' } as unknown as PermissionGrant;
-    const invalidSelected = { permissionId: PermissionId.rolesread, scope: 'selectedDeviceTypes', deviceTypeIds: null, minimumAssurance: 'low' } as unknown as PermissionGrant;
+    const legacyEverywhere = {
+      permissionId: PermissionId.peoplereadall,
+      scope: 'everywhere',
+      deviceTypeIds: null,
+      minimumAssurance: 'normal',
+    } as unknown as PermissionGrant;
+    const legacyManaged = {
+      permissionId: PermissionId.peopleupdateall,
+      scope: 'anyManagedDevice',
+      deviceTypeIds: null,
+      minimumAssurance: 'strong',
+    } as unknown as PermissionGrant;
+    const invalidSelected = {
+      permissionId: PermissionId.rolesread,
+      scope: 'selectedDeviceTypes',
+      deviceTypeIds: null,
+      minimumAssurance: 'low',
+    } as unknown as PermissionGrant;
     expect(permissionGrantsValid([legacyEverywhere, legacyManaged])).toBe(true);
     expect(permissionGrantsValid([invalidSelected])).toBe(false);
   });
@@ -76,74 +92,83 @@ describe('role membership authorization UX', () => {
     expect(permissionGrantsValid([{ ...base, deviceTypeIds: [reception, reception] }])).toBe(false);
     expect(permissionGrantsValid([{ ...base, deviceTypeIds: [] }])).toBe(false);
     expect(permissionGrantsValid([{ ...base, scope: 'everywhere', deviceTypeIds: [reception] }])).toBe(false);
-    expect(permissionGrantsValid([base, { ...base, minimumAssurance: 'strong', deviceTypeIds: [workshop] }])).toBe(true);
+    expect(permissionGrantsValid([base, { ...base, minimumAssurance: 'strong', deviceTypeIds: [workshop] }])).toBe(
+      true,
+    );
   });
   it('requires the role-assignment permission', () => {
     const currentUser = currentUserFixture([PermissionId.peoplereadall]);
 
-    expect(
-      canManageRoleMembership(currentUser, role([PermissionId.peoplereadall])),
-    ).toBe(false);
+    expect(canManageRoleMembership(currentUser, role([PermissionId.peoplereadall]))).toBe(false);
   });
 
   it('allows a non-master actor only roles within their permission subset', () => {
-    const currentUser = currentUserFixture([
-      PermissionId.peoplerolesassign,
-      PermissionId.peoplereadall,
-    ]);
+    const currentUser = currentUserFixture([PermissionId.peoplerolesassign, PermissionId.peoplereadall]);
 
-    expect(
-      canManageRoleMembership(currentUser, role([PermissionId.peoplereadall])),
-    ).toBe(true);
-    expect(
-      canManageRoleMembership(currentUser, role([PermissionId.rolesmanage])),
-    ).toBe(false);
-    expect(
-      canManageRoleMembership(currentUser, role([], 'master')),
-    ).toBe(false);
+    expect(canManageRoleMembership(currentUser, role([PermissionId.peoplereadall]))).toBe(true);
+    expect(canManageRoleMembership(currentUser, role([PermissionId.rolesmanage]))).toBe(false);
+    expect(canManageRoleMembership(currentUser, role([], 'master'))).toBe(false);
   });
 
   it('allows a master actor to manage every role', () => {
-    const currentUser = currentUserFixture(
-      [PermissionId.peoplerolesassign],
-      true,
-    );
+    const currentUser = currentUserFixture([PermissionId.peoplerolesassign], true);
 
-    expect(
-      canManageRoleMembership(currentUser, role([PermissionId.rolesmanage], 'master')),
-    ).toBe(true);
+    expect(canManageRoleMembership(currentUser, role([PermissionId.rolesmanage], 'master'))).toBe(true);
   });
 
   it('uses the device-scope subset lattice for role assignment', () => {
     const reception = '0192f6f8-743e-7c77-a349-cd07c3e8a920';
     const workshop = '0192f6f8-743e-7c77-a349-cd07c3e8a921';
-    const currentUser = currentUserFixture([
-      PermissionId.peoplerolesassign,
-      PermissionId.peoplereadall,
-    ]);
+    const currentUser = currentUserFixture([PermissionId.peoplerolesassign, PermissionId.peoplereadall]);
     currentUser.delegablePermissionGrants = [
       { permissionId: PermissionId.peoplerolesassign, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
-      { permissionId: PermissionId.peoplereadall, scope: 'selectedDeviceTypes', deviceTypeIds: [reception], minimumAssurance: 'low' },
+      {
+        permissionId: PermissionId.peoplereadall,
+        scope: 'selectedDeviceTypes',
+        deviceTypeIds: [reception],
+        minimumAssurance: 'low',
+      },
     ];
 
-    expect(canManageRoleMembership(currentUser, scopedRole([{
-      permissionId: PermissionId.peoplereadall,
-      scope: 'selectedDeviceTypes',
-      deviceTypeIds: [reception],
-      minimumAssurance: 'low',
-    }]))).toBe(true);
-    expect(canManageRoleMembership(currentUser, scopedRole([{
-      permissionId: PermissionId.peoplereadall,
-      scope: 'selectedDeviceTypes',
-      deviceTypeIds: [workshop],
-      minimumAssurance: 'low',
-    }]))).toBe(false);
-    expect(canManageRoleMembership(currentUser, scopedRole([{
-      permissionId: PermissionId.peoplereadall,
-      scope: 'anyManagedDevice',
-      deviceTypeIds: [],
-      minimumAssurance: 'low',
-    }]))).toBe(false);
+    expect(
+      canManageRoleMembership(
+        currentUser,
+        scopedRole([
+          {
+            permissionId: PermissionId.peoplereadall,
+            scope: 'selectedDeviceTypes',
+            deviceTypeIds: [reception],
+            minimumAssurance: 'low',
+          },
+        ]),
+      ),
+    ).toBe(true);
+    expect(
+      canManageRoleMembership(
+        currentUser,
+        scopedRole([
+          {
+            permissionId: PermissionId.peoplereadall,
+            scope: 'selectedDeviceTypes',
+            deviceTypeIds: [workshop],
+            minimumAssurance: 'low',
+          },
+        ]),
+      ),
+    ).toBe(false);
+    expect(
+      canManageRoleMembership(
+        currentUser,
+        scopedRole([
+          {
+            permissionId: PermissionId.peoplereadall,
+            scope: 'anyManagedDevice',
+            deviceTypeIds: [],
+            minimumAssurance: 'low',
+          },
+        ]),
+      ),
+    ).toBe(false);
   });
 
   it('combines selected-type grants and enforces the assurance partial order', () => {
@@ -157,17 +182,31 @@ describe('role membership authorization UX', () => {
       minimumAssurance: 'normal',
     }));
 
-    expect(canManageRoleMembership(currentUser, scopedRole([{
-      permissionId: PermissionId.peoplereadall,
-      scope: 'selectedDeviceTypes',
-      deviceTypeIds: [reception, workshop],
-      minimumAssurance: 'strong',
-    }]))).toBe(true);
-    expect(canManageRoleMembership(currentUser, scopedRole([{
-      permissionId: PermissionId.peoplereadall,
-      scope: 'selectedDeviceTypes',
-      deviceTypeIds: [reception],
-      minimumAssurance: 'low',
-    }]))).toBe(false);
+    expect(
+      canManageRoleMembership(
+        currentUser,
+        scopedRole([
+          {
+            permissionId: PermissionId.peoplereadall,
+            scope: 'selectedDeviceTypes',
+            deviceTypeIds: [reception, workshop],
+            minimumAssurance: 'strong',
+          },
+        ]),
+      ),
+    ).toBe(true);
+    expect(
+      canManageRoleMembership(
+        currentUser,
+        scopedRole([
+          {
+            permissionId: PermissionId.peoplereadall,
+            scope: 'selectedDeviceTypes',
+            deviceTypeIds: [reception],
+            minimumAssurance: 'low',
+          },
+        ]),
+      ),
+    ).toBe(false);
   });
 });

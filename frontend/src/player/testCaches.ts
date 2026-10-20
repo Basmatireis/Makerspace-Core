@@ -21,7 +21,10 @@ export function fakeCaches(): FakeCaches {
   let failing = false;
   const open = (name: string) => {
     let entries = stores.get(name);
-    if (!entries) { entries = new Map(); stores.set(name, entries); }
+    if (!entries) {
+      entries = new Map();
+      stores.set(name, entries);
+    }
     const map = entries;
     return {
       async match(input: RequestInfo | URL) {
@@ -34,10 +37,18 @@ export function fakeCaches(): FakeCaches {
       },
       async put(input: RequestInfo | URL, response: Response) {
         if (failing) throw new DOMException('full', 'QuotaExceededError');
-        map.set(pathOf(input), { body: await response.arrayBuffer(), status: response.status, headers: [...response.headers.entries()] });
+        map.set(pathOf(input), {
+          body: await response.arrayBuffer(),
+          status: response.status,
+          headers: [...response.headers.entries()],
+        });
       },
-      async delete(input: RequestInfo | URL) { return map.delete(pathOf(input)); },
-      async keys() { return [...map.keys()].map((key) => new Request(`http://player.invalid${key}`)); },
+      async delete(input: RequestInfo | URL) {
+        return map.delete(pathOf(input));
+      },
+      async keys() {
+        return [...map.keys()].map((key) => new Request(`http://player.invalid${key}`));
+      },
     } as unknown as Cache;
   };
   return {
@@ -47,6 +58,8 @@ export function fakeCaches(): FakeCaches {
     keys: async () => [...stores.keys()],
     match: async () => undefined,
     keysOf: (name: string) => [...(stores.get(name)?.keys() ?? [])],
-    failPuts: (value: boolean) => { failing = value; },
+    failPuts: (value: boolean) => {
+      failing = value;
+    },
   } as FakeCaches;
 }

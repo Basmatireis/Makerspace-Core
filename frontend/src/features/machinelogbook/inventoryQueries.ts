@@ -20,37 +20,44 @@ async function fetchAll<T>(load: (page: number) => Promise<{ items: T[]; total: 
 const key = (...parts: (string | number)[]) => [...machineLogbookKeys.all, ...parts] as const;
 
 /** Every material type, active ones first. */
-export const materialTypesQuery = () => queryOptions({
-  queryKey: key('material-types'),
-  queryFn: ({ signal }) => listMaterialTypes({ signal }),
-  select: (data) => data.items,
-});
+export const materialTypesQuery = () =>
+  queryOptions({
+    queryKey: key('material-types'),
+    queryFn: ({ signal }) => listMaterialTypes({ signal }),
+    select: (data) => data.items,
+  });
 
 /** Every material, active and inactive. */
-export const allMaterialsQuery = () => queryOptions({
-  queryKey: key('materials', 'all'),
-  queryFn: () => fetchAll((page) => listMaterials({ page, pageSize: PAGE_SIZE })),
-});
+export const allMaterialsQuery = () =>
+  queryOptions({
+    queryKey: key('materials', 'all'),
+    queryFn: () => fetchAll((page) => listMaterials({ page, pageSize: PAGE_SIZE })),
+  });
 
 /** Every filament product, active and inactive. */
-export const allProductsQuery = () => queryOptions({
-  queryKey: key('products', 'all'),
-  queryFn: () => fetchAll((page) => listFilamentProducts({ includeInactive: true, page, pageSize: PAGE_SIZE })),
-});
+export const allProductsQuery = () =>
+  queryOptions({
+    queryKey: key('products', 'all'),
+    queryFn: () => fetchAll((page) => listFilamentProducts({ includeInactive: true, page, pageSize: PAGE_SIZE })),
+  });
 
 /** The whole ledger of one material, newest handling happens in the table. */
-export const allTransactionsQuery = (materialId: string) => queryOptions({
-  queryKey: key('transactions', materialId, 'all'),
-  queryFn: () => fetchAll((page) => listMaterialTransactions(materialId, { page, pageSize: PAGE_SIZE })),
-});
+export const allTransactionsQuery = (materialId: string) =>
+  queryOptions({
+    queryKey: key('transactions', materialId, 'all'),
+    queryFn: () => fetchAll((page) => listMaterialTransactions(materialId, { page, pageSize: PAGE_SIZE })),
+  });
 
 /** Loaded or active spools (not archived, not waiting for a refill) per material ID. */
-export const activeSpoolCountsQuery = () => queryOptions({
-  queryKey: key('spools', 'active-counts'),
-  queryFn: async () => {
-    const spools = await fetchAll((page) => listFilamentSpools({ status: ['loaded', 'active'], page, pageSize: PAGE_SIZE }));
-    const counts: Record<string, number> = {};
-    for (const spool of spools) if (spool.materialId) counts[spool.materialId] = (counts[spool.materialId] ?? 0) + 1;
-    return counts;
-  },
-});
+export const activeSpoolCountsQuery = () =>
+  queryOptions({
+    queryKey: key('spools', 'active-counts'),
+    queryFn: async () => {
+      const spools = await fetchAll((page) =>
+        listFilamentSpools({ status: ['loaded', 'active'], page, pageSize: PAGE_SIZE }),
+      );
+      const counts: Record<string, number> = {};
+      for (const spool of spools) if (spool.materialId) counts[spool.materialId] = (counts[spool.materialId] ?? 0) + 1;
+      return counts;
+    },
+  });

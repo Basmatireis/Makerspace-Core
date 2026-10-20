@@ -11,13 +11,42 @@ import { as, everything, finalized, ids, order, orderList, paid } from './testDa
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
 const draft = order({ id: 'd1', reference: 'O-2026-000010', customerName: 'Draft customer' });
-const awaiting = finalized({ id: 'a1', reference: 'O-2026-000011', customerName: 'Awaiting customer', customerKind: 'person', customer: { kind: 'person', id: 'p1' } });
-const submitted = finalized({ id: 's1', reference: 'O-2026-000012', customerName: 'Invoice customer', activeExternalRequestId: ids.request, activeExternalRequestReference: 'W-1', activeExternalRequestState: 'submitted' });
+const awaiting = finalized({
+  id: 'a1',
+  reference: 'O-2026-000011',
+  customerName: 'Awaiting customer',
+  customerKind: 'person',
+  customer: { kind: 'person', id: 'p1' },
+});
+const submitted = finalized({
+  id: 's1',
+  reference: 'O-2026-000012',
+  customerName: 'Invoice customer',
+  activeExternalRequestId: ids.request,
+  activeExternalRequestReference: 'W-1',
+  activeExternalRequestState: 'submitted',
+});
 const done = paid({ id: 'p1', reference: 'O-2026-000013', customerName: 'Paid customer' });
-const cancelled = order({ id: 'c1', reference: 'O-2026-000014', status: 'cancelled', customerName: 'Cancelled customer' });
-const reinvoice = finalized({ id: 'r1', reference: 'O-2026-000015', customerName: 'Cancelled invoice customer', latestExternalRequestId: ids.request, latestExternalRequestReference: 'W-1', latestExternalRequestState: 'cancelled' });
+const cancelled = order({
+  id: 'c1',
+  reference: 'O-2026-000014',
+  status: 'cancelled',
+  customerName: 'Cancelled customer',
+});
+const reinvoice = finalized({
+  id: 'r1',
+  reference: 'O-2026-000015',
+  customerName: 'Cancelled invoice customer',
+  latestExternalRequestId: ids.request,
+  latestExternalRequestReference: 'W-1',
+  latestExternalRequestState: 'cancelled',
+});
 const all = [draft, awaiting, submitted, done, cancelled];
-const rows = () => within(screen.getByRole('table', { name: 'Orders' })).getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
+const rows = () =>
+  within(screen.getByRole('table', { name: 'Orders' }))
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => row.textContent ?? '');
 
 describe('orders list', () => {
   it('shows the open section by default with counts and switches sections through the URL', async () => {
@@ -90,10 +119,34 @@ describe('orders list', () => {
   it('offers the review of billable jobs with their value and opens it from the URL', async () => {
     as(everything);
     orderList([]);
-    server.use(http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({
-      items: [{ kind: 'job', id: 'j1', displayId: 'J-2026-000001', title: 'Gear', runCount: 1, machineId: 'm', machineName: 'Laser', customer: { kind: 'person', id: 'p1', displayName: 'Ada Lovelace', pricingGroupAssignmentVersion: 0 }, status: 'successful', source: 'manual', startedAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-01T11:00:00Z', effectivePrice: '12.50', billing: { state: 'not_on_order' }, version: 4 }],
-      page: 1, pageSize: 100, total: 1,
-    })));
+    server.use(
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({
+          items: [
+            {
+              kind: 'job',
+              id: 'j1',
+              displayId: 'J-2026-000001',
+              title: 'Gear',
+              runCount: 1,
+              machineId: 'm',
+              machineName: 'Laser',
+              customer: { kind: 'person', id: 'p1', displayName: 'Ada Lovelace', pricingGroupAssignmentVersion: 0 },
+              status: 'successful',
+              source: 'manual',
+              startedAt: '2026-10-01T10:00:00Z',
+              endsAt: '2026-10-01T11:00:00Z',
+              effectivePrice: '12.50',
+              billing: { state: 'not_on_order' },
+              version: 4,
+            },
+          ],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+        }),
+      ),
+    );
     renderRoute(<App />, '/orders?review=1');
     expect(await screen.findByRole('button', { name: 'Review jobs (1)' })).toBeInTheDocument();
     const dialog = await screen.findByRole('dialog', { name: 'Jobs ready to bill' });

@@ -3,16 +3,26 @@ import { Tag } from '@carbon/react';
 import { CheckmarkFilled, ErrorFilled, WarningAltFilled } from '@carbon/icons-react';
 import { decimalNumber } from '../../../app/decimalInput';
 import { EmptyState } from '../../../app/PageState';
-import type { FilamentPackaging, FilamentProduct, InventoryAdjustmentReason, InventoryTransactionKind, Material, MaterialUnit, StockState } from '../../../api/generated/models';
+import type {
+  FilamentPackaging,
+  FilamentProduct,
+  InventoryAdjustmentReason,
+  InventoryTransactionKind,
+  Material,
+  MaterialUnit,
+  StockState,
+} from '../../../api/generated/models';
 import { formatMoney } from '../shared/format';
 
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 export type { StockState };
 
-export const unitLabel = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit);
+export const unitLabel = (unit: MaterialUnit) =>
+  unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit;
 /** "1,250 g". The API sends decimal strings. */
-export const formatQuantity = (value: string | number, unit: MaterialUnit) => `${number.format(Number(value))} ${unitLabel(unit)}`;
+export const formatQuantity = (value: string | number, unit: MaterialUnit) =>
+  `${number.format(Number(value))} ${unitLabel(unit)}`;
 export const formatSigned = (value: string | number, unit: MaterialUnit) => {
   const n = Number(value);
   return `${n > 0 ? '+' : n < 0 ? '−' : ''}${number.format(Math.abs(n))} ${unitLabel(unit)}`;
@@ -33,9 +43,16 @@ export function formatUnitCost(cost: string | number | null | undefined, unit: M
 }
 
 /** Average acquisition cost of a material; a material that never held stock has none yet. */
-export const materialUnitCost = (material: Pick<Material, 'averageUnitCost' | 'inventoryValue' | 'quantity'>) => Number(material.averageUnitCost) === 0 && Number(material.inventoryValue) === 0 && Number(material.quantity) === 0 ? null : material.averageUnitCost;
+export const materialUnitCost = (material: Pick<Material, 'averageUnitCost' | 'inventoryValue' | 'quantity'>) =>
+  Number(material.averageUnitCost) === 0 && Number(material.inventoryValue) === 0 && Number(material.quantity) === 0
+    ? null
+    : material.averageUnitCost;
 
-export const stockStateOptions: { id: StockState; label: string }[] = [{ id: 'in_stock', label: 'In stock' }, { id: 'low_stock', label: 'Low' }, { id: 'empty', label: 'Empty' }];
+export const stockStateOptions: { id: StockState; label: string }[] = [
+  { id: 'in_stock', label: 'In stock' },
+  { id: 'low_stock', label: 'Low' },
+  { id: 'empty', label: 'Empty' },
+];
 
 const stockMeta = {
   in_stock: { label: 'In stock', type: 'green', icon: CheckmarkFilled },
@@ -45,36 +62,74 @@ const stockMeta = {
 
 export function StockTag({ state, size = 'md' }: { state: StockState; size?: 'sm' | 'md' }) {
   const meta = stockMeta[state];
-  return <Tag type={meta.type} size={size} renderIcon={meta.icon}>{meta.label}</Tag>;
+  return (
+    <Tag type={meta.type} size={size} renderIcon={meta.icon}>
+      {meta.label}
+    </Tag>
+  );
 }
 
-export const packagingOptions: { id: FilamentPackaging; label: string }[] = [{ id: 'refill', label: 'Refill' }, { id: 'spool', label: 'Spool' }];
-export const packagingLabel = (packaging: FilamentPackaging) => packagingOptions.find((item) => item.id === packaging)?.label ?? packaging;
+export const packagingOptions: { id: FilamentPackaging; label: string }[] = [
+  { id: 'refill', label: 'Refill' },
+  { id: 'spool', label: 'Spool' },
+];
+export const packagingLabel = (packaging: FilamentPackaging) =>
+  packagingOptions.find((item) => item.id === packaging)?.label ?? packaging;
 export function PackagingTag({ packaging, size = 'sm' }: { packaging: FilamentPackaging; size?: 'sm' | 'md' }) {
-  return <Tag type={packaging === 'refill' ? 'teal' : 'cool-gray'} size={size}>{packagingLabel(packaging)}</Tag>;
+  return (
+    <Tag type={packaging === 'refill' ? 'teal' : 'cool-gray'} size={size}>
+      {packagingLabel(packaging)}
+    </Tag>
+  );
 }
 
 export const formatGrams = (value: string | number) => `${number.format(Number(value))} g`;
 /** "Bambu Lab · PLA Basic Black · 1,000 g", the text of a product in pickers. */
-export const productLabel = (product: Pick<FilamentProduct, 'manufacturer' | 'name' | 'netWeightG'>) => `${product.manufacturer} · ${product.name} · ${formatGrams(product.netWeightG)}`;
+export const productLabel = (product: Pick<FilamentProduct, 'manufacturer' | 'name' | 'netWeightG'>) =>
+  `${product.manufacturer} · ${product.name} · ${formatGrams(product.netWeightG)}`;
 
 // The API distinguishes who moved the stock; the table shows one tag per kind.
 export const transactionKindOptions: { id: InventoryTransactionKind; label: string }[] = [
-  { id: 'purchase', label: 'Purchase' }, { id: 'machine_run_consumption', label: 'Run consumption' }, { id: 'manual_consumption', label: 'Manual consumption' },
-  { id: 'adjustment', label: 'Correction' }, { id: 'disposal', label: 'Disposal' }, { id: 'spool_transfer', label: 'Transfer' },
+  { id: 'purchase', label: 'Purchase' },
+  { id: 'machine_run_consumption', label: 'Run consumption' },
+  { id: 'manual_consumption', label: 'Manual consumption' },
+  { id: 'adjustment', label: 'Correction' },
+  { id: 'disposal', label: 'Disposal' },
+  { id: 'spool_transfer', label: 'Transfer' },
 ];
-const kindType = { purchase: 'green', machine_run_consumption: 'blue', manual_consumption: 'blue', adjustment: 'purple', disposal: 'red', spool_transfer: 'teal' } as const;
+const kindType = {
+  purchase: 'green',
+  machine_run_consumption: 'blue',
+  manual_consumption: 'blue',
+  adjustment: 'purple',
+  disposal: 'red',
+  spool_transfer: 'teal',
+} as const;
 export function TransactionKindTag({ kind, size = 'sm' }: { kind: InventoryTransactionKind; size?: 'sm' | 'md' }) {
-  return <Tag type={kindType[kind]} size={size}>{transactionKindOptions.find((item) => item.id === kind)?.label}</Tag>;
+  return (
+    <Tag type={kindType[kind]} size={size}>
+      {transactionKindOptions.find((item) => item.id === kind)?.label}
+    </Tag>
+  );
 }
 
 export const adjustmentReasonLabels: Record<InventoryAdjustmentReason, string> = {
-  inventory_count: 'Inventory count', unrecorded_consumption: 'Unrecorded consumption', damaged: 'Damaged', disposed: 'Disposed',
-  mark_empty: 'Marked as empty', job_corrected: 'Job corrected', other: 'Other',
+  inventory_count: 'Inventory count',
+  unrecorded_consumption: 'Unrecorded consumption',
+  damaged: 'Damaged',
+  disposed: 'Disposed',
+  mark_empty: 'Marked as empty',
+  job_corrected: 'Job corrected',
+  other: 'Other',
 };
 
 export function NoInventoryAccess() {
-  return <EmptyState title="No access to inventory" description="Your role does not include viewing inventory. Ask a workshop supervisor for access." />;
+  return (
+    <EmptyState
+      title="No access to inventory"
+      description="Your role does not include viewing inventory. Ask a workshop supervisor for access."
+    />
+  );
 }
 
 /** Only materials with a filament diameter are tracked per spool. */

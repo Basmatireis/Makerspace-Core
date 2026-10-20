@@ -16,20 +16,33 @@ import { organizationsQuery } from './queries';
 
 const columns: Column<Organization>[] = [
   {
-    key: 'name', header: 'Organization',
+    key: 'name',
+    header: 'Organization',
     render: (organization) => (
       <div className="mj-cell-stack">
-        <CarbonLink as={Link} to={organizationPaths.detail(organization.id)}>{organization.name}</CarbonLink>
+        <CarbonLink as={Link} to={organizationPaths.detail(organization.id)}>
+          {organization.name}
+        </CarbonLink>
         <span className="mj-secondary mj-show-narrow">{organizationKindLabels[organization.kind]}</span>
       </div>
     ),
   },
   { key: 'kind', header: 'Kind', narrow: true, render: (organization) => organizationKindLabels[organization.kind] },
   {
-    key: 'active', header: 'Status',
-    render: (organization) => <Tag size="sm" type={organization.active ? 'green' : 'gray'}>{organization.active ? 'Active' : 'Inactive'}</Tag>,
+    key: 'active',
+    header: 'Status',
+    render: (organization) => (
+      <Tag size="sm" type={organization.active ? 'green' : 'gray'}>
+        {organization.active ? 'Active' : 'Inactive'}
+      </Tag>
+    ),
   },
-  { key: 'pricingGroup', header: 'Pricing group', narrow: true, render: (organization) => organization.pricingGroup?.name ?? <span className="mj-secondary">Default</span> },
+  {
+    key: 'pricingGroup',
+    header: 'Pricing group',
+    narrow: true,
+    render: (organization) => organization.pricingGroup?.name ?? <span className="mj-secondary">Default</span>,
+  },
   { key: 'members', header: 'People', narrow: true, render: (organization) => organization.memberCount },
 ];
 
@@ -48,7 +61,7 @@ export function OrganizationsPage() {
   const pricingGroupId = url.get('pricingGroup');
   const params: ListOrganizationsParams = {
     search: table.search || undefined,
-    kind: organizationKinds.includes(kind as OrganizationKind) ? kind as OrganizationKind : undefined,
+    kind: organizationKinds.includes(kind as OrganizationKind) ? (kind as OrganizationKind) : undefined,
     active: active === 'true' ? true : active === 'false' ? false : undefined,
     pricingGroupId: pricingGroupId || undefined,
     page: table.page,
@@ -58,34 +71,80 @@ export function OrganizationsPage() {
   const groups = pricing.data?.items ?? [];
 
   const filterCategories: FilterCategory[] = [
-    { key: 'kind', label: 'Kind', single: true, options: organizationKinds.map((item) => ({ id: item, label: organizationKindLabels[item] })) },
-    { key: 'active', label: 'Status', single: true, options: [{ id: 'true', label: 'Active' }, { id: 'false', label: 'Inactive' }] },
-    ...(canReadPricing ? [{ key: 'pricingGroup', label: 'Pricing group', single: true, options: groups.map((group) => ({ id: group.id, label: group.name })) }] : []),
+    {
+      key: 'kind',
+      label: 'Kind',
+      single: true,
+      options: organizationKinds.map((item) => ({ id: item, label: organizationKindLabels[item] })),
+    },
+    {
+      key: 'active',
+      label: 'Status',
+      single: true,
+      options: [
+        { id: 'true', label: 'Active' },
+        { id: 'false', label: 'Inactive' },
+      ],
+    },
+    ...(canReadPricing
+      ? [
+          {
+            key: 'pricingGroup',
+            label: 'Pricing group',
+            single: true,
+            options: groups.map((group) => ({ id: group.id, label: group.name })),
+          },
+        ]
+      : []),
   ];
 
   return (
     <PageShell
-      title="Organizations" description="Companies, institutes and associations that can be billed, with their invoice data and people." width="wide"
+      title="Organizations"
+      description="Companies, institutes and associations that can be billed, with their invoice data and people."
+      width="wide"
       breadcrumbs={[{ label: 'Directory' }, { label: 'Organizations' }]}
     >
       <QueryBoundary query={query} errorMessage="Organizations could not be loaded.">
         {(page) => (
           <DirectoryTable
-            mode="server" id="organizations" urlPrefix="" label="Organizations" columns={columns} rows={page.items} total={page.total}
-            sort={table.sort} onSortChange={table.setSort}
+            mode="server"
+            id="organizations"
+            urlPrefix=""
+            label="Organizations"
+            columns={columns}
+            rows={page.items}
+            total={page.total}
+            sort={table.sort}
+            onSortChange={table.setSort}
             filterCategories={filterCategories}
-            toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={() => setCreateOpen(true)}>New organization</Button> : undefined}
+            toolbarAction={
+              canManage ? (
+                <Button kind="primary" size="lg" onClick={() => setCreateOpen(true)}>
+                  New organization
+                </Button>
+              ) : undefined
+            }
             empty={{
-              title: 'No organizations yet', description: 'Organizations can be billed for jobs and orders once they are added.',
-              action: canManage ? <Button kind="tertiary" onClick={() => setCreateOpen(true)}>New organization</Button> : undefined,
+              title: 'No organizations yet',
+              description: 'Organizations can be billed for jobs and orders once they are added.',
+              action: canManage ? (
+                <Button kind="tertiary" onClick={() => setCreateOpen(true)}>
+                  New organization
+                </Button>
+              ) : undefined,
             }}
           />
         )}
       </QueryBoundary>
       {canManage && (
         <OrganizationFormModal
-          open={createOpen} onClose={() => setCreateOpen(false)}
-          onCreated={(organization) => { setCreateOpen(false); navigate(organizationPaths.detail(organization.id)); }}
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(organization) => {
+            setCreateOpen(false);
+            navigate(organizationPaths.detail(organization.id));
+          }}
         />
       )}
     </PageShell>

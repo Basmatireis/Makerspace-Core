@@ -13,20 +13,25 @@ describe('SCIM connector administration', () => {
   it('shows a newly issued bearer token once', async () => {
     server.use(
       http.get('*/api/v1/scim/connectors', () => HttpResponse.json({ items: [] })),
-      http.post('*/api/v1/scim/connectors', () => HttpResponse.json({
-        connector: {
-          id: '0192f6f8-743e-7c77-a349-cd07c3e8ac03',
-          name: 'Authentik',
-          oidcProviderId: null,
-          enabled: true,
-          tokenExpiresAt: '2026-12-20T00:00:00Z',
-          tokenRevokedAt: null,
-          version: 1,
-          createdAt: '2026-09-20T00:00:00Z',
-          updatedAt: '2026-09-20T00:00:00Z',
-        },
-        bearerToken: 'scim_secret_shown_once',
-      }, { status: 201 })),
+      http.post('*/api/v1/scim/connectors', () =>
+        HttpResponse.json(
+          {
+            connector: {
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8ac03',
+              name: 'Authentik',
+              oidcProviderId: null,
+              enabled: true,
+              tokenExpiresAt: '2026-12-20T00:00:00Z',
+              tokenRevokedAt: null,
+              version: 1,
+              createdAt: '2026-09-20T00:00:00Z',
+              updatedAt: '2026-09-20T00:00:00Z',
+            },
+            bearerToken: 'scim_secret_shown_once',
+          },
+          { status: 201 },
+        ),
+      ),
     );
     const user = userEvent.setup();
     renderRoute(<SCIMConnectorsPage />);
@@ -48,17 +53,21 @@ describe('SCIM connector administration', () => {
   it('keeps reconciliation disabled when preflight reports a preservation conflict', async () => {
     server.use(
       http.get('*/api/v1/scim/connectors', () => HttpResponse.json({ items: [] })),
-      http.post('*/api/v1/scim/reconciliation/preflight', () => HttpResponse.json({
-        canReconcile: false,
-        completed: false,
-        provisionalAccountId,
-        targetAccountId,
-        conflicts: [{
-          code: 'open_day_assignment_conflict',
-          message: 'Both People have different positions on the same Open Day.',
-          resourceId: '0192f6f8-743e-7c77-a349-cd07c3e8ac04',
-        }],
-      })),
+      http.post('*/api/v1/scim/reconciliation/preflight', () =>
+        HttpResponse.json({
+          canReconcile: false,
+          completed: false,
+          provisionalAccountId,
+          targetAccountId,
+          conflicts: [
+            {
+              code: 'open_day_assignment_conflict',
+              message: 'Both People have different positions on the same Open Day.',
+              resourceId: '0192f6f8-743e-7c77-a349-cd07c3e8ac04',
+            },
+          ],
+        }),
+      ),
     );
     const user = userEvent.setup();
     renderRoute(<SCIMConnectorsPage />);

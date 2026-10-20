@@ -6,16 +6,49 @@ import { renderRoute } from '../test/render';
 import { BatchFilter, toList, toPatch, type FilterCategory, type FilterValues } from './BatchFilter';
 
 const categories: FilterCategory[] = [
-  { key: 'status', label: 'Status', options: [{ id: 'open', label: 'Open' }, { id: 'done', label: 'Done' }] },
-  { key: 'kind', label: 'Kind', single: true, options: [{ id: 'a', label: 'Alpha' }, { id: 'b', label: 'Beta' }] },
+  {
+    key: 'status',
+    label: 'Status',
+    options: [
+      { id: 'open', label: 'Open' },
+      { id: 'done', label: 'Done' },
+    ],
+  },
+  {
+    key: 'kind',
+    label: 'Kind',
+    single: true,
+    options: [
+      { id: 'a', label: 'Alpha' },
+      { id: 'b', label: 'Beta' },
+    ],
+  },
 ];
 
-function Harness({ onApply = () => undefined, onReset = () => undefined, initial = {} }: { onApply?: (values: FilterValues) => void; onReset?: () => void; initial?: FilterValues }) {
+function Harness({
+  onApply = () => undefined,
+  onReset = () => undefined,
+  initial = {},
+}: {
+  onApply?: (values: FilterValues) => void;
+  onReset?: () => void;
+  initial?: FilterValues;
+}) {
   const [applied, setApplied] = useState<FilterValues>(initial);
   return (
     <BatchFilter
-      id="things" label="Things" categories={categories} applied={applied}
-      onApply={(values) => { setApplied(values); onApply(values); }} onReset={() => { setApplied({}); onReset(); }}
+      id="things"
+      label="Things"
+      categories={categories}
+      applied={applied}
+      onApply={(values) => {
+        setApplied(values);
+        onApply(values);
+      }}
+      onReset={() => {
+        setApplied({});
+        onReset();
+      }}
     />
   );
 }
@@ -71,6 +104,10 @@ describe('BatchFilter', () => {
   it('converts between URL parameters and filter values', () => {
     expect(toList('a,b,,c')).toEqual(['a', 'b', 'c']);
     expect(toList(null)).toEqual([]);
-    expect(toPatch({ status: ['a', 'b'], kind: [] }, ['status', 'kind', 'missing'])).toEqual({ status: 'a,b', kind: null, missing: null });
+    expect(toPatch({ status: ['a', 'b'], kind: [] }, ['status', 'kind', 'missing'])).toEqual({
+      status: 'a,b',
+      kind: null,
+      missing: null,
+    });
   });
 });

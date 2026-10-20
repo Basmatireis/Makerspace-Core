@@ -33,11 +33,22 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
   const [discardOpen, setDiscardOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [wizardError, setWizardError] = useState<WizardError | null>(null);
-  const { control, register, getValues, reset, setError, setValue, trigger, formState: { errors, isDirty } } = useForm<PeriodForm>({
+  const {
+    control,
+    register,
+    getValues,
+    reset,
+    setError,
+    setValue,
+    trigger,
+    formState: { errors, isDirty },
+  } = useForm<PeriodForm>({
     defaultValues: { name: '', startsOn: '', endsOn: '' },
   });
 
-  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const createMutation = useMutation({
     mutationFn: () => createOpenDayPeriod(getValues()),
@@ -46,16 +57,20 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
       reset();
       onCreated(period.id);
     },
-    onError: () => setWizardError({
-      title: 'Period could not be created',
-      subtitle: 'Check the information and try again.',
-    }),
+    onError: () =>
+      setWizardError({
+        title: 'Period could not be created',
+        subtitle: 'Check the information and try again.',
+      }),
   });
 
   const clearError = () => setWizardError(null);
   const close = () => {
     if (createMutation.isPending) return;
-    if (isDirty && !discardOpen) { setDiscardOpen(true); return; }
+    if (isDirty && !discardOpen) {
+      setDiscardOpen(true);
+      return;
+    }
     setDiscardOpen(false);
     reset();
     setAttempted(false);
@@ -68,7 +83,10 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
     const valid = await trigger(['name', 'startsOn', 'endsOn']);
     const values = getValues();
     if (!valid) {
-      setWizardError({ title: 'Missing required information', subtitle: 'Enter a period name and complete date range.' });
+      setWizardError({
+        title: 'Missing required information',
+        subtitle: 'Enter a period name and complete date range.',
+      });
       return;
     }
     if (values.startsOn > values.endsOn) {
@@ -78,66 +96,117 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
     }
     createMutation.mutate();
   };
-  const requestClose = useLatestCallback(() => { if (discardOpen) setDiscardOpen(false); else close(); return false; });
+  const requestClose = useLatestCallback(() => {
+    if (discardOpen) setDiscardOpen(false);
+    else close();
+    return false;
+  });
   // Watched, not read with getValues: picking a date must re-render the picker.
   const [startsOn, endsOn] = useWatch({ control, name: ['startsOn', 'endsOn'] });
   const range = usePickerDateRange(startsOn, endsOn);
 
   return (
-    <ComposedModal aria-label={discardOpen ? 'Discard period inputs?' : 'Create Period'} open={open} size="xs" danger={discardOpen} selectorPrimaryFocus={discardOpen ? '.cds--btn--secondary' : undefined} onClose={requestClose} preventCloseOnClickOutside>
+    <ComposedModal
+      aria-label={discardOpen ? 'Discard period inputs?' : 'Create Period'}
+      open={open}
+      size="xs"
+      danger={discardOpen}
+      selectorPrimaryFocus={discardOpen ? '.cds--btn--secondary' : undefined}
+      onClose={requestClose}
+      preventCloseOnClickOutside
+    >
       <ModalHeader title={discardOpen ? 'Discard period inputs?' : 'Create Period'} buttonOnClick={requestClose} />
       <ModalBody>
-        {discardOpen ? <p>The period has not been created. Your inputs will be discarded.</p> : <Stack gap={5}>
-          <TextInput id="period-name" labelText="Name" invalid={attempted && Boolean(errors.name)} invalidText="Enter a name." {...register('name', { required: true, onChange: clearError })} />
-          <input type="hidden" {...register('startsOn', { required: true })} />
-          <input type="hidden" {...register('endsOn', { required: true })} />
-          <DatePicker
-            allowInput
-            datePickerType="range"
-            dateFormat="d.m.Y"
-            locale="en"
-            value={range}
-            onChange={(dates) => {
-              setValue('startsOn', dates[0] ? pickerDateToDateOnly(dates[0]) : '', { shouldDirty: true, shouldValidate: attempted });
-              setValue('endsOn', dates[1] ? pickerDateToDateOnly(dates[1]) : '', { shouldDirty: true, shouldValidate: attempted });
-              clearError();
-            }}
-          >
-            <DatePickerInput
-              id="period-start"
-              labelText="Start date"
-              placeholder={APP_DATE_PLACEHOLDER}
-              pattern="\d{2}\.\d{2}\.\d{4}"
-              invalid={attempted && Boolean(errors.startsOn)}
-              invalidText="Choose a start date."
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                setValue('startsOn', parseDisplayDate(event.target.value) ?? '', { shouldDirty: true, shouldValidate: attempted });
+        {discardOpen ? (
+          <p>The period has not been created. Your inputs will be discarded.</p>
+        ) : (
+          <Stack gap={5}>
+            <TextInput
+              id="period-name"
+              labelText="Name"
+              invalid={attempted && Boolean(errors.name)}
+              invalidText="Enter a name."
+              {...register('name', { required: true, onChange: clearError })}
+            />
+            <input type="hidden" {...register('startsOn', { required: true })} />
+            <input type="hidden" {...register('endsOn', { required: true })} />
+            <DatePicker
+              allowInput
+              datePickerType="range"
+              dateFormat="d.m.Y"
+              locale="en"
+              value={range}
+              onChange={(dates) => {
+                setValue('startsOn', dates[0] ? pickerDateToDateOnly(dates[0]) : '', {
+                  shouldDirty: true,
+                  shouldValidate: attempted,
+                });
+                setValue('endsOn', dates[1] ? pickerDateToDateOnly(dates[1]) : '', {
+                  shouldDirty: true,
+                  shouldValidate: attempted,
+                });
                 clearError();
               }}
-            />
-            <DatePickerInput
-              id="period-end"
-              labelText="End date"
-              placeholder={APP_DATE_PLACEHOLDER}
-              pattern="\d{2}\.\d{2}\.\d{4}"
-              invalid={attempted && Boolean(errors.endsOn)}
-              invalidText={errors.endsOn?.message ?? 'Choose an end date.'}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                setValue('endsOn', parseDisplayDate(event.target.value) ?? '', { shouldDirty: true, shouldValidate: attempted });
-                clearError();
-              }}
-            />
-          </DatePicker>
-        </Stack>}
-        {!discardOpen && wizardError && <InlineNotification className="period-wizard__error" kind="error" lowContrast hideCloseButton title={wizardError.title} subtitle={wizardError.subtitle} />}
+            >
+              <DatePickerInput
+                id="period-start"
+                labelText="Start date"
+                placeholder={APP_DATE_PLACEHOLDER}
+                pattern="\d{2}\.\d{2}\.\d{4}"
+                invalid={attempted && Boolean(errors.startsOn)}
+                invalidText="Choose a start date."
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  setValue('startsOn', parseDisplayDate(event.target.value) ?? '', {
+                    shouldDirty: true,
+                    shouldValidate: attempted,
+                  });
+                  clearError();
+                }}
+              />
+              <DatePickerInput
+                id="period-end"
+                labelText="End date"
+                placeholder={APP_DATE_PLACEHOLDER}
+                pattern="\d{2}\.\d{2}\.\d{4}"
+                invalid={attempted && Boolean(errors.endsOn)}
+                invalidText={errors.endsOn?.message ?? 'Choose an end date.'}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  setValue('endsOn', parseDisplayDate(event.target.value) ?? '', {
+                    shouldDirty: true,
+                    shouldValidate: attempted,
+                  });
+                  clearError();
+                }}
+              />
+            </DatePicker>
+          </Stack>
+        )}
+        {!discardOpen && wizardError && (
+          <InlineNotification
+            className="period-wizard__error"
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title={wizardError.title}
+            subtitle={wizardError.subtitle}
+          />
+        )}
       </ModalBody>
       <ModalFooter
         primaryButtonText={discardOpen ? 'Discard inputs' : createMutation.isPending ? 'Creating…' : 'Create Period'}
         primaryButtonDisabled={createMutation.isPending}
-        onRequestSubmit={() => { if (discardOpen) close(); else void createPeriod(); }}
-        onRequestClose={() => { if (discardOpen) setDiscardOpen(false); else close(); }}
+        onRequestSubmit={() => {
+          if (discardOpen) close();
+          else void createPeriod();
+        }}
+        onRequestClose={() => {
+          if (discardOpen) setDiscardOpen(false);
+          else close();
+        }}
         secondaryButtonText={discardOpen ? 'Keep editing' : 'Cancel'}
-      >{null}</ModalFooter>
+      >
+        {null}
+      </ModalFooter>
     </ComposedModal>
   );
 }

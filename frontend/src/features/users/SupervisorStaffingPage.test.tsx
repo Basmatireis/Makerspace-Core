@@ -27,16 +27,18 @@ function supervisorDashboard() {
         supervisorAssignments: 1,
       },
     ],
-    supervisors: [{
-      personId: otherPersonId,
-      name: 'Grace Hopper',
-      hasProfileImage: false,
-      laborordnungState: 'outdated',
-      assignmentCounts: [
-        { periodId, supervisorCount: 2, traineeCount: 1 },
-        { periodId: secondPeriodId, supervisorCount: 0, traineeCount: 2 },
-      ],
-    }],
+    supervisors: [
+      {
+        personId: otherPersonId,
+        name: 'Grace Hopper',
+        hasProfileImage: false,
+        laborordnungState: 'outdated',
+        assignmentCounts: [
+          { periodId, supervisorCount: 2, traineeCount: 1 },
+          { periodId: secondPeriodId, supervisorCount: 0, traineeCount: 2 },
+        ],
+      },
+    ],
     totals: {
       supervisors: 1,
       profileImagesComplete: 0,
@@ -52,9 +54,7 @@ describe('Members inside Directory', () => {
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
       ),
-      http.get('*/api/v1/supervisor-dashboard', () =>
-        HttpResponse.json(supervisorDashboard()),
-      ),
+      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
     );
 
     renderRoute(<App />, '/people/staffing');
@@ -74,15 +74,15 @@ describe('Members inside Directory', () => {
     const user = userEvent.setup();
     server.use(
       http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([
-          PermissionId.supervisor_dashboardread,
-          PermissionId.peoplereadall,
-          PermissionId.open_daysread,
-        ])),
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.supervisor_dashboardread,
+            PermissionId.peoplereadall,
+            PermissionId.open_daysread,
+          ]),
+        ),
       ),
-      http.get('*/api/v1/supervisor-dashboard', () =>
-        HttpResponse.json(supervisorDashboard()),
-      ),
+      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
     );
 
     renderRoute(<App />, '/people/staffing');
@@ -148,9 +148,7 @@ describe('Members inside Directory', () => {
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
       ),
-      http.get('*/api/v1/supervisor-dashboard', () =>
-        HttpResponse.json(supervisorDashboard()),
-      ),
+      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
     );
 
     renderRoute(<App />, '/supervisors');

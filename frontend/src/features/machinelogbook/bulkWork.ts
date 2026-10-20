@@ -27,14 +27,17 @@ export function deleteBlocker(item: WorkItem): string | null {
 
 /** Whether deleting the item can return material to stock: own material was consumed (customer material never touched stock). */
 export const hasBookedMaterial = (item: WorkItem) =>
-  (item.consumption?.materials ?? []).some((material) => material.materialTypeName !== 'External' && Number(material.quantity) > 0);
+  (item.consumption?.materials ?? []).some(
+    (material) => material.materialTypeName !== 'External' && Number(material.quantity) > 0,
+  );
 
 /** Reference -> entity id for the references the skip reasons mention, so they become links. */
 export function referenceTargets(items: WorkItem[]): Record<string, string> {
   const targets: Record<string, string> = {};
   for (const item of items) {
     targets[item.displayId] = item.id;
-    if (item.billing?.orderReference && item.billing.orderId) targets[item.billing.orderReference] = item.billing.orderId;
+    if (item.billing?.orderReference && item.billing.orderId)
+      targets[item.billing.orderReference] = item.billing.orderId;
   }
   return targets;
 }
@@ -56,16 +59,24 @@ export function batchAvailability(items: WorkItem[], can: Can): Record<BatchActi
 
   const deletable = items.filter((item) => deleteBlocker(item) === null);
   return {
-    delete: !can('machine_jobs.delete') ? no('Delete: you do not have permission to delete jobs and runs.')
-      : deletable.length === 0 ? no('Delete: every selected item is on an order or still running.') : ok,
+    delete: !can('machine_jobs.delete')
+      ? no('Delete: you do not have permission to delete jobs and runs.')
+      : deletable.length === 0
+        ? no('Delete: every selected item is on an order or still running.')
+        : ok,
     separate: runBase('machine_jobs.create', 'Create separate jobs', 1) ?? ok,
-    combined: runBase('machine_jobs.create', 'Create combined job', 2) ?? (machines.size > 1 ? no('Create combined job: runs are on different machines.') : ok),
-    attach: runBase('machine_jobs.edit', 'Attach to job', 1) ?? (machines.size > 1 ? no('Attach to job: runs are on different machines.') : ok),
+    combined:
+      runBase('machine_jobs.create', 'Create combined job', 2) ??
+      (machines.size > 1 ? no('Create combined job: runs are on different machines.') : ok),
+    attach:
+      runBase('machine_jobs.edit', 'Attach to job', 1) ??
+      (machines.size > 1 ? no('Attach to job: runs are on different machines.') : ok),
   };
 }
 
 /** Whether the person may use any batch action; without one the table offers no selection. */
-export const canSelectWork = (can: Can) => can('machine_jobs.create') || can('machine_jobs.edit') || can('machine_jobs.delete');
+export const canSelectWork = (can: Can) =>
+  can('machine_jobs.create') || can('machine_jobs.edit') || can('machine_jobs.delete');
 
 export type BlockedItem = { kind: string; id: string; displayId: string; code: string; message: string };
 

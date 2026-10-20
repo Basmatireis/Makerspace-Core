@@ -82,13 +82,41 @@ function UserDetailContent({ person }: { person: Person }) {
   const access = getPersonDetailAccess(currentUser, person, account);
   const ctrl = usePersonDetailActions({ person, account, access });
   const {
-    canEditPerson, canReadMatriculation, canEditMatriculation, canReadAccounts, canReadMakerspaceStatus, canEditLoginEmail,
-    canCreateAccount, canDeletePerson, canDisableAccount, canDeleteAccount, canAssignRole, canSetPassword, passwordIdentity,
-    pinIdentity, canIssuePasswordReset, canInvite, canConfigurePIN, hasAccountActions, hasCredentialActions, hasPersonActions,
+    canEditPerson,
+    canReadMatriculation,
+    canEditMatriculation,
+    canReadAccounts,
+    canReadMakerspaceStatus,
+    canEditLoginEmail,
+    canCreateAccount,
+    canDeletePerson,
+    canDisableAccount,
+    canDeleteAccount,
+    canAssignRole,
+    canSetPassword,
+    passwordIdentity,
+    pinIdentity,
+    canIssuePasswordReset,
+    canInvite,
+    canConfigurePIN,
+    hasAccountActions,
+    hasCredentialActions,
+    hasPersonActions,
   } = access;
   const {
-    editingPerson, setEditingPerson, setLoginEmailModalOpen, setAssignRoleOpen, setPasswordModalOpen, setPINModalOpen,
-    setCreateAccountOpen, setConfirmKind, resetSent, resetExpiresAt, manualSetupUrl, clearResetIssue, mutationError,
+    editingPerson,
+    setEditingPerson,
+    setLoginEmailModalOpen,
+    setAssignRoleOpen,
+    setPasswordModalOpen,
+    setPINModalOpen,
+    setCreateAccountOpen,
+    setConfirmKind,
+    resetSent,
+    resetExpiresAt,
+    manualSetupUrl,
+    clearResetIssue,
+    mutationError,
   } = ctrl;
   const makerspaceStatusQuery = useQuery({
     queryKey: [...peopleKeys.detail(person.id), 'makerspace-status'],
@@ -97,12 +125,18 @@ function UserDetailContent({ person }: { person: Person }) {
   });
 
   // Stable identity: the tab-normalising effect below depends on it.
-  const availableTabs = useMemo(() => personDetailTabs.filter((tab) => {
-    if (tab.key === 'account-access') return canReadAccounts;
-    if (tab.key === 'roles-permissions') return true;
-    if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
-    return true;
-  }).map((tab) => tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab), [canReadAccounts, canReadMakerspaceStatus, statusLabel]);
+  const availableTabs = useMemo(
+    () =>
+      personDetailTabs
+        .filter((tab) => {
+          if (tab.key === 'account-access') return canReadAccounts;
+          if (tab.key === 'roles-permissions') return true;
+          if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
+          return true;
+        })
+        .map((tab) => (tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab)),
+    [canReadAccounts, canReadMakerspaceStatus, statusLabel],
+  );
   const requestedTab = searchParams.get('tab');
   const selectedTabIndex = Math.max(
     0,
@@ -113,11 +147,14 @@ function UserDetailContent({ person }: { person: Person }) {
   useEffect(() => {
     if (!requestedTab) return;
     if (requestedTab !== 'overview' && availableTabs.some((tab) => tab.key === requestedTab)) return;
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('tab');
-      return next;
-    }, { replace: true });
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('tab');
+        return next;
+      },
+      { replace: true },
+    );
   }, [availableTabs, requestedTab, setSearchParams]);
   const selectTab = (tab: PersonDetailTab) => {
     setSearchParams((current) => {
@@ -142,7 +179,6 @@ function UserDetailContent({ person }: { person: Person }) {
     setAssignRoleOpen(true);
     selectTab('roles-permissions');
   };
-
 
   const profileSection = (
     <ProfileSection
@@ -173,7 +209,9 @@ function UserDetailContent({ person }: { person: Person }) {
       onEnableAccount={() => ctrl.enableMutation.mutate()}
     />
   );
-  const authenticationMethodsSection = account ? <AuthenticationMethodsSection account={account} access={access} ctrl={ctrl} /> : null;
+  const authenticationMethodsSection = account ? (
+    <AuthenticationMethodsSection account={account} access={access} ctrl={ctrl} />
+  ) : null;
   const rolesSection = (
     <RolesSection
       person={person}
@@ -181,7 +219,10 @@ function UserDetailContent({ person }: { person: Person }) {
       rolesById={ctrl.rolesById}
       canAssignRole={canAssignRole}
       onManageRoles={() => setAssignRoleOpen(true)}
-      onRemoveRole={(role) => { ctrl.roleMutation.reset(); ctrl.setRoleToRemove(role); }}
+      onRemoveRole={(role) => {
+        ctrl.roleMutation.reset();
+        ctrl.setRoleToRemove(role);
+      }}
     />
   );
   const makerspaceStatusSection = <MakerspaceStatusSection statusLabel={statusLabel} query={makerspaceStatusQuery} />;
@@ -200,7 +241,12 @@ function UserDetailContent({ person }: { person: Person }) {
       );
     }
     if (tab === 'account-access') {
-      return <Stack gap={6}>{accountAccessSection}{authenticationMethodsSection}</Stack>;
+      return (
+        <Stack gap={6}>
+          {accountAccessSection}
+          {authenticationMethodsSection}
+        </Stack>
+      );
     }
     if (tab === 'roles-permissions') return rolesSection;
     if (tab === 'makerspace-status') return makerspaceStatusSection;
@@ -217,15 +263,19 @@ function UserDetailContent({ person }: { person: Person }) {
           {personalInformationSection}
         </Column>
         <Column sm={4} md={5} lg={10} className="person-detail-overview__stack">
-          <Stack gap={6}>{authenticationMethodsSection}{rolesSection}</Stack>
+          <Stack gap={6}>
+            {authenticationMethodsSection}
+            {rolesSection}
+          </Stack>
         </Column>
         {canReadMakerspaceStatus && (
-          <Column sm={4} md={8} lg={16}>{makerspaceStatusSection}</Column>
+          <Column sm={4} md={8} lg={16}>
+            {makerspaceStatusSection}
+          </Column>
         )}
       </Grid>
     );
   };
-
 
   return (
     <Tabs
@@ -243,105 +293,128 @@ function UserDetailContent({ person }: { person: Person }) {
           { label: `${person.firstName} ${person.lastName}` },
         ]}
         description={`Personal details, account access, and ${statusLabel.toLowerCase()}.`}
-        actions={hasPersonActions ? (
-          <MenuButton label="Actions" kind="primary" menuAlignment="bottom-end" size="md">
-            {canEditPerson && !editingPerson && (
-              <MenuItem label="Edit person" onClick={startEditingPerson} />
-            )}
-            {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
-              <MenuItemDivider />
-            )}
-            {canEditLoginEmail && (
-              <MenuItem label={passwordIdentity ? 'Change password login email' : 'Add password login'} onClick={startEditingAccount} />
-            )}
-            {canCreateAccount && (
-              <MenuItem label="Create account" onClick={() => { setCreateAccountOpen(true); selectTab('account-access'); }} />
-            )}
-            {canAssignRole && (
-              <MenuItem label="Manage roles" onClick={openRoleManager} />
-            )}
-            {hasAccountActions && hasCredentialActions && <MenuItemDivider />}
-            {canSetPassword && (
-              <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />
-            )}
-            {canIssuePasswordReset && (
-              <MenuItem label="Send reset code" onClick={() => setConfirmKind('reset-password')} />
-            )}
-            {canInvite && (
-              <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />
-            )}
-            {canConfigurePIN && (
-              <MenuItem label={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'} onClick={() => setPINModalOpen(true)} />
-            )}
-          </MenuButton>
-        ) : undefined}
-        tabs={(
+        actions={
+          hasPersonActions ? (
+            <MenuButton label="Actions" kind="primary" menuAlignment="bottom-end" size="md">
+              {canEditPerson && !editingPerson && <MenuItem label="Edit person" onClick={startEditingPerson} />}
+              {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && <MenuItemDivider />}
+              {canEditLoginEmail && (
+                <MenuItem
+                  label={passwordIdentity ? 'Change password login email' : 'Add password login'}
+                  onClick={startEditingAccount}
+                />
+              )}
+              {canCreateAccount && (
+                <MenuItem
+                  label="Create account"
+                  onClick={() => {
+                    setCreateAccountOpen(true);
+                    selectTab('account-access');
+                  }}
+                />
+              )}
+              {canAssignRole && <MenuItem label="Manage roles" onClick={openRoleManager} />}
+              {hasAccountActions && hasCredentialActions && <MenuItemDivider />}
+              {canSetPassword && <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />}
+              {canIssuePasswordReset && (
+                <MenuItem label="Send reset code" onClick={() => setConfirmKind('reset-password')} />
+              )}
+              {canInvite && <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />}
+              {canConfigurePIN && (
+                <MenuItem
+                  label={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'}
+                  onClick={() => setPINModalOpen(true)}
+                />
+              )}
+            </MenuButton>
+          ) : undefined
+        }
+        tabs={
           <TabList aria-label="Person detail sections">
-            {availableTabs.map((tab) => <Tab key={tab.key}>{tab.label}</Tab>)}
+            {availableTabs.map((tab) => (
+              <Tab key={tab.key}>{tab.label}</Tab>
+            ))}
           </TabList>
-        )}
+        }
         className="person-detail-page"
       >
-      {mutationError && (
-        <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
-      )}
-      <div className="person-detail-layout">
-        <TabPanels>
-          {availableTabs.map((tab) => (
-            <TabPanel key={tab.key} className="person-detail-tab-panel">
-              {tab.key === selectedTab ? renderTabContent(tab.key) : null}
-            </TabPanel>
-          ))}
-        </TabPanels>
+        {mutationError && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Change not completed"
+            subtitle="The record may have changed. Reload it and try again."
+          />
+        )}
+        <div className="person-detail-layout">
+          <TabPanels>
+            {availableTabs.map((tab) => (
+              <TabPanel key={tab.key} className="person-detail-tab-panel">
+                {tab.key === selectedTab ? renderTabContent(tab.key) : null}
+              </TabPanel>
+            ))}
+          </TabPanels>
 
-      {resetSent && !manualSetupUrl && (
-        <Tile className="secret-tile">
-          <Stack gap={5}>
-            <InlineNotification kind="success" lowContrast hideCloseButton title="Message sent" subtitle="The one-time link was sent by email." />
-            {resetExpiresAt && <p className="section-description">Expires {formatDateTime(resetExpiresAt)}.</p>}
-            <div className="form-actions">
-              <Button kind="ghost" onClick={clearResetIssue}>Dismiss</Button>
-            </div>
-          </Stack>
-        </Tile>
-      )}
+          {resetSent && !manualSetupUrl && (
+            <Tile className="secret-tile">
+              <Stack gap={5}>
+                <InlineNotification
+                  kind="success"
+                  lowContrast
+                  hideCloseButton
+                  title="Message sent"
+                  subtitle="The one-time link was sent by email."
+                />
+                {resetExpiresAt && <p className="section-description">Expires {formatDateTime(resetExpiresAt)}.</p>}
+                <div className="form-actions">
+                  <Button kind="ghost" onClick={clearResetIssue}>
+                    Dismiss
+                  </Button>
+                </div>
+              </Stack>
+            </Tile>
+          )}
 
-      {(canDisableAccount || canDeleteAccount || canDeletePerson) && (
-        <Tile className="danger-zone">
-          <Stack gap={5}>
-            <div>
-              <h2>Danger zone</h2>
-              <p className="danger-zone__description">
-                These actions affect account access or permanently remove data.
-              </p>
-            </div>
-            <div className="button-cluster">
-              {canDisableAccount && (
-                <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('disable-account')}>
-                  Disable account
-                </Button>
-              )}
-              {canDeleteAccount && (
-                <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('delete-account')}>
-                  Delete account
-                </Button>
-              )}
-              {canDeletePerson && (
-                <Button kind="danger--tertiary" size="md" renderIcon={TrashCan} onClick={() => setConfirmKind('delete-person')}>
-                  Delete person
-                </Button>
-              )}
-            </div>
-          </Stack>
-        </Tile>
-      )}
-      </div>
+          {(canDisableAccount || canDeleteAccount || canDeletePerson) && (
+            <Tile className="danger-zone">
+              <Stack gap={5}>
+                <div>
+                  <h2>Danger zone</h2>
+                  <p className="danger-zone__description">
+                    These actions affect account access or permanently remove data.
+                  </p>
+                </div>
+                <div className="button-cluster">
+                  {canDisableAccount && (
+                    <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('disable-account')}>
+                      Disable account
+                    </Button>
+                  )}
+                  {canDeleteAccount && (
+                    <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('delete-account')}>
+                      Delete account
+                    </Button>
+                  )}
+                  {canDeletePerson && (
+                    <Button
+                      kind="danger--tertiary"
+                      size="md"
+                      renderIcon={TrashCan}
+                      onClick={() => setConfirmKind('delete-person')}
+                    >
+                      Delete person
+                    </Button>
+                  )}
+                </div>
+              </Stack>
+            </Tile>
+          )}
+        </div>
 
-
-      <AccountDialogs person={person} passwordIdentity={passwordIdentity} pinIdentity={pinIdentity} ctrl={ctrl} />
-      <RoleAndConfirmationDialogs person={person} ctrl={ctrl} />
+        <AccountDialogs person={person} passwordIdentity={passwordIdentity} pinIdentity={pinIdentity} ctrl={ctrl} />
+        <RoleAndConfirmationDialogs person={person} ctrl={ctrl} />
       </PageShell>
     </Tabs>
   );
 }
-

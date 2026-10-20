@@ -11,7 +11,19 @@ import { announcementFixture, displayFixture, ids, mockSignage } from './testFix
 describe('Announcements page', () => {
   it('lists active and scheduled announcements without write controls for readers', async () => {
     const later = new Date(Date.now() + 86_400_000).toISOString();
-    mockSignage([PermissionId.signageread], { displays: [displayFixture()], announcements: [announcementFixture(), announcementFixture({ id: ids.scene2, status: 'scheduled', startsAt: later, allDisplays: false, displayIds: [ids.display] })] });
+    mockSignage([PermissionId.signageread], {
+      displays: [displayFixture()],
+      announcements: [
+        announcementFixture(),
+        announcementFixture({
+          id: ids.scene2,
+          status: 'scheduled',
+          startsAt: later,
+          allDisplays: false,
+          displayIds: [ids.display],
+        }),
+      ],
+    });
     renderRoute(<App />, '/signage/announcements');
     expect(await screen.findByRole('table', { name: 'Active' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Scheduled' })).toBeInTheDocument();
@@ -24,9 +36,16 @@ describe('Announcements page', () => {
   });
 
   it('stops an announcement after confirmation', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signageoverride], { announcements: [announcementFixture({ version: 7 })] });
+    mockSignage([PermissionId.signageread, PermissionId.signageoverride], {
+      announcements: [announcementFixture({ version: 7 })],
+    });
     let body: unknown;
-    server.use(http.delete('*/api/v1/signage/announcements/:id', async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    server.use(
+      http.delete('*/api/v1/signage/announcements/:id', async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     renderRoute(<App />, '/signage/announcements');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Stop' }));
@@ -37,7 +56,12 @@ describe('Announcements page', () => {
   it('validates required fields and submits the typed values', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signageoverride]);
     let body: unknown;
-    server.use(http.post('*/api/v1/signage/announcements', async ({ request }) => { body = await request.json(); return HttpResponse.json(announcementFixture(), { status: 201 }); }));
+    server.use(
+      http.post('*/api/v1/signage/announcements', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(announcementFixture(), { status: 201 });
+      }),
+    );
     renderRoute(<App />, '/signage/announcements');
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'New announcement' }))[0]);
@@ -49,13 +73,25 @@ describe('Announcements page', () => {
     expect(within(dialog).getByText('Closed today – Holiday')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('radio', { name: 'After a duration' }));
     await user.click(within(dialog).getByRole('button', { name: 'Start now' }));
-    await waitFor(() => expect(body).toMatchObject({ templateId: ids.template, values: { reason: 'Holiday' }, allDisplays: true, displayIds: [], endsAt: expect.any(String) }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        templateId: ids.template,
+        values: { reason: 'Holiday' },
+        allDisplays: true,
+        displayIds: [],
+        endsAt: expect.any(String),
+      }),
+    );
     expect(body).not.toHaveProperty('startsAt');
   });
 
   it('maps a backend validation message to its field', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signageoverride]);
-    server.use(http.post('*/api/v1/signage/announcements', () => HttpResponse.json({ code: 'validation_failed', message: 'Reason is not an allowed choice' }, { status: 422 })));
+    server.use(
+      http.post('*/api/v1/signage/announcements', () =>
+        HttpResponse.json({ code: 'validation_failed', message: 'Reason is not an allowed choice' }, { status: 422 }),
+      ),
+    );
     renderRoute(<App />, '/signage/announcements');
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'New announcement' }))[0]);

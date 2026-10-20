@@ -43,22 +43,28 @@ describe('controlled visitor enrollment', () => {
         }),
       ),
       http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
-        submission = await request.json() as VisitorEnrollmentSubmission & { roleId?: string };
-        return HttpResponse.json({
-          personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
-          accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
-          accountStatus: 'enabled',
-          invitationDelivery: null,
-          labRulesRequestId: '0192f6f8-743e-7c77-a349-cd07c3e8ab04',
-          admission: 'blocked',
-        }, { status: 201 });
+        submission = (await request.json()) as VisitorEnrollmentSubmission & { roleId?: string };
+        return HttpResponse.json(
+          {
+            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+            accountStatus: 'enabled',
+            invitationDelivery: null,
+            labRulesRequestId: '0192f6f8-743e-7c77-a349-cd07c3e8ab04',
+            admission: 'blocked',
+          },
+          { status: 201 },
+        );
       }),
     );
     const user = userEvent.setup();
     const { queryClient } = renderRoute(<VisitorEnrollmentPage />, '/visitor-enrollment');
 
     expect(await screen.findByRole('heading', { name: 'Visitor enrollment' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute('href', '/api/v1/visitor-enrollment/lab-rules.pdf');
+    expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute(
+      'href',
+      '/api/v1/visitor-enrollment/lab-rules.pdf',
+    );
     expect(screen.queryByText(/password invitation/i)).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText('First name'), 'New');
@@ -68,8 +74,13 @@ describe('controlled visitor enrollment', () => {
     await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
     const upload = screen.getByLabelText('or upload a profile photo');
-    await user.upload(upload, new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }));
-    await user.click(screen.getByLabelText('I am ready to sign the physical Lab Rules document and request supervisor confirmation'));
+    await user.upload(
+      upload,
+      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
+    );
+    await user.click(
+      screen.getByLabelText('I am ready to sign the physical Lab Rules document and request supervisor confirmation'),
+    );
     await user.click(screen.getByRole('button', { name: 'Submit enrollment and request confirmation' }));
 
     expect(await screen.findByRole('heading', { name: 'Enrollment submitted' })).toBeInTheDocument();
@@ -86,7 +97,12 @@ describe('controlled visitor enrollment', () => {
     });
     expect(submission?.profileImageBase64).toBe('/9j/2Q==');
     expect(submission).not.toHaveProperty('roleId');
-    expect(queryClient.getMutationCache().getAll().every((mutation) => mutation.state.variables === undefined)).toBe(true);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .every((mutation) => mutation.state.variables === undefined),
+    ).toBe(true);
 
     await user.click(screen.getByRole('button', { name: 'Next visitor' }));
     expect(await screen.findByRole('heading', { name: 'Visitor enrollment' })).toBeInTheDocument();

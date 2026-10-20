@@ -16,11 +16,7 @@ test.skip(
 
 test.describe.configure({ mode: 'serial' });
 
-async function signIn(
-  page: import('@playwright/test').Page,
-  email: string,
-  password: string,
-) {
+async function signIn(page: import('@playwright/test').Page, email: string, password: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -53,9 +49,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByRole('heading', { name: 'Create role' })).toBeVisible();
     const createRoleDialog = page.getByRole('dialog');
     await createRoleDialog.getByLabel('Role name').fill('E2E workshop supervisors');
-    await createRoleDialog
-      .getByLabel('Description')
-      .fill('Browser-tested limited administration role.');
+    await createRoleDialog.getByLabel('Description').fill('Browser-tested limited administration role.');
     await createRoleDialog.getByRole('button', { name: 'Create role' }).click();
     await expect(page).toHaveURL(/\/settings\/roles$/);
     await page
@@ -68,20 +62,20 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByLabel('Minimum authentication assurance').selectOption('normal');
     await page.getByRole('button', { name: 'Done', exact: true }).click();
 
-    await page.getByRole('button', { name: 'Set Edit own profile for E2E workshop supervisors to Unconditional' }).click();
+    await page
+      .getByRole('button', { name: 'Set Edit own profile for E2E workshop supervisors to Unconditional' })
+      .click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
 
     await page.getByRole('button', { name: 'Review and save' }).click();
     const permissionReview = page.getByRole('dialog', {
       name: 'Review permission changes for E2E workshop supervisors',
     });
-    await permissionReview
-      .getByRole('button', { name: 'Save role permissions' })
-      .click();
+    await permissionReview.getByRole('button', { name: 'Save role permissions' }).click();
+    await expect(page.getByRole('region', { name: 'Permission draft' })).toBeHidden();
     await expect(
-      page.getByRole('region', { name: 'Permission draft' }),
-    ).toBeHidden();
-    await expect(page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ })).toBeVisible();
+      page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Actions for E2E workshop supervisors', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Edit role details' }).click();
@@ -104,9 +98,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Create person' }).click();
     await expect(page).toHaveURL(/\/people\/[0-9a-f-]+$/);
     personPath = new URL(page.url()).pathname;
-    await expect(
-      page.getByRole('heading', { name: 'Katherine Johnson' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Katherine Johnson' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
 
@@ -117,9 +109,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
     await assignRoleDialog.getByRole('button', { name: 'Assign role' }).click();
     await expect(
-      page
-        .getByLabel('Assigned roles')
-        .getByText('E2E workshop supervisors', { exact: true }),
+      page.getByLabel('Assigned roles').getByText('E2E workshop supervisors', { exact: true }),
     ).toBeVisible();
 
     await page.getByRole('button', { name: 'Actions', exact: true }).click();
@@ -128,22 +118,16 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       name: 'Katherine Johnson',
     });
     await createAccountDialog.getByLabel('Password login email (optional)').fill(memberLogin);
-    await createAccountDialog
-      .getByRole('button', { name: 'Create account' })
-      .click();
+    await createAccountDialog.getByRole('button', { name: 'Create account' }).click();
     await expect(createAccountDialog).toBeHidden();
     await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('No login methods', { exact: true })).toBeVisible();
     await expect(
-      page
-        .getByRole('tabpanel', { name: 'Account access' })
-        .getByText(memberLogin, { exact: true }),
+      page.getByRole('tabpanel', { name: 'Account access' }).getByText(memberLogin, { exact: true }),
     ).toBeVisible();
     await page.getByRole('tab', { name: 'Roles & permissions' }).click();
     await expect(
-      page
-        .getByLabel('Assigned roles')
-        .getByText('E2E workshop supervisors', { exact: true }),
+      page.getByLabel('Assigned roles').getByText('E2E workshop supervisors', { exact: true }),
     ).toBeVisible();
     await page.getByRole('tab', { name: 'Account access' }).click();
 
@@ -154,7 +138,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     const createdPersonId = personPath.split('/').at(-1)!;
     const personResponse = await page.request.get(`${origin}/api/v1/people/${createdPersonId}`);
     expect(personResponse.ok()).toBeTruthy();
-    const person = await personResponse.json() as { account: { id: string; version: number } };
+    const person = (await personResponse.json()) as { account: { id: string; version: number } };
     const csrfCookie = (await page.context().cookies()).find((cookie) => cookie.name.includes('csrf'));
     expect(csrfCookie).toBeDefined();
     const passwordResponse = await page.request.put(`${origin}/api/v1/accounts/${person.account.id}/password`, {
@@ -166,10 +150,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Actions for Local password' }).click();
     await expect(page.getByRole('menuitem', { name: 'Send reset code' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(
-      page.getByRole('button', { name: 'Disable account' }),
-    ).toBeVisible();
-
+    await expect(page.getByRole('button', { name: 'Disable account' })).toBeVisible();
   });
 
   await test.step('provision and sign in a phone-only PIN Account', async () => {
@@ -214,13 +195,9 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.goto(phoneOnlyPersonPath);
     await page.getByRole('button', { name: 'Actions for Username and PIN' }).click();
     await page.getByText('Create setup link', { exact: true }).click();
-    const resetLinkDialog = page
-      .getByRole('dialog')
-      .filter({ hasText: 'Create a PIN reset link?' });
+    const resetLinkDialog = page.getByRole('dialog').filter({ hasText: 'Create a PIN reset link?' });
     await resetLinkDialog.getByRole('button', { name: 'Create PIN reset link' }).click();
-    const manualLinkDialog = page
-      .getByRole('dialog')
-      .filter({ hasText: 'Manual setup link created' });
+    const manualLinkDialog = page.getByRole('dialog').filter({ hasText: 'Manual setup link created' });
     const setupURL = await manualLinkDialog.getByLabel('One-time setup link').inputValue();
     await manualLinkDialog.getByRole('button', { name: 'Done' }).click();
     await expect(manualLinkDialog).toBeHidden();
@@ -246,9 +223,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.goto('/people');
     await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
-    await expect(
-      page.getByRole('columnheader', { name: 'Matriculation number' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: 'Matriculation number' })).toHaveCount(0);
     await expect(page.getByRole('columnheader', { name: 'Status' })).toHaveCount(0);
     await expect(page.getByText('E2E-MAT-2042')).toHaveCount(0);
 

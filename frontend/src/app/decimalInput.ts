@@ -14,7 +14,10 @@ export type DecimalOptions = {
 const SHAPE = /^(\d+[.,]?\d*|[.,]\d+)$/;
 
 /** The API decimal string ("1.5") for typed text, or null when empty or not a valid number. */
-export function parseDecimalText(text: string | null | undefined, { places = 6, integer = false }: DecimalOptions = {}): string | null {
+export function parseDecimalText(
+  text: string | null | undefined,
+  { places = 6, integer = false }: DecimalOptions = {},
+): string | null {
   const value = (text ?? '').trim();
   if (!SHAPE.test(value)) return null;
   const [whole = '', fraction = ''] = value.replace(',', '.').split('.');
@@ -45,11 +48,16 @@ export function decimalValidator(options: ValidationOptions = {}) {
   const { optional = false, positive = false, integer = false, places = 6, max, requiredMessage } = options;
   return (text: string | null | undefined): true | string => {
     const value = (text ?? '').trim();
-    if (!value) return optional ? true : requiredMessage ?? 'Enter a number.';
+    if (!value) return optional ? true : (requiredMessage ?? 'Enter a number.');
     if (integer && /[.,]/.test(value) && SHAPE.test(value)) return 'Enter a whole number.';
     if (/^\d{1,3}(\.\d{3})+,\d*$/.test(value)) return 'Enter the number without thousands separators, e.g. 1234,5.';
     const parsed = parseDecimalText(value, { places, integer });
-    if (parsed === null) return SHAPE.test(value) ? `Use at most ${places} decimal places.` : integer ? 'Enter a whole number.' : 'Enter a number, e.g. 12,5 or 12.5.';
+    if (parsed === null)
+      return SHAPE.test(value)
+        ? `Use at most ${places} decimal places.`
+        : integer
+          ? 'Enter a whole number.'
+          : 'Enter a number, e.g. 12,5 or 12.5.';
     const number = Number(parsed);
     if (positive && number <= 0) return 'Enter a number above zero.';
     if (max !== undefined && number > max) return `Enter a number of at most ${max}.`;
@@ -58,4 +66,5 @@ export function decimalValidator(options: ValidationOptions = {}) {
 }
 
 /** Text for a stored number, shown in an input as the starting value. */
-export const decimalText = (value: number | string | null | undefined): string => value === null || value === undefined || value === '' ? '' : String(Number(value));
+export const decimalText = (value: number | string | null | undefined): string =>
+  value === null || value === undefined || value === '' ? '' : String(Number(value));

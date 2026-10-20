@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Button, InlineNotification, RadioButton, RadioButtonGroup, RadioTile, Select, SelectItem, Stack, TextInput, TileGroup, Toggle } from '@carbon/react';
+import {
+  Button,
+  InlineNotification,
+  RadioButton,
+  RadioButtonGroup,
+  RadioTile,
+  Select,
+  SelectItem,
+  Stack,
+  TextInput,
+  TileGroup,
+  Toggle,
+} from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useWatch } from 'react-hook-form';
@@ -18,11 +30,24 @@ const statusOptions: { value: MachineStatus; label: string }[] = [
   { value: 'retired', label: 'Retired' },
 ];
 
-export function MachineStep({ form, machine, onModelChange }: { form: SetupForm; machine: WizardMachine; onModelChange: (modelId: PrinterModelId) => void }) {
+export function MachineStep({
+  form,
+  machine,
+  onModelChange,
+}: {
+  form: SetupForm;
+  machine: WizardMachine;
+  onModelChange: (modelId: PrinterModelId) => void;
+}) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
-  const { control, register, setValue, formState: { errors } } = form;
+  const {
+    control,
+    register,
+    setValue,
+    formState: { errors },
+  } = form;
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState('');
   const [newProcess, setNewProcess] = useState<MachineProcess>('fdm_printing');
@@ -41,73 +66,174 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
       notify({ kind: 'success', title: 'Machine type added', subtitle: created.name });
       await client.invalidateQueries({ queryKey: machineLogbookKeys.machineTypes() });
       setValue('machineTypeId', created.id, { shouldValidate: true });
-      setNewType(''); setNewProcess('fdm_printing'); setAdding(false);
+      setNewType('');
+      setNewProcess('fdm_printing');
+      setAdding(false);
     },
   });
-  const addType = () => { if (trimmed && !taken && !create.isPending) create.mutate(); };
+  const addType = () => {
+    if (trimmed && !taken && !create.isPending) create.mutate();
+  };
 
   return (
     <Stack gap={6}>
       <TextInput
-        id="setup-name" labelText="Name" autoComplete="off" invalid={Boolean(errors.name)} invalidText={errors.name?.message}
-        {...register('name', { validate: (value) => !value.trim() ? 'Enter a machine name.' : value.trim().length > 150 ? 'Use at most 150 characters.' : true })}
+        id="setup-name"
+        labelText="Name"
+        autoComplete="off"
+        invalid={Boolean(errors.name)}
+        invalidText={errors.name?.message}
+        {...register('name', {
+          validate: (value) =>
+            !value.trim() ? 'Enter a machine name.' : value.trim().length > 150 ? 'Use at most 150 characters.' : true,
+        })}
       />
       <div>
         <Select
           key={typesQuery.isSuccess ? 'loaded' : 'loading'}
-          id="setup-type" labelText="Machine type" helperText="Inactive types stay on existing machines but can't be chosen for new ones."
-          invalid={Boolean(errors.machineTypeId)} invalidText={errors.machineTypeId?.message}
+          id="setup-type"
+          labelText="Machine type"
+          helperText="Inactive types stay on existing machines but can't be chosen for new ones."
+          invalid={Boolean(errors.machineTypeId)}
+          invalidText={errors.machineTypeId?.message}
           {...register('machineTypeId', { required: 'Choose a machine type.' })}
         >
           <SelectItem value="" text="Choose a type" />
-          {types.map((type) => <SelectItem key={type.id} value={type.id} text={type.active ? type.name : `${type.name} (inactive)`} />)}
+          {types.map((type) => (
+            <SelectItem key={type.id} value={type.id} text={type.active ? type.name : `${type.name} (inactive)`} />
+          ))}
         </Select>
-        {typesQuery.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Machine types could not be loaded" subtitle="Close and reopen this dialog to retry." />}
-        {can('machines.manage') && !adding && <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setAdding(true)}>New type</Button>}
+        {typesQuery.isError && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Machine types could not be loaded"
+            subtitle="Close and reopen this dialog to retry."
+          />
+        )}
+        {can('machines.manage') && !adding && (
+          <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setAdding(true)}>
+            New type
+          </Button>
+        )}
         {adding && (
           <div className="mj-inline-form">
             <TextInput
-              id="setup-new-type" labelText="New type name" size="sm" value={newType} autoComplete="off" invalid={taken} invalidText="This name is already used."
-              onChange={(event) => setNewType(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addType(); } }}
+              id="setup-new-type"
+              labelText="New type name"
+              size="sm"
+              value={newType}
+              autoComplete="off"
+              invalid={taken}
+              invalidText="This name is already used."
+              onChange={(event) => setNewType(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addType();
+                }
+              }}
             />
             <span className="mj-inline">
-              <Select id="setup-new-type-process" labelText="Process" size="sm" value={newProcess} onChange={(event) => setNewProcess(event.target.value as MachineProcess)}>
-                {processOptions.map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
+              <Select
+                id="setup-new-type-process"
+                labelText="Process"
+                size="sm"
+                value={newProcess}
+                onChange={(event) => setNewProcess(event.target.value as MachineProcess)}
+              >
+                {processOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id} text={option.label} />
+                ))}
               </Select>
-              <Button kind="tertiary" size="sm" disabled={!trimmed || taken || create.isPending} onClick={addType}>Add</Button>
-              <Button kind="ghost" size="sm" onClick={() => { setAdding(false); setNewType(''); }}>Cancel</Button>
+              <Button kind="tertiary" size="sm" disabled={!trimmed || taken || create.isPending} onClick={addType}>
+                Add
+              </Button>
+              <Button
+                kind="ghost"
+                size="sm"
+                onClick={() => {
+                  setAdding(false);
+                  setNewType('');
+                }}
+              >
+                Cancel
+              </Button>
             </span>
-            {create.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Machine type not added" subtitle="Check that the name is unique and try again." />}
+            {create.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Machine type not added"
+                subtitle="Check that the name is unique and try again."
+              />
+            )}
           </div>
         )}
       </div>
       <Controller
-        control={control} name="status"
+        control={control}
+        name="status"
         render={({ field }) => (
           <RadioButtonGroup
-            legendText="Status" name="setup-status" orientation="vertical" valueSelected={field.value}
+            legendText="Status"
+            name="setup-status"
+            orientation="vertical"
+            valueSelected={field.value}
             helperText="Status is administrative. Only Retired blocks new jobs and automatic ingest; Active and Maintenance both still accept them."
             onChange={(value) => field.onChange(value)}
           >
-            {statusOptions.map((option) => <RadioButton key={option.value} id={`setup-status-${option.value}`} value={option.value} labelText={option.label} />)}
+            {statusOptions.map((option) => (
+              <RadioButton
+                key={option.value}
+                id={`setup-status-${option.value}`}
+                value={option.value}
+                labelText={option.label}
+              />
+            ))}
           </RadioButtonGroup>
         )}
       />
       <Controller
-        control={control} name="automaticCollectionEnabled"
-        render={({ field }) => <Toggle id="setup-auto" labelText="Automatic collection" labelA="Off" labelB="On" toggled={field.value} onToggle={(checked) => field.onChange(checked)} />}
+        control={control}
+        name="automaticCollectionEnabled"
+        render={({ field }) => (
+          <Toggle
+            id="setup-auto"
+            labelText="Automatic collection"
+            labelA="Off"
+            labelB="On"
+            toggled={field.value}
+            onToggle={(checked) => field.onChange(checked)}
+          />
+        )}
       />
       <TextInput
-        id="setup-external" labelText="External identifier (optional)" autoComplete="off" disabled={!automatic}
+        id="setup-external"
+        labelText="External identifier (optional)"
+        autoComplete="off"
+        disabled={!automatic}
         helperText="Serial number or ID used by the machine's connector. Needs automatic collection."
         {...register('externalIdentifier', { maxLength: 200 })}
       />
       {selectedType?.process === 'fdm_printing' && (
         <Controller
-          control={control} name="modelId"
+          control={control}
+          name="modelId"
           render={({ field }) => (
             <div>
-              <TileGroup<string> legend="Model" name="setup-model" className="mj-tile-grid" valueSelected={field.value} onChange={(value) => { field.onChange(value); onModelChange(value as PrinterModelId); }}>
+              <TileGroup<string>
+                legend="Model"
+                name="setup-model"
+                className="mj-tile-grid"
+                valueSelected={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  onModelChange(value as PrinterModelId);
+                }}
+              >
                 {printerModels.map((model) => (
                   <RadioTile key={model.id} id={`setup-model-${model.id}`} value={model.id}>
                     <span className="mj-tile-title">{model.label}</span>
@@ -115,7 +241,9 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
                   </RadioTile>
                 ))}
               </TileGroup>
-              <p className="mj-secondary">The model sets up the spool inputs and the printer adapter. Choose one to continue.</p>
+              <p className="mj-secondary">
+                The model sets up the spool inputs and the printer adapter. Choose one to continue.
+              </p>
             </div>
           )}
         />

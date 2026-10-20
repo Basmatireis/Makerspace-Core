@@ -1,9 +1,4 @@
-import type {
-  CurrentUser,
-  PermissionGrant,
-  PermissionId as PermissionIdType,
-  Role,
-} from '../../api/generated/models';
+import type { CurrentUser, PermissionGrant, PermissionId as PermissionIdType, Role } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 
 export { PermissionId };
@@ -17,9 +12,7 @@ export function permissionGrantDeviceTypeIds(
   return Array.isArray(grant.deviceTypeIds) ? grant.deviceTypeIds : [];
 }
 
-export function normalizePermissionGrants(
-  grants: readonly PermissionGrant[],
-): PermissionGrant[] {
+export function normalizePermissionGrants(grants: readonly PermissionGrant[]): PermissionGrant[] {
   return grants.map((grant) => ({
     permissionId: grant.permissionId,
     scope: grant.scope,
@@ -28,17 +21,11 @@ export function normalizePermissionGrants(
   }));
 }
 
-export function hasPermission(
-  currentUser: CurrentUser,
-  permission: PermissionIdType,
-): boolean {
+export function hasPermission(currentUser: CurrentUser, permission: PermissionIdType): boolean {
   return currentUser.permissions.includes(permission);
 }
 
-export function hasAnyPermission(
-  currentUser: CurrentUser,
-  permissions: readonly PermissionIdType[],
-): boolean {
+export function hasAnyPermission(currentUser: CurrentUser, permissions: readonly PermissionIdType[]): boolean {
   return permissions.some((permission) => hasPermission(currentUser, permission));
 }
 
@@ -59,25 +46,23 @@ export function isOwnPerson(currentUser: CurrentUser, personId: string): boolean
 export function canReadPerson(currentUser: CurrentUser, personId: string): boolean {
   return (
     hasPermission(currentUser, PermissionId.peoplereadall) ||
-    (isOwnPerson(currentUser, personId) &&
-      hasPermission(currentUser, PermissionId.peoplereadself))
+    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, PermissionId.peoplereadself))
   );
 }
 
 export function canUpdatePerson(currentUser: CurrentUser, personId: string): boolean {
   return (
     hasPermission(currentUser, PermissionId.peopleupdateall) ||
-    (isOwnPerson(currentUser, personId) &&
-      hasPermission(currentUser, PermissionId.peopleupdateself))
+    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, PermissionId.peopleupdateself))
   );
 }
 
 export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.rolesread,
   PermissionId.managed_devicesread,
-	PermissionId.session_policiesmanage,
-	PermissionId.surveysread,
-	PermissionId.surveysmanage,
+  PermissionId.session_policiesmanage,
+  PermissionId.surveysread,
+  PermissionId.surveysmanage,
   PermissionId.laborordnungread,
   PermissionId.laborordnungmanage,
   PermissionId.laborordnungrequestsread,
@@ -95,10 +80,7 @@ export function canAccessSettings(currentUser: CurrentUser): boolean {
 }
 
 export function canAccessOpenDays(currentUser: CurrentUser): boolean {
-  return hasAnyPermission(currentUser, [
-    PermissionId.open_daysread,
-    PermissionId.open_daysmanage,
-  ]);
+  return hasAnyPermission(currentUser, [PermissionId.open_daysread, PermissionId.open_daysmanage]);
 }
 
 export const machineLogbookPermissions: readonly PermissionIdType[] = [
@@ -120,9 +102,7 @@ export function canManageRoleMembership(
     return false;
   }
 
-  const isMasterActor = currentUser.person.roles.some(
-    (assignedRole) => assignedRole.systemKey === 'master',
-  );
+  const isMasterActor = currentUser.person.roles.some((assignedRole) => assignedRole.systemKey === 'master');
   if (isMasterActor) {
     return true;
   }
@@ -143,19 +123,23 @@ export function grantCoveredBy(own: PermissionGrant, requested: PermissionGrant)
   return permissionGrantDeviceTypeIds(requested).every((id) => permissionGrantDeviceTypeIds(own).includes(id));
 }
 
-export function permissionGrantCoveredBy(
-  ownGrants: readonly PermissionGrant[],
-  requested: PermissionGrant,
-): boolean {
-  const candidates = ownGrants.filter((own) =>
-    own.permissionId === requested.permissionId &&
-    assuranceRank(own.minimumAssurance) <= assuranceRank(requested.minimumAssurance));
+export function permissionGrantCoveredBy(ownGrants: readonly PermissionGrant[], requested: PermissionGrant): boolean {
+  const candidates = ownGrants.filter(
+    (own) =>
+      own.permissionId === requested.permissionId &&
+      assuranceRank(own.minimumAssurance) <= assuranceRank(requested.minimumAssurance),
+  );
   if (requested.scope !== 'selectedDeviceTypes') {
     return candidates.some((own) => grantCoveredBy(own, requested));
   }
-  return permissionGrantDeviceTypeIds(requested).every((deviceTypeId) => candidates.some((own) =>
-    own.scope === 'everywhere' || own.scope === 'anyManagedDevice' ||
-    (own.scope === 'selectedDeviceTypes' && permissionGrantDeviceTypeIds(own).includes(deviceTypeId))));
+  return permissionGrantDeviceTypeIds(requested).every((deviceTypeId) =>
+    candidates.some(
+      (own) =>
+        own.scope === 'everywhere' ||
+        own.scope === 'anyManagedDevice' ||
+        (own.scope === 'selectedDeviceTypes' && permissionGrantDeviceTypeIds(own).includes(deviceTypeId)),
+    ),
+  );
 }
 
 function assuranceRank(value: PermissionGrant['minimumAssurance']) {
@@ -163,12 +147,15 @@ function assuranceRank(value: PermissionGrant['minimumAssurance']) {
 }
 
 export function permissionGrantsValid(grants: readonly PermissionGrant[]) {
-  return grants.length === new Set(grants.map((grant) => JSON.stringify([
-    grant.permissionId, grant.scope, grant.minimumAssurance,
-  ]))).size && grants.every((grant) =>
-    permissionGrantDeviceTypeIds(grant).length === new Set(permissionGrantDeviceTypeIds(grant)).size &&
-    (grant.scope === 'selectedDeviceTypes'
-      ? permissionGrantDeviceTypeIds(grant).length > 0
-      : permissionGrantDeviceTypeIds(grant).length === 0),
+  return (
+    grants.length ===
+      new Set(grants.map((grant) => JSON.stringify([grant.permissionId, grant.scope, grant.minimumAssurance]))).size &&
+    grants.every(
+      (grant) =>
+        permissionGrantDeviceTypeIds(grant).length === new Set(permissionGrantDeviceTypeIds(grant)).size &&
+        (grant.scope === 'selectedDeviceTypes'
+          ? permissionGrantDeviceTypeIds(grant).length > 0
+          : permissionGrantDeviceTypeIds(grant).length === 0),
+    )
   );
 }
