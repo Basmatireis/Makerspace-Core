@@ -82,7 +82,7 @@
 .sg-layout-tile.cds--tile { min-inline-size: 0; padding: $spacing-04; }
 .sg-layout-tile .cds--tile-content { display: grid; justify-items: start; gap: $spacing-03; }
 .sg-layout-tile__name { @include type-style('heading-compact-01'); }
-.sg-sketch { display: grid; gap: 2px; inline-size: 100%; padding: 2px; background: var(--cds-layer-accent-01); }
+.sg-sketch { display: grid; gap: $spacing-01; inline-size: 100%; padding: $spacing-01; background: var(--cds-layer-accent-01); }
 .sg-sketch--portrait { max-inline-size: 3.5rem; aspect-ratio: 9 / 16; }
 .sg-sketch--landscape { max-inline-size: 5.5rem; aspect-ratio: 16 / 9; }
 .sg-sketch__zone { border: 1px solid var(--cds-border-strong); background: var(--cds-layer); }

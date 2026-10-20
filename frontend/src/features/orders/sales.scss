@@ -104,6 +104,7 @@
 .sales-receipt__note { @include type-style('helper-text-01'); margin: 0; }
 .sales-receipt__foot { @include type-style('helper-text-01'); padding-block-start: $spacing-04; border-block-start: 1px solid var(--cds-border-subtle); color: var(--cds-text-secondary); }
 
+// Print layout: paper is always white on black text, whatever the screen theme or branding is.
 @media print {
   body:has(.sales-receipt-page) { background: #fff; }
   body:has(.sales-receipt-page) .cds--header,

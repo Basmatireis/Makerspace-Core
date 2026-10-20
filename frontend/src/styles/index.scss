@@ -1382,19 +1382,20 @@ body.cds--body--with-modal-open .app-main > * {
 .roles-access-control__option--active {
   border-color: var(--cds-button-primary);
   background: var(--cds-button-primary);
-  color: #fff;
-  -webkit-text-fill-color: #fff;
+  color: var(--cds-text-on-color);
+  -webkit-text-fill-color: var(--cds-text-on-color);
 }
 
 .roles-access-control__option--active:last-child {
   border-inline-end-color: var(--cds-button-primary);
 }
 
+// The hover shade is derived from the (brandable) primary colour, so it mixes with black instead of using a fixed theme token.
 .roles-access-control__option--active:hover {
   border-color: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
   background: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
-  color: #fff !important;
-  -webkit-text-fill-color: #fff !important;
+  color: var(--cds-text-on-color) !important;
+  -webkit-text-fill-color: var(--cds-text-on-color) !important;
 }
 
 .roles-access-control__option:disabled {
@@ -1403,8 +1404,8 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-access-control__option--active:disabled {
-  color: #fff !important;
-  -webkit-text-fill-color: #fff !important;
+  color: var(--cds-text-on-color) !important;
+  -webkit-text-fill-color: var(--cds-text-on-color) !important;
 }
 
 .roles-matrix__cell-button:not([aria-disabled='true']) {
@@ -1720,7 +1721,7 @@ body.cds--body--with-modal-open .app-main > * {
   width: min(100%, 28rem);
   padding: $spacing-08;
   overflow: hidden;
-  background: #fff;
+  background: var(--cds-background);
   box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
 }
 

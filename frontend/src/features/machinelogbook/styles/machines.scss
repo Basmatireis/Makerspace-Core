@@ -47,4 +47,4 @@
 .mj-color-field__swatch { margin-block-start: 2.25rem; inline-size: 1.5rem; block-size: 1.5rem; }
 
 .mj-color-hint { display: flex; align-items: center; gap: 0.25rem; margin-block-start: 0.25rem; color: var(--cds-text-secondary); font-size: var(--cds-label-01-font-size, 0.75rem); }
-.mj-color-hint svg { fill: var(--cds-support-warning, #f1c21b); flex: none; }
+.mj-color-hint svg { fill: var(--cds-support-warning); flex: none; }
