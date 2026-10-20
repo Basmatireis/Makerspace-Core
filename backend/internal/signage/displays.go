@@ -25,6 +25,7 @@ type Display struct {
 	Orientation         string
 	Resolution          Resolution
 	VisibleFromOutside  bool
+	AllowCameraOutside  bool
 	DefaultPlaylistID   uuid.UUID
 	Status              string // online | offline | revoked
 	RevokedAt           *time.Time
@@ -50,6 +51,8 @@ type DisplayInput struct {
 	Orientation        string
 	Resolution         Resolution
 	VisibleFromOutside bool
+	// AllowCameraOutside nil means unchanged on update and false when pairing.
+	AllowCameraOutside *bool
 	DefaultPlaylistID  uuid.UUID
 }
 
@@ -66,7 +69,7 @@ func (s *Service) displayFromView(row viewRow) Display {
 	now := s.now()
 	display := Display{
 		ID: row.ID, ManagedDeviceID: row.ManagedDeviceID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
-		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside,
+		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 		DefaultPlaylistID: row.DefaultPlaylistID, LastHeartbeatAt: fromPgTime(row.LastHeartbeatAt), PendingChanges: []PendingChange{},
 		ReportedRevision: intPointer(row.ReportedRevision), CurrentRule: row.CurrentRule, CurrentSceneID: row.CurrentSceneID,
 		PlayerVersion: row.PlayerVersion, CacheUsedBytes: row.CacheUsedBytes, CacheQuotaBytes: row.CacheQuotaBytes, Errors: []string{},
@@ -358,9 +361,13 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 			return Display{}, validation("%d rule(s) show a scene with another orientation; change those rules first", mismatched)
 		}
 	}
+	allowOutside := current.AllowCameraOutside
+	if checked.AllowCameraOutside != nil {
+		allowOutside = *checked.AllowCameraOutside
+	}
 	if _, err := q.UpdateSignageDisplay(ctx, signagedb.UpdateSignageDisplayParams{
 		Name: checked.Name, Location: checked.Location, Orientation: checked.Orientation, ResolutionWidth: int32(checked.Resolution.Width),
-		ResolutionHeight: int32(checked.Resolution.Height), VisibleFromOutside: checked.VisibleFromOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
+		ResolutionHeight: int32(checked.Resolution.Height), VisibleFromOutside: checked.VisibleFromOutside, AllowCameraOutside: allowOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
 		ID: id, ExpectedVersion: expected,
 	}); errors.Is(err, pgx.ErrNoRows) {
 		return Display{}, apperror.StaleWrite
@@ -383,8 +390,18 @@ func (s *Service) UpdateDisplay(ctx context.Context, principal authorization.Pri
 	if current.VisibleFromOutside != checked.VisibleFromOutside {
 		changed = append(changed, "visibleFromOutside")
 	}
+	if current.AllowCameraOutside != allowOutside {
+		changed = append(changed, "allowCameraOutside")
+	}
 	if current.DefaultPlaylistID != checked.DefaultPlaylistID {
 		changed = append(changed, "defaultPlaylistId")
+	}
+	// Camera tickets stop at once when the display loses the right to show cameras to the outside;
+	// running sessions are dropped through the gateways' session epoch.
+	if cameraAllowed(current.VisibleFromOutside, current.AllowCameraOutside) && !cameraAllowed(checked.VisibleFromOutside, allowOutside) {
+		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
+			return Display{}, err
+		}
 	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.updated", "signage_display", id, requestID, changed); err != nil {
 		return Display{}, err
@@ -428,6 +445,9 @@ func (s *Service) RevokeDisplay(ctx context.Context, principal authorization.Pri
 		return Display{}, err
 	}
 	if err := manageddevices.RevokeSignagePlayerDeviceTx(ctx, tx, principal, current.ManagedDeviceID, requestID); err != nil {
+		return Display{}, err
+	}
+	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
 		return Display{}, err
 	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.revoked", "signage_display", id, requestID, []string{"revokedAt"}); err != nil {
@@ -474,8 +494,34 @@ func (s *Service) DeleteDisplay(ctx context.Context, principal authorization.Pri
 	if err := manageddevices.DeleteSignagePlayerDeviceTx(ctx, tx, principal, deviceID, requestID); err != nil {
 		return err
 	}
+	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
+		return err
+	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.deleted", "signage_display", id, requestID, nil); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// cameraAllowed tells whether a display may receive camera stream tickets: displays that are visible
+// from outside need the explicit allowCameraOutside setting.
+func cameraAllowed(visibleFromOutside, allowCameraOutside bool) bool {
+	return !visibleFromOutside || allowCameraOutside
+}
+
+// revokedDisplayRetention is how long gateways keep refusing tickets of a revoked display (longer
+// than any ticket lives).
+const revokedDisplayRetention = 24 * time.Hour
+
+// dropDisplaySessions records a revoked or deleted display for the gateways (ticket refusal list) and
+// bumps the session epoch so that running camera sessions are dropped. It runs in the revoking
+// transaction.
+func dropDisplaySessions(ctx context.Context, q *signagedb.Queries, displayID uuid.UUID, now time.Time) error {
+	if err := q.PruneRevokedSignageDisplays(ctx, now.Add(-revokedDisplayRetention)); err != nil {
+		return err
+	}
+	if err := q.RecordRevokedSignageDisplay(ctx, displayID); err != nil {
+		return err
+	}
+	return q.BumpStreamingSessionEpoch(ctx)
 }

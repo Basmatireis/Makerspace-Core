@@ -235,13 +235,13 @@ SELECT id, name FROM machines WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 -- Displays ----------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageDisplay :one
-INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, default_playlist_id)
+INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, allow_camera_outside, default_playlist_id)
 VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(name), sqlc.arg(location), sqlc.arg(orientation), sqlc.arg(resolution_width),
-        sqlc.arg(resolution_height), sqlc.arg(visible_from_outside), sqlc.arg(default_playlist_id))
+        sqlc.arg(resolution_height), sqlc.arg(visible_from_outside), sqlc.arg(allow_camera_outside), sqlc.arg(default_playlist_id))
 RETURNING id;
 
 -- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -253,7 +253,7 @@ LEFT JOIN signage_display_states s ON s.display_id = d.id
 ORDER BY lower(d.name), d.id;
 
 -- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -265,23 +265,35 @@ LEFT JOIN signage_display_states s ON s.display_id = d.id
 WHERE d.id = sqlc.arg(id);
 
 -- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = sqlc.arg(id) FOR UPDATE OF d;
 
 -- name: GetSignageDisplayByDevice :one
-SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.revoked_at, md.revoked_at AS device_revoked_at
+SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.managed_device_id = sqlc.arg(managed_device_id);
 
 -- name: UpdateSignageDisplay :one
 UPDATE signage_displays
 SET name = sqlc.arg(name), location = sqlc.arg(location), orientation = sqlc.arg(orientation), resolution_width = sqlc.arg(resolution_width),
-    resolution_height = sqlc.arg(resolution_height), visible_from_outside = sqlc.arg(visible_from_outside), default_playlist_id = sqlc.arg(default_playlist_id),
+    resolution_height = sqlc.arg(resolution_height), visible_from_outside = sqlc.arg(visible_from_outside), allow_camera_outside = sqlc.arg(allow_camera_outside), default_playlist_id = sqlc.arg(default_playlist_id),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND revoked_at IS NULL
 RETURNING id;
+
+-- name: BumpStreamingSessionEpoch :exec
+-- Drops running camera sessions: gateways restart go2rtc when the epoch changes.
+WITH bumped AS (UPDATE streaming_session_epoch SET epoch = epoch + 1 WHERE singleton RETURNING epoch)
+UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, updated_at = now()
+WHERE lifecycle IN ('pending', 'active', 'disabled') AND EXISTS (SELECT 1 FROM bumped);
+
+-- name: RecordRevokedSignageDisplay :exec
+INSERT INTO signage_revoked_displays (display_id) VALUES (sqlc.arg(display_id)) ON CONFLICT (display_id) DO NOTHING;
+
+-- name: PruneRevokedSignageDisplays :exec
+DELETE FROM signage_revoked_displays WHERE revoked_at < sqlc.arg(older_than);
 
 -- name: BumpSignageDisplayVersion :one
 UPDATE signage_displays SET version = version + 1, updated_at = now()

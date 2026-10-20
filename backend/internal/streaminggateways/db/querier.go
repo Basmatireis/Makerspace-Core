@@ -6,6 +6,7 @@ package streaminggatewaysdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -13,6 +14,7 @@ import (
 
 type Querier interface {
 	ActivateGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error)
+	ActivatePendingTicketKey(ctx context.Context) error
 	// Cameras ------------------------------------------------------------------------------------------------------
 	ActiveBambuAssignmentForMachine(ctx context.Context, machineID uuid.UUID) (ActiveBambuAssignmentForMachineRow, error)
 	AuthenticateGateway(ctx context.Context, tokenDigest []byte) (AuthenticateGatewayRow, error)
@@ -38,17 +40,21 @@ type Querier interface {
 	GetGatewayCredential(ctx context.Context, arg GetGatewayCredentialParams) (StreamingGatewayCredential, error)
 	GetGatewayEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (StreamingGatewayEnrollment, error)
 	GetGatewayForUpdate(ctx context.Context, id uuid.UUID) (StreamingGateway, error)
+	GetPendingTicketKey(ctx context.Context) (SignageTicketKey, error)
+	GetSessionEpoch(ctx context.Context) (int64, error)
 	InsertTicketKey(ctx context.Context, arg InsertTicketKeyParams) (int64, error)
 	ListCameraViews(ctx context.Context, gatewayID *uuid.UUID) ([]ListCameraViewsRow, error)
 	ListEnabledActiveCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListGatewayCameraMachines(ctx context.Context, gatewayID uuid.UUID) ([]ListGatewayCameraMachinesRow, error)
 	ListGatewayConfigCameras(ctx context.Context, gatewayID uuid.UUID) ([]ListGatewayConfigCamerasRow, error)
 	ListGateways(ctx context.Context) ([]StreamingGateway, error)
+	ListRevokedDisplayIDs(ctx context.Context, revokedAfter time.Time) ([]uuid.UUID, error)
 	ListStreamCamerasForMachines(ctx context.Context, machineIds []string) ([]ListStreamCamerasForMachinesRow, error)
 	ListValidTicketKeys(ctx context.Context, retiredAfter pgtype.Timestamptz) ([]ListValidTicketKeysRow, error)
+	LockTicketKeys(ctx context.Context) ([]uuid.UUID, error)
 	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	RecordGatewayHeartbeat(ctx context.Context, arg RecordGatewayHeartbeatParams) (StreamingGateway, error)
-	RetireTicketKeys(ctx context.Context, retiredAt pgtype.Timestamptz) error
+	RetireActiveTicketKey(ctx context.Context, retiredAt pgtype.Timestamptz) error
 	RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (StreamingGateway, error)
 	RevokeGatewayCredentials(ctx context.Context, gatewayID uuid.UUID) error
 	// Enrollment and credentials -----------------------------------------------------------------------------------

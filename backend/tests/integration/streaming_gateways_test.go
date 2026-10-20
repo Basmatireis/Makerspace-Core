@@ -18,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streamticket"
 	"github.com/google/uuid"
@@ -532,7 +533,7 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 	}
 	// The private key is stored encrypted and never leaves Core.
 	var encrypted []byte
-	if err = g.pool.QueryRow(ctx, `SELECT encrypted_private_key FROM signage_ticket_keys WHERE retired_at IS NULL`).Scan(&encrypted); err != nil || len(encrypted) < 48 {
+	if err = g.pool.QueryRow(ctx, `SELECT encrypted_private_key FROM signage_ticket_keys WHERE state = 'active'`).Scan(&encrypted); err != nil || len(encrypted) < 48 {
 		t.Fatalf("stored key: %v", err)
 	}
 	seed, err := g.keyring.Decrypt(encrypted, "signage-ticket-key:"+mustSingleKeyID(t, g, ctx))
@@ -579,37 +580,18 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 		t.Fatalf("camera without an active printer assignment: %v", cams)
 	}
 
-	// Ticket key rotation keeps the old public key for ten minutes.
-	service, err := streaminggateways.NewService(g.pool, [][]byte{gatewayTestKey})
-	if err != nil {
-		t.Fatal(err)
+	if configuration["sessionEpoch"] == nil || configuration["revokedDisplayIds"] == nil {
+		t.Fatalf("configuration lacks the session epoch fields: %v", configuration)
 	}
-	if err = service.RotateTicketKey(ctx); err != nil {
-		t.Fatal(err)
-	}
-	rotated := g.configuration(identity)["ticketPublicKeys"].([]any)
-	if len(rotated) != 2 || rotated[0].(map[string]any)["validUntil"] != nil || rotated[1].(map[string]any)["kid"] != key["kid"] {
-		t.Fatalf("keys after rotation = %v", rotated)
-	}
-	until, err := time.Parse(time.RFC3339, rotated[1].(map[string]any)["validUntil"].(string))
-	if err != nil || time.Until(until) < 9*time.Minute || time.Until(until) > 10*time.Minute+time.Second {
-		t.Fatalf("old key valid until %v (%v)", until, err)
-	}
-	if _, err = g.pool.Exec(ctx, `UPDATE signage_ticket_keys SET retired_at = now() - interval '11 minutes' WHERE retired_at IS NOT NULL`); err != nil {
-		t.Fatal(err)
-	}
-	if after := g.configuration(identity)["ticketPublicKeys"].([]any); len(after) != 1 {
-		t.Fatalf("expired key still listed: %v", after)
-	}
-	if g.countAudit("signage_ticket_key.created") != 1 || g.countAudit("signage_ticket_key.rotated") != 1 {
-		t.Fatal("key creation and rotation must be audited")
+	if g.countAudit("signage_ticket_key.created") != 1 {
+		t.Fatal("key creation must be audited")
 	}
 }
 
 func mustSingleKeyID(t *testing.T, g *gatewayEnv, ctx context.Context) string {
 	t.Helper()
 	var id string
-	if err := g.pool.QueryRow(ctx, `SELECT id::text FROM signage_ticket_keys WHERE retired_at IS NULL`).Scan(&id); err != nil {
+	if err := g.pool.QueryRow(ctx, `SELECT id::text FROM signage_ticket_keys WHERE state = 'active'`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -763,5 +745,307 @@ func TestPlayerLiveStreams(t *testing.T) {
 	body := rawBody(t, response, http.StatusUnauthorized)
 	if strings.Contains(body, "ticket") || strings.Contains(body, "webrtcUrl") {
 		t.Fatalf("revoked display response: %s", body)
+	}
+}
+
+func (g *gatewayEnv) keyStates() map[string]int {
+	g.t.Helper()
+	rows, err := g.pool.Query(testContext(g.t), `SELECT state, count(*) FROM signage_ticket_keys GROUP BY state`)
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	defer rows.Close()
+	result := map[string]int{}
+	for rows.Next() {
+		var state string
+		var count int
+		if err = rows.Scan(&state, &count); err != nil {
+			g.t.Fatal(err)
+		}
+		result[state] = count
+	}
+	return result
+}
+
+func ticketKid(t *testing.T, ticket string) string {
+	t.Helper()
+	payload, err := base64.RawURLEncoding.DecodeString(strings.SplitN(ticket, ".", 2)[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claims struct {
+		KeyID string `json:"kid"`
+	}
+	if err = json.Unmarshal(payload, &claims); err != nil {
+		t.Fatal(err)
+	}
+	return claims.KeyID
+}
+
+func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
+	g := newGatewayEnv(t)
+	ctx := testContext(t)
+	gateway, identity := g.enrolledGateway("Rotation gateway", "gw.example.org")
+	machine := g.bambu("Rotation printer", "bambu_h2d", "192.168.1.60", "ROT12345")
+	g.expect(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+gateway["id"].(string)+"/cameras", map[string]any{"machineId": machine.String(), "enabled": true}), http.StatusCreated)
+	const path = "/local-services/ticket-key/rotation"
+
+	// Only local_services.manage may rotate; nothing changes behind the 403.
+	for _, staff := range []staffSession{g.staff("nobody-" + uuid.NewString()[:6]), g.staff("sm-"+uuid.NewString()[:6], authorization.SignageManage, authorization.SignagePublish)} {
+		g.expectCode(g.as(staff, http.MethodPost, path, nil), http.StatusForbidden, "permission_denied")
+	}
+	g.expectCode(g.do(g.plain, "", http.MethodPost, path, nil), http.StatusUnauthorized, "unauthenticated")
+	g.expectCode(g.gw(identity.secret, http.MethodPost, path, nil), http.StatusUnauthorized, "unauthenticated")
+
+	issue := func() string { // a fresh service has no signing-key cache, like a restarted Core
+		service, err := streaminggateways.NewService(g.pool, [][]byte{gatewayTestKey})
+		if err != nil {
+			t.Fatal(err)
+		}
+		streams, err := service.IssueStreams(ctx, uuid.Must(uuid.NewV7()), []uuid.UUID{machine})
+		if err != nil || len(streams) != 1 {
+			t.Fatalf("issue streams: %v %v", streams, err)
+		}
+		return ticketKid(t, streams[0].Ticket)
+	}
+	firstKid := issue()
+	if keys := g.configuration(identity)["ticketPublicKeys"].([]any); len(keys) != 1 || keys[0].(map[string]any)["kid"] != firstKid {
+		t.Fatalf("keys before rotation = %v", keys)
+	}
+	revisionBefore := g.configuration(identity)["revision"].(float64)
+
+	started := time.Now()
+	rotation := g.expect(g.as(g.admin, http.MethodPost, path, nil), http.StatusAccepted)
+	pendingKid := rotation["keyId"].(string)
+	activates, _ := time.Parse(time.RFC3339, rotation["activatesAt"].(string))
+	if pendingKid == firstKid || activates.Sub(started) < 59*time.Second || activates.Sub(started) > 62*time.Second {
+		t.Fatalf("rotation = %v", rotation)
+	}
+	// The pending key reaches the gateways at once but does not sign yet.
+	configuration := g.configuration(identity)
+	if configuration["revision"].(float64) <= revisionBefore {
+		t.Fatal("rotation must bump the configuration revision")
+	}
+	published := map[string]any{}
+	for _, raw := range configuration["ticketPublicKeys"].([]any) {
+		entry := raw.(map[string]any)
+		published[entry["kid"].(string)] = entry["validUntil"]
+	}
+	if len(published) != 2 || published[firstKid] != nil || published[pendingKid] != nil {
+		t.Fatalf("published keys = %v", published)
+	}
+	if states := g.keyStates(); states["active"] != 1 || states["pending"] != 1 {
+		t.Fatalf("states = %v", states)
+	}
+	if got := issue(); got != firstKid {
+		t.Fatalf("a pending key signed a ticket (%s)", got)
+	}
+
+	// After the activation time the next signing promotes it lazily and retires the old key for ten minutes.
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_ticket_keys SET activates_at = now() - interval '1 second' WHERE state = 'pending'`); err != nil {
+		t.Fatal(err)
+	}
+	if got := issue(); got != pendingKid {
+		t.Fatalf("after activation the ticket carries %s, want %s", got, pendingKid)
+	}
+	var retiredUntil time.Time
+	for _, raw := range g.configuration(identity)["ticketPublicKeys"].([]any) {
+		entry := raw.(map[string]any)
+		switch entry["kid"] {
+		case pendingKid:
+			if entry["validUntil"] != nil {
+				t.Fatalf("signing key has an end of validity: %v", entry)
+			}
+		case firstKid:
+			retiredUntil, _ = time.Parse(time.RFC3339, entry["validUntil"].(string))
+		default:
+			t.Fatalf("unexpected key %v", entry)
+		}
+	}
+	if until := time.Until(retiredUntil); until < 9*time.Minute || until > 10*time.Minute+5*time.Second {
+		t.Fatalf("retired key valid for %v", until)
+	}
+	if states := g.keyStates(); states["active"] != 1 || states["retired"] != 1 || states["pending"] != 0 {
+		t.Fatalf("states = %v", states)
+	}
+
+	// Rotating while a key is still pending activates that key first, then stages the next one.
+	second := g.expect(g.as(g.admin, http.MethodPost, path, nil), http.StatusAccepted)["keyId"].(string)
+	third := g.expect(g.as(g.admin, http.MethodPost, path, nil), http.StatusAccepted)["keyId"].(string)
+	if states := g.keyStates(); states["active"] != 1 || states["pending"] != 1 {
+		t.Fatalf("states after back-to-back rotations = %v", states)
+	}
+	if got := issue(); got != second {
+		t.Fatalf("the second rotation's key (%s) should sign, got %s (third pending: %s)", second, got, third)
+	}
+
+	// Retired keys disappear from the configuration after ten minutes.
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_ticket_keys SET retired_at = now() - interval '11 minutes' WHERE state = 'retired'`); err != nil {
+		t.Fatal(err)
+	}
+	if keys := g.configuration(identity)["ticketPublicKeys"].([]any); len(keys) != 2 {
+		t.Fatalf("keys after expiry = %v", keys)
+	}
+	if g.countAudit("signage_ticket_key.created") != 1 || g.countAudit("signage_ticket_key.rotated") != 3 || g.countAudit("signage_ticket_key.activated") != 2 {
+		t.Fatalf("audit: created %d rotated %d activated %d", g.countAudit("signage_ticket_key.created"), g.countAudit("signage_ticket_key.rotated"), g.countAudit("signage_ticket_key.activated"))
+	}
+	var actors int
+	if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'signage_ticket_key.rotated' AND actor_account_id IS NOT NULL`).Scan(&actors); err != nil || actors != 3 {
+		t.Fatalf("rotation audit rows with an actor: %d (%v)", actors, err)
+	}
+}
+
+func TestSessionEpochAndRevokedDisplaysInTheConfiguration(t *testing.T) {
+	g := newGatewayEnv(t)
+	ctx := testContext(t)
+	staff := g.allStaff()
+	svc, admin := g.fixture.service, g.fixture.admin
+	gateway, identity := g.enrolledGateway("Epoch gateway", "gw.example.org")
+	machine := g.bambu("Epoch printer", "bambu_h2d", "192.168.1.61", "EPO12345")
+	g.expect(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+gateway["id"].(string)+"/cameras", map[string]any{"machineId": machine.String(), "enabled": true}), http.StatusCreated)
+	epoch := func() float64 { return g.configuration(identity)["sessionEpoch"].(float64) }
+	revoked := func() []any { return g.configuration(identity)["revokedDisplayIds"].([]any) }
+	mk := func(name string, widget json.RawMessage) uuid.UUID {
+		input := sceneInput(name, "full")
+		input.Zones = map[string]json.RawMessage{"main": widget}
+		scene, err := svc.CreateScene(ctx, admin, input, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return scene.ID
+	}
+	cameraScene := mk("Epoch camera", cameraWidget(machine))
+	plainScene := mk("Epoch plain", json.RawMessage(`{"type":"status","machineIds":["`+machine.String()+`"],"showProgress":true,"showRemaining":true}`))
+	start := epoch()
+	if len(revoked()) != 0 {
+		t.Fatalf("revoked displays = %v", revoked())
+	}
+
+	// Republishing without a camera the display used before drops running sessions; other
+	// publications do not.
+	playlist := g.fixture.playlist(t, "Epoch", cameraScene)
+	display, _ := g.pair(staff, "Epoch display", playlist.ID)
+	displayID := display["id"].(string)
+	publish := func(id string) {
+		g.expect(g.as(staff, http.MethodPost, "/signage/displays/"+id+"/publish", nil), http.StatusOK)
+	}
+	publish(displayID)
+	publish(displayID)
+	if epoch() != start {
+		t.Fatal("publishing that keeps the camera must not bump the epoch")
+	}
+	if _, err := svc.UpdatePlaylist(ctx, admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: playlist.Name, Items: []signage.PlaylistItem{{SceneID: plainScene, Seconds: 10, Transition: "cut"}}}, nil); err != nil {
+		t.Fatalf("playlist update: %v", err)
+	}
+	publish(displayID)
+	if epoch() != start+1 {
+		t.Fatalf("epoch = %v after a republish without the camera, want %v", epoch(), start+1)
+	}
+	publish(displayID)
+	if epoch() != start+1 {
+		t.Fatal("no camera before and after: no bump")
+	}
+
+	// Revoking and deleting a display bump the epoch and list the display for 24 hours.
+	g.expect(g.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": g.displayVersion(staff, displayID)}), http.StatusOK)
+	if epoch() != start+2 || len(revoked()) != 1 || revoked()[0] != displayID {
+		t.Fatalf("after revoke: epoch %v revoked %v", epoch(), revoked())
+	}
+	g.expect(g.as(staff, http.MethodDelete, "/signage/displays/"+displayID, map[string]any{"expectedVersion": g.displayVersion(staff, displayID)}), http.StatusNoContent)
+	if epoch() != start+3 || len(revoked()) != 1 || revoked()[0] != displayID {
+		t.Fatalf("after delete: epoch %v revoked %v", epoch(), revoked())
+	}
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_revoked_displays SET revoked_at = now() - interval '25 hours'`); err != nil {
+		t.Fatal(err)
+	}
+	if len(revoked()) != 0 {
+		t.Fatalf("revoked displays after 24 hours = %v", revoked())
+	}
+	// The revocation list is only for the authenticated gateway.
+	g.expectCode(g.as(g.admin, http.MethodGet, "/streaming-gateway/configuration", nil), http.StatusUnauthorized, "unauthenticated")
+}
+
+func TestCameraAccessOutsideNeedsTheExplicitSetting(t *testing.T) {
+	g := newGatewayEnv(t)
+	ctx := testContext(t)
+	staff := g.allStaff()
+	svc, admin := g.fixture.service, g.fixture.admin
+	gateway, identity := g.enrolledGateway("Outside gateway", "gw.example.org")
+	machine := g.bambu("Outside printer", "bambu_h2d", "192.168.1.62", "OUT12345")
+	g.expect(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+gateway["id"].(string)+"/cameras", map[string]any{"machineId": machine.String(), "enabled": true}), http.StatusCreated)
+	input := sceneInput("Outside camera", "full")
+	input.Zones = map[string]json.RawMessage{"main": cameraWidget(machine)}
+	scene, err := svc.CreateScene(ctx, admin, input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	playlist := g.fixture.playlist(t, "Outside", scene.ID)
+	display, player := g.pair(staff, "Outside display", playlist.ID)
+	displayID := display["id"].(string)
+	if display["allowCameraOutside"] != false {
+		t.Fatalf("default = %v", display["allowCameraOutside"])
+	}
+	g.expect(g.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
+	streams := func() int {
+		return len(g.expect(g.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)["streams"].([]any))
+	}
+	epoch := func() float64 { return g.configuration(identity)["sessionEpoch"].(float64) }
+	update := func(visible bool, allow any) map[string]any {
+		body := map[string]any{
+			"expectedVersion": g.displayVersion(staff, displayID), "name": "Outside display", "location": "Entrance hall", "orientation": "landscape",
+			"resolution": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": visible, "defaultPlaylistId": playlist.ID.String(),
+		}
+		if allow != nil {
+			body["allowCameraOutside"] = allow
+		}
+		return g.expect(g.as(staff, http.MethodPut, "/signage/displays/"+displayID, body), http.StatusOK)
+	}
+	if streams() != 1 {
+		t.Fatal("an inside display gets its stream")
+	}
+	start := epoch()
+
+	// Visible from outside without the setting: no tickets, and running sessions are dropped.
+	update(true, nil)
+	if streams() != 0 || epoch() != start+1 {
+		t.Fatalf("outside display without the setting: streams %d, epoch %v (want %v)", streams(), epoch(), start+1)
+	}
+	// The setting is effective immediately, without publishing, and does not bump the epoch.
+	shown := update(true, true)
+	if shown["allowCameraOutside"] != true || streams() != 1 || epoch() != start+1 {
+		t.Fatalf("allowed: setting %v streams %d epoch %v", shown["allowCameraOutside"], streams(), epoch())
+	}
+	// Omitting the field keeps the stored value.
+	if kept := update(true, nil); kept["allowCameraOutside"] != true || streams() != 1 {
+		t.Fatalf("omitted field changed the setting: %v", kept["allowCameraOutside"])
+	}
+	// Switching it off drops the running sessions.
+	off := update(true, false)
+	if off["allowCameraOutside"] != false || streams() != 0 || epoch() != start+2 {
+		t.Fatalf("switched off: streams %d epoch %v (want %v)", streams(), epoch(), start+2)
+	}
+	// The setting only matters for displays visible from outside; it stays stored.
+	update(false, true)
+	update(false, false)
+	if streams() != 1 || epoch() != start+2 {
+		t.Fatalf("inside again: streams %d epoch %v", streams(), epoch())
+	}
+	update(false, true)
+	update(true, nil) // visible from outside with the setting on: still allowed
+	if streams() != 1 || epoch() != start+2 {
+		t.Fatalf("outside with the setting: streams %d epoch %v", streams(), epoch())
+	}
+	// Moving an inside display outside without the setting also cuts the sessions.
+	update(false, false)
+	update(true, nil)
+	if streams() != 0 || epoch() != start+3 {
+		t.Fatalf("moved outside without the setting: streams %d epoch %v", streams(), epoch())
+	}
+	if g.countAudit("signage_display.updated") < 6 {
+		t.Fatal("changes must be audited")
+	}
+	var changed int
+	if err = g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'signage_display.updated' AND changed_fields @> ARRAY['allowCameraOutside']`).Scan(&changed); err != nil || changed == 0 {
+		t.Fatalf("allowCameraOutside is not audited as a changed field (%d, %v)", changed, err)
 	}
 }

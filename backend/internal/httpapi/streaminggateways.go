@@ -288,7 +288,11 @@ func (s *Server) GetStreamingGatewayConfiguration(ctx context.Context, _ openapi
 		source := camera.SourceURL
 		cameras = append(cameras, openapi.StreamingGatewayConfigCamera{MachineId: camera.MachineID, Name: camera.Name, StreamName: camera.StreamName, SourceUrl: &source})
 	}
-	return openapi.GetStreamingGatewayConfiguration200JSONResponse{Body: openapi.StreamingGatewayConfiguration{Revision: configuration.Revision, ProtocolVersion: configuration.ProtocolVersion, PublicHost: configuration.PublicHost, TicketPublicKeys: keys, Cameras: cameras}, Headers: openapi.GetStreamingGatewayConfiguration200ResponseHeaders{CacheControl: "no-store"}}, nil
+	revoked := configuration.RevokedDisplays
+	if revoked == nil {
+		revoked = []uuid.UUID{}
+	}
+	return openapi.GetStreamingGatewayConfiguration200JSONResponse{Body: openapi.StreamingGatewayConfiguration{Revision: configuration.Revision, ProtocolVersion: configuration.ProtocolVersion, PublicHost: configuration.PublicHost, TicketPublicKeys: keys, Cameras: cameras, SessionEpoch: configuration.SessionEpoch, RevokedDisplayIds: revoked}, Headers: openapi.GetStreamingGatewayConfiguration200ResponseHeaders{CacheControl: "no-store"}}, nil
 }
 
 func (s *Server) ReportStreamingGatewayHeartbeat(ctx context.Context, request openapi.ReportStreamingGatewayHeartbeatRequestObject) (openapi.ReportStreamingGatewayHeartbeatResponseObject, error) {
@@ -346,4 +350,16 @@ func (s *Server) RotateStreamingGatewayCredential(ctx context.Context, request o
 		return nil, err
 	}
 	return openapi.RotateStreamingGatewayCredential200JSONResponse{Body: openapi.StreamingGatewayEnrollmentResult{GatewayId: gateway.ID, CredentialId: request.Body.CredentialId, ProtocolVersion: streaminggateways.ProtocolVersion, CredentialExpiresAt: expires}, Headers: openapi.RotateStreamingGatewayCredential200ResponseHeaders{CacheControl: "no-store"}}, nil
+}
+
+func (s *Server) RotateStreamTicketKey(ctx context.Context, _ openapi.RotateStreamTicketKeyRequestObject) (openapi.RotateStreamTicketKeyResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rotation, err := s.streamingGateways.RotateTicketKey(ctx, principal, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RotateStreamTicketKey202JSONResponse{Body: openapi.StreamTicketKeyRotation{KeyId: rotation.KeyID, ActivatesAt: rotation.ActivatesAt}, Headers: openapi.RotateStreamTicketKey202ResponseHeaders{CacheControl: "no-store"}}, nil
 }

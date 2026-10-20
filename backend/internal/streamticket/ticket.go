@@ -47,6 +47,7 @@ var (
 	ErrUnknownKey  = errors.New("stream ticket key is unknown")
 	ErrBadSig      = errors.New("stream ticket signature is invalid")
 	ErrExpired     = errors.New("stream ticket is expired")
+	ErrLifetime    = errors.New("stream ticket lifetime is too long")
 	ErrStreamClaim = errors.New("stream ticket does not match the requested stream")
 )
 
@@ -111,6 +112,11 @@ func Verify(ticket string, keys Keys, now time.Time) (Claims, error) {
 	}
 	if now.After(claims.ExpiresAt().Add(ClockSkew)) {
 		return Claims{}, ErrExpired
+	}
+	// Core never signs a longer lifetime; a ticket claiming one is not from Core's signer in its
+	// intended use (for example a key used by mistake) and is refused.
+	if claims.ExpiresAt().After(now.Add(TTL + ClockSkew)) {
+		return Claims{}, ErrLifetime
 	}
 	return claims, nil
 }

@@ -176,20 +176,35 @@ WHERE c.enabled AND g.lifecycle = 'active';
 -- Ticket keys --------------------------------------------------------------------------------------------------
 
 -- name: GetActiveTicketKey :one
-SELECT * FROM signage_ticket_keys WHERE retired_at IS NULL;
+SELECT * FROM signage_ticket_keys WHERE state = 'active';
+
+-- name: GetPendingTicketKey :one
+SELECT * FROM signage_ticket_keys WHERE state = 'pending';
+
+-- name: LockTicketKeys :many
+SELECT id FROM signage_ticket_keys WHERE state IN ('active', 'pending') ORDER BY id FOR UPDATE;
 
 -- name: InsertTicketKey :execrows
-INSERT INTO signage_ticket_keys (id, kid, public_key, encrypted_private_key)
-VALUES (sqlc.arg(id), sqlc.arg(kid), sqlc.arg(public_key), sqlc.arg(encrypted_private_key))
+INSERT INTO signage_ticket_keys (id, kid, public_key, encrypted_private_key, state, activates_at)
+VALUES (sqlc.arg(id), sqlc.arg(kid), sqlc.arg(public_key), sqlc.arg(encrypted_private_key), sqlc.arg(state), sqlc.narg(activates_at))
 ON CONFLICT DO NOTHING;
 
--- name: RetireTicketKeys :exec
-UPDATE signage_ticket_keys SET retired_at = sqlc.arg(retired_at) WHERE retired_at IS NULL;
+-- name: RetireActiveTicketKey :exec
+UPDATE signage_ticket_keys SET state = 'retired', retired_at = sqlc.arg(retired_at) WHERE state = 'active';
+
+-- name: ActivatePendingTicketKey :exec
+UPDATE signage_ticket_keys SET state = 'active' WHERE state = 'pending';
 
 -- name: ListValidTicketKeys :many
-SELECT kid, public_key, retired_at FROM signage_ticket_keys
-WHERE retired_at IS NULL OR retired_at > sqlc.arg(retired_after)
+SELECT kid, public_key, state, retired_at FROM signage_ticket_keys
+WHERE state IN ('pending', 'active') OR retired_at > sqlc.arg(retired_after)
 ORDER BY created_at DESC, id DESC;
+
+-- name: GetSessionEpoch :one
+SELECT epoch FROM streaming_session_epoch WHERE singleton;
+
+-- name: ListRevokedDisplayIDs :many
+SELECT display_id FROM signage_revoked_displays WHERE revoked_at > sqlc.arg(revoked_after) ORDER BY display_id;
 
 -- name: DeleteExpiredTicketKeys :exec
 DELETE FROM signage_ticket_keys WHERE retired_at IS NOT NULL AND retired_at < sqlc.arg(older_than);

@@ -1,11 +1,13 @@
 package streaminggateway
 
 import (
+	"bufio"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streamticket"
+	"github.com/google/uuid"
 )
 
 const (
@@ -34,11 +37,16 @@ type KeyEntry struct {
 type Snapshot struct {
 	Streams map[string]struct{}
 	Keys    []KeyEntry
+	// RevokedDisplays are displays whose tickets are refused although they verify.
+	RevokedDisplays map[uuid.UUID]struct{}
 }
 
 // NewSnapshot derives the proxy view of a configuration. Malformed keys are skipped.
 func NewSnapshot(configuration Configuration) *Snapshot {
-	snapshot := &Snapshot{Streams: make(map[string]struct{}, len(configuration.Cameras))}
+	snapshot := &Snapshot{Streams: make(map[string]struct{}, len(configuration.Cameras)), RevokedDisplays: make(map[uuid.UUID]struct{}, len(configuration.RevokedDisplayIDs))}
+	for _, id := range configuration.RevokedDisplayIDs {
+		snapshot.RevokedDisplays[id] = struct{}{}
+	}
 	for _, camera := range configuration.Cameras {
 		snapshot.Streams[camera.StreamName] = struct{}{}
 	}
@@ -76,23 +84,88 @@ type Proxy struct {
 	reverse       *httputil.ReverseProxy
 }
 
+// UpstreamAuth are the HTTP Basic credentials of go2rtc's API.
+type UpstreamAuth struct{ Username, Password string }
+
+// NormalizeOrigin lower-cases an origin and drops a default port (:443 for https, :80 for http), so
+// that "https://Core.example.org:443" and "https://core.example.org" compare equal. Anything that
+// is not a plain scheme://host[:port] origin is returned unchanged.
+func NormalizeOrigin(origin string) string {
+	parsed, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Path != "" || parsed.User != nil || parsed.RawQuery != "" {
+		return origin
+	}
+	scheme, host := strings.ToLower(parsed.Scheme), strings.ToLower(parsed.Hostname())
+	port := parsed.Port()
+	if (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		port = ""
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	return scheme + "://" + host
+}
+
+// expiryWriter closes a hijacked (websocket) connection when the ticket that admitted it expires, so
+// a session cannot outlive its ticket; the player reconnects with a fresh one.
+type expiryWriter struct {
+	http.ResponseWriter
+	until time.Time
+}
+
+func (w expiryWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func (w expiryWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, rw, err := http.NewResponseController(w.ResponseWriter).Hijack()
+	if err != nil {
+		return nil, nil, err
+	}
+	timer := time.AfterFunc(time.Until(w.until), func() { _ = conn.Close() })
+	return &timedConn{Conn: conn, timer: timer}, rw, nil
+}
+
+type timedConn struct {
+	net.Conn
+	timer *time.Timer
+}
+
+func (c *timedConn) Close() error {
+	c.timer.Stop()
+	return c.Conn.Close()
+}
+
 // NewProxy builds the proxy. allowedOrigin is the Core origin (scheme://host[:port]) browsers send
 // as Origin; requests from any other origin are refused.
-func NewProxy(snapshot func() *Snapshot, target *url.URL, allowedOrigin string, now func() time.Time) *Proxy {
+func NewProxy(snapshot func() *Snapshot, target *url.URL, allowedOrigin string, upstream UpstreamAuth, now func() time.Time) *Proxy {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	p := &Proxy{snapshot: snapshot, allowedOrigin: allowedOrigin, now: now}
+	p := &Proxy{snapshot: snapshot, allowedOrigin: NormalizeOrigin(allowedOrigin), now: now}
 	p.reverse = &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			src := r.In.URL.Query().Get("src")
 			r.SetURL(target)
+			// The path is one of two constants (ServeHTTP admits nothing else); never forward the
+			// client's spelling of it (encoded slashes, dot segments).
+			if r.In.URL.Path == websocketPath {
+				r.Out.URL.Path = target.Path + websocketPath
+			} else {
+				r.Out.URL.Path = target.Path + webrtcPath
+			}
+			r.Out.URL.RawPath = ""
 			// Forward exactly the stream selector: the ticket, any other parameter and every
 			// credential-bearing header stay behind.
 			r.Out.URL.RawQuery = url.Values{"src": {src}}.Encode()
 			r.Out.Host = target.Host
 			for _, header := range []string{"Authorization", "Cookie", "Origin", "Referer", "Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
 				r.Out.Header.Del(header)
+			}
+			// go2rtc's API is protected by credentials only the gateway knows.
+			if upstream.Username != "" {
+				r.Out.SetBasicAuth(upstream.Username, upstream.Password)
 			}
 		},
 		ModifyResponse: func(response *http.Response) error {
@@ -150,7 +223,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	src := sources[0]
 	origin := r.Header.Get("Origin")
-	if origin != "" && origin != p.allowedOrigin {
+	if origin != "" && NormalizeOrigin(origin) != p.allowedOrigin {
 		http.Error(w, "origin not allowed", http.StatusForbidden)
 		return
 	}
@@ -185,7 +258,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "stream ticket required", http.StatusUnauthorized)
 		return
 	}
-	if _, err := streamticket.VerifyForStream(ticket, snapshot.verificationKeys(p.now()), src, p.now()); err != nil {
+	claims, err := streamticket.VerifyForStream(ticket, snapshot.verificationKeys(p.now()), src, p.now())
+	if err != nil {
+		p.setCORS(w, origin)
+		http.Error(w, "stream ticket rejected", http.StatusUnauthorized)
+		return
+	}
+	if _, revoked := snapshot.RevokedDisplays[claims.DisplayID]; revoked {
 		p.setCORS(w, origin)
 		http.Error(w, "stream ticket rejected", http.StatusUnauthorized)
 		return
@@ -196,6 +275,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if isWebRTC {
 		r.Body = http.MaxBytesReader(w, r.Body, maxOfferBytes)
+	}
+	if isWebSocket {
+		// An upgraded connection is not subject to later checks; end it when the ticket expires.
+		w = expiryWriter{ResponseWriter: w, until: claims.ExpiresAt()}
 	}
 	// Tell ModifyResponse which origin to allow without keeping per-request state in the proxy.
 	p.reverse.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), originKey{}, origin)))

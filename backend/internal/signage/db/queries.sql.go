@@ -30,6 +30,18 @@ func (q *Queries) BumpSignageDisplayVersion(ctx context.Context, arg BumpSignage
 	return version, err
 }
 
+const bumpStreamingSessionEpoch = `-- name: BumpStreamingSessionEpoch :exec
+WITH bumped AS (UPDATE streaming_session_epoch SET epoch = epoch + 1 WHERE singleton RETURNING epoch)
+UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, updated_at = now()
+WHERE lifecycle IN ('pending', 'active', 'disabled') AND EXISTS (SELECT 1 FROM bumped)
+`
+
+// Drops running camera sessions: gateways restart go2rtc when the epoch changes.
+func (q *Queries) BumpStreamingSessionEpoch(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, bumpStreamingSessionEpoch)
+	return err
+}
+
 const claimSignagePairingRequest = `-- name: ClaimSignagePairingRequest :exec
 UPDATE signage_pairing_requests SET claimed_display_id = $1, claimed_at = $2::timestamptz, expires_at = $3
 WHERE id = $4
@@ -158,9 +170,9 @@ func (q *Queries) CreateSignageAsset(ctx context.Context, arg CreateSignageAsset
 
 const createSignageDisplay = `-- name: CreateSignageDisplay :one
 
-INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, default_playlist_id)
+INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, allow_camera_outside, default_playlist_id)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9)
+        $7, $8, $9, $10)
 RETURNING id
 `
 
@@ -173,6 +185,7 @@ type CreateSignageDisplayParams struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
 }
 
@@ -187,6 +200,7 @@ func (q *Queries) CreateSignageDisplay(ctx context.Context, arg CreateSignageDis
 		arg.ResolutionWidth,
 		arg.ResolutionHeight,
 		arg.VisibleFromOutside,
+		arg.AllowCameraOutside,
 		arg.DefaultPlaylistID,
 	)
 	var id uuid.UUID
@@ -712,7 +726,7 @@ func (q *Queries) GetSignageAssetForUpdate(ctx context.Context, id uuid.UUID) (G
 }
 
 const getSignageDisplayByDevice = `-- name: GetSignageDisplayByDevice :one
-SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.revoked_at, md.revoked_at AS device_revoked_at
+SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.managed_device_id = $1
 `
@@ -725,6 +739,7 @@ type GetSignageDisplayByDeviceRow struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
 }
@@ -740,6 +755,7 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 		&i.ResolutionWidth,
 		&i.ResolutionHeight,
 		&i.VisibleFromOutside,
+		&i.AllowCameraOutside,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
 	)
@@ -747,7 +763,7 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 }
 
 const getSignageDisplayForUpdate = `-- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = $1 FOR UPDATE OF d
@@ -762,6 +778,7 @@ type GetSignageDisplayForUpdateRow struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -780,6 +797,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 		&i.ResolutionWidth,
 		&i.ResolutionHeight,
 		&i.VisibleFromOutside,
+		&i.AllowCameraOutside,
 		&i.DefaultPlaylistID,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
@@ -789,7 +807,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 }
 
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -810,6 +828,7 @@ type GetSignageDisplayViewRow struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -840,6 +859,7 @@ func (q *Queries) GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetS
 		&i.ResolutionWidth,
 		&i.ResolutionHeight,
 		&i.VisibleFromOutside,
+		&i.AllowCameraOutside,
 		&i.DefaultPlaylistID,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
@@ -1759,7 +1779,7 @@ func (q *Queries) ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listSignageDisplayViews = `-- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -1780,6 +1800,7 @@ type ListSignageDisplayViewsRow struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -1816,6 +1837,7 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 			&i.ResolutionWidth,
 			&i.ResolutionHeight,
 			&i.VisibleFromOutside,
+			&i.AllowCameraOutside,
 			&i.DefaultPlaylistID,
 			&i.RevokedAt,
 			&i.DeviceRevokedAt,
@@ -2354,6 +2376,15 @@ func (q *Queries) NextSignagePublicationRevision(ctx context.Context, displayID 
 	return revision, err
 }
 
+const pruneRevokedSignageDisplays = `-- name: PruneRevokedSignageDisplays :exec
+DELETE FROM signage_revoked_displays WHERE revoked_at < $1
+`
+
+func (q *Queries) PruneRevokedSignageDisplays(ctx context.Context, olderThan time.Time) error {
+	_, err := q.db.Exec(ctx, pruneRevokedSignageDisplays, olderThan)
+	return err
+}
+
 const pruneSignagePublications = `-- name: PruneSignagePublications :exec
 DELETE FROM signage_publications WHERE display_id = $1 AND revision <= $2::int
 `
@@ -2365,6 +2396,15 @@ type PruneSignagePublicationsParams struct {
 
 func (q *Queries) PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error {
 	_, err := q.db.Exec(ctx, pruneSignagePublications, arg.DisplayID, arg.MaxRevision)
+	return err
+}
+
+const recordRevokedSignageDisplay = `-- name: RecordRevokedSignageDisplay :exec
+INSERT INTO signage_revoked_displays (display_id) VALUES ($1) ON CONFLICT (display_id) DO NOTHING
+`
+
+func (q *Queries) RecordRevokedSignageDisplay(ctx context.Context, displayID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, recordRevokedSignageDisplay, displayID)
 	return err
 }
 
@@ -2475,9 +2515,9 @@ func (q *Queries) UpdateSignageAnnouncement(ctx context.Context, arg UpdateSigna
 const updateSignageDisplay = `-- name: UpdateSignageDisplay :one
 UPDATE signage_displays
 SET name = $1, location = $2, orientation = $3, resolution_width = $4,
-    resolution_height = $5, visible_from_outside = $6, default_playlist_id = $7,
+    resolution_height = $5, visible_from_outside = $6, allow_camera_outside = $7, default_playlist_id = $8,
     version = version + 1, updated_at = now()
-WHERE id = $8 AND version = $9 AND revoked_at IS NULL
+WHERE id = $9 AND version = $10 AND revoked_at IS NULL
 RETURNING id
 `
 
@@ -2488,6 +2528,7 @@ type UpdateSignageDisplayParams struct {
 	ResolutionWidth    int32
 	ResolutionHeight   int32
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
 	ID                 uuid.UUID
 	ExpectedVersion    int64
@@ -2501,6 +2542,7 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 		arg.ResolutionWidth,
 		arg.ResolutionHeight,
 		arg.VisibleFromOutside,
+		arg.AllowCameraOutside,
 		arg.DefaultPlaylistID,
 		arg.ID,
 		arg.ExpectedVersion,

@@ -54,6 +54,7 @@ type PlayerDisplay struct {
 	Orientation        string
 	Resolution         Resolution
 	VisibleFromOutside bool
+	AllowCameraOutside bool
 }
 
 // PlayerDisplayFor resolves the display of a verified signage player device. A device without a
@@ -71,7 +72,7 @@ func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (Pla
 	}
 	return PlayerDisplay{
 		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
-		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside,
+		Resolution: Resolution{Width: int(row.ResolutionWidth), Height: int(row.ResolutionHeight)}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 	}, nil
 }
 
@@ -250,7 +251,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	if published {
 		revision := manifest.Revision
 		live.Revision = &revision
-		if withStreams && s.streams != nil {
+		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) {
 			if ids := ManifestCameraMachineIDs(manifest); len(ids) > 0 {
 				if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, ids); err != nil {
 					return LiveData{}, err

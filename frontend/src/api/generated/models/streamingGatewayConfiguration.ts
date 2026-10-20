@@ -18,10 +18,21 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 import type { StreamingGatewayTicketKey } from './streamingGatewayTicketKey';
 import type { StreamingGatewayConfigCamera } from './streamingGatewayConfigCamera';
 
 export interface StreamingGatewayConfiguration {
+  /**
+   * Changes when running camera sessions must be dropped (display revoked or deleted, camera removed from a display, camera access outside switched off). The gateway restarts go2rtc when the value changes.
+   * @minimum 0
+   */
+  sessionEpoch: number;
+  /**
+   * Displays revoked or deleted within the last 24 hours; tickets for them are refused.
+   * @maxItems 1000
+   */
+  revokedDisplayIds: UUIDv7[];
   /** @minimum 1 */
   revision: number;
   /** @minimum 1 */

@@ -55,6 +55,9 @@ func run() error {
 	render.APIListen = env("GO2RTC_API_LISTEN", render.APIListen)
 	render.WebRTCListen = env("GO2RTC_WEBRTC_LISTEN", render.WebRTCListen)
 	render.LogLevel = env("GO2RTC_LOG_LEVEL", render.LogLevel)
+	if !streaminggateway.ValidLogLevel(render.LogLevel) {
+		return errors.New("GO2RTC_LOG_LEVEL must be error or fatal: go2rtc logs stream sources, which contain the printers' access codes, at more verbose levels")
+	}
 	for _, candidate := range strings.Split(os.Getenv("STREAM_WEBRTC_CANDIDATES"), ",") {
 		if candidate = strings.TrimSpace(candidate); candidate != "" {
 			render.WebRTCCandidates = append(render.WebRTCCandidates, candidate)

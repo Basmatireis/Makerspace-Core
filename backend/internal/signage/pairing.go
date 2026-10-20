@@ -392,7 +392,7 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	if _, err := q.CreateSignageDisplay(ctx, signagedb.CreateSignageDisplayParams{
 		ID: displayID, ManagedDeviceID: deviceID, Name: checked.Name, Location: checked.Location, Orientation: checked.Orientation,
 		ResolutionWidth: int32(checked.Resolution.Width), ResolutionHeight: int32(checked.Resolution.Height),
-		VisibleFromOutside: checked.VisibleFromOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
+		VisibleFromOutside: checked.VisibleFromOutside, AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
 	}); err != nil {
 		return Display{}, databaseError(err)
 	}

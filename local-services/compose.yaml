@@ -3,6 +3,13 @@
 # docs/printer-connector.md. The standalone ../printer-connector/compose.yaml keeps working.
 name: makerspace-local-services
 
+# Image versions: printer-connector and streaming-gateway use ${MAKERSPACE_VERSION} (a release tag,
+# never "latest"). To pin the exact image content as well, set the optional digest variables in .env
+# to the digest of that release's image, including the "@", for example
+#   PRINTER_CONNECTOR_DIGEST=@sha256:<digest>   STREAMING_GATEWAY_DIGEST=@sha256:<digest>
+# (read each with `docker buildx imagetools inspect <image>:<version>`; the two images differ).
+# Compose then pulls name:<version>@sha256:<digest>. Digests of unpublished images cannot be known
+# in advance, so they are filled in per release.
 x-hardened: &hardened
   read_only: true
   cap_drop: [ALL]
@@ -14,7 +21,7 @@ x-hardened: &hardened
 services:
   printer-connector:
     <<: *hardened
-    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${PRINTER_CONNECTOR_DIGEST:-}
     environment:
       CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
@@ -26,7 +33,8 @@ services:
       - printer_connector_data:/var/lib/makerspace-printer-connector
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    networks: [egress]
+    # Its own outbound network: nothing else shares it, so no other container can reach it.
+    networks: [connector_egress]
     pids_limit: 128
     mem_limit: 256m
     cpus: 1.0
@@ -34,7 +42,7 @@ services:
 
   streaming-gateway:
     <<: *hardened
-    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-streaming-gateway:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-streaming-gateway:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${STREAMING_GATEWAY_DIGEST:-}
     environment:
       CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
       # Only compared with the public host configured in Core; a mismatch is logged as a warning.
@@ -61,7 +69,8 @@ services:
     ports:
       # The only entry point for players: ticket-protected WebRTC signalling and MSE websocket.
       - "${STREAM_BIND_ADDRESS:-0.0.0.0}:${STREAM_HTTPS_PORT:-8443}:8443"
-    networks: [internal, egress]
+    # internal: go2rtc API (with the gateway's credentials); gateway_egress: Core and the players.
+    networks: [internal, gateway_egress]
     pids_limit: 128
     mem_limit: 256m
     cpus: 1.0
@@ -69,7 +78,8 @@ services:
 
   go2rtc:
     <<: *hardened
-    # Pinned to the tag AND the verified multi-arch digest of alexxit/go2rtc 1.9.14.
+    # Pinned to the tag AND the verified multi-arch digest of alexxit/go2rtc 1.9.14. Re-verify the
+    # digest (docker buildx imagetools inspect alexxit/go2rtc:<tag>) when upgrading.
     image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
     # Same numeric user as the gateway so it can read the configuration file the gateway writes
     # with mode 0600 (it contains the printers' camera credentials).
@@ -85,11 +95,24 @@ services:
       # Port 1984 (go2rtc's HTTP API, including its web UI) and 8554 (RTSP) are NOT published.
       - "${STREAM_BIND_ADDRESS:-0.0.0.0}:8555:8555/tcp"
       - "${STREAM_BIND_ADDRESS:-0.0.0.0}:8555:8555/udp"
-    networks: [internal, egress]
+    # internal: the API, only the gateway shares it. go2rtc_egress: the printers on the LAN and the
+    # published WebRTC port; no other service is attached to it. The API (port 1984) is protected by
+    # credentials the gateway generates and writes into the configuration (HTTP Basic, all requests
+    # not coming from inside this container), and restricted to four paths; exec/echo sources are
+    # disabled in the generated configuration. See docs/streaming-gateway.md.
+    networks: [internal, go2rtc_egress]
+    # Stream sources carry the printers' access codes; keep the logs small and local (the generated
+    # configuration also restricts go2rtc to the error log level).
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "3"
     depends_on:
       streaming-gateway:
         condition: service_healthy
     healthcheck:
+      # Requests from inside the container itself need no API credentials.
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:1984/api/streams"]
       interval: 30s
       timeout: 3s
@@ -104,8 +127,12 @@ networks:
   # Gateway <-> go2rtc API traffic. No outbound access.
   internal:
     internal: true
-  # Outbound access to Core and to the printers on the LAN, and the published ports.
-  egress: {}
+  # Printer connector: outbound access to Core and to the printers. Used by nothing else.
+  connector_egress: {}
+  # Streaming gateway: outbound access to Core, and its published HTTPS port.
+  gateway_egress: {}
+  # go2rtc only: outbound access to the printers' cameras, and its published WebRTC port.
+  go2rtc_egress: {}
 
 secrets:
   printer_connector_enrollment:

@@ -65,6 +65,7 @@ type Gateway struct {
 	appliedHash     string
 	appliedRevision int64
 	pendingRestart  bool
+	appliedEpoch    *int64
 	restartAttempts int
 	authFailures    int
 	lastSyncOK      time.Time
@@ -75,6 +76,7 @@ type Gateway struct {
 func New(store *Store, core Core, g2r Go2RTC, options Options, logger *slog.Logger) *Gateway {
 	g := &Gateway{store: store, core: core, g2r: g2r, options: options, logger: logger, now: func() time.Time { return time.Now().UTC() }}
 	g.snapshot.Store(&Snapshot{Streams: map[string]struct{}{}})
+	g.appliedEpoch = store.AppliedEpoch()
 	return g
 }
 
@@ -127,19 +129,29 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 }
 
 func (g *Gateway) rotateCredentialIfNeeded(ctx context.Context, identity Identity) (Identity, error) {
-	if identity.CredentialExpiresAt.After(g.now().Add(7 * 24 * time.Hour)) {
+	if identity.NextCredentialID == nil && identity.CredentialExpiresAt.After(g.now().Add(7*24*time.Hour)) {
 		return identity, nil
 	}
-	secret, err := newSecret()
+	if identity.NextCredentialID == nil {
+		secret, err := newSecret()
+		if err != nil {
+			return identity, err
+		}
+		// Persist the next credential before Core hears of it: if the answer is lost, the retry sends
+		// the same credential (Core treats that as idempotent) instead of leaving an unknown one behind.
+		next := uuid.Must(uuid.NewV7())
+		identity.NextCredentialID, identity.NextCredentialSecret = &next, secret
+		if err = g.store.SaveIdentity(identity); err != nil {
+			return identity, err
+		}
+	}
+	candidate := identity
+	candidate.CredentialID, candidate.CredentialSecret = *identity.NextCredentialID, identity.NextCredentialSecret
+	rotated, err := g.core.RotateCredential(ctx, identity.CredentialSecret, candidate)
 	if err != nil {
 		return identity, err
 	}
-	next := identity
-	next.CredentialID, next.CredentialSecret = uuid.Must(uuid.NewV7()), secret
-	rotated, err := g.core.RotateCredential(ctx, identity.CredentialSecret, next)
-	if err != nil {
-		return identity, err
-	}
+	rotated.NextCredentialID, rotated.NextCredentialSecret = nil, ""
 	if err = g.store.SaveIdentity(rotated); err != nil {
 		return identity, err
 	}
@@ -164,12 +176,26 @@ func (g *Gateway) Apply(ctx context.Context, configuration Configuration) {
 		}
 		g.appliedHash, g.pendingRestart, g.restartAttempts = hash, true, 0
 	}
+	// A changed session epoch means running camera sessions must end (display revoked, camera
+	// removed from a display, ...). WebRTC media bypasses the proxy, so restarting go2rtc is the only
+	// way to cut it; players reconnect with fresh tickets. Retried until it succeeded.
+	epochPending := g.appliedEpoch == nil || *g.appliedEpoch != configuration.SessionEpoch
+	if epochPending && !g.pendingRestart {
+		g.pendingRestart, g.restartAttempts = true, 0
+	}
 	if g.pendingRestart {
 		err := g.g2r.Restart(ctx)
 		switch {
 		case err == nil, errors.Is(err, ErrGo2RTCDown):
 			// A go2rtc that is not running reads the file when it starts.
 			g.pendingRestart = false
+			if epochPending {
+				epoch := configuration.SessionEpoch
+				if saveErr := g.store.SaveAppliedEpoch(epoch); saveErr != nil {
+					g.logger.Warn("session epoch could not be saved", "error_type", fmt.Sprintf("%T", saveErr))
+				}
+				g.appliedEpoch = &epoch
+			}
 		default:
 			g.restartAttempts++
 			g.logger.Warn("go2rtc restart failed", "attempt", g.restartAttempts, "error_type", fmt.Sprintf("%T", err))
@@ -229,7 +255,12 @@ func sameConfiguration(a, b Configuration) bool {
 }
 
 func (g *Gateway) shutOff(ctx context.Context) {
-	empty := Configuration{ProtocolVersion: ProtocolVersion, Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}}
+	empty := Configuration{ProtocolVersion: ProtocolVersion, Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}, RevokedDisplayIDs: []uuid.UUID{}}
+	g.mu.Lock()
+	if g.current != nil {
+		empty.SessionEpoch = g.current.SessionEpoch
+	}
+	g.mu.Unlock()
 	_ = g.store.SaveConfiguration(empty)
 	g.Apply(ctx, empty)
 }
@@ -307,6 +338,16 @@ func (g *Gateway) Run(ctx context.Context) error {
 	} else {
 		identity = rotated
 	}
+	credentials, err := g.store.Go2RTCCredentials()
+	if err != nil {
+		return fmt.Errorf("go2rtc API credentials: %w", err)
+	}
+	g.options.Render.APIUsername, g.options.Render.APIPassword = credentials.Username, credentials.Password
+	if c, ok := g.g2r.(interface {
+		SetCredentials(username, password string)
+	}); ok {
+		c.SetCredentials(credentials.Username, credentials.Password)
+	}
 	// The file on disk tells whether go2rtc already runs the cached configuration.
 	if existing, readErr := os.ReadFile(g.options.ConfigFile); readErr == nil {
 		g.appliedHash = ConfigHash(string(existing))
@@ -324,7 +365,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	origin := g.options.AllowedOrigin
 	server := &http.Server{
 		Addr:              g.options.ListenAddr,
-		Handler:           NewProxy(g.Snapshot, g.go2rtcURL(), origin, g.now),
+		Handler:           NewProxy(g.Snapshot, g.go2rtcURL(), origin, UpstreamAuth{Username: credentials.Username, Password: credentials.Password}, g.now),
 		TLSConfig:         reloader.tlsConfig(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,

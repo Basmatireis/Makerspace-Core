@@ -23,6 +23,7 @@ import type {
   CreateStreamingGatewayRequest,
   EnrollStreamingGatewayRequest,
   RotateStreamingGatewayCredentialRequest,
+  StreamTicketKeyRotation,
   StreamingCamera,
   StreamingCameraList,
   StreamingGateway,
@@ -323,6 +324,30 @@ export const listLocalServiceCameras = async ( options?: RequestInit): Promise<S
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Needs `local_services.manage`. The new key is published to gateways at once as pending and starts signing after at least 60 seconds; the previous key stays verifiable for ten minutes after that. A second call while a key is pending activates it immediately and starts the next rotation.
+ * @summary Start rotating the stream ticket signing key
+ */
+export const getRotateStreamTicketKeyUrl = () => {
+
+
+
+
+  return `/api/v1/local-services/ticket-key/rotation`
+}
+
+export const rotateStreamTicketKey = async ( options?: RequestInit): Promise<StreamTicketKeyRotation> => {
+
+  return apiFetch<StreamTicketKeyRotation>(getRotateStreamTicketKeyUrl(),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

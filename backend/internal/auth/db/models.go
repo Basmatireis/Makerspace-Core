@@ -1466,6 +1466,7 @@ type SignageDisplay struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	AllowCameraOutside bool
 }
 
 type SignageDisplayState struct {
@@ -1517,6 +1518,11 @@ type SignagePublication struct {
 	PublishedAt          time.Time
 }
 
+type SignageRevokedDisplay struct {
+	DisplayID uuid.UUID
+	RevokedAt time.Time
+}
+
 type SignageRule struct {
 	ID                      uuid.UUID
 	DisplayID               uuid.UUID
@@ -1560,6 +1566,8 @@ type SignageTicketKey struct {
 	EncryptedPrivateKey []byte
 	CreatedAt           time.Time
 	RetiredAt           pgtype.Timestamptz
+	State               string
+	ActivatesAt         pgtype.Timestamptz
 }
 
 type StreamingCamera struct {
@@ -1626,6 +1634,11 @@ type StreamingGatewayEnrollment struct {
 	RevokedAt             pgtype.Timestamptz
 	CreatedByAccountID    *uuid.UUID
 	CreatedAt             time.Time
+}
+
+type StreamingSessionEpoch struct {
+	Singleton bool
+	Epoch     int64
 }
 
 type Survey struct {

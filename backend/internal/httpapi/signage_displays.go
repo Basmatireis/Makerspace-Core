@@ -36,7 +36,7 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 	return openapi.SignageDisplay{
 		Id: display.ID, ManagedDeviceId: display.ManagedDeviceID, Name: display.Name, Location: display.Location,
 		Orientation: openapi.SignageOrientation(display.Orientation), Resolution: openapi.SignageResolution{Width: display.Resolution.Width, Height: display.Resolution.Height},
-		VisibleFromOutside: display.VisibleFromOutside, DefaultPlaylistId: display.DefaultPlaylistID, Status: openapi.SignageDisplayStatus(display.Status),
+		VisibleFromOutside: display.VisibleFromOutside, AllowCameraOutside: display.AllowCameraOutside, DefaultPlaylistId: display.DefaultPlaylistID, Status: openapi.SignageDisplayStatus(display.Status),
 		RevokedAt: nullableTimeValue(display.RevokedAt), LastHeartbeatAt: nullableTimeValue(display.LastHeartbeatAt),
 		PublishedRevision: nullableValue(display.PublishedRevision), PublishedAt: nullableTimeValue(display.PublishedAt), PendingChanges: pending,
 		ReportedRevision: nullableValue(display.ReportedRevision), CurrentRule: nullableValue(display.CurrentRule), CurrentSceneId: nullableUUIDValue(display.CurrentSceneID),
@@ -83,7 +83,7 @@ func (s *Server) PairSignageDisplay(ctx context.Context, r openapi.PairSignageDi
 	}
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
-		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside,
+		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *Server) UpdateSignageDisplay(ctx context.Context, r openapi.UpdateSigna
 	}
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, Orientation: string(r.Body.Orientation),
-		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside,
+		Resolution: signage.Resolution{Width: r.Body.Resolution.Width, Height: r.Body.Resolution.Height}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {

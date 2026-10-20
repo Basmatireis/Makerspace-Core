@@ -46,6 +46,10 @@ type Configuration struct {
 	PublicHost       string      `json:"publicHost"`
 	TicketPublicKeys []TicketKey `json:"ticketPublicKeys"`
 	Cameras          []Camera    `json:"cameras"`
+	// SessionEpoch changes when running camera sessions must be dropped; go2rtc is restarted then.
+	SessionEpoch int64 `json:"sessionEpoch"`
+	// RevokedDisplayIDs are displays whose tickets are refused.
+	RevokedDisplayIDs []uuid.UUID `json:"revokedDisplayIds"`
 }
 
 // CameraHealth is the per-camera part of a heartbeat.

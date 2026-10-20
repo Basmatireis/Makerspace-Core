@@ -136,6 +136,8 @@ type ConfigCamera struct {
 
 // Configuration is what a gateway polls.
 type Configuration struct {
+	SessionEpoch     int64
+	RevokedDisplays  []uuid.UUID
 	Revision         int64
 	ProtocolVersion  int
 	PublicHost       string
@@ -850,7 +852,15 @@ func (s *Service) Configuration(ctx context.Context, gateway Context) (Configura
 	if err != nil {
 		return Configuration{}, err
 	}
-	result := Configuration{Revision: row.ConfigurationRevision, ProtocolVersion: ProtocolVersion, PublicHost: row.PublicHost, TicketPublicKeys: keys, Cameras: []ConfigCamera{}}
+	epoch, err := q.GetSessionEpoch(ctx)
+	if err != nil {
+		return Configuration{}, err
+	}
+	revoked, err := q.ListRevokedDisplayIDs(ctx, s.now().Add(-24*time.Hour))
+	if err != nil {
+		return Configuration{}, err
+	}
+	result := Configuration{SessionEpoch: epoch, RevokedDisplays: revoked, Revision: row.ConfigurationRevision, ProtocolVersion: ProtocolVersion, PublicHost: row.PublicHost, TicketPublicKeys: keys, Cameras: []ConfigCamera{}}
 	if gateway.Lifecycle == "disabled" {
 		return result, nil
 	}

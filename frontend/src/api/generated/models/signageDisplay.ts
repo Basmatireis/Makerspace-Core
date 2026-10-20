@@ -39,6 +39,8 @@ export interface SignageDisplay {
   orientation: SignageOrientation;
   resolution: SignageResolution;
   visibleFromOutside: boolean;
+  /** Only meaningful with visibleFromOutside. Without it, no camera stream tickets are issued to a display that is visible from outside. Takes effect immediately (no publication needed). */
+  allowCameraOutside: boolean;
   defaultPlaylistId: UUIDv7;
   status: SignageDisplayStatus;
   /** @nullable */

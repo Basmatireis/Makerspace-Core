@@ -32,7 +32,7 @@ export interface StreamingGatewayTicketKey {
    */
   publicKey: string;
   /**
-   * Null for the current key; a retired key stays valid for ten minutes.
+   * Null for the current and a pending key; a retired key stays valid for ten minutes.
    * @nullable
    */
   validUntil: string | null;

@@ -22,11 +22,24 @@ type Identity struct {
 	CredentialSecret    string    `json:"credentialSecret"`
 	CredentialExpiresAt time.Time `json:"credentialExpiresAt"`
 	Enrolled            bool      `json:"enrolled"`
+	// The next credential is saved before it is sent to Core, so a rotation whose answer was lost is
+	// retried with the same credential instead of a new one.
+	NextCredentialID     *uuid.UUID `json:"nextCredentialId,omitempty"`
+	NextCredentialSecret string     `json:"nextCredentialSecret,omitempty"`
+}
+
+// Go2RTCCredentials protect go2rtc's HTTP API; they are generated once by the gateway.
+type Go2RTCCredentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type persisted struct {
-	Identity      *Identity      `json:"identity,omitempty"`
-	Configuration *Configuration `json:"configuration,omitempty"`
+	Identity      *Identity          `json:"identity,omitempty"`
+	Configuration *Configuration     `json:"configuration,omitempty"`
+	Go2RTC        *Go2RTCCredentials `json:"go2rtc,omitempty"`
+	// AppliedEpoch is the session epoch go2rtc was last restarted for.
+	AppliedEpoch *int64 `json:"appliedEpoch,omitempty"`
 }
 
 // Store keeps the identity and the last accepted configuration encrypted in the data directory.
@@ -156,6 +169,42 @@ func (s *Store) Configuration() *Configuration {
 
 func (s *Store) SaveConfiguration(value Configuration) error {
 	s.state.Configuration = &value
+	return s.save()
+}
+
+// Go2RTCCredentials returns the go2rtc API credentials, generating and saving them on first use.
+func (s *Store) Go2RTCCredentials() (Go2RTCCredentials, error) {
+	if s.state.Go2RTC != nil && s.state.Go2RTC.Username != "" && s.state.Go2RTC.Password != "" {
+		return *s.state.Go2RTC, nil
+	}
+	user, err := newSecret()
+	if err != nil {
+		return Go2RTCCredentials{}, err
+	}
+	password, err := newSecret()
+	if err != nil {
+		return Go2RTCCredentials{}, err
+	}
+	value := Go2RTCCredentials{Username: "gw" + user[:12], Password: password}
+	s.state.Go2RTC = &value
+	if err = s.save(); err != nil {
+		s.state.Go2RTC = nil
+		return Go2RTCCredentials{}, err
+	}
+	return value, nil
+}
+
+// AppliedEpoch is the session epoch go2rtc last restarted for (nil: never).
+func (s *Store) AppliedEpoch() *int64 {
+	if s.state.AppliedEpoch == nil {
+		return nil
+	}
+	value := *s.state.AppliedEpoch
+	return &value
+}
+
+func (s *Store) SaveAppliedEpoch(value int64) error {
+	s.state.AppliedEpoch = &value
 	return s.save()
 }
 

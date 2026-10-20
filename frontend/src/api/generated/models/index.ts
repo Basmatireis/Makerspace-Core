@@ -888,6 +888,7 @@ export * from './statisticPoint';
 export * from './statisticRuntimePoint';
 export * from './statisticTotals';
 export * from './stockState';
+export * from './streamTicketKeyRotation';
 export * from './streamingCamera';
 export * from './streamingCameraHealth';
 export * from './streamingCameraList';

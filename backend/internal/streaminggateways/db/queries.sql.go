@@ -44,6 +44,15 @@ func (q *Queries) ActivateGateway(ctx context.Context, id uuid.UUID) (StreamingG
 	return i, err
 }
 
+const activatePendingTicketKey = `-- name: ActivatePendingTicketKey :exec
+UPDATE signage_ticket_keys SET state = 'active' WHERE state = 'pending'
+`
+
+func (q *Queries) ActivatePendingTicketKey(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, activatePendingTicketKey)
+	return err
+}
+
 const activeBambuAssignmentForMachine = `-- name: ActiveBambuAssignmentForMachine :one
 
 SELECT id, adapter_kind FROM printer_connector_assignments
@@ -406,7 +415,7 @@ func (q *Queries) DeleteGateway(ctx context.Context, arg DeleteGatewayParams) (i
 
 const getActiveTicketKey = `-- name: GetActiveTicketKey :one
 
-SELECT id, kid, public_key, encrypted_private_key, created_at, retired_at FROM signage_ticket_keys WHERE retired_at IS NULL
+SELECT id, kid, public_key, encrypted_private_key, created_at, retired_at, state, activates_at FROM signage_ticket_keys WHERE state = 'active'
 `
 
 // Ticket keys --------------------------------------------------------------------------------------------------
@@ -420,6 +429,8 @@ func (q *Queries) GetActiveTicketKey(ctx context.Context) (SignageTicketKey, err
 		&i.EncryptedPrivateKey,
 		&i.CreatedAt,
 		&i.RetiredAt,
+		&i.State,
+		&i.ActivatesAt,
 	)
 	return i, err
 }
@@ -610,9 +621,40 @@ func (q *Queries) GetGatewayForUpdate(ctx context.Context, id uuid.UUID) (Stream
 	return i, err
 }
 
+const getPendingTicketKey = `-- name: GetPendingTicketKey :one
+SELECT id, kid, public_key, encrypted_private_key, created_at, retired_at, state, activates_at FROM signage_ticket_keys WHERE state = 'pending'
+`
+
+func (q *Queries) GetPendingTicketKey(ctx context.Context) (SignageTicketKey, error) {
+	row := q.db.QueryRow(ctx, getPendingTicketKey)
+	var i SignageTicketKey
+	err := row.Scan(
+		&i.ID,
+		&i.Kid,
+		&i.PublicKey,
+		&i.EncryptedPrivateKey,
+		&i.CreatedAt,
+		&i.RetiredAt,
+		&i.State,
+		&i.ActivatesAt,
+	)
+	return i, err
+}
+
+const getSessionEpoch = `-- name: GetSessionEpoch :one
+SELECT epoch FROM streaming_session_epoch WHERE singleton
+`
+
+func (q *Queries) GetSessionEpoch(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getSessionEpoch)
+	var epoch int64
+	err := row.Scan(&epoch)
+	return epoch, err
+}
+
 const insertTicketKey = `-- name: InsertTicketKey :execrows
-INSERT INTO signage_ticket_keys (id, kid, public_key, encrypted_private_key)
-VALUES ($1, $2, $3, $4)
+INSERT INTO signage_ticket_keys (id, kid, public_key, encrypted_private_key, state, activates_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT DO NOTHING
 `
 
@@ -621,6 +663,8 @@ type InsertTicketKeyParams struct {
 	Kid                 string
 	PublicKey           []byte
 	EncryptedPrivateKey []byte
+	State               string
+	ActivatesAt         pgtype.Timestamptz
 }
 
 func (q *Queries) InsertTicketKey(ctx context.Context, arg InsertTicketKeyParams) (int64, error) {
@@ -629,6 +673,8 @@ func (q *Queries) InsertTicketKey(ctx context.Context, arg InsertTicketKeyParams
 		arg.Kid,
 		arg.PublicKey,
 		arg.EncryptedPrivateKey,
+		arg.State,
+		arg.ActivatesAt,
 	)
 	if err != nil {
 		return 0, err
@@ -847,6 +893,30 @@ func (q *Queries) ListGateways(ctx context.Context) ([]StreamingGateway, error) 
 	return items, nil
 }
 
+const listRevokedDisplayIDs = `-- name: ListRevokedDisplayIDs :many
+SELECT display_id FROM signage_revoked_displays WHERE revoked_at > $1 ORDER BY display_id
+`
+
+func (q *Queries) ListRevokedDisplayIDs(ctx context.Context, revokedAfter time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRevokedDisplayIDs, revokedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var display_id uuid.UUID
+		if err := rows.Scan(&display_id); err != nil {
+			return nil, err
+		}
+		items = append(items, display_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStreamCamerasForMachines = `-- name: ListStreamCamerasForMachines :many
 SELECT c.machine_id, m.name AS machine_name, g.public_host
 FROM streaming_cameras c
@@ -883,14 +953,15 @@ func (q *Queries) ListStreamCamerasForMachines(ctx context.Context, machineIds [
 }
 
 const listValidTicketKeys = `-- name: ListValidTicketKeys :many
-SELECT kid, public_key, retired_at FROM signage_ticket_keys
-WHERE retired_at IS NULL OR retired_at > $1
+SELECT kid, public_key, state, retired_at FROM signage_ticket_keys
+WHERE state IN ('pending', 'active') OR retired_at > $1
 ORDER BY created_at DESC, id DESC
 `
 
 type ListValidTicketKeysRow struct {
 	Kid       string
 	PublicKey []byte
+	State     string
 	RetiredAt pgtype.Timestamptz
 }
 
@@ -903,10 +974,39 @@ func (q *Queries) ListValidTicketKeys(ctx context.Context, retiredAfter pgtype.T
 	items := []ListValidTicketKeysRow{}
 	for rows.Next() {
 		var i ListValidTicketKeysRow
-		if err := rows.Scan(&i.Kid, &i.PublicKey, &i.RetiredAt); err != nil {
+		if err := rows.Scan(
+			&i.Kid,
+			&i.PublicKey,
+			&i.State,
+			&i.RetiredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockTicketKeys = `-- name: LockTicketKeys :many
+SELECT id FROM signage_ticket_keys WHERE state IN ('active', 'pending') ORDER BY id FOR UPDATE
+`
+
+func (q *Queries) LockTicketKeys(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockTicketKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -973,12 +1073,12 @@ func (q *Queries) RecordGatewayHeartbeat(ctx context.Context, arg RecordGatewayH
 	return i, err
 }
 
-const retireTicketKeys = `-- name: RetireTicketKeys :exec
-UPDATE signage_ticket_keys SET retired_at = $1 WHERE retired_at IS NULL
+const retireActiveTicketKey = `-- name: RetireActiveTicketKey :exec
+UPDATE signage_ticket_keys SET state = 'retired', retired_at = $1 WHERE state = 'active'
 `
 
-func (q *Queries) RetireTicketKeys(ctx context.Context, retiredAt pgtype.Timestamptz) error {
-	_, err := q.db.Exec(ctx, retireTicketKeys, retiredAt)
+func (q *Queries) RetireActiveTicketKey(ctx context.Context, retiredAt pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, retireActiveTicketKey, retiredAt)
 	return err
 }
 

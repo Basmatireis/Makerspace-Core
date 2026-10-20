@@ -13,6 +13,8 @@ import (
 
 type Querier interface {
 	BumpSignageDisplayVersion(ctx context.Context, arg BumpSignageDisplayVersionParams) (int64, error)
+	// Drops running camera sessions: gateways restart go2rtc when the epoch changes.
+	BumpStreamingSessionEpoch(ctx context.Context) error
 	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
 	CountOpenSignagePairingRequests(ctx context.Context, now time.Time) (int64, error)
 	CountSceneRulesWithOtherOrientation(ctx context.Context, arg CountSceneRulesWithOtherOrientationParams) (int64, error)
@@ -107,7 +109,9 @@ type Querier interface {
 	LockSignagePlaylistForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LockSignageSceneForShare(ctx context.Context, id uuid.UUID) (LockSignageSceneForShareRow, error)
 	NextSignagePublicationRevision(ctx context.Context, displayID uuid.UUID) (int32, error)
+	PruneRevokedSignageDisplays(ctx context.Context, olderThan time.Time) error
 	PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error
+	RecordRevokedSignageDisplay(ctx context.Context, displayID uuid.UUID) error
 	RenameSignageAsset(ctx context.Context, arg RenameSignageAssetParams) (int64, error)
 	RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDisplayParams) (uuid.UUID, error)
 	SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error)

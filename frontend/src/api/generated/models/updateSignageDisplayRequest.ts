@@ -35,5 +35,7 @@ export interface UpdateSignageDisplayRequest {
   orientation: SignageOrientation;
   resolution: SignageResolution;
   visibleFromOutside: boolean;
+  /** Optional; omitted means unchanged on update and false on pairing. */
+  allowCameraOutside?: boolean;
   defaultPlaylistId: UUIDv7;
 }

@@ -4338,6 +4338,20 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /local-services/ticket-key/rotation:
+    post:
+      tags: [Local Services]
+      operationId: rotateStreamTicketKey
+      summary: Start rotating the stream ticket signing key
+      description: Needs `local_services.manage`. The new key is published to gateways at once as pending and starts signing after at least 60 seconds; the previous key stays verifiable for ten minutes after that. A second call while a key is pending activates it immediately and starts the next rotation.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "202": {description: Rotation started., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamTicketKeyRotation"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /streaming-gateway/enroll:
     post:
       tags: [Local Services]
@@ -11202,6 +11216,13 @@ components:
       properties:
         enabled: {type: boolean}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+    StreamTicketKeyRotation:
+      type: object
+      additionalProperties: false
+      required: [keyId, activatesAt]
+      properties:
+        keyId: {type: string, minLength: 8, maxLength: 32}
+        activatesAt: {type: string, format: date-time}
     StreamingGatewayTicketKey:
       type: object
       additionalProperties: false
@@ -11209,7 +11230,7 @@ components:
       properties:
         kid: {type: string, minLength: 8, maxLength: 32}
         publicKey: {type: string, minLength: 43, maxLength: 43, description: "Ed25519 public key, 32 bytes, base64url without padding."}
-        validUntil: {type: string, format: date-time, nullable: true, description: "Null for the current key; a retired key stays valid for ten minutes."}
+        validUntil: {type: string, format: date-time, nullable: true, description: "Null for the current and a pending key; a retired key stays valid for ten minutes."}
     StreamingGatewayConfigCamera:
       type: object
       additionalProperties: false
@@ -11222,8 +11243,10 @@ components:
     StreamingGatewayConfiguration:
       type: object
       additionalProperties: false
-      required: [revision, protocolVersion, publicHost, ticketPublicKeys, cameras]
+      required: [revision, protocolVersion, publicHost, ticketPublicKeys, cameras, sessionEpoch, revokedDisplayIds]
       properties:
+        sessionEpoch: {type: integer, format: int64, minimum: 0, description: "Changes when running camera sessions must be dropped (display revoked or deleted, camera removed from a display, camera access outside switched off). The gateway restarts go2rtc when the value changes."}
+        revokedDisplayIds: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Displays revoked or deleted within the last 24 hours; tickets for them are refused."}
         revision: {type: integer, format: int64, minimum: 1}
         protocolVersion: {type: integer, minimum: 1}
         publicHost: {type: string}
@@ -15189,7 +15212,7 @@ components:
     SignageDisplay:
       type: object
       additionalProperties: false
-      required: [id, managedDeviceId, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
+      required: [id, managedDeviceId, name, location, orientation, resolution, visibleFromOutside, allowCameraOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         managedDeviceId: {$ref: "#/components/schemas/UUIDv7"}
@@ -15198,6 +15221,7 @@ components:
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         resolution: {$ref: "#/components/schemas/SignageResolution"}
         visibleFromOutside: {type: boolean}
+        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, no camera stream tickets are issued to a display that is visible from outside. Takes effect immediately (no publication needed)."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
         status: {$ref: "#/components/schemas/SignageDisplayStatus"}
         revokedAt: {type: string, format: date-time, nullable: true}
@@ -15235,6 +15259,7 @@ components:
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         resolution: {$ref: "#/components/schemas/SignageResolution"}
         visibleFromOutside: {type: boolean}
+        allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
     UpdateSignageDisplayRequest:
       type: object
@@ -15247,6 +15272,7 @@ components:
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         resolution: {$ref: "#/components/schemas/SignageResolution"}
         visibleFromOutside: {type: boolean}
+        allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
 
     SignageRuleConditionKind:

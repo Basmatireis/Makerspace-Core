@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -109,7 +110,7 @@ func TestUnknownFieldsAndVersionAreRejected(t *testing.T) {
 	}
 	id := uuid.Must(uuid.NewV7()).String()
 	now := time.Now().UTC()
-	base := `"displayId":"` + id + `","machineId":"` + id + `","streamName":"cam-a","exp":` + "99999999999" + `,"kid":"` + kid + `"`
+	base := `"displayId":"` + id + `","machineId":"` + id + `","streamName":"cam-a","exp":` + strconv.FormatInt(now.Add(time.Minute).Unix(), 10) + `,"kid":"` + kid + `"`
 	if _, err := Verify(sign(`{"v":1,`+base+`}`), Keys{kid: public}, now); err != nil {
 		t.Fatalf("well-formed signed payload: %v", err)
 	}
@@ -131,5 +132,29 @@ func TestStreamNameIsStableAndSafe(t *testing.T) {
 	}
 	if StreamName(id) != StreamName(id) {
 		t.Fatal("stream name must be deterministic")
+	}
+}
+
+func TestTicketsWithAnExcessiveLifetimeAreRejected(t *testing.T) {
+	public, private, kid := newKey(t)
+	now := time.Now().UTC()
+	sign := func(issuedAt time.Time) string {
+		ticket, _, err := Sign(private, kid, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), "cam-a", issuedAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ticket
+	}
+	if _, err := Verify(sign(now), Keys{kid: public}, now); err != nil {
+		t.Fatalf("regular ticket: %v", err)
+	}
+	// Issued by a signer with a skewed clock but within the tolerated skew.
+	if _, err := Verify(sign(now.Add(ClockSkew-time.Second)), Keys{kid: public}, now); err != nil {
+		t.Fatalf("ticket inside the skew: %v", err)
+	}
+	for name, issuedAt := range map[string]time.Time{"an hour": now.Add(time.Hour), "a year": now.Add(365 * 24 * time.Hour), "just beyond the skew": now.Add(ClockSkew + 2*time.Second)} {
+		if _, err := Verify(sign(issuedAt), Keys{kid: public}, now); !errors.Is(err, ErrLifetime) {
+			t.Errorf("ticket valid %s ahead = %v, want ErrLifetime", name, err)
+		}
 	}
 }

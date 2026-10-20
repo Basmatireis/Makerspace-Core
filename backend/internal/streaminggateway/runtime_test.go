@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,6 +21,8 @@ type fakeCore struct {
 	configuration Configuration
 	err           error
 	heartbeats    []Heartbeat
+	rotations     []uuid.UUID
+	rotateErr     error
 }
 
 func (c *fakeCore) Enroll(_ context.Context, _ string, identity Identity, _ string) (Identity, error) {
@@ -38,6 +41,10 @@ func (c *fakeCore) Heartbeat(_ context.Context, _ string, input Heartbeat) (int6
 	return 0, c.err
 }
 func (c *fakeCore) RotateCredential(_ context.Context, _ string, identity Identity) (Identity, error) {
+	c.rotations = append(c.rotations, identity.CredentialID)
+	if c.rotateErr != nil {
+		return identity, c.rotateErr
+	}
 	return identity, nil
 }
 func (c *fakeCore) set(configuration Configuration, err error) {
@@ -277,5 +284,119 @@ func TestHealthcheckGoesStale(t *testing.T) {
 	}
 	if err := CheckHealth(options.DataDir); err == nil {
 		t.Fatal("non-healthy status must fail")
+	}
+}
+
+func TestSessionEpochChangeRestartsGo2RTCOnce(t *testing.T) {
+	g, core, g2r, _ := newTestGateway(t)
+	ctx := context.Background()
+	sync := func(epoch int64) {
+		t.Helper()
+		configuration := testConfiguration(1, "a")
+		configuration.SessionEpoch = epoch
+		core.set(configuration, nil)
+		if err := g.Sync(ctx, Identity{CredentialSecret: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sync(4)
+	if g2r.restarts != 1 {
+		t.Fatalf("first configuration: %d restarts", g2r.restarts)
+	}
+	sync(4)
+	sync(4)
+	if g2r.restarts != 1 {
+		t.Fatalf("unchanged epoch restarted go2rtc: %d", g2r.restarts)
+	}
+	sync(5) // same rendered configuration, only the epoch moved: sessions must be cut
+	if g2r.restarts != 2 {
+		t.Fatalf("epoch change did not restart go2rtc: %d", g2r.restarts)
+	}
+	// A failing restart is retried on the next polls until it works.
+	g2r.restart = errors.New("boom")
+	sync(6)
+	sync(6)
+	sync(6)
+	sync(6) // attempts are capped per change, but the epoch stays pending
+	failed := g2r.restarts
+	g2r.restart = nil
+	sync(6)
+	if g2r.restarts != failed+1 {
+		t.Fatalf("pending epoch was not retried after recovery: %d -> %d", failed, g2r.restarts)
+	}
+	sync(6)
+	if g2r.restarts != failed+1 {
+		t.Fatal("restarted again after the epoch was applied")
+	}
+	// The applied epoch survives a daemon restart.
+	if applied := g.store.AppliedEpoch(); applied == nil || *applied != 6 {
+		t.Fatalf("persisted epoch = %v", applied)
+	}
+}
+
+func TestRevokedDisplaysReachTheProxySnapshot(t *testing.T) {
+	g, core, _, _ := newTestGateway(t)
+	display := uuid.Must(uuid.NewV7())
+	configuration := testConfiguration(1, "a")
+	configuration.RevokedDisplayIDs = []uuid.UUID{display}
+	core.set(configuration, nil)
+	if err := g.Sync(context.Background(), Identity{CredentialSecret: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := g.Snapshot().RevokedDisplays[display]; !ok {
+		t.Fatal("revoked display missing from the snapshot")
+	}
+}
+
+func TestGo2RTCCredentialsAreGeneratedOnceAndStoredEncrypted(t *testing.T) {
+	g, _, _, options := newTestGateway(t)
+	first, err := g.store.Go2RTCCredentials()
+	if err != nil || len(first.Password) < 40 || first.Username == "" {
+		t.Fatalf("credentials = %+v, %v", first, err)
+	}
+	again, _ := g.store.Go2RTCCredentials()
+	if again != first {
+		t.Fatal("credentials must be stable")
+	}
+	g.store.Close()
+	reopened, err := OpenStore(options.DataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if loaded, _ := reopened.Go2RTCCredentials(); loaded != first {
+		t.Fatal("credentials not persisted")
+	}
+	raw, _ := os.ReadFile(filepath.Join(options.DataDir, "state.enc"))
+	if strings.Contains(string(raw), first.Password) {
+		t.Fatal("credentials must be stored encrypted")
+	}
+}
+
+func TestCredentialRotationPersistsTheNextCredentialAndRetriesWithIt(t *testing.T) {
+	g, core, _, _ := newTestGateway(t)
+	ctx := context.Background()
+	identity := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: "old", Enrolled: true, CredentialExpiresAt: g.now().Add(24 * time.Hour)}
+	if err := g.store.SaveIdentity(identity); err != nil {
+		t.Fatal(err)
+	}
+	core.rotateErr = errors.New("answer lost")
+	if _, err := g.rotateCredentialIfNeeded(ctx, identity); err == nil {
+		t.Fatal("rotation should fail")
+	}
+	saved := g.store.Identity()
+	if saved.NextCredentialID == nil || saved.NextCredentialSecret == "" || saved.CredentialSecret != "old" {
+		t.Fatalf("next credential not persisted before sending: %+v", saved)
+	}
+	core.rotateErr = nil
+	rotated, err := g.rotateCredentialIfNeeded(ctx, *saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(core.rotations) != 2 || core.rotations[0] != core.rotations[1] || core.rotations[0] != *saved.NextCredentialID {
+		t.Fatalf("retry must reuse the same credential: %v", core.rotations)
+	}
+	if rotated.CredentialSecret != saved.NextCredentialSecret || rotated.NextCredentialID != nil || g.store.Identity().NextCredentialID != nil {
+		t.Fatalf("rotation not completed: %+v", rotated)
 	}
 }

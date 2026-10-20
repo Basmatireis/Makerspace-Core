@@ -52,6 +52,10 @@ func (s *Service) publishDisplay(ctx context.Context, principal authorization.Pr
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
+	previous, hadPrevious, err := s.latestManifest(ctx, q, id)
+	if err != nil {
+		return Display{}, err
+	}
 	rules, err := loadRules(ctx, q, []uuid.UUID{id})
 	if err != nil {
 		return Display{}, err
@@ -86,6 +90,12 @@ func (s *Service) publishDisplay(ctx context.Context, principal authorization.Pr
 	if err := q.PruneSignagePublications(ctx, signagedb.PruneSignagePublicationsParams{DisplayID: id, MaxRevision: revision - retainedPublications}); err != nil {
 		return Display{}, err
 	}
+	if hadPrevious && camerasRemoved(ManifestCameraMachineIDs(previous), ManifestCameraMachineIDs(manifest)) {
+		// The display no longer shows a camera it used before: drop its running sessions.
+		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
+			return Display{}, err
+		}
+	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.published", "signage_display", id, requestID, []string{"revision"}); err != nil {
 		return Display{}, err
 	}
@@ -94,4 +104,18 @@ func (s *Service) publishDisplay(ctx context.Context, principal authorization.Pr
 		return Display{}, err
 	}
 	return result, tx.Commit(ctx)
+}
+
+// camerasRemoved reports whether the old camera set contains a machine the new one lacks.
+func camerasRemoved(before, after []uuid.UUID) bool {
+	remaining := make(map[uuid.UUID]struct{}, len(after))
+	for _, id := range after {
+		remaining[id] = struct{}{}
+	}
+	for _, id := range before {
+		if _, ok := remaining[id]; !ok {
+			return true
+		}
+	}
+	return false
 }
