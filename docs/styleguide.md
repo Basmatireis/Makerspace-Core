@@ -97,7 +97,7 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 ### Styling
 
 - IBM Carbon components, icons and pictograms first. Handwritten controls only where Carbon has no equivalent, with a comment saying so.
-- Colours, spacing and type come from Carbon tokens (`$layer-01`, `$text-secondary`, `$spacing-05`, type mixins). Fixed pixel values are for application-specific rendering only (signage scenes at display resolution, hairlines, print layouts).
+- Colours, spacing and type come from Carbon's Sass tokens (`@use '@carbon/styles/scss/theme' as theme;` → `theme.$text-secondary`, `spacing.$spacing-05`, type mixins). Never write a bare `var(--cds-…)`: the default theme does not define those custom properties, and only the Sass tokens carry the fallback value. Fixed pixel values are for application-specific rendering only (signage scenes at display resolution, hairlines, print layouts).
 - Each Carbon component adds only its own `@carbon/styles` module; never the full `@carbon/react` stylesheet. Chart code and chart CSS stay behind the asynchronous charting boundary.
 
 ### Dependencies **(checked)**
