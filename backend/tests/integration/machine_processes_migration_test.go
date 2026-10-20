@@ -171,7 +171,7 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 	assertCount(
 		t,
 		pool,
-		`SELECT count(*) FROM information_schema.columns WHERE table_name = 'machine_types' AND column_name = 'printer'`,
+		`SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'machine_types' AND column_name = 'printer'`,
 		0,
 	)
 
