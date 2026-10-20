@@ -13,7 +13,7 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 
 ### Layout
 
-- One package per business feature under `backend/internal/<feature>/`, with `service.go` (constructor and public API), one file per sub-topic (`jobs.go`, `runs.go`) and `db/` for sqlc. Files above ~800 lines are split by sub-topic.
+- One package per business feature under `backend/internal/<feature>/`, with `service.go` (constructor and public API), one file per sub-topic (`jobs.go`, `runs.go`) and `db/` for sqlc. Files above ~1200 lines (after formatting) are split by sub-topic.
 - `internal/httpapi` is the only HTTP adapter: one file per feature, each handler parses the request, calls exactly one service method and maps the result. `server.go` holds only the `Server` struct and its wiring.
 - `internal/platform/*` holds shared plumbing (config, database, errors, logging, rate limiting, telemetry). Feature code does not grow private copies of platform helpers.
 - Domain packages do not import `internal/openapi`. The permission registry in `internal/authorization` is the single, documented exception.
