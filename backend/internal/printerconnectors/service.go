@@ -518,7 +518,7 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err = q.RevokeOpenEnrollments(ctx, id); err != nil {
 		return EnrollmentIssue{}, err
 	}
-	expires := time.Now().UTC().Add(enrollmentTTL)
+	expires := time.Now().UTC().Add(enrollmentTTL).Truncate(time.Microsecond)
 	enrollmentID := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	if _, err = q.CreateEnrollment(ctx, db.CreateEnrollmentParams{ID: enrollmentID, ConnectorID: id, TokenDigest: digest, ExpiresAt: expires, CreatedByAccountID: &actor}); err != nil {
@@ -597,7 +597,7 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 			return EnrollmentResult{}, err
 		}
 	}
-	expires := time.Now().UTC().Add(credentialTTL)
+	expires := time.Now().UTC().Add(credentialTTL).Truncate(time.Microsecond)
 	if _, err = q.CreateCredential(ctx, db.CreateCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return EnrollmentResult{}, databaseError(err)
 	}
@@ -935,7 +935,7 @@ func (s *Service) RotateCredential(ctx context.Context, connector Context, crede
 	if err = q.BeginCredentialRotation(ctx, connector.ID); err != nil {
 		return time.Time{}, err
 	}
-	expires := time.Now().UTC().Add(credentialTTL)
+	expires := time.Now().UTC().Add(credentialTTL).Truncate(time.Microsecond)
 	if _, err = q.CreateRotatedCredential(ctx, db.CreateRotatedCredentialParams{ID: credentialID, ConnectorID: connector.ID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return time.Time{}, databaseError(err)
 	}

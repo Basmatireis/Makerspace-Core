@@ -1,7 +1,6 @@
 package printing
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,20 +43,7 @@ func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
 
 func printingIntegrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("TEST_DATABASE_URL is not set")
-	}
-	pool, err := pgxpool.New(t.Context(), databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = pool.Ping(t.Context()); err != nil {
-		pool.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return testdb.Pool(t)
 }
 
 func TestPrintingPostgresVerticalSlice(t *testing.T) {

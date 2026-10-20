@@ -476,7 +476,7 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err = q.RevokeOpenGatewayEnrollments(ctx, id); err != nil {
 		return EnrollmentIssue{}, err
 	}
-	expires := s.now().Add(enrollmentTTL)
+	expires := s.now().Add(enrollmentTTL).Truncate(time.Microsecond)
 	enrollmentID := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	if _, err = q.CreateGatewayEnrollment(ctx, db.CreateGatewayEnrollmentParams{ID: enrollmentID, GatewayID: id, TokenDigest: digest, ExpiresAt: expires, CreatedByAccountID: &actor}); err != nil {
@@ -559,7 +559,7 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 			return EnrollmentResult{}, err
 		}
 	}
-	expires := s.now().Add(credentialTTL)
+	expires := s.now().Add(credentialTTL).Truncate(time.Microsecond)
 	if _, err = q.CreateGatewayCredential(ctx, db.CreateGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return EnrollmentResult{}, databaseError(err)
 	}
@@ -682,7 +682,7 @@ func (s *Service) RotateCredential(ctx context.Context, gateway Context, credent
 	if err = q.BeginGatewayCredentialRotation(ctx, gateway.ID); err != nil {
 		return time.Time{}, err
 	}
-	expires := s.now().Add(credentialTTL)
+	expires := s.now().Add(credentialTTL).Truncate(time.Microsecond)
 	if _, err = q.CreateRotatedGatewayCredential(ctx, db.CreateRotatedGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return time.Time{}, databaseError(err)
 	}

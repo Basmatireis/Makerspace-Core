@@ -1,7 +1,6 @@
 package streaminggateways
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
@@ -18,20 +18,7 @@ import (
 
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("TEST_DATABASE_URL is not set")
-	}
-	pool, err := pgxpool.New(t.Context(), databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = pool.Ping(t.Context()); err != nil {
-		pool.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return testdb.Pool(t)
 }
 
 func TestCameraCandidatesRequireLocalServicesManage(t *testing.T) {
@@ -51,6 +38,9 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Linux clocks have nanosecond resolution; PostgreSQL keeps microseconds.
+	// Simulate that so the returned expiry must already match the stored one.
+	service.now = func() time.Time { return time.Now().UTC().Truncate(time.Microsecond).Add(789 * time.Nanosecond) }
 	logbook := machinelogbook.NewService(pool)
 	printingService := printing.NewService(pool)
 	connectors, err := printerconnectors.NewService(pool, printingService, nil)
