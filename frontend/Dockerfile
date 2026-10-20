@@ -24,7 +24,7 @@ COPY frontend/ ./
 COPY api/ /workspace/api/
 RUN pnpm generate:api && pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24 AS final
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24 AS final
 
 COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY frontend/nginx/security-headers.conf frontend/nginx/csp-app.conf frontend/nginx/csp-player.conf /etc/nginx/snippets/
