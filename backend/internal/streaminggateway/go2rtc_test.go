@@ -106,7 +106,7 @@ func TestParseStreamsNeverReadsProducerURLs(t *testing.T) {
 }
 
 func TestRenderRefusesVerboseLogLevels(t *testing.T) {
-	for _, level := range []string{"info", "debug", "trace", "warn", ""} {
+	for _, level := range []LogLevel{"info", "debug", "trace", "warn", ""} {
 		options := DefaultRenderOptions()
 		options.LogLevel = level
 		if rendered := RenderGo2RTC(nil, options); !strings.Contains(rendered, "log:\n  level: \"error\"\n") {

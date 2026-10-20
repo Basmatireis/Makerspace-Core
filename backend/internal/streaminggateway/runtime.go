@@ -388,21 +388,21 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 		SoftwareVersion:              Version,
 		ProtocolVersion:              ProtocolVersion,
 		AppliedConfigurationRevision: revision,
-		HealthState:                  "connected",
+		HealthState:                  HealthConnected,
 		Cameras:                      []CameraHealth{},
 	}
 	var summary string
 	switch {
 	case streamsErr != nil:
-		heartbeat.HealthState, summary = "degraded", "go2rtc_unreachable"
+		heartbeat.HealthState, summary = HealthDegraded, "go2rtc_unreachable"
 	case pending:
-		heartbeat.HealthState, summary = "degraded", "go2rtc_restart_pending"
+		heartbeat.HealthState, summary = HealthDegraded, "go2rtc_restart_pending"
 	case g.tlsWaiting():
-		heartbeat.HealthState, summary = "degraded", "tls: waiting for certificate"
+		heartbeat.HealthState, summary = HealthDegraded, "tls: waiting for certificate"
 	case syncError != "":
-		heartbeat.HealthState, summary = "degraded", syncError
+		heartbeat.HealthState, summary = HealthDegraded, syncError
 	case g.tlsRenewalFailing():
-		heartbeat.HealthState, summary = "degraded", "tls: certificate renewal failing"
+		heartbeat.HealthState, summary = HealthDegraded, "tls: certificate renewal failing"
 	}
 	if summary != "" {
 		heartbeat.HealthSummary = &summary
@@ -427,19 +427,19 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 }
 
 // tlsState is "files" (certificate files), "waiting" (ACME, no certificate yet) or "ready".
-func (g *Gateway) tlsState() string {
+func (g *Gateway) tlsState() TLSState {
 	certs := g.certs.Load()
 	switch {
 	case certs == nil:
-		return "files"
+		return TLSFiles
 	case certs.Status().Ready:
-		return "ready"
+		return TLSReady
 	default:
-		return "waiting"
+		return TLSWaiting
 	}
 }
 
-func (g *Gateway) tlsWaiting() bool { return g.tlsState() == "waiting" }
+func (g *Gateway) tlsWaiting() bool { return g.tlsState() == TLSWaiting }
 
 func (g *Gateway) tlsRenewalFailing() bool {
 	certs := g.certs.Load()

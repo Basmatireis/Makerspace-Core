@@ -30,7 +30,7 @@ type RenderOptions struct {
 	// be given here.
 	WebRTCCandidates []string
 	// LogLevel is go2rtc's log level; only "error" and "fatal" are accepted (see ValidLogLevel).
-	LogLevel string
+	LogLevel LogLevel
 	// APIUsername and APIPassword protect go2rtc's HTTP API (HTTP Basic). They are required: the
 	// generated configuration refuses to render an unauthenticated API.
 	APIUsername, APIPassword string
@@ -38,7 +38,7 @@ type RenderOptions struct {
 
 // ValidLogLevel reports whether level may be used. go2rtc logs stream sources, which carry the
 // printers' LAN access codes, at the more verbose levels, so only error and fatal are allowed.
-func ValidLogLevel(level string) bool { return level == "error" || level == "fatal" }
+func ValidLogLevel(level LogLevel) bool { return level == LogLevelError || level == LogLevelFatal }
 
 // apiAllowedPaths are the only API paths go2rtc serves: the stream list (health), WebRTC signalling,
 // the MSE websocket and the restart the gateway triggers. Everything else (configuration, stream
@@ -51,7 +51,7 @@ const disabledSourcePath = "/nonexistent-executable"
 
 // DefaultRenderOptions are the values the bundled Compose file uses.
 func DefaultRenderOptions() RenderOptions {
-	return RenderOptions{APIListen: ":1984", WebRTCListen: ":8555", LogLevel: "error"}
+	return RenderOptions{APIListen: ":1984", WebRTCListen: ":8555", LogLevel: LogLevelError}
 }
 
 // quote renders a YAML double-quoted scalar. JSON string syntax is a subset of YAML's.
@@ -69,7 +69,7 @@ func quote(value string) string {
 // does not restart go2rtc.
 func RenderGo2RTC(cameras []Camera, options RenderOptions) string {
 	if !ValidLogLevel(options.LogLevel) {
-		options.LogLevel = "error"
+		options.LogLevel = LogLevelError
 	}
 	sorted := append([]Camera(nil), cameras...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].StreamName < sorted[j].StreamName })
@@ -85,7 +85,7 @@ func RenderGo2RTC(cameras []Camera, options RenderOptions) string {
 	for _, path := range apiAllowedPaths {
 		b.WriteString("    - " + quote(path) + "\n")
 	}
-	b.WriteString("log:\n  level: " + quote(options.LogLevel) + "\n")
+	b.WriteString("log:\n  level: " + quote(string(options.LogLevel)) + "\n")
 	b.WriteString("exec:\n  allow_paths:\n    - " + quote(disabledSourcePath) + "\n")
 	b.WriteString("echo:\n  allow_paths:\n    - " + quote(disabledSourcePath) + "\n")
 	b.WriteString("rtsp:\n  listen: \"\"\n")
@@ -283,15 +283,15 @@ func (c *Go2RTCClient) Restart(ctx context.Context) error {
 // HealthFor derives the camera health reported to Core. go2rtc connects to a printer lazily, on the
 // first viewer, so an idle stream is the normal resting state; a viewer without any receiving
 // producer means the printer camera is not delivering media.
-func HealthFor(status StreamStatus, known bool) string {
+func HealthFor(status StreamStatus, known bool) CameraStatus {
 	switch {
 	case !known:
-		return "unavailable"
+		return CameraUnavailable
 	case status.Consumers == 0:
-		return "idle"
+		return CameraIdle
 	case status.Receivers > 0:
-		return "live"
+		return CameraLive
 	default:
-		return "unavailable"
+		return CameraUnavailable
 	}
 }

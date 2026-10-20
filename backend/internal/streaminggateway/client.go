@@ -54,13 +54,13 @@ type Configuration struct {
 
 // CameraHealth is the per-camera part of a heartbeat.
 type CameraHealth struct {
-	MachineID string   `json:"machineId"`
-	Health    string   `json:"health"`
-	Viewers   int      `json:"viewers"`
-	Codec     *string  `json:"codec"`
-	Width     *int     `json:"width"`
-	Height    *int     `json:"height"`
-	FPS       *float64 `json:"fps"`
+	MachineID string       `json:"machineId"`
+	Health    CameraStatus `json:"health"`
+	Viewers   int          `json:"viewers"`
+	Codec     *string      `json:"codec"`
+	Width     *int         `json:"width"`
+	Height    *int         `json:"height"`
+	FPS       *float64     `json:"fps"`
 }
 
 // Heartbeat is the body of POST /streaming-gateway/heartbeat.
@@ -68,7 +68,7 @@ type Heartbeat struct {
 	SoftwareVersion              string         `json:"softwareVersion"`
 	ProtocolVersion              int            `json:"protocolVersion"`
 	AppliedConfigurationRevision int64          `json:"appliedConfigurationRevision"`
-	HealthState                  string         `json:"healthState"`
+	HealthState                  HealthState    `json:"healthState"`
 	HealthSummary                *string        `json:"healthSummary"`
 	Cameras                      []CameraHealth `json:"cameras"`
 }

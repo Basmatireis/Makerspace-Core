@@ -58,7 +58,7 @@ func run() error {
 	render := streaminggateway.DefaultRenderOptions()
 	render.APIListen = env("GO2RTC_API_LISTEN", render.APIListen)
 	render.WebRTCListen = env("GO2RTC_WEBRTC_LISTEN", render.WebRTCListen)
-	render.LogLevel = env("GO2RTC_LOG_LEVEL", render.LogLevel)
+	render.LogLevel = streaminggateway.LogLevel(env("GO2RTC_LOG_LEVEL", string(render.LogLevel)))
 	if !streaminggateway.ValidLogLevel(render.LogLevel) {
 		return errors.New(
 			"GO2RTC_LOG_LEVEL must be error or fatal: go2rtc logs stream sources, which contain the printers' access codes, at more verbose levels",
