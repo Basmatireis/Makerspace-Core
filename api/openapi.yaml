@@ -40,7 +40,6 @@ tags:
   - name: Machine Runs
   - name: Inventory
   - name: Filament Spools
-  - name: Filament Products
   - name: Printing
   - name: Printer Connectors
   - name: Print Artifacts
@@ -5218,11 +5217,13 @@ paths:
     get:
       tags: [Inventory]
       operationId: listMaterials
-      summary: List inventory materials and balances
+      summary: List inventory articles and balances
+      description: Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
       security: [{sessionCookie: []}]
       parameters:
         - {name: search, in: query, schema: {type: string, maxLength: 200}}
         - {name: materialTypeId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: kind, in: query, schema: {$ref: "#/components/schemas/MaterialKind"}}
         - {name: stockState, in: query, schema: {$ref: "#/components/schemas/StockState"}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
@@ -5235,7 +5236,10 @@ paths:
     post:
       tags: [Inventory]
       operationId: createMaterial
-      summary: Create an inventory material
+      summary: Create an inventory article
+      description: >-
+        Requires `inventory.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and
+        manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMaterialRequest"}}}}
       responses:
@@ -5310,6 +5314,42 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/receipts:
+    post:
+      tags: [Inventory]
+      operationId: receiveInventoryStock
+      summary: Receive purchased stock
+      description: >-
+        Requires `inventory.manage`; a placement on spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an
+        existing or a newly described article in a single transaction with one audit event.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReceiveInventoryStockRequest"}}}}
+      responses:
+        "201": {description: Stock received., content: {application/json: {schema: {$ref: "#/components/schemas/InventoryReceiptResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/suggestions:
+    get:
+      tags: [Inventory]
+      operationId: listInventorySuggestions
+      summary: Suggestions for article and receipt forms
+      description: >-
+        Requires `inventory.read`. Distinct values in use, most frequent first, at most 50 each. Variants can be restricted to one material type.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: materialTypeId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Suggestions., content: {application/json: {schema: {$ref: "#/components/schemas/InventorySuggestions"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /materials/{materialId}/consumptions:
@@ -5398,7 +5438,6 @@ paths:
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/FilamentSpoolKind"}}
         - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/FilamentSpoolStatus"}}}
         - {name: mounted, in: query, schema: {type: boolean}}
-        - {name: productId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: manufacturer, in: query, schema: {type: string, maxLength: 150}}
         - {name: consumable, in: query, description: "true returns only spools with an open fill that are not archived (usable for mounting and job usage).", schema: {type: boolean}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
@@ -5602,69 +5641,6 @@ paths:
         "200": {description: Candidates or deleted spools., content: {application/json: {schema: {$ref: "#/components/schemas/CleanUpFilamentSpoolsResult"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /filament-products:
-    get:
-      tags: [Filament Products]
-      operationId: listFilamentProducts
-      summary: List the filament product catalog
-      security: [{sessionCookie: []}]
-      parameters:
-        - {name: search, in: query, description: Matches manufacturer and name., schema: {type: string, maxLength: 200}}
-        - {name: materialId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: manufacturer, in: query, schema: {type: string, maxLength: 150}}
-        - {name: packaging, in: query, schema: {$ref: "#/components/schemas/FilamentPackaging"}}
-        - {name: includeInactive, in: query, schema: {type: boolean, default: false}}
-        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
-        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
-      responses:
-        "200": {description: Products., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentProductPage"}}}}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Filament Products]
-      operationId: createFilamentProduct
-      summary: Add a product to the catalog
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/FilamentProductInput"}}}}
-      responses:
-        "201": {description: Product created., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentProduct"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /filament-products/{productId}:
-    parameters:
-      - {name: productId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    get:
-      tags: [Filament Products]
-      operationId: getFilamentProduct
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Product., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentProduct"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    patch:
-      tags: [Filament Products]
-      operationId: updateFilamentProduct
-      summary: Edit or deactivate a product; spools and fills keep their snapshot text
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateFilamentProductRequest"}}}}
-      responses:
-        "200": {description: Product updated., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentProduct"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -11996,12 +11972,19 @@ components:
     Material:
       type: object
       additionalProperties: false
-      required: [id, name, materialTypeId, materialTypeName, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, version, createdAt, updatedAt]
+      required: [id, name, kind, materialTypeId, materialTypeName, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+        kind: {allOf: [{$ref: "#/components/schemas/MaterialKind"}], description: The kind of the material type.}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         materialTypeName: {type: string}
+        variant: {type: string, maxLength: 80, nullable: true}
+        manufacturer: {type: string, maxLength: 150, nullable: true}
+        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Default EUR price per unit when the article is sold.}
+        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag)."}
+        storageLocation: {type: string, maxLength: 200, nullable: true}
+        notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
         unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: The unit of the material type.}
@@ -12020,6 +12003,13 @@ components:
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
 
+    MaterialKind:
+      type: string
+      enum: [filament, consumable, part]
+      description: >-
+        filament is measured in grams, serves FDM printing and can sit on spools; consumable serves at least one machine process; part has no
+        process, so it can never be used in a machine run.
+
     ColorHex:
       type: string
       pattern: "^#[0-9A-F]{6}$"
@@ -12028,10 +12018,11 @@ components:
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, unit, processes, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, kind, unit, processes, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+        kind: {$ref: "#/components/schemas/MaterialKind"}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         processes: {type: array, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Processes whose machines can consume materials of this type in new runs."}
         active: {type: boolean}
@@ -12051,11 +12042,15 @@ components:
     CreateMaterialTypeRequest:
       type: object
       additionalProperties: false
-      required: [name, unit, processes]
+      required: [name, kind, unit]
+      description: >-
+        filament needs unit g and the process fdm_printing (the default when processes is omitted); consumable needs at least one process; part
+        takes no process.
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
+        kind: {$ref: "#/components/schemas/MaterialKind"}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
-        processes: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}}
+        processes: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}}
 
     UpdateMaterialTypeRequest:
       type: object
@@ -12064,7 +12059,8 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
-        processes: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Omitted keeps the current processes."}
+        kind: {allOf: [{$ref: "#/components/schemas/MaterialKind"}], description: "Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use)."}
+        processes: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Omitted keeps the current processes. The kind decides which lists are valid."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
 
@@ -12082,10 +12078,19 @@ components:
     CreateMaterialRequest:
       type: object
       additionalProperties: false
-      required: [name, materialTypeId]
+      required: [materialTypeId]
+      description: >-
+        name is required for parts and generated for filament and consumables when omitted. Filament defaults filamentDiameterMm to 1.75; other kinds
+        must not have a diameter.
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        variant: {type: string, maxLength: 80, nullable: true}
+        manufacturer: {type: string, maxLength: 150, nullable: true}
+        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        storageLocation: {type: string, maxLength: 200, nullable: true}
+        notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
         unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
@@ -12095,10 +12100,17 @@ components:
     UpdateMaterialRequest:
       type: object
       additionalProperties: false
-      required: [name, materialTypeId, expectedVersion, active]
+      required: [materialTypeId, expectedVersion, active]
+      description: name is required for parts and generated for filament and consumables when omitted.
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        variant: {type: string, maxLength: 80, nullable: true}
+        manufacturer: {type: string, maxLength: 150, nullable: true}
+        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        storageLocation: {type: string, maxLength: 200, nullable: true}
+        notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
         unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
@@ -12131,6 +12143,7 @@ components:
         supplier: {type: string, nullable: true}
         note: {type: string, nullable: true}
         adjustmentReason: {allOf: [{$ref: "#/components/schemas/InventoryAdjustmentReason"}], nullable: true}
+        reference: {type: string, nullable: true, description: Order or invoice number of a purchase.}
         machineJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         machineJobDisplayId: {type: string, nullable: true}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null once the spool was deleted; the snapshot stays.}
@@ -12173,6 +12186,7 @@ components:
         totalPrice: {$ref: "#/components/schemas/Money"}
         occurredAt: {type: string, format: date-time}
         supplier: {type: string, maxLength: 200, nullable: true}
+        reference: {type: string, maxLength: 200, nullable: true}
         note: {type: string, maxLength: 1000, nullable: true}
         expectedInventoryVersion: {$ref: "#/components/schemas/Version"}
 
@@ -12209,6 +12223,60 @@ components:
         note: {type: string, maxLength: 1000, nullable: true}
         expectedInventoryVersion: {$ref: "#/components/schemas/Version"}
 
+    ReceiveInventoryStockRequest:
+      type: object
+      additionalProperties: false
+      required: [packageCount, totalPrice, occurredAt]
+      description: >-
+        Exactly one of materialId (with expectedInventoryVersion) and material (a new article created in the same transaction). The received
+        quantity is packageCount times packageSize.
+      properties:
+        materialId: {$ref: "#/components/schemas/UUIDv7"}
+        material: {$ref: "#/components/schemas/CreateMaterialRequest"}
+        expectedInventoryVersion: {$ref: "#/components/schemas/Version"}
+        packageCount: {type: integer, minimum: 1, maximum: 500, default: 1}
+        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Quantity per package; defaults to the article's package size."}
+        totalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], description: Price of all packages together.}
+        supplier: {type: string, maxLength: 200, nullable: true}
+        reference: {type: string, maxLength: 200, nullable: true}
+        note: {type: string, maxLength: 1000, nullable: true}
+        occurredAt: {type: string, format: date-time}
+        placement: {$ref: "#/components/schemas/InventoryReceiptPlacement"}
+
+    InventoryReceiptPlacement:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      description: >-
+        Filament only. storage books loose stock; new_spools creates one single-use spool per package; reusable_spool loads one package onto an
+        empty, active reusable spool (409 spool_already_loaded otherwise). identifiers are only valid when exactly one spool is created or loaded.
+      properties:
+        mode: {type: string, enum: [storage, new_spools, reusable_spool]}
+        tareWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        storageLocation: {type: string, maxLength: 200, nullable: true}
+        reusableSpoolId: {$ref: "#/components/schemas/UUIDv7"}
+        reusableSpoolExpectedVersion: {$ref: "#/components/schemas/Version"}
+        identifiers: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/NewFilamentSpoolIdentifier"}}
+
+    InventoryReceiptResult:
+      type: object
+      additionalProperties: false
+      required: [material, spools, transactions]
+      properties:
+        material: {$ref: "#/components/schemas/Material"}
+        spools: {type: array, items: {$ref: "#/components/schemas/FilamentSpool"}}
+        transactions: {type: array, items: {$ref: "#/components/schemas/InventoryTransaction"}}
+
+    InventorySuggestions:
+      type: object
+      additionalProperties: false
+      required: [variants, manufacturers, suppliers, storageLocations]
+      properties:
+        variants: {type: array, maxItems: 50, items: {type: string}}
+        manufacturers: {type: array, maxItems: 50, items: {type: string}}
+        suppliers: {type: array, maxItems: 50, items: {type: string}}
+        storageLocations: {type: array, maxItems: 50, items: {type: string}}
+
     FilamentSpoolIdentifier:
       type: object
       additionalProperties: false
@@ -12223,7 +12291,7 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        Material, product, weights and identifiers describe the current (open) fill. A reusable spool without an open
+        Material, weights and identifiers describe the current (open) fill. A reusable spool without an open
         fill needs a refill; its material fields are null and remainingQuantity is 0.
       required: [id, displayId, kind, status, fillNumber, remainingQuantity, lifecycle, mounted, identifiers, version, createdAt, updatedAt]
       properties:
@@ -12242,7 +12310,6 @@ components:
         colorName: {type: string, nullable: true, description: Colour of the material; spools never hold their own.}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
         unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true}
-        productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         manufacturer: {type: string, nullable: true, description: Snapshot taken when the fill started.}
         productName: {type: string, nullable: true, description: Snapshot taken when the fill started.}
         initialNetWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
@@ -12283,11 +12350,6 @@ components:
       description: "loaded and needs_refill for reusable spools, active for single-use spools, archived for both."
       enum: [loaded, needs_refill, active, archived]
 
-    FilamentPackaging:
-      type: string
-      description: refill comes without a spool (for reusable spools); spool comes on its own single-use spool.
-      enum: [refill, spool]
-
     FilamentSpoolFill:
       type: object
       additionalProperties: false
@@ -12297,7 +12359,6 @@ components:
         fillNumber: {type: integer, minimum: 1}
         materialId: {$ref: "#/components/schemas/UUIDv7"}
         materialName: {type: string}
-        productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         manufacturer: {type: string, nullable: true}
         productName: {type: string, nullable: true}
         initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
@@ -12330,9 +12391,8 @@ components:
       additionalProperties: false
       required: [materialId, netWeightG, source]
       properties:
-        productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "When set, materialId must be the product's material."}
         materialId: {$ref: "#/components/schemas/UUIDv7"}
-        manufacturer: {type: string, maxLength: 150, nullable: true}
+        manufacturer: {type: string, maxLength: 150, nullable: true, description: "Defaults to the manufacturer of the material."}
         productName: {type: string, maxLength: 200, nullable: true}
         netWeightG: {$ref: "#/components/schemas/Decimal"}
         source: {type: string, enum: [loose_stock, purchase], description: "loose_stock moves grams from loose stock onto the spool (total unchanged); purchase adds stock."}
@@ -12395,64 +12455,6 @@ components:
         items: {type: array, items: {$ref: "#/components/schemas/CleanUpFilamentSpoolCandidate"}}
         deleted: {type: boolean}
 
-    FilamentProduct:
-      type: object
-      additionalProperties: false
-      required: [id, manufacturer, name, materialId, materialName, netWeightG, packaging, active, inUseCount, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        manufacturer: {type: string}
-        name: {type: string}
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
-        materialName: {type: string}
-        netWeightG: {$ref: "#/components/schemas/Decimal"}
-        defaultPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: EUR per unit bought.}
-        packaging: {$ref: "#/components/schemas/FilamentPackaging"}
-        notes: {type: string, nullable: true}
-        active: {type: boolean}
-        inUseCount: {type: integer, format: int64, minimum: 0, description: Non-archived spools whose open fill uses this product.}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-
-    FilamentProductPage:
-      type: object
-      additionalProperties: false
-      required: [items, page, pageSize, total]
-      properties:
-        items: {type: array, items: {$ref: "#/components/schemas/FilamentProduct"}}
-        page: {type: integer, minimum: 1}
-        pageSize: {type: integer, minimum: 1}
-        total: {type: integer, format: int64, minimum: 0}
-
-    FilamentProductInput:
-      type: object
-      additionalProperties: false
-      required: [manufacturer, name, materialId, netWeightG, packaging]
-      properties:
-        manufacturer: {type: string, minLength: 1, maxLength: 150}
-        name: {type: string, minLength: 1, maxLength: 200}
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
-        netWeightG: {$ref: "#/components/schemas/Decimal"}
-        defaultPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        packaging: {$ref: "#/components/schemas/FilamentPackaging"}
-        notes: {type: string, maxLength: 2000, nullable: true}
-
-    UpdateFilamentProductRequest:
-      type: object
-      additionalProperties: false
-      required: [manufacturer, name, materialId, netWeightG, packaging, active, expectedVersion]
-      properties:
-        manufacturer: {type: string, minLength: 1, maxLength: 150}
-        name: {type: string, minLength: 1, maxLength: 200}
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
-        netWeightG: {$ref: "#/components/schemas/Decimal"}
-        defaultPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        packaging: {$ref: "#/components/schemas/FilamentPackaging"}
-        notes: {type: string, maxLength: 2000, nullable: true}
-        active: {type: boolean}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
     FilamentSpoolPage:
       type: object
       additionalProperties: false
@@ -12470,7 +12472,6 @@ components:
       properties:
         kind: {allOf: [{$ref: "#/components/schemas/FilamentSpoolKind"}], default: single_use}
         label: {type: string, minLength: 1, maxLength: 120, nullable: true}
-        productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "When set, materialId must be the product's material."}
         materialId: {$ref: "#/components/schemas/UUIDv7"}
         initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
         stockMode:

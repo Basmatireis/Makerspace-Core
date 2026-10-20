@@ -45,6 +45,11 @@ export interface InventoryTransaction {
   note?: string | null;
   /** @nullable */
   adjustmentReason?: InventoryTransactionAdjustmentReason;
+  /**
+   * Order or invoice number of a purchase.
+   * @nullable
+   */
+  reference?: string | null;
   /** @nullable */
   machineJobId?: InventoryTransactionMachineJobId;
   /** @nullable */

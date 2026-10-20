@@ -331,21 +331,6 @@ type ExternalInvoiceRequestEvent struct {
 	ActorAccountID     *uuid.UUID
 }
 
-type FilamentProduct struct {
-	ID           uuid.UUID
-	Manufacturer string
-	Name         string
-	MaterialID   uuid.UUID
-	NetWeightG   pgtype.Numeric
-	DefaultPrice pgtype.Numeric
-	Packaging    string
-	Notes        *string
-	Active       bool
-	Version      int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
 type FilamentSpool struct {
 	ID                   uuid.UUID
 	DisplayID            string
@@ -368,7 +353,6 @@ type FilamentSpoolFill struct {
 	SpoolID           uuid.UUID
 	FillNumber        int32
 	MaterialID        uuid.UUID
-	ProductID         *uuid.UUID
 	Manufacturer      *string
 	ProductName       *string
 	InitialNetWeightG pgtype.Numeric
@@ -429,6 +413,7 @@ type InventoryTransaction struct {
 	FromFillNumber      *int32
 	ToSpoolDisplayID    *string
 	ToFillNumber        *int32
+	PurchaseReference   *string
 }
 
 type LaborordnungRequest struct {
@@ -706,6 +691,12 @@ type Material struct {
 	MaterialTypeID    uuid.UUID
 	ColorName         *string
 	ColorHex          *string
+	Variant           *string
+	Manufacturer      *string
+	SalePrice         pgtype.Numeric
+	PackageSize       pgtype.Numeric
+	StorageLocation   *string
+	Notes             *string
 }
 
 type MaterialBalance struct {
@@ -732,6 +723,7 @@ type MaterialType struct {
 	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	Kind      string
 }
 
 type MaterialTypeProcess struct {

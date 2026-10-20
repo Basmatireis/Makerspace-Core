@@ -60,14 +60,14 @@ func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
 	dto := openapi.FilamentSpool{Id: item.ID, DisplayId: item.DisplayID, Kind: openapi.FilamentSpoolKind(item.Kind), Label: nullableString(item.Label), Status: openapi.FilamentSpoolStatus(item.Status),
 		FillNumber: int(item.FillNumber), FillId: nullableUUIDValue(item.FillID), FilledAt: nullableTimeValue(item.FilledAt), ArchivedAt: nullableTimeValue(item.ArchivedAt),
 		MaterialId: nullableUUIDValue(item.MaterialID), MaterialName: nullableString(item.MaterialName), MaterialTypeName: nullableString(item.MaterialTypeName), ColorName: nullableString(item.ColorName), ColorHex: nullableString(item.ColorHex), Unit: unit,
-		ProductId: nullableUUIDValue(item.ProductID), Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: nullableDecimalValue(item.InitialNetWeightG),
+		Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: nullableDecimalValue(item.InitialNetWeightG),
 		RemainingQuantity: item.RemainingQuantity, TareWeightG: nullableDecimalValue(item.TareWeightG), AcquiredOn: acquired, AcquisitionReference: nullableString(item.AcquisitionReference),
 		StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted, MountedOn: spoolMountDTO(item.MountedOn),
 		Identifiers: spoolIdentifiersDTO(item.Identifiers), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 	if item.Fills != nil {
 		fills := make([]openapi.FilamentSpoolFill, 0, len(item.Fills))
 		for _, f := range item.Fills {
-			fills = append(fills, openapi.FilamentSpoolFill{Id: f.ID, FillNumber: int(f.FillNumber), MaterialId: f.MaterialID, MaterialName: f.MaterialName, ProductId: nullableUUIDValue(f.ProductID),
+			fills = append(fills, openapi.FilamentSpoolFill{Id: f.ID, FillNumber: int(f.FillNumber), MaterialId: f.MaterialID, MaterialName: f.MaterialName,
 				Manufacturer: nullableString(f.Manufacturer), ProductName: nullableString(f.ProductName), InitialNetWeightG: f.InitialNetWeightG, UsedG: f.UsedG, LeftoverG: f.LeftoverG,
 				LeftoverOutcome: openapi.LeftoverOutcome(f.Outcome), FilledAt: f.FilledAt, ClosedAt: f.ClosedAt, Identifiers: spoolIdentifiersDTO(f.Identifiers)})
 		}
@@ -100,7 +100,7 @@ func (s *Server) ListFilamentSpools(ctx context.Context, r openapi.ListFilamentS
 	}
 	params := r.Params
 	filters := machinelogbook.SpoolFilters{Search: defaultString(params.Search), MaterialID: params.MaterialId, Lifecycle: valueString(params.Lifecycle), Location: defaultString(params.Location),
-		Kind: valueString(params.Kind), Mounted: params.Mounted, ProductID: params.ProductId, Manufacturer: defaultString(params.Manufacturer), Consumable: valueBool(params.Consumable),
+		Kind: valueString(params.Kind), Mounted: params.Mounted, Manufacturer: defaultString(params.Manufacturer), Consumable: valueBool(params.Consumable),
 		Page: defaultInt(params.Page, 1), PageSize: defaultInt(params.PageSize, 25)}
 	if params.Status != nil {
 		for _, status := range *params.Status {
@@ -152,7 +152,7 @@ func (s *Server) CreateFilamentSpool(ctx context.Context, r openapi.CreateFilame
 	if body.Kind != nil {
 		kind = string(*body.Kind)
 	}
-	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{Kind: kind, Label: defaultString(nullableStringPointer(body.Label)), ProductID: uuidNullable(body.ProductId), MaterialID: valueOrZero(body.MaterialId), InitialNetWeightG: valueOrZero(body.InitialNetWeightG), StockMode: string(body.StockMode), Supplier: nullableStringPointer(body.Supplier), TotalPrice: decimalMoneyNullable(body.TotalPrice), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), OccurredAt: body.OccurredAt, ExpectedInventoryVersion: valueOrZero(body.ExpectedInventoryVersion)}, requestIDPointer(ctx))
+	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{Kind: kind, Label: defaultString(nullableStringPointer(body.Label)), MaterialID: valueOrZero(body.MaterialId), InitialNetWeightG: valueOrZero(body.InitialNetWeightG), StockMode: string(body.StockMode), Supplier: nullableStringPointer(body.Supplier), TotalPrice: decimalMoneyNullable(body.TotalPrice), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), OccurredAt: body.OccurredAt, ExpectedInventoryVersion: valueOrZero(body.ExpectedInventoryVersion)}, requestIDPointer(ctx))
 	if e != nil {
 		return nil, e
 	}
@@ -274,7 +274,7 @@ func (s *Server) ChangeFilamentSpoolFill(ctx context.Context, r openapi.ChangeFi
 	}
 	body := r.Body
 	input := machinelogbook.ChangeFillInput{OccurredAt: body.OccurredAt, ExpectedVersion: body.ExpectedVersion,
-		Fill: machinelogbook.NewFillInput{ProductID: uuidNullable(body.Fill.ProductId), MaterialID: body.Fill.MaterialId, Manufacturer: nullableStringPointer(body.Fill.Manufacturer), ProductName: nullableStringPointer(body.Fill.ProductName),
+		Fill: machinelogbook.NewFillInput{MaterialID: body.Fill.MaterialId, Manufacturer: nullableStringPointer(body.Fill.Manufacturer), ProductName: nullableStringPointer(body.Fill.ProductName),
 			NetWeightG: string(body.Fill.NetWeightG), Source: string(body.Fill.Source), TotalPrice: decimalMoneyNullable(body.Fill.TotalPrice), Supplier: nullableStringPointer(body.Fill.Supplier)}}
 	if l := body.Leftover; l.IsSpecified() && !l.IsNull() {
 		leftover := leftoverInput(l.GetOrEmpty())

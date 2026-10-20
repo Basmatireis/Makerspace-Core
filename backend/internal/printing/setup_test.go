@@ -295,7 +295,7 @@ func TestSaveSetupRefusesToRemoveAMountedSlotAndRollsBack(t *testing.T) {
 	mountedSlot := slotsOf(created, units[0].ID)[0]
 
 	diameter, total := "1.75", "20"
-	materialType, err := f.jobs.CreateMaterialType(ctx, f.principal, "PLA "+f.suffix, "g", []string{"fdm_printing", "other"}, nil)
+	materialType, err := f.jobs.CreateMaterialType(ctx, f.principal, "PLA "+f.suffix, "filament", "g", []string{"fdm_printing"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,9 +18,10 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Money } from './money';
+import type { Decimal } from './decimal';
 
 /**
+ * Default EUR price per unit when the article is sold.
  * @nullable
  */
-export type FilamentProductInputDefaultPrice = Money | null;
+export type MaterialSalePrice = Decimal | null;

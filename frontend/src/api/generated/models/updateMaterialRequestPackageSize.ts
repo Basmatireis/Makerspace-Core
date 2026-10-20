@@ -18,15 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { Decimal } from './decimal';
 
 /**
- * refill comes without a spool (for reusable spools); spool comes on its own single-use spool.
+ * @nullable
  */
-export type FilamentPackaging = typeof FilamentPackaging[keyof typeof FilamentPackaging];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const FilamentPackaging = {
-  refill: 'refill',
-  spool: 'spool',
-} as const;
+export type UpdateMaterialRequestPackageSize = Decimal | null;

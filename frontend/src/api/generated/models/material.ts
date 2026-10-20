@@ -19,6 +19,9 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { MaterialKind } from './materialKind';
+import type { MaterialSalePrice } from './materialSalePrice';
+import type { MaterialPackageSize } from './materialPackageSize';
 import type { MaterialColorHex } from './materialColorHex';
 import type { MaterialUnit } from './materialUnit';
 import type { MaterialLowStockThreshold } from './materialLowStockThreshold';
@@ -30,8 +33,40 @@ import type { Version } from './version';
 export interface Material {
   id: UUIDv7;
   name: string;
+  /** The kind of the material type. */
+  kind: MaterialKind;
   materialTypeId: UUIDv7;
   materialTypeName: string;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  variant?: string | null;
+  /**
+   * @maxLength 150
+   * @nullable
+   */
+  manufacturer?: string | null;
+  /**
+   * Default EUR price per unit when the article is sold.
+   * @nullable
+   */
+  salePrice?: MaterialSalePrice;
+  /**
+   * Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag).
+   * @nullable
+   */
+  packageSize?: MaterialPackageSize;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  storageLocation?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  notes?: string | null;
   /**
    * @maxLength 80
    * @nullable

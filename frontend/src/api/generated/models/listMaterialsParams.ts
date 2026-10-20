@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { MaterialKind } from './materialKind';
 import type { StockState } from './stockState';
 
 export type ListMaterialsParams = {
@@ -27,6 +28,7 @@ export type ListMaterialsParams = {
  */
 search?: string;
 materialTypeId?: UUIDv7;
+kind?: MaterialKind;
 stockState?: StockState;
 /**
  * @minimum 1

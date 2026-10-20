@@ -177,7 +177,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	h.t.Helper()
 	ctx := h.t.Context()
 	diameter, total := "1.75", "20"
-	materialType, err := h.logbook.CreateMaterialType(ctx, h.principal, "PLA "+name+" "+h.suffix, "g", []string{"fdm_printing", "other"}, nil)
+	materialType, err := h.logbook.CreateMaterialType(ctx, h.principal, "PLA "+name+" "+h.suffix, "filament", "g", []string{"fdm_printing"}, nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}

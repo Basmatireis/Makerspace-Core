@@ -72,7 +72,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	diameter := "1.75"
-	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "g", []string{"fdm_printing", "other"}, &requestID)
+	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "filament", "g", []string{"fdm_printing"}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	purchased, err := jobs.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "1000", "20", time.Now().UTC(), nil, nil, &requestID)
+	purchased, err := jobs.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "1000", "20", time.Now().UTC(), nil, nil, nil, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

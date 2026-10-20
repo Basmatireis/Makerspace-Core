@@ -18,10 +18,14 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Money } from './money';
 
-/**
- * EUR per unit bought.
- * @nullable
- */
-export type FilamentProductDefaultPrice = Money | null;
+export interface InventorySuggestions {
+  /** @maxItems 50 */
+  variants: string[];
+  /** @maxItems 50 */
+  manufacturers: string[];
+  /** @maxItems 50 */
+  suppliers: string[];
+  /** @maxItems 50 */
+  storageLocations: string[];
+}

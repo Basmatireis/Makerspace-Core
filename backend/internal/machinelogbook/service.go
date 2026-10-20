@@ -147,6 +147,7 @@ type PricingRule struct {
 type MaterialType struct {
 	ID                              uuid.UUID
 	Name, Unit                      string
+	Kind                            string
 	Processes                       []string
 	Active                          bool
 	MaterialCount, PricingRuleCount int64
@@ -166,10 +167,12 @@ type PricingGroup struct {
 
 type Material struct {
 	ID                                                 uuid.UUID
-	Name, Unit                                         string
+	Name, Unit, Kind                                   string
 	MaterialTypeID                                     uuid.UUID
 	MaterialTypeName                                   string
 	ColorName, ColorHex                                *string
+	Variant, Manufacturer, StorageLocation, Notes      *string
+	SalePrice, PackageSize                             *string
 	Active                                             bool
 	LowStockThreshold                                  *string
 	FilamentDiameterMM                                 *string
@@ -185,7 +188,7 @@ type InventoryTransaction struct {
 	Kind, QuantityDelta, UnitAcquisitionCost, InventoryValueDelta string
 	TotalPurchasePrice                                            *string
 	OccurredAt, CreatedAt                                         time.Time
-	Supplier, Note, AdjustmentReason                              *string
+	Supplier, Note, AdjustmentReason, Reference                   *string
 	MachineJobID                                                  *uuid.UUID
 	MachineJobDisplayID                                           *string
 	SpoolID, FromSpoolID, ToSpoolID                               *uuid.UUID
@@ -301,7 +304,7 @@ type FilamentSpool struct {
 	DisplayID, Kind, Status                      string
 	Label                                        *string
 	FillNumber                                   int32
-	FillID, MaterialID, ProductID                *uuid.UUID
+	FillID, MaterialID                           *uuid.UUID
 	FilledAt, ArchivedAt                         *time.Time
 	MaterialName, MaterialTypeName, Unit         *string
 	ColorName, ColorHex                          *string
@@ -323,7 +326,6 @@ type FilamentSpool struct {
 // FilamentSpoolFill is a closed fill of a spool.
 type FilamentSpoolFill struct {
 	ID, MaterialID                               uuid.UUID
-	ProductID                                    *uuid.UUID
 	FillNumber                                   int32
 	MaterialName                                 string
 	Manufacturer, ProductName                    *string
@@ -334,7 +336,6 @@ type FilamentSpoolFill struct {
 
 type FilamentSpoolInput struct {
 	Kind, Label                                  string
-	ProductID                                    *uuid.UUID
 	MaterialID                                   uuid.UUID
 	InitialNetWeightG, StockMode                 string
 	Supplier                                     *string
@@ -357,7 +358,7 @@ type FilamentSpoolUpdate struct {
 
 type SpoolFilters struct {
 	Search, Lifecycle, Location, Kind, Manufacturer string
-	MaterialID, ProductID                           *uuid.UUID
+	MaterialID                                      *uuid.UUID
 	Statuses                                        []string
 	Mounted                                         *bool
 	Consumable                                      bool
@@ -371,7 +372,6 @@ type LeftoverInput struct {
 }
 
 type NewFillInput struct {
-	ProductID                 *uuid.UUID
 	MaterialID                uuid.UUID
 	Manufacturer, ProductName *string
 	NetWeightG, Source        string
@@ -400,32 +400,6 @@ type CleanUpCandidate struct {
 	DisplayID  string
 	Label      *string
 	ArchivedAt time.Time
-}
-
-type FilamentProduct struct {
-	ID, MaterialID           uuid.UUID
-	Manufacturer, Name       string
-	MaterialName, NetWeightG string
-	DefaultPrice, Notes      *string
-	Packaging                string
-	Active                   bool
-	InUseCount, Version      int64
-	CreatedAt, UpdatedAt     time.Time
-}
-
-type FilamentProductInput struct {
-	Manufacturer, Name, NetWeightG, Packaging string
-	MaterialID                                uuid.UUID
-	DefaultPrice, Notes                       *string
-	Active                                    bool
-	ExpectedVersion                           int64
-}
-
-type FilamentProductFilters struct {
-	Search, Manufacturer, Packaging string
-	MaterialID                      *uuid.UUID
-	IncludeInactive                 bool
-	Page, PageSize                  int
 }
 
 type PricingSnapshotRule struct {

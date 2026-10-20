@@ -20,8 +20,6 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 
-/**
- * When set, materialId must be the product's material.
- * @nullable
- */
-export type FilamentNewFillInputProductId = UUIDv7 | null;
+export type ListInventorySuggestionsParams = {
+materialTypeId?: UUIDv7;
+};

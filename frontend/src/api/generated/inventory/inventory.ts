@@ -24,7 +24,10 @@ import type {
   CreateMaterialRequest,
   CreateMaterialTypeRequest,
   InventoryMutationResult,
+  InventoryReceiptResult,
+  InventorySuggestions,
   InventoryTransactionPage,
+  ListInventorySuggestionsParams,
   ListMaterialTransactionsParams,
   ListMaterialsParams,
   MarkMaterialEmptyRequest,
@@ -32,6 +35,7 @@ import type {
   MaterialPage,
   MaterialType,
   MaterialTypeList,
+  ReceiveInventoryStockRequest,
   RecordMaterialConsumptionRequest,
   UUIDv7,
   UpdateMaterialRequest,
@@ -167,7 +171,8 @@ export const deleteMaterialType = async (materialTypeId: UUIDv7,
 
 
 /**
- * @summary List inventory materials and balances
+ * Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
+ * @summary List inventory articles and balances
  */
 export const getListMaterialsUrl = (params?: ListMaterialsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -197,7 +202,8 @@ export const listMaterials = async (params?: ListMaterialsParams, options?: Requ
 
 
 /**
- * @summary Create an inventory material
+ * Requires `inventory.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
+ * @summary Create an inventory article
  */
 export const getCreateMaterialUrl = () => {
 
@@ -321,6 +327,62 @@ export const addMaterialPurchase = async (materialId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       addMaterialPurchaseRequest,)
+  }
+);}
+
+
+/**
+ * Requires `inventory.manage`; a placement on spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
+ * @summary Receive purchased stock
+ */
+export const getReceiveInventoryStockUrl = () => {
+
+
+
+
+  return `/api/v1/inventory/receipts`
+}
+
+export const receiveInventoryStock = async (receiveInventoryStockRequest: ReceiveInventoryStockRequest, options?: RequestInit): Promise<InventoryReceiptResult> => {
+
+  return apiFetch<InventoryReceiptResult>(getReceiveInventoryStockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      receiveInventoryStockRequest,)
+  }
+);}
+
+
+/**
+ * Requires `inventory.read`. Distinct values in use, most frequent first, at most 50 each. Variants can be restricted to one material type.
+ * @summary Suggestions for article and receipt forms
+ */
+export const getListInventorySuggestionsUrl = (params?: ListInventorySuggestionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/inventory/suggestions?${stringifiedParams}` : `/api/v1/inventory/suggestions`
+}
+
+export const listInventorySuggestions = async (params?: ListInventorySuggestionsParams, options?: RequestInit): Promise<InventorySuggestions> => {
+
+  return apiFetch<InventorySuggestions>(getListInventorySuggestionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

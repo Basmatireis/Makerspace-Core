@@ -201,7 +201,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	materials := []uuid.UUID{}
-	plaType, e := f.jobs.CreateMaterialType(ctx, f.p, "PLA "+newID().String(), "g", []string{"fdm_printing", "other"}, nil)
+	plaType, e := f.jobs.CreateMaterialType(ctx, f.p, "PLA "+newID().String(), "filament", "g", []string{"fdm_printing"}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -210,7 +210,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if _, e = f.jobs.AddPurchase(ctx, f.p, m.ID, m.InventoryVersion, "100", "10", time.Now(), nil, nil, nil); e != nil {
+		if _, e = f.jobs.AddPurchase(ctx, f.p, m.ID, m.InventoryVersion, "100", "10", time.Now(), nil, nil, nil, nil); e != nil {
 			t.Fatal(e)
 		}
 		materials = append(materials, m.ID)

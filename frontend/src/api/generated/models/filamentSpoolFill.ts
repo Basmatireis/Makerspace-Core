@@ -19,7 +19,6 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
-import type { FilamentSpoolFillProductId } from './filamentSpoolFillProductId';
 import type { Decimal } from './decimal';
 import type { LeftoverOutcome } from './leftoverOutcome';
 import type { FilamentSpoolIdentifier } from './filamentSpoolIdentifier';
@@ -30,8 +29,6 @@ export interface FilamentSpoolFill {
   fillNumber: number;
   materialId: UUIDv7;
   materialName: string;
-  /** @nullable */
-  productId?: FilamentSpoolFillProductId;
   /** @nullable */
   manufacturer?: string | null;
   /** @nullable */

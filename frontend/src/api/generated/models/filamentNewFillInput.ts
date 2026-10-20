@@ -18,20 +18,15 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentNewFillInputProductId } from './filamentNewFillInputProductId';
 import type { UUIDv7 } from './uUIDv7';
 import type { Decimal } from './decimal';
 import type { FilamentNewFillInputSource } from './filamentNewFillInputSource';
 import type { FilamentNewFillInputTotalPrice } from './filamentNewFillInputTotalPrice';
 
 export interface FilamentNewFillInput {
-  /**
-   * When set, materialId must be the product's material.
-   * @nullable
-   */
-  productId?: FilamentNewFillInputProductId;
   materialId: UUIDv7;
   /**
+   * Defaults to the manufacturer of the material.
    * @maxLength 150
    * @nullable
    */

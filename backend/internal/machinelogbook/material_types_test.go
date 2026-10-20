@@ -37,7 +37,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
 
-	created, err := s.CreateMaterialType(ctx, p, "  PETG-CF "+suffix+"  ", "g", []string{"fdm_printing", "other"}, &request)
+	created, err := s.CreateMaterialType(ctx, p, "  PETG-CF "+suffix+"  ", "consumable", "g", []string{"fdm_printing", "other"}, &request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,13 +46,13 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		t.Fatalf("created type: %+v", created)
 	}
 	// Names are unique ignoring case; units come from a fixed set.
-	if _, err = s.CreateMaterialType(ctx, p, strings.ToLower(created.Name), "g", []string{"fdm_printing", "other"}, &request); !apperror.IsCode(err, "material_type_exists") {
+	if _, err = s.CreateMaterialType(ctx, p, strings.ToLower(created.Name), "filament", "g", []string{"fdm_printing"}, &request); !apperror.IsCode(err, "material_type_exists") {
 		t.Fatalf("duplicate name: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "kg", []string{"other"}, &request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "kg", []string{"other"}, &request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("invalid unit: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "   ", "g", []string{"fdm_printing", "other"}, &request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = s.CreateMaterialType(ctx, p, "   ", "filament", "g", []string{"fdm_printing"}, &request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("blank name: %v", err)
 	}
 
@@ -75,12 +75,12 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		}
 	}
 	// Moving the material to a type with another unit is refused by the stock rule once stock exists.
-	other, err := s.CreateMaterialType(ctx, p, "Resin "+suffix, "ml", []string{"fdm_printing", "other"}, &request)
+	other, err := s.CreateMaterialType(ctx, p, "Resin "+suffix, "consumable", "ml", []string{"fdm_printing", "other"}, &request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	typeIDs = append(typeIDs, other.ID)
-	purchase, err := s.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "100", "5", time.Now().UTC(), nil, nil, &request)
+	purchase, err := s.AddPurchase(ctx, p, material.ID, material.InventoryVersion, "100", "5", time.Now().UTC(), nil, nil, nil, &request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,13 +98,13 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	if err = s.DeleteMaterialType(ctx, p, created.ID, current.Version, &request); !apperror.IsCode(err, "material_type_in_use") {
 		t.Fatalf("delete referenced type: %v", err)
 	}
-	if _, err = s.UpdateMaterialType(ctx, p, created.ID, current.Version, created.Name, "ml", nil, true, &request); !apperror.IsCode(err, "material_type_unit_in_use") {
+	if _, err = s.UpdateMaterialType(ctx, p, created.ID, current.Version, created.Name, "", "ml", nil, true, &request); !apperror.IsCode(err, "material_type_unit_in_use") {
 		t.Fatalf("unit change of referenced type: %v", err)
 	}
-	if _, err = s.UpdateMaterialType(ctx, p, created.ID, current.Version+5, created.Name, "g", nil, true, &request); !apperror.IsCode(err, "stale_write") && !apperror.IsCode(err, "version_conflict") {
+	if _, err = s.UpdateMaterialType(ctx, p, created.ID, current.Version+5, created.Name, "", "g", nil, true, &request); !apperror.IsCode(err, "stale_write") && !apperror.IsCode(err, "version_conflict") {
 		t.Fatalf("stale update: %v", err)
 	}
-	deactivated, err := s.UpdateMaterialType(ctx, p, created.ID, current.Version, "PETG carbon "+suffix, "g", nil, false, &request)
+	deactivated, err := s.UpdateMaterialType(ctx, p, created.ID, current.Version, "PETG carbon "+suffix, "", "g", nil, false, &request)
 	if err != nil || deactivated.Active || deactivated.Version != current.Version+1 {
 		t.Fatalf("deactivate: %+v %v", deactivated, err)
 	}
@@ -139,7 +139,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	if _, err = s.ListMaterialTypes(ctx, nobody); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("list without permission: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, nobody, "Nope "+suffix, "g", []string{"fdm_printing", "other"}, nil); !apperror.IsCode(err, "permission_denied") {
+	if _, err = s.CreateMaterialType(ctx, nobody, "Nope "+suffix, "filament", "g", []string{"fdm_printing"}, nil); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("create without permission: %v", err)
 	}
 }
@@ -171,13 +171,13 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 	}
 
 	// A second type with a stocked material but no rule in the fixture's group.
-	tpuType, err := f.s.CreateMaterialType(ctx, f.p, "Jobs TPU "+suffix, "g", []string{"fdm_printing", "other"}, &f.request)
+	tpuType, err := f.s.CreateMaterialType(ctx, f.p, "Jobs TPU "+suffix, "filament", "g", []string{"fdm_printing"}, &f.request)
 	must(err)
 	extraTypes = append(extraTypes, tpuType.ID)
 	tpu, err := f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Jobs TPU " + suffix, MaterialTypeID: tpuType.ID, ColorName: strPtr("Natural")}, &f.request)
 	must(err)
 	extraMaterials = append(extraMaterials, tpu.ID)
-	_, err = f.s.AddPurchase(ctx, f.p, tpu.ID, tpu.InventoryVersion, "500", "20", f.now, nil, nil, &f.request)
+	_, err = f.s.AddPurchase(ctx, f.p, tpu.ID, tpu.InventoryVersion, "500", "20", f.now, nil, nil, nil, &f.request)
 	must(err)
 
 	input := f.input(-3*time.Hour, time.Hour, "successful")
@@ -218,7 +218,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 	// Snapshots keep their rates: rule edits, renamed types and recoloured materials change nothing.
 	_, err = f.s.UpdatePricingRule(ctx, f.p, zeroRule.ID, zeroRule.Version, "material", nil, &tpuType.ID, nil, "5", true, &f.request)
 	must(err)
-	renamed, err := f.s.UpdateMaterialType(ctx, f.p, tpuType.ID, tpuType.Version, "Renamed TPU "+suffix, "g", nil, true, &f.request)
+	renamed, err := f.s.UpdateMaterialType(ctx, f.p, tpuType.ID, tpuType.Version, "Renamed TPU "+suffix, "", "g", nil, true, &f.request)
 	must(err)
 	_, err = f.s.UpdateMaterial(ctx, f.p, tpu.ID, MaterialInput{Name: tpu.Name, MaterialTypeID: renamed.ID, ColorName: strPtr("Blue"), ColorHex: strPtr("#0000FF"), Active: true, ExpectedVersion: tpu.Version}, &f.request)
 	must(err)

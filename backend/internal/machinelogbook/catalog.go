@@ -870,6 +870,9 @@ func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind st
 		if err != nil {
 			return ruleTarget{}, err
 		}
+		if materialType.Kind == KindPart {
+			return ruleTarget{}, unprocessable("material_type_not_priced", "Parts are priced by their sale price, not by pricing rules")
+		}
 		unit, name := materialType.Unit, materialType.Name
 		return ruleTarget{MaterialUnit: &unit, MaterialTypeName: &name}, nil
 	case "machine_measure":

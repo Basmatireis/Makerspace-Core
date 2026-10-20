@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { MaterialUnit } from './materialUnit';
+import type { MaterialKind } from './materialKind';
 import type { MachineProcess } from './machineProcess';
 import type { Version } from './version';
 
@@ -29,10 +30,9 @@ export interface UpdateMaterialTypeRequest {
    */
   name: string;
   unit: MaterialUnit;
-  /**
-   * Omitted keeps the current processes.
-   * @minItems 1
-   */
+  /** Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use). */
+  kind?: MaterialKind;
+  /** Omitted keeps the current processes. The kind decides which lists are valid. */
   processes?: MachineProcess[];
   expectedVersion: Version;
   active: boolean;

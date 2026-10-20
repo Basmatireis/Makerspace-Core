@@ -18,34 +18,12 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { Decimal } from './decimal';
-import type { FilamentProductDefaultPrice } from './filamentProductDefaultPrice';
-import type { FilamentPackaging } from './filamentPackaging';
-import type { Version } from './version';
+import type { Material } from './material';
+import type { FilamentSpool } from './filamentSpool';
+import type { InventoryTransaction } from './inventoryTransaction';
 
-export interface FilamentProduct {
-  id: UUIDv7;
-  manufacturer: string;
-  name: string;
-  materialId: UUIDv7;
-  materialName: string;
-  netWeightG: Decimal;
-  /**
-   * EUR per unit bought.
-   * @nullable
-   */
-  defaultPrice?: FilamentProductDefaultPrice;
-  packaging: FilamentPackaging;
-  /** @nullable */
-  notes?: string | null;
-  active: boolean;
-  /**
-   * Non-archived spools whose open fill uses this product.
-   * @minimum 0
-   */
-  inUseCount: number;
-  version: Version;
-  createdAt: string;
-  updatedAt: string;
+export interface InventoryReceiptResult {
+  material: Material;
+  spools: FilamentSpool[];
+  transactions: InventoryTransaction[];
 }

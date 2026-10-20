@@ -18,29 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { FilamentPackaging } from './filamentPackaging';
+import type { Decimal } from './decimal';
 
-export type ListFilamentProductsParams = {
 /**
- * Matches manufacturer and name.
- * @maxLength 200
+ * @nullable
  */
-search?: string;
-materialId?: UUIDv7;
-/**
- * @maxLength 150
- */
-manufacturer?: string;
-packaging?: FilamentPackaging;
-includeInactive?: boolean;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-};
+export type CreateMaterialRequestPackageSize = Decimal | null;

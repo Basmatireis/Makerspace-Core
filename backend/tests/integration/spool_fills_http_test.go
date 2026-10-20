@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
+func TestFilamentSpoolFillsCleanupOverHTTP(t *testing.T) {
 	schemaPool := migratedPool(t)
 	ctx := testContext(t)
 	poolConfig := schemaPool.Config().Copy()
@@ -109,7 +108,7 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool)
 	diameter := "1.75"
-	plaType, err := logbook.CreateMaterialType(ctx, master, "HTTP PLA", "g", []string{"fdm_printing", "other"}, nil)
+	plaType, err := logbook.CreateMaterialType(ctx, master, "HTTP PLA", "filament", "g", []string{"fdm_printing"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +116,7 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.AddPurchase(ctx, master, material.ID, material.InventoryVersion, "3000", "60", time.Now().UTC(), nil, nil, nil); err != nil {
+	if _, err = logbook.AddPurchase(ctx, master, material.ID, material.InventoryVersion, "3000", "60", time.Now().UTC(), nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	tare := "200"
@@ -239,32 +238,25 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 		t.Fatalf("recent and reusable spools must survive: %+v", deleted)
 	}
 
-	// Product catalog.
-	product := map[string]any{"manufacturer": "Http Maker", "name": "Http PLA", "materialId": material.ID, "netWeightG": "1000", "packaging": "refill", "defaultPrice": "19.90"}
-	api(reader, http.MethodPost, "/filament-products", http.StatusForbidden, product, nil)
-	api(spoolsOnly, http.MethodPost, "/filament-products", http.StatusForbidden, product, nil)
-	var created openapi.FilamentProduct
-	api(inventoryOnly, http.MethodPost, "/filament-products", http.StatusCreated, product, &created)
-	api(root, http.MethodPost, "/filament-products", http.StatusConflict, product, nil)
-	var fetched openapi.FilamentProduct
-	api(noInventoryRead, http.MethodGet, "/filament-products/"+created.Id.String(), http.StatusForbidden, nil, nil)
-	api(noInventoryRead, http.MethodGet, "/filament-products?search=http", http.StatusForbidden, nil, nil)
-	api(reader, http.MethodGet, "/filament-products/"+created.Id.String(), http.StatusOK, nil, &fetched)
-	if fetched.InUseCount != 0 || !fetched.Active || fetched.MaterialName != "HTTP PLA" {
-		t.Fatalf("product: %+v", fetched)
+	// Receiving stock and suggestions.
+	api(noInventoryRead, http.MethodGet, "/inventory/suggestions", http.StatusForbidden, nil, nil)
+	api(reader, http.MethodGet, "/inventory/suggestions", http.StatusOK, nil, nil)
+	receipt := func(mode string) map[string]any {
+		return map[string]any{"materialId": material.ID, "expectedInventoryVersion": 1, "packageCount": 1, "packageSize": "1000", "totalPrice": "20.00", "occurredAt": time.Now().UTC().Add(-time.Hour), "placement": map[string]any{"mode": mode}}
 	}
-	update := map[string]any{"manufacturer": "Http Maker", "name": "Http PLA", "materialId": material.ID, "netWeightG": "1000", "packaging": "spool", "active": false, "expectedVersion": created.Version}
-	api(reader, http.MethodPatch, "/filament-products/"+created.Id.String(), http.StatusForbidden, update, nil)
-	api(inventoryOnly, http.MethodPatch, "/filament-products/"+created.Id.String(), http.StatusOK, update, nil)
-	api(inventoryOnly, http.MethodPatch, "/filament-products/"+created.Id.String(), http.StatusConflict, update, nil)
-	var listed openapi.FilamentProductPage
-	api(reader, http.MethodGet, "/filament-products?search=http&pageSize=10", http.StatusOK, nil, &listed)
-	if listed.Total != 0 {
-		t.Fatalf("inactive products are hidden by default: %+v", listed)
+	api(reader, http.MethodPost, "/inventory/receipts", http.StatusForbidden, receipt("storage"), nil)
+	api(inventoryOnly, http.MethodPost, "/inventory/receipts", http.StatusForbidden, receipt("new_spools"), nil)
+	api(spoolsOnly, http.MethodPost, "/inventory/receipts", http.StatusForbidden, receipt("storage"), nil)
+	var received openapi.InventoryReceiptResult
+	current, err := logbook.GetMaterial(ctx, master, material.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	api(reader, http.MethodGet, "/filament-products?search=http&includeInactive=true", http.StatusOK, nil, &listed)
-	if listed.Total != 1 || !strings.EqualFold(listed.Items[0].Name, "http pla") {
-		t.Fatalf("includeInactive: %+v", listed)
+	body := receipt("storage")
+	body["expectedInventoryVersion"] = current.InventoryVersion
+	api(inventoryOnly, http.MethodPost, "/inventory/receipts", http.StatusCreated, body, &received)
+	if len(received.Transactions) != 1 || len(received.Spools) != 0 {
+		t.Fatalf("receipt: %+v", received)
 	}
 	_ = fmt.Sprint
 }

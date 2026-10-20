@@ -389,7 +389,7 @@ func (s *Server) ListMaterials(ctx context.Context, r openapi.ListMaterialsReque
 	if err != nil {
 		return nil, err
 	}
-	items, total, value, err := s.machineLogbook.ListMaterials(ctx, p, defaultString(r.Params.Search), r.Params.MaterialTypeId, valueString(r.Params.StockState), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	items, total, value, err := s.machineLogbook.ListMaterials(ctx, p, defaultString(r.Params.Search), r.Params.MaterialTypeId, valueString(r.Params.Kind), valueString(r.Params.StockState), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
 	if err != nil {
 		return nil, err
 	}
@@ -407,9 +407,7 @@ func (s *Server) CreateMaterial(ctx context.Context, r openapi.CreateMaterialReq
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	unit := materialUnitPointer(r.Body.Unit)
-	item, err := s.machineLogbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{Name: r.Body.Name, MaterialTypeID: r.Body.MaterialTypeId, Unit: unit, ColorName: nullableStringPointer(r.Body.ColorName), ColorHex: nullableStringPointer(r.Body.ColorHex),
-		LowStockThreshold: decimalNullable(r.Body.LowStockThreshold), FilamentDiameterMM: decimalNullable(r.Body.FilamentDiameterMm)}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMaterial(ctx, p, materialCreateInput(*r.Body), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -442,8 +440,7 @@ func (s *Server) UpdateMaterial(ctx context.Context, r openapi.UpdateMaterialReq
 		}
 		diameter = current.FilamentDiameterMM
 	}
-	item, err := s.machineLogbook.UpdateMaterial(ctx, p, r.MaterialId, machinelogbook.MaterialInput{Name: r.Body.Name, MaterialTypeID: r.Body.MaterialTypeId, Unit: materialUnitPointer(r.Body.Unit), ColorName: nullableStringPointer(r.Body.ColorName), ColorHex: nullableStringPointer(r.Body.ColorHex),
-		LowStockThreshold: decimalNullable(r.Body.LowStockThreshold), FilamentDiameterMM: diameter, Active: r.Body.Active, ExpectedVersion: r.Body.ExpectedVersion}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMaterial(ctx, p, r.MaterialId, materialUpdateInput(*r.Body, diameter), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +454,7 @@ func (s *Server) AddMaterialPurchase(ctx context.Context, r openapi.AddMaterialP
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.AddPurchase(ctx, p, r.MaterialId, r.Body.ExpectedInventoryVersion, string(r.Body.Quantity), string(r.Body.TotalPrice), r.Body.OccurredAt, nullableStringPointer(r.Body.Supplier), nullableStringPointer(r.Body.Note), requestIDPointer(ctx))
+	item, err := s.machineLogbook.AddPurchase(ctx, p, r.MaterialId, r.Body.ExpectedInventoryVersion, string(r.Body.Quantity), string(r.Body.TotalPrice), r.Body.OccurredAt, nullableStringPointer(r.Body.Supplier), nullableStringPointer(r.Body.Reference), nullableStringPointer(r.Body.Note), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +719,7 @@ func (s *Server) CreateMaterialType(ctx context.Context, r openapi.CreateMateria
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMaterialType(ctx, p, r.Body.Name, string(r.Body.Unit), machineProcessStrings(r.Body.Processes), requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMaterialType(ctx, p, r.Body.Name, string(r.Body.Kind), string(r.Body.Unit), machineProcessStringsPointer(r.Body.Processes), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -747,7 +744,7 @@ func (s *Server) UpdateMaterialType(ctx context.Context, r openapi.UpdateMateria
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, r.Body.Name, string(r.Body.Unit), machineProcessStringsPointer(r.Body.Processes), r.Body.Active, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, r.Body.Name, valueString(r.Body.Kind), string(r.Body.Unit), machineProcessStringsPointer(r.Body.Processes), r.Body.Active, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

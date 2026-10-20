@@ -18,9 +18,10 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
+import type { Decimal } from './decimal';
 
 /**
+ * Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag).
  * @nullable
  */
-export type FilamentSpoolFillProductId = UUIDv7 | null;
+export type MaterialPackageSize = Decimal | null;

@@ -19,19 +19,48 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { UpdateMaterialRequestSalePrice } from './updateMaterialRequestSalePrice';
+import type { UpdateMaterialRequestPackageSize } from './updateMaterialRequestPackageSize';
 import type { UpdateMaterialRequestColorHex } from './updateMaterialRequestColorHex';
 import type { MaterialUnit } from './materialUnit';
 import type { UpdateMaterialRequestLowStockThreshold } from './updateMaterialRequestLowStockThreshold';
 import type { UpdateMaterialRequestFilamentDiameterMm } from './updateMaterialRequestFilamentDiameterMm';
 import type { Version } from './version';
 
+/**
+ * name is required for parts and generated for filament and consumables when omitted.
+ */
 export interface UpdateMaterialRequest {
   /**
    * @minLength 1
    * @maxLength 150
    */
-  name: string;
+  name?: string;
   materialTypeId: UUIDv7;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  variant?: string | null;
+  /**
+   * @maxLength 150
+   * @nullable
+   */
+  manufacturer?: string | null;
+  /** @nullable */
+  salePrice?: UpdateMaterialRequestSalePrice;
+  /** @nullable */
+  packageSize?: UpdateMaterialRequestPackageSize;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  storageLocation?: string | null;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  notes?: string | null;
   /**
    * @maxLength 80
    * @nullable

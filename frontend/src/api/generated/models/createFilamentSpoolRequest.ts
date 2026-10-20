@@ -19,7 +19,6 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { FilamentSpoolKind } from './filamentSpoolKind';
-import type { CreateFilamentSpoolRequestProductId } from './createFilamentSpoolRequestProductId';
 import type { UUIDv7 } from './uUIDv7';
 import type { Decimal } from './decimal';
 import type { CreateFilamentSpoolRequestStockMode } from './createFilamentSpoolRequestStockMode';
@@ -35,11 +34,6 @@ export interface CreateFilamentSpoolRequest {
    * @nullable
    */
   label?: string | null;
-  /**
-   * When set, materialId must be the product's material.
-   * @nullable
-   */
-  productId?: CreateFilamentSpoolRequestProductId;
   materialId?: UUIDv7;
   initialNetWeightG?: Decimal;
   /** new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored). */

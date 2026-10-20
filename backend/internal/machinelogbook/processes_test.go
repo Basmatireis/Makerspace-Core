@@ -43,18 +43,18 @@ func newProcessFixture(t *testing.T) *processFixture {
 	must(err)
 	f.uv, err = f.s.CreateMachine(ctx, f.p, f.uvType.ID, "UV machine "+suffix, "active", nil, false, &f.request)
 	must(err)
-	f.stabilizerType, err = f.s.CreateMaterialType(ctx, f.p, "Stabilizer "+suffix, "m", []string{ProcessEmbroidery}, &f.request)
+	f.stabilizerType, err = f.s.CreateMaterialType(ctx, f.p, "Stabilizer "+suffix, "consumable", "m", []string{ProcessEmbroidery}, &f.request)
 	must(err)
 	f.stabilizer, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Stabilizer " + suffix, MaterialTypeID: f.stabilizerType.ID}, &f.request)
 	must(err)
-	purchase, err := f.s.AddPurchase(ctx, f.p, f.stabilizer.ID, f.stabilizer.InventoryVersion, "100", "50", f.now, nil, nil, &f.request)
+	purchase, err := f.s.AddPurchase(ctx, f.p, f.stabilizer.ID, f.stabilizer.InventoryVersion, "100", "50", f.now, nil, nil, nil, &f.request)
 	must(err)
 	f.stabilizer = purchase.Material
-	f.inkType, err = f.s.CreateMaterialType(ctx, f.p, "UV ink "+suffix, "ml", []string{ProcessUVPrinting}, &f.request)
+	f.inkType, err = f.s.CreateMaterialType(ctx, f.p, "UV ink "+suffix, "consumable", "ml", []string{ProcessUVPrinting}, &f.request)
 	must(err)
 	f.ink, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "UV ink cyan " + suffix, MaterialTypeID: f.inkType.ID, ColorName: ptr("Cyan"), ColorHex: ptr("#00AEEF")}, &f.request)
 	must(err)
-	purchase, err = f.s.AddPurchase(ctx, f.p, f.ink.ID, f.ink.InventoryVersion, "100", "90", f.now, nil, nil, &f.request)
+	purchase, err = f.s.AddPurchase(ctx, f.p, f.ink.ID, f.ink.InventoryVersion, "100", "90", f.now, nil, nil, nil, &f.request)
 	must(err)
 	f.ink = purchase.Material
 
@@ -162,13 +162,13 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
-	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "g", nil, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "consumable", "g", nil, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("no processes: %v", err)
 	}
-	if _, err := f.s.CreateMaterialType(ctx, f.p, "Bad "+suffix, "g", []string{"milling"}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err := f.s.CreateMaterialType(ctx, f.p, "Bad "+suffix, "consumable", "g", []string{"milling"}, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("unknown process: %v", err)
 	}
-	created, err := f.s.CreateMaterialType(ctx, f.p, "Sticker paper "+suffix, "cm2", []string{ProcessUVPrinting, ProcessEmbroidery, ProcessUVPrinting}, &f.request)
+	created, err := f.s.CreateMaterialType(ctx, f.p, "Sticker paper "+suffix, "consumable", "cm2", []string{ProcessUVPrinting, ProcessEmbroidery, ProcessUVPrinting}, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +178,14 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 	if created.Unit != "cm2" || strings.Join(created.Processes, ",") != "embroidery,uv_printing" {
 		t.Fatalf("created = %+v", created)
 	}
-	updated, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, created.Version, created.Name, "cm2", nil, true, &f.request)
+	updated, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, created.Version, created.Name, "", "cm2", nil, true, &f.request)
 	if err != nil || strings.Join(updated.Processes, ",") != "embroidery,uv_printing" {
 		t.Fatalf("nil processes keep: %v %+v", err, updated)
 	}
-	if _, err = f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "cm2", []string{}, true, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "", "cm2", []string{}, true, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("empty processes: %v", err)
 	}
-	replaced, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "cm2", []string{ProcessLaserCutting}, true, &f.request)
+	replaced, err := f.s.UpdateMaterialType(ctx, f.p, created.ID, updated.Version, created.Name, "", "cm2", []string{ProcessLaserCutting}, true, &f.request)
 	if err != nil || strings.Join(replaced.Processes, ",") != "laser_cutting" {
 		t.Fatalf("replace: %v %+v", err, replaced)
 	}
@@ -247,7 +247,7 @@ func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 
 	// Material that no longer matches keeps working on the run that already uses it
 	// and stays visible, but cannot be chosen again elsewhere.
-	if _, err = f.s.UpdateMaterialType(ctx, f.p, f.stabilizerType.ID, f.stabilizerType.Version, f.stabilizerType.Name, "m", []string{ProcessUVPrinting}, true, &f.request); err != nil {
+	if _, err = f.s.UpdateMaterialType(ctx, f.p, f.stabilizerType.ID, f.stabilizerType.Version, f.stabilizerType.Name, "", "m", []string{ProcessUVPrinting}, true, &f.request); err != nil {
 		t.Fatal(err)
 	}
 	stabilizer.Quantity = "0.6"
@@ -589,7 +589,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
-	paperType, err := f.s.CreateMaterialType(ctx, f.p, "DTF paper "+suffix, "cm2", []string{ProcessUVPrinting}, &f.request)
+	paperType, err := f.s.CreateMaterialType(ctx, f.p, "DTF paper "+suffix, "consumable", "cm2", []string{ProcessUVPrinting}, &f.request)
 	if err != nil || paperType.Unit != "cm2" {
 		t.Fatalf("cm2 type: %v %+v", err, paperType)
 	}
@@ -605,7 +605,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 		_, _ = f.pool.Exec(cleanup, `DELETE FROM materials WHERE id = $1`, paper.ID)
 		_, _ = f.pool.Exec(cleanup, `DELETE FROM material_types WHERE id = $1`, paperType.ID)
 	})
-	purchase, err := f.s.AddPurchase(ctx, f.p, paper.ID, paper.InventoryVersion, "20000", "60", f.now, nil, nil, &f.request)
+	purchase, err := f.s.AddPurchase(ctx, f.p, paper.ID, paper.InventoryVersion, "20000", "60", f.now, nil, nil, nil, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -613,7 +613,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 	if _, err = f.s.CreatePricingRule(ctx, f.p, f.measureGroup.ID, "material", nil, &paperType.ID, nil, "0.004", &f.request); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.s.CreateMaterialType(ctx, f.p, "Bad unit "+suffix, "mm2", []string{"other"}, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.CreateMaterialType(ctx, f.p, "Bad unit "+suffix, "consumable", "mm2", []string{"other"}, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("unknown unit: %v", err)
 	}
 	input := f.input(-2*time.Hour, 6*time.Minute, "successful")

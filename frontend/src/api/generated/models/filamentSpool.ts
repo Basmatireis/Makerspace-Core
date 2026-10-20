@@ -25,7 +25,6 @@ import type { FilamentSpoolFillId } from './filamentSpoolFillId';
 import type { FilamentSpoolMaterialId } from './filamentSpoolMaterialId';
 import type { FilamentSpoolColorHex } from './filamentSpoolColorHex';
 import type { FilamentSpoolUnit } from './filamentSpoolUnit';
-import type { FilamentSpoolProductId } from './filamentSpoolProductId';
 import type { FilamentSpoolInitialNetWeightG } from './filamentSpoolInitialNetWeightG';
 import type { Decimal } from './decimal';
 import type { FilamentSpoolTareWeightG } from './filamentSpoolTareWeightG';
@@ -36,7 +35,7 @@ import type { FilamentSpoolFill } from './filamentSpoolFill';
 import type { Version } from './version';
 
 /**
- * Material, product, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
+ * Material, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
  */
 export interface FilamentSpool {
   id: UUIDv7;
@@ -74,8 +73,6 @@ export interface FilamentSpool {
   colorHex?: FilamentSpoolColorHex;
   /** @nullable */
   unit?: FilamentSpoolUnit;
-  /** @nullable */
-  productId?: FilamentSpoolProductId;
   /**
    * Snapshot taken when the fill started.
    * @nullable

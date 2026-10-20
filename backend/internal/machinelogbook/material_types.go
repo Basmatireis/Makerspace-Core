@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -21,7 +22,7 @@ func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processes [
 	if processes == nil {
 		processes = []string{}
 	}
-	return MaterialType{ID: row.ID, Name: row.Name, Unit: row.Unit, Processes: processes, Active: row.Active, MaterialCount: row.MaterialCount, PricingRuleCount: row.PricingRuleCount,
+	return MaterialType{ID: row.ID, Name: row.Name, Kind: row.Kind, Unit: row.Unit, Processes: processes, Active: row.Active, MaterialCount: row.MaterialCount, PricingRuleCount: row.PricingRuleCount,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
@@ -53,6 +54,50 @@ func validateProcesses(processes []string) ([]string, error) {
 		}
 	}
 	return ordered, nil
+}
+
+// Material kinds. The kind of an article comes from its material type.
+const (
+	KindFilament   = "filament"
+	KindConsumable = "consumable"
+	KindPart       = "part"
+)
+
+func validMaterialKind(kind string) bool {
+	return kind == KindFilament || kind == KindConsumable || kind == KindPart
+}
+
+// shapeMaterialType checks unit and processes against the kind and returns the
+// normalised process list: filament is measured in grams and serves FDM
+// printing (the default), possibly next to other processes, a consumable
+// serves at least one process, a part
+// serves none, so it can never be used in a machine run.
+func shapeMaterialType(kind, unit string, processes []string) ([]string, error) {
+	switch kind {
+	case KindFilament:
+		if unit != "g" {
+			return nil, validation("filament material types are measured in grams")
+		}
+		if len(processes) == 0 {
+			return []string{ProcessFDMPrinting}, nil
+		}
+		ordered, err := validateProcesses(processes)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(ordered, ProcessFDMPrinting) {
+			return nil, validation("filament material types serve the process fdm_printing")
+		}
+		return ordered, nil
+	case KindConsumable:
+		return validateProcesses(processes)
+	case KindPart:
+		if len(processes) > 0 {
+			return nil, validation("part material types take no processes")
+		}
+		return []string{}, nil
+	}
+	return nil, validation("invalid material kind")
 }
 
 // materialTypeProcesses loads the processes of the given types.
@@ -141,7 +186,7 @@ func (s *Service) GetMaterialType(ctx context.Context, p authorization.Principal
 	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes[id]), nil
 }
 
-func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Principal, name, unit string, processes []string, requestID *uuid.UUID) (MaterialType, error) {
+func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Principal, name, kind, unit string, processes []string, requestID *uuid.UUID) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -152,7 +197,10 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	if !validUnit(unit) {
 		return MaterialType{}, validation("invalid material unit")
 	}
-	processes, err = validateProcesses(processes)
+	if !validMaterialKind(kind) {
+		return MaterialType{}, validation("invalid material kind")
+	}
+	processes, err = shapeMaterialType(kind, unit, processes)
 	if err != nil {
 		return MaterialType{}, err
 	}
@@ -163,13 +211,13 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
 	id := newID()
-	if _, err = q.CreateMaterialType(ctx, machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit}); err != nil {
+	if _, err = q.CreateMaterialType(ctx, machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit, Kind: kind}); err != nil {
 		return MaterialType{}, materialTypeConflict(err)
 	}
 	if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
 		return MaterialType{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "material_type.created", "material_type", id, requestID, []string{"name", "unit", "processes"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "material_type.created", "material_type", id, requestID, []string{"name", "kind", "unit", "processes"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)
@@ -184,9 +232,10 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 
 // UpdateMaterialType renames, deactivates or reactivates a type. Its unit can
 // only change while no material or pricing rule uses the type, because those
-// keep the unit of their type. Nil processes keeps the current ones; a given
-// list replaces them and must not be empty.
-func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, unit string, processes []string, active bool, requestID *uuid.UUID) (MaterialType, error) {
+// keep the unit of their type, and the kind only while no material uses it.
+// An empty kind keeps the current one. Nil processes keeps the current ones; a
+// given list replaces them and must fit the kind.
+func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, kind, unit string, processes []string, active bool, requestID *uuid.UUID) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -200,11 +249,8 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 	if !validUnit(unit) {
 		return MaterialType{}, validation("invalid material unit")
 	}
-	if processes != nil {
-		processes, err = validateProcesses(processes)
-		if err != nil {
-			return MaterialType{}, err
-		}
+	if kind != "" && !validMaterialKind(kind) {
+		return MaterialType{}, validation("invalid material kind")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -219,6 +265,46 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 	if current.Version != expected {
 		return MaterialType{}, apperror.StaleWrite
 	}
+	if kind == "" {
+		kind = current.Kind
+	}
+	if kind != current.Kind {
+		count, countErr := q.CountMaterialsOfType(ctx, id)
+		if countErr != nil {
+			return MaterialType{}, countErr
+		}
+		if count > 0 {
+			return MaterialType{}, conflict("material_type_in_use", "The kind cannot change while materials use this material type")
+		}
+		if kind == KindPart {
+			rules, rulesErr := q.CountActivePricingRulesOfMaterialType(ctx, &id)
+			if rulesErr != nil {
+				return MaterialType{}, rulesErr
+			}
+			if rules > 0 {
+				return MaterialType{}, conflict("material_type_in_use", "A material type with active pricing rules cannot become a part category")
+			}
+		}
+	}
+	effective := processes
+	if effective == nil {
+		names, listErr := q.ListMaterialTypeProcessNames(ctx, id)
+		if listErr != nil {
+			return MaterialType{}, listErr
+		}
+		effective = names
+		if kind != current.Kind {
+			// A new kind needs processes of its own; the defaults apply when none were given.
+			effective = nil
+		}
+	}
+	shaped, err := shapeMaterialType(kind, unit, effective)
+	if err != nil {
+		return MaterialType{}, err
+	}
+	if processes != nil || kind != current.Kind {
+		processes = shaped
+	}
 	if current.Unit != unit {
 		referenced, refErr := q.MaterialTypeIsReferenced(ctx, id)
 		if refErr != nil {
@@ -228,7 +314,7 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 			return MaterialType{}, conflict("material_type_unit_in_use", "The unit cannot change while materials or pricing rules use this material type")
 		}
 	}
-	if _, err = q.UpdateMaterialType(ctx, machinelogbookdb.UpdateMaterialTypeParams{Name: name, Unit: unit, Active: active, ID: id, ExpectedVersion: expected}); err != nil {
+	if _, err = q.UpdateMaterialType(ctx, machinelogbookdb.UpdateMaterialTypeParams{Name: name, Unit: unit, Kind: kind, Active: active, ID: id, ExpectedVersion: expected}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return MaterialType{}, apperror.StaleWrite
 		}
@@ -239,7 +325,7 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 			return MaterialType{}, err
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "material_type.updated", "material_type", id, requestID, []string{"name", "unit", "processes", "active"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "material_type.updated", "material_type", id, requestID, []string{"name", "kind", "unit", "processes", "active"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)

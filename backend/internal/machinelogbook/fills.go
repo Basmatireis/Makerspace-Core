@@ -98,40 +98,20 @@ func lockMaterials(ctx context.Context, q *machinelogbookdb.Queries, ids ...uuid
 	return nil
 }
 
-// checkFillMaterialAndProduct validates the material of a new fill and the
-// optional catalog product, and returns the manufacturer and product name
-// snapshots (defaulting to the product's).
-func (s *Service) checkFillMaterialAndProduct(ctx context.Context, q *machinelogbookdb.Queries, materialID uuid.UUID, productID *uuid.UUID, manufacturer, productName *string) (*string, *string, error) {
+// checkFillMaterial validates the material of a new fill and returns the
+// manufacturer snapshot: the given one, else the manufacturer of the material.
+func (s *Service) checkFillMaterial(ctx context.Context, q *machinelogbookdb.Queries, materialID uuid.UUID, manufacturer *string) (*string, error) {
 	detail, err := q.GetMaterial(ctx, materialID)
 	if err != nil {
-		return nil, nil, noRows(err)
+		return nil, noRows(err)
 	}
-	if detail.Unit != "g" || !detail.DiameterMm.Valid {
-		return nil, nil, conflict("material_not_filament", "Spools require a gram-denominated material with filament properties")
-	}
-	if productID == nil {
-		return manufacturer, productName, nil
-	}
-	product, err := q.GetFilamentProduct(ctx, *productID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, validation("productId does not exist")
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	if !product.Active {
-		return nil, nil, unprocessable("product_inactive", "The product is inactive")
-	}
-	if product.MaterialID != materialID {
-		return nil, nil, validation("materialId must be the product's material")
+	if detail.MaterialKind != KindFilament || !detail.DiameterMm.Valid {
+		return nil, conflict("material_not_filament", "Spools require a filament article")
 	}
 	if manufacturer == nil {
-		manufacturer = &product.Manufacturer
+		manufacturer = detail.Manufacturer
 	}
-	if productName == nil {
-		productName = &product.Name
-	}
-	return manufacturer, productName, nil
+	return manufacturer, nil
 }
 
 type leftoverPlan struct {
@@ -332,7 +312,7 @@ func (s *Service) ChangeFilamentSpoolFill(ctx context.Context, p authorization.P
 	if err = lockMaterials(ctx, q, materials...); err != nil {
 		return FilamentSpool{}, err
 	}
-	manufacturer, productName, err = s.checkFillMaterialAndProduct(ctx, q, in.Fill.MaterialID, in.Fill.ProductID, manufacturer, productName)
+	manufacturer, err = s.checkFillMaterial(ctx, q, in.Fill.MaterialID, manufacturer)
 	if err != nil {
 		return FilamentSpool{}, err
 	}
@@ -355,7 +335,7 @@ func (s *Service) ChangeFilamentSpoolFill(ctx context.Context, p authorization.P
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	fill, err := q.InsertFilamentSpoolFill(ctx, machinelogbookdb.InsertFilamentSpoolFillParams{ID: newID(), SpoolID: spoolID, FillNumber: number, MaterialID: in.Fill.MaterialID, ProductID: in.Fill.ProductID,
+	fill, err := q.InsertFilamentSpoolFill(ctx, machinelogbookdb.InsertFilamentSpoolFillParams{ID: newID(), SpoolID: spoolID, FillNumber: number, MaterialID: in.Fill.MaterialID,
 		Manufacturer: manufacturer, ProductName: productName, InitialNetWeightG: numericFromDecimal(weight), FilledAt: in.OccurredAt.UTC()})
 	if err != nil {
 		return FilamentSpool{}, databaseError(err)

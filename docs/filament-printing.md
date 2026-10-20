@@ -14,7 +14,7 @@ Material usage on a machine run now distinguishes makerspace and external filame
 
 ## Spools, fills, and kinds
 
-A **spool** is the physical holder; a **fill** is one load of filament on it. Every spool has numbered fills (fill 1, 2, ...) with their own material, product snapshot, initial net weight, identifiers, and, once closed, the leftover and its outcome (used up, returned to stock, or disposed). At most one fill is open. The ledger and job usages record the spool display ID and fill number as snapshots next to the foreign keys.
+A **spool** is the physical holder; a **fill** is one load of filament on it. Every spool has numbered fills (fill 1, 2, ...) with their own material, manufacturer snapshot, initial net weight, identifiers, and, once closed, the leftover and its outcome (used up, returned to stock, or disposed). At most one fill is open. The ledger and job usages record the spool display ID and fill number as snapshots next to the foreign keys.
 
 - **Kind:** **single_use** spools hold one fill and are archived when finished. **reusable** spools can be refilled and may optionally have a label. A reusable spool can be registered **empty** (no fill) and loaded later; single-use spools cannot.
 - **Lifecycle:** **active** or **archived** (`archivedAt` is set exactly when archived; the former `retired` state became `archived` in migration 00038). Whether a spool is loaded follows from its open fill.
@@ -26,9 +26,13 @@ All three operations below require `filament_spools.manage` and `inventory.manag
 - **Finish** (`POST /filament-spools/{id}/finish`): closes the open fill with the same leftover entries, unmounts the spool, and archives it when it is single-use. A reusable spool stays active but empty.
 - **Cleanup** (`POST /filament-spools/cleanup`): previews (`dryRun`) or hard-deletes archived single-use spools older than 1, 3, 6, or 12 months with no open fill. Only listed IDs that are still candidates are deleted. Fills, identifiers, and mount history cascade; ledger entries and job usages keep their spool display ID and fill number snapshots, so material history survives. This is a genuine hard-deletion path.
 
-## Filament product catalog
+## Filament articles (no product catalog)
 
-`/filament-products` holds manufacturer, name, material, net weight, default price, packaging (**refill** or **spool**), notes, and an active flag. Reads need `inventory.read`; writes need `inventory.manage`. Manufacturer and name are unique ignoring case. Products can be edited or deactivated. **Snapshot rule:** a fill copies manufacturer and product name when it starts and keeps an optional product reference that is cleared if the product is removed, so catalog edits never rewrite history. The product's material remains the single source for stock; job pricing uses the material's type (`/material-types`), and the material's colour is the only colour staff enter. Spools display their material's colour and never hold their own.
+The former `/filament-products` catalog was removed in migration 00056. A filament **article** (a material whose type has kind `filament`) carries the manufacturer, variant, package size (for example 1000 g per roll), sale price and storage location itself; filament articles always have a filament diameter (1.75 mm by default), and only they can be put on spools (409 `material_not_filament` otherwise). **Snapshot rule:** a fill copies the manufacturer when it starts (the explicit value, else the article's) and the optional product name, so later edits never rewrite history. The migration folded the old products into their article where unambiguous: manufacturer from the products (else from the fills) when exactly one distinct value exists, package size when all products share one net weight. Job pricing uses the material's type (`/material-types`), and the material's colour is the only colour staff enter. Spools display their material's colour and never hold their own.
+
+### Receiving filament
+
+`POST /inventory/receipts` (see [machine-logbook.md](machine-logbook.md#receiving-stock)) places filament in one of three ways: `storage` (loose stock), `new_spools` (one new single-use spool per package, fill 1 bought directly onto it, the total price split in whole cents with the remainder on the last spool), or `reusable_spool` (one package onto an active reusable spool without an open fill; 409 `spool_already_loaded` when it holds a fill). Spool placements also need `filament_spools.manage`. Identifiers (barcode, QR, NFC) are only accepted when exactly one spool is created or loaded.
 
 ## Gated by process
 
@@ -52,6 +56,6 @@ Normalized connector events use a versioned source ID and event key. Repeating i
 
 The feature adds `filament_spools.manage` and `printer_slots.assign`. Services enforce these permissions; frontend gating is only presentation.
 
-OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots. The Carbon UI exposes spools, products, change filament, finish, and cleanup under Inventory and printer topology from Machines. All pages remain route-lazy-loaded.
+OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots. The Carbon UI exposes spools, change filament, finish, and cleanup under Inventory and printer topology from Machines. All pages remain route-lazy-loaded.
 
-Migrations `00032_filament_spools.sql` and `00033_printing.sql` contain downgrade guards. A downgrade stops when spool, printing, or version-2 financial snapshot history exists rather than silently discarding it. The downgrade of `00038_spool_fills_products.sql` restores the single-material spool model from each spool's latest fill; older fills with another material cannot be represented.
+Migrations `00032_filament_spools.sql` and `00033_printing.sql` contain downgrade guards. A downgrade stops when spool, printing, or version-2 financial snapshot history exists rather than silently discarding it. The downgrade of `00038_spool_fills_products.sql` restores the single-material spool model from each spool's latest fill; older fills with another material cannot be represented. The downgrade of `00056_inventory_articles.sql` refuses while part types, article variants, sale prices or purchase references exist and otherwise rebuilds one product per filament article that has a manufacturer and package size.

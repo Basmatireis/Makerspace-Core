@@ -18,14 +18,16 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentProduct } from './filamentProduct';
 
-export interface FilamentProductPage {
-  items: FilamentProduct[];
-  /** @minimum 1 */
-  page: number;
-  /** @minimum 1 */
-  pageSize: number;
-  /** @minimum 0 */
-  total: number;
-}
+/**
+ * filament is measured in grams, serves FDM printing and can sit on spools; consumable serves at least one machine process; part has no process, so it can never be used in a machine run.
+ */
+export type MaterialKind = typeof MaterialKind[keyof typeof MaterialKind];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const MaterialKind = {
+  filament: 'filament',
+  consumable: 'consumable',
+  part: 'part',
+} as const;

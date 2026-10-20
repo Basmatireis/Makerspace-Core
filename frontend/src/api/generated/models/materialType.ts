@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { MaterialKind } from './materialKind';
 import type { MaterialUnit } from './materialUnit';
 import type { MachineProcess } from './machineProcess';
 import type { Version } from './version';
@@ -26,6 +27,7 @@ import type { Version } from './version';
 export interface MaterialType {
   id: UUIDv7;
   name: string;
+  kind: MaterialKind;
   unit: MaterialUnit;
   /** Processes whose machines can consume materials of this type in new runs. */
   processes: MachineProcess[];

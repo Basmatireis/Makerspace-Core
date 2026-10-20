@@ -18,10 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
+import type { Decimal } from './decimal';
 
 /**
- * When set, materialId must be the product's material.
  * @nullable
  */
-export type CreateFilamentSpoolRequestProductId = UUIDv7 | null;
+export type UpdateMaterialRequestSalePrice = Decimal | null;

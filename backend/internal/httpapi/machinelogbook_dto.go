@@ -46,7 +46,7 @@ func mlPricingRuleDTO(item machinelogbook.PricingRule) openapi.PricingRule {
 	return openapi.PricingRule{Id: item.ID, PricingGroupId: item.PricingGroupID, Kind: openapi.PricingRuleKind(item.Kind), MachineTypeId: nullableUUIDValue(item.MachineTypeID), MaterialTypeId: nullableUUIDValue(item.MaterialTypeID), MaterialTypeName: nullableString(item.MaterialTypeName), MaterialUnit: unit, Measure: runMeasureKeyValue(item.Measure), BlockSize: nullableInt32Value(item.BlockSize), Rate: item.Rate, Active: item.Active, Version: item.Version}
 }
 func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
-	return openapi.MaterialType{Id: item.ID, Name: item.Name, Unit: openapi.MaterialUnit(item.Unit), Processes: machineProcessDTOs(item.Processes), Active: item.Active, MaterialCount: item.MaterialCount, PricingRuleCount: item.PricingRuleCount, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MaterialType{Id: item.ID, Name: item.Name, Kind: openapi.MaterialKind(item.Kind), Unit: openapi.MaterialUnit(item.Unit), Processes: machineProcessDTOs(item.Processes), Active: item.Active, MaterialCount: item.MaterialCount, PricingRuleCount: item.PricingRuleCount, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func machineProcessDTOs(values []string) []openapi.MachineProcess {
 	result := make([]openapi.MachineProcess, 0, len(values))
@@ -126,7 +126,7 @@ func mlPricingGroupDTO(item machinelogbook.PricingGroup) openapi.PricingGroup {
 	return openapi.PricingGroup{Id: item.ID, Name: item.Name, Description: nullableString(item.Description), Active: item.Active, IsDefault: item.IsDefault, Rules: rules, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
-	return openapi.Material{Id: item.ID, Name: item.Name, MaterialTypeId: item.MaterialTypeID, MaterialTypeName: item.MaterialTypeName, ColorName: nullableString(item.ColorName), ColorHex: nullableString(item.ColorHex), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM), Quantity: item.Quantity, AssignedQuantity: item.AssignedQuantity, UnassignedQuantity: item.UnassignedQuantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.Material{Id: item.ID, Name: item.Name, Kind: openapi.MaterialKind(item.Kind), Variant: nullableString(item.Variant), Manufacturer: nullableString(item.Manufacturer), SalePrice: nullableDecimalValue(item.SalePrice), PackageSize: nullableDecimalValue(item.PackageSize), StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), MaterialTypeId: item.MaterialTypeID, MaterialTypeName: item.MaterialTypeName, ColorName: nullableString(item.ColorName), ColorHex: nullableString(item.ColorHex), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM), Quantity: item.Quantity, AssignedQuantity: item.AssignedQuantity, UnassignedQuantity: item.UnassignedQuantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi.InventoryTransaction {
 	var reason nullable.Nullable[openapi.InventoryAdjustmentReason]
@@ -135,7 +135,7 @@ func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi
 	} else {
 		reason = nullable.NewNullableWithValue(openapi.InventoryAdjustmentReason(*item.AdjustmentReason))
 	}
-	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), SpoolId: nullableUUIDValue(item.SpoolID), SpoolDisplayId: nullableString(item.SpoolDisplayID), FillNumber: nullableInt32Value(item.FillNumber), FromSpoolId: nullableUUIDValue(item.FromSpoolID), FromSpoolDisplayId: nullableString(item.FromSpoolDisplayID), FromFillNumber: nullableInt32Value(item.FromFillNumber), ToSpoolId: nullableUUIDValue(item.ToSpoolID), ToSpoolDisplayId: nullableString(item.ToSpoolDisplayID), ToFillNumber: nullableInt32Value(item.ToFillNumber), TransferQuantity: nullableDecimalValue(item.TransferQuantity), ActorName: nullableString(item.ActorName), CreatedAt: item.CreatedAt}
+	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, Reference: nullableString(item.Reference), MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), SpoolId: nullableUUIDValue(item.SpoolID), SpoolDisplayId: nullableString(item.SpoolDisplayID), FillNumber: nullableInt32Value(item.FillNumber), FromSpoolId: nullableUUIDValue(item.FromSpoolID), FromSpoolDisplayId: nullableString(item.FromSpoolDisplayID), FromFillNumber: nullableInt32Value(item.FromFillNumber), ToSpoolId: nullableUUIDValue(item.ToSpoolID), ToSpoolDisplayId: nullableString(item.ToSpoolDisplayID), ToFillNumber: nullableInt32Value(item.ToFillNumber), TransferQuantity: nullableDecimalValue(item.TransferQuantity), ActorName: nullableString(item.ActorName), CreatedAt: item.CreatedAt}
 }
 func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.InventoryMutationResult {
 	return openapi.InventoryMutationResult{Material: mlMaterialDTO(item.Material), Transaction: mlInventoryTransactionDTO(item.Transaction)}
@@ -400,4 +400,18 @@ func mlMemberOrganizationsDTO(items []machinelogbook.OrganizationReference) *[]o
 		out = append(out, openapi.OrganizationReference{Id: item.ID, Name: item.Name})
 	}
 	return &out
+}
+
+func materialCreateInput(body openapi.CreateMaterialRequest) machinelogbook.MaterialInput {
+	return machinelogbook.MaterialInput{Name: defaultString(body.Name), MaterialTypeID: body.MaterialTypeId, Unit: materialUnitPointer(body.Unit), ColorName: nullableStringPointer(body.ColorName), ColorHex: nullableStringPointer(body.ColorHex),
+		Variant: nullableStringPointer(body.Variant), Manufacturer: nullableStringPointer(body.Manufacturer), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes),
+		SalePrice: decimalNullable(body.SalePrice), PackageSize: decimalNullable(body.PackageSize),
+		LowStockThreshold: decimalNullable(body.LowStockThreshold), FilamentDiameterMM: decimalNullable(body.FilamentDiameterMm)}
+}
+
+func materialUpdateInput(body openapi.UpdateMaterialRequest, diameter *string) machinelogbook.MaterialInput {
+	return machinelogbook.MaterialInput{Name: defaultString(body.Name), MaterialTypeID: body.MaterialTypeId, Unit: materialUnitPointer(body.Unit), ColorName: nullableStringPointer(body.ColorName), ColorHex: nullableStringPointer(body.ColorHex),
+		Variant: nullableStringPointer(body.Variant), Manufacturer: nullableStringPointer(body.Manufacturer), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes),
+		SalePrice: decimalNullable(body.SalePrice), PackageSize: decimalNullable(body.PackageSize),
+		LowStockThreshold: decimalNullable(body.LowStockThreshold), FilamentDiameterMM: diameter, Active: body.Active, ExpectedVersion: body.ExpectedVersion}
 }

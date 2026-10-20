@@ -32,6 +32,11 @@ export interface AddMaterialPurchaseRequest {
    */
   supplier?: string | null;
   /**
+   * @maxLength 200
+   * @nullable
+   */
+  reference?: string | null;
+  /**
    * @maxLength 1000
    * @nullable
    */

@@ -18,33 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 import type { Decimal } from './decimal';
-import type { UpdateFilamentProductRequestDefaultPrice } from './updateFilamentProductRequestDefaultPrice';
-import type { FilamentPackaging } from './filamentPackaging';
-import type { Version } from './version';
 
-export interface UpdateFilamentProductRequest {
-  /**
-   * @minLength 1
-   * @maxLength 150
-   */
-  manufacturer: string;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  name: string;
-  materialId: UUIDv7;
-  netWeightG: Decimal;
-  /** @nullable */
-  defaultPrice?: UpdateFilamentProductRequestDefaultPrice;
-  packaging: FilamentPackaging;
-  /**
-   * @maxLength 2000
-   * @nullable
-   */
-  notes?: string | null;
-  active: boolean;
-  expectedVersion: Version;
-}
+/**
+ * @nullable
+ */
+export type InventoryReceiptPlacementTareWeightG = Decimal | null;

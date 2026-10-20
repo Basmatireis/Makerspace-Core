@@ -18,9 +18,13 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Money } from './money';
 
-/**
- * @nullable
- */
-export type UpdateFilamentProductRequestDefaultPrice = Money | null;
+export type InventoryReceiptPlacementMode = typeof InventoryReceiptPlacementMode[keyof typeof InventoryReceiptPlacementMode];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const InventoryReceiptPlacementMode = {
+  storage: 'storage',
+  new_spools: 'new_spools',
+  reusable_spool: 'reusable_spool',
+} as const;
