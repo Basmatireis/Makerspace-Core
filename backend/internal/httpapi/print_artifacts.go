@@ -149,7 +149,7 @@ func (s *Server) UploadPrinterConnectorRunArtifact(
 		Disposition:       openapi.PrintArtifactUploadResultDisposition(result.Disposition),
 		RunId:             result.RunID,
 	}
-	if result.Disposition == "created" {
+	if result.Disposition == printartifacts.DispositionCreated {
 		return openapi.UploadPrinterConnectorRunArtifact201JSONResponse(response), nil
 	}
 	return openapi.UploadPrinterConnectorRunArtifact200JSONResponse(response), nil

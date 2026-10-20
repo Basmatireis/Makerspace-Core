@@ -53,30 +53,32 @@ type Filament struct {
 }
 
 type Artifact struct {
-	ID, OriginalFileID          uuid.UUID
-	OriginalFilename, SHA256    string
-	SizeBytes                   int64
-	ParserStatus, ParserVersion string
-	Metadata                    map[string]any
-	PrimaryPreviewID            *uuid.UUID
-	Filaments                   []Filament
-	CreatedAt, UpdatedAt        time.Time
+	ID, OriginalFileID       uuid.UUID
+	OriginalFilename, SHA256 string
+	SizeBytes                int64
+	ParserStatus             ParserStatus
+	ParserVersion            string
+	Metadata                 map[string]any
+	PrimaryPreviewID         *uuid.UUID
+	Filaments                []Filament
+	CreatedAt, UpdatedAt     time.Time
 }
 
 type Preview struct {
-	ID, ArtifactID    uuid.UUID
-	ArchivePath, Role string
-	PlateNumber       *int
-	Width, Height     int
-	MIMEType, SHA256  string
-	SizeBytes         int64
-	Primary           bool
-	FileID            uuid.UUID
+	ID, ArtifactID   uuid.UUID
+	ArchivePath      string
+	Role             PreviewRole
+	PlateNumber      *int
+	Width, Height    int
+	MIMEType, SHA256 string
+	SizeBytes        int64
+	Primary          bool
+	FileID           uuid.UUID
 }
 
 type UploadResult struct {
 	Artifact          Artifact
-	Disposition       string
+	Disposition       Disposition
 	RunID             uuid.UUID
 	AutoAttachedJobID *uuid.UUID
 }
@@ -122,7 +124,7 @@ func (s *Service) artifactFromRow(ctx context.Context, q *db.Queries, row db.Get
 		OriginalFilename: row.OriginalFilename,
 		SHA256:           hex.EncodeToString(row.Sha256),
 		SizeBytes:        row.SizeBytes,
-		ParserStatus:     row.ParserStatus,
+		ParserStatus:     ParserStatus(row.ParserStatus),
 		ParserVersion:    row.ParserVersion,
 		Metadata:         metadata,
 		PrimaryPreviewID: row.PrimaryPreviewID,
@@ -197,7 +199,7 @@ func (s *Service) ListPreviews(
 				ArtifactID:  row.ArtifactID,
 				FileID:      row.FileID,
 				ArchivePath: row.ArchivePath,
-				Role:        row.Role,
+				Role:        PreviewRole(row.Role),
 				PlateNumber: plate,
 				Width:       int(row.Width),
 				Height:      int(row.Height),
@@ -244,7 +246,7 @@ func (s *Service) OpenPreview(
 		ArtifactID:  row.ArtifactID,
 		FileID:      row.FileID,
 		ArchivePath: row.ArchivePath,
-		Role:        row.Role,
+		Role:        PreviewRole(row.Role),
 		PlateNumber: plate,
 		Width:       int(row.Width),
 		Height:      int(row.Height),
@@ -476,9 +478,9 @@ func (s *Service) persistUpload(
 	}
 	cleanups = append(cleanups, cleanup)
 	artifactID := ids.New()
-	status := "complete"
+	status := ParserComplete
 	if parsed.Status == parser.StatusPartial {
-		status = "partial"
+		status = ParserPartial
 	}
 	_, err = q.InsertArtifact(
 		ctx,
@@ -486,7 +488,7 @@ func (s *Service) persistUpload(
 			ID:             artifactID,
 			OriginalFileID: file.ID,
 			Sha256:         digest,
-			ParserStatus:   status,
+			ParserStatus:   string(status),
 			ParserVersion:  parsed.ParserVersion,
 			Metadata:       metadata,
 		},
@@ -548,9 +550,9 @@ func (s *Service) persistUpload(
 			return UploadResult{}, storeErr
 		}
 		cleanups = append(cleanups, previewCleanup)
-		role := "other"
+		role := PreviewOther
 		if preview.Role == parser.PreviewRolePlate {
-			role = "plate"
+			role = PreviewPlate
 		}
 		var plate *int32
 		if preview.PlateNumber != nil {
@@ -565,7 +567,7 @@ func (s *Service) persistUpload(
 				ArtifactID:  artifactID,
 				FileID:      stored.ID,
 				ArchivePath: preview.ArchivePath,
-				Role:        &role,
+				Role:        optional.Of(string(role)),
 				PlateNumber: plate,
 				Width:       int32(preview.Width),
 				Height:      int32(preview.Height),
@@ -622,7 +624,7 @@ func (s *Service) persistUpload(
 	committed = true
 	for range cleanups { /* committed blobs are retained */
 	}
-	result.Disposition = "created"
+	result.Disposition = DispositionCreated
 	result.Artifact, err = s.load(ctx, db.New(s.pool), artifactID)
 	return result, err
 }
@@ -684,7 +686,7 @@ func (s *Service) attachExisting(
 		return UploadResult{}, err
 	}
 	*committed = true
-	result.Disposition = "deduplicated"
+	result.Disposition = DispositionDeduplicated
 	result.Artifact, err = s.load(ctx, db.New(s.pool), artifactID)
 	return result, err
 }
@@ -798,7 +800,7 @@ func (s *Service) CreatePlannedJob(
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	if machine.Status == "retired" || !machine.ProfileEnabled {
+	if machinelogbook.MachineStatus(machine.Status) == machinelogbook.MachineStatusRetired || !machine.ProfileEnabled {
 		return machinelogbook.MachineJob{}, apperror.Conflicting(
 			"printer_profile_disabled",
 			"An enabled printer profile is required",
@@ -811,14 +813,14 @@ func (s *Service) CreatePlannedJob(
 	}
 	var personID, organizationID *uuid.UUID
 	switch input.Customer.Kind {
-	case "person":
+	case machinelogbook.PartyPerson:
 		if ok, checkErr := q.BillingPersonExists(ctx, input.Customer.ID); checkErr != nil {
 			return machinelogbook.MachineJob{}, checkErr
 		} else if !ok {
 			return machinelogbook.MachineJob{}, apperror.NotFound
 		}
 		personID = &input.Customer.ID
-	case "organization":
+	case machinelogbook.PartyOrganization:
 		if ok, checkErr := q.ActiveOrganizationExists(ctx, input.Customer.ID); checkErr != nil {
 			return machinelogbook.MachineJob{}, checkErr
 		} else if !ok {
