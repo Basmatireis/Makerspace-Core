@@ -23,13 +23,7 @@ import {
 import { Add, Link as LinkIcon, Unlink, WarningAlt } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import type {
-  FilamentSpool,
-  Machine,
-  PrinterProfile,
-  PrinterSlot,
-  PrinterSlotStatus,
-} from '../../../api/generated/models';
+import type { FilamentSpool, Machine, PrinterProfile, PrinterSlot } from '../../../api/generated/models';
 import {
   configurePrinterProfile,
   mountPrinterSpool,
@@ -53,39 +47,16 @@ import {
 } from '../printerSetup';
 import { machineLogbookKeys, spoolsQuery } from '../queries';
 import { connectorDiagnostic } from '../shared/connectorHelpers';
-import { formatQuantity, formatRelative } from '../shared/format';
+import { formatRelative } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { colorsClearlyDiffer, reportedToMaterialHex } from '../colors';
 import { DetectedTrayCell } from './DetectedTrayCell';
 import type { StepKey } from './wizard/wizardTypes';
+import { slotTag, slotHeaders, runtimeTag, spoolLabel } from './printerSetupShared';
 
-const slotTag: Record<PrinterSlotStatus, { label: string; type: 'green' | 'warm-gray' | 'gray' }> = {
-  available: { label: 'Available', type: 'green' },
-  unavailable: { label: 'Unavailable', type: 'warm-gray' },
-  retired: { label: 'Retired', type: 'gray' },
-};
-
-const slotHeaders = [
-  { key: 'slot', header: 'Slot' },
-  { key: 'mapping', header: 'Printer slot' },
-  { key: 'detected', header: 'Reported by printer' },
-  { key: 'spool', header: 'Mounted spool' },
-  { key: 'actions', header: 'Actions' },
-];
-
-const runtimeTag = {
-  connected: 'green',
-  connecting: 'blue',
-  degraded: 'purple',
-  disconnected: 'red',
-  disabled: 'gray',
-} as const;
 const PRINTER_REFRESH_MS = 5000;
-
-const spoolLabel = (spool: FilamentSpool) =>
-  `${spool.displayId}${spool.label ? ` (${spool.label})` : ''} · ${spool.materialName ?? 'No material'} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`;
 
 export function PrinterSetup({
   machine,
