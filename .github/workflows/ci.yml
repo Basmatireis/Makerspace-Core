@@ -12,6 +12,8 @@ on:
       - "**/*.md"
       - "docs/**"
   workflow_call:
+  # Lets a maintainer run the full pipeline on a branch without opening a pull request.
+  workflow_dispatch:
 
 permissions:
   contents: read
