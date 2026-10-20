@@ -84,7 +84,7 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 
 	port := listener.Addr().(*net.TCPAddr).Port
 	provider, err := NewSMTPProvider(SMTPConfig{
-		Host: "127.0.0.1", Port: port, TLSMode: "none",
+		Host: "127.0.0.1", Port: port, TLSMode: TLSNone,
 		FromAddress: "makerspace@example.test", FromName: "Makerspace",
 	})
 	if err != nil {

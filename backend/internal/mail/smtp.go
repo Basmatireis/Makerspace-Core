@@ -15,8 +15,9 @@ import (
 )
 
 type SMTPConfig struct {
-	Host, TLSMode, Username, Password, FromAddress, FromName string
-	Port                                                     int
+	Host, Username, Password, FromAddress, FromName string
+	TLSMode                                         TLSMode
+	Port                                            int
 }
 
 type SMTPProvider struct{ config SMTPConfig }
@@ -25,7 +26,7 @@ func NewSMTPProvider(config SMTPConfig) (*SMTPProvider, error) {
 	if config.Host == "" || config.Port < 1 || config.FromAddress == "" {
 		return nil, fmt.Errorf("invalid SMTP configuration")
 	}
-	if config.TLSMode != "starttls" && config.TLSMode != "tls" && config.TLSMode != "none" {
+	if !config.TLSMode.valid() {
 		return nil, fmt.Errorf("invalid SMTP TLS mode")
 	}
 	return &SMTPProvider{config: config}, nil
@@ -39,7 +40,7 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var connection net.Conn
 	var err error
-	if p.config.TLSMode == "tls" {
+	if p.config.TLSMode == TLSImplicit {
 		connection, err = (&tls.Dialer{
 			NetDialer: dialer,
 			Config:    &tls.Config{MinVersion: tls.VersionTLS12, ServerName: p.config.Host},
@@ -65,7 +66,7 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 		return fmt.Errorf("start SMTP: %w", err)
 	}
 	defer func() { _ = client.Close() }()
-	if p.config.TLSMode == "starttls" {
+	if p.config.TLSMode == TLSStartTLS {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			return fmt.Errorf("SMTP server does not offer STARTTLS")
 		}

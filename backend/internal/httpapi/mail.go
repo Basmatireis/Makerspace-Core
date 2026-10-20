@@ -44,7 +44,7 @@ func (s *Server) UpdateMailConfiguration(
 			Enabled:         request.Body.Enabled,
 			Host:            request.Body.Host,
 			Port:            request.Body.Port,
-			TLSMode:         string(request.Body.TlsMode),
+			TLSMode:         mailservice.TLSMode(request.Body.TlsMode),
 			Username:        request.Body.Username,
 			Password:        password,
 			FromAddress:     request.Body.FromAddress,

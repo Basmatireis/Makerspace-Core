@@ -30,17 +30,19 @@ type Provider interface {
 }
 
 type Configuration struct {
-	Enabled, PasswordConfigured                                       bool
-	Provider, Host, TLSMode, Username, FromAddress, FromName, BaseURL string
-	Port                                                              int
-	Version                                                           int64
-	UpdatedAt                                                         time.Time
+	Enabled, PasswordConfigured                              bool
+	Provider, Host, Username, FromAddress, FromName, BaseURL string
+	TLSMode                                                  TLSMode
+	Port                                                     int
+	Version                                                  int64
+	UpdatedAt                                                time.Time
 }
 type ConfigurationInput struct {
-	Enabled                                                           bool
-	Host, TLSMode, Username, Password, FromAddress, FromName, BaseURL string
-	Port                                                              int
-	ExpectedVersion                                                   int64
+	Enabled                                                  bool
+	Host, Username, Password, FromAddress, FromName, BaseURL string
+	TLSMode                                                  TLSMode
+	Port                                                     int
+	ExpectedVersion                                          int64
 }
 type Service struct {
 	pool    *pgxpool.Pool
@@ -92,7 +94,7 @@ func (s *Service) UpdateConfiguration(
 	parsedBase, baseErr := url.Parse(input.BaseURL)
 	parsedFrom, fromErr := mail.ParseAddress(input.FromAddress)
 	if input.ExpectedVersion < 1 || input.Port < 1 || input.Port > 65535 ||
-		(input.TLSMode != "starttls" && input.TLSMode != "tls" && input.TLSMode != "none") ||
+		!input.TLSMode.valid() ||
 		(input.Enabled && (input.Host == "" || input.FromAddress == "" || input.BaseURL == "" || baseErr != nil || parsedBase.Host == "" || (parsedBase.Scheme != "http" && parsedBase.Scheme != "https") || parsedBase.Path != "" || parsedBase.RawQuery != "" || parsedBase.Fragment != "" || fromErr != nil || parsedFrom.Address != input.FromAddress)) {
 		return Configuration{}, invalidConfiguration()
 	}
@@ -144,7 +146,7 @@ func (s *Service) UpdateConfiguration(
 			Enabled:               input.Enabled,
 			SmtpHost:              input.Host,
 			SmtpPort:              int32(input.Port),
-			SmtpTlsMode:           input.TLSMode,
+			SmtpTlsMode:           string(input.TLSMode),
 			SmtpUsername:          input.Username,
 			EncryptedSmtpPassword: ciphertext,
 			FromAddress:           input.FromAddress,
@@ -211,7 +213,7 @@ func (s *Service) Send(ctx context.Context, message Message) error {
 		SMTPConfig{
 			Host:        row.SmtpHost,
 			Port:        int(row.SmtpPort),
-			TLSMode:     row.SmtpTlsMode,
+			TLSMode:     TLSMode(row.SmtpTlsMode),
 			Username:    row.SmtpUsername,
 			Password:    password,
 			FromAddress: row.FromAddress,
@@ -237,7 +239,7 @@ func configurationFromRow(row maildb.MailConfiguration) Configuration {
 		Provider:           row.Provider,
 		Host:               row.SmtpHost,
 		Port:               int(row.SmtpPort),
-		TLSMode:            row.SmtpTlsMode,
+		TLSMode:            TLSMode(row.SmtpTlsMode),
 		Username:           row.SmtpUsername,
 		FromAddress:        row.FromAddress,
 		FromName:           row.FromName,
