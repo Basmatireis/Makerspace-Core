@@ -18,7 +18,26 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { SessionPolicyInput } from './sessionPolicyInput';
-import type { UpdateSessionPolicyRequestAllOf } from './updateSessionPolicyRequestAllOf';
+import type { PostSessionDestination } from './postSessionDestination';
+import type { Version } from './version';
 
-export type UpdateSessionPolicyRequest = SessionPolicyInput & UpdateSessionPolicyRequestAllOf;
+export interface UpdateSessionPolicyRequest {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /**
+   * @minimum 60
+   * @maximum 2592000
+   */
+  idleTimeoutSeconds: number;
+  /**
+   * @minimum 300
+   * @maximum 7776000
+   */
+  absoluteLifetimeSeconds: number;
+  postSessionDestination: PostSessionDestination;
+  isDefault: boolean;
+  expectedVersion: Version;
+}

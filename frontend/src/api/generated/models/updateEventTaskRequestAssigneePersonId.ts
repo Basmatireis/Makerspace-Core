@@ -18,8 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Version } from './version';
+import type { UUIDv7 } from './uUIDv7';
 
-export type UpdateOpenDayRequestAllOf = {
-  expectedVersion: Version;
-};
+/**
+ * @nullable
+ */
+export type UpdateEventTaskRequestAssigneePersonId = UUIDv7 | null;

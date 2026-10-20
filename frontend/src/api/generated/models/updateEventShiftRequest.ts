@@ -18,7 +18,30 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { EventShiftInput } from './eventShiftInput';
-import type { UpdateEventShiftRequestAllOf } from './updateEventShiftRequestAllOf';
+import type { UpdateEventShiftRequestSessionId } from './updateEventShiftRequestSessionId';
+import type { EventShiftStatus } from './eventShiftStatus';
+import type { Version } from './version';
 
-export type UpdateEventShiftRequest = EventShiftInput & UpdateEventShiftRequestAllOf;
+export interface UpdateEventShiftRequest {
+  /** @nullable */
+  sessionId?: UpdateEventShiftRequestSessionId;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  /** @nullable */
+  signupOpensAt?: string | null;
+  /** @nullable */
+  signupClosesAt?: string | null;
+  isPublic: boolean;
+  status: EventShiftStatus;
+  expectedVersion: Version;
+}

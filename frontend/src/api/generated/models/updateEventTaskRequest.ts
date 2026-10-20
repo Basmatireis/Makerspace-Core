@@ -18,7 +18,31 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { EventTaskInput } from './eventTaskInput';
-import type { UpdateEventTaskRequestAllOf } from './updateEventTaskRequestAllOf';
+import type { UpdateEventTaskRequestTaskListId } from './updateEventTaskRequestTaskListId';
+import type { EventTaskStatus } from './eventTaskStatus';
+import type { EventTaskPriority } from './eventTaskPriority';
+import type { UpdateEventTaskRequestAssigneePersonId } from './updateEventTaskRequestAssigneePersonId';
+import type { Version } from './version';
 
-export type UpdateEventTaskRequest = EventTaskInput & UpdateEventTaskRequestAllOf;
+export interface UpdateEventTaskRequest {
+  /** @nullable */
+  taskListId?: UpdateEventTaskRequestTaskListId;
+  /**
+   * @minLength 1
+   * @maxLength 300
+   */
+  title: string;
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
+  description?: string | null;
+  status: EventTaskStatus;
+  priority: EventTaskPriority;
+  /** @nullable */
+  assigneePersonId?: UpdateEventTaskRequestAssigneePersonId;
+  /** @nullable */
+  dueAt?: string | null;
+  sortOrder: number;
+  expectedVersion: Version;
+}

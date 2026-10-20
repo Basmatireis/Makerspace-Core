@@ -18,7 +18,23 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateOpenDayRequest } from './createOpenDayRequest';
-import type { UpdateOpenDayRequestAllOf } from './updateOpenDayRequestAllOf';
+import type { StaffingRequirementInput } from './staffingRequirementInput';
+import type { Version } from './version';
 
-export type UpdateOpenDayRequest = CreateOpenDayRequest & UpdateOpenDayRequestAllOf;
+export interface UpdateOpenDayRequest {
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
+  startsAt: string;
+  endsAt: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  internalNote?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  requirements: StaffingRequirementInput[];
+  expectedPeriodVersion: Version;
+  expectedVersion: Version;
+}
