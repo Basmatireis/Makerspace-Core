@@ -13,6 +13,7 @@ import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { useCameraBlockedDisplays } from './displayHooks';
 import { ChangeLayoutModal } from './ChangeLayoutModal';
 import { AssetPicker, DeleteDialog, FitField, LayoutSketch } from './components';
 import { errorMessage, isStaleWrite, orientationLabel, pluralize } from './helpers';
@@ -54,6 +55,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const assets = useQuery(assetsQuery()).data?.items ?? [];
   const templates = useQuery(templatesQuery()).data?.items ?? [];
   const { machines } = useMachineOptions();
+  const blockedDisplays = useCameraBlockedDisplays(scene.id);
 
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
   const [saveState, setSaveState] = useState<SaveState>('saved');
@@ -236,7 +238,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
               <Select id="widget-type" labelText="Widget type" value={widget.type} onChange={(event) => setWidget(defaultWidget(event.target.value as WidgetType))}>
                 {WIDGET_TYPES.map((type) => <SelectItem key={type} value={type} text={WIDGET_LABELS[type]} />)}
               </Select>
-              <WidgetFields widget={widget} assets={assets} templates={templates} machines={machines} outsideDisplays={[]} onChange={setWidget} />
+              <WidgetFields widget={widget} assets={assets} templates={templates} machines={machines} outsideDisplays={blockedDisplays} onChange={setWidget} />
             </div>
           ) : (
             <div className="sg-stack">

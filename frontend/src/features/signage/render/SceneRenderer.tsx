@@ -47,7 +47,7 @@ function Remaining({ machine, data }: { machine: RenderMachine; data: RenderData
 function CameraTile({ machine, widget, data }: { machine: RenderMachine; widget: SignageCameraWidget; data: RenderData }) {
   return (
     <div className="sg-camera" role="img" aria-label={`Camera of ${machine.name}`}>
-      {data.cameraView?.(machine) ?? <svg className="sg-camera__icon" viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M29 7h-4.6l-1.7-2.6A2 2 0 0 0 21 3.5H11a2 2 0 0 0-1.7.9L7.6 7H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h26a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Zm-13 16a6 6 0 1 1 6-6 6 6 0 0 1-6 6Z" /></svg>}
+      {data.cameraView?.(machine) ?? <><svg className="sg-camera__icon" viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M29 7h-4.6l-1.7-2.6A2 2 0 0 0 21 3.5H11a2 2 0 0 0-1.7.9L7.6 7H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h26a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Zm-13 16a6 6 0 1 1 6-6 6 6 0 0 1-6 6Z" /></svg><span className="sg-camera__note">Live camera (shown on the display)</span></>}
       <div className="sg-camera__caption">
         <strong>{machine.name}</strong>
         {widget.showProgress && machine.progressPercent !== null && <><Progress value={machine.progressPercent} /><span>{machine.progressPercent} %</span></>}

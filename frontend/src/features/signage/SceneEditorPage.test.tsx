@@ -6,7 +6,7 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { ids, mockSignage, sceneFixture } from './testFixtures';
+import { displayFixture, ids, mockSignage, sceneFixture } from './testFixtures';
 import { draftError, toDraft } from './sceneDraft';
 
 const editor = `/signage/scenes/${ids.scene}`;
@@ -66,8 +66,35 @@ describe('Scene editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
     await user.selectOptions(await screen.findByLabelText('Source'), 'machine');
-    expect(await screen.findByRole('option', { name: 'Prusa MK4' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Prusa MK4 (No camera configured)' })).toBeDisabled();
     expect(machinesApiCalled).toBe(false);
+  });
+
+  it('enables only machines with a camera in the camera widget picker', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [
+      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a201', name: 'Prusa MK4', kind: 'FDM printer', hasCamera: false },
+      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a202', name: 'Bambu H2D', kind: 'FDM printer', hasCamera: true },
+    ] });
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    expect(await screen.findByRole('option', { name: 'Active machine (auto)' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Source'), 'machine');
+    expect(await screen.findByRole('option', { name: 'Bambu H2D' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: 'Prusa MK4 (No camera configured)' })).toBeDisabled();
+  });
+
+  it('names the outside-visible displays that show the fallback because live cameras are not allowed', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { displays: [
+      displayFixture({ name: 'Entrance window', visibleFromOutside: true, defaultPlaylistId: ids.playlist, allowCameraOutside: false } as never),
+      displayFixture({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a152', name: 'Workshop', visibleFromOutside: true, defaultPlaylistId: ids.playlist, allowCameraOutside: true } as never),
+    ] });
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    expect(await screen.findByText('On Entrance window this camera shows its fallback, because live cameras are not allowed there.')).toBeInTheDocument();
   });
 
   it('selects a zone and changes its widget type', async () => {

@@ -40,6 +40,8 @@
 
 /* Camera: a neutral frame with the machine name; no fake video. */
 .sg-camera { position: relative; display: grid; place-items: center; overflow: hidden; inline-size: 100%; block-size: 100%; background: #262626; color: #8d8d8d; }
+.sg-camera__video { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.sg-camera__note { position: absolute; inset-block-start: calc(var(--u) * 2); inset-inline: calc(var(--u) * 2); text-align: center; font-size: calc(var(--u) * 2.2); }
 .sg-camera__icon { inline-size: calc(var(--u) * 12); block-size: calc(var(--u) * 12); }
 .sg-camera__caption { position: absolute; inset-inline: 0; inset-block-end: 0; display: flex; align-items: center; gap: calc(var(--u) * 2); padding: calc(var(--u) * 1.5) calc(var(--u) * 2); background: linear-gradient(0deg, rgba(0, 0, 0, 0.75), transparent); font-size: calc(var(--u) * 2.6); color: #fff; }
 .sg-split { display: grid; gap: calc(var(--u) * 0.5); inline-size: 100%; block-size: 100%; }

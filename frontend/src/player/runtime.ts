@@ -2,7 +2,8 @@ import type { SignagePlayerHeartbeat, SignagePlayerLive, SignagePlayerManifest, 
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
 import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
-import { noCameraSource, type CameraSource } from './camera';
+import type { CameraSource } from './camera';
+import { CameraManager } from './cameraManager';
 import { backoffMs } from './timing';
 import { resolveView, type Hold, type LiveSnapshot, type PlayerView } from './view';
 import { PLAYER_VERSION } from './version';
@@ -84,7 +85,9 @@ export class PlayerRuntime {
     this.api = deps.api;
     this.loadAsset = deps.loadAsset ?? defaultLoadAsset;
     this.store = deps.store === undefined ? createPlayerStore() : deps.store;
-    this.camera = deps.camera ?? noCameraSource;
+    this.camera = deps.camera ?? new CameraManager();
+    this.camera.setErrorSink?.((message) => this.note(message));
+    this.camera.subscribe?.(() => { if (!this.stopped) this.publish(); });
     this.now = deps.now ?? Date.now;
     this.playerVersion = deps.playerVersion ?? PLAYER_VERSION;
   }
@@ -138,6 +141,7 @@ export class PlayerRuntime {
     this.stopped = true;
     this.timers.forEach(clearTimeout);
     this.timers.clear();
+    this.camera.dispose?.();
   }
 
   /** Runs `task` now (when `immediately`) and then again after the delay it returns, until stopped. */
@@ -219,6 +223,7 @@ export class PlayerRuntime {
   private applyLive(live: SignagePlayerLive) {
     this.lastLiveAt = this.now();
     this.live = { machines: live.machines, announcements: live.announcements, openDays: live.openDays, events: live.events, streams: live.streams, skewMs: Date.parse(live.serverTime) - this.now() || 0 };
+    this.camera.setStreams?.(live.streams);
     this.persistLive(this.live);
   }
 

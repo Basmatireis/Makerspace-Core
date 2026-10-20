@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SignagePlayerHeartbeat } from '../api/generated/models';
 import { PlayerApiError, PlayerNetworkError } from './api';
 import type { AssetLoader } from './assets';
+import { noCameraSource, type CameraSource } from './camera';
 import { PlayerRuntime } from './runtime';
 import { asset, fakeApi, live, manifest, rule, scene } from './testFixtures';
 
@@ -154,5 +155,21 @@ describe('PlayerRuntime', () => {
     await settle(30_000);
     expect(runtime.getSnapshot().view?.sceneId).toBe('scene-a');
     runtime.stop();
+  });
+
+  it('hands the streams of every live poll to the camera source and reports its problems in the heartbeat', async () => {
+    let report: (message: string) => void = () => undefined;
+    const setStreams = vi.fn();
+    const dispose = vi.fn();
+    const camera: CameraSource = { ...noCameraSource, setStreams, dispose, setErrorSink: (sink) => { report = sink; } };
+    const streams = [{ machineId: 'm1', webrtcUrl: 'https://gw/api/webrtc?src=a', mseUrl: 'wss://gw/api/ws?src=a', ticket: 't', expiresAt: new Date().toISOString() }];
+    const runtime = new PlayerRuntime({ api: fakeApi({ live: async () => live({ streams }) }), loadAsset: async () => 'ready', camera });
+    runtime.start();
+    await settle();
+    expect(setStreams).toHaveBeenCalledWith(streams);
+    report('Camera m1 unavailable: no picture within 8 seconds');
+    expect(runtime.heartbeatPayload().errors).toContain('Camera m1 unavailable: no picture within 8 seconds');
+    runtime.stop();
+    expect(dispose).toHaveBeenCalled();
   });
 });

@@ -1,20 +1,21 @@
 import { Button, InlineNotification, RadioButton, RadioButtonGroup, Select, SelectItem, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper, TextInput, Toggle } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
-import type { SignageDisplay, SignageOrientation } from '../../api/generated/models';
-import { useUpdateDisplay } from './displayMutations';
+import type { SignageDisplay, SignageOrientation, UpdateSignageDisplayRequest } from '../../api/generated/models';
+import { useUpdateDisplay, type CameraOutsideField } from './displayMutations';
 import { errorMessage, isStaleWrite, orientationLabel, resolutionLabel, resolutionOptions } from './helpers';
 import { playlistsQuery } from './queries';
 
-type Values = { name: string; location: string; orientation: SignageOrientation; resolution: string; visibleFromOutside: boolean; defaultPlaylistId: string };
+type Values = { name: string; location: string; orientation: SignageOrientation; resolution: string; visibleFromOutside: boolean; allowCameraOutside: boolean; defaultPlaylistId: string };
 
-const valuesOf = (display: SignageDisplay): Values => ({
+const valuesOf = (display: SignageDisplay & CameraOutsideField): Values => ({
   name: display.name, location: display.location, orientation: display.orientation,
   resolution: String(resolutionOptions(display.orientation, display.resolution).findIndex((item) => item.width === display.resolution.width && item.height === display.resolution.height)),
-  visibleFromOutside: display.visibleFromOutside, defaultPlaylistId: display.defaultPlaylistId,
+  visibleFromOutside: display.visibleFromOutside, allowCameraOutside: display.allowCameraOutside ?? false, defaultPlaylistId: display.defaultPlaylistId,
 });
 
-export function DisplaySettingsTab({ display, canManage }: { display: SignageDisplay; canManage: boolean }) {
+export function DisplaySettingsTab({ display: shown, canManage }: { display: SignageDisplay; canManage: boolean }) {
+  const display = shown as SignageDisplay & CameraOutsideField;
   const playlists = useQuery(playlistsQuery());
   const update = useUpdateDisplay(display.id);
   const form = useForm<Values>({ defaultValues: valuesOf(display) });
@@ -29,6 +30,7 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
           <StructuredListRow><StructuredListCell noWrap>Location</StructuredListCell><StructuredListCell>{display.location || '—'}</StructuredListCell></StructuredListRow>
           <StructuredListRow><StructuredListCell noWrap>Format</StructuredListCell><StructuredListCell>{orientationLabel(display.orientation)} {resolutionLabel(display.resolution)}</StructuredListCell></StructuredListRow>
           <StructuredListRow><StructuredListCell noWrap>Visible from outside</StructuredListCell><StructuredListCell>{display.visibleFromOutside ? 'Yes' : 'No'}</StructuredListCell></StructuredListRow>
+          {display.visibleFromOutside && <StructuredListRow><StructuredListCell noWrap>Live cameras</StructuredListCell><StructuredListCell>{display.allowCameraOutside ? 'Shown' : 'Not shown'}</StructuredListCell></StructuredListRow>}
         </StructuredListBody>
       </StructuredListWrapper>
     );
@@ -36,8 +38,9 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
 
   const save = form.handleSubmit((values) => {
     const resolution = resolutionOptions(values.orientation, values.orientation === display.orientation ? display.resolution : undefined)[Number(values.resolution)];
+    const request: UpdateSignageDisplayRequest & CameraOutsideField = { expectedVersion: display.version, name: values.name.trim(), location: values.location.trim(), orientation: values.orientation, resolution, visibleFromOutside: values.visibleFromOutside, allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside, defaultPlaylistId: values.defaultPlaylistId };
     update.mutate(
-      { expectedVersion: display.version, name: values.name.trim(), location: values.location.trim(), orientation: values.orientation, resolution, visibleFromOutside: values.visibleFromOutside, defaultPlaylistId: values.defaultPlaylistId },
+      request,
       { onSuccess: (saved) => form.reset(valuesOf(saved)) },
     );
   });
@@ -56,7 +59,12 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
         {resolutionOptions(orientation, orientation === display.orientation ? display.resolution : undefined).map((item, index) => <SelectItem key={resolutionLabel(item)} value={String(index)} text={resolutionLabel(item)} />)}
       </Select>
       <Controller control={form.control} name="visibleFromOutside" render={({ field }) => <Toggle id="ds-outside" labelText="Visible from outside" labelA="No" labelB="Yes" toggled={field.value} onToggle={field.onChange} />} />
-      <p className="sg-secondary">Camera zones then need confirmation; no customer data is ever shown.</p>
+      {form.watch('visibleFromOutside') && (
+        <Controller control={form.control} name="allowCameraOutside" render={({ field }) => (
+          <Toggle id="ds-camera-outside" labelText="Show live cameras on this outside-visible display" labelA="No" labelB="Yes" toggled={field.value} onToggle={field.onChange} />
+        )} />
+      )}
+      {form.watch('visibleFromOutside') && <p className="sg-secondary">Only enable if the camera never shows people, documents or other private content.</p>}
       <Select id="ds-playlist" labelText="Default playlist" helperText="Changing it needs publishing." {...form.register('defaultPlaylistId')}>
         {(playlists.data?.items ?? []).map((playlist) => <SelectItem key={playlist.id} value={playlist.id} text={playlist.name} />)}
       </Select>

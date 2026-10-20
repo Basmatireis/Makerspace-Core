@@ -87,6 +87,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.mailmanage,
   PermissionId.brandingmanage,
   PermissionId.pricingread,
+  PermissionId.local_servicesmanage,
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {

@@ -113,7 +113,7 @@ export function WidgetFields({ widget, assets, templates, machines, outsideDispl
           <Select id="wf-machine" labelText="Machine" helperText={machinesHint} invalid={!widget.machineId} invalidText="Choose a machine" value={widget.machineId ?? ''} onChange={(event) => onChange({ ...widget, machineId: event.target.value || null })}>
             <SelectItem value="" text="Choose a machine" />
             {widget.machineId && !machines.some((machine) => machine.id === widget.machineId) && <SelectItem value={widget.machineId} text={machineName(widget.machineId)} />}
-            {machines.map((machine) => <SelectItem key={machine.id} value={machine.id} text={machine.name} />)}
+            {machines.map((machine) => <SelectItem key={machine.id} value={machine.id} disabled={!machine.hasCamera} text={machine.hasCamera ? machine.name : `${machine.name} (No camera configured)`} />)}
           </Select>
         )}
         {widget.source === 'auto' && (
@@ -127,8 +127,8 @@ export function WidgetFields({ widget, assets, templates, machines, outsideDispl
           <SelectItem value="image" text="Show image" /><SelectItem value="text" text="Show status text" /><SelectItem value="hide" text="Hide zone" />
         </Select>
         {widget.fallback === 'image' && <AssetPicker id="wf-fallback-image" label="Fallback image" kind="image" assets={assets} value={widget.fallbackMediaId} onChange={(fallbackMediaId) => onChange({ ...widget, fallbackMediaId })} />}
-        <p className="sg-secondary">Live video appears on the display once a streaming gateway is connected. Until then the fallback is shown.</p>
-        {outsideDisplays.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Visible from outside" subtitle={`${outsideDisplays.join(', ')} ${outsideDisplays.length === 1 ? 'is' : 'are'} visible from outside. Check the camera does not show people or documents.`} />}
+        <p className="sg-secondary">The live camera appears on the display while the machine prints. Previews show a neutral frame. Cameras are set up under Settings, Local services.</p>
+        {outsideDisplays.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Camera not shown on outside displays" subtitle={`On ${outsideDisplays.join(', ')} this camera shows its fallback, because live cameras are not allowed there.`} />}
       </>
     );
     case 'status': return (

@@ -52,6 +52,8 @@ const OpenDayDetailPage = lazy(() => import('../features/opendays/OpenDayDetailP
 const OpenDayManagementPage = lazy(() => import('../features/opendays/OpenDayManagementPage').then(({ OpenDayManagementPage }) => ({ default: OpenDayManagementPage })));
 const SettingsPage = lazy(() => import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
 const ManagedDevicesPage = lazy(() => import('../features/devices/ManagedDevicesPage').then(({ ManagedDevicesPage }) => ({ default: ManagedDevicesPage })));
+const LocalServicesPage = lazy(() => import('../features/localservices/LocalServicesPage').then(({ LocalServicesPage }) => ({ default: LocalServicesPage })));
+const GatewayDetailPage = lazy(() => import('../features/localservices/GatewayDetailPage').then(({ GatewayDetailPage }) => ({ default: GatewayDetailPage })));
 const LaborordnungPage = lazy(() => import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })));
 const OIDCProvidersPage = lazy(() => import('../features/oidc/OIDCProvidersPage').then(({ OIDCProvidersPage }) => ({ default: OIDCProvidersPage })));
 const SCIMConnectorsPage = lazy(() => import('../features/scim/SCIMConnectorsPage').then(({ SCIMConnectorsPage }) => ({ default: SCIMConnectorsPage })));
@@ -216,6 +218,8 @@ export function App() {
 		<Route path="settings/session-policies" element={<PermissionRoute allOf={[PermissionId.session_policiesmanage]}><SessionPoliciesPage /></PermissionRoute>} />
 		<Route path="settings/surveys" element={<PermissionRoute anyOf={[PermissionId.surveysread, PermissionId.surveysmanage]}><SurveyAdminPage /></PermissionRoute>} />
 		<Route path="settings/laborordnung" element={<PermissionRoute anyOf={[PermissionId.laborordnungread, PermissionId.laborordnungmanage, PermissionId.laborordnungrequestsread]}><LaborordnungPage /></PermissionRoute>} />
+        <Route path="settings/local-services" element={<PermissionRoute allOf={[PermissionId.local_servicesmanage]}><LocalServicesPage /></PermissionRoute>} />
+        <Route path="settings/local-services/:gatewayId" element={<PermissionRoute allOf={[PermissionId.local_servicesmanage]}><GatewayDetailPage /></PermissionRoute>} />
         <Route path="settings/oidc" element={<PermissionRoute allOf={[PermissionId.oidcmanage]}><OIDCProvidersPage /></PermissionRoute>} />
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
         <Route path="settings/printer-connectors" element={<Navigate to="/machine-logbook/machines?tab=connectors" replace />} />

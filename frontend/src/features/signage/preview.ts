@@ -30,14 +30,14 @@ export function useMakerspaceTimeZone(): string {
   return useQuery(publicConfigurationOptions()).data.timeZone;
 }
 
-export type MachineOption = { id: string; name: string };
+export type MachineOption = { id: string; name: string; hasCamera: boolean };
 
 /** Machines for pickers and previews, from the signage endpoint (any signage permission suffices). */
 export function useMachineOptions(): { machines: MachineOption[]; known: boolean } {
   const user = useCurrentUser();
   const canRead = [PermissionId.signageread, PermissionId.signagemanage, PermissionId.signagecontentmanage].some((permission) => hasPermission(user, permission));
   const query = useQuery(machinesQuery(canRead));
-  const machines = useMemo(() => (query.data?.items ?? []).map((machine) => ({ id: machine.id, name: machine.name })), [query.data]);
+  const machines = useMemo(() => (query.data?.items ?? []).map((machine) => ({ id: machine.id, name: machine.name, hasCamera: machine.hasCamera })), [query.data]);
   return { machines, known: canRead && query.isSuccess };
 }
 
