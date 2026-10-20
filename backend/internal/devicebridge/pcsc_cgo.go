@@ -99,7 +99,7 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 		)
 		_, _ = broker.Publish(
 			RawEvent{
-				Kind:      "capability_state",
+				Kind:      KindCapabilityState,
 				Source:    "pcsc",
 				State:     "unavailable",
 				ErrorCode: "pcsc_service_unavailable",
@@ -136,7 +136,7 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 			if !knownReaders[id] {
 				_, _ = broker.Publish(
 					RawEvent{
-						Kind:       "reader_state",
+						Kind:       KindReaderState,
 						Source:     "pcsc",
 						ReaderID:   id,
 						ReaderName: reader,
@@ -148,7 +148,7 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 			if !connected {
 				if present[id] != "" {
 					_, _ = broker.Publish(
-						RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader},
+						RawEvent{Kind: KindNFCRemoved, Source: "pcsc", ReaderID: id, ReaderName: reader},
 					)
 					delete(present, id)
 				}
@@ -158,7 +158,7 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 				if !unsupported[id] {
 					_, _ = broker.Publish(
 						RawEvent{
-							Kind:       "capability_state",
+							Kind:       KindCapabilityState,
 							Source:     "pcsc",
 							ReaderID:   id,
 							ReaderName: reader,
@@ -174,12 +174,12 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 			if uid != "" && present[id] != uid {
 				if present[id] != "" {
 					_, _ = broker.Publish(
-						RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id, ReaderName: reader},
+						RawEvent{Kind: KindNFCRemoved, Source: "pcsc", ReaderID: id, ReaderName: reader},
 					)
 				}
 				_, _ = broker.Publish(
 					RawEvent{
-						Kind:       "nfc_scan",
+						Kind:       KindNFCScan,
 						Source:     "pcsc",
 						UID:        uid,
 						ReaderID:   id,
@@ -193,10 +193,10 @@ func (source *PCSCSource) Run(ctx context.Context, broker *Broker) {
 		for id := range knownReaders {
 			if !currentReaders[id] {
 				if present[id] != "" {
-					_, _ = broker.Publish(RawEvent{Kind: "nfc_removed", Source: "pcsc", ReaderID: id})
+					_, _ = broker.Publish(RawEvent{Kind: KindNFCRemoved, Source: "pcsc", ReaderID: id})
 				}
 				_, _ = broker.Publish(
-					RawEvent{Kind: "reader_state", Source: "pcsc", ReaderID: id, State: "disconnected"},
+					RawEvent{Kind: KindReaderState, Source: "pcsc", ReaderID: id, State: "disconnected"},
 				)
 				delete(present, id)
 				delete(unsupported, id)

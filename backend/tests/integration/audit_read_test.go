@@ -93,7 +93,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 		t.Fatalf("second page = %#v", second)
 	}
 
-	actorType := "user"
+	actorType := audit.ActorUser
 	action := "person.role_assigned"
 	filtered, err := service.List(
 		ctx,
@@ -122,7 +122,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	}
 
 	resourceType := "role"
-	systemType := "system"
+	systemType := audit.ActorSystem
 	systemEvents, err := service.List(
 		ctx,
 		principal,

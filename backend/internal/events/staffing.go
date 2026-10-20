@@ -774,9 +774,9 @@ func (s *Service) createAssignment(
 		}
 		return Assignment{}, nil, databaseError(err)
 	}
-	actorType := "unknown"
+	actorType := audit.ActorUnknown
 	if principal != nil {
-		actorType = "user"
+		actorType = audit.ActorUser
 	}
 	if err = audit.Write(
 		ctx,

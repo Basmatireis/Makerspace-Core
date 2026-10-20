@@ -45,7 +45,7 @@ func NewCoreClient(baseURL, token string) (*CoreClient, error) {
 func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (CoreIdentity, error) {
 	available := make([]string, 0, len(capabilities))
 	for _, capability := range capabilities {
-		if capability.Available && capability.State != "simulated" {
+		if capability.Available && capability.State != StateSimulated {
 			available = append(available, capability.ID)
 		}
 	}

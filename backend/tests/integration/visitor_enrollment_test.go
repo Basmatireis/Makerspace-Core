@@ -90,7 +90,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 	configuration, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
 		Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{terminalType.ID},
-		AllowedMethods: []string{"pin", "password", "pin"}, ExpectedVersion: 1,
+		AllowedMethods: []visitor.AuthMethod{"pin", "password", "pin"}, ExpectedVersion: 1,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	pin := "654321"
 	result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
 		FirstName: "New", LastName: "Visitor", Email: &email,
-		AuthMethods: []string{"pin"}, PINLoginName: &loginName, PIN: &pin,
+		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
 		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "camera.jpg", RequestConfirmation: true,
 	}, nil)
 	if err != nil {
@@ -265,7 +265,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	passwordEmail := "password-visitor@example.test"
 	passwordResult, err := service.Submit(ctx, passwordContext, visitor.SubmissionInput{
 		FirstName: "Password", LastName: "Visitor", Email: &passwordEmail,
-		AuthMethods: []string{"password"}, ProfileImage: visitorTestJPEG(t),
+		AuthMethods: []visitor.AuthMethod{"password"}, ProfileImage: visitorTestJPEG(t),
 		ProfileImageFilename: "password-visitor.jpg", RequestConfirmation: true,
 	}, nil)
 	if err != nil {
@@ -329,7 +329,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 	_, err = service.Submit(ctx, duplicateContext, visitor.SubmissionInput{
 		FirstName: "Duplicate", LastName: "Visitor", Email: &email,
-		AuthMethods: []string{"pin"}, PINLoginName: &loginName, PIN: &pin,
+		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
 		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "duplicate.jpg", RequestConfirmation: true,
 	}, nil)
 	if !apperror.IsCode(err, "authentication_identifier_exists") {
@@ -416,7 +416,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 			Enabled:         true,
 			InitialRoleID:   &roleID,
 			DeviceTypeIDs:   []uuid.UUID{deviceType.ID},
-			AllowedMethods:  []string{"pin"},
+			AllowedMethods:  []visitor.AuthMethod{"pin"},
 			ExpectedVersion: 1,
 		},
 		nil,
@@ -461,7 +461,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 			FirstName:           "Pinned",
 			LastName:            "Visitor",
 			Email:               &email,
-			AuthMethods:         []string{"pin"},
+			AuthMethods:         []visitor.AuthMethod{"pin"},
 			PINLoginName:        &login,
 			PIN:                 &pin,
 			ProfileImage:        visitorTestJPEG(t),

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -45,9 +46,9 @@ func (s *Server) UpdateVisitorEnrollmentConfiguration(
 		value := request.Body.InitialRoleId.GetOrEmpty()
 		roleID = &value
 	}
-	methods := make([]string, len(request.Body.AllowedMethods))
+	methods := make([]visitor.AuthMethod, len(request.Body.AllowedMethods))
 	for index, method := range request.Body.AllowedMethods {
-		methods[index] = string(method)
+		methods[index] = visitor.AuthMethod(method)
 	}
 	value, err := s.visitor.UpdateConfiguration(ctx, principal, visitor.ConfigurationInput{
 		Enabled: request.Body.Enabled, InitialRoleID: roleID, DeviceTypeIDs: request.Body.DeviceTypeIds,
@@ -129,9 +130,9 @@ func (s *Server) SubmitVisitorEnrollment(
 	if request.Body == nil || request.Body.ProfileImageBase64 == nil {
 		return nil, invalidRequest("request body and profile image are required")
 	}
-	methods := make([]string, len(request.Body.AuthMethods))
+	methods := make([]visitor.AuthMethod, len(request.Body.AuthMethods))
 	for index, method := range request.Body.AuthMethods {
-		methods[index] = string(method)
+		methods[index] = visitor.AuthMethod(method)
 	}
 	result, err := s.visitor.Submit(ctx, enrollment, visitor.SubmissionInput{
 		FirstName: request.Body.FirstName, LastName: request.Body.LastName,
@@ -151,7 +152,7 @@ func (s *Server) SubmitVisitorEnrollment(
 		Admission:     openapi.VisitorEnrollmentResultAdmission(result.Admission),
 		InvitationDelivery: nullablePointer(
 			result.InvitationDelivery,
-			func(value string) openapi.VisitorEnrollmentResultInvitationDelivery {
+			func(value auth.DeliveryStatus) openapi.VisitorEnrollmentResultInvitationDelivery {
 				return openapi.VisitorEnrollmentResultInvitationDelivery(value)
 			},
 		),

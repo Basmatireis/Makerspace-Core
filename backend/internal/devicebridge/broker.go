@@ -50,7 +50,7 @@ func (b *Broker) Publish(raw RawEvent) (Event, error) {
 			ATR:      strings.ToUpper(raw.ATR),
 		}
 	}
-	if raw.Kind == "nfc_scan" {
+	if raw.Kind == KindNFCScan {
 		uid, err := normalizeUID(raw.UID)
 		if err != nil {
 			return Event{}, err
@@ -59,11 +59,11 @@ func (b *Broker) Publish(raw RawEvent) (Event, error) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if event.Kind == "nfc_scan" && event.NFC != nil {
+	if event.Kind == KindNFCScan && event.NFC != nil {
 		previous := b.lastScans[raw.ReaderID]
 		event.Duplicate = event.NFC.UID == previous.uid && now.Sub(previous.at) <= b.duplicateIn
 		b.lastScans[raw.ReaderID] = lastScan{uid: event.NFC.UID, at: now}
-	} else if event.Kind == "nfc_removed" {
+	} else if event.Kind == KindNFCRemoved {
 		delete(b.lastScans, raw.ReaderID)
 	}
 	b.sequence++

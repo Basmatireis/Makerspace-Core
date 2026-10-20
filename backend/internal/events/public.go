@@ -541,11 +541,11 @@ func (s *Service) updateAssignmentContact(
 		}
 		return Assignment{}, databaseError(err)
 	}
-	actorType := "unknown"
+	actorType := audit.ActorUnknown
 	var actor *uuid.UUID
 	if principal != nil {
 		actor = &principal.AccountID
-		actorType = "user"
+		actorType = audit.ActorUser
 	}
 	if err = audit.Write(
 		ctx,
@@ -733,11 +733,11 @@ func (s *Service) moveAssignment(
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
-	actorType := "unknown"
+	actorType := audit.ActorUnknown
 	var actor *uuid.UUID
 	if principal != nil {
 		actor = &principal.AccountID
-		actorType = "user"
+		actorType = audit.ActorUser
 	}
 	if err = audit.Write(
 		ctx,
@@ -812,10 +812,10 @@ func (s *Service) cancelAssignment(
 		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	var actor *uuid.UUID
-	actorType := "unknown"
+	actorType := audit.ActorUnknown
 	if principal != nil {
 		actor = &principal.AccountID
-		actorType = "user"
+		actorType = audit.ActorUser
 	}
 	row, err := q.CancelEventAssignment(
 		ctx,

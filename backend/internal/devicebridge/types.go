@@ -39,7 +39,7 @@ type NFCMetadata struct {
 type Event struct {
 	ProtocolVersion int             `json:"protocolVersion"`
 	Sequence        uint64          `json:"sequence"`
-	Kind            string          `json:"kind"`
+	Kind            EventKind       `json:"kind"`
 	OccurredAt      time.Time       `json:"occurredAt"`
 	Source          string          `json:"source"`
 	Reader          *ReaderMetadata `json:"reader,omitempty"`
@@ -55,5 +55,6 @@ type EventPage struct {
 }
 
 type RawEvent struct {
-	Kind, Source, UID, ReaderID, ReaderName, Protocol, ATR, State, ErrorCode string
+	Kind                                                               EventKind
+	Source, UID, ReaderID, ReaderName, Protocol, ATR, State, ErrorCode string
 }

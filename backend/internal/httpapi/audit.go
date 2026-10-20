@@ -26,7 +26,7 @@ func (s *Server) ListAuditEvents(
 		OccurredFrom: request.Params.OccurredFrom, OccurredTo: request.Params.OccurredTo,
 	}
 	if request.Params.ActorType != nil {
-		actorType := string(*request.Params.ActorType)
+		actorType := audit.ActorType(*request.Params.ActorType)
 		filter.ActorType = &actorType
 	}
 	if request.Params.ActorSearch != nil {

@@ -14,7 +14,7 @@ import (
 )
 
 type Event struct {
-	ActorType      string
+	ActorType      ActorType
 	ActorAccountID *uuid.UUID
 	Action         string
 	ResourceType   string
@@ -22,7 +22,7 @@ type Event struct {
 	RequestID      *uuid.UUID
 	ChangedFields  []string
 	Metadata       map[string]any
-	Source         string
+	Source         Source
 }
 
 func Write(ctx context.Context, db auditdb.DBTX, event Event) error {
@@ -33,21 +33,21 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 	actorType := event.ActorType
 	if actorType == "" {
 		if event.ActorAccountID != nil {
-			actorType = "user"
+			actorType = ActorUser
 		} else {
-			actorType = "system"
+			actorType = ActorSystem
 		}
 	}
 	switch actorType {
-	case "user":
+	case ActorUser:
 		if event.ActorAccountID == nil {
 			return fmt.Errorf("user audit actor requires an account ID")
 		}
-	case "system":
+	case ActorSystem:
 		if event.ActorAccountID != nil {
 			return fmt.Errorf("system audit actor cannot have an account ID")
 		}
-	case "unknown":
+	case ActorUnknown:
 		if event.ActorAccountID != nil {
 			return fmt.Errorf("unknown audit actor cannot have an account ID")
 		}
@@ -61,9 +61,9 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		return fmt.Errorf("invalid audit resource type")
 	}
 	if event.Source == "" {
-		event.Source = "http"
+		event.Source = SourceHTTP
 	}
-	if event.Source != "http" && event.Source != "admin_cli" && event.Source != "system" {
+	if event.Source != SourceHTTP && event.Source != SourceAdminCLI && event.Source != SourceSystem {
 		return fmt.Errorf("invalid audit source")
 	}
 	seenFields := make(map[string]struct{}, len(event.ChangedFields))
@@ -112,7 +112,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 	}
 	_, err = queries.InsertAuditEvent(ctx, auditdb.InsertAuditEventParams{
 		ID:             ids.New(),
-		ActorType:      actorType,
+		ActorType:      string(actorType),
 		ActorAccountID: event.ActorAccountID,
 		Action:         event.Action,
 		ResourceType:   event.ResourceType,
@@ -120,7 +120,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		RequestID:      event.RequestID,
 		ChangedFields:  changedFields,
 		Metadata:       string(encoded),
-		Source:         event.Source,
+		Source:         string(event.Source),
 	})
 	return err
 }

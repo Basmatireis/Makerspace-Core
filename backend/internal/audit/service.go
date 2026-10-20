@@ -12,6 +12,7 @@ import (
 	auditdb "github.com/Basmatireis/Makerspace-Core/backend/internal/audit/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,7 +21,7 @@ import (
 type Filter struct {
 	Limit          int
 	Cursor         string
-	ActorType      *string
+	ActorType      *ActorType
 	ActorSearch    string
 	Action         *string
 	ResourceType   *string
@@ -32,7 +33,7 @@ type Filter struct {
 
 type AuditEvent struct {
 	ID                  uuid.UUID
-	ActorType           string
+	ActorType           ActorType
 	ActorAccountID      *uuid.UUID
 	ActorDisplayName    *string
 	Action              string
@@ -72,8 +73,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 	if filter.ResourceType != nil && len([]rune(*filter.ResourceType)) > 64 {
 		return Page{}, invalidRequest("resourceType is limited to 64 characters")
 	}
-	if filter.ActorType != nil && *filter.ActorType != "user" && *filter.ActorType != "system" &&
-		*filter.ActorType != "unknown" {
+	if filter.ActorType != nil && !filter.ActorType.Valid() {
 		return Page{}, invalidRequest("actorType is invalid")
 	}
 	filter.ActorSearch = strings.TrimSpace(filter.ActorSearch)
@@ -106,7 +106,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 	}
 	rows, err := auditdb.New(s.pool).ListAuditEvents(ctx, auditdb.ListAuditEventsParams{
 		BeforeTime: nullableTime(beforeTime), BeforeID: beforeID, ActorAccountID: filter.ActorAccountID,
-		ActorType: filter.ActorType, ActorSearch: filter.ActorSearch,
+		ActorType: optional.Convert[string](filter.ActorType), ActorSearch: filter.ActorSearch,
 		Action: filter.Action, ResourceType: filter.ResourceType, ResourceID: filter.ResourceID,
 		OccurredFrom: nullableTime(
 			filter.OccurredFrom,
@@ -134,7 +134,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 			value := row.RequestID.String()
 			requestID = &value
 		}
-		items = append(items, AuditEvent{ID: row.ID, ActorType: row.ActorType, ActorAccountID: row.ActorAccountID,
+		items = append(items, AuditEvent{ID: row.ID, ActorType: ActorType(row.ActorType), ActorAccountID: row.ActorAccountID,
 			ActorDisplayName: nonEmptyPointer(
 				row.ActorDisplayName,
 			), ResourceDisplayName: nonEmptyPointer(row.ResourceDisplayName),

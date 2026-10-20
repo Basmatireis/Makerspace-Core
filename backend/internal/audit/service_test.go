@@ -23,7 +23,7 @@ func TestListRejectsInvalidFiltersBeforeQuery(t *testing.T) {
 			name:   "oversized resource type",
 			filter: Filter{Limit: 25, ResourceType: stringPointer(strings.Repeat("a", 65))},
 		},
-		{name: "invalid actor type", filter: Filter{Limit: 25, ActorType: stringPointer("robot")}},
+		{name: "invalid actor type", filter: Filter{Limit: 25, ActorType: optionalActor("robot")}},
 		{name: "oversized actor search", filter: Filter{Limit: 25, ActorSearch: strings.Repeat("ü", 101)}},
 	}
 	service := NewService(nil)
@@ -38,4 +38,5 @@ func TestListRejectsInvalidFiltersBeforeQuery(t *testing.T) {
 	}
 }
 
-func stringPointer(value string) *string { return &value }
+func stringPointer(value string) *string       { return &value }
+func optionalActor(value ActorType) *ActorType { return &value }

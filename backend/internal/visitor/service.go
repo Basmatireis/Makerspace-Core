@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -41,7 +42,7 @@ type Configuration struct {
 	Enabled        bool
 	InitialRoleID  *uuid.UUID
 	DeviceTypeIDs  []uuid.UUID
-	AllowedMethods []string
+	AllowedMethods []AuthMethod
 	Version        int64
 	UpdatedAt      time.Time
 }
@@ -50,7 +51,7 @@ type ConfigurationInput struct {
 	Enabled         bool
 	InitialRoleID   *uuid.UUID
 	DeviceTypeIDs   []uuid.UUID
-	AllowedMethods  []string
+	AllowedMethods  []AuthMethod
 	ExpectedVersion int64
 }
 
@@ -75,7 +76,7 @@ type LabRulesVersion struct {
 }
 
 type EnrollmentState struct {
-	AllowedMethods  []string
+	AllowedMethods  []AuthMethod
 	CurrentLabRules *LabRulesVersion
 	ExpiresAt       time.Time
 }
@@ -85,7 +86,7 @@ type SubmissionInput struct {
 	LastName             string
 	Email                *string
 	Phone                *string
-	AuthMethods          []string
+	AuthMethods          []AuthMethod
 	PINLoginName         *string
 	PIN                  *string
 	ProfileImage         []byte
@@ -96,14 +97,14 @@ type SubmissionInput struct {
 type SubmissionResult struct {
 	PersonID           uuid.UUID
 	AccountID          uuid.UUID
-	AccountStatus      string
-	InvitationDelivery *string
+	AccountStatus      authorization.AccountStatus
+	InvitationDelivery *auth.DeliveryStatus
 	LabRulesRequestID  *uuid.UUID
-	Admission          string
+	Admission          Admission
 }
 
 type AdmissionResult struct {
-	Decision  string
+	Decision  Admission
 	Status    laborordnung.Status
 	RequestID *uuid.UUID
 }
@@ -179,7 +180,7 @@ func (s *Service) UpdateConfiguration(
 		visitordb.UpdateConfigurationParams{
 			Enabled:            input.Enabled,
 			InitialRoleID:      input.InitialRoleID,
-			AllowedMethods:     methods,
+			AllowedMethods:     optional.ConvertSlice[string](methods),
 			UpdatedByAccountID: &actor,
 			ExpectedVersion:    input.ExpectedVersion,
 		},
@@ -218,7 +219,7 @@ func (s *Service) UpdateConfiguration(
 		Enabled:        row.Enabled,
 		InitialRoleID:  row.InitialRoleID,
 		DeviceTypeIDs:  deviceTypes,
-		AllowedMethods: row.AllowedMethods,
+		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
 		Version:        row.Version,
 		UpdatedAt:      row.UpdatedAt,
 	}, nil
@@ -361,7 +362,7 @@ func (s *Service) Submit(
 	}()
 	var invitationCode string
 	var invitationExpiresAt time.Time
-	if contains(clean.AuthMethods, "password") {
+	if slices.Contains(clean.AuthMethods, MethodPassword) {
 		invitationCode, err = security.NewChallengeCode()
 		if err != nil {
 			return SubmissionResult{}, err
@@ -384,7 +385,7 @@ func (s *Service) Submit(
 		return SubmissionResult{}, err
 	}
 	for _, method := range clean.AuthMethods {
-		if !contains(configuration.AllowedMethods, method) {
+		if !slices.Contains(configuration.AllowedMethods, method) {
 			return SubmissionResult{}, apperror.PermissionDenied
 		}
 	}
@@ -413,15 +414,15 @@ func (s *Service) Submit(
 	); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
-	status := "enabled"
+	status := authorization.AccountEnabled
 	if _, err := queries.CreateVisitorAccount(
 		ctx,
-		visitordb.CreateVisitorAccountParams{ID: accountID, PersonID: personID, Status: status},
+		visitordb.CreateVisitorAccountParams{ID: accountID, PersonID: personID, Status: string(status)},
 	); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
 	var challengeID *uuid.UUID
-	if contains(clean.AuthMethods, "password") {
+	if slices.Contains(clean.AuthMethods, MethodPassword) {
 		display, normalized, _ := security.NormalizeEmail(*clean.Email)
 		identity, err := queries.CreateVisitorPasswordIdentity(
 			ctx,
@@ -456,7 +457,7 @@ func (s *Service) Submit(
 		}
 		challengeID = &id
 	}
-	if contains(clean.AuthMethods, "pin") {
+	if slices.Contains(clean.AuthMethods, MethodPIN) {
 		identity, err := queries.CreateVisitorPINIdentity(
 			ctx,
 			visitordb.CreateVisitorPINIdentityParams{
@@ -482,8 +483,8 @@ func (s *Service) Submit(
 	); err != nil {
 		return SubmissionResult{}, err
 	}
-	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: "admitted"}
-	if role.LaborordnungMode != "not_required" {
+	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: AdmissionAdmitted}
+	if laborordnung.Mode(role.LaborordnungMode) != laborordnung.ModeNotRequired {
 		current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SubmissionResult{}, apperror.New(
@@ -507,10 +508,10 @@ func (s *Service) Submit(
 			return SubmissionResult{}, err
 		}
 		result.LabRulesRequestID = &requestRow.ID
-		if role.LaborordnungMode == "blocking" {
-			result.Admission = "blocked"
+		if laborordnung.Mode(role.LaborordnungMode) == laborordnung.ModeBlocking {
+			result.Admission = AdmissionBlocked
 		} else {
-			result.Admission = "warning"
+			result.Admission = AdmissionWarning
 		}
 	}
 	if affected, err := queries.ConsumeEnrollmentContext(ctx, enrollment.ID); err != nil || affected != 1 {
@@ -541,11 +542,11 @@ func (s *Service) Submit(
 	}
 	linked = true
 	if challengeID != nil {
-		delivery := "failed"
+		delivery := auth.DeliveryFailed
 		var deliveryFailure *string
 		if s.notifier != nil &&
 			s.notifier.SendInvitation(ctx, *clean.Email, invitationCode, invitationExpiresAt) == nil {
-			delivery = "sent"
+			delivery = auth.DeliverySent
 		} else {
 			value := "provider_error"
 			deliveryFailure = &value
@@ -555,7 +556,7 @@ func (s *Service) Submit(
 				ctx,
 				visitordb.SetChallengeDeliveryParams{
 					ID:                  *challengeID,
-					DeliveryStatus:      delivery,
+					DeliveryStatus:      string(delivery),
 					DeliveryFailureCode: deliveryFailure,
 				},
 			)
@@ -595,11 +596,11 @@ func (s *Service) Admission(
 			return AdmissionResult{}, err
 		}
 	}
-	decision := "admitted"
-	if status.ActionRequired && status.Mode == "blocking" {
-		decision = "blocked"
-	} else if status.ActionRequired && status.Mode == "warning" {
-		decision = "warning"
+	decision := AdmissionAdmitted
+	if status.ActionRequired && status.Mode == laborordnung.ModeBlocking {
+		decision = AdmissionBlocked
+	} else if status.ActionRequired && status.Mode == laborordnung.ModeWarning {
+		decision = AdmissionWarning
 	}
 	return AdmissionResult{Decision: decision, Status: status, RequestID: requestIDValue}, nil
 }
@@ -632,11 +633,11 @@ func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, st
 		)
 	}
 	input.AuthMethods = methods
-	if contains(methods, "password") && input.Email == nil {
+	if slices.Contains(methods, MethodPassword) && input.Email == nil {
 		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is required for password invitation")
 	}
 	var pinDisplay, pinNormalized, pinHash string
-	if contains(methods, "pin") {
+	if slices.Contains(methods, MethodPIN) {
 		if input.PINLoginName == nil || input.PIN == nil {
 			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("PIN username and PIN are required")
 		}
@@ -674,7 +675,7 @@ func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Quer
 		Enabled:        row.Enabled,
 		InitialRoleID:  row.InitialRoleID,
 		DeviceTypeIDs:  deviceTypes,
-		AllowedMethods: row.AllowedMethods,
+		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
 		Version:        row.Version,
 		UpdatedAt:      row.UpdatedAt,
 	}, nil
@@ -748,20 +749,20 @@ func authorizeRole(
 	return nil
 }
 
-func normalizeMethods(values []string) ([]string, error) {
-	seen := map[string]struct{}{}
+func normalizeMethods(values []AuthMethod) ([]AuthMethod, error) {
+	seen := map[AuthMethod]struct{}{}
 	for _, value := range values {
-		value = strings.ToLower(strings.TrimSpace(value))
-		if value != "password" && value != "pin" {
+		value = AuthMethod(strings.ToLower(strings.TrimSpace(string(value))))
+		if value != MethodPassword && value != MethodPIN {
 			return nil, errors.New("unsupported authentication method")
 		}
 		seen[value] = struct{}{}
 	}
-	result := make([]string, 0, len(seen))
+	result := make([]AuthMethod, 0, len(seen))
 	for value := range seen {
 		result = append(result, value)
 	}
-	sort.Strings(result)
+	slices.Sort(result)
 	return result, nil
 }
 
@@ -780,15 +781,6 @@ func uniqueUUIDs(values []uuid.UUID) ([]uuid.UUID, error) {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].String() < result[j].String() })
 	return result, nil
-}
-
-func contains(values []string, value string) bool {
-	for _, current := range values {
-		if current == value {
-			return true
-		}
-	}
-	return false
 }
 
 func databaseError(err error) error {
