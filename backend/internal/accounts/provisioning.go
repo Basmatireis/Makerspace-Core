@@ -4,6 +4,7 @@ import (
 	"context"
 
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -30,5 +31,5 @@ func ProtectProvisionedAccountDeactivation(ctx context.Context, tx pgx.Tx, id uu
 	if err != nil {
 		return err
 	}
-	return protectLastMaster(ctx, queries, Account{ID: row.ID, Status: row.Status})
+	return protectLastMaster(ctx, queries, Account{ID: row.ID, Status: authorization.AccountStatus(row.Status)})
 }

@@ -407,7 +407,7 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 	if err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	if account.Status != "enabled" || account.PasswordStatus != "not_set" {
+	if account.Status != authorization.AccountEnabled || account.PasswordStatus != accounts.PasswordNotSet {
 		t.Fatalf(
 			"new account status=%q passwordStatus=%q, want enabled/not_set",
 			account.Status,

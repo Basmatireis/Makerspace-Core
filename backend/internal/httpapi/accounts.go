@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/oapi-codegen/nullable"
 )
@@ -62,7 +63,7 @@ func (s *Server) DisableAccount(
 		ctx,
 		principal,
 		request.AccountId,
-		"disabled",
+		authorization.AccountDisabled,
 		request.Body.ExpectedVersion,
 		requestIDPointer(ctx),
 	)
@@ -87,7 +88,7 @@ func (s *Server) EnableAccount(
 		ctx,
 		principal,
 		request.AccountId,
-		"enabled",
+		authorization.AccountEnabled,
 		request.Body.ExpectedVersion,
 		requestIDPointer(ctx),
 	)

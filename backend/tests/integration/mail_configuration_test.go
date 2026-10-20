@@ -119,7 +119,7 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if issue.DeliveryStatus != "manual" || issue.SetupURL == nil {
+	if issue.DeliveryStatus != auth.DeliveryManual || issue.SetupURL == nil {
 		t.Fatalf("manual issue=%#v", issue)
 	}
 	parsed, err := url.Parse(*issue.SetupURL)

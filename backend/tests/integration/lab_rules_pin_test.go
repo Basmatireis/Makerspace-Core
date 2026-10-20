@@ -304,7 +304,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if issue.DeliveryStatus != "manual" || issue.SetupURL == nil {
+	if issue.DeliveryStatus != auth.DeliveryManual || issue.SetupURL == nil {
 		t.Fatalf("phone-only PIN enrollment issue=%#v", issue)
 	}
 	assertCount(
@@ -596,7 +596,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	}
 	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	service := accounts.NewService(pool, cfg, nil)
-	identityUsable := func(kind string) bool {
+	identityUsable := func(kind accounts.IdentityKind) bool {
 		t.Helper()
 		account, getErr := service.Get(ctx, principal, accountID)
 		if getErr != nil {
@@ -617,7 +617,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if !identityUsable("password") {
+	if !identityUsable(accounts.IdentityPassword) {
 		t.Fatal("unverified password identity with a usable credential was projected unusable")
 	}
 	if _, err := pool.Exec(
@@ -627,7 +627,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if identityUsable("password") {
+	if identityUsable(accounts.IdentityPassword) {
 		t.Fatal("reset-required password identity was projected usable")
 	}
 
@@ -640,7 +640,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if identityUsable("pin") {
+	if identityUsable(accounts.IdentityPIN) {
 		t.Fatal("PIN identity without a credential was projected usable")
 	}
 	pinHash, err := security.HashPIN(cfg.PINPepper, "445566")
@@ -655,7 +655,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if !identityUsable("pin") {
+	if !identityUsable(accounts.IdentityPIN) {
 		t.Fatal("PIN identity with a credential was projected unusable")
 	}
 
@@ -677,13 +677,13 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if identityUsable("oidc") {
+	if identityUsable(accounts.IdentityOIDC) {
 		t.Fatal("OIDC identity for a disabled provider was projected usable")
 	}
 	if _, err := pool.Exec(ctx, `UPDATE oidc_providers SET enabled=true WHERE id=$1`, providerID); err != nil {
 		t.Fatal(err)
 	}
-	if !identityUsable("oidc") {
+	if !identityUsable(accounts.IdentityOIDC) {
 		t.Fatal("OIDC identity for an enabled provider was projected unusable")
 	}
 	if _, err := pool.Exec(
@@ -693,7 +693,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if identityUsable("oidc") {
+	if identityUsable(accounts.IdentityOIDC) {
 		t.Fatal("disabled OIDC identity was projected usable")
 	}
 }

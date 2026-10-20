@@ -11,6 +11,7 @@ import (
 
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -59,7 +60,7 @@ func (s *Service) IssuePasswordReset(
 		return ResetIssue{}, apperror.InvalidField("the account has no password login email")
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: ids.New(), Kind: "password_reset", AccountID: id,
+		ID: ids.New(), Kind: string(auth.ChallengePasswordReset), AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "password_reset", id, code),
 		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
@@ -103,12 +104,12 @@ func (s *Service) IssuePasswordReset(
 	if s.notifier != nil {
 		deliveryErr = s.notifier.SendPasswordReset(ctx, *identity.IdentifierDisplay, code, expiresAt)
 	}
-	status := "sent"
+	status := auth.DeliverySent
 	var failureCode *string
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
-		status = "manual"
+		status = auth.DeliveryManual
 	} else if deliveryErr != nil {
-		status = "failed"
+		status = auth.DeliveryFailed
 		code := "provider_error"
 		failureCode = &code
 	}
@@ -117,7 +118,7 @@ func (s *Service) IssuePasswordReset(
 			ctx,
 			accountsdb.SetAuthChallengeDeliveryParams{
 				ID:                  challenge.ID,
-				DeliveryStatus:      status,
+				DeliveryStatus:      string(status),
 				DeliveryFailureCode: failureCode,
 			},
 		)
@@ -127,7 +128,7 @@ func (s *Service) IssuePasswordReset(
 		) + "&code=" + url.QueryEscape(
 			code,
 		)
-		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliveryManual, SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
 		return ResetIssue{}, apperror.New(
@@ -136,7 +137,7 @@ func (s *Service) IssuePasswordReset(
 			"Password recovery could not be delivered",
 		)
 	}
-	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliverySent}, nil
 }
 
 func (s *Service) IssuePINEnrollment(
@@ -168,7 +169,7 @@ func (s *Service) IssuePINEnrollment(
 	}
 	var pinIdentityID *uuid.UUID
 	for _, identity := range current.AuthIdentities {
-		if identity.Kind == "pin" {
+		if identity.Kind == IdentityPIN {
 			value := identity.ID
 			pinIdentityID = &value
 			break
@@ -191,7 +192,7 @@ func (s *Service) IssuePINEnrollment(
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: ids.New(), Kind: "pin_enrollment", AccountID: id,
+		ID: ids.New(), Kind: string(auth.ChallengePINEnrollment), AccountID: id,
 		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(
 			s.config.ChallengeHMACKey,
 			"pin_enrollment",
@@ -239,12 +240,12 @@ func (s *Service) IssuePINEnrollment(
 	if notifierAvailable && deliveryAddress != nil {
 		deliveryErr = notifier.SendPINEnrollment(ctx, *deliveryAddress, id, code, expiresAt)
 	}
-	status := "sent"
+	status := auth.DeliverySent
 	var failureCode *string
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
-		status = "manual"
+		status = auth.DeliveryManual
 	} else if deliveryErr != nil {
-		status = "failed"
+		status = auth.DeliveryFailed
 		value := "provider_error"
 		failureCode = &value
 	}
@@ -253,13 +254,13 @@ func (s *Service) IssuePINEnrollment(
 			ctx,
 			accountsdb.SetAuthChallengeDeliveryParams{
 				ID:                  challenge.ID,
-				DeliveryStatus:      status,
+				DeliveryStatus:      string(status),
 				DeliveryFailureCode: failureCode,
 			},
 		)
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
 		manual := "/complete-pin-setup#account=" + id.String() + "&code=" + url.QueryEscape(code)
-		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliveryManual, SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
 		return ResetIssue{}, apperror.New(
@@ -268,7 +269,7 @@ func (s *Service) IssuePINEnrollment(
 			"PIN setup could not be delivered",
 		)
 	}
-	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliverySent}, nil
 }
 
 func (s *Service) IssueInvitation(
@@ -297,7 +298,7 @@ func (s *Service) IssueInvitation(
 	if current.Version != expectedVersion {
 		return ResetIssue{}, apperror.StaleWrite
 	}
-	if current.PasswordStatus == "active" {
+	if current.PasswordStatus == PasswordActive {
 		return ResetIssue{}, apperror.New(
 			http.StatusConflict,
 			"password_already_enrolled",
@@ -318,7 +319,7 @@ func (s *Service) IssueInvitation(
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: ids.New(), Kind: "invitation", AccountID: id,
+		ID: ids.New(), Kind: string(auth.ChallengeInvitation), AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", id, code),
 		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
@@ -365,12 +366,12 @@ func (s *Service) IssueInvitation(
 	if s.notifier != nil {
 		deliveryErr = s.notifier.SendInvitation(ctx, *identity.IdentifierDisplay, code, expiresAt)
 	}
-	status := "sent"
+	status := auth.DeliverySent
 	var failureCode *string
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
-		status = "manual"
+		status = auth.DeliveryManual
 	} else if deliveryErr != nil {
-		status = "failed"
+		status = auth.DeliveryFailed
 		code := "provider_error"
 		failureCode = &code
 	}
@@ -379,7 +380,7 @@ func (s *Service) IssueInvitation(
 			ctx,
 			accountsdb.SetAuthChallengeDeliveryParams{
 				ID:                  challenge.ID,
-				DeliveryStatus:      status,
+				DeliveryStatus:      string(status),
 				DeliveryFailureCode: failureCode,
 			},
 		)
@@ -389,7 +390,7 @@ func (s *Service) IssueInvitation(
 		) + "&code=" + url.QueryEscape(
 			code,
 		)
-		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliveryManual, SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
 		return ResetIssue{}, apperror.New(
@@ -398,5 +399,5 @@ func (s *Service) IssueInvitation(
 			"Invitation could not be delivered",
 		)
 	}
-	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: auth.DeliverySent}, nil
 }

@@ -11,6 +11,7 @@ import (
 
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -24,7 +25,7 @@ import (
 
 type AuthIdentity struct {
 	ID                uuid.UUID
-	Kind              string
+	Kind              IdentityKind
 	DisplayIdentifier *string
 	ProviderSlug      *string
 	VerifiedAt        *time.Time
@@ -36,10 +37,10 @@ type AuthIdentity struct {
 type Account struct {
 	ID                   uuid.UUID
 	PersonID             uuid.UUID
-	Status               string
-	ProvisioningSource   string
+	Status               authorization.AccountStatus
+	ProvisioningSource   ProvisioningSource
 	FirstAuthenticatedAt *time.Time
-	PasswordStatus       string
+	PasswordStatus       PasswordStatus
 	LoginEmail           string
 	AuthIdentities       []AuthIdentity
 	Version              int64
@@ -50,7 +51,7 @@ type Account struct {
 type ResetIssue struct {
 	ExpiresAt      time.Time
 	Account        Account
-	DeliveryStatus string
+	DeliveryStatus auth.DeliveryStatus
 	SetupURL       *string
 }
 
@@ -134,9 +135,9 @@ func (s *Service) ListForPeople(
 			loginEmail = *row.LoginEmail
 		}
 		result[row.PersonID] = Account{
-			ID: row.ID, PersonID: row.PersonID, Status: row.Status,
-			ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
-			PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: []AuthIdentity{},
+			ID: row.ID, PersonID: row.PersonID, Status: authorization.AccountStatus(row.Status),
+			ProvisioningSource: ProvisioningSource(row.ProvisioningSource), FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
+			PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, AuthIdentities: []AuthIdentity{},
 			Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}
 		accountIDs = append(accountIDs, row.ID)
@@ -154,7 +155,7 @@ func (s *Service) ListForPeople(
 		account := result[personID]
 		displayIdentifier := row.DisplayIdentifier
 		account.AuthIdentities = append(account.AuthIdentities, AuthIdentity{
-			ID: row.ID, Kind: row.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
+			ID: row.ID, Kind: IdentityKind(row.Kind), DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
 			VerifiedAt: timeFromPG(
 				row.VerifiedAt,
 			), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
@@ -225,7 +226,7 @@ func (s *Service) create(
 	accountID := ids.New()
 	if _, err := queries.CreateAccount(
 		ctx,
-		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"},
+		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: string(authorization.AccountEnabled)},
 	); err != nil {
 		return Account{}, databaseError(err)
 	}
@@ -270,18 +271,18 @@ func (s *Service) SetStatus(
 	ctx context.Context,
 	principal authorization.Principal,
 	id uuid.UUID,
-	status string,
+	status authorization.AccountStatus,
 	expectedVersion int64,
 	requestID *uuid.UUID,
 ) (Account, error) {
 	permission := authorization.AccountsEnable
-	if status == "disabled" {
+	if status == authorization.AccountDisabled {
 		permission = authorization.AccountsDisable
 	}
 	if !principal.Has(permission) {
 		return Account{}, apperror.PermissionDenied
 	}
-	if (status != "enabled" && status != "disabled") || expectedVersion < 1 {
+	if (status != authorization.AccountEnabled && status != authorization.AccountDisabled) || expectedVersion < 1 {
 		return Account{}, apperror.InvalidField("status and expectedVersion are invalid")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -290,7 +291,7 @@ func (s *Service) SetStatus(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
-	if status == "disabled" {
+	if status == authorization.AccountDisabled {
 		if _, err := queries.LockPersonForAccountMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 			return Account{}, apperror.NotFound
 		} else if err != nil {
@@ -307,14 +308,14 @@ func (s *Service) SetStatus(
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	if status == "disabled" {
+	if status == authorization.AccountDisabled {
 		if err := protectLastMaster(ctx, queries, current); err != nil {
 			return Account{}, err
 		}
 	}
 	row, err := queries.UpdateAccountStatus(
 		ctx,
-		accountsdb.UpdateAccountStatusParams{ID: id, Status: status, ExpectedVersion: expectedVersion},
+		accountsdb.UpdateAccountStatusParams{ID: id, Status: string(status), ExpectedVersion: expectedVersion},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, apperror.StaleWrite
@@ -322,7 +323,7 @@ func (s *Service) SetStatus(
 	if err != nil {
 		return Account{}, err
 	}
-	if status == "disabled" {
+	if status == authorization.AccountDisabled {
 		if err := queries.RevokeSessionsForAccount(
 			ctx,
 			accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: optional.Of("account_disabled")},
@@ -331,7 +332,7 @@ func (s *Service) SetStatus(
 		}
 	}
 	actor := principal.AccountID
-	action := "account." + status
+	action := "account." + string(status)
 	if err := audit.Write(
 		ctx,
 		tx,
@@ -450,7 +451,7 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 		displayIdentifier := identity.DisplayIdentifier
 		identities = append(identities, AuthIdentity{
 			ID:                identity.ID,
-			Kind:              identity.Kind,
+			Kind:              IdentityKind(identity.Kind),
 			DisplayIdentifier: &displayIdentifier,
 			ProviderSlug:      identity.ProviderSlug,
 			VerifiedAt: timeFromPG(
@@ -462,9 +463,9 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	if row.LoginEmail != nil {
 		loginEmail = *row.LoginEmail
 	}
-	return Account{ID: row.ID, PersonID: row.PersonID, Status: row.Status,
-		ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
-		PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: identities,
+	return Account{ID: row.ID, PersonID: row.PersonID, Status: authorization.AccountStatus(row.Status),
+		ProvisioningSource: ProvisioningSource(row.ProvisioningSource), FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
+		PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, AuthIdentities: identities,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
 }
 
@@ -489,7 +490,7 @@ func protectLastMaster(ctx context.Context, queries *accountsdb.Queries, account
 	// Callers that can remove an enabled master acquire the transaction-level
 	// master invariant lock before locking the Account row.
 	isMaster, err := queries.IsAccountMaster(ctx, account.ID)
-	if err != nil || !isMaster || account.Status != "enabled" {
+	if err != nil || !isMaster || account.Status != authorization.AccountEnabled {
 		return err
 	}
 	count, err := queries.CountEnabledMasters(ctx)

@@ -71,5 +71,5 @@ func AuthorizePersonDeletion(
 	if !principal.Has(authorization.AccountsDelete) {
 		return apperror.PermissionDenied
 	}
-	return protectLastMaster(ctx, queries, Account{ID: account.ID, Status: account.Status})
+	return protectLastMaster(ctx, queries, Account{ID: account.ID, Status: authorization.AccountStatus(account.Status)})
 }

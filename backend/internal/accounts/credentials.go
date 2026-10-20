@@ -247,7 +247,7 @@ func (s *Service) RemoveAuthIdentity(
 	if !principal.Has(policy.permission) {
 		return apperror.PermissionDenied
 	}
-	if identity.Kind == "password" {
+	if identity.Kind == IdentityPassword {
 		if err := queries.DeletePasswordResetForAccount(ctx, accountID); err != nil {
 			return err
 		}
@@ -255,7 +255,7 @@ func (s *Service) RemoveAuthIdentity(
 			return err
 		}
 	}
-	if identity.Kind == "pin" {
+	if identity.Kind == IdentityPIN {
 		if err := queries.DeletePINEnrollmentChallengesForAccount(ctx, accountID); err != nil {
 			return err
 		}
@@ -289,7 +289,7 @@ func (s *Service) RemoveAuthIdentity(
 	actor := principal.AccountID
 	resourceType := "account"
 	resourceID := accountID
-	if identity.Kind == "oidc" {
+	if identity.Kind == IdentityOIDC {
 		resourceType = "auth_identity"
 		resourceID = identityID
 	}
@@ -309,19 +309,19 @@ type authIdentityRemovalPolicy struct {
 	revocationReason string
 }
 
-func authIdentityRemovalPolicyFor(kind string) (authIdentityRemovalPolicy, bool) {
+func authIdentityRemovalPolicyFor(kind IdentityKind) (authIdentityRemovalPolicy, bool) {
 	switch kind {
-	case "password":
+	case IdentityPassword:
 		return authIdentityRemovalPolicy{
 			permission: authorization.AccountsPasswordRemoveAll, auditAction: "account.password_removed",
 			changedField: "passwordIdentity", revocationReason: "password_removed",
 		}, true
-	case "pin":
+	case IdentityPIN:
 		return authIdentityRemovalPolicy{
 			permission: authorization.AccountsPINRemoveAll, auditAction: "account.pin_removed",
 			changedField: "pinMethod", revocationReason: "pin_removed",
 		}, true
-	case "oidc":
+	case IdentityOIDC:
 		return authIdentityRemovalPolicy{
 			permission: authorization.OIDCUnlinkAll, auditAction: "auth.oidc_unlinked",
 			changedField: "identity", revocationReason: "identity_unlinked",

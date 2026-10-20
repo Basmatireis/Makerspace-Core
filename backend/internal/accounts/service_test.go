@@ -69,16 +69,16 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 
 func TestAuthIdentityRemovalPoliciesUseMethodSpecificPermissions(t *testing.T) {
 	tests := []struct {
-		kind       string
+		kind       IdentityKind
 		permission authorization.Permission
 		action     string
 	}{
-		{kind: "password", permission: authorization.AccountsPasswordRemoveAll, action: "account.password_removed"},
-		{kind: "pin", permission: authorization.AccountsPINRemoveAll, action: "account.pin_removed"},
-		{kind: "oidc", permission: authorization.OIDCUnlinkAll, action: "auth.oidc_unlinked"},
+		{kind: IdentityPassword, permission: authorization.AccountsPasswordRemoveAll, action: "account.password_removed"},
+		{kind: IdentityPIN, permission: authorization.AccountsPINRemoveAll, action: "account.pin_removed"},
+		{kind: IdentityOIDC, permission: authorization.OIDCUnlinkAll, action: "auth.oidc_unlinked"},
 	}
 	for _, test := range tests {
-		t.Run(test.kind, func(t *testing.T) {
+		t.Run(string(test.kind), func(t *testing.T) {
 			policy, ok := authIdentityRemovalPolicyFor(test.kind)
 			if !ok || policy.permission != test.permission || policy.auditAction != test.action {
 				t.Fatalf("policy = %#v, ok=%v", policy, ok)
