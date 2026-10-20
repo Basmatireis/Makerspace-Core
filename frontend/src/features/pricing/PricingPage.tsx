@@ -26,6 +26,8 @@ import { listOrganizations } from '../../api/generated/organizations/organizatio
 import { pricingGaps, rateSelectors } from './selectors';
 import { RatesTab } from './RatesTab';
 import { RoleMappingTab } from './RoleMappingTab';
+import '../orders/sales.scss';
+import '../machinelogbook/shared/shared.scss';
 
 const TABS = ['rates', 'roles', 'organizations'] as const;
 

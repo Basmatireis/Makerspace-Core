@@ -53,6 +53,7 @@ import { useNow } from './shared/useNow';
 import { usageHeaders, errorText, statusNow, runsNeedingOutcome, JobDialog } from './jobDetail/jobDetailShared';
 import { RunOutcomeRow } from './jobDetail/RunOutcomeRow';
 import { PriceBillingTile } from './jobDetail/PriceBillingTile';
+import './styles/jobs.scss';
 
 function JobDetail({ job }: { job: MachineJob }) {
   const can = useCan();
