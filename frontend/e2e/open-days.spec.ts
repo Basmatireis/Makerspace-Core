@@ -662,3 +662,42 @@ test('protects a creation date chosen through the calendar picker', async ({ pag
   await discard.getByRole('button', { name: 'Keep editing' }).click();
   await expect(create.getByLabel('Date', { exact: true })).toHaveValue('02.10.2026');
 });
+
+test('creates a period whose calendar range spans several months', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-11T12:00:00Z'));
+  await mockResponsivePeriod(page);
+  // Like Core, every activity report extends the idle expiry, which changes the current user.
+  let activityReports = 0;
+  await page.route('**/api/v1/auth/activity', async (route) => {
+    activityReports += 1;
+    return json(route, { idleExpiresAt: new Date(Date.UTC(2099, 0, 1, 1, activityReports)).toISOString(), absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+  });
+  let body: unknown;
+  await page.route('**/api/v1/open-day-periods', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    body = route.request().postDataJSON();
+    return json(route, period('draft'), 201);
+  });
+  await page.goto('/open-days');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create Period' });
+  await dialog.getByLabel('Name', { exact: true }).fill('Winter semester');
+  await dialog.getByLabel('Start date', { exact: true }).click();
+  const calendar = page.locator('.flatpickr-calendar.open');
+  await calendar.locator('.flatpickr-next-month').click();
+  await expect(calendar.locator('.cur-month')).toHaveText('November');
+  await calendar.locator('[aria-label="Monday, November 2, 2026"]').click();
+  await expect(dialog.getByLabel('Start date', { exact: true })).toHaveValue('02.11.2026');
+  // Moving on to the end month must not snap back to the start month.
+  await calendar.locator('.flatpickr-next-month').click();
+  await calendar.locator('.flatpickr-next-month').click();
+  await expect(calendar.locator('.cur-month')).toHaveText('January');
+  await calendar.locator('[aria-label="Friday, January 29, 2027"]').click();
+  await expect(dialog.getByLabel('Start date', { exact: true })).toHaveValue('02.11.2026');
+  await expect(dialog.getByLabel('End date', { exact: true })).toHaveValue('29.01.2027');
+  await dialog.getByRole('button', { name: 'Create Period', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
+  expect(body).toEqual({ name: 'Winter semester', startsOn: '2026-11-02', endsOn: '2027-01-29' });
+  // Activity is reported at most once a minute, not on every click.
+  expect(activityReports).toBe(1);
+});

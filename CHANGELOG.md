@@ -6,6 +6,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- Open days: the calendar of the period and academic-break date ranges no longer snaps back to the start month or drops a picked date, so ranges spanning months can be picked with the mouse.
+- The browser reported session activity on every click instead of at most once a minute, re-rendering the whole page each time.
 - Printer connector: an artifact upload Core rejects with 404 or 409 (assignment ended, run unknown or deleted, configuration changed) is quarantined and its staged 3MF deleted, instead of being retried until it expires. Artifact delivery failures now log Core's HTTP status and error code.
 
 ## [0.7.1] - 2026-10-20

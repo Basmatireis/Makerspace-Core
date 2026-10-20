@@ -41,11 +41,11 @@ import { useOpenDaysLayout } from './useOpenDaysLayout';
 import { RowActions } from '../../app/RowActions';
 import {
   APP_DATE_PLACEHOLDER,
-  dateOnlyToPickerDate,
   formatDate,
   parseDisplayDate,
   pickerDateToDateOnly,
 } from '../../app/dateTime';
+import { usePickerDateRange } from '../../app/usePickerDateRange';
 import { academicBreaksQueryOptions, openDayKeys, periodsQueryOptions } from './queries';
 
 type BreakDraft = Pick<AcademicBreak, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
@@ -72,6 +72,7 @@ export function OpenDayManagementPage() {
   const breaksQuery = useQuery(academicBreaksQueryOptions());
   const [selectedPeriodIds, setSelectedPeriodIds] = useState<string[]>([]);
   const [breakDraft, setBreakDraft] = useState<BreakDraft | null>(null);
+  const breakRange = usePickerDateRange(breakDraft?.startsOn ?? '', breakDraft?.endsOn ?? '');
   const [deleteBreak, setDeleteBreak] = useState<AcademicBreak | null>(null);
   const originalBreak = breaksQuery.data?.items.find((item) => item.id === breakDraft?.id) ?? emptyBreak;
   const dirty = Boolean(breakDraft && ['name', 'startsOn', 'endsOn'].some((key) => breakDraft[key as keyof BreakDraft] !== originalBreak[key as keyof BreakDraft]));
@@ -308,14 +309,7 @@ export function OpenDayManagementPage() {
               datePickerType="range"
               dateFormat="d.m.Y"
               locale="en"
-              value={breakDraft.startsOn
-                ? [
-                    dateOnlyToPickerDate(breakDraft.startsOn)!,
-                    ...(breakDraft.endsOn
-                      ? [dateOnlyToPickerDate(breakDraft.endsOn)!]
-                      : []),
-                  ]
-                : []}
+              value={breakRange}
               onChange={(dates) => setBreakDraft({
                 ...breakDraft,
                 startsOn: dates[0] ? pickerDateToDateOnly(dates[0]) : '',

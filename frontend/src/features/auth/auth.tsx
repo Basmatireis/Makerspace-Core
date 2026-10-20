@@ -3,6 +3,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   type ReactNode,
 } from 'react';
 import {
@@ -137,9 +138,10 @@ function sessionDestination(currentUser: CurrentUser | undefined, errorData?: un
 function SessionActivityHandler({ currentUser }: { currentUser: CurrentUser }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  // Outlives the effect: every report returns a new session and re-runs it, and
+  // resetting the throttle there turned every click into a report and a re-render.
+  const activity = useRef({ lastRecordedAt: 0, pending: false });
   useEffect(() => {
-    let lastRecordedAt = 0;
-    let pending = false;
     const expireAt = Math.min(new Date(currentUser.session.idleExpiresAt).getTime(), new Date(currentUser.session.absoluteExpiresAt).getTime());
 	let timeout = 0;
 	const scheduleExpiry = () => {
@@ -153,9 +155,10 @@ function SessionActivityHandler({ currentUser }: { currentUser: CurrentUser }) {
 	};
 	scheduleExpiry();
     const record = () => {
-      if (pending || Date.now() - lastRecordedAt < 60_000) return;
-      pending = true; lastRecordedAt = Date.now();
-      void recordSessionActivity().then((session) => queryClient.setQueryData<CurrentUser>(authQueryKey, (value) => value ? { ...value, session } : value)).finally(() => { pending = false; });
+      const state = activity.current;
+      if (state.pending || Date.now() - state.lastRecordedAt < 60_000) return;
+      state.pending = true; state.lastRecordedAt = Date.now();
+      void recordSessionActivity().then((session) => queryClient.setQueryData<CurrentUser>(authQueryKey, (value) => value ? { ...value, session } : value)).finally(() => { state.pending = false; });
     };
     const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
     events.forEach((event) => window.addEventListener(event, record, { passive: true }));

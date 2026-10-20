@@ -12,9 +12,10 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { createOpenDayPeriod } from '../../api/generated/open-days/open-days';
-import { APP_DATE_PLACEHOLDER, dateOnlyToPickerDate, parseDisplayDate, pickerDateToDateOnly } from '../../app/dateTime';
+import { usePickerDateRange } from '../../app/usePickerDateRange';
+import { APP_DATE_PLACEHOLDER, parseDisplayDate, pickerDateToDateOnly } from '../../app/dateTime';
 import { openDayKeys } from './queries';
 
 type PeriodForm = { name: string; startsOn: string; endsOn: string };
@@ -32,7 +33,7 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
   const [discardOpen, setDiscardOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [wizardError, setWizardError] = useState<WizardError | null>(null);
-  const { register, getValues, reset, setError, setValue, trigger, formState: { errors, isDirty } } = useForm<PeriodForm>({
+  const { control, register, getValues, reset, setError, setValue, trigger, formState: { errors, isDirty } } = useForm<PeriodForm>({
     defaultValues: { name: '', startsOn: '', endsOn: '' },
   });
 
@@ -78,7 +79,9 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
     createMutation.mutate();
   };
   const requestClose = useLatestCallback(() => { if (discardOpen) setDiscardOpen(false); else close(); return false; });
-  const period = getValues();
+  // Watched, not read with getValues: picking a date must re-render the picker.
+  const [startsOn, endsOn] = useWatch({ control, name: ['startsOn', 'endsOn'] });
+  const range = usePickerDateRange(startsOn, endsOn);
 
   return (
     <ComposedModal aria-label={discardOpen ? 'Discard period inputs?' : 'Create Period'} open={open} size="xs" danger={discardOpen} selectorPrimaryFocus={discardOpen ? '.cds--btn--secondary' : undefined} onClose={requestClose} preventCloseOnClickOutside>
@@ -93,12 +96,7 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
             datePickerType="range"
             dateFormat="d.m.Y"
             locale="en"
-            value={period.startsOn
-              ? [
-                  dateOnlyToPickerDate(period.startsOn)!,
-                  ...(period.endsOn ? [dateOnlyToPickerDate(period.endsOn)!] : []),
-                ]
-              : []}
+            value={range}
             onChange={(dates) => {
               setValue('startsOn', dates[0] ? pickerDateToDateOnly(dates[0]) : '', { shouldDirty: true, shouldValidate: attempted });
               setValue('endsOn', dates[1] ? pickerDateToDateOnly(dates[1]) : '', { shouldDirty: true, shouldValidate: attempted });
