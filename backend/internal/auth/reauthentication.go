@@ -64,7 +64,7 @@ func (s *Service) GrantRecentAuthentication(ctx context.Context, tx pgx.Tx, prin
 func (s *Service) ReauthenticatePassword(ctx context.Context, principal authorization.Principal, password string, requestID *uuid.UUID) (authorization.Principal, error) {
 	key, allowed := s.limits.take("reauthentication", "", principal.AccountID.String(), time.Now())
 	if !allowed {
-		return principal, loginRateLimited()
+		return principal, loginRateLimited(loginLimitWindow)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

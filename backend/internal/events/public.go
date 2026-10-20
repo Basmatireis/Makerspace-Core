@@ -100,7 +100,7 @@ func (s *Service) SignupAnonymous(ctx context.Context, publicID, clientIP string
 		return SignupResult{}, err
 	}
 	if !s.limiter.allow(clientIP, publicID, emailNormalized, phoneNormalized) {
-		return SignupResult{}, apperror.New(429, "signup_rate_limited", "Too many signup attempts")
+		return SignupResult{}, apperror.RateLimited("signup_rate_limited", "Too many signup attempts", signupRateWindow)
 	}
 	event, err := eventsdb.New(s.pool).GetEventByPublicID(ctx, publicID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -133,7 +133,7 @@ func (s *Service) SignupAuthenticated(ctx context.Context, principal authorizati
 			return SignupResult{}, normalizationErr
 		}
 		if !s.limiter.allow(clientIP, publicID, emailNormalized, phoneNormalized) {
-			return SignupResult{}, apperror.New(429, "signup_rate_limited", "Too many signup attempts")
+			return SignupResult{}, apperror.RateLimited("signup_rate_limited", "Too many signup attempts", signupRateWindow)
 		}
 		input.PersonID = &principal.PersonID
 		assignment, _, err := s.createAssignment(ctx, &principal, event.ID, input, "authenticated_self", true, false, requestID)
@@ -145,7 +145,7 @@ func (s *Service) SignupAuthenticated(ctx context.Context, principal authorizati
 			return SignupResult{}, normalizationErr
 		}
 		if !s.limiter.allow(clientIP, publicID, emailNormalized, phoneNormalized) {
-			return SignupResult{}, apperror.New(429, "signup_rate_limited", "Too many signup attempts")
+			return SignupResult{}, apperror.RateLimited("signup_rate_limited", "Too many signup attempts", signupRateWindow)
 		}
 		input.PersonID = nil
 		assignment, url, createErr := s.createAssignment(ctx, &principal, event.ID, input, "authenticated_on_behalf", true, true, requestID)

@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -74,7 +73,7 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	limitKey, allowed := s.limits.take("password", sourceKey, normalized, time.Now())
 	if !allowed {
-		return Session{}, loginRateLimited()
+		return Session{}, loginRateLimited(loginLimitWindow)
 	}
 
 	// Verify before opening the transaction: Argon2id is deliberately slow and must not hold a
@@ -523,8 +522,8 @@ func (l loginLimits) take(scope, sourceKey, identifier string, now time.Time) (s
 
 func (l loginLimits) succeeded(key string) { l.perAttempt.Reset(key) }
 
-func loginRateLimited() error {
-	return apperror.New(http.StatusTooManyRequests, "login_rate_limited", "Too many login attempts; try again later")
+func loginRateLimited(retryAfter time.Duration) error {
+	return apperror.RateLimited("login_rate_limited", "Too many login attempts; try again later", retryAfter)
 }
 
 func (s *Service) Cleanup(ctx context.Context, before time.Time) (sessions int64, resets int64, err error) {

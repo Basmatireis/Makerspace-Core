@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/netip"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -36,13 +39,10 @@ import (
 )
 
 const (
-	maxJSONRequestBodyBytes  = 64 << 10
-	maxImageRequestBodyBytes = 9 << 20
-	maxPDFRequestBodyBytes   = 26 << 20
-	maxUserAgentBytes        = 512
-	csrfHeaderName           = "X-CSRF-Token"
-	requestIDHeaderName      = "X-Request-ID"
-	forwardedForHeader       = "X-Forwarded-For"
+	maxUserAgentBytes   = 512
+	csrfHeaderName      = "X-CSRF-Token"
+	requestIDHeaderName = "X-Request-ID"
+	forwardedForHeader  = "X-Forwarded-For"
 )
 
 type contextKey uint8
@@ -108,6 +108,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	if err != nil {
 		return nil, fmt.Errorf("load embedded OpenAPI specification: %w", err)
 	}
+	server.routes = newRoutePolicy(spec)
 	newValidator := func(excludeBody bool) func(http.Handler) http.Handler {
 		return nethttpmiddleware.OapiRequestValidatorWithOptions(spec, &nethttpmiddleware.Options{
 			DoNotValidateServers: true,
@@ -148,7 +149,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 			next.ServeHTTP(w, r)
 		}))
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isRawBinaryUpload(r.Method, r.URL.Path) && r.Body != nil {
+			if server.routes.isRawBinaryUpload(r.Context()) && r.Body != nil {
 				hidden := r.WithContext(context.WithValue(r.Context(), rawUploadBodyContextKey, r.Body))
 				hidden.Body = http.NoBody
 				withoutBody.ServeHTTP(w, hidden)
@@ -163,7 +164,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	handler = server.originMiddleware(handler, logger)
 	handler = validator(handler)
 	handler = maxBodyMiddleware(handler)
-	handler = noStoreMiddleware(handler)
+	handler = cacheControlMiddleware(handler)
 	handler = recoveryMiddleware(handler, logger)
 	handler = traceMiddleware(handler)
 	handler = accessLogMiddleware(handler, logger)
@@ -200,7 +201,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				if !s.allowPrinterConnectorRequest(connector.ID, time.Now().UTC()) {
-					writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Connector request rate exceeded"), logger)
+					writeAPIError(w, r, apperror.RateLimited("rate_limited", "Connector request rate exceeded", deviceRequestWindow), logger)
 					return
 				}
 				ctx = context.WithValue(ctx, printerConnectorContextKey, *connector)
@@ -211,7 +212,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		if isStreamingGatewayPath(r.URL.Path) {
 			failureKey := ratelimit.KeyForIP(sourceAddress(r.Context()))
 			if s.gatewayFailures.Blocked(failureKey, time.Now().UTC()) {
-				writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Too many failed gateway authentications; try again later"), logger)
+				writeAPIError(w, r, apperror.RateLimited("rate_limited", "Too many failed gateway authentications; try again later", gatewayFailureWindow), logger)
 				return
 			}
 			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
@@ -235,7 +236,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				if !s.allowPrinterConnectorRequest(gateway.ID, time.Now().UTC()) {
-					writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Gateway request rate exceeded"), logger)
+					writeAPIError(w, r, apperror.RateLimited("rate_limited", "Gateway request rate exceeded", deviceRequestWindow), logger)
 					return
 				}
 				ctx = context.WithValue(ctx, streamingGatewayContextKey, *gateway)
@@ -350,7 +351,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 			if !s.allowSignagePlayerRequest(device.ID, strings.HasPrefix(r.URL.Path, apiBasePath+"/signage/player/assets/"), time.Now().UTC()) {
-				writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Player request rate exceeded"), logger)
+				writeAPIError(w, r, apperror.RateLimited("rate_limited", "Player request rate exceeded", deviceRequestWindow), logger)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -373,7 +374,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		callback := r.URL.Path == apiBasePath+"/auth/oidc/callback"
 		_, sessionCookieErr := r.Cookie(s.config.SessionCookieName)
-		if isPublicRequest(r.Method, r.URL.Path) && (!callback || sessionCookieErr != nil) {
+		if s.routes.isSessionless(r.Context()) && (!callback || sessionCookieErr != nil) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -432,58 +433,38 @@ const (
 	gatewayFailureWindow     = 15 * time.Minute
 )
 
-type connectorRateWindow struct {
-	startedAt time.Time
-	count     int
-}
-
-func (s *Server) allowPrinterConnectorRequest(id uuid.UUID, now time.Time) bool {
-	s.connectorRateMu.Lock()
-	defer s.connectorRateMu.Unlock()
-	window := s.connectorRates[id]
-	if window.startedAt.IsZero() || now.Sub(window.startedAt) >= time.Minute {
-		window = connectorRateWindow{startedAt: now}
-	}
-	window.count++
-	s.connectorRates[id] = window
-	if len(s.connectorRates) > 256 {
-		for key, candidate := range s.connectorRates {
-			if now.Sub(candidate.startedAt) > 10*time.Minute {
-				delete(s.connectorRates, key)
-			}
-		}
-	}
-	return window.count <= 600
-}
-
 const (
+	deviceRequestWindow                 = time.Minute
+	deviceRequestsPerWindow             = 600
 	signagePlayerRequestsPerMinute      = 120
 	signagePlayerAssetRequestsPerMinute = 600
 )
 
-// allowSignagePlayerRequest applies a fixed one-minute window per device and bucket. Asset
-// downloads (many Range requests per video) have their own, more generous bucket.
+// newDeviceRateLimits bounds the request rate of authenticated machine clients (printer
+// connectors, streaming gateways and signage players) per credential.
+func newDeviceRateLimits() deviceRateLimits {
+	return deviceRateLimits{
+		connectors:   ratelimit.New(deviceRequestsPerWindow, deviceRequestWindow),
+		playerAPI:    ratelimit.New(signagePlayerRequestsPerMinute, deviceRequestWindow),
+		playerAssets: ratelimit.New(signagePlayerAssetRequestsPerMinute, deviceRequestWindow),
+	}
+}
+
+type deviceRateLimits struct {
+	connectors   *ratelimit.Limiter
+	playerAPI    *ratelimit.Limiter
+	playerAssets *ratelimit.Limiter
+}
+
+func (s *Server) allowPrinterConnectorRequest(id uuid.UUID, now time.Time) bool {
+	return s.deviceRates.connectors.Take(id.String(), now)
+}
+
 func (s *Server) allowSignagePlayerRequest(deviceID uuid.UUID, assets bool, now time.Time) bool {
-	key, limit := deviceID.String()+":api", signagePlayerRequestsPerMinute
 	if assets {
-		key, limit = deviceID.String()+":assets", signagePlayerAssetRequestsPerMinute
+		return s.deviceRates.playerAssets.Take(deviceID.String(), now)
 	}
-	s.playerRateMu.Lock()
-	defer s.playerRateMu.Unlock()
-	window := s.playerRates[key]
-	if window.startedAt.IsZero() || now.Sub(window.startedAt) >= time.Minute {
-		window = connectorRateWindow{startedAt: now}
-	}
-	window.count++
-	s.playerRates[key] = window
-	if len(s.playerRates) > 256 {
-		for candidateKey, candidate := range s.playerRates {
-			if now.Sub(candidate.startedAt) > 10*time.Minute {
-				delete(s.playerRates, candidateKey)
-			}
-		}
-	}
-	return window.count <= limit
+	return s.deviceRates.playerAPI.Take(deviceID.String(), now)
 }
 
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
@@ -513,76 +494,29 @@ func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProx
 		ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
 		ctx = context.WithValue(ctx, sourceAddressContextKey, requestClientIP(r, trustedProxies))
 		ctx = context.WithValue(ctx, operationStateContextKey, &operationState{})
-		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoutePattern(routes, r.Method, r.URL.Path))
+		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoute(routes, r.Method, r.URL.Path))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// isRawBinaryUpload reports the routes whose request body is an opaque binary stream
-// (application/octet-stream or application/pdf). Their bodies are size-capped by
-// maxBodyMiddleware and consumed by the handler after authentication; the OpenAPI validator
-// must not buffer them (it would do so before authentication). Headers and parameters are
-// still validated. Keep in sync with the binary requestBody entries of api/openapi.yaml.
-func isRawBinaryUpload(method, path string) bool {
-	switch {
-	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/printer-connector/self/assignments/") && strings.HasSuffix(path, "/artifact"):
-		return true
-	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/people/") && strings.HasSuffix(path, "/profile-image"):
-		return true
-	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/branding/assets/"):
-		return true
-	case method == http.MethodPost && path == apiBasePath+"/signage/assets":
-		return true
-	case method == http.MethodPost && path == apiBasePath+"/laborordnung/versions":
-		return true
-	case method == http.MethodPost && strings.HasPrefix(path, apiBasePath+"/events/") && strings.HasSuffix(path, "/files"):
-		return true
-	}
-	return false
-}
-
+// maxBodyMiddleware caps every request body at the limit of the addressed operation.
 func maxBodyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil {
-			limit := int64(maxJSONRequestBodyBytes)
-			if r.URL.Path == apiBasePath+"/printer-connector/self/events" {
-				limit = 512 << 10
-			} else if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/self/assignments/") && strings.HasSuffix(r.URL.Path, "/artifact") {
-				limit = (512 << 20) + 1
-			} else if strings.HasSuffix(r.URL.Path, "/profile-image") {
-				limit = maxImageRequestBodyBytes
-			} else if strings.HasPrefix(r.URL.Path, apiBasePath+"/branding/assets/") {
-				limit = maxImageRequestBodyBytes
-			} else if r.Method == http.MethodPost && r.URL.Path == apiBasePath+"/signage/assets" {
-				limit = (200 << 20) + 1
-			} else if r.URL.Path == apiBasePath+"/laborordnung/versions" {
-				limit = maxPDFRequestBodyBytes
-			} else if r.URL.Path == apiBasePath+"/visitor-enrollment/submissions" {
-				limit = 12 << 20
-			} else if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, apiBasePath+"/events/") && strings.HasSuffix(r.URL.Path, "/files") {
-				limit = (25 << 20) + 1
-			}
-			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			r.Body = http.MaxBytesReader(w, r.Body, requestBodyLimit(r.Context()))
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
-func noStoreMiddleware(next http.Handler) http.Handler {
+// cacheControlMiddleware makes no-store the default for API responses, because most of them
+// carry private data. Handlers that serve cacheable content set their own policy.
+func cacheControlMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/") || isStreamingGatewayPath(r.URL.Path) || strings.HasSuffix(r.URL.Path, "/password-reset") ||
-			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
-			strings.HasPrefix(r.URL.Path, apiBasePath+"/terminal/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/surveys/") ||
-			isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) ||
-			strings.HasPrefix(r.URL.Path, apiBasePath+"/visits") || strings.HasPrefix(r.URL.Path, apiBasePath+"/attendance/") ||
-			strings.HasPrefix(r.URL.Path, apiBasePath+"/public/event-signups/") ||
-			strings.HasSuffix(r.URL.Path, "/signups") ||
-			(strings.Contains(r.URL.Path, "/events/") && (strings.HasSuffix(r.URL.Path, "/assignments") || strings.Contains(r.URL.Path, "/assignments/") || strings.HasSuffix(r.URL.Path, "/files") || strings.Contains(r.URL.Path, "/files/"))) ||
-			strings.HasSuffix(r.URL.Path, "/invitations") || strings.HasSuffix(r.URL.Path, "/pin-enrollment") ||
-			(r.Method == http.MethodPost && (r.URL.Path == apiBasePath+"/managed-devices" || r.URL.Path == apiBasePath+"/scim/connectors")) || strings.HasSuffix(r.URL.Path, "/token") {
-			w.Header().Set("Cache-Control", "no-store")
-		} else if r.URL.Path == apiBasePath+"/public/config" || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/legal/") {
+		if revalidatedRoutes[requestRoute(r.Context())] {
 			w.Header().Set("Cache-Control", "no-cache")
+		} else {
+			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -591,10 +525,18 @@ func noStoreMiddleware(next http.Handler) http.Handler {
 func recoveryMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
-			if recover() != nil {
-				logger.ErrorContext(r.Context(), "recovered request panic", "request_id", requestIDString(r.Context()))
-				writeAPIError(w, r, errors.New("request panic"), logger)
+			recovered := recover()
+			if recovered == nil {
+				return
 			}
+			if recovered == http.ErrAbortHandler {
+				panic(recovered)
+			}
+			// The stack identifies the failing code; the panic value is left out because it may
+			// contain request data.
+			logger.ErrorContext(r.Context(), "recovered request panic", "request_id", requestIDString(r.Context()),
+				"panic_type", fmt.Sprintf("%T", recovered), "stack", string(debug.Stack()))
+			writeAPIError(w, r, errors.New("request panic"), logger)
 		}()
 		next.ServeHTTP(w, r)
 	})
@@ -636,7 +578,7 @@ func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 		}
 		route := operationName(r.Context())
 		if route == "" {
-			route = normalizedRoute(r.Context())
+			route = requestRoute(r.Context())
 		}
 		if route == "" {
 			route = "unmatched"
@@ -666,7 +608,7 @@ func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 
 func isRoutineProbe(route string) bool {
 	return route == "GetLiveness" || route == "GetReadiness" ||
-		route == apiBasePath+"/health/live" || route == apiBasePath+"/health/ready"
+		route == routeKey(http.MethodGet, "/health/live") || route == routeKey(http.MethodGet, "/health/ready")
 }
 
 func traceMiddleware(next http.Handler) http.Handler {
@@ -714,30 +656,6 @@ func operationName(ctx context.Context) string {
 		return ""
 	}
 	return state.name
-}
-
-func normalizedRoute(ctx context.Context) string {
-	value, _ := ctx.Value(normalizedRouteContextKey).(string)
-	return value
-}
-
-func matchedRoutePattern(routes chi.Routes, method, path string) string {
-	if routes == nil {
-		return ""
-	}
-	methods := []string{method, http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
-	seen := make(map[string]struct{}, len(methods))
-	for _, candidate := range methods {
-		if _, duplicate := seen[candidate]; duplicate {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		routeContext := chi.NewRouteContext()
-		if routes.Match(routeContext, candidate, path) {
-			return routeContext.RoutePattern()
-		}
-	}
-	return ""
 }
 
 func requestClientIP(r *http.Request, trustedProxies []netip.Prefix) string {
@@ -850,8 +768,8 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *sl
 		}
 		logger.ErrorContext(r.Context(), "request failed", attributes...)
 	}
-	if status == http.StatusTooManyRequests {
-		w.Header().Set("Retry-After", "900")
+	if appError != nil && appError.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(appError.RetryAfter.Seconds()))))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -885,49 +803,6 @@ func requestIDString(ctx context.Context) string {
 func sourceAddress(ctx context.Context) string {
 	value, _ := ctx.Value(sourceAddressContextKey).(string)
 	return value
-}
-
-func isPublicPath(path string) bool {
-	if isPrinterConnectorPath(path) || isStreamingGatewayPath(path) {
-		return true
-	}
-	if isSCIMPath(path) {
-		return true
-	}
-	if isVisitorEnrollmentPublicPath(path) {
-		return true
-	}
-	if path == apiBasePath+"/auth/oidc/callback" || path == apiBasePath+"/auth/oidc/providers" ||
-		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start")) {
-		return true
-	}
-	if path == apiBasePath+"/public/config" || strings.HasPrefix(path, apiBasePath+"/public/legal/") || strings.HasPrefix(path, apiBasePath+"/public/branding/assets/") {
-		return true
-	}
-	if strings.HasPrefix(path, apiBasePath+"/public/events/") || strings.HasPrefix(path, apiBasePath+"/public/event-signups/") {
-		return true
-	}
-	if strings.HasPrefix(path, apiBasePath+"/terminal/") || strings.HasPrefix(path, apiBasePath+"/public/surveys/") {
-		return true
-	}
-	switch path {
-	case apiBasePath + "/health/live", apiBasePath + "/health/ready", apiBasePath + "/auth/login", apiBasePath + "/auth/password-reset/complete",
-		apiBasePath + "/auth/pin/login",
-		apiBasePath + "/auth/password-reset/request", apiBasePath + "/auth/password-reset/complete-code",
-		apiBasePath + "/auth/invitations/complete", apiBasePath + "/auth/email-verification/complete",
-		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics", apiBasePath + "/public/signage/pairing",
-		apiBasePath + "/managed-devices/self/hardware":
-		return true
-	default:
-		return false
-	}
-}
-
-func isPublicRequest(method, path string) bool {
-	if method == http.MethodPost && path == apiBasePath+"/auth/pin/enrollment/complete" {
-		return true
-	}
-	return isPublicPath(path)
 }
 
 func isVisitorEnrollmentPublicPath(path string) bool {

@@ -16,7 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const maxEventFileBytes = 25 << 20
+// MaxFileBytes is the largest event attachment.
+const MaxFileBytes = 25 << 20
 
 var allowedEventFileTypes = map[string]struct{}{
 	"application/pdf": {}, "image/jpeg": {}, "image/png": {}, "image/gif": {}, "image/webp": {},
@@ -50,7 +51,7 @@ func (s *Service) AttachFile(ctx context.Context, principal authorization.Princi
 	if s.files == nil {
 		return EventFile{}, errors.New("file storage is unavailable")
 	}
-	if len(data) > maxEventFileBytes {
+	if len(data) > MaxFileBytes {
 		return EventFile{}, apperror.New(413, "event_file_too_large", "Event files are limited to 25 MiB")
 	}
 	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))

@@ -26,7 +26,7 @@ func (s *Service) VerifyPasswordForAttendance(ctx context.Context, email, passwo
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	key, allowed := s.limits.take("attendance", sourceKey, normalized, time.Now())
 	if !allowed {
-		return VerifiedIdentity{}, loginRateLimited()
+		return VerifiedIdentity{}, loginRateLimited(loginLimitWindow)
 	}
 	q := authdb.New(s.pool)
 	row, err := q.GetLoginByEmail(ctx, normalized)

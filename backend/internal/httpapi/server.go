@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
@@ -49,6 +48,7 @@ const apiBasePath = "/api/v1"
 // service calls. Business validation, authorization, transactions, and audit
 // writes deliberately remain in those services.
 type Server struct {
+	routes            routePolicy
 	pool              *pgxpool.Pool
 	config            config.Config
 	auth              *auth.Service
@@ -77,10 +77,7 @@ type Server struct {
 	signage           *signage.Service
 	attendance        *attendance.Service
 	surveys           *surveys.Service
-	connectorRateMu   sync.Mutex
-	connectorRates    map[uuid.UUID]connectorRateWindow
-	playerRateMu      sync.Mutex
-	playerRates       map[string]connectorRateWindow
+	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
 }
@@ -160,8 +157,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		branding:          brandingService,
 		signage:           signageService,
 		surveys:           surveyService,
-		connectorRates:    make(map[uuid.UUID]connectorRateWindow),
-		playerRates:       make(map[string]connectorRateWindow),
+		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),
 	}, nil

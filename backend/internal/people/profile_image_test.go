@@ -36,7 +36,7 @@ func TestNormalizeProfileImageRejectsInvalidOversizedAndExcessDimensions(t *test
 	if _, err := normalizeProfileImage(bytes.NewReader([]byte("not an image"))); err == nil {
 		t.Fatal("expected malformed image to fail")
 	}
-	if _, err := normalizeProfileImage(bytes.NewReader(make([]byte, maxProfileImageBytes+1))); err == nil {
+	if _, err := normalizeProfileImage(bytes.NewReader(make([]byte, MaxProfileImageBytes+1))); err == nil {
 		t.Fatal("expected oversized image to fail")
 	}
 	wide := image.NewRGBA(image.Rect(0, 0, 4097, 1))

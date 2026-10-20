@@ -95,6 +95,9 @@ func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey st
 	return session, nil
 }
 
+// pinMaxBackoff is the longest persistent PIN back-off (see RecordPINFailure).
+const pinMaxBackoff = 5 * time.Minute
+
 // admitPINAttempt applies the persistent PIN back-off and the in-memory attempt limit. The
 // in-memory limit is atomic, so a burst of parallel guesses cannot all pass the persistent check
 // before the first failure is recorded.
@@ -108,12 +111,12 @@ func (s *Service) admitPINAttempt(ctx context.Context, queries *authdb.Queries, 
 			return "", err
 		}
 		if blocked {
-			return "", loginRateLimited()
+			return "", loginRateLimited(pinMaxBackoff)
 		}
 	}
 	key, allowed := s.limits.take(scope, sourceKey, loginName, time.Now())
 	if !allowed {
-		return "", loginRateLimited()
+		return "", loginRateLimited(loginLimitWindow)
 	}
 	return key, nil
 }

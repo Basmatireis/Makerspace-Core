@@ -107,11 +107,17 @@ func (s *Local) path(key string) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(s.root, filepath.FromSlash(key))
-	relative, err := filepath.Rel(s.root, path)
-	if err != nil || relative == ".." || filepath.IsAbs(relative) {
+	if !withinRoot(s.root, path) {
 		return "", fmt.Errorf("storage key escaped root")
 	}
 	return path, nil
+}
+
+// withinRoot is the second line of defense behind ValidateKey: it rejects any path that
+// resolves outside root, including "../sibling" and absolute paths.
+func withinRoot(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	return err == nil && filepath.IsLocal(relative)
 }
 
 type contextReader struct {

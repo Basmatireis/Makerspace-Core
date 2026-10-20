@@ -21,7 +21,8 @@ import (
 	"github.com/ledongthuc/pdf"
 )
 
-const maxPDFBytes = 25 << 20
+// MaxPDFBytes is the largest Lab Rules PDF.
+const MaxPDFBytes = 25 << 20
 
 type Version struct {
 	ID            uuid.UUID
@@ -74,11 +75,11 @@ func (s *Service) CreateVersion(ctx context.Context, principal authorization.Pri
 	if revision == "" || len([]rune(revision)) > 100 {
 		return Version{}, validation("human revision is required and limited to 100 characters")
 	}
-	data, err := io.ReadAll(io.LimitReader(reader, maxPDFBytes+1))
+	data, err := io.ReadAll(io.LimitReader(reader, MaxPDFBytes+1))
 	if err != nil {
 		return Version{}, err
 	}
-	if len(data) == 0 || len(data) > maxPDFBytes {
+	if len(data) == 0 || len(data) > MaxPDFBytes {
 		return Version{}, apperror.New(413, "laborordnung_pdf_too_large", "Lab Rules PDF exceeds 25 MiB")
 	}
 	parsed, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))

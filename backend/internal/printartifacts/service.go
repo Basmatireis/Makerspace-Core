@@ -29,7 +29,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const maxCompressedSize int64 = 512 << 20
+// MaxCompressedSize is the largest uploaded print artifact.
+const MaxCompressedSize int64 = 512 << 20
 
 type Service struct {
 	pool    *pgxpool.Pool
@@ -185,7 +186,7 @@ func (s *Service) OpenPreview(ctx context.Context, principal authorization.Princ
 
 func (s *Service) Upload(ctx context.Context, connectorID, assignmentID, runID uuid.UUID, configurationVersion int64, filename, declaredSHA string, contentLength int64, body io.Reader, requestID *uuid.UUID) (UploadResult, error) {
 	filename = strings.TrimSpace(filename)
-	if filename == "" || len(filename) > 255 || contentLength < 1 || contentLength > maxCompressedSize {
+	if filename == "" || len(filename) > 255 || contentLength < 1 || contentLength > MaxCompressedSize {
 		return UploadResult{}, validation("artifact_metadata_invalid", "Artifact filename and content length are invalid")
 	}
 	digestBytes, err := hex.DecodeString(strings.ToLower(strings.TrimSpace(declaredSHA)))

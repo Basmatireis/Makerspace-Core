@@ -259,7 +259,7 @@ func (s *Service) RequestOwnEmailVerification(ctx context.Context, principal aut
 		return err
 	}
 	if !allowed {
-		return apperror.New(429, "verification_rate_limited", "Too many verification requests; try again later")
+		return apperror.RateLimited("verification_rate_limited", "Too many verification requests; try again later", challengeRateWindow)
 	}
 	code, err := security.NewChallengeCode()
 	if err != nil {
@@ -414,6 +414,9 @@ func (s *Service) challengeValid(challenge authdb.AuthChallenge, code string) bo
 func (s *Service) challengeDigest(kind string, accountID uuid.UUID, code string) []byte {
 	return security.ChallengeDigest(s.config.ChallengeHMACKey, kind, accountID, code)
 }
+
+// challengeRateWindow mirrors the window of ConsumeAuthRateLimit.
+const challengeRateWindow = 15 * time.Minute
 
 func (s *Service) consumeChallengeLimit(ctx context.Context, action, value string, maximum int32) (bool, error) {
 	mac := hmac.New(sha256.New, s.config.ChallengeHMACKey)

@@ -396,7 +396,8 @@ func personDeletionBlocked(reasons ...*apperror.Error) *apperror.Error {
 	return apperror.Blocked("person_deletion_blocked", "This person cannot be deleted for several reasons", reasons...)
 }
 
-const maxProfileImageBytes = 8 << 20
+// MaxProfileImageBytes is the largest profile image upload.
+const MaxProfileImageBytes = 8 << 20
 
 func (s *Service) PutProfileImage(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, filename, source string, reader io.Reader, requestID *uuid.UUID) (Person, error) {
 	if s.files == nil {
@@ -707,11 +708,11 @@ func authorizeRoleAssignment(ctx context.Context, queries *peopledb.Queries, pri
 }
 
 func NormalizeProfileImage(reader io.Reader) ([]byte, error) {
-	raw, err := io.ReadAll(io.LimitReader(reader, maxProfileImageBytes+1))
+	raw, err := io.ReadAll(io.LimitReader(reader, MaxProfileImageBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) == 0 || len(raw) > maxProfileImageBytes {
+	if len(raw) == 0 || len(raw) > MaxProfileImageBytes {
 		return nil, apperror.New(413, "profile_image_too_large", "Profile image exceeds 8 MiB")
 	}
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(raw))

@@ -46,8 +46,8 @@ func errPairingCodeInvalid() error {
 	return apperror.New(422, "pairing_code_invalid", "The pairing code is invalid or has expired")
 }
 
-func rateLimited(message string) error {
-	return apperror.New(429, "rate_limited", message)
+func rateLimited(message string, retryAfter time.Duration) error {
+	return apperror.RateLimited("rate_limited", message, retryAfter)
 }
 
 // GeneratePairingCode returns a random code over PairingCodeAlphabet. The alphabet has 32
@@ -97,7 +97,7 @@ type PairingStart struct {
 func (s *Service) StartPairing(ctx context.Context, clientIP, previousPollSecret string) (PairingStart, error) {
 	now := s.now()
 	if !s.pairingRequests.Take(ratelimit.KeyForIP(clientIP), now) {
-		return PairingStart{}, rateLimited("Too many pairing requests; try again later")
+		return PairingStart{}, rateLimited("Too many pairing requests; try again later", pairingRequestWindow)
 	}
 	for attempt := 0; attempt < pairingGenerationAttempts; attempt++ {
 		start, err := s.tryStartPairing(ctx, now, previousPollSecret)
@@ -148,7 +148,7 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 		return PairingStart{}, err
 	}
 	if open >= maxOpenPairingRequests {
-		return PairingStart{}, rateLimited("Too many pairing requests are open; try again in a few minutes")
+		return PairingStart{}, rateLimited("Too many pairing requests are open; try again in a few minutes", deliveryGrace)
 	}
 	expires := now.Add(PairingTTL)
 	if err := q.CreateSignagePairingRequest(ctx, signagedb.CreateSignagePairingRequestParams{
@@ -178,7 +178,7 @@ func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) 
 		return PairingPoll{Status: "expired"}, nil // cannot match any request; skip the database
 	}
 	if !s.pairingPolls.Take(ratelimit.KeyForIP(clientIP), now) {
-		return PairingPoll{}, rateLimited("Too many pairing polls; slow down")
+		return PairingPoll{}, rateLimited("Too many pairing polls; slow down", pairingPollWindow)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -235,7 +235,7 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	// Reserve an attempt before looking at the code so concurrent guesses cannot all pass the
 	// check; the reservation is given back unless the code itself was wrong.
 	if !s.claimFailures.Take(account, now) {
-		return Display{}, rateLimited("Too many wrong pairing codes; try again later")
+		return Display{}, rateLimited("Too many wrong pairing codes; try again later", claimFailureWindow)
 	}
 	wrongCode := false
 	defer func() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"mime"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -620,12 +621,12 @@ func (s *Server) UploadEventFile(ctx context.Context, r openapi.UploadEventFileR
 	if err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(io.LimitReader(r.Body, (25<<20)+1))
+	data, err := io.ReadAll(io.LimitReader(r.Body, events.MaxFileBytes+1))
 	if err != nil {
 		return nil, invalidRequest("could not read file")
 	}
-	if len(data) > 25<<20 {
-		return nil, apperror.New(413, "event_file_too_large", "Event files are limited to 25 MiB")
+	if len(data) > events.MaxFileBytes {
+		return nil, apperror.New(http.StatusRequestEntityTooLarge, "event_file_too_large", "Event files are limited to 25 MiB")
 	}
 	isBanner := r.Params.XEventFilePurpose != nil && *r.Params.XEventFilePurpose == openapi.Banner
 	item, err := s.events.AttachFile(ctx, p, r.EventId, r.Params.XFileName, r.Params.XFileContentType, string(r.Params.XEventFileVisibility), isBanner, r.Params.XEventFileDescription, data, requestIDPointer(ctx))

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 )
 
@@ -59,5 +60,23 @@ func TestLocalStoreRejectsTraversalAndIntegrityMismatch(t *testing.T) {
 	}
 	if _, err := store.Open(context.Background(), key); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("failed upload must not become visible: %v", err)
+	}
+}
+
+func TestWithinRootRejectsEveryEscape(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "files")
+	for _, path := range []string{
+		filepath.Join(root, ".."),
+		filepath.Join(root, "..", "files-sibling", "x"),
+		filepath.Join(root, "..", "..", "etc", "passwd"),
+		filepath.Dir(root),
+		"/etc/passwd",
+	} {
+		if withinRoot(root, path) {
+			t.Errorf("path %q escaped root %q", path, root)
+		}
+	}
+	if !withinRoot(root, filepath.Join(root, "ab", "0192f6f8-743e-7c77-a349-cd07c3e8a921")) {
+		t.Fatal("a regular key was rejected")
 	}
 }

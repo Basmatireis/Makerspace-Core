@@ -443,11 +443,17 @@ func validateLegal(value Legal) error {
 	return nil
 }
 
+const (
+	maxLogoAssetBytes = 2 << 20
+	// MaxAssetBytes is the largest branding asset of any slot (background images).
+	MaxAssetBytes = 8 << 20
+)
+
 func validateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
-	limit := int64(2 << 20)
+	limit := int64(maxLogoAssetBytes)
 	background := slot == ApplicationBackground || slot == AuthenticationBackground
 	if background {
-		limit = 8 << 20
+		limit = MaxAssetBytes
 	}
 	raw, err := io.ReadAll(io.LimitReader(reader, limit+1))
 	if err != nil {

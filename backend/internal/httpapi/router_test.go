@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/go-chi/chi/v5"
@@ -352,12 +354,63 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 	}
 }
 
+// isSessionlessRequest reports whether the contract lets method and path through without a
+// staff session, using the same route matching as the middleware chain.
+func isSessionlessRequest(t *testing.T, method, path string) bool {
+	t.Helper()
+	spec, err := openapi.GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := chi.NewRouter()
+	openapi.HandlerWithOptions(openapi.NewStrictHandler(nil, nil), openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router})
+	key := matchedRoute(router, method, path)
+	if key == "" {
+		t.Fatalf("%s %s matches no operation", method, path)
+	}
+	return newRoutePolicy(spec).sessionless[key]
+}
+
+func TestEveryOperationHasAMatchableRoute(t *testing.T) {
+	spec, err := openapi.GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := chi.NewRouter()
+	openapi.HandlerWithOptions(openapi.NewStrictHandler(nil, nil), openapi.ChiServerOptions{BaseURL: apiBasePath, BaseRouter: router})
+	policy := newRoutePolicy(spec)
+	for key := range policy.sessionless {
+		method, template, _ := strings.Cut(key, " ")
+		concrete := regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(template, "0192f6f8-743e-7c77-a349-cd07c3e8a921")
+		if got := matchedRoute(router, method, apiBasePath+concrete); got != key {
+			t.Errorf("%s resolved to route %q", key, got)
+		}
+	}
+}
+
+func TestEveryRawBinaryUploadHasAnExplicitBodyLimit(t *testing.T) {
+	spec, err := openapi.GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, raw := range newRoutePolicy(spec).rawBinary {
+		if _, limited := requestBodyLimits[key]; raw && !limited {
+			t.Errorf("binary upload %s would fall back to the JSON body limit", key)
+		}
+	}
+	for key := range requestBodyLimits {
+		if _, known := newRoutePolicy(spec).sessionless[key]; !known {
+			t.Errorf("body limit for unknown operation %s", key)
+		}
+	}
+}
+
 func TestPINEnrollmentCompletionAuthBoundary(t *testing.T) {
 	path := apiBasePath + "/auth/pin/enrollment/complete"
-	if !isPublicRequest(http.MethodPost, path) {
+	if !isSessionlessRequest(t, http.MethodPost, path) {
 		t.Fatal("PIN enrollment completion must be public")
 	}
-	if isPublicRequest(http.MethodDelete, path) {
+	if isSessionlessRequest(t, http.MethodDelete, path) {
 		t.Fatal("removing an enrolled PIN must remain authenticated")
 	}
 }
@@ -377,11 +430,11 @@ func TestEventPublicRouteAndCacheBoundaries(t *testing.T) {
 		{http.MethodPost, apiBasePath + "/public/event-signups/current/cancel"},
 	}
 	for _, request := range publicPaths {
-		if !isPublicRequest(request.method, request.path) {
+		if !isSessionlessRequest(t, request.method, request.path) {
 			t.Fatalf("%s %s must use the public authentication boundary", request.method, request.path)
 		}
 	}
-	if isPublicRequest(http.MethodPost, apiBasePath+"/events/public/"+publicID+"/signups") {
+	if isSessionlessRequest(t, http.MethodPost, apiBasePath+"/events/public/"+publicID+"/signups") {
 		t.Fatal("authenticated public-context signup must still require a session")
 	}
 
@@ -392,7 +445,7 @@ func TestEventPublicRouteAndCacheBoundaries(t *testing.T) {
 		apiBasePath + "/events/0192f6f8-743e-7c77-a349-cd07c3e8a921/files/0192f6f8-743e-7c77-a349-cd07c3e8a922/content",
 	} {
 		recorder := httptest.NewRecorder()
-		noStoreMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		cacheControlMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		if recorder.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("Event response %s was cacheable", path)
 		}
@@ -403,7 +456,7 @@ func TestAccessLogNeverIncludesRequestPathsOrQueryValues(t *testing.T) {
 	identifier := "0192f6f8-743e-7c77-a349-cd07c3e8a921"
 
 	matched, matchedRaw := recordedAPIRequestLog(t, http.MethodGet, "/api/v1/people/"+identifier)
-	if matched["route"] != "/api/v1/people/{personId}" {
+	if matched["route"] != "GET /people/{personId}" {
 		t.Fatalf("matched route = %q", matched["route"])
 	}
 	if _, exists := matched["path"]; exists {
@@ -717,5 +770,22 @@ func TestStreamingGatewayFailedAuthenticationsAreLimitedPerIP(t *testing.T) {
 	}
 	if status := call("192.0.2.51:4000"); status != http.StatusUnauthorized {
 		t.Fatalf("another IP must not be limited, status = %d", status)
+	}
+}
+
+func TestRetryAfterFollowsTheLimiterWindow(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+
+	recorder := httptest.NewRecorder()
+	writeAPIError(recorder, request, apperror.RateLimited("rate_limited", "Slow down", 90*time.Second), logger)
+	if recorder.Code != http.StatusTooManyRequests || recorder.Header().Get("Retry-After") != "90" {
+		t.Fatalf("status=%d Retry-After=%q, want 429 and 90", recorder.Code, recorder.Header().Get("Retry-After"))
+	}
+
+	recorder = httptest.NewRecorder()
+	writeAPIError(recorder, request, apperror.New(http.StatusTooManyRequests, "rate_limited", "Slow down"), logger)
+	if value := recorder.Header().Get("Retry-After"); value != "" {
+		t.Fatalf("a 429 without a known window advertised Retry-After %q", value)
 	}
 }
