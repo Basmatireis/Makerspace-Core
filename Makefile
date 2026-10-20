@@ -6,13 +6,20 @@ SHELL := /bin/sh
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
 	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
-	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
+	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev \
+	build-local-services local-services-up local-services-down local-services-logs
 
 # Integration tests use their own database next to the development database so
 # test runs never write into development data.
 TEST_POSTGRES_DB ?= makerspace_test
 # Rewrites the database name of the container's DATABASE_URL to TEST_POSTGRES_DB.
 TEST_DATABASE_URL_EXPR = $$(printf %s "$$DATABASE_URL" | sed "s\#/[^/?]*?\#/$$TEST_POSTGRES_DB?\#")
+
+# Local services bundle (local-services/compose.yaml): images are built from this checkout and tagged
+# with LOCAL_SERVICES_VERSION, which overrides MAKERSPACE_VERSION from local-services/.env.
+LOCAL_SERVICES_VERSION ?= dev
+IMAGE_PREFIX ?= ghcr.io/basmatireis/makerspace-core
+LOCAL_SERVICES_COMPOSE = MAKERSPACE_VERSION=$(LOCAL_SERVICES_VERSION) docker compose -f local-services/compose.yaml
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -115,10 +122,25 @@ check-frontend: ## Run lint, type checking, tests, and a production build.
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
 	docker compose run --rm --no-deps -e CI=true frontend pnpm build
 
-build: ## Build the backend, frontend, and printer connector production images.
+build: ## Build the backend, frontend, printer connector and streaming gateway production images.
 	docker build --target final -f backend/Dockerfile .
 	docker build --target final -f frontend/Dockerfile .
 	docker build --target final -f printer-connector/Dockerfile .
+	docker build --target final -f streaming-gateway/Dockerfile .
+
+build-local-services: ## Build the printer-connector and streaming-gateway images for local-services/compose.yaml.
+	docker build --target final --build-arg VERSION=$(LOCAL_SERVICES_VERSION) -t $(IMAGE_PREFIX)-printer-connector:$(LOCAL_SERVICES_VERSION) -f printer-connector/Dockerfile .
+	docker build --target final --build-arg VERSION=$(LOCAL_SERVICES_VERSION) -t $(IMAGE_PREFIX)-streaming-gateway:$(LOCAL_SERVICES_VERSION) -f streaming-gateway/Dockerfile .
+
+local-services-up: build-local-services ## Build and start printer connector, streaming gateway and go2rtc (needs local-services/.env and secrets/).
+	@test -f local-services/.env || { echo "local-services/.env is missing: copy local-services/.env.example and fill it in (docs/streaming-gateway.md)."; exit 1; }
+	$(LOCAL_SERVICES_COMPOSE) up -d
+
+local-services-down: ## Stop the local services bundle (keeps its data volumes).
+	$(LOCAL_SERVICES_COMPOSE) down
+
+local-services-logs: ## Follow the local services bundle logs.
+	$(LOCAL_SERVICES_COMPOSE) logs -f
 
 build-desktop: ## Build the native desktop application and platform installer.
 	cd desktop-terminal && pnpm install --frozen-lockfile

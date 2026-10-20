@@ -39,6 +39,8 @@ sudo chown 10001:10001 secrets/streaming-gateway-*; chmod 600 secrets/streaming-
 docker compose up -d
 ```
 
+   From a checkout of this repository, `make local-services-up` builds both images from the source (tag `dev`, override with `LOCAL_SERVICES_VERSION=...`) and starts the bundle; `make local-services-logs` and `make local-services-down` follow and stop it. Use this until the gateway image is published with a release.
+
 4. Assign cameras on the gateway's page (Assign camera) or with `POST /streaming-gateways/{id}/cameras {machineId, enabled}`. The machine needs an active Bambu printer assignment; the dialog offers exactly the machines without a camera that have one (`GET /local-services/camera-candidates`). `GET /local-services/cameras` shows health per camera. The gateway list shows when each gateway's credential expires; the gateway rotates it on its own during its last seven days.
 5. Publish a display that has a camera widget for that machine; `GET /signage/player/live` then contains `streams`.
 
