@@ -576,16 +576,14 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await expect(page.getByLabel('Override a scheduling conflict (audited)')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Settings' }).click();
   await expect(page.getByText(/Before enabling signup, add a public shift in Schedule/)).toBeVisible();
-  await page
-    .locator('#event-banner-upload')
-    .setInputFiles({
-      name: 'banner.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    });
+  await page.locator('#event-banner-upload').setInputFiles({
+    name: 'banner.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
   await expect(page.getByAltText('Event banner preview')).toBeVisible();
   await page.getByRole('button', { name: 'Upload banner' }).click();
   await expect.poll(() => bannerPurpose).toBe('banner');

@@ -159,14 +159,12 @@ export function buildPreviewData({
   const digests = new Map(assets.map((asset) => [asset.id, asset.sha256]));
   let announcements: RenderAnnouncement[] = [];
   if (preset === 'announcement') {
-    announcements = templates
-      .slice(0, 3)
-      .map((template, index) => ({
-        id: template.id,
-        templateId: template.id,
-        ...renderSample(template, names, date, timeZone),
-        startsAt: now - index,
-      }));
+    announcements = templates.slice(0, 3).map((template, index) => ({
+      id: template.id,
+      templateId: template.id,
+      ...renderSample(template, names, date, timeZone),
+      startsAt: now - index,
+    }));
     if (announcements.length === 0)
       announcements = [
         {

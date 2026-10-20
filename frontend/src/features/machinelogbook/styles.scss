@@ -136,10 +136,9 @@
   gap: $spacing-03;
 }
 .usage-row--filament {
-  grid-template-columns: minmax(8rem, 0.6fr) minmax(11rem, 1fr) minmax(11rem, 1fr) minmax(7rem, 0.4fr) minmax(
-      8rem,
-      0.4fr
-    ) auto;
+  grid-template-columns:
+    minmax(8rem, 0.6fr) minmax(11rem, 1fr) minmax(11rem, 1fr) minmax(7rem, 0.4fr) minmax(8rem, 0.4fr)
+    auto;
 }
 .review-layout {
   display: grid;
