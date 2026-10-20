@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@carbon/react':
-        specifier: 1.116.0
-        version: 1.116.0(react-dom@19.3.0(react@19.3.0))(react-is@18.3.1)(react@19.3.0)(sass@1.104.1)
+        specifier: 1.118.0
+        version: 1.118.0(react-dom@19.3.0(react@19.3.0))(react-is@18.3.1)(react@19.3.0)(sass@1.104.1)
       '@carbon/styles':
         specifier: 1.115.0
         version: 1.115.0(sass@1.104.1)
@@ -81,8 +81,8 @@ packages:
   '@carbon/motion@11.54.0':
     resolution: {integrity: sha512-gBixqCLn5DvH7DfY7CqvzDphWuU+/zgsEi5RtVzHSxgfx7dQ8Y/XwdAJvlCSh5kgxlVfXpnFc5UtyNVCuy+ZLg==}
 
-  '@carbon/react@1.116.0':
-    resolution: {integrity: sha512-+Y5mK7Wmnz2kq/D2jD2JMhm7gJQftE/R87xq6UZ5lTxz6L6+sreHzluTxiK53QPqOULgJz5gzFSef37h6bdv7w==}
+  '@carbon/react@1.118.0':
+    resolution: {integrity: sha512-YmwU2HdxfixQkbj/eC6BTk6bM2BCSlV4MyeTAks0q4/GvL63KBH4Nu0ikyRYaCct/sddXR2wuAJXKDnxPTCeew==}
     peerDependencies:
       react: ^16.8.6 || ^17.0.1 || ^18.2.0 || ^19.0.0
       react-dom: ^16.8.6 || ^17.0.1 || ^18.2.0 || ^19.0.0
@@ -97,6 +97,14 @@ packages:
       sass:
         optional: true
 
+  '@carbon/styles@1.117.0':
+    resolution: {integrity: sha512-1m/UH8aeSbDQ4PVIZ8no4QxvGhCswVV0tzMxdAaIrnRRtea6aMj6xQ3bKc1SR+F2SvpF2LJyut0Yd7hVQ4uoyQ==}
+    peerDependencies:
+      sass: ^1.33.0
+    peerDependenciesMeta:
+      sass:
+        optional: true
+
   '@carbon/themes@11.83.0':
     resolution: {integrity: sha512-YxfO7BsoPCT+tJbJq/JiOZaYE+OE1ZSGMK93yC5pws/X5l25qUpKxWOb85OQBkOnYrwKGUsPEbAKm2wXvbFb5w==}
     engines: {node: '>=22'}
@@ -104,8 +112,8 @@ packages:
   '@carbon/type@11.69.0':
     resolution: {integrity: sha512-8gmk6VrFV8+R7786YfLk+x1eS6EIGaCz7JLX/UEKlnVSck/7qnZdRjAkFceO3J6NL6hifP2X3wDO1qW9BMmESA==}
 
-  '@carbon/utilities@0.25.0':
-    resolution: {integrity: sha512-00zsQ3ldFKQUb1CrQ47pMZHDDigY9gR5OiusxdugyGBJmZUMg2FhycHQD94W35YYv28sG7ILNQJQ/x1tehDQzQ==}
+  '@carbon/utilities@0.27.0':
+    resolution: {integrity: sha512-wjQ33XDkuvrQxaSf1v72JYIEieYZjLz3jfNs/hFzEIaK8xlo56ie/VU48oJhpjfjcBlU6TtLbLrOO64pzQ2q5Q==}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -708,8 +716,8 @@ packages:
   tabbable@6.5.0:
     resolution: {integrity: sha512-wieBHXygIm7OyQOu5hQlkk62/WyCFYGlWg7L6/ZCUZwx0o398Zkn4pVmMyfYhfMG8kGrj/Krt8eIk6UKC6VzwA==}
 
-  temporal-polyfill@1.0.5:
-    resolution: {integrity: sha512-+H/mmY74i6wXCMcjIhGuSnODcyZnc4eois2myhOyX0UqRAKNXQY5m9iB1en5jQ/n4SXtjLXo1ElBI5bmn8tZwQ==}
+  temporal-polyfill@1.0.6:
+    resolution: {integrity: sha512-tYyEry1HLGUDbm2356W3iYD0OZdo7rlP7h98Zr/EnjqLZQwTAfcBDUvJnJbfA15v/vQad57hJZScG5O0W2oKEA==}
 
   temporal-spec@1.0.1:
     resolution: {integrity: sha512-wxVoanmDeavXie1vu2JaQ3WIc3JZnWAOYFBsJyATaVsXsycKYUflGsyBmrRSnoCpZJpwPyr38VpgSUlQ8CbFxg==}
@@ -813,15 +821,15 @@ snapshots:
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/react@1.116.0(react-dom@19.3.0(react@19.3.0))(react-is@18.3.1)(react@19.3.0)(sass@1.104.1)':
+  '@carbon/react@1.118.0(react-dom@19.3.0(react@19.3.0))(react-is@18.3.1)(react@19.3.0)(sass@1.104.1)':
     dependencies:
       '@babel/runtime': 8.0.7
       '@carbon/feature-flags': 1.10.0
       '@carbon/icons-react': 11.90.0(react@19.3.0)
       '@carbon/layout': 11.61.0
       '@carbon/motion': 11.54.0
-      '@carbon/styles': 1.115.0(sass@1.104.1)
-      '@carbon/utilities': 0.25.0
+      '@carbon/styles': 1.117.0(sass@1.104.1)
+      '@carbon/utilities': 0.27.0
       '@floating-ui/react': 0.27.20(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@ibm/telemetry-js': 1.12.0
       classnames: 2.5.1
@@ -861,6 +869,28 @@ snapshots:
     optionalDependencies:
       sass: 1.104.1
 
+  '@carbon/styles@1.117.0(sass@1.104.1)':
+    dependencies:
+      '@carbon/colors': 11.60.0
+      '@carbon/feature-flags': 1.10.0
+      '@carbon/grid': 11.64.0
+      '@carbon/layout': 11.61.0
+      '@carbon/motion': 11.54.0
+      '@carbon/themes': 11.83.0
+      '@carbon/type': 11.69.0
+      '@ibm/plex': 6.4.1
+      '@ibm/plex-mono': 2.5.0
+      '@ibm/plex-sans': 1.1.0
+      '@ibm/plex-sans-arabic': 1.1.0
+      '@ibm/plex-sans-devanagari': 1.1.0
+      '@ibm/plex-sans-hebrew': 1.1.0
+      '@ibm/plex-sans-thai': 1.1.0
+      '@ibm/plex-sans-thai-looped': 1.1.0
+      '@ibm/plex-serif': 2.0.0
+      '@ibm/telemetry-js': 1.12.0
+    optionalDependencies:
+      sass: 1.104.1
+
   '@carbon/themes@11.83.0':
     dependencies:
       '@carbon/colors': 11.60.0
@@ -875,11 +905,11 @@ snapshots:
       '@carbon/layout': 11.61.0
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/utilities@0.25.0':
+  '@carbon/utilities@0.27.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
       '@internationalized/number': 3.6.9
-      temporal-polyfill: 1.0.5
+      temporal-polyfill: 1.0.6
 
   '@floating-ui/core@1.8.0':
     dependencies:
@@ -1343,7 +1373,7 @@ snapshots:
 
   tabbable@6.5.0: {}
 
-  temporal-polyfill@1.0.5:
+  temporal-polyfill@1.0.6:
     dependencies:
       temporal-spec: 1.0.1
       temporal-utils: 1.0.3
