@@ -12,7 +12,6 @@ export default defineConfig({
       client: 'fetch',
       baseUrl: '/api/v1',
       clean: true,
-      prettier: false,
       override: {
         fetch: {
           includeHttpResponseReturnType: false,

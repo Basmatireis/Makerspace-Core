@@ -35,13 +35,7 @@ long bridge_list_readers(uintptr_t context, char *buffer, uint32_t *length) {
 	return status;
 }
 
-long bridge_read_uid(
-	uintptr_t context,
-	const char *reader,
-	uint8_t *uid,
-	uint32_t *uid_length,
-	uint32_t *protocol_out,
-) {
+long bridge_read_uid(uintptr_t context, const char *reader, uint8_t *uid, uint32_t *uid_length, uint32_t *protocol_out) {
 	SCARDHANDLE card;
 	uint32_t protocol = 0;
 	long status = SCardConnect((SCARDCONTEXT)context, reader, SCARD_SHARE_SHARED,
