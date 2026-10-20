@@ -124,7 +124,7 @@ func inUse(what string, references []Reference) error {
 	for _, reference := range references {
 		listed = append(
 			listed,
-			map[string]any{"kind": reference.Kind, "id": reference.ID.String(), "name": reference.Name},
+			map[string]any{"kind": string(reference.Kind), "id": reference.ID.String(), "name": reference.Name},
 		)
 	}
 	result := apperror.New(http.StatusConflict, "signage_in_use", what+" is still in use")
