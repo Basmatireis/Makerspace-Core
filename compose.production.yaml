@@ -18,6 +18,7 @@ services:
       start_period: 5s
     stop_grace_period: 30s
     restart: unless-stopped
+    networks: [application]
 
   backend:
     image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-backend:__MAKERSPACE_VERSION__
@@ -29,7 +30,9 @@ services:
       GOOSE_DRIVER: postgres
       GOOSE_DBSTRING: postgres://${POSTGRES_USER:-makerspace}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
       HTTP_ADDR: :8080
-      HTTP_TRUSTED_PROXIES: ${HTTP_TRUSTED_PROXIES:-}
+      # The bundled nginx always sits in front of the backend, so its network is trusted by
+      # default; add the host's TLS proxy only if it does not reach nginx through this network.
+      HTTP_TRUSTED_PROXIES: ${HTTP_TRUSTED_PROXIES:-${MAKERSPACE_NETWORK_SUBNET:-172.30.240.0/24}}
       SIGNAGE_PAIRING_ALLOWED_CIDRS: ${SIGNAGE_PAIRING_ALLOWED_CIDRS:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL to the public HTTPS origin}
       SESSION_COOKIE_SECURE: "true"
@@ -70,6 +73,7 @@ services:
     stop_grace_period: 15s
     restart: unless-stopped
     init: true
+    networks: [application]
     volumes:
       - file_storage:/var/lib/makerspace/files
 
@@ -89,6 +93,15 @@ services:
     stop_grace_period: 10s
     restart: unless-stopped
     init: true
+    networks: [application]
+
+networks:
+  # A fixed subnet lets the backend trust exactly the bundled nginx (and the Docker gateway
+  # through which the host's TLS proxy reaches the published port) as forwarding proxies.
+  application:
+    ipam:
+      config:
+        - subnet: ${MAKERSPACE_NETWORK_SUBNET:-172.30.240.0/24}
 
 volumes:
   postgres_data:
