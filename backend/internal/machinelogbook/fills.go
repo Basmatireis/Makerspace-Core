@@ -350,7 +350,7 @@ func (s *Service) closeFill(
 			ID:              ref.FillID,
 			ClosedAt:        pgTimestamp(occurredAt),
 			LeftoverG:       numericFromDecimal(plan.Leftover),
-			LeftoverOutcome: pointerAs[string](&outcome),
+			LeftoverOutcome: optional.Convert[string](&outcome),
 		},
 	); err != nil {
 		return databaseError(err)

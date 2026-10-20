@@ -67,7 +67,7 @@ func (s *Server) CreateAuthenticatedEventSignup(
 		p,
 		r.PublicId,
 		sourceAddress(ctx),
-		string(r.Body.SignupFor),
+		events.SignupFor(r.Body.SignupFor),
 		input,
 		requestIDPointer(ctx),
 	)

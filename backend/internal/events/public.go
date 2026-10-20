@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -19,7 +20,7 @@ import (
 func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, error) {
 	q := eventsdb.New(s.pool)
 	event, err := q.GetEventByPublicID(ctx, publicID)
-	if errors.Is(err, pgx.ErrNoRows) || event.Status == "archived" {
+	if errors.Is(err, pgx.ErrNoRows) || EventStatus(event.Status) == EventStatusArchived {
 		return PublicEvent{}, apperror.NotFound
 	}
 	if err != nil {
@@ -28,14 +29,15 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	if event.PublicTitle == nil {
 		return PublicEvent{}, apperror.NotFound
 	}
+	status := EventStatus(event.Status)
 	result := PublicEvent{
 		PublicID:            event.PublicID,
 		Title:               *event.PublicTitle,
 		Description:         event.PublicDescription,
 		Location:            event.PublicLocation,
-		Status:              event.Status,
+		Status:              status,
 		TimeZone:            s.cfg.MakerspaceTimeZone,
-		PublicSignupEnabled: event.PublicSignupEnabled && event.Status != "completed" && event.Status != "cancelled",
+		PublicSignupEnabled: event.PublicSignupEnabled && status != EventStatusCompleted && status != EventStatusCancelled,
 	}
 	sessions, err := q.ListEventSessions(ctx, event.ID)
 	if err != nil {
@@ -43,7 +45,7 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	}
 	result.Sessions = []Session{}
 	for _, row := range sessions {
-		if row.IsPublic && row.Status == "scheduled" {
+		if row.IsPublic && SessionStatus(row.Status) == SessionStatusScheduled {
 			item := sessionFromRow(row)
 			item.Description = row.Description
 			result.Sessions = append(result.Sessions, item)
@@ -60,9 +62,9 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	byShift := map[uuid.UUID][]Requirement{}
 	for _, row := range requirements {
 		remaining := int(row.RequiredCount) - int(row.FilledCount)
-		availability := "available"
+		availability := AvailabilityAvailable
 		if remaining <= 0 {
-			availability = "full"
+			availability = AvailabilityFull
 		}
 		item := Requirement{
 			ID:              row.ID,
@@ -72,19 +74,19 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			Description:     row.Description,
 			RequiredCount:   int(row.RequiredCount),
 			FilledCount:     int(row.FilledCount),
-			EligibilityMode: row.EligibilityMode,
+			EligibilityMode: EligibilityMode(row.EligibilityMode),
 			Availability:    availability,
 			Version:         int64(row.Version),
 		}
-		if row.EligibilityMode == "roles" && remaining > 0 {
-			item.Availability = "authenticated_only"
+		if EligibilityMode(row.EligibilityMode) == EligibilityRoles && remaining > 0 {
+			item.Availability = AvailabilityAuthenticatedOnly
 		}
 		byShift[row.ShiftID] = append(byShift[row.ShiftID], item)
 	}
 	result.Shifts = []PublicShift{}
 	now := time.Now().UTC()
 	for _, row := range shifts {
-		if !row.IsPublic || row.Status == "cancelled" {
+		if !row.IsPublic || ShiftStatus(row.Status) == ShiftStatusCancelled {
 			continue
 		}
 		shift := Shift{
@@ -98,18 +100,18 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			SignupOpensAt:       pgTime(row.SignupOpensAt),
 			SignupClosesAt:      pgTime(row.SignupClosesAt),
 			IsPublic:            true,
-			Status:              row.Status,
-			LinkedSessionStatus: row.SessionStatus,
+			Status:              ShiftStatus(row.Status),
+			LinkedSessionStatus: optional.Convert[SessionStatus](row.SessionStatus),
 			Version:             int64(row.Version),
 		}
-		effective := row.Status == "open" && result.PublicSignupEnabled &&
-			(row.SessionStatus == nil || *row.SessionStatus != "cancelled") &&
+		effective := ShiftStatus(row.Status) == ShiftStatusOpen && result.PublicSignupEnabled &&
+			(row.SessionStatus == nil || SessionStatus(*row.SessionStatus) != SessionStatusCancelled) &&
 			(!row.SignupOpensAt.Valid || !now.Before(row.SignupOpensAt.Time)) &&
 			(!row.SignupClosesAt.Valid || now.Before(row.SignupClosesAt.Time))
 		items := byShift[row.ID]
 		if !effective {
 			for i := range items {
-				items[i].Availability = "not_open"
+				items[i].Availability = AvailabilityNotOpen
 			}
 		}
 		result.Shifts = append(result.Shifts, PublicShift{Shift: shift, Requirements: items})
@@ -121,10 +123,10 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	result.Files = []EventFile{}
 	for _, row := range files {
 		if row.IsBanner {
-			result.HasBanner = row.Visibility == "public"
+			result.HasBanner = FileVisibility(row.Visibility) == FileVisibilityPublic
 			continue
 		}
-		if row.Visibility == "public" {
+		if FileVisibility(row.Visibility) == FileVisibilityPublic {
 			result.Files = append(
 				result.Files,
 				EventFile{
@@ -132,7 +134,7 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 					EventID:          uuid.Nil,
 					FileID:           uuid.Nil,
 					Description:      row.Description,
-					Visibility:       "public",
+					Visibility:       FileVisibilityPublic,
 					IsBanner:         false,
 					OriginalFilename: row.OriginalFilename,
 					ContentType:      row.ContentType,
@@ -168,7 +170,7 @@ func (s *Service) SignupAnonymous(
 		return SignupResult{}, err
 	}
 	input.PersonID = nil
-	assignment, url, err := s.createAssignment(ctx, nil, event.ID, input, "public_signup", true, true, requestID)
+	assignment, url, err := s.createAssignment(ctx, nil, event.ID, input, SourcePublicSignup, true, true, requestID)
 	if err != nil {
 		return SignupResult{}, err
 	}
@@ -179,7 +181,8 @@ func (s *Service) SignupAnonymous(
 func (s *Service) SignupAuthenticated(
 	ctx context.Context,
 	principal authorization.Principal,
-	publicID, clientIP, signupFor string,
+	publicID, clientIP string,
+	signupFor SignupFor,
 	input AssignmentInput,
 	requestID *uuid.UUID,
 ) (SignupResult, error) {
@@ -191,7 +194,7 @@ func (s *Service) SignupAuthenticated(
 		return SignupResult{}, err
 	}
 	switch signupFor {
-	case "self":
+	case SignupForSelf:
 		_, emailNormalized, _, phoneNormalized, normalizationErr := normalizeContact(input.Email, input.Phone)
 		if normalizationErr != nil {
 			return SignupResult{}, normalizationErr
@@ -209,14 +212,14 @@ func (s *Service) SignupAuthenticated(
 			&principal,
 			event.ID,
 			input,
-			"authenticated_self",
+			SourceAuthenticatedSelf,
 			true,
 			false,
 			requestID,
 		)
 		assignment.PublicID = publicID
 		return SignupResult{Assignment: assignment}, err
-	case "other":
+	case SignupForOther:
 		_, emailNormalized, _, phoneNormalized, normalizationErr := normalizeContact(input.Email, input.Phone)
 		if normalizationErr != nil {
 			return SignupResult{}, normalizationErr
@@ -234,7 +237,7 @@ func (s *Service) SignupAuthenticated(
 			&principal,
 			event.ID,
 			input,
-			"authenticated_on_behalf",
+			SourceAuthenticatedOnBehalf,
 			true,
 			true,
 			requestID,
@@ -445,14 +448,14 @@ func (s *Service) updateAssignmentContact(
 	if int64(current.Version) != input.ExpectedVersion {
 		return Assignment{}, apperror.StaleWrite
 	}
-	if current.Status != "active" || current.PersonalDataErasedAt.Valid {
+	if AssignmentStatus(current.Status) != AssignmentStatusActive || current.PersonalDataErasedAt.Valid {
 		return Assignment{}, apperror.Conflict
 	}
 	event, err := q.GetEventForUpdate(ctx, current.EventID)
 	if err != nil {
 		return Assignment{}, err
 	}
-	if event.Status == "archived" {
+	if EventStatus(event.Status) == EventStatusArchived {
 		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	firstName, lastName := "", ""
@@ -591,14 +594,14 @@ func (s *Service) moveAssignment(
 	if int64(current.Version) != expected {
 		return Assignment{}, apperror.StaleWrite
 	}
-	if current.Status != "active" || current.PersonalDataErasedAt.Valid {
+	if AssignmentStatus(current.Status) != AssignmentStatusActive || current.PersonalDataErasedAt.Valid {
 		return Assignment{}, apperror.Conflict
 	}
 	event, err := q.GetEventForUpdate(ctx, current.EventID)
 	if err != nil {
 		return Assignment{}, err
 	}
-	if event.Status == "archived" || event.Status == "completed" || event.Status == "cancelled" {
+	if status := EventStatus(event.Status); status == EventStatusArchived || status == EventStatusCompleted || status == EventStatusCancelled {
 		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	requirementIDs := []uuid.UUID{current.RequirementID}
@@ -620,7 +623,7 @@ func (s *Service) moveAssignment(
 	if err != nil {
 		return Assignment{}, err
 	}
-	if shift.Status == "cancelled" {
+	if ShiftStatus(shift.Status) == ShiftStatusCancelled {
 		if publicFlow {
 			return Assignment{}, signupUnavailable()
 		}
@@ -647,7 +650,7 @@ func (s *Service) moveAssignment(
 	if publicFlow && !isEffectivePublicSignup(event, shift) {
 		return Assignment{}, signupUnavailable()
 	}
-	if req.EligibilityMode == "roles" {
+	if EligibilityMode(req.EligibilityMode) == EligibilityRoles {
 		if current.PersonID == nil {
 			return Assignment{}, signupUnavailable()
 		}
@@ -798,14 +801,14 @@ func (s *Service) cancelAssignment(
 	if int64(current.Version) != expected {
 		return Assignment{}, apperror.StaleWrite
 	}
-	if current.Status != "active" {
+	if AssignmentStatus(current.Status) != AssignmentStatusActive {
 		return Assignment{}, apperror.Conflict
 	}
 	event, err := q.GetEventForUpdate(ctx, current.EventID)
 	if err != nil {
 		return Assignment{}, err
 	}
-	if event.Status == "archived" {
+	if EventStatus(event.Status) == EventStatusArchived {
 		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	var actor *uuid.UUID

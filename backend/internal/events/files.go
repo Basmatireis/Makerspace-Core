@@ -54,7 +54,7 @@ func (s *Service) ListFiles(
 				EventID:          row.EventID,
 				FileID:           row.FileID,
 				Description:      row.Description,
-				Visibility:       row.Visibility,
+				Visibility:       FileVisibility(row.Visibility),
 				IsBanner:         row.IsBanner,
 				OriginalFilename: row.OriginalFilename,
 				ContentType:      row.ContentType,
@@ -72,7 +72,8 @@ func (s *Service) AttachFile(
 	ctx context.Context,
 	principal authorization.Principal,
 	eventID uuid.UUID,
-	filename, contentType, visibility string,
+	filename, contentType string,
+	visibility FileVisibility,
 	isBanner bool,
 	description *string,
 	data []byte,
@@ -98,10 +99,10 @@ func (s *Service) AttachFile(
 	if err := validateEventFileContent(contentType, data); err != nil {
 		return EventFile{}, err
 	}
-	if visibility != "internal" && visibility != "public" {
+	if visibility != FileVisibilityInternal && visibility != FileVisibilityPublic {
 		return EventFile{}, apperror.Invalid("visibility is invalid")
 	}
-	if isBanner && (visibility != "public" || !isEventImageType(contentType)) {
+	if isBanner && (visibility != FileVisibilityPublic || !isEventImageType(contentType)) {
 		return EventFile{}, apperror.Invalid("a banner must be a public JPEG, PNG, GIF, or WebP image")
 	}
 	description, err := cleanOptional(description, 2000)
@@ -143,7 +144,7 @@ func (s *Service) AttachFile(
 			EventID:     eventID,
 			FileID:      stored.ID,
 			Description: description,
-			Visibility:  visibility,
+			Visibility:  string(visibility),
 			IsBanner:    isBanner,
 		},
 	)
@@ -173,7 +174,7 @@ func (s *Service) AttachFile(
 		EventID:          row.EventID,
 		FileID:           row.FileID,
 		Description:      row.Description,
-		Visibility:       row.Visibility,
+		Visibility:       FileVisibility(row.Visibility),
 		IsBanner:         row.IsBanner,
 		OriginalFilename: stored.OriginalFilename,
 		ContentType:      stored.ContentType,
@@ -238,7 +239,7 @@ func (s *Service) UpdateFile(
 	principal authorization.Principal,
 	eventID, id uuid.UUID,
 	expected int64,
-	visibility string,
+	visibility FileVisibility,
 	isBanner *bool,
 	description *string,
 	requestID *uuid.UUID,
@@ -249,7 +250,7 @@ func (s *Service) UpdateFile(
 	if err := validateVersion(expected); err != nil {
 		return EventFile{}, err
 	}
-	if visibility != "internal" && visibility != "public" {
+	if visibility != FileVisibilityInternal && visibility != FileVisibilityPublic {
 		return EventFile{}, apperror.Invalid("visibility is invalid")
 	}
 	description, err := cleanOptional(description, 2000)
@@ -279,7 +280,7 @@ func (s *Service) UpdateFile(
 	if isBanner != nil {
 		nextBanner = *isBanner
 	}
-	if visibility == "internal" {
+	if visibility == FileVisibilityInternal {
 		nextBanner = false
 	}
 	if nextBanner && !isEventImageType(current.ContentType) {
@@ -297,7 +298,7 @@ func (s *Service) UpdateFile(
 		ctx,
 		eventsdb.UpdateEventFileParams{
 			Description:     description,
-			Visibility:      visibility,
+			Visibility:      string(visibility),
 			IsBanner:        nextBanner,
 			ID:              id,
 			EventID:         eventID,
@@ -329,7 +330,7 @@ func (s *Service) UpdateFile(
 		EventID:          row.EventID,
 		FileID:           row.FileID,
 		Description:      row.Description,
-		Visibility:       row.Visibility,
+		Visibility:       FileVisibility(row.Visibility),
 		IsBanner:         row.IsBanner,
 		OriginalFilename: current.OriginalFilename,
 		ContentType:      current.ContentType,
@@ -423,7 +424,7 @@ func (s *Service) OpenFile(
 		EventID:          row.EventID,
 		FileID:           row.FileID,
 		Description:      row.Description,
-		Visibility:       row.Visibility,
+		Visibility:       FileVisibility(row.Visibility),
 		IsBanner:         row.IsBanner,
 		OriginalFilename: row.OriginalFilename,
 		ContentType:      row.ContentType,
@@ -453,7 +454,7 @@ func (s *Service) OpenPublicFile(
 		EventID:          uuid.Nil,
 		FileID:           uuid.Nil,
 		Description:      row.Description,
-		Visibility:       "public",
+		Visibility:       FileVisibilityPublic,
 		IsBanner:         row.IsBanner,
 		OriginalFilename: row.OriginalFilename,
 		ContentType:      row.ContentType,

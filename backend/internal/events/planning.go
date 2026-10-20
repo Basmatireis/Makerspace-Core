@@ -264,7 +264,7 @@ func (s *Service) CreateTask(
 	id := ids.New()
 	var completedAt *time.Time
 	var completedBy *uuid.UUID
-	if input.Status == "done" {
+	if input.Status == TaskStatusDone {
 		now := time.Now().UTC()
 		completedAt = &now
 		actor := principal.AccountID
@@ -278,8 +278,8 @@ func (s *Service) CreateTask(
 			TaskListID:           input.TaskListID,
 			Title:                input.Title,
 			Description:          input.Description,
-			Status:               input.Status,
-			Priority:             input.Priority,
+			Status:               string(input.Status),
+			Priority:             string(input.Priority),
 			AssigneePersonID:     input.AssigneePersonID,
 			DueAt:                toPGTime(input.DueAt),
 			CompletedAt:          toPGTime(completedAt),
@@ -292,7 +292,7 @@ func (s *Service) CreateTask(
 		return Task{}, databaseError(err)
 	}
 	action := "event_task.created"
-	if input.Status == "done" {
+	if input.Status == TaskStatusDone {
 		action = "event_task.completed"
 	}
 	actor := principal.AccountID
@@ -354,13 +354,13 @@ func (s *Service) UpdateTask(
 	completedAt := pgTime(current.CompletedAt)
 	completedBy := current.CompletedByAccountID
 	action := "event_task.updated"
-	if input.Status == "done" && current.Status != "done" {
+	if input.Status == TaskStatusDone && TaskStatus(current.Status) != TaskStatusDone {
 		now := time.Now().UTC()
 		completedAt = &now
 		actor := principal.AccountID
 		completedBy = &actor
 		action = "event_task.completed"
-	} else if input.Status != "done" && current.Status == "done" {
+	} else if input.Status != TaskStatusDone && TaskStatus(current.Status) == TaskStatusDone {
 		completedAt = nil
 		completedBy = nil
 		action = "event_task.reopened"
@@ -371,8 +371,8 @@ func (s *Service) UpdateTask(
 			TaskListID:           input.TaskListID,
 			Title:                input.Title,
 			Description:          input.Description,
-			Status:               input.Status,
-			Priority:             input.Priority,
+			Status:               string(input.Status),
+			Priority:             string(input.Priority),
 			AssigneePersonID:     input.AssigneePersonID,
 			DueAt:                toPGTime(input.DueAt),
 			CompletedAt:          toPGTime(completedAt),
@@ -472,18 +472,18 @@ func validateTaskInput(input TaskInput) (TaskInput, error) {
 		return input, err
 	}
 	if input.Status == "" {
-		input.Status = "open"
+		input.Status = TaskStatusOpen
 	}
 	switch input.Status {
-	case "open", "in_progress", "blocked", "done", "cancelled":
+	case TaskStatusOpen, TaskStatusInProgress, TaskStatusBlocked, TaskStatusDone, TaskStatusCancelled:
 	default:
 		return input, apperror.Invalid("task status is invalid")
 	}
 	if input.Priority == "" {
-		input.Priority = "normal"
+		input.Priority = TaskPriorityNormal
 	}
 	switch input.Priority {
-	case "low", "normal", "high", "urgent":
+	case TaskPriorityLow, TaskPriorityNormal, TaskPriorityHigh, TaskPriorityUrgent:
 	default:
 		return input, apperror.Invalid("task priority is invalid")
 	}
@@ -508,8 +508,8 @@ func taskFromRow(row eventsdb.EventTask) Task {
 		TaskListID:         row.TaskListID,
 		Title:              row.Title,
 		Description:        row.Description,
-		Status:             row.Status,
-		Priority:           row.Priority,
+		Status:             TaskStatus(row.Status),
+		Priority:           TaskPriority(row.Priority),
 		AssigneePersonID:   row.AssigneePersonID,
 		DueAt:              pgTime(row.DueAt),
 		CompletedAt:        pgTime(row.CompletedAt),

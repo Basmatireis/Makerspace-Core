@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 )
 
 func (s *Server) ListOrganizations(
@@ -26,7 +27,7 @@ func (s *Server) ListOrganizations(
 		machinelogbook.OrganizationFilters{
 			Search:         defaultString(r.Params.Search),
 			Active:         r.Params.Active,
-			Kind:           enumPointer[machinelogbook.OrganizationKind](kind),
+			Kind:           optional.Convert[machinelogbook.OrganizationKind](kind),
 			PricingGroupID: r.Params.PricingGroupId,
 			Page:           defaultInt(r.Params.Page, 1),
 			PageSize:       defaultInt(r.Params.PageSize, 25),

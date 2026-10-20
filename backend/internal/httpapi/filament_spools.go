@@ -6,6 +6,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -158,7 +159,7 @@ func leftoverInput(v openapi.FilamentLeftoverInput) machinelogbook.LeftoverInput
 	return machinelogbook.LeftoverInput{
 		Basis:        machinelogbook.LeftoverBasis(v.Basis),
 		GrossWeightG: decimalNullable(v.GrossWeightG),
-		Disposition:  enumPointer[machinelogbook.LeftoverDisposition](disposition),
+		Disposition:  optional.Convert[machinelogbook.LeftoverDisposition](disposition),
 	}
 }
 
@@ -309,7 +310,7 @@ func (s *Server) UpdateFilamentSpool(
 		r.SpoolId,
 		machinelogbook.FilamentSpoolUpdate{
 			ExpectedVersion:      body.ExpectedVersion,
-			Kind:                 enumPointer[machinelogbook.SpoolKind](body.Kind),
+			Kind:                 optional.Convert[machinelogbook.SpoolKind](body.Kind),
 			Label:                nullableStringPointer(body.Label),
 			Manufacturer:         nullableStringPointer(body.Manufacturer),
 			ProductName:          nullableStringPointer(body.ProductName),

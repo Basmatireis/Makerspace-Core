@@ -9,6 +9,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
@@ -147,7 +148,7 @@ func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
 		FillNumber:         u.FillNumber,
 		EstimationMethod:   u.EstimationMethod,
 		CalculationVersion: u.CalculationVersion,
-		EstimateQuality:    pointerAs[EstimateQuality](u.EstimateQuality),
+		EstimateQuality:    optional.Convert[EstimateQuality](u.EstimateQuality),
 		ReportRevision:     u.ReportRevision,
 		StaffCorrected:     u.StaffCorrected,
 	}
@@ -165,7 +166,7 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 		ConnectorName:      row.ConnectorName,
 		FileName:           row.FileName,
 		StartedAt:          started,
-		Outcome:            pointerAs[RunOutcome](row.Outcome),
+		Outcome:            optional.Convert[RunOutcome](row.Outcome),
 		UsagesFromMachine:  row.UsagesFromMachine,
 		Version:            row.Version,
 		Usages:             []MachineJobUsage{},
@@ -367,8 +368,8 @@ func (s *Service) ListRuns(
 		machinelogbookdb.ListRunsParams{
 			Search:     escapeLike(strings.TrimSpace(filters.Search)),
 			MachineID:  filters.MachineID,
-			States:     sliceAs[string](filters.States),
-			Source:     pointerAs[string](filters.Source),
+			States:     optional.ConvertSlice[string](filters.States),
+			Source:     optional.Convert[string](filters.Source),
 			Assigned:   filters.Assigned,
 			FromTime:   pgTime(filters.From),
 			ToTime:     pgTime(filters.To),

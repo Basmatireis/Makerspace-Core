@@ -6,13 +6,116 @@ import (
 	"github.com/google/uuid"
 )
 
+// EventStatus is where an event stands in its lifecycle.
+type EventStatus string
+
+const (
+	EventStatusDraft     EventStatus = "draft"
+	EventStatusPlanning  EventStatus = "planning"
+	EventStatusConfirmed EventStatus = "confirmed"
+	EventStatusCompleted EventStatus = "completed"
+	EventStatusCancelled EventStatus = "cancelled"
+	EventStatusArchived  EventStatus = "archived"
+)
+
+// SessionStatus is whether an event session takes place.
+type SessionStatus string
+
+const (
+	SessionStatusScheduled SessionStatus = "scheduled"
+	SessionStatusCancelled SessionStatus = "cancelled"
+)
+
+// TaskStatus is how far an event task has progressed.
+type TaskStatus string
+
+const (
+	TaskStatusOpen       TaskStatus = "open"
+	TaskStatusInProgress TaskStatus = "in_progress"
+	TaskStatusBlocked    TaskStatus = "blocked"
+	TaskStatusDone       TaskStatus = "done"
+	TaskStatusCancelled  TaskStatus = "cancelled"
+)
+
+// TaskPriority is how urgent an event task is.
+type TaskPriority string
+
+const (
+	TaskPriorityLow    TaskPriority = "low"
+	TaskPriorityNormal TaskPriority = "normal"
+	TaskPriorityHigh   TaskPriority = "high"
+	TaskPriorityUrgent TaskPriority = "urgent"
+)
+
+// ShiftStatus is whether a staffing shift accepts signups.
+type ShiftStatus string
+
+const (
+	ShiftStatusDraft     ShiftStatus = "draft"
+	ShiftStatusOpen      ShiftStatus = "open"
+	ShiftStatusClosed    ShiftStatus = "closed"
+	ShiftStatusCancelled ShiftStatus = "cancelled"
+)
+
+// EligibilityMode is who may fill a staffing requirement.
+type EligibilityMode string
+
+const (
+	EligibilityAnyone EligibilityMode = "anyone"
+	EligibilityRoles  EligibilityMode = "roles"
+)
+
+// RequirementAvailability is whether the public can still sign up for a requirement.
+type RequirementAvailability string
+
+const (
+	AvailabilityAvailable         RequirementAvailability = "available"
+	AvailabilityFull              RequirementAvailability = "full"
+	AvailabilityAuthenticatedOnly RequirementAvailability = "authenticated_only"
+	AvailabilityNotOpen           RequirementAvailability = "not_open"
+)
+
+// AssignmentStatus is whether a signup still counts.
+type AssignmentStatus string
+
+const (
+	AssignmentStatusActive    AssignmentStatus = "active"
+	AssignmentStatusCancelled AssignmentStatus = "cancelled"
+)
+
+// AssignmentSource is how a signup came about.
+type AssignmentSource string
+
+const (
+	SourcePublicSignup          AssignmentSource = "public_signup"
+	SourceStaffEntry            AssignmentSource = "staff_entry"
+	SourceAuthenticatedSelf     AssignmentSource = "authenticated_self"
+	SourceAuthenticatedOnBehalf AssignmentSource = "authenticated_on_behalf"
+)
+
+// SignupFor is whom an authenticated public signup is for.
+type SignupFor string
+
+const (
+	SignupForSelf  SignupFor = "self"
+	SignupForOther SignupFor = "other"
+)
+
+// FileVisibility is who may download an event file.
+type FileVisibility string
+
+const (
+	FileVisibilityInternal FileVisibility = "internal"
+	FileVisibilityPublic   FileVisibility = "public"
+)
+
 type Event struct {
 	ID                  uuid.UUID
 	Name                string
 	InternalDescription *string
 	Location            *string
 	OwnerPersonID       *uuid.UUID
-	Status              string
+	Status              EventStatus
 	PublicTitle         *string
 	PublicDescription   *string
 	PublicLocation      *string
@@ -53,7 +156,7 @@ type Session struct {
 	Description          *string
 	StartsAt, EndsAt     time.Time
 	IsPublic             bool
-	Status               string
+	Status               SessionStatus
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
@@ -62,7 +165,7 @@ type SessionInput struct {
 	Name, Location, Description *string
 	StartsAt, EndsAt            time.Time
 	IsPublic                    bool
-	Status                      string
+	Status                      SessionStatus
 	ExpectedVersion             int64
 }
 
@@ -87,7 +190,8 @@ type Task struct {
 	TaskListID           *uuid.UUID
 	Title                string
 	Description          *string
-	Status, Priority     string
+	Status               TaskStatus
+	Priority             TaskPriority
 	AssigneePersonID     *uuid.UUID
 	DueAt, CompletedAt   *time.Time
 	CompletedByAccount   *uuid.UUID
@@ -100,7 +204,8 @@ type TaskInput struct {
 	TaskListID       *uuid.UUID
 	Title            string
 	Description      *string
-	Status, Priority string
+	Status           TaskStatus
+	Priority         TaskPriority
 	AssigneePersonID *uuid.UUID
 	DueAt            *time.Time
 	SortOrder        int
@@ -115,8 +220,8 @@ type Shift struct {
 	StartsAt, EndsAt              time.Time
 	SignupOpensAt, SignupClosesAt *time.Time
 	IsPublic                      bool
-	Status                        string
-	LinkedSessionStatus           *string
+	Status                        ShiftStatus
+	LinkedSessionStatus           *SessionStatus
 	Version                       int64
 	CreatedAt, UpdatedAt          time.Time
 }
@@ -128,7 +233,7 @@ type ShiftInput struct {
 	StartsAt, EndsAt              time.Time
 	SignupOpensAt, SignupClosesAt *time.Time
 	IsPublic                      bool
-	Status                        string
+	Status                        ShiftStatus
 	ExpectedVersion               int64
 }
 
@@ -138,9 +243,9 @@ type Requirement struct {
 	Description          *string
 	RequiredCount        int
 	FilledCount          int
-	EligibilityMode      string
+	EligibilityMode      EligibilityMode
 	EligibleRoleIDs      []uuid.UUID
-	Availability         string
+	Availability         RequirementAvailability
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
@@ -149,7 +254,7 @@ type RequirementInput struct {
 	Name            string
 	Description     *string
 	RequiredCount   int
-	EligibilityMode string
+	EligibilityMode EligibilityMode
 	EligibleRoleIDs []uuid.UUID
 	ExpectedVersion int64
 }
@@ -160,7 +265,8 @@ type Assignment struct {
 	PersonID                            *uuid.UUID
 	FirstName, LastName                 *string
 	Email, Phone                        *string
-	Source, Status                      string
+	Source                              AssignmentSource
+	Status                              AssignmentStatus
 	ConflictOverriddenByAccountID       *uuid.UUID
 	CancelledAt, PersonalDataErasedAt   *time.Time
 	Version                             int64
@@ -198,7 +304,7 @@ type PublicEvent struct {
 	Title               string
 	Description         *string
 	Location            *string
-	Status              string
+	Status              EventStatus
 	TimeZone            string
 	PublicSignupEnabled bool
 	HasBanner           bool
@@ -215,7 +321,7 @@ type PublicShift struct {
 type EventFile struct {
 	ID, EventID, FileID  uuid.UUID
 	Description          *string
-	Visibility           string
+	Visibility           FileVisibility
 	IsBanner             bool
 	OriginalFilename     string
 	ContentType          string

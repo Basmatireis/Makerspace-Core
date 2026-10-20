@@ -110,7 +110,7 @@ func effectivePriceForRow(job machinelogbookdb.MachineJob, calculated pgtype.Num
 		value := decimalFromNumeric(calculated)
 		calc = &value
 	}
-	result := applyPriceAdjustment(calc, pointerAs[PriceAdjustmentKind](job.PriceAdjustmentKind), decimalFromNumeric(job.PriceAdjustmentValue))
+	result := applyPriceAdjustment(calc, optional.Convert[PriceAdjustmentKind](job.PriceAdjustmentKind), decimalFromNumeric(job.PriceAdjustmentValue))
 	if result == nil {
 		return pgtype.Numeric{}
 	}

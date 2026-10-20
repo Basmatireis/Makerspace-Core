@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 )
 
 func (s *Server) ListMachineTypes(
@@ -213,7 +214,7 @@ func (s *Server) ListMachineJobs(
 			CustomerID: r.Params.CustomerId,
 			OperatorID: r.Params.OperatorPersonId,
 			MaterialID: r.Params.MaterialId,
-			Outcome:    enumPointer[machinelogbook.JobOutcome](r.Params.Outcome),
+			Outcome:    optional.Convert[machinelogbook.JobOutcome](r.Params.Outcome),
 			From:       r.Params.From,
 			To:         r.Params.To,
 			Page:       defaultInt(r.Params.Page, 1),
@@ -314,7 +315,7 @@ func (s *Server) UpdateMachineJob(
 			MachineID:        r.Body.MachineId,
 			Customer:         customer,
 			OperatorPersonID: r.Body.OperatorPersonId,
-			OutcomeOverride:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(r.Body.OutcomeOverride)),
+			OutcomeOverride:  optional.Convert[machinelogbook.RunOutcome](nullableStringPointer(r.Body.OutcomeOverride)),
 			Title:            nullableStringPointer(r.Body.Title),
 			Notes:            nullableStringPointer(r.Body.Notes),
 			PricingGroupID:   uuidNullable(r.Body.PricingGroupId),
@@ -405,9 +406,9 @@ func (s *Server) ListMachineLogbookWorkItems(
 		p,
 		machinelogbook.WorkItemFilters{
 			Search:   defaultString(r.Params.Search),
-			Statuses: enumSlice[machinelogbook.WorkItemStatus](stringSlice(r.Params.Status)),
-			Sources:  enumSlice[machinelogbook.RunSource](stringSlice(r.Params.Source)),
-			Billing: enumSlice[machinelogbook.BillingState](stringSlice(
+			Statuses: optional.ConvertSlice[machinelogbook.WorkItemStatus](stringSlice(r.Params.Status)),
+			Sources:  optional.ConvertSlice[machinelogbook.RunSource](stringSlice(r.Params.Source)),
+			Billing: optional.ConvertSlice[machinelogbook.BillingState](stringSlice(
 				r.Params.Billing,
 			)),
 			MachineIDs:  derefSlice(r.Params.MachineId),

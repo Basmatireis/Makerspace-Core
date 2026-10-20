@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 )
 
 func (s *Service) Overview(ctx context.Context, p authorization.Principal) (Overview, error) {
@@ -109,7 +110,7 @@ func (s *Service) fillOverviewWorkItems(
 	rows, err := q.ListWorkItems(
 		ctx,
 		machinelogbookdb.ListWorkItemsParams{
-			Statuses: sliceAs[string]([]WorkItemStatus{
+			Statuses: optional.ConvertSlice[string]([]WorkItemStatus{
 				WorkItemRunning, WorkItemRunningUnassigned, WorkItemUnassigned, WorkItemNeedsOutcome,
 			}),
 			MachineIds:    []uuid.UUID{},

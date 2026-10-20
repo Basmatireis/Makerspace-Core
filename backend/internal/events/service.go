@@ -101,13 +101,13 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 		return Event{}, err
 	}
 	for _, session := range sessions {
-		if session.Status == "scheduled" {
+		if SessionStatus(session.Status) == SessionStatusScheduled {
 			extendRange(&item, session.StartsAt, session.EndsAt)
 		}
 	}
 	if item.RangeStartsAt == nil {
 		for _, shift := range shifts {
-			if shift.Status != "cancelled" {
+			if ShiftStatus(shift.Status) != ShiftStatusCancelled {
 				extendRange(&item, shift.StartsAt, shift.EndsAt)
 			}
 		}
@@ -122,7 +122,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 		return Event{}, err
 	}
 	for _, task := range tasks {
-		if task.Status != "done" && task.Status != "cancelled" {
+		if TaskStatus(task.Status) != TaskStatusDone && TaskStatus(task.Status) != TaskStatusCancelled {
 			if due := pgTime(task.DueAt); due != nil {
 				setEarlier(&item.NextDeadline, *due)
 			}
@@ -138,12 +138,12 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	}
 	now := time.Now().UTC()
 	for _, session := range sessions {
-		if session.Status == "scheduled" && session.StartsAt.After(now) {
+		if SessionStatus(session.Status) == SessionStatusScheduled && session.StartsAt.After(now) {
 			setEarlier(&item.NextScheduleAt, session.StartsAt)
 		}
 	}
 	for _, shift := range shifts {
-		if shift.Status != "cancelled" && shift.StartsAt.After(now) {
+		if ShiftStatus(shift.Status) != ShiftStatusCancelled && shift.StartsAt.After(now) {
 			setEarlier(&item.NextScheduleAt, shift.StartsAt)
 		}
 	}
@@ -274,7 +274,7 @@ func (s *Service) Update(
 	if int64(current.Version) != input.ExpectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if current.Status == "completed" || current.Status == "cancelled" || current.Status == "archived" {
+	if status := EventStatus(current.Status); status == EventStatusCompleted || status == EventStatusCancelled || status == EventStatusArchived {
 		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	if input.PublicSignupEnabled {
@@ -338,13 +338,13 @@ func (s *Service) Update(
 	return eventFromRow(row), nil
 }
 
-var lifecycleTransitions = map[string]map[string]bool{
-	"draft": {"planning": true}, "planning": {"draft": true, "confirmed": true, "cancelled": true},
-	"confirmed": {
-		"planning":  true,
-		"completed": true,
-		"cancelled": true,
-	}, "completed": {"archived": true}, "cancelled": {"archived": true},
+var lifecycleTransitions = map[EventStatus]map[EventStatus]bool{
+	EventStatusDraft: {EventStatusPlanning: true}, EventStatusPlanning: {EventStatusDraft: true, EventStatusConfirmed: true, EventStatusCancelled: true},
+	EventStatusConfirmed: {
+		EventStatusPlanning:  true,
+		EventStatusCompleted: true,
+		EventStatusCancelled: true,
+	}, EventStatusCompleted: {EventStatusArchived: true}, EventStatusCancelled: {EventStatusArchived: true},
 }
 
 func (s *Service) Transition(
@@ -352,7 +352,7 @@ func (s *Service) Transition(
 	principal authorization.Principal,
 	id uuid.UUID,
 	expectedVersion int64,
-	target string,
+	target EventStatus,
 	requestID *uuid.UUID,
 ) (Event, error) {
 	if !principal.Has(authorization.EventsManage) {
@@ -377,14 +377,14 @@ func (s *Service) Transition(
 	if int64(current.Version) != expectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if !lifecycleTransitions[current.Status][target] {
+	if !lifecycleTransitions[EventStatus(current.Status)][target] {
 		return Event{}, apperror.New(
 			http.StatusConflict,
 			"invalid_event_transition",
 			"Event lifecycle transition is not allowed",
 		)
 	}
-	if target == "confirmed" {
+	if target == EventStatusConfirmed {
 		facts, err := q.EventPublicationFacts(ctx, id)
 		if err != nil {
 			return Event{}, err
@@ -394,16 +394,16 @@ func (s *Service) Transition(
 		}
 	}
 	closedAt := pgtype.Timestamptz{}
-	if target == "completed" || target == "cancelled" {
+	if target == EventStatusCompleted || target == EventStatusCancelled {
 		closedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 	}
-	if target == "archived" {
+	if target == EventStatusArchived {
 		closedAt = current.ClosedAt
 	}
 	row, err := q.TransitionEvent(
 		ctx,
 		eventsdb.TransitionEventParams{
-			Status:          target,
+			Status:          string(target),
 			ClosedAt:        closedAt,
 			ID:              id,
 			ExpectedVersion: int32(expectedVersion),
@@ -420,7 +420,7 @@ func (s *Service) Transition(
 		ctx,
 		tx,
 		&actor,
-		"event."+target,
+		"event."+string(target),
 		"event",
 		id,
 		requestID,
@@ -465,11 +465,11 @@ func (s *Service) SetPublished(
 	if int64(current.Version) != expectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if current.Status == "archived" {
+	if EventStatus(current.Status) == EventStatusArchived {
 		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	if published {
-		if current.Status != "planning" && current.Status != "confirmed" {
+		if EventStatus(current.Status) != EventStatusPlanning && EventStatus(current.Status) != EventStatusConfirmed {
 			return Event{}, apperror.Invalid("only planning or confirmed events can be published")
 		}
 		facts, err := q.EventPublicationFacts(ctx, id)
@@ -543,7 +543,7 @@ func (s *Service) RotatePublicID(
 	if int64(current.Version) != expectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if current.Status == "completed" || current.Status == "cancelled" || current.Status == "archived" {
+	if status := EventStatus(current.Status); status == EventStatusCompleted || status == EventStatusCancelled || status == EventStatusArchived {
 		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	row, err := q.RotateEventPublicID(
@@ -605,7 +605,7 @@ func (s *Service) Delete(
 	if int64(current.Version) != expectedVersion {
 		return nil, apperror.StaleWrite
 	}
-	if current.Status != "draft" {
+	if EventStatus(current.Status) != EventStatusDraft {
 		return nil, apperror.New(http.StatusConflict, "event_not_deletable", "Only draft events can be deleted")
 	}
 	count, err := q.CountEventAssignmentHistory(ctx, id)
@@ -649,7 +649,7 @@ func eventFromRow(row eventsdb.Event) Event {
 		InternalDescription: row.InternalDescription,
 		Location:            row.Location,
 		OwnerPersonID:       row.OwnerPersonID,
-		Status:              row.Status,
+		Status:              EventStatus(row.Status),
 		PublicTitle:         row.PublicTitle,
 		PublicDescription:   row.PublicDescription,
 		PublicLocation:      row.PublicLocation,

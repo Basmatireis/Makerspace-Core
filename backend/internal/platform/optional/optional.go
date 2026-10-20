@@ -28,3 +28,25 @@ func Trimmed(value *string) *string {
 	}
 	return &clean
 }
+
+// Convert converts an optional value between string-based types, for example at
+// the persistence or transport boundary.
+func Convert[To, From ~string](value *From) *To {
+	if value == nil {
+		return nil
+	}
+	converted := To(*value)
+	return &converted
+}
+
+// ConvertSlice converts a list between string-based types.
+func ConvertSlice[To, From ~string](values []From) []To {
+	if values == nil {
+		return nil
+	}
+	converted := make([]To, len(values))
+	for i, value := range values {
+		converted[i] = To(value)
+	}
+	return converted
+}

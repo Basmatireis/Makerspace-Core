@@ -66,7 +66,7 @@ func (s *Server) UpdateEventShift(
 		SignupOpensAt:   nullableTime(r.Body.SignupOpensAt),
 		SignupClosesAt:  nullableTime(r.Body.SignupClosesAt),
 		IsPublic:        r.Body.IsPublic,
-		Status:          string(r.Body.Status),
+		Status:          events.ShiftStatus(r.Body.Status),
 		ExpectedVersion: r.Body.ExpectedVersion,
 	}
 	item, err := s.events.UpdateShift(ctx, p, r.EventId, r.EventShiftId, input, requestIDPointer(ctx))
@@ -169,7 +169,7 @@ func (s *Server) UpdateEventShiftRequirement(
 			Name:            r.Body.Name,
 			Description:     nullableStringPointer(r.Body.Description),
 			RequiredCount:   r.Body.RequiredCount,
-			EligibilityMode: string(r.Body.EligibilityMode),
+			EligibilityMode: events.EligibilityMode(r.Body.EligibilityMode),
 			EligibleRoleIDs: roles,
 			ExpectedVersion: r.Body.ExpectedVersion,
 		},
@@ -384,7 +384,7 @@ func eventShiftInput(v openapi.EventShiftInput, version int64) events.ShiftInput
 		SignupOpensAt:   nullableTime(v.SignupOpensAt),
 		SignupClosesAt:  nullableTime(v.SignupClosesAt),
 		IsPublic:        v.IsPublic,
-		Status:          string(v.Status),
+		Status:          events.ShiftStatus(v.Status),
 		ExpectedVersion: version,
 	}
 }
@@ -406,7 +406,7 @@ func eventShiftDTO(v events.Shift) openapi.EventShift {
 		Status:         openapi.EventShiftStatus(v.Status),
 		LinkedSessionStatus: nullablePointer(
 			v.LinkedSessionStatus,
-			func(x string) openapi.EventSessionStatus { return openapi.EventSessionStatus(x) },
+			func(x events.SessionStatus) openapi.EventSessionStatus { return openapi.EventSessionStatus(x) },
 		),
 		Version:   v.Version,
 		CreatedAt: v.CreatedAt,
@@ -420,7 +420,7 @@ func eventRequirementInput(v openapi.EventRequirementInput, version int64) event
 		Name:            v.Name,
 		Description:     nullableStringPointer(v.Description),
 		RequiredCount:   v.RequiredCount,
-		EligibilityMode: string(v.EligibilityMode),
+		EligibilityMode: events.EligibilityMode(v.EligibilityMode),
 		EligibleRoleIDs: roles,
 		ExpectedVersion: version,
 	}

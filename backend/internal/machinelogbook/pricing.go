@@ -521,7 +521,7 @@ func (s *Service) SetPartyPricingGroup(
 		ID:                            row.ID,
 		Kind:                          PartyOrganization,
 		DisplayName:                   row.DisplayName,
-		OrganizationKind:              pointerAs[OrganizationKind](&row.OrganizationKind),
+		OrganizationKind:              optional.Convert[OrganizationKind](&row.OrganizationKind),
 		PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 	}
 	if row.PricingGroupID != nil && row.PricingGroupName != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 )
 
@@ -137,9 +138,9 @@ func (s *Service) ListWorkItems(
 	}
 	params := machinelogbookdb.ListWorkItemsParams{
 		Statuses: nonNil(
-			sliceAs[string](filters.Statuses),
-		), MachineIds: nonNil(filters.MachineIDs), Sources: nonNil(sliceAs[string](filters.Sources)), MaterialIds: nonNil(filters.MaterialIDs),
-		BillingStates: nonNil(sliceAs[string](filters.Billing)), CustomerID: filters.CustomerID, OperatorPersonID: filters.OperatorID,
+			optional.ConvertSlice[string](filters.Statuses),
+		), MachineIds: nonNil(filters.MachineIDs), Sources: nonNil(optional.ConvertSlice[string](filters.Sources)), MaterialIds: nonNil(filters.MaterialIDs),
+		BillingStates: nonNil(optional.ConvertSlice[string](filters.Billing)), CustomerID: filters.CustomerID, OperatorPersonID: filters.OperatorID,
 		FromTime: pgTime(
 			filters.From,
 		), ToTime: pgTime(filters.To), Search: escapeLike(strings.TrimSpace(filters.Search)),
@@ -253,7 +254,7 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 			ID:                            *row.CustomerID,
 			Kind:                          PartyKind(*row.CustomerKind),
 			DisplayName:                   *row.CustomerName,
-			OrganizationKind:              pointerAs[OrganizationKind](row.CustomerOrganizationKind),
+			OrganizationKind:              optional.Convert[OrganizationKind](row.CustomerOrganizationKind),
 			PricingGroupAssignmentVersion: row.CustomerPricingGroupAssignmentVersion,
 		}
 		if row.CustomerPricingGroupID != nil && row.CustomerPricingGroupName != nil {
@@ -287,8 +288,8 @@ func (s *Service) countWorkItems(
 	rows, err := q.ListWorkItems(
 		ctx,
 		machinelogbookdb.ListWorkItemsParams{
-			Statuses:      nonNil(sliceAs[string](statuses)),
-			BillingStates: nonNil(sliceAs[string](billing)),
+			Statuses:      nonNil(optional.ConvertSlice[string](statuses)),
+			BillingStates: nonNil(optional.ConvertSlice[string](billing)),
 			MachineIds:    []uuid.UUID{},
 			Sources:       []string{},
 			MaterialIds:   []uuid.UUID{},

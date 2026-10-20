@@ -365,7 +365,7 @@ func (s *Service) DetachRun(
 		if earliest := start.Add(time.Second); end.Before(earliest) {
 			end = earliest
 		}
-		plan := manualRunPlan{StartsAt: start.UTC(), EndsAt: end.UTC(), Outcome: pointerAs[RunOutcome](run.Outcome)}
+		plan := manualRunPlan{StartsAt: start.UTC(), EndsAt: end.UTC(), Outcome: optional.Convert[RunOutcome](run.Outcome)}
 		if _, err = s.storeManualRun(ctx, tx, q, p, *job, plan, requestID); err != nil {
 			return MachineJob{}, err
 		}

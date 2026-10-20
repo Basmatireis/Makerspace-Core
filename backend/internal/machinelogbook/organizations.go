@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -170,7 +171,7 @@ func (s *Service) ListOrganizations(
 		machinelogbookdb.ListOrganizationsParams{
 			Search:         search,
 			Active:         f.Active,
-			Kind:           pointerAs[string](f.Kind),
+			Kind:           optional.Convert[string](f.Kind),
 			PricingGroupID: f.PricingGroupID,
 			PageOffset:     offset,
 			PageLimit:      limit,
@@ -184,7 +185,7 @@ func (s *Service) ListOrganizations(
 		machinelogbookdb.CountOrganizationsParams{
 			Search:         search,
 			Active:         f.Active,
-			Kind:           pointerAs[string](f.Kind),
+			Kind:           optional.Convert[string](f.Kind),
 			PricingGroupID: f.PricingGroupID,
 		},
 	)
@@ -547,7 +548,7 @@ func (s *Service) SearchBillingParties(
 			ID:                            row.PartyID,
 			Kind:                          PartyKind(row.PartyKind),
 			DisplayName:                   row.DisplayName,
-			OrganizationKind:              pointerAs[OrganizationKind](row.OrganizationKind),
+			OrganizationKind:              optional.Convert[OrganizationKind](row.OrganizationKind),
 			PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 		}
 		if row.PricingGroupID != nil && row.PricingGroupName != nil {

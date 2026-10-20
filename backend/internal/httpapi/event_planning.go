@@ -64,7 +64,7 @@ func (s *Server) UpdateEventSession(
 		StartsAt:        r.Body.StartsAt,
 		EndsAt:          r.Body.EndsAt,
 		IsPublic:        r.Body.IsPublic,
-		Status:          string(r.Body.Status),
+		Status:          events.SessionStatus(r.Body.Status),
 		ExpectedVersion: r.Body.ExpectedVersion,
 	}
 	item, err := s.events.UpdateSession(ctx, p, r.EventId, r.EventSessionId, input, requestIDPointer(ctx))
@@ -251,8 +251,8 @@ func (s *Server) UpdateEventTask(
 		TaskListID:       nullableUUID(r.Body.TaskListId),
 		Title:            r.Body.Title,
 		Description:      nullableStringPointer(r.Body.Description),
-		Status:           string(r.Body.Status),
-		Priority:         string(r.Body.Priority),
+		Status:           events.TaskStatus(r.Body.Status),
+		Priority:         events.TaskPriority(r.Body.Priority),
 		AssigneePersonID: nullableUUID(r.Body.AssigneePersonId),
 		DueAt:            nullableTime(r.Body.DueAt),
 		SortOrder:        int(r.Body.SortOrder),
@@ -297,7 +297,7 @@ func eventSessionInput(v openapi.EventSessionInput, version int64) events.Sessio
 		StartsAt:        v.StartsAt,
 		EndsAt:          v.EndsAt,
 		IsPublic:        v.IsPublic,
-		Status:          string(v.Status),
+		Status:          events.SessionStatus(v.Status),
 		ExpectedVersion: version,
 	}
 }
@@ -334,8 +334,8 @@ func eventTaskInput(v openapi.EventTaskInput, version int64) events.TaskInput {
 		TaskListID:       nullableUUID(v.TaskListId),
 		Title:            v.Title,
 		Description:      nullableStringPointer(v.Description),
-		Status:           string(v.Status),
-		Priority:         string(v.Priority),
+		Status:           events.TaskStatus(v.Status),
+		Priority:         events.TaskPriority(v.Priority),
 		AssigneePersonID: nullableUUID(v.AssigneePersonId),
 		DueAt:            nullableTime(v.DueAt),
 		SortOrder:        int(v.SortOrder),

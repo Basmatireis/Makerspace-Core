@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/oapi-codegen/nullable"
 )
 
@@ -22,8 +23,8 @@ func (s *Server) ListMachineRuns(
 		machinelogbook.RunFilters{
 			Search:    defaultString(r.Params.Search),
 			MachineID: r.Params.MachineId,
-			States:    enumSlice[machinelogbook.RunState](stringSlice(r.Params.State)),
-			Source:    enumPointer[machinelogbook.RunSource](r.Params.Source),
+			States:    optional.ConvertSlice[machinelogbook.RunState](stringSlice(r.Params.State)),
+			Source:    optional.Convert[machinelogbook.RunSource](r.Params.Source),
 			Assigned:  r.Params.Assigned,
 			From:      r.Params.From,
 			To:        r.Params.To,
@@ -76,7 +77,7 @@ func (s *Server) UpdateMachineRun(
 		machinelogbook.RunUpdate{
 			StartsAt: r.Body.StartsAt,
 			EndsAt:   r.Body.EndsAt,
-			Outcome:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(r.Body.Outcome)),
+			Outcome:  optional.Convert[machinelogbook.RunOutcome](nullableStringPointer(r.Body.Outcome)),
 			Measures: runMeasuresInput(r.Body.Measures),
 		},
 		requestIDPointer(ctx),
@@ -257,7 +258,7 @@ func manualRunInput(value openapi.ManualRunInput) machinelogbook.ManualRunInput 
 	return machinelogbook.ManualRunInput{
 		StartsAt: value.StartsAt,
 		EndsAt:   value.EndsAt,
-		Outcome:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(value.Outcome)),
+		Outcome:  optional.Convert[machinelogbook.RunOutcome](nullableStringPointer(value.Outcome)),
 		Usages:   usageInputs(value.Usages),
 		Measures: runMeasuresInput(value.Measures),
 	}

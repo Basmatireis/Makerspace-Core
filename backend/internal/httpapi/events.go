@@ -137,7 +137,7 @@ func (s *Server) StartEventPlanning(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "planning", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusPlanning, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *Server) ReturnEventToDraft(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "draft", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusDraft, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *Server) ConfirmEvent(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "confirmed", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusConfirmed, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (s *Server) ReturnEventToPlanning(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "planning", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusPlanning, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (s *Server) CompleteEvent(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "completed", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusCompleted, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *Server) CancelEvent(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "cancelled", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusCancelled, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (s *Server) ArchiveEvent(
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, "archived", requestIDPointer(ctx))
+	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusArchived, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

@@ -703,24 +703,3 @@ func mlMemberOrganizationsDTO(items []machinelogbook.OrganizationReference) *[]o
 	}
 	return &out
 }
-
-// enumPointer converts an optional transport value to an optional domain value.
-func enumPointer[To, From ~string](value *From) *To {
-	if value == nil {
-		return nil
-	}
-	converted := To(*value)
-	return &converted
-}
-
-// enumSlice converts transport values to domain values.
-func enumSlice[To, From ~string](values []From) []To {
-	if values == nil {
-		return nil
-	}
-	converted := make([]To, len(values))
-	for i, value := range values {
-		converted[i] = To(value)
-	}
-	return converted
-}

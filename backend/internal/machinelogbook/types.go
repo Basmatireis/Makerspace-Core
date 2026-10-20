@@ -319,26 +319,3 @@ const (
 	SortAsc  SortDirection = "asc"
 	SortDesc SortDirection = "desc"
 )
-
-// pointerAs converts an optional value between string-based types at the
-// persistence boundary.
-func pointerAs[To, From ~string](value *From) *To {
-	if value == nil {
-		return nil
-	}
-	converted := To(*value)
-	return &converted
-}
-
-// sliceAs converts a list between string-based types at the persistence
-// boundary.
-func sliceAs[To, From ~string](values []From) []To {
-	if values == nil {
-		return nil
-	}
-	converted := make([]To, len(values))
-	for i, value := range values {
-		converted[i] = To(value)
-	}
-	return converted
-}

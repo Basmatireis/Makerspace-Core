@@ -83,7 +83,7 @@ func (s *Service) storeManualRun(
 			JobID:     &job.ID,
 			StartedAt: pgTime(&plan.StartsAt),
 			EndedAt:   pgTime(&plan.EndsAt),
-			Outcome:   pointerAs[string](plan.Outcome),
+			Outcome:   optional.Convert[string](plan.Outcome),
 		},
 	)
 	if err != nil {
@@ -272,7 +272,7 @@ func (s *Service) loadBillingParty(
 			ID:                            row.ID,
 			Kind:                          PartyOrganization,
 			DisplayName:                   row.DisplayName,
-			OrganizationKind:              pointerAs[OrganizationKind](&row.OrganizationKind),
+			OrganizationKind:              optional.Convert[OrganizationKind](&row.OrganizationKind),
 			PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 		}
 		if row.PricingGroupID != nil && row.PricingGroupName != nil {
@@ -463,7 +463,7 @@ func (s *Service) ListJobs(
 		CustomerID: filters.CustomerID,
 		OperatorID: filters.OperatorID,
 		MaterialID: filters.MaterialID,
-		Outcome:    pointerAs[string](filters.Outcome),
+		Outcome:    optional.Convert[string](filters.Outcome),
 		FromTime:   pgTime(filters.From),
 		ToTime:     pgTime(filters.To),
 		PageOffset: offset,
@@ -630,7 +630,7 @@ func (s *Service) UpdateJobFacts(
 			CustomerPersonID:       personID,
 			CustomerOrganizationID: organizationID,
 			OperatorPersonID:       &input.OperatorPersonID,
-			OutcomeOverride:        pointerAs[string](override),
+			OutcomeOverride:        optional.Convert[string](override),
 			Title:                  title,
 			Notes:                  optional.Trimmed(input.Notes),
 			ID:                     id,

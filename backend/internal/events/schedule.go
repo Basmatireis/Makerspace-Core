@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -74,7 +75,7 @@ func (s *Service) CreateSession(
 			StartsAt:    input.StartsAt.UTC(),
 			EndsAt:      input.EndsAt.UTC(),
 			IsPublic:    input.IsPublic,
-			Status:      input.Status,
+			Status:      string(input.Status),
 		},
 	)
 	if err != nil {
@@ -145,7 +146,7 @@ func (s *Service) UpdateSession(
 			StartsAt:        input.StartsAt.UTC(),
 			EndsAt:          input.EndsAt.UTC(),
 			IsPublic:        input.IsPublic,
-			Status:          input.Status,
+			Status:          string(input.Status),
 			ID:              id,
 			EventID:         eventID,
 			ExpectedVersion: int32(input.ExpectedVersion),
@@ -264,8 +265,8 @@ func (s *Service) ListShifts(
 				SignupOpensAt:       pgTime(row.SignupOpensAt),
 				SignupClosesAt:      pgTime(row.SignupClosesAt),
 				IsPublic:            row.IsPublic,
-				Status:              row.Status,
-				LinkedSessionStatus: row.SessionStatus,
+				Status:              ShiftStatus(row.Status),
+				LinkedSessionStatus: optional.Convert[SessionStatus](row.SessionStatus),
 				Version:             int64(row.Version),
 				CreatedAt:           row.CreatedAt,
 				UpdatedAt:           row.UpdatedAt,
@@ -312,7 +313,7 @@ func (s *Service) CreateShift(
 			SignupOpensAt:  toPGTime(input.SignupOpensAt),
 			SignupClosesAt: toPGTime(input.SignupClosesAt),
 			IsPublic:       input.IsPublic,
-			Status:         input.Status,
+			Status:         string(input.Status),
 		},
 	)
 	if err != nil {
@@ -385,7 +386,7 @@ func (s *Service) UpdateShift(
 			SignupOpensAt:   toPGTime(input.SignupOpensAt),
 			SignupClosesAt:  toPGTime(input.SignupClosesAt),
 			IsPublic:        input.IsPublic,
-			Status:          input.Status,
+			Status:          string(input.Status),
 			ID:              id,
 			EventID:         eventID,
 			ExpectedVersion: int32(input.ExpectedVersion),
@@ -478,9 +479,9 @@ func validateSessionInput(input SessionInput) (SessionInput, error) {
 		return input, err
 	}
 	if input.Status == "" {
-		input.Status = "scheduled"
+		input.Status = SessionStatusScheduled
 	}
-	if input.Status != "scheduled" && input.Status != "cancelled" {
+	if input.Status != SessionStatusScheduled && input.Status != SessionStatusCancelled {
 		return input, apperror.Invalid("session status is invalid")
 	}
 	if input.Name, err = cleanOptional(input.Name, 200); err != nil {
@@ -508,9 +509,9 @@ func validateShiftInput(input ShiftInput) (ShiftInput, error) {
 		return input, err
 	}
 	if input.Status == "" {
-		input.Status = "draft"
+		input.Status = ShiftStatusDraft
 	}
-	if input.Status != "draft" && input.Status != "open" && input.Status != "closed" && input.Status != "cancelled" {
+	if input.Status != ShiftStatusDraft && input.Status != ShiftStatusOpen && input.Status != ShiftStatusClosed && input.Status != ShiftStatusCancelled {
 		return input, apperror.Invalid("shift status is invalid")
 	}
 	if input.SignupOpensAt != nil && input.SignupClosesAt != nil && !input.SignupClosesAt.After(*input.SignupOpensAt) {
@@ -529,7 +530,7 @@ func sessionFromRow(row eventsdb.EventSession) Session {
 		StartsAt:    row.StartsAt,
 		EndsAt:      row.EndsAt,
 		IsPublic:    row.IsPublic,
-		Status:      row.Status,
+		Status:      SessionStatus(row.Status),
 		Version:     int64(row.Version),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
@@ -547,7 +548,7 @@ func shiftFromRow(row eventsdb.EventShift) Shift {
 		SignupOpensAt:  pgTime(row.SignupOpensAt),
 		SignupClosesAt: pgTime(row.SignupClosesAt),
 		IsPublic:       row.IsPublic,
-		Status:         row.Status,
+		Status:         ShiftStatus(row.Status),
 		Version:        int64(row.Version),
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
@@ -562,7 +563,8 @@ func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid
 	if err != nil {
 		return err
 	}
-	if row.Status == "archived" || (!postEventWork && (row.Status == "completed" || row.Status == "cancelled")) {
+	status := EventStatus(row.Status)
+	if status == EventStatusArchived || (!postEventWork && (status == EventStatusCompleted || status == EventStatusCancelled)) {
 		return apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	return nil

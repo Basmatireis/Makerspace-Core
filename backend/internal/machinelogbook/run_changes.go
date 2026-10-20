@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -344,7 +345,7 @@ func (s *Service) UpdateRun(
 			machinelogbookdb.UpdateManualRunFactsParams{
 				StartedAt:       pgTime(&startsAt),
 				EndedAt:         pgTime(&endsAt),
-				Outcome:         pointerAs[string](outcome),
+				Outcome:         optional.Convert[string](outcome),
 				ID:              id,
 				ExpectedVersion: expected,
 			},
@@ -373,7 +374,7 @@ func (s *Service) UpdateRun(
 		}
 		updated, err = q.UpdateRecordedRunOutcome(
 			ctx,
-			machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: pointerAs[string](outcome), ID: id, ExpectedVersion: expected},
+			machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: optional.Convert[string](outcome), ID: id, ExpectedVersion: expected},
 		)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -43,7 +43,7 @@ func (s *Service) ListRequirements(
 			Description:     row.Description,
 			RequiredCount:   int(row.RequiredCount),
 			FilledCount:     int(row.FilledCount),
-			EligibilityMode: row.EligibilityMode,
+			EligibilityMode: EligibilityMode(row.EligibilityMode),
 			Version:         int64(row.Version),
 			CreatedAt:       row.CreatedAt,
 			UpdatedAt:       row.UpdatedAt,
@@ -100,7 +100,7 @@ func (s *Service) CreateRequirement(
 			Name:            input.Name,
 			Description:     input.Description,
 			RequiredCount:   int32(input.RequiredCount),
-			EligibilityMode: input.EligibilityMode,
+			EligibilityMode: string(input.EligibilityMode),
 		},
 	)
 	if err != nil {
@@ -181,7 +181,7 @@ func (s *Service) UpdateRequirement(
 			Name:            input.Name,
 			Description:     input.Description,
 			RequiredCount:   int32(input.RequiredCount),
-			EligibilityMode: input.EligibilityMode,
+			EligibilityMode: string(input.EligibilityMode),
 			ID:              id,
 			ShiftID:         shiftID,
 			EventID:         eventID,
@@ -310,8 +310,8 @@ func (s *Service) ListAssignments(
 				LastName:                      row.LastNameSnapshot,
 				Email:                         row.EmailSnapshot,
 				Phone:                         row.PhoneSnapshot,
-				Source:                        row.Source,
-				Status:                        row.Status,
+				Source:                        AssignmentSource(row.Source),
+				Status:                        AssignmentStatus(row.Status),
 				ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID,
 				CancelledAt:                   pgTime(row.CancelledAt),
 				PersonalDataErasedAt:          pgTime(row.PersonalDataErasedAt),
@@ -334,7 +334,7 @@ func (s *Service) CreateStaffAssignment(
 	if !principal.Has(authorization.EventsAssign) {
 		return Assignment{}, apperror.PermissionDenied
 	}
-	result, _, err := s.createAssignment(ctx, &principal, eventID, input, "staff_entry", false, false, requestID)
+	result, _, err := s.createAssignment(ctx, &principal, eventID, input, SourceStaffEntry, false, false, requestID)
 	return result, err
 }
 
@@ -386,14 +386,14 @@ func (s *Service) LinkAssignmentPerson(
 	if int64(assignment.Version) != expected {
 		return Assignment{}, apperror.StaleWrite
 	}
-	if assignment.Status != "active" || assignment.PersonalDataErasedAt.Valid {
+	if AssignmentStatus(assignment.Status) != AssignmentStatusActive || assignment.PersonalDataErasedAt.Valid {
 		return Assignment{}, apperror.Conflict
 	}
 	shift, req, err := lockAssignmentTarget(ctx, q, eventID, assignment.ShiftID, assignment.RequirementID)
 	if err != nil {
 		return Assignment{}, err
 	}
-	if shift.Status == "cancelled" {
+	if ShiftStatus(shift.Status) == ShiftStatusCancelled {
 		return Assignment{}, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot be linked")
 	}
 	eligible, err := q.PersonEligibleForEventRequirement(
@@ -584,13 +584,13 @@ func (s *Service) createAssignment(
 	principal *authorization.Principal,
 	eventID uuid.UUID,
 	input AssignmentInput,
-	source string,
+	source AssignmentSource,
 	publicFlow, issueToken bool,
 	requestID *uuid.UUID,
 ) (Assignment, *string, error) {
 	firstName, lastName := input.FirstName, input.LastName
 	email, phone := input.Email, input.Phone
-	if input.PersonID != nil && source != "authenticated_self" {
+	if input.PersonID != nil && source != SourceAuthenticatedSelf {
 		person, err := eventsdb.New(s.pool).GetEventPerson(ctx, *input.PersonID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Assignment{}, nil, apperror.NotFound
@@ -625,14 +625,15 @@ func (s *Service) createAssignment(
 	if err != nil {
 		return Assignment{}, nil, err
 	}
-	if !publicFlow && (event.Status == "archived" || event.Status == "completed" || event.Status == "cancelled") {
+	status := EventStatus(event.Status)
+	if !publicFlow && (status == EventStatusArchived || status == EventStatusCompleted || status == EventStatusCancelled) {
 		return Assignment{}, nil, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	shift, req, err := lockAssignmentTarget(ctx, q, eventID, input.ShiftID, input.RequirementID)
 	if err != nil {
 		return Assignment{}, nil, err
 	}
-	if shift.Status == "cancelled" {
+	if ShiftStatus(shift.Status) == ShiftStatusCancelled {
 		if publicFlow {
 			return Assignment{}, nil, signupUnavailable()
 		}
@@ -645,7 +646,7 @@ func (s *Service) createAssignment(
 	if publicFlow && !isEffectivePublicSignup(event, shift) {
 		return Assignment{}, nil, signupUnavailable()
 	}
-	if req.EligibilityMode == "roles" {
+	if EligibilityMode(req.EligibilityMode) == EligibilityRoles {
 		if input.PersonID == nil {
 			return Assignment{}, nil, signupUnavailable()
 		}
@@ -760,7 +761,7 @@ func (s *Service) createAssignment(
 			EmailNormalized:               emailNormalized,
 			PhoneSnapshot:                 phoneDisplay,
 			PhoneNormalized:               phoneNormalized,
-			Source:                        source,
+			Source:                        string(source),
 			CreatedByAccountID:            creator,
 			ManagementTokenDigest:         digest,
 			ConflictOverriddenByAccountID: overrideActor,
@@ -843,12 +844,13 @@ func lockAssignmentTarget(
 }
 func isEffectivePublicSignup(event eventsdb.Event, shift eventsdb.GetEventShiftRow) bool {
 	now := time.Now().UTC()
-	if !event.IsPublic || !event.PublicSignupEnabled || (event.Status != "planning" && event.Status != "confirmed") ||
+	status := EventStatus(event.Status)
+	if !event.IsPublic || !event.PublicSignupEnabled || (status != EventStatusPlanning && status != EventStatusConfirmed) ||
 		!shift.IsPublic ||
-		shift.Status != "open" {
+		ShiftStatus(shift.Status) != ShiftStatusOpen {
 		return false
 	}
-	if shift.SessionStatus != nil && *shift.SessionStatus == "cancelled" {
+	if shift.SessionStatus != nil && SessionStatus(*shift.SessionStatus) == SessionStatusCancelled {
 		return false
 	}
 	if shift.SignupOpensAt.Valid && now.Before(shift.SignupOpensAt.Time) {
@@ -873,12 +875,12 @@ func validateRequirementInput(input RequirementInput) (RequirementInput, error) 
 		return input, apperror.Invalid("requiredCount must be between 1 and 1000")
 	}
 	if input.EligibilityMode == "" {
-		input.EligibilityMode = "anyone"
+		input.EligibilityMode = EligibilityAnyone
 	}
-	if input.EligibilityMode != "anyone" && input.EligibilityMode != "roles" {
+	if input.EligibilityMode != EligibilityAnyone && input.EligibilityMode != EligibilityRoles {
 		return input, apperror.Invalid("eligibilityMode is invalid")
 	}
-	if input.EligibilityMode == "roles" && len(input.EligibleRoleIDs) == 0 {
+	if input.EligibilityMode == EligibilityRoles && len(input.EligibleRoleIDs) == 0 {
 		return input, apperror.Invalid("role eligibility requires at least one Role")
 	}
 	return input, nil
@@ -888,13 +890,13 @@ func replaceRequirementRoles(
 	ctx context.Context,
 	q *eventsdb.Queries,
 	id uuid.UUID,
-	mode string,
+	mode EligibilityMode,
 	roleIDs []uuid.UUID,
 ) error {
 	if err := q.ReplaceEventRequirementRoles(ctx, id); err != nil {
 		return err
 	}
-	if mode == "anyone" {
+	if mode == EligibilityAnyone {
 		return nil
 	}
 	seen := map[uuid.UUID]struct{}{}
@@ -921,7 +923,7 @@ func requirementFromRow(row eventsdb.EventShiftRequirement, roles []uuid.UUID, f
 		Description:     row.Description,
 		RequiredCount:   int(row.RequiredCount),
 		FilledCount:     filled,
-		EligibilityMode: row.EligibilityMode,
+		EligibilityMode: EligibilityMode(row.EligibilityMode),
 		EligibleRoleIDs: roles,
 		Version:         int64(row.Version),
 		CreatedAt:       row.CreatedAt,
@@ -939,8 +941,8 @@ func assignmentFromRow(row eventsdb.EventShiftAssignment) Assignment {
 		LastName:                      row.LastNameSnapshot,
 		Email:                         row.EmailSnapshot,
 		Phone:                         row.PhoneSnapshot,
-		Source:                        row.Source,
-		Status:                        row.Status,
+		Source:                        AssignmentSource(row.Source),
+		Status:                        AssignmentStatus(row.Status),
 		ConflictOverriddenByAccountID: row.ConflictOverriddenByAccountID,
 		CancelledAt:                   pgTime(row.CancelledAt),
 		PersonalDataErasedAt:          pgTime(row.PersonalDataErasedAt),
