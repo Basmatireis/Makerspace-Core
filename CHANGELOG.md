@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Fixed
+
+- Printer connector: an artifact upload Core rejects with 404 or 409 (assignment ended, run unknown or deleted, configuration changed) is quarantined and its staged 3MF deleted, instead of being retried until it expires. Artifact delivery failures now log Core's HTTP status and error code.
+
 ## [0.7.1] - 2026-10-20
 
 ### Fixed

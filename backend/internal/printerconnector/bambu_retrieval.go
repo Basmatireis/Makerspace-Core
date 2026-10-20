@@ -31,7 +31,7 @@ func (s *Store) ScheduleArtifactRetrieval(ctx context.Context, assignmentID, run
 		return errors.New("invalid artifact retrieval")
 	}
 	var pending int64
-	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM artifact_transfers)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending')`).Scan(&pending); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer+`)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending')`).Scan(&pending); err != nil {
 		return err
 	}
 	if pending >= maxArtifactTransfers {

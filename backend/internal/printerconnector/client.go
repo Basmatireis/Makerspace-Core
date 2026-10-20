@@ -227,7 +227,7 @@ func (c *Client) UploadArtifact(ctx context.Context, token string, transfer Arti
 		if apiError.Code == "" {
 			apiError.Code = response.Status
 		}
-		return ArtifactUploadResult{}, fmt.Errorf("core artifact upload failed: %s", apiError.Code)
+		return ArtifactUploadResult{}, &CoreError{Status: response.StatusCode, Code: apiError.Code}
 	}
 	var result ArtifactUploadResult
 	if err = json.NewDecoder(limited).Decode(&result); err != nil {

@@ -167,7 +167,7 @@ func (s *Store) StageArtifact(ctx context.Context, assignmentID, runID uuid.UUID
 		expiresAt = time.Now().UTC().Add(24 * time.Hour)
 	}
 	var count, bytes int64
-	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM artifact_transfers)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending'),coalesce(sum(size_bytes),0) FROM artifact_transfers`).Scan(&count, &bytes); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer+`)+(SELECT count(*) FROM artifact_retrievals WHERE state='pending'),coalesce(sum(size_bytes),0) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&count, &bytes); err != nil {
 		return ArtifactTransfer{}, err
 	}
 	if count >= maxArtifactTransfers || bytes >= maxArtifactBytes {
@@ -308,6 +308,27 @@ func (s *Store) MarkArtifactTransferFailure(ctx context.Context, id uuid.UUID, r
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE artifact_transfers SET attempt_count=attempt_count+1,next_attempt_at=?,reason_code=? WHERE id=? AND state='pending'`, time.Now().UTC().Add(delay).Format(time.RFC3339Nano), reason, id.String())
 	return err
+}
+
+// artifactRejectedReason marks a transfer Core refused for good (unknown or
+// ended assignment, deleted run, changed configuration). Its staged file is
+// removed, so it no longer counts against the queue limits.
+const artifactRejectedReason = "artifact_rejected_by_core"
+
+// queuedArtifactTransfer selects transfers that still hold a staged file.
+const queuedArtifactTransfer = `NOT (state='quarantined' AND reason_code='` + artifactRejectedReason + `')`
+
+// QuarantineRejectedArtifactTransfer stops retrying a transfer Core rejected
+// permanently and deletes its staged file. The row stays for diagnosis.
+func (s *Store) QuarantineRejectedArtifactTransfer(ctx context.Context, id uuid.UUID) error {
+	var path string
+	if err := s.db.QueryRowContext(ctx, `UPDATE artifact_transfers SET state='quarantined',reason_code=? WHERE id=? AND state='pending' RETURNING staged_path`, artifactRejectedReason, id.String()).Scan(&path); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) QuarantineExpiredArtifactTransfers(ctx context.Context) error {

@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"slices"
@@ -1126,5 +1128,86 @@ func assertKinds(t *testing.T, observations []Observation, expected ...string) {
 	}
 	if len(counts) != 0 {
 		t.Fatalf("unexpected observation kinds: %#v", counts)
+	}
+}
+
+func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
+	t.Parallel()
+	for _, status := range []int{http.StatusNotFound, http.StatusConflict} {
+		ctx := context.Background()
+		store, err := OpenStore(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = store.Close() })
+		archive := syntheticZIP(t, "3D/3dmodel.model", "model")
+		transfer, err := store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 3, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		client, err := NewClient("http://core.test", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			_, _ = io.Copy(io.Discard, request.Body)
+			return &http.Response{StatusCode: status, Status: http.StatusText(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"code":"not_found","message":"x"}`)), Request: request}, nil
+		})
+		var logs bytes.Buffer
+		runtime := &Runtime{client: client, store: store, logger: slog.New(slog.NewTextHandler(&logs, nil))}
+		if err = runtime.deliverArtifacts(ctx, Identity{CredentialSecret: "token"}); err != nil {
+			t.Fatalf("status %d: rejected artifact was reported as a delivery failure: %v", status, err)
+		}
+		pending, err := store.PendingArtifactTransfers(ctx, 20)
+		if err != nil || len(pending) != 0 {
+			t.Fatalf("status %d: rejected artifact is still pending: %#v %v", status, pending, err)
+		}
+		if _, err = os.Stat(transfer.StagedPath); !os.IsNotExist(err) {
+			t.Fatalf("status %d: rejected staged file was kept: %v", status, err)
+		}
+		if line := logs.String(); !strings.Contains(line, "transfer quarantined") || !strings.Contains(line, fmt.Sprintf("status=%d", status)) || !strings.Contains(line, "code=not_found") {
+			t.Fatalf("status %d: rejection log lacks status or code: %s", status, line)
+		}
+		// The rejected transfer no longer occupies queue capacity.
+		var queued int64
+		if err = store.db.QueryRowContext(ctx, `SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&queued); err != nil || queued != 0 {
+			t.Fatalf("status %d: rejected transfer still counts as queued: %d %v", status, queued, err)
+		}
+	}
+}
+
+func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
+	transfer, err := store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 3, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive), time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient("http://core.test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		return &http.Response{StatusCode: http.StatusServiceUnavailable, Status: "503 Service Unavailable", Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"code":"temporarily_unavailable"}`)), Request: request}, nil
+	})
+	runtime := &Runtime{client: client, store: store, logger: discardLogger()}
+	err = runtime.deliverArtifacts(ctx, Identity{CredentialSecret: "token"})
+	var coreErr *CoreError
+	if !errors.As(err, &coreErr) || coreErr.Status != http.StatusServiceUnavailable || coreErr.Code != "temporarily_unavailable" {
+		t.Fatalf("transient failure lost its status and code: %v", err)
+	}
+	if _, err = os.Stat(transfer.StagedPath); err != nil {
+		t.Fatalf("transient failure removed the staged file: %v", err)
+	}
+	var state string
+	if err = store.db.QueryRowContext(ctx, `SELECT state FROM artifact_transfers WHERE id=?`, transfer.ID.String()).Scan(&state); err != nil || state != "pending" {
+		t.Fatalf("transient failure changed the transfer state: %q %v", state, err)
 	}
 }

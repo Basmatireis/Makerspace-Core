@@ -484,6 +484,16 @@ func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error
 	}
 	for _, transfer := range transfers {
 		if _, uploadErr := r.client.UploadArtifact(ctx, identity.CredentialSecret, transfer); uploadErr != nil {
+			// 404 and 409 do not heal on retry: the assignment ended, the run
+			// is unknown or deleted, or the configuration changed.
+			var coreErr *CoreError
+			if errors.As(uploadErr, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409) {
+				r.logFailure("artifact rejected by Core; transfer quarantined", uploadErr)
+				if queueErr := r.store.QuarantineRejectedArtifactTransfer(ctx, transfer.ID); queueErr != nil {
+					return fmt.Errorf("quarantine rejected artifact: %w", queueErr)
+				}
+				continue
+			}
 			if queueErr := r.store.MarkArtifactTransferFailure(ctx, transfer.ID, classifyAdapterError(uploadErr)); queueErr != nil {
 				return fmt.Errorf("record artifact delivery failure: %w", queueErr)
 			}
