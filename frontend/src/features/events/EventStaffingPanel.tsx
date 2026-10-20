@@ -34,7 +34,7 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { EmptyState, ErrorState, InlineLoadingState } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
-import { RequirementEditDialog } from './EventEditDialogs';
+import { RequirementEditDialog } from './EventRequirementEditDialog';
 import { eventMutationMessage } from './errors';
 import { AssignHelperDialog, RequirementCreateDialog } from './EventStaffingDialogs';
 import { formatInstant } from './format';

@@ -30,7 +30,7 @@ import { InlineLoadingState } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { useLatestCallback } from '../../app/useLatestCallback';
-import { FileEditDialog } from './EventEditDialogs';
+import { FileEditDialog } from './EventFileEditDialog';
 import { MutationError } from './EventPanelError';
 import { formatInstant } from './format';
 import { eventFilesQueryOptions, eventKeys } from './queries';
