@@ -18,12 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 
-export type AuthenticatedEventSignupRequestAllOfSignupFor = typeof AuthenticatedEventSignupRequestAllOfSignupFor[keyof typeof AuthenticatedEventSignupRequestAllOfSignupFor];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const AuthenticatedEventSignupRequestAllOfSignupFor = {
-  self: 'self',
-  other: 'other',
-} as const;
+/**
+ * @nullable
+ */
+export type UpdateEventTaskRequestTaskListId = UUIDv7 | null;

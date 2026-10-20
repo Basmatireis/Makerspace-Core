@@ -29,6 +29,7 @@ import { useCan } from './shared/useCan';
 import './styles/jobs.scss';
 
 const sourceOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'recorded', label: 'Recorded' }];
+const WORK_REFRESH_MS = 10_000;
 const SORT_KEYS = ['startedAt', 'name', 'machine', 'customer', 'price'];
 const statusIds = jobRowStatusOptions.map((option) => option.id as string);
 const billingIds = billingStateOptions.map((option) => option.id as string);
@@ -190,6 +191,8 @@ export function JobsPage() {
     queryKey: machineLogbookKeys.workItems(params),
     queryFn: ({ signal }) => listMachineLogbookWorkItems(params, { signal }),
     placeholderData: keepPreviousData,
+    // Runs reported by connectors appear without a reload.
+    refetchInterval: WORK_REFRESH_MS,
   }));
   const filterCategories = useJobsFilterCategories(query.data?.items ?? EMPTY_ITEMS);
 

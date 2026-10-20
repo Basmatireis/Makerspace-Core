@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, ProgressIndicator, ProgressStep } from '@carbon/react';
@@ -22,6 +22,7 @@ import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 
+const CONNECTION_FIELDS = new Set<string>(['connectorId', 'adapterKind', 'ipAddress', 'serialNumber', 'accessCode', 'autoMountRfid']);
 const STEP_LABEL: Record<StepKey, string> = { machine: 'Machine', connection: 'Connection', spools: 'Spool inputs', review: 'Review' };
 const EDIT_TITLE: Record<StepKey, string> = { machine: 'Edit machine', connection: 'Edit connection', spools: 'Edit spool inputs', review: 'Review' };
 
@@ -90,11 +91,25 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
       automaticCollectionEnabled: machine?.automaticCollectionEnabled ?? false, externalIdentifier: machine?.externalIdentifier ?? '',
       modelId: initialProfile?.model ?? '',
       connect: initialConnection || !editing || initialStep === 'connection' ? 'now' : 'later', connectorId: initialConnection?.connector.id ?? '',
-      adapterKind: isBambuAdapter(initialConnection?.assignment.adapterKind) ? initialConnection.assignment.adapterKind : 'simulator',
-      ipAddress: text('ipAddress'), serialNumber: text('serialNumber'), accessCode: '', autoMountRfid: settings ? settings.autoDetectSpools === true : true,
+      // A printer model with a live adapter always connects through it, also when it was connected through the simulator before.
+      adapterKind: modelById(initialProfile?.model)?.adapterKind
+        ?? (isBambuAdapter(initialConnection?.assignment.adapterKind) ? initialConnection.assignment.adapterKind : 'simulator'),
+      // The machine's external identifier usually is the printer's serial number, so it is offered here instead of being typed twice.
+      ipAddress: text('ipAddress'), serialNumber: text('serialNumber') || (machine?.externalIdentifier ?? '').toUpperCase(), accessCode: '', autoMountRfid: settings ? settings.autoDetectSpools === true : true,
     },
   });
   const values = form.watch();
+  // Editing a connection field after a test asks for a new test instead of keeping the old result.
+  const resetTest = test.reset;
+  useEffect(() => {
+    const subscription = form.watch((_value, { name, type }) => {
+      if (type !== 'change' || !name || !CONNECTION_FIELDS.has(name)) return;
+      resetTest();
+      setSkipped(false);
+      setConnectionFailed(false);
+    });
+    return () => subscription.unsubscribe();
+  }, [form, resetTest]);
   const type = (typesQuery.data?.items ?? []).find((item) => item.id === values.machineTypeId);
   const printer = type?.process === 'fdm_printing';
   const modelId = (values.modelId || null) as PrinterModelId | null;
@@ -183,6 +198,22 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
     onClose();
   };
 
+  /** "Test again": saves the connection once more and restarts the test, also after a timeout or a failure. */
+  const retest = async () => {
+    if (inflight.current || pending || testBusy) return;
+    inflight.current = true;
+    setPending(true);
+    try {
+      if (!(await stepValid('connection'))) return;
+      setError(null);
+      setSkipped(false);
+      await saveConnection();
+    } finally {
+      inflight.current = false;
+      setPending(false);
+    }
+  };
+
   /** The primary button: validates, persists the current step and moves on (or closes). */
   const advance = async () => {
     if (inflight.current || pending || testBusy) return;
@@ -194,6 +225,8 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
       if (current === 'machine') {
         const machineNow = await saveMachine();
         if (editing) { finish(machineNow, 'Machine saved'); return; }
+        // The serial number follows the external identifier until it is edited, so the same value is not typed twice.
+        if (!form.getFieldState('serialNumber').isDirty) form.setValue('serialNumber', (machineNow.externalIdentifier ?? '').toUpperCase());
         setStepIndex((index) => index + 1);
       } else if (current === 'connection') {
         const wantsConnection = canConnect && form.getValues('connect') === 'now';
@@ -255,6 +288,8 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
             <ConnectionStep
               form={form} creating={!editing} model={model} connection={connection} test={test.state} saveError={connectionFailed}
               canSkipTest={testBusy || test.state.phase === 'timeout'} onSkipTest={() => { test.reset(); setSkipped(true); }} onNavigate={close}
+              canRetest={!pending && !testBusy && (test.state.phase === 'success' || test.state.phase === 'timeout' || test.state.phase === 'failed' || connectionFailed)}
+              onRetest={() => { void retest(); }}
             />
           )}
           {current === 'spools' && <SpoolInputsEditor units={draft} onChange={setUnits} detection={detection} model={model} />}

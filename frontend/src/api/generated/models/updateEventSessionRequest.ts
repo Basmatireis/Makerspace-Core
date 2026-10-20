@@ -18,7 +18,28 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { EventSessionInput } from './eventSessionInput';
-import type { UpdateEventSessionRequestAllOf } from './updateEventSessionRequestAllOf';
+import type { EventSessionStatus } from './eventSessionStatus';
+import type { Version } from './version';
 
-export type UpdateEventSessionRequest = EventSessionInput & UpdateEventSessionRequestAllOf;
+export interface UpdateEventSessionRequest {
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  name?: string | null;
+  /**
+   * @maxLength 500
+   * @nullable
+   */
+  location?: string | null;
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  isPublic: boolean;
+  status: EventSessionStatus;
+  expectedVersion: Version;
+}

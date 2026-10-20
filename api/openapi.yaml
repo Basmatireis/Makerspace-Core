@@ -4802,6 +4802,25 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Machines]
+      operationId: deleteMachine
+      summary: Delete a machine
+      description: >-
+        Requires `machines.manage`, and `printer_connectors.manage` as well when the machine has connector assignments. Permanently deletes the machine
+        together with its printer setup, connector assignments, live status, diagnostics and its already deleted jobs and runs.
+        A machine with jobs or runs cannot be deleted (409 machine_in_use); retire it instead. A machine with a mounted spool answers
+        409 machine_has_mounted_spools until the spool is unmounted.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Machine deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /organizations:
     get:
@@ -9390,11 +9409,18 @@ components:
         isPublic: {type: boolean}
         status: {$ref: "#/components/schemas/EventSessionStatus"}
     UpdateEventSessionRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventSessionInput"}
-        - type: object
-          required: [expectedVersion]
-          properties: {expectedVersion: {$ref: "#/components/schemas/Version"}}
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, isPublic, status, expectedVersion]
+      properties:
+        name: {type: string, maxLength: 200, nullable: true}
+        location: {type: string, maxLength: 500, nullable: true}
+        description: {type: string, maxLength: 10000, nullable: true}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        isPublic: {type: boolean}
+        status: {$ref: "#/components/schemas/EventSessionStatus"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventSession:
       allOf:
         - {$ref: "#/components/schemas/EventSessionInput"}
@@ -9421,11 +9447,14 @@ components:
         description: {type: string, maxLength: 10000, nullable: true}
         sortOrder: {type: integer, format: int32}
     UpdateEventTaskListRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventTaskListInput"}
-        - type: object
-          required: [expectedVersion]
-          properties: {expectedVersion: {$ref: "#/components/schemas/Version"}}
+      type: object
+      additionalProperties: false
+      required: [name, sortOrder, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        sortOrder: {type: integer, format: int32}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventTaskList:
       allOf:
         - {$ref: "#/components/schemas/EventTaskListInput"}
@@ -9457,11 +9486,19 @@ components:
         dueAt: {type: string, format: date-time, nullable: true}
         sortOrder: {type: integer, format: int32}
     UpdateEventTaskRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventTaskInput"}
-        - type: object
-          required: [expectedVersion]
-          properties: {expectedVersion: {$ref: "#/components/schemas/Version"}}
+      type: object
+      additionalProperties: false
+      required: [title, status, priority, sortOrder, expectedVersion]
+      properties:
+        taskListId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        title: {type: string, minLength: 1, maxLength: 300}
+        description: {type: string, maxLength: 10000, nullable: true}
+        status: {$ref: "#/components/schemas/EventTaskStatus"}
+        priority: {$ref: "#/components/schemas/EventTaskPriority"}
+        assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        dueAt: {type: string, format: date-time, nullable: true}
+        sortOrder: {type: integer, format: int32}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventTask:
       allOf:
         - {$ref: "#/components/schemas/EventTaskInput"}
@@ -9496,11 +9533,20 @@ components:
         isPublic: {type: boolean}
         status: {$ref: "#/components/schemas/EventShiftStatus"}
     UpdateEventShiftRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventShiftInput"}
-        - type: object
-          required: [expectedVersion]
-          properties: {expectedVersion: {$ref: "#/components/schemas/Version"}}
+      type: object
+      additionalProperties: false
+      required: [name, startsAt, endsAt, isPublic, status, expectedVersion]
+      properties:
+        sessionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        signupOpensAt: {type: string, format: date-time, nullable: true}
+        signupClosesAt: {type: string, format: date-time, nullable: true}
+        isPublic: {type: boolean}
+        status: {$ref: "#/components/schemas/EventShiftStatus"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventShift:
       allOf:
         - {$ref: "#/components/schemas/EventShiftInput"}
@@ -9530,11 +9576,16 @@ components:
         eligibilityMode: {$ref: "#/components/schemas/EventEligibilityMode"}
         eligibleRoleIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
     UpdateEventRequirementRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventRequirementInput"}
-        - type: object
-          required: [expectedVersion]
-          properties: {expectedVersion: {$ref: "#/components/schemas/Version"}}
+      type: object
+      additionalProperties: false
+      required: [name, requiredCount, eligibilityMode, eligibleRoleIds, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        requiredCount: {type: integer, minimum: 1, maximum: 1000}
+        eligibilityMode: {$ref: "#/components/schemas/EventEligibilityMode"}
+        eligibleRoleIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventRequirement:
       allOf:
         - {$ref: "#/components/schemas/EventRequirementInput"}
@@ -9681,11 +9732,17 @@ components:
         email: {type: string, format: email, maxLength: 254, nullable: true}
         phone: {type: string, maxLength: 40, nullable: true}
     AuthenticatedEventSignupRequest:
-      allOf:
-        - {$ref: "#/components/schemas/EventSignupRequest"}
-        - type: object
-          required: [signupFor]
-          properties: {signupFor: {type: string, enum: [self, other]}}
+      type: object
+      additionalProperties: false
+      required: [shiftId, requirementId, firstName, lastName, signupFor]
+      properties:
+        shiftId: {$ref: "#/components/schemas/UUIDv7"}
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+        firstName: {type: string, minLength: 1, maxLength: 100}
+        lastName: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, maxLength: 254, nullable: true}
+        phone: {type: string, maxLength: 40, nullable: true}
+        signupFor: {type: string, enum: [self, other]}
     UpdateEventSignupRequest:
       type: object
       additionalProperties: false
@@ -10372,12 +10429,20 @@ components:
         expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
 
     UpdateOpenDayRequest:
-      allOf:
-        - {$ref: "#/components/schemas/CreateOpenDayRequest"}
-        - type: object
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, requirements, expectedPeriodVersion, expectedVersion]
+      properties:
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
+        endsAt: {type: string, format: date-time}
+        internalNote: {type: string, maxLength: 2000, nullable: true}
+        requirements:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+        expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     MinimalPerson:
       type: object
@@ -10609,12 +10674,14 @@ components:
         endsOn: {type: string, format: date}
 
     UpdateAcademicBreakRequest:
-      allOf:
-        - {$ref: "#/components/schemas/CreateAcademicBreakRequest"}
-        - type: object
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     OpenDayCalendarContext:
       type: object
@@ -11621,12 +11688,17 @@ components:
         automaticCollectionEnabled: {type: boolean}
 
     UpdateMachineRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreateMachineRequest"
-        - type: object
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      # Not an allOf over CreateMachineRequest: its additionalProperties: false would reject expectedVersion during request validation.
+      type: object
+      additionalProperties: false
+      required: [name, machineTypeId, status, automaticCollectionEnabled, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        machineTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        status: {$ref: "#/components/schemas/MachineStatus"}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        automaticCollectionEnabled: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     OrganizationKind:
       type: string
@@ -14517,13 +14589,16 @@ components:
         postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
         isDefault: {type: boolean}
     UpdateSessionPolicyRequest:
-      allOf:
-        - {$ref: "#/components/schemas/SessionPolicyInput"}
-        - type: object
-          additionalProperties: false
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      type: object
+      additionalProperties: false
+      required: [name, idleTimeoutSeconds, absoluteLifetimeSeconds, postSessionDestination, isDefault, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        idleTimeoutSeconds: {type: integer, minimum: 60, maximum: 2592000}
+        absoluteLifetimeSeconds: {type: integer, minimum: 300, maximum: 7776000}
+        postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
+        isDefault: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     SessionContext:
       type: object
       additionalProperties: false
@@ -14678,13 +14753,17 @@ components:
         anonymous: {type: boolean}
         questions: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/SurveyQuestionInput"}}
     UpdateSurveyRequest:
-      allOf:
-        - {$ref: "#/components/schemas/CreateSurveyRequest"}
-        - type: object
-          additionalProperties: false
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      type: object
+      additionalProperties: false
+      required: [name, title, description, introduction, anonymous, questions, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+        title: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000, nullable: true}
+        introduction: {type: string, maxLength: 5000, nullable: true}
+        anonymous: {type: boolean}
+        questions: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/SurveyQuestionInput"}}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     SurveyTrigger:
       type: object
       additionalProperties: false

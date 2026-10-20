@@ -105,6 +105,20 @@ func (s *Server) UpdateMachine(ctx context.Context, r openapi.UpdateMachineReque
 	return openapi.UpdateMachine200JSONResponse(mlMachineDTO(item)), nil
 }
 
+func (s *Server) DeleteMachine(ctx context.Context, r openapi.DeleteMachineRequestObject) (openapi.DeleteMachineResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.machineLogbook.DeleteMachine(ctx, p, r.MachineId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteMachine204Response{}, nil
+}
+
 func (s *Server) ListOrganizations(ctx context.Context, r openapi.ListOrganizationsRequestObject) (openapi.ListOrganizationsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

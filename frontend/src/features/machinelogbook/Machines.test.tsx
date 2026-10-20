@@ -368,6 +368,66 @@ describe('Machine detail', () => {
   });
 });
 
+describe('Delete machine', () => {
+  const openDelete = async (user: ReturnType<typeof userEvent.setup>) => {
+    renderPage(`/machine-logbook/machines/${laser.id}`);
+    expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
+    await user.click(iconButton('More machine actions'));
+    await user.click(await screen.findByText('Delete machine'));
+    return screen.findByRole('alertdialog', { name: 'Delete this machine?' });
+  };
+
+  it('deletes the machine with its version and returns to the machine list', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    let body: unknown;
+    server.use(http.delete(`*/api/v1/machines/${laser.id}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    const dialog = await openDelete(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete machine' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: laser.version }));
+    expect(await screen.findByRole('heading', { name: 'Machines' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Laser cutter was deleted.')).toBeInTheDocument();
+  });
+
+  it('explains that a machine with history is retired instead and blocks the confirmation', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    server.use(http.delete(`*/api/v1/machines/${laser.id}`, () => HttpResponse.json({ code: 'machine_in_use', message: 'in use' }, { status: 409 })));
+    const user = userEvent.setup();
+    const dialog = await openDelete(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete machine' }));
+    expect(await within(dialog).findByText('Machine has history')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete machine' })).toBeDisabled();
+  });
+
+  it('saves edits made in the Edit machine dialog', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    let body: Record<string, unknown> | undefined;
+    server.use(http.patch(`*/api/v1/machines/${laser.id}`, async ({ request }) => {
+      body = await request.json() as Record<string, unknown>;
+      return HttpResponse.json({ ...laser, status: 'maintenance', version: laser.version + 1 });
+    }));
+    const user = userEvent.setup();
+    renderPage(`/machine-logbook/machines/${laser.id}`);
+    expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
+    await user.click(iconButton('More machine actions'));
+    await user.click(await screen.findByText('Edit machine'));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit machine' });
+    await user.click(within(dialog).getByRole('radio', { name: 'Maintenance' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save machine' }));
+    await waitFor(() => expect(body).toEqual({ name: 'Laser cutter', machineTypeId: laserTypeId, status: 'maintenance', externalIdentifier: null, automaticCollectionEnabled: false, expectedVersion: laser.version }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit machine' })).not.toBeInTheDocument());
+    expect(screen.queryByText('Not saved')).not.toBeInTheDocument();
+  });
+
+  it('is not offered without machines.manage', async () => {
+    setup([PermissionId.machinesread]);
+    renderPage(`/machine-logbook/machines/${laser.id}`);
+    expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText('More machine actions', { selector: '.cds--tooltip-content' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete machine')).not.toBeInTheDocument();
+  });
+});
+
 describe('Printer setup', () => {
   it.each([404, 500])('treats only a profile 404 as absent (status %s)', async (status) => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);

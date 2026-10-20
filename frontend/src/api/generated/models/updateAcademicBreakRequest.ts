@@ -18,7 +18,15 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateAcademicBreakRequest } from './createAcademicBreakRequest';
-import type { UpdateAcademicBreakRequestAllOf } from './updateAcademicBreakRequestAllOf';
+import type { Version } from './version';
 
-export type UpdateAcademicBreakRequest = CreateAcademicBreakRequest & UpdateAcademicBreakRequestAllOf;
+export interface UpdateAcademicBreakRequest {
+  /**
+   * @minLength 1
+   * @maxLength 150
+   */
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  expectedVersion: Version;
+}

@@ -18,8 +18,12 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Version } from './version';
 
-export type UpdateEventShiftRequestAllOf = {
-  expectedVersion: Version;
-};
+export type AuthenticatedEventSignupRequestSignupFor = typeof AuthenticatedEventSignupRequestSignupFor[keyof typeof AuthenticatedEventSignupRequestSignupFor];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AuthenticatedEventSignupRequestSignupFor = {
+  self: 'self',
+  other: 'other',
+} as const;

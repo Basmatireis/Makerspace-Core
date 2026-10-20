@@ -18,7 +18,27 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { EventRequirementInput } from './eventRequirementInput';
-import type { UpdateEventRequirementRequestAllOf } from './updateEventRequirementRequestAllOf';
+import type { EventEligibilityMode } from './eventEligibilityMode';
+import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
-export type UpdateEventRequirementRequest = EventRequirementInput & UpdateEventRequirementRequestAllOf;
+export interface UpdateEventRequirementRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
+  description?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  requiredCount: number;
+  eligibilityMode: EventEligibilityMode;
+  eligibleRoleIds: UUIDv7[];
+  expectedVersion: Version;
+}

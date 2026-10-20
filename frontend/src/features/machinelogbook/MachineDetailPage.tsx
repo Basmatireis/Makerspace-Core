@@ -9,6 +9,7 @@ import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { JobsTable } from './components/JobsTable';
 import { PrinterSetup } from './components/PrinterSetup';
+import { DeleteMachineModal } from './dialogs/DeleteMachineModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { usePrinterConnection } from './connectorQueries';
@@ -27,6 +28,8 @@ type TabKey = 'overview' | 'jobs' | 'printer';
 const statusLabel: Record<MachineStatus, string> = { active: 'Active', maintenance: 'Maintenance', retired: 'Retired' };
 const tabLabels: Record<TabKey, string> = { overview: 'Overview', jobs: 'Jobs', printer: 'Printer setup' };
 const JOBS_LIMIT = 100;
+// Runs reported by connectors appear without a reload.
+const JOBS_REFRESH_MS = 10_000;
 const PRINTER_REFRESH_MS = 5000;
 
 export function MachineDetailPage() {
@@ -35,6 +38,7 @@ export function MachineDetailPage() {
   const [params, setParams] = useSearchParams();
   const [editOpen, setEditOpen] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   useNow();
   const canManage = can('machines.manage');
   const canReadJobs = can('machine_jobs.read');
@@ -43,7 +47,7 @@ export function MachineDetailPage() {
   const machineResult = useQuery(machineQuery(machineId));
   const activityResult = useQuery(machineActivityQuery());
   const printer = useQuery({ ...printerQuery(machineId), retry: false, refetchInterval: printerSelected ? PRINTER_REFRESH_MS : false });
-  const jobsResult = useQuery({ ...workItemsQuery({ machineId: [machineId], sort: 'startedAt', direction: 'desc', pageSize: JOBS_LIMIT }), enabled: canReadJobs });
+  const jobsResult = useQuery({ ...workItemsQuery({ machineId: [machineId], sort: 'startedAt', direction: 'desc', pageSize: JOBS_LIMIT }), enabled: canReadJobs, refetchInterval: JOBS_REFRESH_MS });
 
   const machine = machineResult.data;
   const profile: PrinterProfile | undefined = printer.data;
@@ -154,6 +158,7 @@ export function MachineDetailPage() {
       {canManage && (
         <OverflowMenu aria-label="More machine actions" iconDescription="More machine actions" flipped size="lg">
           <OverflowMenuItem itemText="Edit machine" onClick={() => setEditOpen(true)} />
+          <OverflowMenuItem itemText="Delete machine" isDelete hasDivider onClick={() => setDeleteOpen(true)} />
         </OverflowMenu>
       )}
     </>
@@ -181,6 +186,7 @@ export function MachineDetailPage() {
         </Tabs>
       </div>
       {canManage && editOpen && <MachineSetupWizard open onClose={() => setEditOpen(false)} machine={machine} profile={profile} connection={connection} initialStep="machine" />}
+      {canManage && <DeleteMachineModal machine={machine} open={deleteOpen} onClose={() => setDeleteOpen(false)} />}
       {canCreate && <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" initialValues={{ machineId: machine.id }} />}
     </PageShell>
   );

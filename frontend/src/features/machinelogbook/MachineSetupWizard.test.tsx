@@ -179,6 +179,55 @@ describe('Add machine wizard for a printer', () => {
     expect(within(dialog).getByText("Connect the printer to see what's loaded in each slot.")).toBeInTheDocument();
   });
 
+  it('tests again after a timeout and asks for a new test once a connection field changes', async () => {
+    const recorded = backend(MANAGE, { report: false });
+    const patches: Record<string, unknown>[] = [];
+    server.use(http.patch(`*/api/v1/printer-connectors/${connectorId}/assignments/${assignmentId}`, async ({ request }) => {
+      patches.push(await request.json() as Record<string, unknown>);
+      return HttpResponse.json(assignmentOf({ machineId: newId, machineName: 'Lab printer', version: 2 }));
+    }));
+    connectionTestTiming.timeoutMs = 300;
+    const user = userEvent.setup();
+    const dialog = await openWizard(user);
+    await fillMachineStep(user, dialog);
+    await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
+    await user.type(await within(dialog).findByLabelText('Printer IPv4 address'), '192.168.1.42');
+    await user.type(within(dialog).getByLabelText('Serial number'), 'SN1');
+    await user.type(within(dialog).getByLabelText('LAN access code'), 'code');
+    await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
+    expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
+    expect(recorded.assignment).toBeDefined();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Test again' }));
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
+
+    const ip = within(dialog).getByLabelText('Printer IPv4 address');
+    await user.clear(ip);
+    await user.type(ip, '192.168.1.43');
+    expect(within(dialog).queryByText('No status received yet')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Test again' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
+    await waitFor(() => expect(patches).toHaveLength(2));
+    expect(patches[1]).toMatchObject({ settings: { ipAddress: '192.168.1.43', serialNumber: 'SN1' } });
+  });
+
+  it('takes the serial number from the external identifier until it is edited', async () => {
+    const recorded = backend(MANAGE);
+    server.use(http.post('*/api/v1/machines', async ({ request }) => {
+      recorded.machine = await request.json();
+      return HttpResponse.json({ ...created, automaticCollectionEnabled: true, externalIdentifier: '01p00a123456789' }, { status: 201 });
+    }));
+    const user = userEvent.setup();
+    const dialog = await openWizard(user);
+    await fillMachineStep(user, dialog);
+    await user.click(within(dialog).getByRole('switch', { name: 'Automatic collection' }));
+    await user.type(within(dialog).getByLabelText('External identifier (optional)'), '01p00a123456789');
+    await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
+    await waitFor(() => expect(recorded.machine).toMatchObject({ externalIdentifier: '01p00a123456789', automaticCollectionEnabled: true }));
+    expect(await within(dialog).findByLabelText('Serial number')).toHaveValue('01P00A123456789');
+  });
+
   it('keeps the created machine usable when the dialog is cancelled after the first step', async () => {
     const recorded = backend(MANAGE);
     const user = userEvent.setup();
@@ -294,6 +343,26 @@ describe('Printer setup tab', () => {
     await waitFor(() => expect(requests.patch).toHaveLength(1));
     expect(requests.patch[0]).toMatchObject({ adapterKind: 'bambu_h2d', adapterSchemaVersion: 1, settings: { ipAddress: '192.168.1.50', serialNumber: '01P00A123456789', autoDetectSpools: true }, enabled: true, end: false, expectedVersion: 3 });
     expect(requests.patch[0]).not.toHaveProperty('secrets');
+  });
+
+  it('connects a printer later through the live adapter of its model, not only the simulator', async () => {
+    const requests = detail([...MANAGE], { live: null, assignments: [] });
+    let created: Record<string, unknown> | undefined;
+    server.use(http.post(`*/api/v1/printer-connectors/${connectorId}/assignments`, async ({ request }) => {
+      created = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(assignmentOf(), { status: 201 });
+    }));
+    const user = await open();
+    await user.click(await screen.findByRole('button', { name: 'Connect printer' }, { timeout: 5000 }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit connection' });
+    expect(within(dialog).getByLabelText('Adapter')).toHaveValue('Bambu Lab H2D');
+    await user.selectOptions(within(dialog).getByLabelText('Connector'), connectorId);
+    await user.type(within(dialog).getByLabelText('Printer IPv4 address'), '192.168.1.42');
+    await user.type(within(dialog).getByLabelText('Serial number'), 'SN1');
+    await user.type(within(dialog).getByLabelText('LAN access code'), 'code');
+    await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
+    await waitFor(() => expect(created).toMatchObject({ adapterKind: 'bambu_h2d', settings: { ipAddress: '192.168.1.42', serialNumber: 'SN1' }, secrets: { lanAccessCode: 'code' } }));
+    expect(requests.patch).toHaveLength(0);
   });
 
   it('hides editing and the connection tile from users without the matching permissions', async () => {

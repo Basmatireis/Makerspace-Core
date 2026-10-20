@@ -48,7 +48,59 @@ func TestEmbeddedSpecificationIsValidAndOperationIDsAreStableStyle(t *testing.T)
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	if operationCount != 448 {
-		t.Fatalf("operation count = %d, want 448", operationCount)
+	if operationCount != 449 {
+		t.Fatalf("operation count = %d, want 449", operationCount)
+	}
+}
+
+// Request validation checks every allOf member against the whole body, so a
+// closed member (additionalProperties: false) rejects the properties that the
+// other members add. Request schemas must spell such objects out instead.
+func TestRequestBodiesHaveNoClosedAllOfMembers(t *testing.T) {
+	spec, err := GetSwagger()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[*openapi3.Schema]bool{}
+	var walk func(where string, ref *openapi3.SchemaRef)
+	walk = func(where string, ref *openapi3.SchemaRef) {
+		if ref == nil || ref.Value == nil || seen[ref.Value] {
+			return
+		}
+		schema := ref.Value
+		seen[schema] = true
+		for i, member := range schema.AllOf {
+			closed := member.Value.AdditionalProperties.Has
+			if closed == nil || *closed {
+				continue
+			}
+			for j, other := range schema.AllOf {
+				for name := range other.Value.Properties {
+					if _, declared := member.Value.Properties[name]; i != j && !declared {
+						t.Errorf("%s: closed allOf member %d rejects property %q of member %d", where, i, name, j)
+					}
+				}
+			}
+		}
+		for _, list := range [][]*openapi3.SchemaRef{schema.AllOf, schema.OneOf, schema.AnyOf} {
+			for _, child := range list {
+				walk(where, child)
+			}
+		}
+		for name, child := range schema.Properties {
+			walk(where+"."+name, child)
+		}
+		walk(where+"[]", schema.Items)
+		walk(where+"{}", schema.AdditionalProperties.Schema)
+	}
+	for path, item := range spec.Paths.Map() {
+		for method, operation := range item.Operations() {
+			if operation.RequestBody == nil || operation.RequestBody.Value == nil {
+				continue
+			}
+			for _, media := range operation.RequestBody.Value.Content {
+				walk(method+" "+path, media.Schema)
+			}
+		}
 	}
 }

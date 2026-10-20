@@ -259,6 +259,74 @@ func (s *Service) UpdateMachine(ctx context.Context, p authorization.Principal, 
 	return s.loadMachine(ctx, id)
 }
 
+// DeleteMachine permanently deletes a machine that has no jobs or runs, with
+// its printer setup, connector assignments, diagnostics and the tombstones of
+// its deleted jobs and runs. Machines with history are retired instead.
+func (s *Service) DeleteMachine(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return err
+	}
+	if expected < 1 {
+		return validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := machinelogbookdb.New(tx)
+	current, err := q.GetMachineForUpdate(ctx, id)
+	if err != nil {
+		return noRows(err)
+	}
+	if current.Version != expected {
+		return apperror.StaleWrite
+	}
+	connected, err := q.MachineHasConnectorAssignments(ctx, id)
+	if err != nil {
+		return err
+	}
+	if connected {
+		if err = require(p, authorization.PrinterConnectorsManage); err != nil {
+			return err
+		}
+	}
+	inUse, err := q.MachineHasActiveWork(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inUse {
+		return conflict("machine_in_use", "The machine has jobs or runs and cannot be deleted; retire it instead")
+	}
+	mounted, err := q.MachineHasMountedSpool(ctx, id)
+	if err != nil {
+		return err
+	}
+	if mounted {
+		return conflict("machine_has_mounted_spools", "Unmount the spools of this machine before deleting it")
+	}
+	// Order matters: runs go before printer events and assignments they reference.
+	for _, step := range []func(context.Context, uuid.UUID) error{
+		q.BumpConnectorsOfDeletedMachine, q.DeleteMachineErrorOccurrences, q.DeleteMachineRunsOfMachine, q.DeleteMachineJobsOfMachine,
+		q.DeleteMachinePrinterEvents, q.DeleteMachineSpoolMountHistory, q.DeleteMachineConnectorAssignments,
+	} {
+		if err = step(ctx, id); err != nil {
+			return databaseError(err)
+		}
+	}
+	rows, err := q.DeleteMachine(ctx, machinelogbookdb.DeleteMachineParams{ID: id, ExpectedVersion: expected})
+	if err != nil {
+		return databaseError(err)
+	}
+	if rows == 0 {
+		return apperror.StaleWrite
+	}
+	if err = writeAudit(ctx, tx, p, "machine.deleted", "machine", id, requestID, nil); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func organizationFromRow(row machinelogbookdb.Organization) Organization {
 	return Organization{ID: row.ID, Name: row.Name, Kind: row.Kind, Active: row.Active, OrganizationDetails: OrganizationDetails{AddressLine: row.AddressLine, PostalCode: row.PostalCode, Locality: row.Locality, CountryCode: row.CountryCode, ContactName: row.ContactName, ContactEmail: row.ContactEmail}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }

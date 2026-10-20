@@ -1408,3 +1408,51 @@ WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced'
   AND COALESCE(r.job_id, r.id) = ANY(sqlc.arg(item_ids)::uuid[])
 GROUP BY 1, 2
 ORDER BY 1, 2;
+
+-- name: MachineHasActiveWork :one
+SELECT EXISTS (
+    SELECT 1 FROM machine_jobs j WHERE j.machine_id = sqlc.arg(machine_id) AND j.deleted_at IS NULL
+    UNION ALL
+    SELECT 1 FROM machine_runs r WHERE r.machine_id = sqlc.arg(machine_id) AND r.deleted_at IS NULL
+);
+
+-- name: MachineHasMountedSpool :one
+SELECT EXISTS (
+    SELECT 1 FROM printer_spool_assignments a
+    JOIN printer_slots s ON s.id = a.slot_id
+    JOIN printer_input_units u ON u.id = s.input_unit_id
+    WHERE u.machine_id = sqlc.arg(machine_id) AND a.unmounted_at IS NULL
+);
+
+-- name: MachineHasConnectorAssignments :one
+SELECT EXISTS (SELECT 1 FROM printer_connector_assignments WHERE machine_id = sqlc.arg(machine_id));
+
+-- name: BumpConnectorsOfDeletedMachine :exec
+-- The connectors drop the machine's assignment on their next configuration pull.
+UPDATE printer_connectors SET configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
+WHERE id IN (SELECT connector_id FROM printer_connector_assignments WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL);
+
+-- name: DeleteMachineErrorOccurrences :exec
+DELETE FROM printer_error_occurrences WHERE machine_id = sqlc.arg(machine_id);
+
+-- name: DeleteMachineRunsOfMachine :exec
+-- Only tombstoned runs are left at this point; usages, measures and reported items cascade.
+DELETE FROM machine_runs WHERE machine_id = sqlc.arg(machine_id);
+
+-- name: DeleteMachineJobsOfMachine :exec
+DELETE FROM machine_jobs WHERE machine_id = sqlc.arg(machine_id);
+
+-- name: DeleteMachinePrinterEvents :exec
+DELETE FROM printer_events WHERE machine_id = sqlc.arg(machine_id)::uuid;
+
+-- name: DeleteMachineSpoolMountHistory :exec
+DELETE FROM printer_spool_assignments WHERE slot_id IN (
+    SELECT s.id FROM printer_slots s JOIN printer_input_units u ON u.id = s.input_unit_id WHERE u.machine_id = sqlc.arg(machine_id)
+);
+
+-- name: DeleteMachineConnectorAssignments :exec
+DELETE FROM printer_connector_assignments WHERE machine_id = sqlc.arg(machine_id);
+
+-- name: DeleteMachine :execrows
+-- The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
+DELETE FROM machines WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);

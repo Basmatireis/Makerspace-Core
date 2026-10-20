@@ -18,7 +18,31 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { EventSignupRequest } from './eventSignupRequest';
-import type { AuthenticatedEventSignupRequestAllOf } from './authenticatedEventSignupRequestAllOf';
+import type { UUIDv7 } from './uUIDv7';
+import type { AuthenticatedEventSignupRequestSignupFor } from './authenticatedEventSignupRequestSignupFor';
 
-export type AuthenticatedEventSignupRequest = EventSignupRequest & AuthenticatedEventSignupRequestAllOf;
+export interface AuthenticatedEventSignupRequest {
+  shiftId: UUIDv7;
+  requirementId: UUIDv7;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  firstName: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  lastName: string;
+  /**
+   * @maxLength 254
+   * @nullable
+   */
+  email?: string | null;
+  /**
+   * @maxLength 40
+   * @nullable
+   */
+  phone?: string | null;
+  signupFor: AuthenticatedEventSignupRequestSignupFor;
+}

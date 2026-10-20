@@ -18,7 +18,35 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateSurveyRequest } from './createSurveyRequest';
-import type { UpdateSurveyRequestAllOf } from './updateSurveyRequestAllOf';
+import type { SurveyQuestionInput } from './surveyQuestionInput';
+import type { Version } from './version';
 
-export type UpdateSurveyRequest = CreateSurveyRequest & UpdateSurveyRequestAllOf;
+export interface UpdateSurveyRequest {
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  description: string | null;
+  /**
+   * @maxLength 5000
+   * @nullable
+   */
+  introduction: string | null;
+  anonymous: boolean;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  questions: SurveyQuestionInput[];
+  expectedVersion: Version;
+}

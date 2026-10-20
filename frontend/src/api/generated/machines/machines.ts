@@ -28,7 +28,8 @@ import type {
   MachineTypeList,
   UUIDv7,
   UpdateMachineRequest,
-  UpdateMachineTypeRequest
+  UpdateMachineTypeRequest,
+  VersionRequest
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -203,6 +204,32 @@ export const updateMachine = async (machineId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateMachineRequest,)
+  }
+);}
+
+
+/**
+ * Requires `machines.manage`, and `printer_connectors.manage` as well when the machine has connector assignments. Permanently deletes the machine together with its printer setup, connector assignments, live status, diagnostics and its already deleted jobs and runs. A machine with jobs or runs cannot be deleted (409 machine_in_use); retire it instead. A machine with a mounted spool answers 409 machine_has_mounted_spools until the spool is unmounted.
+ * @summary Delete a machine
+ */
+export const getDeleteMachineUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machines/${machineId}`
+}
+
+export const deleteMachine = async (machineId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeleteMachineUrl(machineId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
   }
 );}
 

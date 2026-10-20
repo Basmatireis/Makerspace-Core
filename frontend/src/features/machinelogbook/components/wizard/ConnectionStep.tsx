@@ -13,9 +13,9 @@ import { useCan } from '../../shared/useCan';
 import { connectionTestTiming, type TestState } from './useConnectionTest';
 import type { SetupForm } from './wizardTypes';
 
-export function ConnectionStep({ form, creating, model, connection, test, saveError, canSkipTest, onSkipTest, onNavigate }: {
+export function ConnectionStep({ form, creating, model, connection, test, saveError, canSkipTest, onSkipTest, canRetest = false, onRetest, onNavigate }: {
   form: SetupForm; creating: boolean; model: PrinterModelInfo | undefined; connection: PrinterConnection | undefined; test: TestState; saveError: boolean;
-  canSkipTest: boolean; onSkipTest: () => void; onNavigate: () => void;
+  canSkipTest: boolean; onSkipTest: () => void; canRetest?: boolean; onRetest?: () => void; onNavigate: () => void;
 }) {
   const can = useCan();
   const canManage = can('printer_connectors.manage');
@@ -96,10 +96,10 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
                 {...register('ipAddress', { validate: (value, all) => !(all.connect === 'now' && isBambuAdapter(all.adapterKind)) || isIPv4Unicast(value.trim()) })}
               />
               <TextInput
-                id="setup-serial" labelText="Serial number" autoComplete="off" helperText="Shown on the printer under Settings › Device." invalid={Boolean(errors.serialNumber)} invalidText="Use capital letters, digits, dash or underscore."
+                id="setup-serial" labelText="Serial number" autoComplete="off" helperText="Shown on the printer under Settings › Device. Taken from the machine's external identifier when one is set." invalid={Boolean(errors.serialNumber)} invalidText="Use capital letters, digits, dash or underscore."
                 {...register('serialNumber', {
                   validate: (value, all) => !(all.connect === 'now' && isBambuAdapter(all.adapterKind)) || SERIAL_PATTERN.test(value.trim()),
-                  onChange: (event) => setValue('serialNumber', String(event.target.value).toUpperCase(), { shouldValidate: true }),
+                  onChange: (event) => setValue('serialNumber', String(event.target.value).toUpperCase(), { shouldValidate: true, shouldDirty: true }),
                 })}
               />
               <PasswordInput
@@ -140,7 +140,12 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
               <InlineNotification kind="error" lowContrast hideCloseButton title="Connection not saved" subtitle="Check the values. The machine needs an enabled printer profile and no other active connector assignment. If someone else changed the connection, close the dialog and reopen it." />
             )}
             {test.phase === 'idle' && !saveError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Connection not tested" subtitle="Save and test the connection to see what is loaded in each slot. You can also continue without testing." />}
-            {canSkipTest && <div><Button kind="ghost" size="sm" onClick={onSkipTest}>Continue without waiting</Button></div>}
+            {(canSkipTest || (canRetest && onRetest)) && (
+              <div className="mj-inline">
+                {canRetest && onRetest && <Button kind="tertiary" size="sm" onClick={onRetest}>Test again</Button>}
+                {canSkipTest && <Button kind="ghost" size="sm" onClick={onSkipTest}>Continue without waiting</Button>}
+              </div>
+            )}
           </Stack>
         </QueryBoundary>
       )}
