@@ -139,6 +139,32 @@ export const updatePrinterConnector = async (printerConnectorId: UUIDv7,
 
 
 /**
+ * Needs `printer_connectors.manage`. Revokes and deletes the credentials, enrollments, assignments and discovery data in one transaction. Recorded runs, printer errors and the events they rest on stay without the connector reference. A running connector instance is rejected as unauthenticated afterwards.
+ * @summary Permanently delete a connector in any lifecycle
+ */
+export const getDeletePrinterConnectorUrl = (printerConnectorId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connectors/${printerConnectorId}`
+}
+
+export const deletePrinterConnector = async (printerConnectorId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeletePrinterConnectorUrl(printerConnectorId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
  * @summary Issue a one-time connector enrollment secret
  */
 export const getCreatePrinterConnectorEnrollmentUrl = (printerConnectorId: UUIDv7,) => {

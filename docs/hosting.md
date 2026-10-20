@@ -113,6 +113,8 @@ Bundle: `makerspace-printer-connector-VERSION-compose.tar.gz`. Runs on a host in
 | `CONNECTOR_ENROLLMENT_SECRET` | one-time secret from Core (sensitive, first start only) |
 | `PRINTER_CONNECTOR_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
 
+Re-enrolling: To connect a daemon to a different or newly created connector or gateway, put the new enrollment secret into `CONNECTOR_ENROLLMENT_SECRET` and restart. If the secret differs from the one used for the stored identity, the daemon enrolls with it and replaces its local identity. If Core rejects the new secret, the daemon keeps running with the old identity and logs an error. An unchanged secret is ignored and can be removed. For the gateway the variable is `STREAM_ENROLLMENT_SECRET`. In Core, delete the old entry or let it be revoked, create a new one, copy its secret.
+
 Enrollment: in Core open **Machines > Connectors**, create a connector, copy the secret (shown once, valid 15 minutes), write it into `.env`, run `docker compose up -d`. The connector generates its own credential, exchanges the secret, and stores its identity encrypted in the data volume. From then on `CONNECTOR_ENROLLMENT_SECRET` is ignored (the log says so once); remove it from `.env` and run `docker compose up -d` again. Without an identity and without a secret the container exits with a message saying what to do. Then assign printers to the connector in Core ([printer connector](printer-connector.md#bambu-lab-h2d-and-x1-carbon-setup)).
 
 ### Stack 3: Streaming gateway (`makerspace-streaming`)
@@ -193,8 +195,9 @@ With local services in stack 4 the volume names start with `makerspace-local-ser
 
 | Symptom | Check |
 |---|---|
+| Log says "Core rejects this connector's credential (revoked or deleted)" | the connector or gateway was revoked or deleted in Core. Create a new one (Delete works for active and revoked entries), put its secret into `CONNECTOR_ENROLLMENT_SECRET` (gateway: `STREAM_ENROLLMENT_SECRET`) in `.env` and restart; no volume has to be deleted |
 | `make dev-connector` or `make dev-streaming` stops with "not enrolled" | put the one-time secret into that stack's `.env` (see above) and run it again; secrets expire after 15 minutes, create a new one in Core if needed |
-| Container exits with "not enrolled and ..._ENROLLMENT_SECRET is not set" | same: the identity is missing from the data volume (new volume after a project rename, or `docker compose down --volumes`); enroll again |
+| Container exits with "not enrolled and ..._ENROLLMENT_SECRET is not set" | same: the identity is missing from the data volume (new volume after a project rename, or `docker compose down --volumes`); put a fresh secret into `.env` and start again |
 | Enrollment fails with 401 or 429 | secret expired, used already or mistyped; Core answers 429 after 20 failed attempts in 15 minutes |
 | `docker compose` complains `Set MAKERSPACE_VERSION` / `Set CORE_URL` | the variable is missing in that directory's `.env` |
 | Gateway: `no such file` or permission denied for `/certs/...` | `certs/fullchain.pem` and `certs/privkey.pem` must exist and be readable by uid 10001 |

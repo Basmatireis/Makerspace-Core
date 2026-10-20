@@ -430,6 +430,58 @@ func (q *Queries) CreateRotatedCredential(ctx context.Context, arg CreateRotated
 	return i, err
 }
 
+const deleteConnector = `-- name: DeleteConnector :execrows
+DELETE FROM printer_connectors WHERE id=$1 AND version=$2
+`
+
+type DeleteConnectorParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeleteConnector(ctx context.Context, arg DeleteConnectorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteConnector, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteConnectorAssignments = `-- name: DeleteConnectorAssignments :exec
+DELETE FROM printer_connector_assignments WHERE connector_id=$1
+`
+
+func (q *Queries) DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteConnectorAssignments, connectorID)
+	return err
+}
+
+const deleteUnreferencedConnectorEvents = `-- name: DeleteUnreferencedConnectorEvents :exec
+DELETE FROM printer_events e
+WHERE e.connector_id=$1::uuid AND e.run_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM machine_run_reported_usage_items i WHERE i.source_printer_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.source_printer_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.source_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.reported_event_id=e.id)
+`
+
+// Events that no run, usage or spool mount rests on are pure diagnostics.
+func (q *Queries) DeleteUnreferencedConnectorEvents(ctx context.Context, connectorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUnreferencedConnectorEvents, connectorID)
+	return err
+}
+
+const detachConnectorEvents = `-- name: DetachConnectorEvents :exec
+UPDATE printer_events SET connector_id=NULL, connector_assignment_id=NULL, configuration_version=NULL
+WHERE connector_id=$1::uuid
+`
+
+// Remaining events are the evidence behind recorded runs and usage; they keep their payload but lose the connector.
+func (q *Queries) DetachConnectorEvents(ctx context.Context, connectorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, detachConnectorEvents, connectorID)
+	return err
+}
+
 const endConnectorAssignments = `-- name: EndConnectorAssignments :exec
 UPDATE printer_connector_assignments SET ended_at=COALESCE(ended_at, now()), enabled=false, version=version+1, updated_at=now()
 WHERE connector_id=$1 AND ended_at IS NULL
@@ -1547,6 +1599,17 @@ func (q *Queries) RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams
 	return i, err
 }
 
+const resolveErrorOccurrencesOfConnector = `-- name: ResolveErrorOccurrencesOfConnector :exec
+UPDATE printer_error_occurrences SET resolved_at=GREATEST(now(), last_observed_at), updated_at=now()
+WHERE resolved_at IS NULL
+  AND assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
+`
+
+func (q *Queries) ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, resolveErrorOccurrencesOfConnector, connectorID)
+	return err
+}
+
 const resolvePrinterErrorOccurrence = `-- name: ResolvePrinterErrorOccurrence :exec
 UPDATE printer_error_occurrences
 SET last_observed_at=GREATEST(last_observed_at, $1::timestamptz),
@@ -1557,7 +1620,7 @@ WHERE assignment_id=$2 AND source_family=$3
 
 type ResolvePrinterErrorOccurrenceParams struct {
 	ObservedAt   time.Time
-	AssignmentID uuid.UUID
+	AssignmentID *uuid.UUID
 	SourceFamily string
 	OriginalCode string
 }
@@ -1670,6 +1733,18 @@ func (q *Queries) SetObservedRunReport(ctx context.Context, arg SetObservedRunRe
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const settleRunsOfConnector = `-- name: SettleRunsOfConnector :exec
+UPDATE machine_runs SET state='unknown', history_complete=false, version=version+1, updated_at=now()
+WHERE source='recorded' AND state='running'
+  AND assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
+`
+
+// Runs still shown as running when their connector is deleted can never be finished by it.
+func (q *Queries) SettleRunsOfConnector(ctx context.Context, connectorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, settleRunsOfConnector, connectorID)
+	return err
 }
 
 const touchCredential = `-- name: TouchCredential :exec
@@ -1941,7 +2016,7 @@ DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_
 type UpsertPrinterErrorOccurrenceParams struct {
 	ID           uuid.UUID
 	MachineID    uuid.UUID
-	AssignmentID uuid.UUID
+	AssignmentID *uuid.UUID
 	RunID        *uuid.UUID
 	SourceFamily string
 	OriginalCode string

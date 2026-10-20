@@ -3938,6 +3938,20 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Printer Connectors]
+      operationId: deletePrinterConnector
+      summary: Permanently delete a connector in any lifecycle
+      description: Needs `printer_connectors.manage`. Revokes and deletes the credentials, enrollments, assignments and discovery data in one transaction. Recorded runs, printer errors and the events they rest on stay without the connector reference. A running connector instance is rejected as unauthenticated afterwards.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Connector deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /printer-connectors/{printerConnectorId}/enrollments:
     parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
@@ -4238,7 +4252,8 @@ paths:
     delete:
       tags: [Local Services]
       operationId: deleteStreamingGateway
-      summary: Permanently delete a gateway with its credentials and camera assignments
+      summary: Permanently delete a gateway in any lifecycle with its credentials and camera assignments
+      description: Needs `local_services.manage`. A running gateway is rejected as unauthenticated afterwards.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:

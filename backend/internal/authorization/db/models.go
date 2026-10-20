@@ -1197,7 +1197,7 @@ type PrinterDiscoveryRequest struct {
 type PrinterErrorOccurrence struct {
 	ID                  uuid.UUID
 	MachineID           uuid.UUID
-	AssignmentID        uuid.UUID
+	AssignmentID        *uuid.UUID
 	RunID               *uuid.UUID
 	SourceFamily        string
 	OriginalCode        string

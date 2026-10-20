@@ -103,7 +103,7 @@ describe('Local services', () => {
     expect(await within(dialog).findByText('This machine already has a camera on a streaming gateway. Remove that camera first.')).toBeInTheDocument();
   });
 
-  it('revokes a gateway after confirmation and then offers deletion', async () => {
+  it('revokes a gateway after confirmation; Delete stays available', async () => {
     setup([PermissionId.local_servicesmanage]);
     let revoked = false;
     server.use(
@@ -112,10 +112,51 @@ describe('Local services', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/settings/local-services/${gatewayId}`);
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
-    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }));
     expect(await screen.findByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New enrollment secret' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it.each(['active', 'revoked'] as const)('deletes a %s gateway from the detail page and returns to the list', async (lifecycle) => {
+    setup([PermissionId.local_servicesmanage], { gateways: [gateway({ lifecycle })] });
+    let body: unknown;
+    server.use(http.delete(`*/api/v1/streaming-gateways/${gatewayId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/local-services/${gatewayId}`);
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/The gateway is revoked and removed. A running instance stops working; its cameras must be assigned to another one./)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+    expect(await screen.findByRole('heading', { name: 'Local services' })).toBeInTheDocument();
+  });
+
+  it('deletes and re-issues enrollment secrets from the list', async () => {
+    const pending = gateway({ lifecycle: 'pending', lastHeartbeatAt: null, enrolledAt: null });
+    setup([PermissionId.local_servicesmanage], { gateways: [pending, gateway({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a799', name: 'Second gateway' })] });
+    const secret = 'T'.repeat(43);
+    let deleted: unknown;
+    server.use(
+      http.post(`*/api/v1/streaming-gateways/${gatewayId}/enrollments`, () => HttpResponse.json({ gateway: pending, enrollmentId: 'e1', enrollmentSecret: secret, expiresAt: '2026-10-19T08:15:00Z' }, { status: 201 })),
+      http.delete('*/api/v1/streaming-gateways/0192f6f8-743e-7c77-a349-cd07c3e8a799', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/local-services');
+    await screen.findByRole('table', { name: 'Streaming gateways' });
+    const menuItem = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
+    await user.click(await screen.findByRole('button', { name: 'Actions for Second gateway' }));
+    expect(screen.queryByText('New enrollment secret', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    await user.click(await menuItem('Delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete gateway' }));
+    await waitFor(() => expect(deleted).toEqual({ expectedVersion: 4 }));
+
+    await user.click(await screen.findByRole('button', { name: 'Actions for Print room gateway' }));
+    await user.click(await menuItem('New enrollment secret'));
+    expect(await screen.findByText(secret)).toBeInTheDocument();
+    expect(screen.getByText(/STREAM_ENROLLMENT_SECRET=T+/)).toBeInTheDocument();
   });
 });

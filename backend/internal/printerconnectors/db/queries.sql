@@ -292,3 +292,34 @@ WHERE s.machine_id=sqlc.arg(machine_id) AND a.ended_at IS NULL;
 -- name: GetAccountDisplayName :one
 SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
 FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=sqlc.arg(id);
+
+-- name: SettleRunsOfConnector :exec
+-- Runs still shown as running when their connector is deleted can never be finished by it.
+UPDATE machine_runs SET state='unknown', history_complete=false, version=version+1, updated_at=now()
+WHERE source='recorded' AND state='running'
+  AND assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id));
+
+-- name: ResolveErrorOccurrencesOfConnector :exec
+UPDATE printer_error_occurrences SET resolved_at=GREATEST(now(), last_observed_at), updated_at=now()
+WHERE resolved_at IS NULL
+  AND assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id));
+
+-- name: DeleteUnreferencedConnectorEvents :exec
+-- Events that no run, usage or spool mount rests on are pure diagnostics.
+DELETE FROM printer_events e
+WHERE e.connector_id=sqlc.arg(connector_id)::uuid AND e.run_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM machine_run_reported_usage_items i WHERE i.source_printer_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.source_printer_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.source_event_id=e.id)
+  AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.reported_event_id=e.id);
+
+-- name: DetachConnectorEvents :exec
+-- Remaining events are the evidence behind recorded runs and usage; they keep their payload but lose the connector.
+UPDATE printer_events SET connector_id=NULL, connector_assignment_id=NULL, configuration_version=NULL
+WHERE connector_id=sqlc.arg(connector_id)::uuid;
+
+-- name: DeleteConnectorAssignments :exec
+DELETE FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id);
+
+-- name: DeleteConnector :execrows
+DELETE FROM printer_connectors WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version);

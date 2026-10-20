@@ -654,6 +654,60 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 	return connectorFrom(row), nil
 }
 
+// Delete removes a connector in any lifecycle. Its credentials, enrollments, assignments, live
+// statuses and discovery data are deleted; recorded runs, printer errors and the events they rest on
+// survive without the connector reference. A daemon still running with the deleted credential is
+// rejected as unauthenticated.
+func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+	if !principal.Has(authorization.PrinterConnectorsManage) {
+		return apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := db.New(tx)
+	if _, err = q.GetConnectorForUpdate(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	} else if err != nil {
+		return err
+	}
+	if err = q.RevokeConnectorCredentials(ctx, id); err != nil {
+		return err
+	}
+	if err = q.RevokeOpenEnrollments(ctx, id); err != nil {
+		return err
+	}
+	if err = q.SettleRunsOfConnector(ctx, id); err != nil {
+		return err
+	}
+	if err = q.ResolveErrorOccurrencesOfConnector(ctx, id); err != nil {
+		return err
+	}
+	if err = q.DeleteUnreferencedConnectorEvents(ctx, id); err != nil {
+		return err
+	}
+	if err = q.DetachConnectorEvents(ctx, id); err != nil {
+		return err
+	}
+	if err = q.DeleteConnectorAssignments(ctx, id); err != nil {
+		return err
+	}
+	affected, err := q.DeleteConnector(ctx, db.DeleteConnectorParams{ID: id, ExpectedVersion: expected})
+	if err != nil {
+		return databaseError(err)
+	}
+	if affected == 0 {
+		return apperror.StaleWrite
+	}
+	actor := principal.AccountID
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.deleted", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"connector", "credentials", "assignments", "events"}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) CreateAssignment(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID, input AssignmentInput, requestID *uuid.UUID) (Assignment, error) {
 	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.MachinesManage) {
 		return Assignment{}, apperror.PermissionDenied
@@ -1131,9 +1185,9 @@ func applyPrinterError(ctx context.Context, q *db.Queries, machineID, assignment
 		return nil
 	}
 	if value.Transition == "cleared" {
-		return q.ResolvePrinterErrorOccurrence(ctx, db.ResolvePrinterErrorOccurrenceParams{AssignmentID: assignmentID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC()})
+		return q.ResolvePrinterErrorOccurrence(ctx, db.ResolvePrinterErrorOccurrenceParams{AssignmentID: &assignmentID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC()})
 	}
-	return q.UpsertPrinterErrorOccurrence(ctx, db.UpsertPrinterErrorOccurrenceParams{ID: uuid.Must(uuid.NewV7()), MachineID: machineID, AssignmentID: assignmentID, RunID: runID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC(), Context: json.RawMessage(`{}`)})
+	return q.UpsertPrinterErrorOccurrence(ctx, db.UpsertPrinterErrorOccurrenceParams{ID: uuid.Must(uuid.NewV7()), MachineID: machineID, AssignmentID: &assignmentID, RunID: runID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC(), Context: json.RawMessage(`{}`)})
 }
 
 func recordedRunState(kind string, payload json.RawMessage) (string, error) {

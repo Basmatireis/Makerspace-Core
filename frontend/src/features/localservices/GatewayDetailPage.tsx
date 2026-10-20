@@ -104,9 +104,9 @@ function Detail({ gateway }: { gateway: StreamingGateway }) {
         <Stack orientation="horizontal" gap={3}>
           {!revoked && <Button kind="tertiary" onClick={() => { save.reset(); setDialog('edit'); }}>Rename</Button>}
           {!revoked && gateway.lifecycle !== 'pending' && <Button kind="tertiary" disabled={toggle.isPending} onClick={() => toggle.mutate()}>{gateway.lifecycle === 'disabled' ? 'Enable' : 'Disable'}</Button>}
-          {!revoked && <Button kind="tertiary" disabled={enroll.isPending} onClick={() => enroll.mutate()}>New enrollment secret</Button>}
+          {gateway.lifecycle === 'pending' && <Button kind="tertiary" disabled={enroll.isPending} onClick={() => enroll.mutate()}>New enrollment secret</Button>}
           {!revoked && <Button ref={revokeButton} kind="danger--tertiary" onClick={() => { revoke.reset(); setDialog('revoke'); }}>Revoke</Button>}
-          {revoked && <Button ref={deleteButton} kind="danger" onClick={() => { remove.reset(); setDialog('delete'); }}>Delete</Button>}
+          <Button ref={deleteButton} kind="danger" onClick={() => { remove.reset(); setDialog('delete'); }}>Delete</Button>
         </Stack>
 
         <section aria-labelledby="cameras-title">
@@ -156,7 +156,7 @@ function Detail({ gateway }: { gateway: StreamingGateway }) {
         open={dialog === 'delete'} title="Delete gateway" confirmLabel="Delete" pending={remove.isPending} error={remove.isError ? errorText(remove.error) : undefined} launcherButtonRef={deleteButton}
         onConfirm={() => remove.mutate()} onClose={() => setDialog(null)}
       >
-        <p>{gateway.name} is deleted permanently with its credentials and camera assignments.</p>
+        <p>The gateway is revoked and removed. A running instance stops working; its cameras must be assigned to another one. {gateway.name} is deleted permanently with its credentials and camera assignments.</p>
       </DestructiveActionDialog>
       <DestructiveActionDialog
         open={removing !== null} title="Remove camera" confirmLabel="Remove" pending={removeCamera.isPending} error={removeCamera.isError ? errorText(removeCamera.error) : undefined}

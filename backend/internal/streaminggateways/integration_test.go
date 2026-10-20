@@ -166,3 +166,129 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 		t.Fatalf("expected permission_denied without local_services.manage, got %v", err)
 	}
 }
+
+func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
+	pool := integrationPool(t)
+	ctx := t.Context()
+	service, err := NewService(pool, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logbook := machinelogbook.NewService(pool)
+	printingService := printing.NewService(pool)
+	connectors, err := printerconnectors.NewService(pool, printingService, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
+	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
+	if _, err = pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Gateway', 'Deleter', $2)`, personID, "gwdel-"+suffix+"@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+		t.Fatal(err)
+	}
+	machineType, err := logbook.CreateMachineType(ctx, master, "Delete printer "+suffix, "fdm_printing", &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connector, err := connectors.Create(ctx, master, "Delete connector "+suffix, nil, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newGateway := func(name string) (Gateway, string, uuid.UUID) {
+		gateway, createErr := service.Create(ctx, master, name+" "+suffix, strings.ToLower(name)+"-"+suffix+".example.test", &requestID)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		issue, createErr := service.IssueEnrollment(ctx, master, gateway.ID, &requestID)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		secret, _, createErr := security.NewOpaqueToken()
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = service.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), secret, "test", ProtocolVersion); createErr != nil {
+			t.Fatal(createErr)
+		}
+		machine, createErr := logbook.CreateMachine(ctx, master, machineType.ID, name+" printer "+suffix, "active", nil, false, &requestID)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = printingService.ConfigureProfile(ctx, master, machine.ID, true, 0, &requestID); createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'bambu_x1c')`, uuid.Must(uuid.NewV7()), connector.ID, machine.ID); createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, createErr = service.AssignCamera(ctx, master, gateway.ID, machine.ID, true, &requestID); createErr != nil {
+			t.Fatal(createErr)
+		}
+		current, createErr := service.Get(ctx, master, gateway.ID)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		return current, secret, machine.ID
+	}
+	rowCount := func(query string, args ...any) int {
+		var n int
+		if err := pool.QueryRow(ctx, query, args...).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	denied := func(g Gateway) {
+		for _, principal := range []authorization.Principal{{AccountID: accountID, PersonID: personID}, {}} {
+			if err := service.Delete(ctx, principal, g.ID, g.Version, nil); !apperror.IsCode(err, "permission_denied") {
+				t.Fatalf("expected permission_denied, got %v", err)
+			}
+		}
+	}
+
+	active, activeSecret, activeMachine := newGateway("Active")
+	if active.Lifecycle != "active" {
+		t.Fatalf("lifecycle = %s", active.Lifecycle)
+	}
+	denied(active)
+	if err = service.Delete(ctx, master, active.ID, active.Version+1, nil); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale version: %v", err)
+	}
+	if err = service.Delete(ctx, master, active.ID, active.Version, &requestID); err != nil {
+		t.Fatal(err)
+	}
+	if gotContext, authErr := service.Authenticate(ctx, activeSecret); authErr != nil || gotContext != nil {
+		t.Fatalf("deleted gateway credential authenticated: %+v %v", gotContext, authErr)
+	}
+	if n := rowCount(`SELECT (SELECT count(*) FROM streaming_gateways WHERE id = $1) + (SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_credentials WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_enrollments WHERE gateway_id = $1)`, active.ID); n != 0 {
+		t.Fatalf("gateway data survived: %d", n)
+	}
+	if n := rowCount(`SELECT count(*) FROM machines WHERE id = $1`, activeMachine); n != 1 {
+		t.Fatal("the machine must survive")
+	}
+	if n := rowCount(`SELECT count(*) FROM audit_events WHERE action = 'streaming_gateway.deleted' AND resource_id = $1`, active.ID); n != 1 {
+		t.Fatalf("audit rows = %d", n)
+	}
+	if err = service.Delete(ctx, master, active.ID, active.Version, nil); !apperror.IsCode(err, "not_found") {
+		t.Fatalf("second delete: %v", err)
+	}
+
+	revokedGateway, _, _ := newGateway("Revoked")
+	revoked, err := service.Revoke(ctx, master, revokedGateway.ID, revokedGateway.Version, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.Delete(ctx, master, revoked.ID, revoked.Version, nil); err != nil {
+		t.Fatal(err)
+	}
+	disabledGateway, _, _ := newGateway("Disabled")
+	disabled, err := service.Update(ctx, master, disabledGateway.ID, disabledGateway.Name, disabledGateway.PublicHost, false, disabledGateway.Version, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.Delete(ctx, master, disabled.ID, disabled.Version, nil); err != nil {
+		t.Fatal(err)
+	}
+}

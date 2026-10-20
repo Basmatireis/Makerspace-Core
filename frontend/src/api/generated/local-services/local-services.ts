@@ -136,7 +136,8 @@ export const updateStreamingGateway = async (streamingGatewayId: UUIDv7,
 
 
 /**
- * @summary Permanently delete a gateway with its credentials and camera assignments
+ * Needs `local_services.manage`. A running gateway is rejected as unauthenticated afterwards.
+ * @summary Permanently delete a gateway in any lifecycle with its credentials and camera assignments
  */
 export const getDeleteStreamingGatewayUrl = (streamingGatewayId: UUIDv7,) => {
 

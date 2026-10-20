@@ -23,6 +23,12 @@ type Querier interface {
 	CreateCredential(ctx context.Context, arg CreateCredentialParams) (PrinterConnectorCredential, error)
 	CreateEnrollment(ctx context.Context, arg CreateEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateRotatedCredential(ctx context.Context, arg CreateRotatedCredentialParams) (PrinterConnectorCredential, error)
+	DeleteConnector(ctx context.Context, arg DeleteConnectorParams) (int64, error)
+	DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
+	// Events that no run, usage or spool mount rests on are pure diagnostics.
+	DeleteUnreferencedConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
+	// Remaining events are the evidence behind recorded runs and usage; they keep their payload but lose the connector.
+	DetachConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
 	GetAccountDisplayName(ctx context.Context, id uuid.UUID) (string, error)
 	GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error)
@@ -49,12 +55,15 @@ type Querier interface {
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
+	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
 	RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error
 	SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error)
+	// Runs still shown as running when their connector is deleted can never be finished by it.
+	SettleRunsOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	TouchCredential(ctx context.Context, id uuid.UUID) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) (PrinterConnectorAssignment, error)
 	UpdateAssignmentRuntime(ctx context.Context, arg UpdateAssignmentRuntimeParams) error

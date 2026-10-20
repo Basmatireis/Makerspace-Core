@@ -55,7 +55,8 @@ describe('Connectors tab', () => {
     expect(screen.queryByRole('button', { name: 'Add connector' })).not.toBeInTheDocument();
     await user.click(iconButton('Actions for Print room agent'));
     expect(await menuItem('Diagnostics')).toBeInTheDocument();
-    expect(screen.queryByText('Enroll', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    expect(screen.queryByText('New enrollment secret', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
     expect(screen.queryByText('Revoke', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
   });
 
@@ -71,9 +72,13 @@ describe('Connectors tab', () => {
     renderPage('/machine-logbook/machines?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Print room agent'));
-    await user.click(await menuItem('Enroll'));
+    await user.click(await menuItem('New enrollment secret'));
     const secret = await screen.findByRole('dialog', { name: 'Enrollment secret' });
     expect(within(secret).getByText('a'.repeat(43))).toBeInTheDocument();
+    expect(within(secret).getByText('Shown once, valid 15 minutes.')).toBeInTheDocument();
+    expect(within(secret).getByText(`CONNECTOR_ENROLLMENT_SECRET=${'a'.repeat(43)}`)).toBeInTheDocument();
+    expect(within(secret).getByText(/make dev-connector/)).toBeInTheDocument();
+    expect(within(secret).getByText(/A secret issued earlier that was not used yet stops working/)).toBeInTheDocument();
     await user.click(within(secret).getByRole('button', { name: 'I have stored the secret' }));
     await waitFor(() => expect(screen.queryByText('a'.repeat(43))).not.toBeInTheDocument());
 
@@ -99,6 +104,45 @@ describe('Connectors tab', () => {
     expect(await screen.findByText(/will stop collecting prints automatically until reassigned/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Revoke connector' }));
     await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+  });
+});
+
+describe('Deleting connectors', () => {
+  it.each(['active', 'revoked'] as const)('deletes a %s connector after confirmation, using its version', async (lifecycle) => {
+    setup([...READ, PermissionId.printer_connectorsmanage], { connectors: [connectorOf({ lifecycle })], assignments: lifecycle === 'active' ? [assignmentOf()] : [] });
+    let body: unknown;
+    server.use(http.delete(`*/api/v1/printer-connectors/${connectorId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    expect(screen.queryByText('Revoke', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    await user.click(await menuItem('Delete'));
+    expect(body).toBeUndefined();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/The connector is revoked and removed. A running instance stops working; its printers must be assigned to another connector./)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete connector' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+  });
+
+  it('offers Delete next to Revoke for a connector that is not revoked', async () => {
+    setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage]);
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    expect(await menuItem('Revoke')).toBeInTheDocument();
+    expect(await menuItem('Delete')).toBeInTheDocument();
+  });
+
+  it('offers a new enrollment secret only for connectors that are not enrolled yet', async () => {
+    setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage]);
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    await menuItem('Diagnostics');
+    expect(screen.queryByText('New enrollment secret', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
   });
 });
 

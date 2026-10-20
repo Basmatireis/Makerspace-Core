@@ -7,7 +7,8 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { PrinterConnector } from '../../../api/generated/models';
-import { createPrinterConnector, createPrinterConnectorEnrollment, revokePrinterConnector, updatePrinterConnector } from '../../../api/generated/printer-connectors/printer-connectors';
+import { createPrinterConnector, createPrinterConnectorEnrollment, deletePrinterConnector, revokePrinterConnector, updatePrinterConnector } from '../../../api/generated/printer-connectors/printer-connectors';
+import { formatDateTime } from '../../../app/dateTime';
 import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { EmptyState } from '../../../app/PageState';
 import { assignmentsQuery, connectorKeys, connectorsQuery } from '../connectorQueries';
@@ -25,7 +26,9 @@ const headers = [
   { key: 'printers', header: 'Printers' }, { key: 'version', header: 'Software' }, { key: 'queue', header: 'Event queue' },
 ];
 
-function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boolean; onClose: () => void; onCreated: (secret: string | null) => void }) {
+type Issued = { secret: string; expiresAt: string };
+
+function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boolean; onClose: () => void; onCreated: (secret: Issued | null) => void }) {
   const client = useQueryClient();
   const notify = useNotify();
   const [name, setName] = useState('');
@@ -34,7 +37,8 @@ function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boole
     mutationFn: async () => {
       const connector = await createPrinterConnector({ name: name.trim(), locationLabel: location.trim() || null });
       // A connector can only be used once it is enrolled, so the secret is issued right away for those who may.
-      const secret = canEnroll ? (await createPrinterConnectorEnrollment(connector.id)).enrollmentSecret : null;
+      const issue = canEnroll ? await createPrinterConnectorEnrollment(connector.id) : null;
+      const secret = issue?.enrollmentSecret ? { secret: issue.enrollmentSecret, expiresAt: issue.expiresAt } : null;
       return { connector, secret };
     },
     onSuccess: async ({ connector, secret }) => {
@@ -60,14 +64,21 @@ function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boole
   );
 }
 
-function SecretModal({ secret, onClose }: { secret: string; onClose: () => void }) {
+function SecretModal({ secret, expiresAt, onClose }: { secret: string; expiresAt?: string; onClose: () => void }) {
+  const env = `CONNECTOR_ENROLLMENT_SECRET=${secret}`;
   return (
     <ComposedModal open size="sm" preventCloseOnClickOutside onClose={onClose} aria-label="Enrollment secret">
       <ModalHeader title="Enrollment secret" label="Connector" />
       <ModalBody>
         <Stack gap={5}>
-          <InlineNotification kind="warning" lowContrast hideCloseButton title="Copy this enrollment secret now." subtitle="It expires after 15 minutes and can't be shown again. Put it in the connector's enrollment secret file." />
-          <CodeSnippet type="multi">{secret}</CodeSnippet>
+          <InlineNotification
+            kind="warning" lowContrast hideCloseButton title="Shown once, valid 15 minutes."
+            subtitle={`Copy the enrollment secret now; it expires ${expiresAt ? `at ${formatDateTime(expiresAt)}` : 'after 15 minutes'} and cannot be shown again. A secret issued earlier that was not used yet stops working.`}
+          />
+          <CodeSnippet type="multi" aria-label="Enrollment secret">{secret}</CodeSnippet>
+          <p>Put this line into the <code>.env</code> of the printer connector stack (<code>printer-connector/</code> or <code>local-services/</code>):</p>
+          <CodeSnippet type="multi" aria-label=".env line">{env}</CodeSnippet>
+          <p>Then run <code>make dev-connector</code> in development or <code>docker compose up -d</code> in the stack directory in production. Details: docs/hosting.md.</p>
         </Stack>
       </ModalBody>
       <ModalFooter><Button kind="primary" onClick={onClose}>I have stored the secret</Button></ModalFooter>
@@ -83,9 +94,10 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
   const canManage = can('printer_connectors.manage');
   const canCredentials = can('printer_connectors.credentials.manage');
   const [adding, setAdding] = useState(false);
-  const [secret, setSecret] = useState<string | null>(null);
+  const [secret, setSecret] = useState<Issued | null>(null);
   const [diagnostics, setDiagnostics] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<PrinterConnector | null>(null);
+  const [deleting, setDeleting] = useState<PrinterConnector | null>(null);
   const connectors = useQuery({ ...connectorsQuery(), refetchInterval: 30_000 });
   const items = connectors.data?.items ?? [];
   const assignments = useQueries({ queries: items.map((connector) => ({ ...assignmentsQuery(connector.id), refetchInterval: 30_000 })) });
@@ -94,7 +106,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
 
   const enroll = useMutation({
     mutationFn: (connector: PrinterConnector) => createPrinterConnectorEnrollment(connector.id),
-    onSuccess: async (issue) => { setSecret(issue.enrollmentSecret); await refresh(); },
+    onSuccess: async (issue) => { if (issue.enrollmentSecret) setSecret({ secret: issue.enrollmentSecret, expiresAt: issue.expiresAt }); await refresh(); },
     onError: failed('Enrollment secret not issued'),
   });
   const setEnabled = useMutation({
@@ -105,6 +117,11 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
   const revoke = useMutation({
     mutationFn: (connector: PrinterConnector) => revokePrinterConnector(connector.id, { expectedVersion: connector.version }),
     onSuccess: async (_saved, connector) => { notify({ kind: 'success', title: 'Connector revoked', subtitle: connector.name }); setRevoking(null); await refresh(); },
+  });
+
+  const remove = useMutation({
+    mutationFn: (connector: PrinterConnector) => deletePrinterConnector(connector.id, { expectedVersion: connector.version }),
+    onSuccess: async (_result, connector) => { notify({ kind: 'success', title: 'Connector deleted', subtitle: connector.name }); setDeleting(null); await refresh(); },
   });
 
   const printersOf = (connectorId: string) => {
@@ -160,7 +177,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
                           <OverflowMenu aria-label={`Actions for ${connector.name}`} iconDescription={`Actions for ${connector.name}`} flipped size="sm">
                             <OverflowMenuItem itemText="Diagnostics" onClick={() => setDiagnostics(connector.id)} />
                             {canCredentials && connector.lifecycle === 'pending' && (
-                              <OverflowMenuItem itemText="Enroll" disabled={enroll.isPending} onClick={() => enroll.mutate(connector)} />
+                              <OverflowMenuItem itemText="New enrollment secret" disabled={enroll.isPending} onClick={() => enroll.mutate(connector)} />
                             )}
                             {canManage && (connector.lifecycle === 'active' || connector.lifecycle === 'disabled') && (
                               <OverflowMenuItem
@@ -169,6 +186,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
                               />
                             )}
                             {canCredentials && connector.lifecycle !== 'revoked' && <OverflowMenuItem itemText="Revoke" isDelete hasDivider onClick={() => { revoke.reset(); setRevoking(connector); }} />}
+                            {canManage && <OverflowMenuItem itemText="Delete" isDelete hasDivider={!(canCredentials && connector.lifecycle !== 'revoked')} onClick={() => { remove.reset(); setDeleting(connector); }} />}
                           </OverflowMenu>
                         </TableCell>
                       </TableRow>
@@ -183,7 +201,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
       </QueryBoundary>
       <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
       {adding && <AddConnectorModal canEnroll={canCredentials} onClose={() => setAdding(false)} onCreated={(value) => { setAdding(false); setSecret(value); }} />}
-      {secret && <SecretModal secret={secret} onClose={() => setSecret(null)} />}
+      {secret && <SecretModal secret={secret.secret} expiresAt={secret.expiresAt} onClose={() => setSecret(null)} />}
       {diagnosticConnector && <DiagnosticsModal connector={diagnosticConnector} onClose={() => setDiagnostics(null)} />}
       <DestructiveActionDialog
         open={Boolean(revoking)} title={`Revoke ${revoking?.name ?? 'connector'}?`} confirmLabel="Revoke connector" pending={revoke.isPending}
@@ -193,6 +211,17 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
         <p>
           The connector can no longer deliver events, and this can't be undone.
           {revoking && printersOf(revoking.id).length > 0 ? ` ${printersOf(revoking.id).map((assignment) => assignment.machineName).join(', ')} will stop collecting prints automatically until reassigned.` : ''}
+        </p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog
+        open={Boolean(deleting)} title={`Delete ${deleting?.name ?? 'connector'}?`} confirmLabel="Delete connector" pending={remove.isPending}
+        error={remove.isError ? 'The connector could not be deleted. Reload and try again.' : undefined}
+        onClose={() => setDeleting(null)} onConfirm={() => { if (deleting) remove.mutate(deleting); }}
+      >
+        <p>
+          The connector is revoked and removed. A running instance stops working; its printers must be assigned to another connector.
+          {deleting && printersOf(deleting.id).length > 0 ? ` Affected printers: ${printersOf(deleting.id).map((assignment) => assignment.machineName).join(', ')}.` : ''}
+          {' '}Recorded prints and their history are kept.
         </p>
       </DestructiveActionDialog>
     </div>

@@ -112,6 +112,20 @@ func (s *Server) UpdatePrinterConnector(ctx context.Context, request openapi.Upd
 	return openapi.UpdatePrinterConnector200JSONResponse(printerConnectorDTO(item)), nil
 }
 
+func (s *Server) DeletePrinterConnector(ctx context.Context, request openapi.DeletePrinterConnectorRequestObject) (openapi.DeletePrinterConnectorResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.printerConnectors.Delete(ctx, principal, request.PrinterConnectorId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeletePrinterConnector204Response{}, nil
+}
+
 func (s *Server) CreatePrinterConnectorEnrollment(ctx context.Context, request openapi.CreatePrinterConnectorEnrollmentRequestObject) (openapi.CreatePrinterConnectorEnrollmentResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {

@@ -36,6 +36,7 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 		{"update", func() error { _, err := service.Update(ctx, principal, id, "connector", nil, true, 1, nil); return err }},
 		{"enrollment", func() error { _, err := service.IssueEnrollment(ctx, principal, id, nil); return err }},
 		{"revoke", func() error { _, err := service.Revoke(ctx, principal, id, 1, nil); return err }},
+		{"delete", func() error { return service.Delete(ctx, principal, id, 1, nil) }},
 		{"assignment", func() error {
 			_, err := service.CreateAssignment(ctx, principal, id, AssignmentInput{}, nil)
 			return err

@@ -22,6 +22,7 @@ type ingestHarness struct {
 	logbook    *machinelogbook.Service
 	principal  authorization.Principal
 	connector  Context
+	secret     string
 	assignment Assignment
 	machine    machinelogbook.Machine
 	suffix     string
@@ -79,6 +80,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 		t.Fatalf("authenticate: %v", err)
 	}
 	h.connector = *connectorContext
+	h.secret = secret
 	h.assignment, err = h.service.CreateAssignment(ctx, h.principal, connector.ID, AssignmentInput{MachineID: h.machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`), Enabled: true}, &requestID)
 	if err != nil {
 		t.Fatal(err)

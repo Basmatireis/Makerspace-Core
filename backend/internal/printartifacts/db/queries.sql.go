@@ -913,7 +913,7 @@ WHERE assignment_id = $2 AND source_family = $3
 
 type ResolvePrinterErrorOccurrenceParams struct {
 	ObservedAt   pgtype.Timestamptz
-	AssignmentID uuid.UUID
+	AssignmentID *uuid.UUID
 	SourceFamily string
 	OriginalCode string
 }
@@ -963,7 +963,7 @@ RETURNING id, machine_id, assignment_id, run_id, source_family, original_code, f
 type UpsertPrinterErrorOccurrenceParams struct {
 	ID                  uuid.UUID
 	MachineID           uuid.UUID
-	AssignmentID        uuid.UUID
+	AssignmentID        *uuid.UUID
 	RunID               *uuid.UUID
 	SourceFamily        string
 	OriginalCode        string
