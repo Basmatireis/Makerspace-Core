@@ -5,6 +5,20 @@
 name: makerspace-streaming
 
 services:
+  # One-shot: the go2rtc configuration volume must belong to the gateway's user (uid 10001). A new
+  # named volume can otherwise take root ownership from whichever image mounts it first (go2rtc's).
+  go2rtc-config-init:
+    image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown 10001:10001 /go2rtc-config && chmod 0700 /go2rtc-config"]
+    volumes:
+      - go2rtc_config:/go2rtc-config
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+
   streaming-gateway:
     build:
       context: ..
@@ -32,6 +46,9 @@ services:
       GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
     extra_hosts:
       - host.docker.internal:host-gateway
+    depends_on:
+      go2rtc-config-init:
+        condition: service_completed_successfully
     volumes:
       - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
       - go2rtc_config:/go2rtc-config

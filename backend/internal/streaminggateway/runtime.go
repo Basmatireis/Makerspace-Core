@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"log/slog"
 	"net"
@@ -242,7 +243,11 @@ func (g *Gateway) Apply(ctx context.Context, configuration Configuration) {
 	g.appliedRevision = configuration.Revision
 	if hash != g.appliedHash {
 		if err := WriteFileAtomic(g.options.ConfigFile, rendered); err != nil {
-			g.logger.Error("go2rtc configuration could not be written", "error_type", fmt.Sprintf("%T", err))
+			if errors.Is(err, fs.ErrPermission) {
+				g.logger.Error("go2rtc configuration could not be written: permission denied; the go2rtc configuration volume must belong to uid 10001 (the go2rtc-config-init service sets this)", "path", filepath.Dir(g.options.ConfigFile))
+			} else {
+				g.logger.Error("go2rtc configuration could not be written", "error_type", fmt.Sprintf("%T", err))
+			}
 			return
 		}
 		g.appliedHash, g.pendingRestart, g.restartAttempts = hash, true, 0

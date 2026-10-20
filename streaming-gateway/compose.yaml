@@ -15,6 +15,20 @@ x-hardened: &hardened
   init: true
 
 services:
+  # One-shot: the go2rtc configuration volume must belong to the gateway's user (uid 10001). A new
+  # named volume can otherwise take root ownership from whichever image mounts it first (go2rtc's).
+  go2rtc-config-init:
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-streaming-gateway:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${STREAMING_GATEWAY_DIGEST:-}
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown 10001:10001 /go2rtc-config && chmod 0700 /go2rtc-config"]
+    volumes:
+      - go2rtc_config:/go2rtc-config
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+
   streaming-gateway:
     <<: *hardened
     # MAKERSPACE_VERSION is a release (never "latest"). To pin the exact image content as well, set
@@ -45,6 +59,9 @@ services:
       GO2RTC_API_URL: http://go2rtc:1984
       GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
       STREAM_ALLOW_HTTP: "false"
+    depends_on:
+      go2rtc-config-init:
+        condition: service_completed_successfully
     volumes:
       - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
       - go2rtc_config:/go2rtc-config
