@@ -510,9 +510,13 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		}
 		events = append(events, openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)})
 	}
+	streams := make([]openapi.SignagePlayerStream, 0, len(live.Streams))
+	for _, stream := range live.Streams {
+		streams = append(streams, openapi.SignagePlayerStream{MachineId: stream.MachineID, WebrtcUrl: stream.WebRTCURL, MseUrl: stream.MSEURL, Ticket: stream.Ticket, ExpiresAt: stream.ExpiresAt})
+	}
 	return openapi.SignagePlayerLive{
 		ServerTime: live.ServerTime, Revision: nullableValue(live.Revision), Machines: machines, Announcements: announcements,
-		OpenDays: openDays, Events: events, Streams: []openapi.SignagePlayerStream{},
+		OpenDays: openDays, Events: events, Streams: streams,
 	}
 }
 

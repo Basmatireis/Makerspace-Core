@@ -85,6 +85,7 @@ type Querier interface {
 	ListSignageAssetKinds(ctx context.Context, ids []string) ([]ListSignageAssetKindsRow, error)
 	ListSignageAssets(ctx context.Context, kind *string) ([]ListSignageAssetsRow, error)
 	ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]ListSignageAssetsByIDsRow, error)
+	ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
 	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)

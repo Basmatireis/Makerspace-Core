@@ -247,6 +247,37 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 	return sortedIDs(ids)
 }
 
+// ManifestCameraMachineIDs lists the machines whose camera stream the published manifest can show:
+// the machines of camera widgets bound to a machine, and, when a camera widget follows the active
+// print (source auto), every machine the manifest watches through rules or status widgets.
+func ManifestCameraMachineIDs(manifest Manifest) []uuid.UUID {
+	ids := map[uuid.UUID]struct{}{}
+	auto := false
+	for _, scene := range manifest.Scenes {
+		for _, raw := range scene.Zones {
+			var widget struct {
+				Type      string     `json:"type"`
+				Source    string     `json:"source"`
+				MachineID *uuid.UUID `json:"machineId"`
+			}
+			if json.Unmarshal(raw, &widget) != nil || widget.Type != "camera" {
+				continue
+			}
+			if widget.Source == "auto" {
+				auto = true
+			} else if widget.MachineID != nil {
+				ids[*widget.MachineID] = struct{}{}
+			}
+		}
+	}
+	if auto {
+		for _, id := range ManifestMachineIDs(manifest) {
+			ids[id] = struct{}{}
+		}
+	}
+	return sortedIDs(ids)
+}
+
 // PendingChange is one difference between a display's drafts and its latest publication.
 type PendingChange struct {
 	Kind   string // display | rule | scene | playlist | asset

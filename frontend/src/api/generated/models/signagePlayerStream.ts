@@ -22,7 +22,11 @@ import type { UUIDv7 } from './uUIDv7';
 
 export interface SignagePlayerStream {
   machineId: UUIDv7;
-  url: string;
+  /** HTTPS URL of the gateway's WebRTC signalling endpoint (go2rtc /api/webrtc?src=...). The player POSTs its SDP offer here with the ticket. */
+  webrtcUrl: string;
+  /** WSS URL of the gateway's MSE websocket (go2rtc /api/ws?src=...), used when WebRTC fails. */
+  mseUrl: string;
+  /** Ed25519-signed, short-lived stream ticket; send it as the `ticket` query parameter or as a Bearer token. */
   ticket: string;
   expiresAt: string;
 }

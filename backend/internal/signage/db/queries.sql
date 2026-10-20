@@ -38,6 +38,10 @@ SELECT m.id, m.name, mt.name AS kind
 FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
 ORDER BY lower(m.name), m.id;
 
+-- name: ListSignageCameraMachineIDs :many
+SELECT c.machine_id FROM streaming_cameras c JOIN streaming_gateways g ON g.id = c.gateway_id
+WHERE c.enabled AND g.lifecycle <> 'revoked';
+
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 

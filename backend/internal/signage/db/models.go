@@ -1553,6 +1553,81 @@ type SignageScene struct {
 	UpdatedAt         time.Time
 }
 
+type SignageTicketKey struct {
+	ID                  uuid.UUID
+	Kid                 string
+	PublicKey           []byte
+	EncryptedPrivateKey []byte
+	CreatedAt           time.Time
+	RetiredAt           pgtype.Timestamptz
+}
+
+type StreamingCamera struct {
+	ID        uuid.UUID
+	GatewayID uuid.UUID
+	MachineID uuid.UUID
+	Enabled   bool
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type StreamingCameraState struct {
+	CameraID   uuid.UUID
+	Health     string
+	Viewers    int32
+	Codec      *string
+	Width      *int32
+	Height     *int32
+	Fps        *float64
+	ReportedAt time.Time
+}
+
+type StreamingGateway struct {
+	ID                           uuid.UUID
+	Name                         string
+	PublicHost                   string
+	Lifecycle                    string
+	ConfigurationRevision        int64
+	AppliedConfigurationRevision int64
+	SoftwareVersion              *string
+	ProtocolVersion              *int32
+	HealthState                  *string
+	HealthSummary                *string
+	LastHeartbeatAt              pgtype.Timestamptz
+	EnrolledAt                   pgtype.Timestamptz
+	DisabledAt                   pgtype.Timestamptz
+	RevokedAt                    pgtype.Timestamptz
+	Version                      int64
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
+type StreamingGatewayCredential struct {
+	ID          uuid.UUID
+	GatewayID   uuid.UUID
+	TokenDigest []byte
+	State       string
+	ExpiresAt   time.Time
+	LastUsedAt  pgtype.Timestamptz
+	RetireAfter pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+	CreatedAt   time.Time
+}
+
+type StreamingGatewayEnrollment struct {
+	ID                    uuid.UUID
+	GatewayID             uuid.UUID
+	TokenDigest           []byte
+	CredentialFingerprint *string
+	AcceptedCredentialID  *uuid.UUID
+	ExpiresAt             time.Time
+	ConsumedAt            pgtype.Timestamptz
+	RevokedAt             pgtype.Timestamptz
+	CreatedByAccountID    *uuid.UUID
+	CreatedAt             time.Time
+}
+
 type Survey struct {
 	ID          uuid.UUID
 	Name        string

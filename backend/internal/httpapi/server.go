@@ -33,6 +33,7 @@ import (
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -66,6 +67,7 @@ type Server struct {
 	printArtifacts    *printartifacts.Service
 	printing          *printing.Service
 	printerConnectors *printerconnectors.Service
+	streamingGateways *streaminggateways.Service
 	supervisors       *supervisors.Service
 	oidc              *oidcservice.Service
 	scim              *scimservice.Service
@@ -118,7 +120,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}
-	signageService, err := signage.NewService(pool, cfg, fileService, signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}))
+	streamingGatewayService, err := streaminggateways.NewService(pool, cfg.EncryptionKeys)
+	if err != nil {
+		return nil, fmt.Errorf("initialize streaming gateways: %w", err)
+	}
+	signageService, err := signage.NewService(pool, cfg, fileService, signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}), signage.WithStreamIssuer(streamIssuer{gateways: streamingGatewayService}))
 	if err != nil {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
@@ -142,6 +148,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook),
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
+		streamingGateways: streamingGatewayService,
 		orders:            orders.NewService(pool, machineLogbook),
 		supervisors:       supervisors.NewService(pool),
 		oidc:              oidcService,

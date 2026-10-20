@@ -29,6 +29,6 @@ export interface SignageMachine {
    * @maxLength 120
    */
   kind: string;
-  /** Whether a streaming camera is assigned (always false until cameras exist). */
+  /** Whether an enabled streaming camera on a non-revoked streaming gateway is assigned to the machine. */
   hasCamera: boolean;
 }

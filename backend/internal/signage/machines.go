@@ -27,10 +27,18 @@ func (s *Service) ListMachines(ctx context.Context, principal authorization.Prin
 	if err != nil {
 		return nil, err
 	}
+	cameraIDs, err := signagedb.New(s.pool).ListSignageCameraMachineIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	withCamera := make(map[uuid.UUID]struct{}, len(cameraIDs))
+	for _, id := range cameraIDs {
+		withCamera[id] = struct{}{}
+	}
 	machines := make([]Machine, 0, len(rows))
 	for _, row := range rows {
-		// Cameras arrive with the streaming gateway phase.
-		machines = append(machines, Machine{ID: row.ID, Name: row.Name, Kind: row.Kind})
+		_, hasCamera := withCamera[row.ID]
+		machines = append(machines, Machine{ID: row.ID, Name: row.Name, Kind: row.Kind, HasCamera: hasCamera})
 	}
 	return machines, nil
 }

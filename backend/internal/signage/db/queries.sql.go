@@ -1709,6 +1709,31 @@ func (q *Queries) ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]L
 	return items, nil
 }
 
+const listSignageCameraMachineIDs = `-- name: ListSignageCameraMachineIDs :many
+SELECT c.machine_id FROM streaming_cameras c JOIN streaming_gateways g ON g.id = c.gateway_id
+WHERE c.enabled AND g.lifecycle <> 'revoked'
+`
+
+func (q *Queries) ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSignageCameraMachineIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var machine_id uuid.UUID
+		if err := rows.Scan(&machine_id); err != nil {
+			return nil, err
+		}
+		items = append(items, machine_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSignageDisplayIDs = `-- name: ListSignageDisplayIDs :many
 SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[])
 `

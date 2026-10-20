@@ -40,7 +40,7 @@ export interface SignagePlayerLive {
   /** @maxItems 5 */
   events: SignagePlayerEvent[];
   /**
-   * Camera stream tickets; always empty until the streaming gateway exists.
+   * Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.
    * @maxItems 20
    */
   streams: SignagePlayerStream[];

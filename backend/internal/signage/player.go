@@ -170,6 +170,20 @@ type LiveAnnouncement struct {
 	EndsAt         *time.Time
 }
 
+// Stream is a camera stream the display may watch: gateway URLs plus a short-lived ticket.
+type Stream struct {
+	MachineID uuid.UUID
+	WebRTCURL string
+	MSEURL    string
+	Ticket    string
+	ExpiresAt time.Time
+}
+
+// StreamIssuer hands out stream tickets. It is implemented by the streaming gateway service.
+type StreamIssuer interface {
+	IssueStreams(ctx context.Context, displayID uuid.UUID, machineIDs []uuid.UUID) ([]Stream, error)
+}
+
 // LiveData is the short-lived data the player polls about every ten seconds.
 type LiveData struct {
 	ServerTime    time.Time
@@ -178,6 +192,7 @@ type LiveData struct {
 	Announcements []LiveAnnouncement
 	OpenDays      []PublicOpenDay
 	Events        []PublicEvent
+	Streams       []Stream
 }
 
 var knownLiveStates = map[string]struct{}{"idle": {}, "preparing": {}, "printing": {}, "paused": {}, "finished": {}, "failed": {}}
@@ -217,12 +232,17 @@ func liveMachineFrom(id uuid.UUID, name string, status *signagedb.ListSignageLiv
 	return machine
 }
 
-// PlayerLive assembles the live data of a display.
+// PlayerLive assembles the live data of a display, including stream tickets for the cameras its
+// published camera widgets use. The display must not be revoked; PlayerDisplayFor guarantees that.
 func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
+	return s.playerLive(ctx, display, true)
+}
+
+func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStreams bool) (LiveData, error) {
 	s.sweepExpiredThrottled(ctx)
 	now := s.now()
 	q := signagedb.New(s.pool)
-	live := LiveData{ServerTime: now, Machines: []LiveMachine{}, Announcements: []LiveAnnouncement{}, OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}}
+	live := LiveData{ServerTime: now, Machines: []LiveMachine{}, Announcements: []LiveAnnouncement{}, OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}, Streams: []Stream{}}
 	manifest, published, err := s.latestManifest(ctx, q, display.ID)
 	if err != nil {
 		return LiveData{}, err
@@ -230,6 +250,13 @@ func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveDa
 	if published {
 		revision := manifest.Revision
 		live.Revision = &revision
+		if withStreams && s.streams != nil {
+			if ids := ManifestCameraMachineIDs(manifest); len(ids) > 0 {
+				if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, ids); err != nil {
+					return LiveData{}, err
+				}
+			}
+		}
 		if ids := ManifestMachineIDs(manifest); len(ids) > 0 {
 			names, err := q.ListSignageMachineNames(ctx, uuidStrings(ids))
 			if err != nil {
@@ -293,7 +320,8 @@ func (s *Service) PreviewDisplay(ctx context.Context, principal authorization.Pr
 	if err != nil {
 		return DisplayPreview{}, err
 	}
-	live, err := s.PlayerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location})
+	// The preview never carries stream tickets: it is not the display itself.
+	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}, false)
 	if err != nil {
 		return DisplayPreview{}, err
 	}

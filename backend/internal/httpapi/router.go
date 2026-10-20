@@ -58,6 +58,8 @@ const (
 	visitorEnrollmentContextKey
 	printerConnectorContextKey
 	printerConnectorEnrollmentSecretContextKey
+	streamingGatewayContextKey
+	streamingGatewayEnrollmentSecretContextKey
 	httpRequestContextKey
 	rawUploadBodyContextKey
 )
@@ -201,6 +203,34 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				ctx = context.WithValue(ctx, printerConnectorContextKey, *connector)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		if isStreamingGatewayPath(r.URL.Path) {
+			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
+			if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				writeAPIError(w, r, apperror.Unauthenticated, logger)
+				return
+			}
+			ctx := r.Context()
+			if r.URL.Path == apiBasePath+"/streaming-gateway/enroll" {
+				ctx = context.WithValue(ctx, streamingGatewayEnrollmentSecretContextKey, strings.TrimSpace(token))
+			} else {
+				gateway, err := s.streamingGateways.Authenticate(ctx, strings.TrimSpace(token))
+				if err != nil {
+					writeAPIError(w, r, err, logger)
+					return
+				}
+				if gateway == nil {
+					writeAPIError(w, r, apperror.Unauthenticated, logger)
+					return
+				}
+				if !s.allowPrinterConnectorRequest(gateway.ID, time.Now().UTC()) {
+					writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Gateway request rate exceeded"), logger)
+					return
+				}
+				ctx = context.WithValue(ctx, streamingGatewayContextKey, *gateway)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
@@ -446,7 +476,7 @@ func (s *Server) allowSignagePlayerRequest(deviceID uuid.UUID, assets bool, now 
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	expectedOrigin := s.config.PublicBaseURL.Scheme + "://" + s.config.PublicBaseURL.Host
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSCIMPath(r.URL.Path) || isPrinterConnectorPath(r.URL.Path) {
+		if isSCIMPath(r.URL.Path) || isPrinterConnectorPath(r.URL.Path) || isStreamingGatewayPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -527,7 +557,7 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 
 func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
+		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/") || isStreamingGatewayPath(r.URL.Path) || strings.HasSuffix(r.URL.Path, "/password-reset") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/terminal/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/surveys/") ||
 			isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) ||
@@ -845,7 +875,7 @@ func sourceAddress(ctx context.Context) string {
 }
 
 func isPublicPath(path string) bool {
-	if isPrinterConnectorPath(path) {
+	if isPrinterConnectorPath(path) || isStreamingGatewayPath(path) {
 		return true
 	}
 	if isSCIMPath(path) {

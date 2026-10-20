@@ -1,0 +1,386 @@
+package streaminggateway
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	// PollInterval is how often configuration is polled and a heartbeat is sent.
+	PollInterval = 30 * time.Second
+	// authFailuresBeforeShutdown is how many consecutive 401 answers from Core make the gateway stop
+	// serving streams (credential revoked).
+	authFailuresBeforeShutdown = 3
+	maxRestartAttempts         = 3
+	healthStaleAfter           = 2 * time.Minute
+)
+
+// Options configure the runtime.
+type Options struct {
+	DataDir        string
+	EnrollmentFile string
+	// ConfigFile is where the go2rtc configuration is written (a volume shared with go2rtc).
+	ConfigFile string
+	Render     RenderOptions
+	// ListenAddr, CertFile and KeyFile configure the HTTPS reverse proxy.
+	ListenAddr, CertFile, KeyFile string
+	// AllowedOrigin is Core's public origin; browsers from any other origin are refused.
+	AllowedOrigin string
+	// ExpectedPublicHost (STREAM_PUBLIC_HOST) is only compared with Core's publicHost to warn about a mismatch.
+	ExpectedPublicHost string
+}
+
+// Gateway is the daemon's state machine.
+type Gateway struct {
+	store   *Store
+	core    Core
+	g2r     Go2RTC
+	options Options
+	logger  *slog.Logger
+	now     func() time.Time
+
+	snapshot atomic.Pointer[Snapshot]
+
+	mu              sync.Mutex
+	current         *Configuration
+	appliedHash     string
+	appliedRevision int64
+	pendingRestart  bool
+	restartAttempts int
+	authFailures    int
+	lastSyncOK      time.Time
+	lastSyncError   string
+}
+
+// New builds the gateway. The proxy serves nothing until a configuration is applied.
+func New(store *Store, core Core, g2r Go2RTC, options Options, logger *slog.Logger) *Gateway {
+	g := &Gateway{store: store, core: core, g2r: g2r, options: options, logger: logger, now: func() time.Time { return time.Now().UTC() }}
+	g.snapshot.Store(&Snapshot{Streams: map[string]struct{}{}})
+	return g
+}
+
+// Snapshot is the proxy's view of the current configuration.
+func (g *Gateway) Snapshot() *Snapshot { return g.snapshot.Load() }
+
+func newSecret() (string, error) {
+	value := make([]byte, 32)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(value), nil
+}
+
+func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
+	identity := g.store.Identity()
+	if identity == nil {
+		secret, err := newSecret()
+		if err != nil {
+			return Identity{}, err
+		}
+		value := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: secret}
+		if err = g.store.SaveIdentity(value); err != nil {
+			return Identity{}, err
+		}
+		identity = &value
+	}
+	if identity.Enrolled {
+		return *identity, nil
+	}
+	if g.options.EnrollmentFile == "" {
+		return Identity{}, errors.New("STREAM_ENROLLMENT_SECRET_FILE is required until enrollment completes")
+	}
+	raw, err := os.ReadFile(g.options.EnrollmentFile)
+	if err != nil {
+		return Identity{}, fmt.Errorf("read enrollment secret: %w", err)
+	}
+	enrollment := strings.TrimSpace(string(raw))
+	if enrollment == "" {
+		return Identity{}, errors.New("enrollment secret file is empty")
+	}
+	enrolled, err := g.core.Enroll(ctx, enrollment, *identity, Version)
+	if err != nil {
+		return Identity{}, err
+	}
+	if err = g.store.SaveIdentity(enrolled); err != nil {
+		return Identity{}, err
+	}
+	return enrolled, nil
+}
+
+func (g *Gateway) rotateCredentialIfNeeded(ctx context.Context, identity Identity) (Identity, error) {
+	if identity.CredentialExpiresAt.After(g.now().Add(7 * 24 * time.Hour)) {
+		return identity, nil
+	}
+	secret, err := newSecret()
+	if err != nil {
+		return identity, err
+	}
+	next := identity
+	next.CredentialID, next.CredentialSecret = uuid.Must(uuid.NewV7()), secret
+	rotated, err := g.core.RotateCredential(ctx, identity.CredentialSecret, next)
+	if err != nil {
+		return identity, err
+	}
+	if err = g.store.SaveIdentity(rotated); err != nil {
+		return identity, err
+	}
+	return rotated, nil
+}
+
+// Apply makes a configuration current: the proxy snapshot switches immediately, the go2rtc
+// configuration file is rewritten when its content changed, and go2rtc is restarted to read it.
+func (g *Gateway) Apply(ctx context.Context, configuration Configuration) {
+	rendered := RenderGo2RTC(configuration.Cameras, g.options.Render)
+	hash := ConfigHash(rendered)
+	g.snapshot.Store(NewSnapshot(configuration))
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.current = &configuration
+	g.appliedRevision = configuration.Revision
+	if hash != g.appliedHash {
+		if err := WriteFileAtomic(g.options.ConfigFile, rendered); err != nil {
+			g.logger.Error("go2rtc configuration could not be written", "error_type", fmt.Sprintf("%T", err))
+			return
+		}
+		g.appliedHash, g.pendingRestart, g.restartAttempts = hash, true, 0
+	}
+	if g.pendingRestart {
+		err := g.g2r.Restart(ctx)
+		switch {
+		case err == nil, errors.Is(err, ErrGo2RTCDown):
+			// A go2rtc that is not running reads the file when it starts.
+			g.pendingRestart = false
+		default:
+			g.restartAttempts++
+			g.logger.Warn("go2rtc restart failed", "attempt", g.restartAttempts, "error_type", fmt.Sprintf("%T", err))
+			if g.restartAttempts >= maxRestartAttempts {
+				g.pendingRestart = false
+			}
+		}
+	}
+}
+
+// Sync fetches the configuration from Core. While Core is unreachable (or answers with an error) the
+// last configuration stays in force; only repeated 401 answers, meaning the credential was revoked,
+// switch streaming off.
+func (g *Gateway) Sync(ctx context.Context, identity Identity) error {
+	configuration, err := g.core.Configuration(ctx, identity.CredentialSecret)
+	if err != nil {
+		g.mu.Lock()
+		g.lastSyncError = "core_unreachable"
+		var coreErr *CoreError
+		if errors.As(err, &coreErr) {
+			g.lastSyncError = "core_error"
+			if coreErr.Status == http.StatusUnauthorized {
+				g.authFailures++
+			}
+		}
+		revoked := g.authFailures >= authFailuresBeforeShutdown
+		g.mu.Unlock()
+		if revoked {
+			g.logger.Error("core rejected the gateway credential; streaming is switched off")
+			g.shutOff(ctx)
+		}
+		return err
+	}
+	if configuration.ProtocolVersion != ProtocolVersion {
+		return fmt.Errorf("unsupported configuration protocol version %d", configuration.ProtocolVersion)
+	}
+	if g.options.ExpectedPublicHost != "" && !strings.EqualFold(g.options.ExpectedPublicHost, configuration.PublicHost) {
+		g.logger.Warn("STREAM_PUBLIC_HOST differs from the public host configured in Core")
+	}
+	g.mu.Lock()
+	g.authFailures, g.lastSyncOK, g.lastSyncError = 0, g.now(), ""
+	previous := g.current
+	g.mu.Unlock()
+	if previous == nil || !sameConfiguration(*previous, configuration) {
+		if err = g.store.SaveConfiguration(configuration); err != nil {
+			return fmt.Errorf("persist configuration: %w", err)
+		}
+	}
+	g.Apply(ctx, configuration)
+	return nil
+}
+
+func sameConfiguration(a, b Configuration) bool {
+	left, _ := json.Marshal(a)
+	right, _ := json.Marshal(b)
+	return string(left) == string(right)
+}
+
+func (g *Gateway) shutOff(ctx context.Context) {
+	empty := Configuration{ProtocolVersion: ProtocolVersion, Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}}
+	_ = g.store.SaveConfiguration(empty)
+	g.Apply(ctx, empty)
+}
+
+// BuildHeartbeat assembles the heartbeat from go2rtc's view of the configured cameras.
+func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
+	g.mu.Lock()
+	var cameras []Camera
+	if g.current != nil {
+		cameras = append(cameras, g.current.Cameras...)
+	}
+	revision, pending, syncError := g.appliedRevision, g.pendingRestart, g.lastSyncError
+	g.mu.Unlock()
+	sort.Slice(cameras, func(i, j int) bool { return cameras[i].StreamName < cameras[j].StreamName })
+
+	statuses, streamsErr := g.g2r.Streams(ctx)
+	heartbeat := Heartbeat{SoftwareVersion: Version, ProtocolVersion: ProtocolVersion, AppliedConfigurationRevision: revision, HealthState: "connected", Cameras: []CameraHealth{}}
+	var summary string
+	switch {
+	case streamsErr != nil:
+		heartbeat.HealthState, summary = "degraded", "go2rtc_unreachable"
+	case pending:
+		heartbeat.HealthState, summary = "degraded", "go2rtc_restart_pending"
+	case syncError != "":
+		heartbeat.HealthState, summary = "degraded", syncError
+	}
+	if summary != "" {
+		heartbeat.HealthSummary = &summary
+	}
+	for _, camera := range cameras {
+		status, known := statuses[camera.StreamName]
+		if streamsErr != nil {
+			known = false
+		}
+		entry := CameraHealth{MachineID: camera.MachineID, Health: HealthFor(status, known), Viewers: status.Consumers, Codec: status.Codec, Width: status.Width, Height: status.Height, FPS: status.FPS}
+		heartbeat.Cameras = append(heartbeat.Cameras, entry)
+	}
+	return heartbeat
+}
+
+func (g *Gateway) writeHealth(status string) error {
+	value, _ := json.Marshal(map[string]any{"status": status, "updatedAt": g.now()})
+	path := filepath.Join(g.options.DataDir, "health.json")
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, value, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, path)
+}
+
+// CheckHealth is the container healthcheck: the main loop must have refreshed the health file recently.
+func CheckHealth(dataDir string) error {
+	value, err := os.ReadFile(filepath.Join(dataDir, "health.json"))
+	if err != nil {
+		return err
+	}
+	var status struct {
+		Status    string    `json:"status"`
+		UpdatedAt time.Time `json:"updatedAt"`
+	}
+	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" || time.Since(status.UpdatedAt) > healthStaleAfter {
+		return errors.New("gateway health is stale")
+	}
+	return nil
+}
+
+// Run enrolls if needed, serves the proxy and runs the polling loop until ctx ends.
+func (g *Gateway) Run(ctx context.Context) error {
+	identity, err := g.ensureIdentity(ctx)
+	if err != nil {
+		return err
+	}
+	if rotated, rotateErr := g.rotateCredentialIfNeeded(ctx, identity); rotateErr != nil {
+		g.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", rotateErr))
+	} else {
+		identity = rotated
+	}
+	// The file on disk tells whether go2rtc already runs the cached configuration.
+	if existing, readErr := os.ReadFile(g.options.ConfigFile); readErr == nil {
+		g.appliedHash = ConfigHash(string(existing))
+	}
+	cached := g.store.Configuration()
+	if cached == nil {
+		cached = &Configuration{ProtocolVersion: ProtocolVersion, Cameras: []Camera{}, TicketPublicKeys: []TicketKey{}}
+	}
+	g.Apply(ctx, *cached)
+
+	reloader, err := newCertReloader(g.options.CertFile, g.options.KeyFile)
+	if err != nil {
+		return fmt.Errorf("load TLS certificate: %w", err)
+	}
+	origin := g.options.AllowedOrigin
+	server := &http.Server{
+		Addr:              g.options.ListenAddr,
+		Handler:           NewProxy(g.Snapshot, g.go2rtcURL(), origin, g.now),
+		TLSConfig:         reloader.tlsConfig(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    16 << 10,
+		ErrorLog:          log.New(io.Discard, "", 0),
+	}
+	listener, err := net.Listen("tcp", g.options.ListenAddr)
+	if err != nil {
+		return err
+	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- server.ServeTLS(listener, "", "") }()
+	defer func() {
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdown)
+	}()
+	if err = g.writeHealth("healthy"); err != nil {
+		return err
+	}
+
+	ticker := time.NewTicker(PollInterval)
+	defer ticker.Stop()
+	tick := func() {
+		var rotateErr error
+		if identity, rotateErr = g.rotateCredentialIfNeeded(ctx, identity); rotateErr != nil {
+			g.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", rotateErr))
+		}
+		if syncErr := g.Sync(ctx, identity); syncErr != nil {
+			g.logger.Warn("configuration sync failed", "error_type", fmt.Sprintf("%T", syncErr))
+		}
+		if _, beatErr := g.core.Heartbeat(ctx, identity.CredentialSecret, g.BuildHeartbeat(ctx)); beatErr != nil {
+			g.logger.Warn("heartbeat failed", "error_type", fmt.Sprintf("%T", beatErr))
+		}
+		_ = g.writeHealth("healthy")
+	}
+	tick()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err = <-serveErr:
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			return fmt.Errorf("https server stopped: %w", err)
+		case <-ticker.C:
+			tick()
+		}
+	}
+}
+
+func (g *Gateway) go2rtcURL() *url.URL {
+	if c, ok := g.g2r.(*Go2RTCClient); ok {
+		return c.BaseURL()
+	}
+	return &url.URL{Scheme: "http", Host: "go2rtc:1984"}
+}
