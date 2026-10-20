@@ -55,9 +55,11 @@ func NewService(
 }
 
 type TerminalContext struct {
-	DeviceID                                                      uuid.UUID
-	DeviceName, CheckoutMode, CheckInAssurance, CheckOutAssurance string
-	AuthenticationMethods, Capabilities                           []string
+	DeviceID                            uuid.UUID
+	DeviceName                          string
+	CheckoutMode                        manageddevices.CheckoutMode
+	CheckInAssurance, CheckOutAssurance authorization.Assurance
+	AuthenticationMethods, Capabilities []string
 }
 
 type PublicPresence struct {
@@ -67,15 +69,16 @@ type PublicPresence struct {
 }
 
 type Visit struct {
-	ID, PersonID          uuid.UUID
-	DisplayName           string
-	CheckedInAt           time.Time
-	CheckedOutAt          *time.Time
-	Status, CheckInMethod string
-	CheckOutMethod        *string
-	AdmissionDecision     string
-	CorrectionReason      *string
-	Version               int64
+	ID, PersonID      uuid.UUID
+	DisplayName       string
+	CheckedInAt       time.Time
+	CheckedOutAt      *time.Time
+	Status            VisitStatus
+	CheckInMethod     string
+	CheckOutMethod    *string
+	AdmissionDecision AdmissionDecision
+	CorrectionReason  *string
+	Version           int64
 }
 
 type Statistics struct {
@@ -84,23 +87,23 @@ type Statistics struct {
 	VisitorHours, AverageCompletedVisitMinutes                    string
 }
 
-func assuranceRank(value string) int {
+func assuranceRank(value authorization.Assurance) int {
 	switch value {
-	case "low":
+	case authorization.AssuranceLow:
 		return 1
-	case "normal":
+	case authorization.AssuranceNormal:
 		return 2
-	case "strong":
+	case authorization.AssuranceStrong:
 		return 3
-	case "strong_mfa":
+	case authorization.AssuranceStrongMFA:
 		return 4
 	default:
 		return 0
 	}
 }
 
-func requireAssurance(actual authorization.Assurance, required string) error {
-	if assuranceRank(string(actual)) < assuranceRank(required) {
+func requireAssurance(actual authorization.Assurance, required authorization.Assurance) error {
+	if assuranceRank(actual) < assuranceRank(required) {
 		return apperror.New(
 			http.StatusForbidden,
 			"attendance_assurance_required",
@@ -131,8 +134,8 @@ func (s *Service) TerminalContext(ctx context.Context, device manageddevices.Dev
 		return TerminalContext{}, err
 	}
 	methods := []string{"password", "pin"}
-	return TerminalContext{DeviceID: row.ID, DeviceName: row.Name, CheckoutMode: row.CheckoutMode,
-		CheckInAssurance: row.CheckInAssurance, CheckOutAssurance: row.CheckOutAssurance,
+	return TerminalContext{DeviceID: row.ID, DeviceName: row.Name, CheckoutMode: manageddevices.CheckoutMode(row.CheckoutMode),
+		CheckInAssurance: authorization.Assurance(row.CheckInAssurance), CheckOutAssurance: authorization.Assurance(row.CheckOutAssurance),
 		AuthenticationMethods: methods, Capabilities: capabilities}, nil
 }
 
@@ -193,14 +196,14 @@ func (s *Service) checkIn(
 	if err != nil {
 		return Visit{}, err
 	}
-	if err = requireAssurance(verified.Assurance, terminal.CheckInAssurance); err != nil {
+	if err = requireAssurance(verified.Assurance, authorization.Assurance(terminal.CheckInAssurance)); err != nil {
 		return Visit{}, err
 	}
 	status, err := s.labRules.Evaluate(ctx, verified.PersonID)
 	if err != nil {
 		return Visit{}, err
 	}
-	if status.Mode != "not_required" && status.State == "no_published_version" {
+	if status.Mode != laborordnung.ModeNotRequired && status.State == laborordnung.StateNoPublishedVersion {
 		return Visit{}, apperror.New(
 			http.StatusConflict,
 			"lab_rules_unavailable",
@@ -216,7 +219,7 @@ func (s *Service) checkIn(
 		if _, _, err = s.labRules.RequestOwnConfirmation(ctx, principal, requestID); err != nil {
 			return Visit{}, err
 		}
-		if status.Mode == "blocking" {
+		if status.Mode == laborordnung.ModeBlocking {
 			return Visit{}, apperror.New(
 				http.StatusConflict,
 				"attendance_admission_required",
@@ -224,9 +227,9 @@ func (s *Service) checkIn(
 			)
 		}
 	}
-	decision := "admitted"
+	decision := AdmissionAdmitted
 	if status.ActionRequired {
-		decision = "warning"
+		decision = AdmissionWarning
 	}
 	var versionID *uuid.UUID
 	if status.CurrentVersion != nil {
@@ -264,7 +267,7 @@ func (s *Service) checkIn(
 		ctx,
 		attendancedb.CreateVisitParams{ID: ids.New(), PersonID: verified.PersonID,
 			CheckInDeviceID: &device.ID, CheckInMethod: verified.Method, CheckInAssurance: string(verified.Assurance),
-			AdmissionDecision: decision, LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID},
+			AdmissionDecision: string(decision), LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID},
 	)
 	if err != nil {
 		return Visit{}, databaseError(err)
@@ -324,7 +327,7 @@ func (s *Service) verifiedCheckOut(
 	if err != nil {
 		return Visit{}, err
 	}
-	if err = requireAssurance(verified.Assurance, terminal.CheckOutAssurance); err != nil {
+	if err = requireAssurance(verified.Assurance, authorization.Assurance(terminal.CheckOutAssurance)); err != nil {
 		return Visit{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -380,7 +383,7 @@ func (s *Service) PublicCheckOut(
 	if err != nil {
 		return Visit{}, err
 	}
-	if terminal.CheckoutMode != "public_tap" {
+	if manageddevices.CheckoutMode(terminal.CheckoutMode) != manageddevices.CheckoutPublicTap {
 		return Visit{}, apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -433,7 +436,7 @@ func (s *Service) SupervisedCheckIn(
 	if err != nil {
 		return Visit{}, err
 	}
-	if status.Mode != "not_required" && status.State == "no_published_version" {
+	if status.Mode != laborordnung.ModeNotRequired && status.State == laborordnung.StateNoPublishedVersion {
 		return Visit{}, apperror.New(
 			http.StatusConflict,
 			"lab_rules_unavailable",
@@ -446,7 +449,7 @@ func (s *Service) SupervisedCheckIn(
 		if _, _, err = s.labRules.RequestOwnConfirmation(ctx, requestPrincipal, requestID); err != nil {
 			return Visit{}, err
 		}
-		if status.Mode == "blocking" {
+		if status.Mode == laborordnung.ModeBlocking {
 			return Visit{}, apperror.New(
 				http.StatusConflict,
 				"attendance_admission_required",
@@ -454,9 +457,9 @@ func (s *Service) SupervisedCheckIn(
 			)
 		}
 	}
-	decision := "admitted"
+	decision := AdmissionAdmitted
 	if status.ActionRequired {
-		decision = "warning"
+		decision = AdmissionWarning
 	}
 	var versionID *uuid.UUID
 	if status.CurrentVersion != nil {
@@ -486,7 +489,7 @@ func (s *Service) SupervisedCheckIn(
 			PersonID:              personID,
 			CheckInMethod:         "supervisor",
 			CheckInAssurance:      string(principal.Assurance),
-			AdmissionDecision:     decision,
+			AdmissionDecision:     string(decision),
 			LaborordnungVersionID: versionID,
 			CheckedInByAccountID:  &accountID,
 		},
@@ -602,7 +605,7 @@ func (s *Service) Void(
 	if current.Version != expectedVersion {
 		return Visit{}, apperror.StaleWrite
 	}
-	if current.Status == "voided" {
+	if VisitStatus(current.Status) == VisitVoided {
 		return Visit{}, apperror.New(
 			http.StatusConflict,
 			"visit_already_voided",
@@ -709,10 +712,10 @@ func visitFromCreate(row attendancedb.CreateVisitRow) Visit {
 		DisplayName:       row.FirstName + " " + row.LastName,
 		CheckedInAt:       row.CheckedInAt,
 		CheckedOutAt:      timePtr(row.CheckedOutAt),
-		Status:            row.Status,
+		Status:            VisitStatus(row.Status),
 		CheckInMethod:     row.CheckInMethod,
 		CheckOutMethod:    row.CheckOutMethod,
-		AdmissionDecision: row.AdmissionDecision,
+		AdmissionDecision: AdmissionDecision(row.AdmissionDecision),
 		CorrectionReason:  row.CorrectionReason,
 		Version:           row.Version,
 	}
@@ -724,10 +727,10 @@ func visitFromCheckout(row attendancedb.CheckOutVisitRow) Visit {
 		DisplayName:       row.FirstName + " " + row.LastName,
 		CheckedInAt:       row.CheckedInAt,
 		CheckedOutAt:      timePtr(row.CheckedOutAt),
-		Status:            row.Status,
+		Status:            VisitStatus(row.Status),
 		CheckInMethod:     row.CheckInMethod,
 		CheckOutMethod:    row.CheckOutMethod,
-		AdmissionDecision: row.AdmissionDecision,
+		AdmissionDecision: AdmissionDecision(row.AdmissionDecision),
 		CorrectionReason:  row.CorrectionReason,
 		Version:           row.Version,
 	}
@@ -739,10 +742,10 @@ func visitFromVoid(row attendancedb.VoidVisitRow) Visit {
 		DisplayName:       row.FirstName + " " + row.LastName,
 		CheckedInAt:       row.CheckedInAt,
 		CheckedOutAt:      timePtr(row.CheckedOutAt),
-		Status:            row.Status,
+		Status:            VisitStatus(row.Status),
 		CheckInMethod:     row.CheckInMethod,
 		CheckOutMethod:    row.CheckOutMethod,
-		AdmissionDecision: row.AdmissionDecision,
+		AdmissionDecision: AdmissionDecision(row.AdmissionDecision),
 		CorrectionReason:  row.CorrectionReason,
 		Version:           row.Version,
 	}
@@ -754,10 +757,10 @@ func visitFromList(row attendancedb.ListVisitsRow) Visit {
 		DisplayName:       row.FirstName + " " + row.LastName,
 		CheckedInAt:       row.CheckedInAt,
 		CheckedOutAt:      timePtr(row.CheckedOutAt),
-		Status:            row.Status,
+		Status:            VisitStatus(row.Status),
 		CheckInMethod:     row.CheckInMethod,
 		CheckOutMethod:    row.CheckOutMethod,
-		AdmissionDecision: row.AdmissionDecision,
+		AdmissionDecision: AdmissionDecision(row.AdmissionDecision),
 		CorrectionReason:  row.CorrectionReason,
 		Version:           row.Version,
 	}
