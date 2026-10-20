@@ -278,7 +278,7 @@ func (s *Service) ChangeFilamentSpoolFill(ctx context.Context, p authorization.P
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	spool, err := q.GetFilamentSpoolForUpdate(ctx, spoolID)
 	if err != nil {
@@ -435,7 +435,7 @@ func (s *Service) FinishFilamentSpool(ctx context.Context, p authorization.Princ
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	spool, err := q.GetFilamentSpoolForUpdate(ctx, spoolID)
 	if err != nil {
@@ -522,7 +522,7 @@ func (s *Service) CleanUpFilamentSpools(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return nil, false, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	rows, err := q.LockFilamentSpoolCleanupCandidates(ctx, machinelogbookdb.LockFilamentSpoolCleanupCandidatesParams{Ids: spoolIDs, Cutoff: cutoff.Time})
 	if err != nil {

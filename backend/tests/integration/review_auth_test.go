@@ -98,7 +98,7 @@ func TestOIDCSessionRejectsDisabledOrForeignIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer tx.Rollback(ctx)
+			defer func() { _ = tx.Rollback(ctx) }()
 			targetID := account.accountID
 			if state == "disabled_identity" {
 				_, err = tx.Exec(ctx, `UPDATE auth_identities SET disabled_at=now() WHERE id=$1`, identityID)

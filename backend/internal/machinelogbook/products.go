@@ -116,7 +116,7 @@ func (s *Service) CreateFilamentProduct(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return FilamentProduct{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if _, err = q.GetMaterial(ctx, in.MaterialID); err != nil {
 		return FilamentProduct{}, noRows(err)
@@ -155,7 +155,7 @@ func (s *Service) UpdateFilamentProduct(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return FilamentProduct{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetFilamentProductForUpdate(ctx, id)
 	if err != nil {

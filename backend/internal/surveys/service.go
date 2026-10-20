@@ -159,7 +159,7 @@ func (s *Service) Create(ctx context.Context, p authorization.Principal, input I
 	if err != nil {
 		return Survey{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	id, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	if _, err = q.CreateSurvey(ctx, surveysdb.CreateSurveyParams{ID: id, Name: input.Name, Description: input.Description, Anonymous: input.Anonymous}); err != nil {
@@ -211,7 +211,7 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	if err != nil {
 		return Survey{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	current, err := q.GetSurveyForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -259,7 +259,7 @@ func (s *Service) Publish(ctx context.Context, p authorization.Principal, id uui
 	if err != nil {
 		return Survey{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	current, err := q.GetSurveyForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -311,7 +311,7 @@ func (s *Service) Close(ctx context.Context, p authorization.Principal, id uuid.
 	if err != nil {
 		return Survey{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	current, err := q.GetSurveyForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -354,7 +354,7 @@ func (s *Service) UpdateTrigger(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return Trigger{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	survey, err := q.GetSurveyForUpdate(ctx, surveyID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -539,7 +539,7 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	invitation, err := q.GetPublicSurveyInvitationForUpdate(ctx, security.DigestToken(token))
 	if errors.Is(err, pgx.ErrNoRows) {

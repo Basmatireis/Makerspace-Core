@@ -327,7 +327,7 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Connector{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
 	row, err := db.New(tx).CreateConnector(ctx, db.CreateConnectorParams{ID: id, Name: name, LocationLabel: location})
 	if err != nil {
@@ -406,7 +406,7 @@ func (s *Service) ClearEvents(ctx context.Context, principal authorization.Princ
 	if err != nil {
 		return Connector{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetConnectorForUpdate(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return Connector{}, apperror.NotFound
@@ -447,7 +447,7 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Connector{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	current, err := q.GetConnectorForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -501,7 +501,7 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err != nil {
 		return EnrollmentIssue{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	connector, err := q.GetConnectorForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -550,7 +550,7 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	enrollment, err := q.GetEnrollmentByDigestForUpdate(ctx, security.DigestToken(enrollmentSecret))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -651,7 +651,7 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Connector{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	row, err := q.RevokeConnector(ctx, db.RevokeConnectorParams{ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -691,7 +691,7 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetConnectorForUpdate(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -806,7 +806,7 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 	if err != nil {
 		return Assignment{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	current, err := q.GetAssignmentForUpdate(ctx, db.GetAssignmentForUpdateParams{ID: assignmentID, ConnectorID: connectorID})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -914,7 +914,7 @@ func (s *Service) RotateCredential(ctx context.Context, connector Context, crede
 	if err != nil {
 		return time.Time{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	existing, existingErr := q.GetConnectorCredential(ctx, db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: connector.ID})
 	if existingErr == nil {
@@ -953,7 +953,7 @@ func (s *Service) createAssignment(ctx context.Context, principal authorization.
 	if err != nil {
 		return Assignment{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	connector, err := q.GetConnectorForUpdate(ctx, connectorID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1031,7 +1031,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	if err != nil {
 		return Connector{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	for _, h := range input.Assignments {
 		if h.AppliedConfigurationVersion < 0 || (h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
@@ -1090,7 +1090,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		code := "temporarily_unavailable"
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	a, err := db.New(tx).GetAssignmentForIngress(ctx, db.GetAssignmentForIngressParams{ID: input.AssignmentID, ConnectorID: connector.ID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return rejected("assignment_not_found")

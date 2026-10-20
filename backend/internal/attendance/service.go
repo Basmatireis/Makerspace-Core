@@ -193,7 +193,7 @@ func (s *Service) checkIn(ctx context.Context, device manageddevices.DeviceConte
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	if _, err = q.LockEnabledAttendanceAccount(ctx, attendancedb.LockEnabledAttendanceAccountParams{AccountID: verified.AccountID, PersonID: verified.PersonID}); errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.Unauthenticated
@@ -252,7 +252,7 @@ func (s *Service) verifiedCheckOut(ctx context.Context, device manageddevices.De
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	current, err := q.GetOpenVisitForPerson(ctx, verified.PersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -293,7 +293,7 @@ func (s *Service) PublicCheckOut(ctx context.Context, device manageddevices.Devi
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	if _, err = q.GetOpenVisitByID(ctx, visitID); errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.NotFound
@@ -352,7 +352,7 @@ func (s *Service) SupervisedCheckIn(ctx context.Context, principal authorization
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	if _, err = q.LockPerson(ctx, personID); errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.NotFound
@@ -386,7 +386,7 @@ func (s *Service) SupervisedCheckOut(ctx context.Context, principal authorizatio
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	if _, err = q.GetOpenVisitByID(ctx, visitID); errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.NotFound
@@ -424,7 +424,7 @@ func (s *Service) Void(ctx context.Context, principal authorization.Principal, v
 	if err != nil {
 		return Visit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	current, err := q.GetVisitByIDForUpdate(ctx, visitID)
 	if errors.Is(err, pgx.ErrNoRows) {

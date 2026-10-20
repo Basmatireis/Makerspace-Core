@@ -201,7 +201,7 @@ func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return Profile{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	if err = requireFDMPrinting(ctx, tx, machineID); err != nil {
 		return Profile{}, err
 	}
@@ -234,7 +234,7 @@ func (s *Service) CreateInputUnit(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return InputUnit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetPrinterProfile(ctx, machineID); err != nil {
 		return InputUnit{}, noRows(err)
@@ -266,7 +266,7 @@ func (s *Service) UpdateInputUnit(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return InputUnit{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetPrinterInputUnitForUpdate(ctx, inputUnitID); err != nil {
 		return InputUnit{}, noRows(err)
@@ -299,7 +299,7 @@ func (s *Service) CreateSlot(ctx context.Context, p authorization.Principal, inp
 	if err != nil {
 		return Slot{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetPrinterInputUnitForUpdate(ctx, inputUnitID); err != nil {
 		return Slot{}, noRows(err)
@@ -331,7 +331,7 @@ func (s *Service) UpdateSlot(ctx context.Context, p authorization.Principal, slo
 	if err != nil {
 		return Slot{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetPrinterSlotForUpdate(ctx, slotID); err != nil {
 		return Slot{}, noRows(err)
@@ -365,7 +365,7 @@ func (s *Service) Mount(ctx context.Context, p authorization.Principal, slotID, 
 	if err != nil {
 		return Slot{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	slot, err := q.GetPrinterSlotForUpdate(ctx, slotID)
 	if err != nil {
@@ -423,7 +423,7 @@ func (s *Service) Unmount(ctx context.Context, p authorization.Principal, slotID
 	if err != nil {
 		return Slot{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetPrinterSlotForUpdate(ctx, slotID); err != nil {
 		return Slot{}, noRows(err)

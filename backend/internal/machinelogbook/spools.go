@@ -274,7 +274,7 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	var material machinelogbookdb.GetMaterialForUpdateRow
 	var detail machinelogbookdb.GetMaterialRow
@@ -378,7 +378,7 @@ func (s *Service) UpdateFilamentSpool(ctx context.Context, p authorization.Princ
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetFilamentSpoolForUpdate(ctx, id)
 	if err != nil {
@@ -447,7 +447,7 @@ func (s *Service) AddFilamentSpoolIdentifier(ctx context.Context, p authorizatio
 	if err != nil {
 		return FilamentSpoolIdentifier{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if _, err = q.GetFilamentSpoolForUpdate(ctx, spoolID); err != nil {
 		return FilamentSpoolIdentifier{}, noRows(err)
@@ -480,7 +480,7 @@ func (s *Service) DeleteFilamentSpoolIdentifier(ctx context.Context, p authoriza
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	rows, err := q.DeleteFilamentSpoolIdentifier(ctx, machinelogbookdb.DeleteFilamentSpoolIdentifierParams{ID: identifierID, SpoolID: spoolID})
 	if err != nil {
@@ -510,7 +510,7 @@ func (s *Service) TransferSpoolStock(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return InventoryTransaction{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	material, err := q.GetMaterialForUpdate(ctx, materialID)
 	if err != nil {
@@ -588,7 +588,7 @@ func (s *Service) ConsumeFilamentSpool(ctx context.Context, p authorization.Prin
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	spool, ref, _, err := s.lockConsumableFill(ctx, q, spoolID)
 	if err != nil {
@@ -631,7 +631,7 @@ func (s *Service) CorrectFilamentSpoolStock(ctx context.Context, p authorization
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	spool, ref, remaining, err := s.lockConsumableFill(ctx, q, spoolID)
 	if err != nil {

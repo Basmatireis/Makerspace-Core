@@ -181,7 +181,7 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	kind := "order." + action
 	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, kind, struct {

@@ -535,7 +535,7 @@ func (s *Service) UpdateRun(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return RunUpdateResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, _, err := s.lockedRun(ctx, tx, id)
 	if err != nil {
@@ -628,7 +628,7 @@ func (s *Service) ReplaceRunUsages(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return RunUpdateResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, _, err := s.lockedRun(ctx, tx, id)
 	if err != nil {
@@ -690,7 +690,7 @@ func (s *Service) CancelRun(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, _, err := s.lockedRun(ctx, tx, id)
 	if err != nil {
@@ -739,7 +739,7 @@ func (s *Service) AddManualRun(ctx context.Context, p authorization.Principal, j
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, jobID)
 	if err != nil {
@@ -784,7 +784,7 @@ func (s *Service) CreateJobFromRun(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, err := q.GetRunForUpdate(ctx, runID)
 	if err != nil {
@@ -846,7 +846,7 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, jobID)
 	if err != nil {
@@ -993,7 +993,7 @@ func (s *Service) DetachRun(ctx context.Context, p authorization.Principal, runI
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, job, err := s.lockedRun(ctx, tx, runID)
 	if err != nil {

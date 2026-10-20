@@ -160,7 +160,7 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return MaterialType{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	id := newID()
 	if _, err = q.CreateMaterialType(ctx, machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit}); err != nil {
@@ -210,7 +210,7 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return MaterialType{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialTypeForUpdate(ctx, id)
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *Service) DeleteMaterialType(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialTypeForUpdate(ctx, id)
 	if err != nil {

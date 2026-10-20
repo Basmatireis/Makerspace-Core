@@ -123,7 +123,7 @@ func (s *Service) promote(ctx context.Context, q *db.Queries, force bool) (bool,
 	if err != nil {
 		return false, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	tq := db.New(tx)
 	if _, err = tq.LockTicketKeys(ctx); err != nil {
 		return false, err
@@ -176,7 +176,7 @@ func (s *Service) createKey(ctx context.Context, params db.InsertTicketKeyParams
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	now := s.now()
 	params.ID, params.Kid, params.PublicKey, params.EncryptedPrivateKey = id, streamticket.KeyID(public), public, encrypted

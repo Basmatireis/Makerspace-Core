@@ -134,7 +134,7 @@ func (s *Service) CreateCashMovement(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return CashMovement{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	// One writer at a time: retries and the withdrawal limit are checked against a stable register.
 	if err = q.LockCashRegister(ctx); err != nil {

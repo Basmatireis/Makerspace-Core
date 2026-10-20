@@ -157,7 +157,7 @@ func (s *Service) DeleteRun(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	run, _, err := s.lockedRun(ctx, tx, id)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {

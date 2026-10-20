@@ -111,7 +111,7 @@ func (s *Service) BulkDelete(ctx context.Context, p authorization.Principal, inp
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 
 	type lockedJob struct {
@@ -332,7 +332,7 @@ func (s *Service) BulkCreateJobsFromRuns(ctx context.Context, p authorization.Pr
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	runs, blockers, err := s.lockUnassignedRuns(ctx, q, items)
 	if err != nil {
@@ -407,7 +407,7 @@ func (s *Service) BulkCombineRuns(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	runs, blockers, err := s.lockUnassignedRuns(ctx, q, items)
 	if err != nil {
@@ -486,7 +486,7 @@ func (s *Service) BulkAttachRuns(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, input.JobID)
 	if err != nil {

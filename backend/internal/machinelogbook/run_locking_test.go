@@ -61,7 +61,7 @@ func TestConcurrentJobUpdateAndConnectorEventDoNotDeadlock(t *testing.T) {
 				eventErr = err
 				return
 			}
-			defer tx.Rollback(ctx)
+			defer func() { _ = tx.Rollback(ctx) }()
 			if eventErr = h.s.ApplyRecordedRunEvent(ctx, tx, RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: "progress"}); eventErr == nil {
 				eventErr = tx.Commit(ctx)
 			}

@@ -200,7 +200,7 @@ func (s *Service) Create(ctx context.Context, p authorization.Principal, input O
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	o, err := s.create(ctx, tx, p, input, nil, requestID)
 	if err != nil {
 		return Order{}, databaseError(err)
@@ -219,7 +219,7 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	o, err := q.LockOrder(ctx, id)
 	if err != nil {

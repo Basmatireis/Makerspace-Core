@@ -44,7 +44,7 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return MachineType{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	id := newID()
 	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
 	if err != nil {
@@ -70,7 +70,7 @@ func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return MachineType{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineTypeForUpdate(ctx, id)
 	if err != nil {
@@ -184,7 +184,7 @@ func (s *Service) CreateMachine(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return Machine{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	typeRow, err := q.GetMachineType(ctx, machineTypeID)
 	if err != nil {
@@ -227,7 +227,7 @@ func (s *Service) UpdateMachine(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return Machine{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineForUpdate(ctx, id)
 	if err != nil {
@@ -273,7 +273,7 @@ func (s *Service) DeleteMachine(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineForUpdate(ctx, id)
 	if err != nil {
@@ -470,7 +470,7 @@ func (s *Service) CreateOrganization(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return Organization{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	id := newID()
 	row, err := machinelogbookdb.New(tx).CreateOrganization(ctx, machinelogbookdb.CreateOrganizationParams{ID: id, Name: name, Kind: kind, AddressLine: merged.AddressLine, PostalCode: merged.PostalCode, Locality: merged.Locality, CountryCode: merged.CountryCode, ContactName: merged.ContactName, ContactEmail: merged.ContactEmail})
 	if err != nil {
@@ -500,7 +500,7 @@ func (s *Service) DeleteOrganization(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetOrganizationForUpdate(ctx, id)
 	if err != nil {
@@ -548,7 +548,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return Organization{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetOrganizationForUpdate(ctx, id)
 	if err != nil {
@@ -610,7 +610,7 @@ func (s *Service) AddOrganizationMember(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return OrganizationMember{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if _, err = q.GetOrganizationForUpdate(ctx, organizationID); err != nil {
 		return OrganizationMember{}, noRows(err)
@@ -643,7 +643,7 @@ func (s *Service) RemoveOrganizationMember(ctx context.Context, p authorization.
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if _, err = q.RemoveOrganizationMember(ctx, machinelogbookdb.RemoveOrganizationMemberParams{OrganizationID: organizationID, PersonID: personID}); err != nil {
 		return noRows(err)
@@ -773,7 +773,7 @@ func (s *Service) CreatePricingGroup(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return PricingGroup{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	id := newID()
 	if isDefault {
@@ -814,7 +814,7 @@ func (s *Service) UpdatePricingGroup(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return PricingGroup{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetPricingGroupForUpdate(ctx, id)
 	if err != nil {
@@ -908,7 +908,7 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return PricingRule{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, true)
 	if err != nil {
@@ -950,7 +950,7 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return PricingRule{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetPricingRuleForUpdate(ctx, id)
 	if err != nil {
@@ -993,7 +993,7 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 	if err != nil {
 		return BillingParty{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if groupID != nil {
 		group, err := q.GetPricingGroup(ctx, *groupID)
@@ -1100,7 +1100,7 @@ func (s *Service) SetRolePricingGroups(ctx context.Context, p authorization.Prin
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	if err = q.LockRolePricingGroups(ctx); err != nil {
 		return nil, err

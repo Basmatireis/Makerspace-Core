@@ -133,7 +133,7 @@ func (s *Service) SetJobPriceAdjustment(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *Service) ClearJobPriceAdjustment(ctx context.Context, p authorization.P
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {

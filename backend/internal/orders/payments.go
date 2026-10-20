@@ -184,7 +184,7 @@ func (s *Service) RecordPayment(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, "payment.record", struct {
 		ID    uuid.UUID
@@ -229,7 +229,7 @@ func (s *Service) ReversePayment(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, "payment.reverse", struct {
 		ID    uuid.UUID

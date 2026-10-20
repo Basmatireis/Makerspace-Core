@@ -59,7 +59,7 @@ func (s *Service) UpdateRequirements(ctx context.Context, p authorization.Princi
 	if err != nil {
 		return InvoicingRequirements{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if err = q.LockOrganizationRequirements(ctx, id); err != nil {
 		return InvoicingRequirements{}, err
@@ -143,7 +143,7 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, "request.create", struct {
 		ID    uuid.UUID
@@ -320,7 +320,7 @@ func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, 
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	r, err := lockRequest(ctx, q, id)
 	if err != nil {
@@ -437,7 +437,7 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	kind := "request." + action
 	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, kind, struct {

@@ -579,7 +579,7 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	job, err := s.CreateManualJobInTransaction(ctx, tx, p, input, requestID)
 	if err != nil {
 		return MachineJob{}, err
@@ -853,7 +853,7 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {

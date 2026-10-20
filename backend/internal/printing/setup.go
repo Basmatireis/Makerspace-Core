@@ -158,7 +158,7 @@ func (s *Service) SaveSetup(ctx context.Context, p authorization.Principal, mach
 	if err != nil {
 		return Profile{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	if err = s.applySetup(ctx, tx, machineID, input); err != nil {
 		return Profile{}, err
 	}

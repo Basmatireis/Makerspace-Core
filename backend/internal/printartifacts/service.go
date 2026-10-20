@@ -504,7 +504,7 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetArtifactByID(ctx, artifactID); errors.Is(err, pgx.ErrNoRows) {
 		return machinelogbook.MachineJob{}, apperror.NotFound

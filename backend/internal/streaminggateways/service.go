@@ -300,7 +300,7 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Gateway{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
 	row, err := db.New(tx).CreateGateway(ctx, db.CreateGatewayParams{ID: id, Name: name, PublicHost: publicHost})
 	if err != nil {
@@ -373,7 +373,7 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Gateway{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	current, err := q.GetGatewayForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -425,7 +425,7 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetGatewayForUpdate(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -459,7 +459,7 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err != nil {
 		return EnrollmentIssue{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	gateway, err := q.GetGatewayForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -510,7 +510,7 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	enrollment, err := q.GetGatewayEnrollmentByDigestForUpdate(ctx, security.DigestToken(enrollmentSecret))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -617,7 +617,7 @@ func (s *Service) Revoke(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return Gateway{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	current, err := q.GetGatewayForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -661,7 +661,7 @@ func (s *Service) RotateCredential(ctx context.Context, gateway Context, credent
 	if err != nil {
 		return time.Time{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	existing, existingErr := q.GetGatewayCredential(ctx, db.GetGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID})
 	if existingErr == nil {
@@ -792,7 +792,7 @@ func (s *Service) AssignCamera(ctx context.Context, principal authorization.Prin
 	if err != nil {
 		return Camera{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	gateway, err := q.GetGatewayForUpdate(ctx, gatewayID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -850,7 +850,7 @@ func (s *Service) UpdateCamera(ctx context.Context, principal authorization.Prin
 	if err != nil {
 		return Camera{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	if _, err = q.GetCameraForUpdate(ctx, db.GetCameraForUpdateParams{ID: cameraID, GatewayID: gatewayID}); errors.Is(err, pgx.ErrNoRows) {
 		return Camera{}, apperror.NotFound
@@ -888,7 +888,7 @@ func (s *Service) DeleteCamera(ctx context.Context, principal authorization.Prin
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	affected, err := q.DeleteCamera(ctx, db.DeleteCameraParams{ID: cameraID, GatewayID: gatewayID})
 	if err != nil {
@@ -1014,7 +1014,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 	if err != nil {
 		return Gateway{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	protocol := int32(input.ProtocolVersion)
 	row, err := q.RecordGatewayHeartbeat(ctx, db.RecordGatewayHeartbeatParams{SoftwareVersion: &input.SoftwareVersion, ProtocolVersion: &protocol, AppliedConfigurationRevision: input.AppliedConfigurationRevision, HealthState: &input.HealthState, HealthSummary: input.HealthSummary, ID: gateway.ID})

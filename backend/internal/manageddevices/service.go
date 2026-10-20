@@ -828,7 +828,7 @@ func (s *Service) CreateSessionPolicy(ctx context.Context, principal authorizati
 	if err != nil {
 		return SessionPolicy{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
 	id := uuid.Must(uuid.NewV7())
 	if input.IsDefault {
@@ -876,7 +876,7 @@ func (s *Service) UpdateSessionPolicy(ctx context.Context, principal authorizati
 	if err != nil {
 		return SessionPolicy{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
 	current, err := q.GetSessionPolicy(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {

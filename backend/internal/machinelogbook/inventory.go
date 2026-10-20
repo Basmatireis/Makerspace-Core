@@ -139,7 +139,7 @@ func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return Material{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	materialType, err := resolveMaterialType(ctx, q, in.MaterialTypeID, true)
 	if err != nil {
@@ -194,7 +194,7 @@ func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return Material{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
@@ -429,7 +429,7 @@ func (s *Service) AddPurchase(ctx context.Context, p authorization.Principal, id
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	result, err := s.applyInventoryMutation(ctx, tx, machinelogbookdb.New(tx), p, id, expected, inventoryMutation{Kind: "purchase", QuantityDelta: qty, UnitCost: price.Div(qty), ValueDelta: price, TotalPrice: &price, OccurredAt: occurredAt, Supplier: supplier, Note: note}, requestID)
 	if err != nil {
 		return InventoryMutationResult{}, err
@@ -455,7 +455,7 @@ func (s *Service) RecordConsumption(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
@@ -498,7 +498,7 @@ func (s *Service) CorrectStock(ctx context.Context, p authorization.Principal, i
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
@@ -545,7 +545,7 @@ func (s *Service) MarkEmpty(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {

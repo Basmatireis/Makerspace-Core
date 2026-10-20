@@ -587,7 +587,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 		id, _, source, e := machinelogbook.ResolvePricingGroup(ctx, tx, personID, orgID, explicit)
 		return id, source, e
 	}

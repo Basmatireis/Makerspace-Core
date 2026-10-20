@@ -133,7 +133,7 @@ func (s *Service) ChangeItem(ctx context.Context, p authorization.Principal, id,
 	if err != nil {
 		return Order{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	o, err := q.LockOrder(ctx, id)
 	if err != nil {
