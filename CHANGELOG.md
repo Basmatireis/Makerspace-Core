@@ -4,11 +4,15 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-20
+
 ### Fixed
 
 - Streaming gateway: `ACME_DNS_PROPAGATION_WAIT` (for example `60s`) replaces the gateway's own DNS propagation check by a fixed wait before Let's Encrypt validates, for networks whose router intercepts or caches DNS on port 53 and kept the certificate request "waiting for DNS record propagation".
 - Release images report their version (they reported `dev`): the release build passes `VERSION` to the image builds.
 - go2rtc in the streaming and local-services stacks no longer logs a tini warning at start.
+- Releases finish when their validation is skipped because CI already passed on `main`: the public-image check and the GitHub Release used to be skipped as well.
+- Integration tests no longer fail in CI on Linux (credential expiry times are stored with microsecond precision; package-level database tests use isolated schemas).
 
 ## [0.7.0] - 2026-10-20
 
