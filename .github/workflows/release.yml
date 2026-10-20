@@ -184,6 +184,9 @@ jobs:
   public-images:
     name: Public release images
     needs: [tag, publish]
+    # `publish` may run after a skipped `validate`; without this condition GitHub skips every
+    # job downstream of a skipped one.
+    if: ${{ !cancelled() && needs.tag.result == 'success' && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -216,6 +219,7 @@ jobs:
   github-release:
     name: GitHub Release
     needs: [tag, public-images]
+    if: ${{ !cancelled() && needs.tag.result == 'success' && needs.public-images.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
