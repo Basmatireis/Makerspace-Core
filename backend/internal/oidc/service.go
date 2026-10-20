@@ -72,7 +72,7 @@ type FlowStart struct {
 }
 
 type Completion struct {
-	Kind    string
+	Kind    FlowKind
 	Session *auth.Session
 }
 
@@ -363,7 +363,7 @@ func (s *Service) StartLogin(ctx context.Context, slug string) (FlowStart, error
 	if err != nil {
 		return FlowStart{}, err
 	}
-	return s.startFlow(ctx, provider, "login", nil, nil)
+	return s.startFlow(ctx, provider, FlowLogin, nil, nil)
 }
 
 func (s *Service) StartLink(
@@ -400,7 +400,7 @@ func (s *Service) StartLink(
 	if err := tx.Commit(ctx); err != nil {
 		return FlowStart{}, err
 	}
-	return s.startFlow(ctx, provider, "link", &principal.AccountID, &principal.SessionID)
+	return s.startFlow(ctx, provider, FlowLink, &principal.AccountID, &principal.SessionID)
 }
 
 // Reauthentication is bound to an existing session and an already-linked
@@ -439,13 +439,13 @@ func (s *Service) StartReauthentication(
 	if err := tx.Commit(ctx); err != nil {
 		return FlowStart{}, err
 	}
-	return s.startFlow(ctx, provider, "reauthenticate", &principal.AccountID, &principal.SessionID)
+	return s.startFlow(ctx, provider, FlowReauthenticate, &principal.AccountID, &principal.SessionID)
 }
 
 func (s *Service) startFlow(
 	ctx context.Context,
 	provider oidcdb.OidcProvider,
-	kind string,
+	kind FlowKind,
 	accountID, sessionID *uuid.UUID,
 ) (FlowStart, error) {
 	if s.keyring == nil {
@@ -486,7 +486,7 @@ func (s *Service) startFlow(
 	}
 	expiresAt := s.now().Add(flowTTL)
 	if _, err := oidcdb.New(s.pool).CreateFlow(ctx, oidcdb.CreateFlowParams{
-		ID: flowID, ProviderID: provider.ID, Kind: kind, AccountID: accountID, SessionID: sessionID,
+		ID: flowID, ProviderID: provider.ID, Kind: string(kind), AccountID: accountID, SessionID: sessionID,
 		StateDigest: stateDigest, BrowserTokenDigest: browserDigest, EncryptedNonce: encryptedNonce,
 		EncryptedPkceVerifier: encryptedVerifier, ExpiresAt: expiresAt,
 	}); err != nil {
@@ -494,7 +494,7 @@ func (s *Service) startFlow(
 	}
 	config := oauthConfig(discovered, provider, string(clientSecret), s.callbackURL())
 	options := []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("nonce", nonce), oauth2.S256ChallengeOption(verifier)}
-	if kind == "reauthenticate" {
+	if kind == FlowReauthenticate {
 		options = append(options, oauth2.SetAuthURLParam("max_age", "0"), oauth2.SetAuthURLParam("prompt", "login"))
 	}
 	return FlowStart{
@@ -531,17 +531,17 @@ func (s *Service) Complete(
 	if err != nil {
 		return Completion{}, err
 	}
-	if contextFlow.Kind != "login" {
+	if FlowKind(contextFlow.Kind) != FlowLogin {
 		if contextFlow.SessionID == nil || contextFlow.AccountID == nil ||
 			*contextFlow.SessionID != principal.SessionID ||
 			*contextFlow.AccountID != principal.AccountID {
 			return Completion{}, apperror.Unauthenticated
 		}
-		principal, err = s.auth.SessionForSensitiveOperation(ctx, tx, principal, contextFlow.Kind == "link")
+		principal, err = s.auth.SessionForSensitiveOperation(ctx, tx, principal, FlowKind(contextFlow.Kind) == FlowLink)
 		if err != nil {
 			return Completion{}, err
 		}
-		if contextFlow.Kind == "link" && !principal.Has(authorization.OIDCLinkSelf) {
+		if FlowKind(contextFlow.Kind) == FlowLink && !principal.Has(authorization.OIDCLinkSelf) {
 			return Completion{}, apperror.PermissionDenied
 		}
 	}
@@ -604,8 +604,8 @@ func (s *Service) Complete(
 	subject := claims.Subject
 	var accountID, identityID uuid.UUID
 	var actor *uuid.UUID
-	switch flow.Kind {
-	case "link":
+	switch FlowKind(flow.Kind) {
+	case FlowLink:
 		// Discovery and token exchange may take time; the capability must still
 		// be fresh at the point where the new identity is attached.
 		if _, err := s.auth.SessionForSensitiveOperation(ctx, tx, principal, true); err != nil {
@@ -654,9 +654,9 @@ func (s *Service) Complete(
 		); err != nil {
 			return Completion{}, err
 		}
-	case "reauthenticate":
+	case FlowReauthenticate:
 		found, err := queries.FindOIDCIdentity(ctx, oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject})
-		if err != nil || found.AccountID != principal.AccountID || found.Status != "enabled" {
+		if err != nil || found.AccountID != principal.AccountID || authorization.AccountStatus(found.Status) != authorization.AccountEnabled {
 			return Completion{}, apperror.PermissionDenied
 		}
 		authenticatedAt := time.Unix(claims.AuthTime, 0).UTC()
@@ -674,13 +674,13 @@ func (s *Service) Complete(
 		); err != nil {
 			return Completion{}, err
 		}
-	case "login":
+	case FlowLogin:
 		found, findErr := queries.FindOIDCIdentity(
 			ctx,
 			oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject},
 		)
 		if findErr == nil {
-			if found.Status != "enabled" {
+			if authorization.AccountStatus(found.Status) != authorization.AccountEnabled {
 				return Completion{}, apperror.New(http.StatusForbidden, "account_disabled", "Account is disabled")
 			}
 			accountID, identityID = found.AccountID, found.IdentityID
@@ -751,8 +751,8 @@ func (s *Service) Complete(
 		}
 		return Completion{}, invalidRequest("OIDC callback was already used")
 	}
-	result := Completion{Kind: flow.Kind}
-	if flow.Kind == "login" {
+	result := Completion{Kind: FlowKind(flow.Kind)}
+	if FlowKind(flow.Kind) == FlowLogin {
 		session, err := s.auth.CreateOIDCSession(
 			ctx,
 			tx,

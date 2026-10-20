@@ -147,9 +147,9 @@ func (s *Server) CompleteOIDCCallback(
 	}
 	location := "/profile?oidc=linked"
 	switch result.Kind {
-	case "login":
+	case oidc.FlowLogin:
 		location = "/"
-	case "reauthenticate":
+	case oidc.FlowReauthenticate:
 		location = "/profile?oidc=reauthenticated"
 	}
 	return oidcCallbackResponse{server: s, session: result.Session, location: location}, nil
