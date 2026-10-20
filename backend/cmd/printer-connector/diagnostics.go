@@ -206,7 +206,7 @@ func replayMQTT(args []string, stdout io.Writer) error {
 }
 
 func openRegularFile(fileName string, maximumSize int64) (*os.File, int64, error) {
-	file, err := os.Open(fileName)
+	file, err := os.Open(fileName) //nolint:gosec // file name is an operator-supplied command-line argument of a diagnostics tool
 	if err != nil {
 		return nil, 0, err
 	}

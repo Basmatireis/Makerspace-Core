@@ -501,7 +501,7 @@ func (s *Service) PutProfileImage(
 	if s.files == nil {
 		return Person{}, errors.New("file storage is unavailable")
 	}
-	if !(principal.Has(authorization.PeopleProfileImageUpdateAll) || (principal.PersonID == id && principal.Has(authorization.PeopleProfileImageUpdateSelf))) {
+	if !principal.Has(authorization.PeopleProfileImageUpdateAll) && (principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageUpdateSelf)) {
 		return Person{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
@@ -607,7 +607,7 @@ func (s *Service) DeleteProfileImage(
 	if s.files == nil {
 		return errors.New("file storage is unavailable")
 	}
-	if !(principal.Has(authorization.PeopleProfileImageRemoveAll) || (principal.PersonID == id && principal.Has(authorization.PeopleProfileImageRemoveSelf))) {
+	if !principal.Has(authorization.PeopleProfileImageRemoveAll) && (principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageRemoveSelf)) {
 		return apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)

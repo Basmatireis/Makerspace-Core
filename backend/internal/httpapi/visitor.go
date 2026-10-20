@@ -249,6 +249,7 @@ func setEnrollmentCookie(
 ) {
 	http.SetCookie(
 		w,
+		//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 		&http.Cookie{
 			Name:     name,
 			Value:    value,

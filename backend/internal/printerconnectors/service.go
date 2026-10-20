@@ -252,7 +252,7 @@ func validateAssignmentContract(
 		}
 	}
 	addr, err := netip.ParseAddr(strings.TrimSpace(value.IPAddress))
-	if err != nil || !addr.Is4() || !(addr.IsGlobalUnicast() || addr.IsLinkLocalUnicast()) {
+	if err != nil || !addr.Is4() || !addr.IsGlobalUnicast() && !addr.IsLinkLocalUnicast() {
 		return nil, nil, validation("ipAddress must be an IPv4 unicast literal")
 	}
 	serial := strings.ToUpper(strings.TrimSpace(value.SerialNumber))
@@ -1736,7 +1736,7 @@ func applyPrinterError(
 		Code         string `json:"code"`
 	}
 	if json.Unmarshal(payload, &value) != nil {
-		return nil
+		return nil //nolint:nilerr // a malformed connector payload is ignored
 	}
 	value.Transition = strings.TrimSpace(value.Transition)
 	value.SourceFamily = strings.TrimSpace(value.SourceFamily)

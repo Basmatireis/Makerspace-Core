@@ -79,7 +79,7 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 		})
 		mux.HandleFunc("/"+name+"/token", func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
-				http.Error(w, "bad form", 400)
+				http.Error(w, "bad form", http.StatusBadRequest)
 				return
 			}
 			f.mu.Lock()
@@ -88,7 +88,7 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 			id, secret, _ := r.BasicAuth()
 			if id != "semantics-client" || secret != "semantics-secret" || f.tokens[code] == "" ||
 				oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != f.challenges[code] {
-				http.Error(w, "invalid exchange", 400)
+				http.Error(w, "invalid exchange", http.StatusBadRequest)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")

@@ -306,13 +306,14 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 			continue
 		}
 		var adapter Adapter
-		if raw.AdapterKind == "simulator" {
+		switch raw.AdapterKind {
+		case "simulator":
 			if raw.AdapterSchemaVersion != 1 {
 				err = fmt.Errorf("unsupported simulator schema version %d", raw.AdapterSchemaVersion)
 			} else {
 				adapter, err = NewSimulator(raw.Settings)
 			}
-		} else if raw.AdapterKind == "bambu_h2d" {
+		case "bambu_h2d":
 			adapter, err = NewBambuH2D(
 				id,
 				raw.ConfigurationVersion,
@@ -321,7 +322,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				raw.Secrets,
 				r.store,
 			)
-		} else if raw.AdapterKind == "bambu_x1c" {
+		case "bambu_x1c":
 			adapter, err = NewBambuX1C(
 				id,
 				raw.ConfigurationVersion,
@@ -330,7 +331,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				raw.Secrets,
 				r.store,
 			)
-		} else {
+		default:
 			err = errors.New("unsupported adapter")
 		}
 		if err != nil {
@@ -345,7 +346,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 			r.mu.Unlock()
 			continue
 		}
-		ctx, cancel := context.WithCancel(parent)
+		ctx, cancel := context.WithCancel(parent) //nolint:gosec // cancel is stored in r.adapters and invoked when the assignment stops or the runtime closes
 		r.mu.Lock()
 		r.adapters[id] = cancel
 		r.health[id] = AssignmentHealth{
@@ -421,9 +422,10 @@ func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error
 			ErrorCode *string `json:"errorCode"`
 		}
 		if json.Unmarshal(observation.Payload, &value) == nil {
-			if value.State == "online" {
+			switch value.State {
+			case "online":
 				s.reportHealth("connected", nil)
-			} else if value.State == "offline" || value.State == "degraded" {
+			case "offline", "degraded":
 				s.reportHealth("degraded", value.ErrorCode)
 			}
 		}
@@ -461,9 +463,10 @@ func (s *runtimeSink) CommitBambuState(
 				ErrorCode *string `json:"errorCode"`
 			}
 			if json.Unmarshal(observation.Payload, &value) == nil {
-				if value.State == "online" {
+				switch value.State {
+				case "online":
 					s.reportHealth("connected", nil)
-				} else if value.State == "offline" || value.State == "degraded" {
+				case "offline", "degraded":
 					s.reportHealth("degraded", value.ErrorCode)
 				}
 			}
@@ -662,7 +665,7 @@ func (r *Runtime) writeHealth(status string) error {
 }
 
 func CheckHealth(dataDir string) error {
-	value, err := os.ReadFile(filepath.Join(dataDir, "health.json"))
+	value, err := os.ReadFile(filepath.Join(dataDir, "health.json")) //nolint:gosec // path is the fixed health file name inside the operator-configured data directory
 	if err != nil {
 		return err
 	}

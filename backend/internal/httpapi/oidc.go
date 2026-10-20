@@ -146,9 +146,10 @@ func (s *Server) CompleteOIDCCallback(
 		return nil, err
 	}
 	location := "/profile?oidc=linked"
-	if result.Kind == "login" {
+	switch result.Kind {
+	case "login":
 		location = "/"
-	} else if result.Kind == "reauthenticate" {
+	case "reauthenticate":
 		location = "/profile?oidc=reauthenticated"
 	}
 	return oidcCallbackResponse{server: s, session: result.Session, location: location}, nil
@@ -201,6 +202,7 @@ func (s *Server) oidcFlowCookie(value string, expires time.Time) *http.Cookie {
 	if maxAge < 1 {
 		maxAge = 1
 	}
+	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 	return &http.Cookie{
 		Name:     s.config.OIDCFlowCookieName,
 		Value:    value,
@@ -226,6 +228,7 @@ func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.Re
 	w.Header().Set("Location", response.location)
 	http.SetCookie(
 		w,
+		//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 		&http.Cookie{
 			Name:     response.server.config.OIDCFlowCookieName,
 			Value:    "",
@@ -244,6 +247,7 @@ func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.Re
 		}
 		http.SetCookie(
 			w,
+			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 			&http.Cookie{
 				Name:     response.server.config.SessionCookieName,
 				Value:    response.session.Token,
@@ -257,6 +261,7 @@ func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.Re
 		)
 		http.SetCookie(
 			w,
+			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 			&http.Cookie{
 				Name:     response.server.config.CSRFCookieName,
 				Value:    response.session.CSRFToken,

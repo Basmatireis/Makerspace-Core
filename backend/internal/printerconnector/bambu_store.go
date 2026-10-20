@@ -262,6 +262,7 @@ func (s *Store) StageArtifact(
 	}
 	id := uuid.Must(uuid.NewV7())
 	path := filepath.Join(directory, id.String()+".3mf")
+	//nolint:gosec // path is built from a generated UUID inside the connector data directory
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return ArtifactTransfer{}, err
@@ -376,7 +377,8 @@ func (s *Store) PendingArtifactTransfers(ctx context.Context, limit int) ([]Arti
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT id,assignment_id,run_id,configuration_version,remote_path,file_name,staged_path,size_bytes,sha256,attempt_count,expires_at FROM artifact_transfers
-		WHERE state='pending' AND next_attempt_at<=? AND expires_at>? AND NOT EXISTS (SELECT 1 FROM artifact_upload_receipts r WHERE r.transfer_id=artifact_transfers.id)
+		WHERE state='pending' AND next_attempt_at<=? AND expires_at>?
+		AND NOT EXISTS (SELECT 1 FROM artifact_upload_receipts r WHERE r.transfer_id=artifact_transfers.id)
 		ORDER BY created_at LIMIT ?`,
 		time.Now().UTC().Format(time.RFC3339Nano),
 		time.Now().UTC().Format(time.RFC3339Nano),

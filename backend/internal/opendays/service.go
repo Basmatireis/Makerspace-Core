@@ -873,7 +873,6 @@ func (s *Service) dayFromRow(
 		var roles []uuid.UUID
 		rolesVisible := false
 		if principal.Has(authorization.OpenDaysManage) {
-			roles = []uuid.UUID{}
 			rolesVisible = true
 			roles, err = q.ListRequirementRoleIDs(ctx, req.ID)
 			if err != nil {

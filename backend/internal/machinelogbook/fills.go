@@ -120,7 +120,10 @@ func (s *Service) insertFillTransferRow(
 		TransferQuantity: numericFromDecimal(quantity),
 	}
 	if from != nil {
-		params.FromSpoolID, params.FromFillID, params.FromSpoolDisplayID, params.FromFillNumber = &from.SpoolID, &from.FillID, &from.SpoolDisplayID, &from.FillNumber
+		params.FromSpoolID = &from.SpoolID
+		params.FromFillID = &from.FillID
+		params.FromSpoolDisplayID = &from.SpoolDisplayID
+		params.FromFillNumber = &from.FillNumber
 	}
 	if to != nil {
 		params.ToSpoolID, params.ToFillID, params.ToSpoolDisplayID, params.ToFillNumber = &to.SpoolID, &to.FillID, &to.SpoolDisplayID, &to.FillNumber

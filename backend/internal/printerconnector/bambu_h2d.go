@@ -451,7 +451,7 @@ func newPahoBambuClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (bam
 	options.SetConnectRetry(false)
 	options.SetOrderMatters(false)
 	options.SetConnectionLostHandler(func(_ MQTT.Client, err error) {
-		c.offer(bambuMQTTMessage{err: fmt.Errorf("Bambu MQTT connection lost: %w", err)})
+		c.offer(bambuMQTTMessage{err: fmt.Errorf("bambu MQTT connection lost: %w", err)})
 		c.startReconnect()
 	})
 	options.SetOnConnectHandler(func(client MQTT.Client) { c.connected(client) })
@@ -538,7 +538,7 @@ func bambuReconnectDelay(delay time.Duration) time.Duration {
 	quarter := delay / 4
 	wait := delay - quarter
 	if quarter > 0 {
-		wait += time.Duration(rand.Int64N(int64(2*quarter) + 1))
+		wait += time.Duration(rand.Int64N(int64(2*quarter) + 1)) //nolint:gosec // reconnect backoff jitter needs no cryptographic randomness
 	}
 	if wait < time.Second {
 		return time.Second

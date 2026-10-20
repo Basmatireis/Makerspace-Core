@@ -76,7 +76,8 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 		if input.QuantityBasis != "actual" && input.QuantityBasis != "estimated" {
 			return nil, validation("invalid quantityBasis")
 		}
-		if input.Ownership == "makerspace" {
+		switch input.Ownership {
+		case "makerspace":
 			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil {
 				return nil, validation("makerspace usage requires a material")
 			}
@@ -88,12 +89,12 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 				return nil, validation("makerspace usage sources must be unique")
 			}
 			seen[key] = true
-		} else if input.Ownership == "external" {
+		case "external":
 			if input.SpoolID != nil || cleanOptional(input.ExternalMaterialName) == nil {
 				return nil, validation("external usage requires a material description and cannot use a spool")
 			}
 			input.ExternalMaterialName = cleanOptional(input.ExternalMaterialName)
-		} else {
+		default:
 			return nil, validation("invalid filament ownership")
 		}
 		quantity, err := parseDecimal(input.Quantity, true)
@@ -1290,12 +1291,12 @@ func (s *Service) UpdateJobFacts(
 		if input.PricingGroupID != nil {
 			reason = "manual_reprice"
 		}
-		updated, err = s.capturePricingSnapshot(ctx, q, p, updated, group, reason)
+		_, err = s.capturePricingSnapshot(ctx, q, p, updated, group, reason)
 		if err != nil {
 			return MachineJob{}, err
 		}
 	} else {
-		updated, err = s.recalculateFromSnapshot(ctx, q, updated)
+		_, err = s.recalculateFromSnapshot(ctx, q, updated)
 		if err != nil {
 			return MachineJob{}, err
 		}

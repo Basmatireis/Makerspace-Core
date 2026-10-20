@@ -397,6 +397,7 @@ func (s *Server) signagePairingCookieName() string {
 }
 
 func (s *Server) signagePairingCookie(value string, maxAge int) *http.Cookie {
+	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 	return &http.Cookie{
 		Name:     s.signagePairingCookieName(),
 		Value:    value,
@@ -461,6 +462,7 @@ func (s *Server) PollSignagePairing(
 		expires := time.Now().UTC().AddDate(10, 0, 0)
 		response.cookies = []*http.Cookie{
 			// Same attributes as the browser binding of the generic managed-device endpoints.
+			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 			{
 				Name:     s.config.ManagedDeviceCookieName,
 				Value:    poll.DeviceToken,

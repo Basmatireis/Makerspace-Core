@@ -1597,13 +1597,11 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	)
 
 	// Pending changes compare drafts with the latest publication by id and version.
-	renamed := sceneA
 	input := sceneInput("Scene A renamed", "full")
 	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)}
-	if renamed, err = svc.UpdateScene(ctx, admin, sceneA.ID, sceneA.Version, input, nil); err != nil {
+	if _, err = svc.UpdateScene(ctx, admin, sceneA.ID, sceneA.Version, input, nil); err != nil {
 		t.Fatal(err)
 	}
-	_ = renamed
 	addRule(true, sceneC)
 	view := e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK)
 	pending := pendingSet(view)

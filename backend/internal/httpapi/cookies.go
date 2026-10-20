@@ -79,6 +79,7 @@ func (response cookieNoContentResponse) setCookie(
 	expires time.Time,
 	maxAge int,
 ) {
+	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: value, Path: "/", Expires: expires, MaxAge: maxAge,
 		HttpOnly: httpOnly, Secure: response.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode,

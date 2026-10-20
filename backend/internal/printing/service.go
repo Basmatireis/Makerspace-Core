@@ -770,7 +770,19 @@ func (s *Service) IngestConnectorEvent(
 		ExternalPrintID                  *string
 		Payload                          json.RawMessage
 		ReportRevision                   *int64
-	}{input.EventID, input.AssignmentID, input.MachineID, input.RunID, input.ConfigurationVersion, input.Sequence, input.Kind, input.OccurredAt.UTC(), clean(input.ExternalPrintID), input.Payload, input.ReportRevision})
+	}{
+		input.EventID,
+		input.AssignmentID,
+		input.MachineID,
+		input.RunID,
+		input.ConfigurationVersion,
+		input.Sequence,
+		input.Kind,
+		input.OccurredAt.UTC(),
+		clean(input.ExternalPrintID),
+		input.Payload,
+		input.ReportRevision,
+	})
 	q := printerconnectorsdb.New(tx)
 	if _, err := tx.Exec(
 		ctx,

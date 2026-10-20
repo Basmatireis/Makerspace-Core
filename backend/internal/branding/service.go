@@ -386,9 +386,10 @@ func (s *Service) mutateAsset(
 		return nil, err
 	}
 	action := "branding.asset_updated"
-	if mode == "none" {
+	switch mode {
+	case "none":
 		action = "branding.asset_removed"
-	} else if mode == "default" {
+	case "default":
 		action = "branding.asset_default_restored"
 	}
 	if err := audit.Write(

@@ -27,10 +27,10 @@ type CoreIdentity struct {
 func NewCoreClient(baseURL, token string) (*CoreClient, error) {
 	parsed, err := url.Parse(strings.TrimRight(baseURL, "/"))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, errors.New("Core URL is invalid")
+		return nil, errors.New("core URL is invalid")
 	}
-	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && isLoopbackHostname(parsed.Hostname())) {
-		return nil, errors.New("Core URL must use HTTPS unless it is loopback")
+	if parsed.Scheme != "https" && (parsed.Scheme != "http" || !isLoopbackHostname(parsed.Hostname())) {
+		return nil, errors.New("core URL must use HTTPS unless it is loopback")
 	}
 	if len(strings.TrimSpace(token)) != 43 {
 		return nil, errors.New("managed-device token is invalid")
@@ -79,14 +79,14 @@ func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (Cor
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 		return CoreIdentity{}, fmt.Errorf(
-			"Makerspace Core rejected the device report with status %d",
+			"makerspace Core rejected the device report with status %d",
 			response.StatusCode,
 		)
 	}
 	var identity CoreIdentity
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 64<<10))
 	if err = decoder.Decode(&identity); err != nil {
-		return CoreIdentity{}, errors.New("Makerspace Core returned an invalid device response")
+		return CoreIdentity{}, errors.New("makerspace Core returned an invalid device response")
 	}
 	return identity, nil
 }

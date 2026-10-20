@@ -101,7 +101,7 @@ func NewClient(rawURL string, allowHTTP bool) (*Client, error) {
 	if err != nil || base.Host == "" {
 		return nil, errors.New("CORE_URL must be an absolute URL")
 	}
-	if base.Scheme != "https" && !(allowHTTP && base.Scheme == "http") {
+	if base.Scheme != "https" && (!allowHTTP || base.Scheme != "http") {
 		return nil, errors.New("CORE_URL must use HTTPS outside explicit development mode")
 	}
 	return &Client{

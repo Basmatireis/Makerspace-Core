@@ -58,7 +58,8 @@ func (s *Store) ScheduleArtifactRetrieval(
 		ON CONFLICT(assignment_id,run_id) DO UPDATE SET
 			configuration_version=excluded.configuration_version,
 			reported_path=CASE WHEN artifact_retrievals.state='pending' THEN excluded.reported_path ELSE artifact_retrievals.reported_path END,
-			expires_at=CASE WHEN artifact_retrievals.state='pending' AND excluded.expires_at>artifact_retrievals.expires_at THEN excluded.expires_at ELSE artifact_retrievals.expires_at END,
+			expires_at=CASE WHEN artifact_retrievals.state='pending' AND excluded.expires_at>artifact_retrievals.expires_at
+				THEN excluded.expires_at ELSE artifact_retrievals.expires_at END,
 			updated_at=excluded.updated_at`,
 		assignmentID.String(),
 		runID.String(),
@@ -351,7 +352,7 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 		}
 		return false, a.recordRetrievalFailure(ctx, *retrieval, err)
 	}
-	reader, err := os.Open(temporaryPath)
+	reader, err := os.Open(temporaryPath) //nolint:gosec // temporary file created by this process in the connector data directory
 	if err != nil {
 		return false, a.recordRetrievalFailure(ctx, *retrieval, err)
 	}

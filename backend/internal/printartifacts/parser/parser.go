@@ -549,7 +549,8 @@ func selectPrimaryPreview(previews []Preview, references []string) {
 		bestPixels := int64(previews[best].Width) * int64(previews[best].Height)
 		currentPixels := int64(previews[i].Width) * int64(previews[i].Height)
 		if (currentIsPlate && !bestIsPlate) ||
-			(currentIsPlate == bestIsPlate && (currentPixels > bestPixels || (currentPixels == bestPixels && previews[i].ArchivePath < previews[best].ArchivePath))) {
+			(currentIsPlate == bestIsPlate &&
+				(currentPixels > bestPixels || (currentPixels == bestPixels && previews[i].ArchivePath < previews[best].ArchivePath))) {
 			best = i
 		}
 	}

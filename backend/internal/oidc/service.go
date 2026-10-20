@@ -598,7 +598,8 @@ func (s *Service) Complete(
 	subject := claims.Subject
 	var accountID, identityID uuid.UUID
 	var actor *uuid.UUID
-	if flow.Kind == "link" {
+	switch flow.Kind {
+	case "link":
 		// Discovery and token exchange may take time; the capability must still
 		// be fresh at the point where the new identity is attached.
 		if _, err := s.auth.SessionForSensitiveOperation(ctx, tx, principal, true); err != nil {
@@ -647,7 +648,7 @@ func (s *Service) Complete(
 		); err != nil {
 			return Completion{}, err
 		}
-	} else if flow.Kind == "reauthenticate" {
+	case "reauthenticate":
 		found, err := queries.FindOIDCIdentity(ctx, oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject})
 		if err != nil || found.AccountID != principal.AccountID || found.Status != "enabled" {
 			return Completion{}, apperror.PermissionDenied
@@ -666,7 +667,7 @@ func (s *Service) Complete(
 		); err != nil {
 			return Completion{}, err
 		}
-	} else if flow.Kind == "login" {
+	case "login":
 		found, findErr := queries.FindOIDCIdentity(
 			ctx,
 			oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject},
@@ -733,7 +734,7 @@ func (s *Service) Complete(
 			return Completion{}, findErr
 		}
 		actor = &accountID
-	} else {
+	default:
 		return Completion{}, invalidRequest("OIDC flow type is invalid")
 	}
 	updated, err := queries.MarkFlowUsed(ctx, flow.ID)
@@ -866,7 +867,8 @@ func validateProviderInput(input ProviderInput, requireSecret bool) (ProviderInp
 	issuerURL, err := url.Parse(strings.TrimSpace(input.Issuer))
 	if err != nil || issuerURL.Host == "" || issuerURL.User != nil || issuerURL.RawQuery != "" ||
 		issuerURL.Fragment != "" ||
-		(issuerURL.Scheme != "https" && !(issuerURL.Scheme == "http" && (issuerURL.Hostname() == "localhost" || issuerURL.Hostname() == "127.0.0.1" || issuerURL.Hostname() == "::1"))) {
+		(issuerURL.Scheme != "https" && (issuerURL.Scheme != "http" ||
+			(issuerURL.Hostname() != "localhost" && issuerURL.Hostname() != "127.0.0.1" && issuerURL.Hostname() != "::1"))) {
 		return ProviderInput{}, nil, validationError("issuer must be a canonical HTTPS URL")
 	}
 	issuerURL.Path = strings.TrimSuffix(issuerURL.Path, "/")

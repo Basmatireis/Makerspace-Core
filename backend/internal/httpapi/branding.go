@@ -308,7 +308,11 @@ func brandingAssetDTO(value branding.Asset) openapi.BrandingAsset {
 	return openapi.BrandingAsset{
 		Slot: openapi.BrandingAssetSlot(
 			value.Slot,
-		), Mode: openapi.BrandingAssetMode(value.Mode), Url: nullableString(value.URL), OriginalFilename: nullableString(value.OriginalFilename), ContentType: nullableString(value.ContentType),
+		),
+		Mode:             openapi.BrandingAssetMode(value.Mode),
+		Url:              nullableString(value.URL),
+		OriginalFilename: nullableString(value.OriginalFilename),
+		ContentType:      nullableString(value.ContentType),
 		SizeBytes: nullablePointer[int64](
 			value.Size,
 			func(value int64) int64 { return value },

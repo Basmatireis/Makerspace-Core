@@ -188,7 +188,8 @@ func (s *Service) CreateCashMovement(
 		same := existing.Kind == input.Kind && d(existing.Amount).Equal(amount) && existing.Reason == input.Reason &&
 			existing.Note == note &&
 			existing.OccurredAt.Equal(occurred) &&
-			((existing.RecordedByPersonID == nil && p.PersonID == uuid.Nil) || (existing.RecordedByPersonID != nil && *existing.RecordedByPersonID == p.PersonID))
+			((existing.RecordedByPersonID == nil && p.PersonID == uuid.Nil) ||
+				(existing.RecordedByPersonID != nil && *existing.RecordedByPersonID == p.PersonID))
 		if !same {
 			return CashMovement{}, conflict("idempotency_conflict", "Operation key was used for different input")
 		}

@@ -382,7 +382,10 @@ func (s *Server) IssueAccountPasswordReset(
 		Body: openapi.PasswordResetIssue{
 			Account: accountDTO(
 				issue.Account,
-			), ExpiresAt: issue.ExpiresAt, DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus), SetupUrl: nullableString(issue.SetupURL),
+			),
+			ExpiresAt:      issue.ExpiresAt,
+			DeliveryStatus: openapi.PasswordResetIssueDeliveryStatus(issue.DeliveryStatus),
+			SetupUrl:       nullableString(issue.SetupURL),
 		},
 		Headers: openapi.IssueAccountPasswordReset201ResponseHeaders{CacheControl: "no-store"},
 	}, nil
@@ -908,7 +911,7 @@ func (s *Server) GetReadiness(
 	_ openapi.GetReadinessRequestObject,
 ) (openapi.GetReadinessResponseObject, error) {
 	if err := s.pool.Ping(ctx); err != nil {
-		return openapi.GetReadiness503JSONResponse(
+		return openapi.GetReadiness503JSONResponse( //nolint:nilerr // a failing database ping is the 503 readiness answer
 			openapi.HealthStatus{Status: openapi.HealthStatusStatusUnavailable},
 		), nil
 	}

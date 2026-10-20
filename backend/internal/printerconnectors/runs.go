@@ -47,7 +47,7 @@ func reconcileBambuSlotObservation(
 		Empty               bool   `json:"empty"`
 	}
 	if json.Unmarshal(payload, &value) != nil {
-		return nil
+		return nil //nolint:nilerr // a malformed connector payload is ignored
 	}
 	value.InputUnitExternalID = strings.TrimSpace(value.InputUnitExternalID)
 	value.SlotExternalID = strings.TrimSpace(value.SlotExternalID)
@@ -375,7 +375,7 @@ func applyPrintFacts(
 ) error {
 	var values map[string]any
 	if json.Unmarshal(payload, &values) != nil || values == nil {
-		return nil
+		return nil //nolint:nilerr // a malformed connector payload is ignored
 	}
 	at := occurredAt.UTC()
 	if kind == "consumption_report" {
@@ -450,7 +450,7 @@ func applyReportedUsage(
 	grams, _ := payloadString(values, "quantityGrams")
 	quantity, err := decimal.NewFromString(strings.TrimSpace(grams))
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // an unparseable reported quantity is ignored
 	}
 	quantity = quantity.Round(6)
 	basis, _ := payloadString(values, "quantityBasis")

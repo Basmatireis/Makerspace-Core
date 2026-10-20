@@ -134,7 +134,7 @@ func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext, error) {
 	decoded, decodeErr := base64.RawURLEncoding.DecodeString(raw)
 	if decodeErr != nil || len(decoded) != 32 {
-		return nil, nil
+		return nil, nil //nolint:nilerr // a malformed token is simply unauthenticated, not a server error
 	}
 	row, err := manageddevicesdb.New(s.pool).GetValidManagedDeviceByDigest(ctx, security.DigestToken(raw))
 	if errors.Is(err, pgx.ErrNoRows) {

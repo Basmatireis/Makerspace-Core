@@ -120,7 +120,7 @@ func (a *acmeAccount) GetRegistration() *registration.Resource { return a.Regist
 func (a *acmeAccount) GetPrivateKey() crypto.PrivateKey        { return a.key }
 
 func (a *acmeAccount) save() error {
-	raw, err := json.Marshal(a)
+	raw, err := json.Marshal(a) //nolint:gosec // the ACME account key is persisted on purpose in the owner-only state file
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (a *acmeAccount) save() error {
 
 // loadACMEAccount reuses the stored account; a different e-mail address or CA creates a new one.
 func loadACMEAccount(path, email, caDir string) (*acmeAccount, error) {
-	if raw, err := os.ReadFile(path); err == nil {
+	if raw, err := os.ReadFile(path); err == nil { //nolint:gosec // path is the ACME account file inside the operator-configured data directory
 		var stored acmeAccount
 		if json.Unmarshal(raw, &stored) == nil && stored.Email == email && stored.CADir == caDir {
 			if block, _ := pem.Decode([]byte(stored.PrivateKey)); block != nil {

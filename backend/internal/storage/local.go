@@ -67,7 +67,7 @@ func (s *Local) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // path is resolved from a validated storage key and confined to the storage root
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}

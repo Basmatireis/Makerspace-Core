@@ -9,7 +9,8 @@ import (
 func TestLimiter(t *testing.T) {
 	limiter := New(2, time.Minute)
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	if !limiter.Take("a", now) || !limiter.Take("a", now) || limiter.Take("a", now) {
+	first, second, third := limiter.Take("a", now), limiter.Take("a", now), limiter.Take("a", now)
+	if !first || !second || third {
 		t.Fatal("limit of two was not enforced")
 	}
 	if !limiter.Take("b", now) {

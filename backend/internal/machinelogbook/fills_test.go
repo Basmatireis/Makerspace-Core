@@ -1446,7 +1446,7 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	corrected := *correctedResult.Job
 	newest := f.ledger(t, m.ID)[before:]
 	want := []string{
-		fmt.Sprintf("adjustment/job_corrected 100 loose"),
+		"adjustment/job_corrected 100 loose",
 		fmt.Sprintf("adjustment/job_corrected 50 %s#1", single.DisplayID),
 		fmt.Sprintf("machine_run_consumption -30 %s#2", refill.DisplayID),
 		fmt.Sprintf("machine_run_consumption -50 %s#1", single.DisplayID),

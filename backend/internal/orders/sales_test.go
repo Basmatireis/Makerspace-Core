@@ -611,10 +611,9 @@ func TestCashRegisterCountsOnlyCash(t *testing.T) {
 		t.Fatalf("cash refund: %+v", r)
 	}
 	// Movements.
-	now := time.Now().UTC()
 	o2 := f.finalized(t, "50")
 	f.pay(t, o2, "cash", "50")
-	now = time.Now().UTC()
+	now := time.Now().UTC()
 	if _, e := f.cashMove(f.p, "withdrawal", "20", "bank_deposit", "", now); e != nil {
 		t.Fatal(e)
 	}

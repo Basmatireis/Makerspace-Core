@@ -136,7 +136,7 @@ func validDNSLabel(label string) bool {
 		return false
 	}
 	for _, r := range label {
-		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return false
 		}
 	}
@@ -231,13 +231,13 @@ func NewCertManager(
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create ACME directory: %w", err)
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // directories need the owner execute bit; 0700 is the strictest usable mode
 		return nil, fmt.Errorf("protect ACME directory: %w", err)
 	}
 	m := &CertManager{
 		dir: dir, domain: domain, obtainer: obtainer, logger: logger, secrets: secrets,
 		now:    func() time.Time { return time.Now() },
-		jitter: func(max time.Duration) time.Duration { return rand.N(max + 1) },
+		jitter: func(max time.Duration) time.Duration { return rand.N(max + 1) }, //nolint:gosec // renewal jitter needs no cryptographic randomness
 	}
 	m.loadStored()
 	return m, nil

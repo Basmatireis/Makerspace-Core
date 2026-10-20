@@ -113,7 +113,7 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	sort.Strings(paths)
 	if err = serialized(ctx, admin, func() error {
 		for _, path := range paths {
-			raw, err := os.ReadFile(path)
+			raw, err := os.ReadFile(path) //nolint:gosec // paths come from globbing the repository's own migration directory
 			if err != nil {
 				return err
 			}

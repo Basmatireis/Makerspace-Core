@@ -245,7 +245,7 @@ func readSecretFile(path string) (string, error) {
 	if info.Mode().Perm()&0o077 != 0 {
 		return "", errors.New("secret file permissions must be 0600 or stricter")
 	}
-	value, err := os.ReadFile(path)
+	value, err := os.ReadFile(path) //nolint:gosec // path is the operator-supplied secret file flag; its 0600 permissions are checked above
 	if err != nil {
 		return "", err
 	}

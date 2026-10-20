@@ -368,7 +368,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 	}
 
 	for position, unit := range input.InputUnits {
-		unitID := uuid.Nil
+		var unitID uuid.UUID
 		if unit.ID == nil {
 			unitID = newID()
 			if _, err = q.CreatePrinterInputUnit(

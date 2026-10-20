@@ -174,7 +174,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 		})
 	}
 
-	var handler http.Handler = generated
+	handler := generated
 	handler = server.authenticationMiddleware(handler, logger)
 	handler = server.originMiddleware(handler, logger)
 	handler = validator(handler)

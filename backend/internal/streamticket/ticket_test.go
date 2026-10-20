@@ -137,7 +137,8 @@ func TestStreamNameIsStableAndSafe(t *testing.T) {
 	if got := StreamName(id); got != "cam-01920000000070008000000000000001" {
 		t.Fatalf("stream name = %q", got)
 	}
-	if StreamName(id) != StreamName(id) {
+	first, second := StreamName(id), StreamName(id)
+	if first != second {
 		t.Fatal("stream name must be deterministic")
 	}
 }

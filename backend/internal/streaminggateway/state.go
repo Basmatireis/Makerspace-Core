@@ -65,10 +65,10 @@ func OpenStore(dataDir string) (*Store, error) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
-	if err := os.Chmod(dataDir, 0o700); err != nil {
+	if err := os.Chmod(dataDir, 0o700); err != nil { //nolint:gosec // directories need the owner execute bit; 0700 is the strictest usable mode
 		return nil, fmt.Errorf("protect data directory: %w", err)
 	}
-	lockFile, err := os.OpenFile(filepath.Join(dataDir, "gateway.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	lockFile, err := os.OpenFile(filepath.Join(dataDir, "gateway.lock"), os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // path is a fixed file name inside the operator-configured data directory
 	if err != nil {
 		return nil, fmt.Errorf("open process lock: %w", err)
 	}
@@ -90,7 +90,7 @@ func OpenStore(dataDir string) (*Store, error) {
 }
 
 func loadAEAD(path string) (cipher.AEAD, error) {
-	key, err := os.ReadFile(path)
+	key, err := os.ReadFile(path) //nolint:gosec // path is a fixed file name inside the operator-configured data directory
 	if errors.Is(err, os.ErrNotExist) {
 		key = make([]byte, 32)
 		if _, err = rand.Read(key); err != nil {

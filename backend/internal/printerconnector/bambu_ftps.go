@@ -109,7 +109,7 @@ func NewBambuFTPSClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (*Ba
 
 func (c *BambuFTPSClient) Connect(ctx context.Context) error {
 	if c.conn != nil {
-		return errors.New("Bambu FTPS client is already connected")
+		return errors.New("bambu FTPS client is already connected")
 	}
 	raw, err := c.dialer.DialContext(
 		ctx,
@@ -172,7 +172,7 @@ func (c *BambuFTPSClient) Close() error {
 
 func (c *BambuFTPSClient) command(expect int, format string, args ...any) (int, string, error) {
 	if c.text == nil {
-		return 0, "", errors.New("Bambu FTPS client is not connected")
+		return 0, "", errors.New("bambu FTPS client is not connected")
 	}
 	id, err := c.text.Cmd(format, args...)
 	if err != nil {
@@ -185,7 +185,7 @@ func (c *BambuFTPSClient) command(expect int, format string, args ...any) (int, 
 
 func (c *BambuFTPSClient) List(ctx context.Context, directory string) ([]FTPEntry, error) {
 	if directory != "/" && directory != "/cache" {
-		return nil, errors.New("Bambu FTPS listing is restricted to / and /cache")
+		return nil, errors.New("bambu FTPS listing is restricted to / and /cache")
 	}
 	var data []byte
 	err := c.transfer(ctx, "LIST "+directory, func(reader io.Reader) error {
@@ -207,10 +207,10 @@ func (c *BambuFTPSClient) Retrieve(ctx context.Context, remotePath string, write
 	clean := path.Clean("/" + strings.TrimPrefix(remotePath, "/"))
 	directory := path.Dir(clean)
 	if (directory != "/" && directory != "/cache") || path.Base(clean) == "." || path.Base(clean) == "/" {
-		return errors.New("Bambu FTPS retrieval is restricted to files directly below / or /cache")
+		return errors.New("bambu FTPS retrieval is restricted to files directly below / or /cache")
 	}
 	if writer == nil {
-		return errors.New("Bambu FTPS retrieval writer is required")
+		return errors.New("bambu FTPS retrieval writer is required")
 	}
 	return c.transfer(ctx, "RETR "+clean, func(reader io.Reader) error {
 		_, err := io.Copy(writer, io.LimitReader(reader, maxStagedArtifact+1))
@@ -279,7 +279,7 @@ func parsePassivePort(response string) (int, error) {
 
 func parseFTPList(data []byte) ([]FTPEntry, error) {
 	if len(data) >= 4<<20 {
-		return nil, errors.New("Bambu FTPS listing exceeds 4 MiB")
+		return nil, errors.New("bambu FTPS listing exceeds 4 MiB")
 	}
 	var result []FTPEntry
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))

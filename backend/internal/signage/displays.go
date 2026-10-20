@@ -208,7 +208,7 @@ func (s *Service) buildManifests(
 		for _, item := range items[row.ID] {
 			playlist.Items = append(
 				playlist.Items,
-				ManifestPlaylistItem{SceneID: item.SceneID, Seconds: item.Seconds, Transition: item.Transition},
+				ManifestPlaylistItem(item),
 			)
 			sceneSet[item.SceneID] = struct{}{}
 		}

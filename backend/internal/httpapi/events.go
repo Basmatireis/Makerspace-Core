@@ -804,7 +804,7 @@ func (s *Server) MoveEventAssignment(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	shiftID, reqID := uuid.UUID(r.Body.ShiftId), r.Body.RequirementId
+	shiftID, reqID := r.Body.ShiftId, r.Body.RequirementId
 	item, err := s.events.MoveAssignment(
 		ctx,
 		p,

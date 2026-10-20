@@ -80,8 +80,11 @@ func streamingGatewayDTO(value streaminggateways.Gateway) openapi.StreamingGatew
 		LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
 		EnrolledAt: nullableValue(
 			value.EnrolledAt,
-		), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt), CredentialExpiresAt: nullableValue(value.CredentialExpiresAt),
-		Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		),
+		DisabledAt:          nullableValue(value.DisabledAt),
+		RevokedAt:           nullableValue(value.RevokedAt),
+		CredentialExpiresAt: nullableValue(value.CredentialExpiresAt),
+		Version:             value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

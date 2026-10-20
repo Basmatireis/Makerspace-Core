@@ -641,8 +641,8 @@ func TestDetachRun(t *testing.T) {
 		},
 	)
 	h.finish(t, runID, "finished", *ended)
-	job := h.attach(t, runID, h.create(t, h.input(-8*time.Hour, time.Hour, "unknown")), true)
-	job = func() MachineJob {
+	h.attach(t, runID, h.create(t, h.input(-8*time.Hour, time.Hour, "unknown")), true)
+	job := func() MachineJob {
 		j, err := h.s.UpdateRun(
 			ctx,
 			h.p,

@@ -186,7 +186,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		p.state.EmptySlotCounts = map[string]uint8{}
 	}
 	if len(payload) == 0 || len(payload) > maximumReducerBytes {
-		return nil, p.state.Ready, errors.New("Bambu MQTT payload exceeds reducer limit")
+		return nil, p.state.Ready, errors.New("bambu MQTT payload exceeds reducer limit")
 	}
 	decoder := json.NewDecoder(strings.NewReader(string(payload)))
 	decoder.UseNumber()
@@ -200,7 +200,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 	}
 	encoded, err := json.Marshal(merged)
 	if err != nil || len(encoded) > maximumReducerBytes {
-		return nil, p.state.Ready, errors.New("Bambu merged state exceeds reducer limit")
+		return nil, p.state.Ready, errors.New("bambu merged state exceeds reducer limit")
 	}
 	p.state.Document = merged
 	printState := objectAt(merged, "print")
@@ -411,7 +411,7 @@ func (p *bambuProcessor) currentRun() (*uuid.UUID, *string) {
 
 func mergeBambuObject(current, patch map[string]any, depth int) (map[string]any, error) {
 	if depth > 32 {
-		return nil, errors.New("Bambu MQTT object nesting is too deep")
+		return nil, errors.New("bambu MQTT object nesting is too deep")
 	}
 	result := make(map[string]any, len(current)+len(patch))
 	for key, value := range current {
@@ -419,7 +419,7 @@ func mergeBambuObject(current, patch map[string]any, depth int) (map[string]any,
 	}
 	for key, value := range patch {
 		if len(key) > 200 {
-			return nil, errors.New("Bambu MQTT object key is too long")
+			return nil, errors.New("bambu MQTT object key is too long")
 		}
 		if value == nil {
 			delete(result, key)

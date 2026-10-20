@@ -165,7 +165,10 @@ func printArtifactDTO(item printartifacts.Artifact) openapi.PrintArtifact {
 			Extruder:     nullableValue(filament.Extruder),
 			PlannedWeightGrams: nullableDecimalValue(
 				filament.WeightGrams,
-			), PlannedLengthMillimeters: nullableDecimalValue(filament.LengthMM), DensityGramsPerCubicCentimeter: nullableDecimalValue(filament.DensityGCM3), DiameterMillimeters: nullableDecimalValue(filament.DiameterMM),
+			),
+			PlannedLengthMillimeters:       nullableDecimalValue(filament.LengthMM),
+			DensityGramsPerCubicCentimeter: nullableDecimalValue(filament.DensityGCM3),
+			DiameterMillimeters:            nullableDecimalValue(filament.DiameterMM),
 		})
 	}
 	return openapi.PrintArtifact{

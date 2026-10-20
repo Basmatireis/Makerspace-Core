@@ -359,6 +359,7 @@ func (s *Server) managedDeviceProvisioning(
 			expires = v.Device.ExpiresAt.UTC()
 			maxAge = max(1, int(time.Until(expires).Seconds()))
 		}
+		//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
 		cookie := (&http.Cookie{
 			Name:     s.config.ManagedDeviceCookieName,
 			Value:    v.Token,
@@ -582,9 +583,10 @@ func nullableTime(v nullable.Nullable[time.Time]) *time.Time {
 }
 func grantDTO(v authorization.PermissionGrant) openapi.PermissionGrant {
 	scope := openapi.Everywhere
-	if v.Scope == authorization.GrantAnyManagedDevice {
+	switch v.Scope {
+	case authorization.GrantAnyManagedDevice:
 		scope = openapi.AnyManagedDevice
-	} else if v.Scope == authorization.GrantSelectedDeviceTypes {
+	case authorization.GrantSelectedDeviceTypes:
 		scope = openapi.SelectedDeviceTypes
 	}
 	// The OpenAPI contract requires an array. A nil Go slice would otherwise
@@ -605,9 +607,10 @@ func grantDTO(v authorization.PermissionGrant) openapi.PermissionGrant {
 }
 func grantDomain(v openapi.PermissionGrant) authorization.PermissionGrant {
 	scope := authorization.GrantEverywhere
-	if v.Scope == openapi.AnyManagedDevice {
+	switch v.Scope {
+	case openapi.AnyManagedDevice:
 		scope = authorization.GrantAnyManagedDevice
-	} else if v.Scope == openapi.SelectedDeviceTypes {
+	case openapi.SelectedDeviceTypes:
 		scope = authorization.GrantSelectedDeviceTypes
 	}
 	return authorization.PermissionGrant{

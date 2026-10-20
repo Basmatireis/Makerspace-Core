@@ -22,7 +22,7 @@ import (
 
 var ErrDisabled = errors.New("mail delivery is disabled")
 
-const passwordPurpose = "mail.smtp.password"
+const passwordPurpose = "mail.smtp.password" //nolint:gosec // key-derivation purpose label, not a credential
 
 type Message struct{ To, Subject, Text string }
 type Provider interface {

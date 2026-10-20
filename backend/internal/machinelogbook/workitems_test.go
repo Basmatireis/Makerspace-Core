@@ -276,7 +276,7 @@ func TestWorkItemFilters(t *testing.T) {
 	)
 	only("source recorded", WorkItemFilters{Sources: []string{"recorded"}}, w.linked.ID, w.printing, w.ended)
 	only("job material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.jobFixture.material.ID}}, w.recorded.ID)
-	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.runHarness.material.ID}}, w.ended)
+	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.material.ID}}, w.ended)
 	only("billing excludes prints", WorkItemFilters{Billing: []string{"price_incomplete"}}, w.noPrice.ID)
 	only("billing none match", WorkItemFilters{Billing: []string{"on_order", "order_outdated"}})
 	only(

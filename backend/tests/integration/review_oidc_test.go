@@ -64,13 +64,13 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 		defer mu.Unlock()
 		exchanges++
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid form", 400)
+			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
 		clientID, clientSecret, _ := r.BasicAuth()
 		if clientID != "review-client" || clientSecret != "review-secret" ||
 			oauth2.S256ChallengeFromVerifier(r.Form.Get("code_verifier")) != challenge {
-			http.Error(w, "invalid client or PKCE", 400)
+			http.Error(w, "invalid client or PKCE", http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

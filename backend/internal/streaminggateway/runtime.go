@@ -459,7 +459,7 @@ func (g *Gateway) writeHealth(status string) error {
 
 // CheckHealth is the container healthcheck: the main loop must have refreshed the health file recently.
 func CheckHealth(dataDir string) error {
-	value, err := os.ReadFile(filepath.Join(dataDir, "health.json"))
+	value, err := os.ReadFile(filepath.Join(dataDir, "health.json")) //nolint:gosec // path is the fixed health file name inside the operator-configured data directory
 	if err != nil {
 		return err
 	}
@@ -541,7 +541,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 			g.Snapshot,
 			g.go2rtcURL(),
 			origin,
-			UpstreamAuth{Username: credentials.Username, Password: credentials.Password},
+			UpstreamAuth(credentials),
 			g.now,
 		),
 		TLSConfig:         tlsConfig,

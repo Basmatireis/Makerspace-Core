@@ -29,7 +29,7 @@ func bambuTLSConfig(serial string) (*tls.Config, error) {
 		ClientSessionCache: tls.NewLRUClientSessionCache(4),
 		// Verification is performed below because printers are addressed by IP
 		// while their certificate identity is the configured serial number.
-		InsecureSkipVerify: true, //nolint:gosec -- VerifyConnection performs full verification.
+		InsecureSkipVerify: true, //nolint:gosec // VerifyConnection below performs full certificate verification against the printer serial
 		VerifyConnection: func(state tls.ConnectionState) error {
 			if len(state.PeerCertificates) == 0 {
 				return errors.New("bambu TLS peer supplied no certificate")
@@ -47,7 +47,7 @@ func bambuTLSConfig(serial string) (*tls.Config, error) {
 			}
 			if state.PeerCertificates[0].Subject.CommonName != serial {
 				return fmt.Errorf(
-					"Bambu printer certificate serial mismatch: got %q",
+					"bambu printer certificate serial mismatch: got %q",
 					state.PeerCertificates[0].Subject.CommonName,
 				)
 			}

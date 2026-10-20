@@ -174,7 +174,7 @@ var known = func() map[Permission]struct{} {
 	return result
 }()
 
-var descriptions = map[Permission]string{
+var descriptions = map[Permission]string{ //nolint:gosec // human-readable permission descriptions, not credentials
 	OrdersRead:                     "Read internal orders and their charge snapshots.",
 	OrdersWrite:                    "Create and edit draft orders.",
 	OrdersFinalize:                 "Finalize internal charges.",
