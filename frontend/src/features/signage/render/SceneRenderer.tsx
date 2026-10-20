@@ -22,6 +22,7 @@ function MediaImage({ url, fit, label }: { url: string | null; fit: 'contain' | 
 }
 
 function QrCode({ url, caption }: { url: string; caption: string }) {
+  // Encoding a QR code is real work; the matrix only changes with the URL.
   const modules = useMemo(() => qrModules(url), [url]);
   return (
     <div className="sg-qr">

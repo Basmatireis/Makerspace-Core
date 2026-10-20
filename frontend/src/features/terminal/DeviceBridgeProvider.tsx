@@ -43,6 +43,7 @@ export function DeviceBridgeProvider({ children }: { children: ReactNode }) {
     };
   }, [bridge]);
 
+  // Context value: consumers re-render only when the bridge, its info or its error change.
   const value = useMemo<DeviceBridgeContextValue>(() => ({ bridge, info, error }), [bridge, error, info]);
 
   return <DeviceBridgeContext.Provider value={value}>{children}</DeviceBridgeContext.Provider>;

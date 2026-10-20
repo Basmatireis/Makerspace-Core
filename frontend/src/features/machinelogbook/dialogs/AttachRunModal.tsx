@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Checkbox, ComboBox, InlineNotification, Modal, Stack } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
@@ -16,10 +16,8 @@ function AttachRunForm({ onClose, job }: { onClose: () => void; job: MachineJob 
   const hasManual = manualRuns(job).length > 0;
   const [replace, setReplace] = useState(hasManual);
   const query = useQuery(runsQuery(unassignedRunsParams(job.machine.id)));
-  const runs = useMemo(() => {
-    const start = job.startedAt ? new Date(job.startedAt).getTime() : Date.now();
-    return [...(query.data?.items ?? [])].sort((a, b) => Math.abs(new Date(a.startedAt).getTime() - start) - Math.abs(new Date(b.startedAt).getTime() - start));
-  }, [query.data, job.startedAt]);
+  const start = job.startedAt ? new Date(job.startedAt).getTime() : Date.now();
+  const runs = [...(query.data?.items ?? [])].sort((a, b) => Math.abs(new Date(a.startedAt).getTime() - start) - Math.abs(new Date(b.startedAt).getTime() - start));
   const { attach, pending, error } = useAttachRun(onClose);
   const replacing = hasManual && replace;
   const changes = selected && replacing ? replaceChangesAnything(job, selected) : false;

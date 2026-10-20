@@ -153,6 +153,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
 
   const clientRows = server ? null : props.rows;
   const searchText = server ? null : props.searchText;
+  // Filters and sorts the whole client-side table, so it is recomputed only when rows, sort or search change.
   const clientVisible = useMemo(() => {
     if (!clientRows || !searchText) return [];
     const column = columns.find((item) => item.key === clientSort.key);

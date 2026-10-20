@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   Button, Checkbox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Table, TableBody, TableCell, TableContainer, TableExpandHeader, TableExpandRow, TableExpandedRow,
   TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tag,
@@ -25,7 +25,7 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const groups = useMemo(() => readyToBillGroups(query.data ?? []), [query.data]);
+  const groups = readyToBillGroups(query.data ?? []);
   const visible = groups.filter((group) => !search || `${group.customer?.displayName ?? ''} ${group.rows.map((row) => workItemName(row.job)).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (set: Set<string>, id: string) => { const next = new Set(set); if (!next.delete(id)) next.add(id); return next; };
   const selectedGroups = groups.filter((group) => group.ready.some((row) => selected.has(row.job.id)));

@@ -1,6 +1,6 @@
 import './styles.scss';
 import { useLatestCallback } from '../../app/useLatestCallback';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Add, Close, Edit, Misuse, TrashCan } from '@carbon/icons-react';
 import { Button, InlineNotification, Modal, Search, Stack, Tag, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -71,7 +71,7 @@ function OpenDayDetails({ periodId, periodStatus, openDayId, presentation, onReq
   });
   const requestModalClose = useLatestCallback(() => { if (mutationPending) return; if (assignRequirement || removeOpen || assignmentRemoval) backToDetails(); else onRequestClose?.(); });
   const timeZone = contextQuery.data?.timeZone ?? 'UTC';
-  const heading = useMemo(() => dayQuery.data ? longDate(dayQuery.data.startsAt, timeZone) : 'Open Day', [dayQuery.data, timeZone]);
+  const heading = dayQuery.data ? longDate(dayQuery.data.startsAt, timeZone) : 'Open Day';
   if (dayQuery.isPending) {
     const loading = <InlineLoadingState label="Loading Open Day" />;
     return presentation === 'modal'

@@ -63,6 +63,7 @@ export function RolesPage() {
   const rolesQuery = useQuery(fullRoleCatalogOptions);
   const permissionQuery = useQuery(permissionListOptions);
   const deviceTypesQuery = useQuery(deviceTypeListOptions);
+  // The empty fallback must keep its identity: roles is a dependency of the selection effect below.
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const permissions = useMemo(() => permissionQuery.data?.items ?? [], [permissionQuery.data]);
   const deviceTypes = useMemo(() => deviceTypesQuery.data?.items ?? [], [deviceTypesQuery.data]);
@@ -102,30 +103,25 @@ export function RolesPage() {
   const copySources = roles.filter((role) => role.systemKey !== 'master' || isMasterActor)
     .filter((role) => isMasterActor || role.permissionGrants.every((grant) =>
       currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant))));
-  const availablePermissionGroups = useMemo(() => permissionGroupOrder.filter((group) =>
-    permissions.some((permission) => presentPermission(permission).group === group)), [permissions]);
-  const visiblePermissions = useMemo(() => {
-    const query = permissionSearch.trim().toLocaleLowerCase();
-    return permissions.filter((permission) => {
-      const presented = presentPermission(permission);
-      if (permissionGroup && presented.group !== permissionGroup) return false;
-      return !query || `${presented.label} ${permission.id} ${permission.description}`.toLocaleLowerCase().includes(query);
-    });
-  }, [permissionGroup, permissionSearch, permissions]);
+  const availablePermissionGroups = permissionGroupOrder.filter((group) =>
+    permissions.some((permission) => presentPermission(permission).group === group));
+  const searchQuery = permissionSearch.trim().toLocaleLowerCase();
+  const visiblePermissions = permissions.filter((permission) => {
+    const presented = presentPermission(permission);
+    if (permissionGroup && presented.group !== permissionGroup) return false;
+    return !searchQuery || `${presented.label} ${permission.id} ${permission.description}`.toLocaleLowerCase().includes(searchQuery);
+  });
 
   useEffect(() => {
     if (!selectedRoleId && roles[0]) setSelectedRoleId(roles[0].id);
     else if (selectedRoleId && !roles.some((role) => role.id === selectedRoleId)) setSelectedRoleId(roles[0]?.id);
   }, [roles, selectedRoleId]);
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0];
-  const matrixRoles = useMemo(() => selectedRole ? [{
+  const matrixRoles = selectedRole ? [{
     ...selectedRole,
     permissionGrants: selectedRole.id === draft?.baseRole.id ? draft.permissionGrants : selectedRole.permissionGrants,
-  }] : [], [draft, selectedRole]);
-  const changedPermissionIds = useMemo(
-    () => draft ? permissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants) : new Set<string>(),
-    [draft],
-  );
+  }] : [];
+  const changedPermissionIds = draft ? permissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants) : new Set<string>();
   const draftDirty = changedPermissionIds.size > 0;
   const draftValid = Boolean(draft && permissionGrantsValid(draft.permissionGrants));
   const selectedPermission = permissions.find((permission) => permission.id === selectedCell?.permissionId);

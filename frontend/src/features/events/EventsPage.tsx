@@ -6,7 +6,7 @@ import {
   TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { deleteEvent, getGetEventBannerUrl } from '../../api/generated/events/events';
 import type { Event, EventStatus } from '../../api/generated/models';
@@ -95,15 +95,13 @@ export function EventsPage({ initialState, createOpen = false, onCloseCreate }: 
     }
   }, [createOpen, restoredState]);
 
-  const filteredEvents = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase();
-    return (query.data?.items ?? []).filter((event) => {
-      if (selectedStatuses.length > 0 && !selectedStatuses.includes(event.status)) return false;
-      if (!normalizedSearch) return true;
-      return [event.name, event.location, event.ownerName, event.publicTitle]
-        .some((value) => value?.toLocaleLowerCase().includes(normalizedSearch));
-    });
-  }, [query.data, search, selectedStatuses]);
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredEvents = (query.data?.items ?? []).filter((event) => {
+    if (selectedStatuses.length > 0 && !selectedStatuses.includes(event.status)) return false;
+    if (!normalizedSearch) return true;
+    return [event.name, event.location, event.ownerName, event.publicTitle]
+      .some((value) => value?.toLocaleLowerCase().includes(normalizedSearch));
+  });
   const pageCount = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageStart = (currentPage - 1) * pageSize;

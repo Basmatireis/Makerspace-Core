@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, Link as CarbonLink, RadioButton, RadioButtonGroup, Tile, Toggletip, ToggletipButton, ToggletipContent } from '@carbon/react';
 import { Add, Download, Information, Subtract } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -47,7 +47,7 @@ function Cashbook() {
   const movements = useQuery({ ...periodMovementsQuery(fromIso, toIso), enabled: range.valid && canMovements });
   const register = useQuery({ ...cashRegisterQuery(toIso), enabled: range.valid && canMovements });
   const orders = useQuery({ ...allOrdersQuery(), enabled: canOrders });
-  const lines = useMemo(() => cashbookLines(payments.data ?? [], movements.data ?? [], orders.data), [payments.data, movements.data, orders.data]);
+  const lines = cashbookLines(payments.data ?? [], movements.data ?? [], orders.data);
 
   const methods = url.list('method');
   const kinds = url.list('kind');

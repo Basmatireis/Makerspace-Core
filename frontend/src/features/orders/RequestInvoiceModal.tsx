@@ -31,6 +31,7 @@ export function RequestInvoiceModal({ order, onClose }: { order: Order; onClose:
   const requirements = useQuery({ ...organizationRequirementsQuery(organizationId ?? ''), enabled: !!organizationId });
   const requiresPurchaseOrder = !!requirements.data?.requirePurchaseOrderReference;
 
+  // The form's `values` are re-applied when this object changes, so it must only change with the order or organization.
   const initial = useMemo<RecipientValues>(() => {
     const jobs = activeItems(order).flatMap((item) => (item.snapshot ? [item.snapshot] : []));
     const today = dateInAppTimeZone(new Date());

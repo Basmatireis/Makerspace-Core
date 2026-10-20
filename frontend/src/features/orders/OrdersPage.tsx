@@ -40,7 +40,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
   const canWrite = hasPermission(user, PermissionId.orderswrite);
   const canReadJobs = hasPermission(user, PermissionId.machine_jobsread);
   const ready = useQuery({ ...readyToBillQuery(), enabled: canReadJobs });
-  const readyGroups = useMemo(() => readyToBillGroups(ready.data ?? []), [ready.data]);
+  const readyGroups = readyToBillGroups(ready.data ?? []);
   const readySummary = readyTotals(readyGroups);
   const reviewing = params.get('review') === '1';
   const setParam = (patch: Record<string, string | null>) => setParams((previous) => {
@@ -61,6 +61,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
 
+  // Counts every order once per section, status view and invoice state, so it is kept until the orders change.
   const counts = useMemo(() => ({
     sections: Object.fromEntries(ORDER_SECTIONS.map((id) => [id, orders.filter((order) => sectionOf(order) === id).length])) as Record<OrderSection, number>,
     views: Object.fromEntries(STATUS_VIEWS.map((view) => [view.id, orders.filter((order) => view.has(order)).length])),

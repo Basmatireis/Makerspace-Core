@@ -33,6 +33,7 @@ export function SalesOverviewPage() {
   const canRegister = canPayments && can(PermissionId.cash_movementsread);
   const canApprove = can(PermissionId.external_invoice_requestsapprove) && canOrders;
   const canReadJobs = can(PermissionId.machine_jobsread) && canOrders;
+  // Fixed for the lifetime of the page so the payments query key does not change at midnight.
   const today = useMemo(() => periodRange('today'), []);
   const orders = useQuery({ ...allOrdersQuery(), enabled: canOrders });
   const payments = useQuery({ ...periodPaymentsQuery(new Date(today.from).toISOString(), new Date(today.to).toISOString()), enabled: canPayments });
@@ -40,7 +41,7 @@ export function SalesOverviewPage() {
   const jobs = useQuery({ ...readyToBillQuery(), enabled: canReadJobs });
 
   const list = orders.data ?? [];
-  const groups = useMemo(() => readyToBillGroups(jobs.data ?? []), [jobs.data]);
+  const groups = readyToBillGroups(jobs.data ?? []);
   const ready = readyTotals(groups);
   const awaiting = list.filter(isAwaitingPayment);
   const toApprove = list.filter((order) => order.status === 'finalized' && invoiceKey(order) === 'submitted');

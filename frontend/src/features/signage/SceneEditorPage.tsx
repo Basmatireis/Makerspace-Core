@@ -1,5 +1,5 @@
 import './styles.scss';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, ContainedList, ContainedListItem, InlineLoading, InlineNotification, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, Tag, TextInput, Tile } from '@carbon/react';
 import { TrashCan } from '@carbon/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -75,6 +75,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const gone = useRef(false);
   const hold = useRef(false);
 
+  // Stable identity: the autosave timer and the leave-page effect call the latest save through this callback.
   const save = useCallback(async (): Promise<void> => {
     if (gone.current || hold.current || inFlight.current || revision.current === savedRevision.current) return;
     const current = latest.current;
@@ -147,7 +148,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const setWidget = (next: SignageWidget) => edit((current) => ({ ...current, zones: { ...current.zones, [selectedId]: next } }));
   const changeLayout = (layoutId: SignageLayoutId) => edit((current) => ({ ...current, layoutId, zones: remapZones(current.zones, current.layoutId, layoutId) as SignageZones }));
   const colourValid = HEX_COLOR.test(draft.backgroundColor);
-  const referencedMachineIds = useMemo(() => sceneMachineIds(draft.zones), [draft.zones]);
+  const referencedMachineIds = sceneMachineIds(draft.zones);
   const data = usePreviewData(preset, { now, referencedMachineIds });
   const status = SAVE_TEXT[saveState];
 

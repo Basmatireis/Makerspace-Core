@@ -9,6 +9,7 @@ import { displaysQuery, playlistsQuery, previewQuery, rulesQuery, templatesQuery
 export function useRuleNames(): Names {
   const { machines } = useMachineOptions();
   const templates = useQuery(templatesQuery()).data?.items;
+  // Stable identity: the names are a dependency of the published-view memo.
   return useMemo(() => ({
     machine: (id) => machines.find((item) => item.id === id)?.name ?? 'a machine',
     template: (id) => templates?.find((item) => item.id === id)?.name ?? 'a removed template',
@@ -17,7 +18,7 @@ export function useRuleNames(): Names {
 
 /**
  * The display's latest publication run through the shared engine with its current live data. Polls like a player.
- * `options` must be stable (memoised) when given.
+ * A new `options` object only makes the view resolve again.
  */
 export function usePublishedView(displayId: string, options: Pick<PublishedOptions, 'extra' | 'omitAnnouncementId'> = {}, enabled = true) {
   const preview = useQuery(previewQuery(displayId, enabled));

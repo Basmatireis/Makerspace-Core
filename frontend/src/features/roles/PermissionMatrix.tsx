@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Table,
   TableBody,
@@ -54,16 +54,14 @@ export function PermissionMatrix({
   onChangeState,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const groups = useMemo(() => {
-    const byGroup = new Map<string, Permission[]>();
-    for (const permission of permissions) {
-      const presented = presentPermission(permission);
-      byGroup.set(presented.group, [...(byGroup.get(presented.group) ?? []), permission]);
-    }
-    return permissionGroupOrder
-      .filter((group) => byGroup.has(group))
-      .map((group) => ({ name: group, permissions: byGroup.get(group) ?? [] }));
-  }, [permissions]);
+  const byGroup = new Map<string, Permission[]>();
+  for (const permission of permissions) {
+    const presented = presentPermission(permission);
+    byGroup.set(presented.group, [...(byGroup.get(presented.group) ?? []), permission]);
+  }
+  const groups = permissionGroupOrder
+    .filter((group) => byGroup.has(group))
+    .map((group) => ({ name: group, permissions: byGroup.get(group) ?? [] }));
 
   if (groups.length === 0) {
     return <div className="roles-matrix-empty"><h2>No permissions available</h2></div>;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ActionableNotification, Button, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form';
@@ -119,11 +119,8 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   const machineId = form.watch('machineId');
   const process = (machines.data?.items ?? []).find((machine) => machine.id === machineId)?.machineType.process;
   const config = process ? processConfig[process] : undefined;
-  const machineChoices = useMemo(() => {
-    const items = (machines.data?.items ?? []).filter((machine) => machine.status !== 'retired' || machine.id === job?.machine.id).map((machine) => ({ id: machine.id, name: machine.name }));
-    if (job && !items.some((item) => item.id === job.machine.id)) items.unshift({ id: job.machine.id, name: job.machine.name });
-    return items;
-  }, [machines.data, job]);
+  const machineChoices = (machines.data?.items ?? []).filter((machine) => machine.status !== 'retired' || machine.id === job?.machine.id).map((machine) => ({ id: machine.id, name: machine.name }));
+  if (job && !machineChoices.some((item) => item.id === job.machine.id)) machineChoices.unshift({ id: job.machine.id, name: job.machine.name });
 
   const mutation = useMutation({
     mutationFn: async ({ values, times }: { values: Values; times?: { startsAt: string; endsAt: string } }) => {

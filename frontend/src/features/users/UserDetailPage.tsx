@@ -241,6 +241,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const canRemoveOIDCIdentity = hasPermission(currentUser, PermissionId.identitiesoidcunlinkall);
   const hasAccountActions = canEditLoginEmail || canCreateAccount || canAssignRole;
   const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canConfigurePIN;
+  // Stable identity: the tab-normalising effect below depends on it.
   const availableTabs = useMemo(() => personDetailTabs.filter((tab) => {
     if (tab.key === 'account-access') return canReadAccounts;
     if (tab.key === 'roles-permissions') return true;
@@ -410,18 +411,13 @@ function UserDetailContent({ person }: { person: Person }) {
   });
 
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: canReadRoles });
-  const rolesById = useMemo(
-    () => new Map((rolesQuery.data ?? []).map((role) => [role.id, role])),
-    [rolesQuery.data],
+  const rolesById = new Map((rolesQuery.data ?? []).map((role) => [role.id, role]));
+  const assignedRoleIds = new Set(person.roles.map((role) => role.id));
+  const assignableRoles = (rolesQuery.data ?? []).filter(
+    (role) =>
+      !assignedRoleIds.has(role.id) &&
+      canManageRoleMembership(currentUser, role),
   );
-  const assignableRoles = useMemo(() => {
-    const assigned = new Set(person.roles.map((role) => role.id));
-    return (rolesQuery.data ?? []).filter(
-      (role) =>
-        !assigned.has(role.id) &&
-        canManageRoleMembership(currentUser, role),
-    );
-  }, [currentUser, person.roles, rolesQuery.data]);
 
   const submitPerson = personForm.handleSubmit(async (values) => {
     try {

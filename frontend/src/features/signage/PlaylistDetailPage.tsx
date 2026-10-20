@@ -1,5 +1,5 @@
 import './styles.scss';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, ComboBox, ContainedList, ContainedListItem, IconButton, InlineNotification, NumberInput, Select, SelectItem, TextInput, Tile } from '@carbon/react';
 import { ArrowDown, ArrowUp, Save, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -69,7 +69,7 @@ function Detail({ playlist, crumbs }: { playlist: SignagePlaylist; crumbs: { lab
   const queryClient = useQueryClient();
   const canEdit = hasPermission(useCurrentUser(), PermissionId.signagecontentmanage);
   const scenesResult = useQuery(scenesQuery());
-  const scenes = useMemo(() => scenesResult.data?.items ?? [], [scenesResult.data]);
+  const scenes = scenesResult.data?.items ?? [];
   const [draft, setDraft] = useState<Draft>(() => toDraft(playlist));
   const [deleting, setDeleting] = useState(false);
   const [addKey, setAddKey] = useState(0);

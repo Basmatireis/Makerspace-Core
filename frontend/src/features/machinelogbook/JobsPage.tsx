@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, ComboBox, InlineNotification, Link as CarbonLink, OverflowMenu, OverflowMenuItem, TableBatchAction } from '@carbon/react';
 import { Link as LinkIcon, Merge, Split, TrashCan } from '@carbon/icons-react';
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
@@ -98,22 +98,18 @@ function useJobsFilterCategories(rows: WorkItem[]): FilterCategory[] {
   const operators = useQuery({ ...operatorSearchQuery(operatorSearch), enabled: canLookup, placeholderData: keepPreviousData });
 
   // Without catalog access the machine filter offers the machines of the rows shown.
-  const machineOptions: Option[] = useMemo(() => machines.data
+  const machineOptions: Option[] = machines.data
     ? machines.data.items.map((machine) => ({ id: machine.id, label: machine.name }))
-    : [...new Map(rows.map((row) => [row.machineId, { id: row.machineId, label: row.machineName }])).values()], [machines.data, rows]);
-  const materialOptions: Option[] = useMemo(() => (materials.data?.items ?? []).map((material) => ({ id: material.id, label: material.name })), [materials.data]);
-  const people = useMemo<Person[]>(() => {
-    const known = new Map<string, Person>();
-    for (const row of rows) if (row.customer) known.set(row.customer.id, row.customer);
-    for (const party of parties.data?.items ?? []) known.set(party.id, party);
-    return [...known.values()];
-  }, [rows, parties.data]);
-  const operatorList = useMemo<Person[]>(() => {
-    const known = new Map<string, Person>();
-    for (const row of rows) if (row.operator) known.set(row.operator.personId, { id: row.operator.personId, displayName: row.operator.displayName });
-    for (const operator of operators.data?.items ?? []) known.set(operator.personId, { id: operator.personId, displayName: operator.displayName });
-    return [...known.values()];
-  }, [rows, operators.data]);
+    : [...new Map(rows.map((row) => [row.machineId, { id: row.machineId, label: row.machineName }])).values()];
+  const materialOptions: Option[] = (materials.data?.items ?? []).map((material) => ({ id: material.id, label: material.name }));
+  const customers = new Map<string, Person>();
+  for (const row of rows) if (row.customer) customers.set(row.customer.id, row.customer);
+  for (const party of parties.data?.items ?? []) customers.set(party.id, party);
+  const people: Person[] = [...customers.values()];
+  const operatorsById = new Map<string, Person>();
+  for (const row of rows) if (row.operator) operatorsById.set(row.operator.personId, { id: row.operator.personId, displayName: row.operator.displayName });
+  for (const operator of operators.data?.items ?? []) operatorsById.set(operator.personId, { id: operator.personId, displayName: operator.displayName });
+  const operatorList: Person[] = [...operatorsById.values()];
 
   const categories: FilterCategory[] = [
     { key: 'status', label: 'Status', options: jobRowStatusOptions as Option[] },

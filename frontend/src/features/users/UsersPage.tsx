@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Accordion,
   AccordionItem,
@@ -220,16 +220,9 @@ export function UsersPage() {
   const canBatchManage =
     mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
-  const supervisorRoleIds = useMemo(
-    () => new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id)),
-    [rolesQuery.data],
-  );
-  const assignableRoles = useMemo(
-    () =>
-      (rolesQuery.data ?? []).filter((role) =>
-        canManageRoleMembership(currentUser, role),
-      ),
-    [currentUser, rolesQuery.data],
+  const supervisorRoleIds = new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id));
+  const assignableRoles = (rolesQuery.data ?? []).filter((role) =>
+    canManageRoleMembership(currentUser, role),
   );
 
   const refreshPeople = async () => {
@@ -397,10 +390,7 @@ export function UsersPage() {
   const makerspaceStatusByPersonId = new Map(
     people.map((person, index) => [person.id, makerspaceStatusQueries[index]]),
   );
-  const peopleById = useMemo(
-    () => new Map(people.map((person) => [person.id, person])),
-    [people],
-  );
+  const peopleById = new Map(people.map((person) => [person.id, person]));
   const headers = [
     { key: 'avatar', header: 'Profile' },
     { key: 'name', header: 'Name' },

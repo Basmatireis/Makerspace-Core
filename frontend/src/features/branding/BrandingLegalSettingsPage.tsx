@@ -176,6 +176,7 @@ function AssetCard({ descriptor, asset, version, onApplied }: {
 }) {
   const [file, setFile] = useState<File>();
   const [confirm, setConfirm] = useState<'remove' | 'default'>();
+  // The object URL is created once per file and revoked by the effect below.
   const preview = useMemo(() => file ? URL.createObjectURL(file) : null, [file]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
   const upload = useMutation({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { useLatestCallback } from './useLatestCallback';
 
@@ -51,7 +51,7 @@ export function useUnsavedChanges({
     return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [isDirty]);
 
-  const runWithBypass = useCallback((action: DiscardAction) => {
+  const runWithBypass = (action: DiscardAction) => {
     bypassRef.current = true;
     try {
       action();
@@ -60,7 +60,7 @@ export function useUnsavedChanges({
         bypassRef.current = false;
       });
     }
-  }, []);
+  };
 
   const requestDiscard = useLatestCallback((action: DiscardAction) => {
     if (isDirty) {
@@ -70,16 +70,17 @@ export function useUnsavedChanges({
     action();
   });
 
-  const bypassAfterSubmit = useCallback((action: DiscardAction) => {
+  // Latest-callback handlers keep a stable identity for callers that list them as effect dependencies.
+  const bypassAfterSubmit = useLatestCallback((action: DiscardAction) => {
     runWithBypass(action);
-  }, [runWithBypass]);
+  });
 
-  const keepEditing = useCallback(() => {
+  const keepEditing = useLatestCallback(() => {
     setPendingAction(null);
     if (blocker.state === 'blocked') blocker.reset();
-  }, [blocker]);
+  });
 
-  const confirmDiscard = useCallback(() => {
+  const confirmDiscard = useLatestCallback(() => {
     onDiscard?.();
     setPendingAction(null);
     if (blocker.state === 'blocked') {
@@ -87,7 +88,7 @@ export function useUnsavedChanges({
       return;
     }
     if (pendingAction) runWithBypass(pendingAction);
-  }, [blocker, onDiscard, pendingAction, runWithBypass]);
+  });
 
   return {
     requestDiscard,

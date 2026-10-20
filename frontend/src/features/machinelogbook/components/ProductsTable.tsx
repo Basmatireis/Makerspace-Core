@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Button, Link as CarbonLink, Tag } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -36,7 +36,7 @@ function ProductsTableContent({ id, materialId, canManage, onAdd, onEdit, switch
   const packagingIds = url.list('packaging');
   const showInactive = url.get('inactive') === '1';
 
-  const scoped = useMemo(() => products.filter((product) => !materialId || product.materialId === materialId), [products, materialId]);
+  const scoped = products.filter((product) => !materialId || product.materialId === materialId);
   const manufacturerOptions: Option[] = [...new Set(scoped.map((product) => product.manufacturer))].sort().map((name) => ({ id: name, label: name }));
   const materialOptions: Option[] = [...new Map(scoped.map((product) => [product.materialId, product.materialName])).entries()].map(([value, label]) => ({ id: value, label })).sort((a, b) => a.label.localeCompare(b.label));
   const rows = scoped.filter((row) => (showInactive || row.active)

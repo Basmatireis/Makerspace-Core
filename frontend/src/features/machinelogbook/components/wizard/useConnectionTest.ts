@@ -58,9 +58,10 @@ export function useConnectionTest() {
   const run = useRef(0);
   useEffect(() => () => { run.current += 1; }, []);
 
+  // Stable identity: the setup wizard lists reset as an effect dependency.
   const reset = useCallback(() => { run.current += 1; setState({ phase: 'idle' }); }, []);
 
-  const start = useCallback(async (input: AssignmentInput, onSaved?: (assignment: PrinterConnectorAssignment) => void): Promise<{ assignment: PrinterConnectorAssignment; live?: PrinterLiveStatus }> => {
+  const start = async (input: AssignmentInput, onSaved?: (assignment: PrinterConnectorAssignment) => void): Promise<{ assignment: PrinterConnectorAssignment; live?: PrinterLiveStatus }> => {
     const id = ++run.current;
     const current = () => run.current === id;
     setState({ phase: 'saving', connectorName: input.connector.name });
@@ -101,7 +102,7 @@ export function useConnectionTest() {
       await sleep(connectionTestTiming.pollMs);
     }
     return { assignment };
-  }, []);
+  };
 
   return { state, start, reset };
 }

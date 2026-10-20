@@ -5,7 +5,7 @@ import {
   Select, SelectItem, Stack, Tab, TabList, TabPanel, TabPanels, Tabs, Tag, TextInput, Tile,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   cancelOwnPublicEventAssignment, createAuthenticatedEventSignup, createPublicEventSignup,
@@ -41,7 +41,7 @@ export function PublicEventPage() {
   useEffect(() => {
     if (currentUser.data && signupFor === 'self') setDetails((value) => ({ ...value, firstName: currentUser.data.person.firstName, lastName: currentUser.data.person.lastName, email: currentUser.data.person.email ?? null, phone: currentUser.data.person.phone ?? null }));
   }, [currentUser.data, signupFor]);
-  const options = useMemo(() => (event.data?.shifts ?? []).flatMap((shift) => shift.requirements.map((requirement) => ({ shift, requirement, value: `${shift.id}:${requirement.id}` }))), [event.data]);
+  const options = (event.data?.shifts ?? []).flatMap((shift) => shift.requirements.map((requirement) => ({ shift, requirement, value: `${shift.id}:${requirement.id}` })));
   const cancel = useMutation({ mutationFn: ({ id, version }: { id: string; version: number }) => cancelOwnPublicEventAssignment(publicId, id, { expectedVersion: version }), onSuccess: async () => { setCancelTarget(null); await Promise.all([client.invalidateQueries({ queryKey: eventKeys.public(publicId) }), client.invalidateQueries({ queryKey: eventKeys.own(publicId) })]); } });
   const closeSignup = useLatestCallback(() => { if (!creating) setSignupOpen(false); return false; });
   const download = async (id: string, name: string) => { const blob = await downloadPublicEventFile(publicId, id); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); };

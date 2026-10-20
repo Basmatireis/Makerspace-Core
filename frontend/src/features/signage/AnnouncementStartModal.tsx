@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { InlineNotification, Modal, MultiSelect, RadioButton, RadioButtonGroup, Select, SelectItem, Stack } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
@@ -66,7 +66,7 @@ export function AnnouncementStartModal({ display, announcement, onClose }: { dis
 
   // {display} and {location} depend on the screen; the preview uses the first one targeted.
   const previewDisplay = (draft.target === 'selected' ? displays.find((item) => draft.displayIds.includes(item.id)) : undefined) ?? display ?? displays[0];
-  const machineNames = useMemo(() => Object.fromEntries(machines.map((machine) => [machine.id, machine.name])), [machines]);
+  const machineNames = Object.fromEntries(machines.map((machine) => [machine.id, machine.name]));
   const message = template && startsAt ? renderAnnouncement(template, draft.values, { startsAt, endsAt }, { now: new Date(), timeZone, displayName: previewDisplay?.name ?? 'Display', location: previewDisplay?.location ?? '', machines: machineNames }) : null;
   const extra: RenderAnnouncement[] = message && template ? [{ id: 'draft', templateId: template.id, tone: message.tone, title: message.title, body: message.body, startsAt: 0 }] : [];
   const frame = usePublishedView(previewDisplay?.id ?? '', { extra, omitAnnouncementId: announcement?.id }, Boolean(previewDisplay));

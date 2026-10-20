@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, Link as CarbonLink, MenuButton, MenuItem } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -35,9 +35,9 @@ function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister, swi
   const filament = materials.some(isFilament);
   const counts = useQuery({ ...activeSpoolCountsQuery(), enabled: filament });
 
-  const all: MaterialRow[] = useMemo(() => materials.map((material) => ({
+  const all: MaterialRow[] = materials.map((material) => ({
     ...material, activeSpools: isFilament(material) && counts.data ? counts.data[material.id] ?? 0 : null,
-  })), [materials, counts.data]);
+  }));
   const typeOptions: Option[] = [...new Map(materials.map((material) => [material.materialTypeId, material.materialTypeName])).entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
   const rows = all.filter((row) => (showInactive || row.active)
     && (typeIds.length === 0 || typeIds.includes(row.materialTypeId))

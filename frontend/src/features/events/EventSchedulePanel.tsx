@@ -1,7 +1,7 @@
 import { Add, Location } from '@carbon/icons-react';
 import { Button, Checkbox, ComposedModal, ModalBody, ModalFooter, ModalHeader, OverflowMenu, OverflowMenuItem, Select, SelectItem, Stack, Tag, TextInput, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { createEventSession, createEventShift, deleteEventSession, deleteEventShift } from '../../api/generated/events/events';
 import type { EventSession, EventShift, EventShiftInput } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
@@ -49,7 +49,7 @@ export function EventSchedulePanel({ eventId, canManage, canStaff, archived }: {
   const removeShift = useMutation({ mutationFn: ({ id, version }: { id: string; version: number }) => deleteEventShift(eventId, id, { expectedVersion: version }), onSuccess: async () => { setDeleteTarget(null); await refresh(); } });
   const closeSessionForm = useLatestCallback(() => { if (!addSession.isPending) guard.requestDiscard(() => setShowSessionForm(false)); return false; });
   const closeShiftForm = useLatestCallback(() => { if (!addShift.isPending) guard.requestDiscard(() => setShowShiftForm(false)); return false; });
-  const grouped = useMemo(() => {
+  const grouped = (() => {
     const map = new Map<string, Array<{ kind: 'Session'; record: EventSession; name: string } | { kind: 'Shift'; record: EventShift; name: string }>>();
     for (const item of sessions.data?.items ?? []) {
       const key = formatLocalDate(item.startsAt); const values = map.get(key) ?? [];
@@ -60,7 +60,7 @@ export function EventSchedulePanel({ eventId, canManage, canStaff, archived }: {
       values.push({ kind: 'Shift', record: item, name: item.name }); map.set(key, values);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, values]) => [date, values.sort((a, b) => a.record.startsAt.localeCompare(b.record.startsAt))] as const);
-  }, [sessions.data, shifts.data]);
+  })();
 
   if (sessions.isPending || shifts.isPending) return <InlineLoadingState label="Loading schedule" />;
   return <Stack gap={7}>

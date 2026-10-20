@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Header,
@@ -61,10 +61,7 @@ export function AppShell() {
 	});
 	const useAdmissionAction = currentUser.laborordnungStatus.mode === 'blocking' && Boolean(currentUser.managedDevice);
 
-  const displayName = useMemo(
-    () => `${currentUser.person.firstName} ${currentUser.person.lastName}`,
-    [currentUser.person.firstName, currentUser.person.lastName],
-  );
+  const displayName = `${currentUser.person.firstName} ${currentUser.person.lastName}`;
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') {

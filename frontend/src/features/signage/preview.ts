@@ -38,6 +38,7 @@ export function useMachineOptions(): { machines: MachineOption[]; known: boolean
   const user = useCurrentUser();
   const canRead = [PermissionId.signageread, PermissionId.signagemanage, PermissionId.signagecontentmanage].some((permission) => hasPermission(user, permission));
   const query = useQuery(machinesQuery(canRead));
+  // Stable identity: the machine list feeds the rule-name and preview-data memos.
   const machines = useMemo(() => (query.data?.items ?? []).map((machine) => ({ id: machine.id, name: machine.name, hasCamera: machine.hasCamera })), [query.data]);
   return { machines, known: canRead && query.isSuccess };
 }
@@ -140,6 +141,7 @@ export function usePreviewData(preset: PreviewPresetId, options: { now: number; 
   const calendar = useQuery(calendarQuery(canRead)).data;
   const { now, referencedMachineIds, still } = options;
   const referenced = referencedMachineIds?.join(',') ?? '';
+  // Rebuilt only when an input changes: the preview data is handed to the renderer, which re-renders on a new object.
   return useMemo(
     () => buildPreviewData({ preset, now, machines, referencedMachineIds: referenced ? referenced.split(',') : [], templates: templates ?? [], timeZone, assets, openDays: calendar?.openDays, events: calendar?.events, still }),
     [preset, now, machines, referenced, templates, timeZone, assets, calendar, still],

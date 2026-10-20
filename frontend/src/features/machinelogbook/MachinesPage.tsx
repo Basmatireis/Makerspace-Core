@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, Link as CarbonLink } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -96,28 +96,24 @@ export function MachinesPage() {
     refetch: () => { void activity.refetch(); return machines.refetch(); },
   } as const;
 
-  const allRows = useMemo<Row[]>(() => {
-    const byMachine = new Map((activity.data?.items ?? []).map((item) => [item.machineId, item]));
-    return (machines.data?.items ?? []).map((machine) => {
-      const item = byMachine.get(machine.id);
-      const availability: MachineAvailability = item?.availability ?? (machine.status === 'active' ? 'available' : machine.status);
-      const connector = item?.connector;
-      const connectorState: Row['connectorState'] = !connector?.runtimeState ? 'none' : ['disconnected', 'degraded'].includes(connector.runtimeState) ? 'issue' : 'connected';
-      return {
-        id: machine.id, machine, availability, current: item?.current, connectorState, lastJobAt: item?.lastJobStartedAt ?? null,
-        issue: availability === 'retired' ? null : connectorIssue(connector ?? undefined),
-      };
-    });
-  }, [machines.data, activity.data]);
+  const byMachine = new Map((activity.data?.items ?? []).map((item) => [item.machineId, item]));
+  const allRows: Row[] = (machines.data?.items ?? []).map((machine) => {
+    const item = byMachine.get(machine.id);
+    const availability: MachineAvailability = item?.availability ?? (machine.status === 'active' ? 'available' : machine.status);
+    const connector = item?.connector;
+    const connectorState: Row['connectorState'] = !connector?.runtimeState ? 'none' : ['disconnected', 'degraded'].includes(connector.runtimeState) ? 'issue' : 'connected';
+    return {
+      id: machine.id, machine, availability, current: item?.current, connectorState, lastJobAt: item?.lastJobStartedAt ?? null,
+      issue: availability === 'retired' ? null : connectorIssue(connector ?? undefined),
+    };
+  });
 
   const statusIds = url.list('status');
   const typeIds = url.list('type');
   const collectionIds = url.list('collection');
   const connectorIds = url.list('connector');
-  const typeOptions = useMemo<Option[]>(() => {
-    const types = new Map(allRows.map((row) => [row.machine.machineType.id, row.machine.machineType.name]));
-    return [...types].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
-  }, [allRows]);
+  const machineTypes = new Map(allRows.map((row) => [row.machine.machineType.id, row.machine.machineType.name]));
+  const typeOptions: Option[] = [...machineTypes].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
 
   const rows = allRows.filter((row) => (statusIds.length === 0 ? row.availability !== 'retired' : statusIds.includes(row.availability))
     && (typeIds.length === 0 || typeIds.includes(row.machine.machineType.id))
