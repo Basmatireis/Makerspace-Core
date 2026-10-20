@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -56,7 +58,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	_, err = pool.Exec(
 		ctx,
 		`INSERT INTO roles (id, name, system_key) VALUES ($1, 'master', 'master')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 	)
 	expectPostgresCode(t, err, "23514")
 	_, err = pool.Exec(
@@ -67,7 +69,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	expectPostgresCode(t, err, "23514")
 
 	account := seedAccount(t, pool, "cascade", false)
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'cascade-role')`, roleID); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +91,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		account.accountID,
 		account.identity,
 		bytes.Repeat([]byte{1}, 32),
@@ -99,10 +101,10 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO password_reset_tokens (id, account_id, token_digest, expires_at)
 		VALUES ($1, $2, $3, now() + interval '30 minutes')`,
-		uuid.Must(uuid.NewV7()), account.accountID, bytes.Repeat([]byte{3}, 32)); err != nil {
+		ids.New(), account.accountID, bytes.Repeat([]byte{3}, 32)); err != nil {
 		t.Fatal(err)
 	}
-	auditID := uuid.Must(uuid.NewV7())
+	auditID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO audit_events (id, actor_type, actor_account_id, action, resource_type, resource_id)
 		VALUES ($1, 'user', $2, 'account.deleted', 'account', $2)`, auditID, account.accountID); err != nil {
@@ -287,7 +289,7 @@ func TestAccountServiceDeletionPreservesPersonRoles(t *testing.T) {
 	ctx := testContext(t)
 	actor := seedAccount(t, pool, "account-delete-role-actor", true)
 	target := seedAccount(t, pool, "account-delete-role-target", false)
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO roles(id,name) VALUES($1,'Surviving Account deletion');
 		INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, roleID, target.personID); err != nil {
@@ -312,7 +314,7 @@ func TestAccountServiceDeletionPreservesPersonRoles(t *testing.T) {
 func TestRoleAssignmentReadLockSerializesPermissionMutation(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'lock-test')`, roleID); err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +356,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	actorAccount := seedAccount(t, pool, "delete-race-actor", false)
-	deleteRoleID := uuid.Must(uuid.NewV7())
+	deleteRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles (id, name) VALUES ($1, 'person-deleter')`,
@@ -388,7 +390,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 		t.Fatalf("unexpected deletion permissions: %v", principal.PermissionIDs())
 	}
 
-	targetPersonID := uuid.Must(uuid.NewV7())
+	targetPersonID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Race', 'Target', 'delete-race-target@example.test')`,
@@ -405,7 +407,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	if _, err := creationQueries.GetPersonVersionForAccountCreation(ctx, targetPersonID); err != nil {
 		t.Fatal(err)
 	}
-	targetAccountID := uuid.Must(uuid.NewV7())
+	targetAccountID := ids.New()
 	if _, err := creationQueries.CreateAccount(
 		ctx,
 		accountsdb.CreateAccountParams{ID: targetAccountID, PersonID: targetPersonID, Status: "disabled"},
@@ -413,7 +415,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := creationQueries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{
-		ID: uuid.Must(uuid.NewV7()), AccountID: targetAccountID,
+		ID: ids.New(), AccountID: targetAccountID,
 		IdentifierDisplay: "delete-race-login@example.test", IdentifierNormalized: "delete-race-login@example.test",
 	}); err != nil {
 		t.Fatal(err)
@@ -638,9 +640,9 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	ctx := testContext(t)
 	actor := seedAccount(t, pool, "person-role-actor", true)
 	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
-	personID := uuid.Must(uuid.NewV7())
-	roleID := uuid.Must(uuid.NewV7())
-	pricingGroupID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	roleID := ids.New()
+	pricingGroupID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Member','accountless-role@example.test');
 		INSERT INTO roles(id,name,profile_image_required,laborordnung_mode) VALUES($2,'Accountless policy',true,'warning');
@@ -679,7 +681,7 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		t.Fatalf("accountless profile-image requirement = %v, %v", required, err)
 	}
 	reader := seedAccount(t, pool, "person-role-reader", false)
-	readerRoleID := uuid.Must(uuid.NewV7())
+	readerRoleID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO roles(id,name) VALUES($1,'Person role reader');
 		INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES(uuidv7(),$1,'people.read.all');
@@ -773,7 +775,7 @@ func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceTypeID := uuid.Must(uuid.NewV7())
+	deviceTypeID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO device_types (id, name) VALUES ($1, 'Evaluation terminal')`,
@@ -944,9 +946,9 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) seededAccount {
 	t.Helper()
 	ctx := testContext(t)
-	personID := uuid.Must(uuid.NewV7())
-	accountID := uuid.Must(uuid.NewV7())
-	identityID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	accountID := ids.New()
+	identityID := ids.New()
 	email := suffix + "@example.test"
 	if _, err := pool.Exec(
 		ctx,

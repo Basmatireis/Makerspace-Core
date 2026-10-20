@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -426,7 +428,7 @@ func (s *Service) CreateRule(
 	if err != nil {
 		return RuleList{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	return s.ruleMutation(
 		ctx,
 		principal,

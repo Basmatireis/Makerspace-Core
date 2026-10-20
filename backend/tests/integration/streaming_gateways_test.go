@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -54,7 +56,7 @@ func (g *gatewayEnv) bambu(name, kind, ip, code string) uuid.UUID {
 	g.t.Helper()
 	ctx := testContext(g.t)
 	admin := g.fixture.admin
-	requestID := uuid.Must(uuid.NewV7())
+	requestID := ids.New()
 	logbook := machinelogbook.NewService(g.pool)
 	printingService := printing.NewService(g.pool)
 	connectors, err := printerconnectors.NewService(g.pool, printingService, nil)
@@ -82,7 +84,7 @@ func (g *gatewayEnv) bambu(name, kind, ip, code string) uuid.UUID {
 
 func (g *gatewayEnv) assign(machineID, connectorID uuid.UUID, kind, ip, code string) uuid.UUID {
 	g.t.Helper()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	var secrets []byte
 	if code != "" {
 		var err error
@@ -104,7 +106,7 @@ func (g *gatewayEnv) assign(machineID, connectorID uuid.UUID, kind, ip, code str
 func (g *gatewayEnv) machineWithoutPrinter(name string) uuid.UUID {
 	g.t.Helper()
 	ctx := testContext(g.t)
-	requestID := uuid.Must(uuid.NewV7())
+	requestID := ids.New()
 	logbook := machinelogbook.NewService(g.pool)
 	machineType, err := logbook.CreateMachineType(ctx, g.fixture.admin, name+" type", "fdm_printing", &requestID)
 	if err != nil {
@@ -136,7 +138,7 @@ func (g *gatewayEnv) newCredential() (string, string) {
 	if err != nil {
 		g.t.Fatal(err)
 	}
-	return uuid.Must(uuid.NewV7()).String(), secret
+	return ids.New().String(), secret
 }
 
 // enrolledGateway creates a gateway and runs the enrollment handshake.
@@ -275,7 +277,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 		"stale_write",
 	)
 	g.expectCode(
-		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+uuid.Must(uuid.NewV7()).String(), nil),
+		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+ids.New().String(), nil),
 		http.StatusNotFound,
 		"not_found",
 	)
@@ -479,7 +481,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 			"fps":       30,
 		},
 		map[string]any{
-			"machineId": uuid.Must(uuid.NewV7()).String(),
+			"machineId": ids.New().String(),
 			"health":    "live",
 			"viewers":   1,
 			"codec":     nil,
@@ -747,7 +749,7 @@ func TestStreamingGatewayPermissions(t *testing.T) {
 		http.StatusCreated,
 	)
 	cameraID := camera["id"].(string)
-	missing := uuid.Must(uuid.NewV7()).String()
+	missing := ids.New().String()
 
 	type call struct {
 		method, path string
@@ -862,7 +864,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	}
 
 	// Unknown machine, no printer, simulator, ended Bambu assignment.
-	g.expectCode(assign(id, uuid.Must(uuid.NewV7()), true), http.StatusUnprocessableEntity, "validation_failed")
+	g.expectCode(assign(id, ids.New(), true), http.StatusUnprocessableEntity, "validation_failed")
 	g.expectCode(
 		assign(id, g.machineWithoutPrinter("Lathe"), true),
 		http.StatusUnprocessableEntity,
@@ -880,7 +882,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	}
 	g.expectCode(assign(id, ended, true), http.StatusUnprocessableEntity, "validation_failed")
 	g.expectCode(
-		assign(uuid.Must(uuid.NewV7()).String(), g.bambu("Orphan printer", "bambu_h2d", "192.168.1.62", "7"), true),
+		assign(ids.New().String(), g.bambu("Orphan printer", "bambu_h2d", "192.168.1.62", "7"), true),
 		http.StatusNotFound,
 		"not_found",
 	)
@@ -954,7 +956,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 		g.as(
 			g.admin,
 			http.MethodPatch,
-			path+uuid.Must(uuid.NewV7()).String(),
+			path+ids.New().String(),
 			map[string]any{"enabled": true, "expectedVersion": 1},
 		),
 		http.StatusNotFound,
@@ -1506,7 +1508,7 @@ func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		streams, err := service.IssueStreams(ctx, uuid.Must(uuid.NewV7()), []uuid.UUID{machine})
+		streams, err := service.IssueStreams(ctx, ids.New(), []uuid.UUID{machine})
 		if err != nil || len(streams) != 1 {
 			t.Fatalf("issue streams: %v %v", streams, err)
 		}
@@ -1948,7 +1950,7 @@ func TestPlayerLiveStreamsFollowTheAutoCameraMachineList(t *testing.T) {
 
 	// Validation: unknown machines and duplicates are refused; a stored scene without the field works.
 	bad := sceneInput("Auto camera", "full")
-	bad.Zones = map[string]json.RawMessage{"main": autoCameraWidget(uuid.Must(uuid.NewV7()))}
+	bad.Zones = map[string]json.RawMessage{"main": autoCameraWidget(ids.New())}
 	if _, err := svc.UpdateScene(ctx, admin, scene.ID, 3, bad, nil); err == nil {
 		t.Fatal("unknown camera machine accepted")
 	}

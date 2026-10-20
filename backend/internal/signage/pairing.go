@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -44,7 +46,11 @@ const (
 
 // ErrPairingCodeInvalid is the single answer for unknown, expired, claimed and malformed codes.
 func errPairingCodeInvalid() error {
-	return apperror.New(http.StatusUnprocessableEntity, "pairing_code_invalid", "The pairing code is invalid or has expired")
+	return apperror.New(
+		http.StatusUnprocessableEntity,
+		"pairing_code_invalid",
+		"The pairing code is invalid or has expired",
+	)
 }
 
 func rateLimited(message string, retryAfter time.Duration) error {
@@ -164,7 +170,7 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 	}
 	expires := now.Add(PairingTTL)
 	if err := q.CreateSignagePairingRequest(ctx, signagedb.CreateSignagePairingRequestParams{
-		ID:               uuid.Must(uuid.NewV7()),
+		ID:               ids.New(),
 		CodeDigest:       pairingCodeDigest(code),
 		PollSecretDigest: secretDigest,
 		CreatedAt:        now,
@@ -296,7 +302,7 @@ func (s *Service) PairDisplay(
 	if err != nil {
 		return Display{}, err
 	}
-	displayID := uuid.Must(uuid.NewV7())
+	displayID := ids.New()
 	if _, err := q.CreateSignageDisplay(ctx, signagedb.CreateSignageDisplayParams{
 		ID:              displayID,
 		ManagedDeviceID: deviceID,

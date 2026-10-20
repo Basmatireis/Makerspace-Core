@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -154,7 +156,7 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 		return provider
 	}
 	f.one, f.two = create("one"), create("two")
-	f.identity = uuid.Must(uuid.NewV7())
+	f.identity = ids.New()
 	if _, err := f.pool.Exec(
 		f.ctx,
 		`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES($1,$2,'oidc',$3,$4,'owned-subject',now())`,
@@ -446,7 +448,7 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 
 func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, false)
-	role := uuid.Must(uuid.NewV7())
+	role := ids.New()
 	if _, err := f.pool.Exec(f.ctx, `DELETE FROM person_roles WHERE person_id=$1`, f.principal.PersonID); err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +480,7 @@ func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
 	for _, disabled := range []string{"provider", "identity"} {
 		t.Run(disabled, func(t *testing.T) {
 			f := newOIDCSemanticsFixture(t, true)
-			other := uuid.Must(uuid.NewV7())
+			other := ids.New()
 			if _, err := f.pool.Exec(
 				f.ctx,
 				`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,$4,'other-subject')`,

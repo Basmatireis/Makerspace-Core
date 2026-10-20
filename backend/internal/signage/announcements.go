@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -427,7 +429,7 @@ func (s *Service) StartAnnouncement(
 	if err := s.verifyMachineValues(ctx, q, template.Fields, values); err != nil {
 		return Announcement{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	actor := principal.AccountID
 	row, err := q.CreateSignageAnnouncement(ctx, signagedb.CreateSignageAnnouncementParams{
 		ID:                 id,

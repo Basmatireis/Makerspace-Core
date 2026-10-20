@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
@@ -20,7 +22,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	ctx := testContext(t)
 	actor := seedAccount(t, pool, "semantic-upgrade", true)
 	provider := insertSCIMOIDCProvider(t, pool, "https://migration.example.test")
-	identity := uuid.Must(uuid.NewV7())
+	identity := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,'https://migration.example.test','preserved-subject')`,
@@ -42,7 +44,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessionID := uuid.Must(uuid.NewV7())
+	sessionID := ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO sessions(id,account_id,auth_identity_id,token_digest,csrf_digest,auth_method,
 		base_assurance,current_assurance,authenticated_at,idle_expires_at,absolute_expires_at)
 		VALUES($1,$2,$3,$4,$5,'oidc','normal','normal',now(),now()+interval '1 hour',now()+interval '2 hours')`,

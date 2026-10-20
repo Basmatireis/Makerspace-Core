@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -38,7 +40,7 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 			t.Fatalf("%v\n%s", err, query)
 		}
 	}
-	id := func() uuid.UUID { return uuid.Must(uuid.NewV7()) }
+	id := func() uuid.UUID { return ids.New() }
 
 	// Machine types: flagged as printer, unflagged but owning a printer profile, plain, and a laser.
 	flagged, profiled, plain, laserType := id(), id(), id(), id()

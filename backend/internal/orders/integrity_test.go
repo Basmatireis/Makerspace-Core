@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -14,7 +16,7 @@ import (
 
 func (f *fixture) principal(t *testing.T, permissions ...authorization.Permission) authorization.Principal {
 	t.Helper()
-	person, account, role := newID(), newID(), newID()
+	person, account, role := ids.New(), ids.New(), ids.New()
 	ctx := t.Context()
 	for _, step := range []struct {
 		sql  string
@@ -30,7 +32,7 @@ func (f *fixture) principal(t *testing.T, permissions ...authorization.Permissio
 		}
 	}
 	for _, permission := range permissions {
-		if _, err := f.pool.Exec(ctx, "INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES($1,$2,$3)", newID(), role, string(permission)); err != nil {
+		if _, err := f.pool.Exec(ctx, "INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES($1,$2,$3)", ids.New(), role, string(permission)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -91,7 +93,7 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 		ctx,
 		recorder,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
 		nil,
 	)
 	if e != nil {
@@ -250,7 +252,7 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 	if retained.Status != "finalized" || retained.SettledAmount != "10.00" {
 		t.Fatal("failed replacement was partially committed")
 	}
-	input.OperationKey = newID()
+	input.OperationKey = ids.New()
 	input.Reversals = []PaymentReversalInput{
 		{
 			PaymentID:  *o.Allocations[0].PaymentID,
@@ -265,7 +267,7 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 	) {
 		t.Fatal(e)
 	}
-	input.OperationKey = newID()
+	input.OperationKey = ids.New()
 	input.Payments = []PaymentInput{receipt("cash", "6")}
 	next, e = f.s.Command(ctx, f.p, o.ID, input, "replace", nil)
 	if e != nil || next.SettledAmount != "6.00" {
@@ -294,7 +296,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 	plaType, e := f.jobs.CreateMaterialType(
 		ctx,
 		f.p,
-		"PLA "+newID().String(),
+		"PLA "+ids.New().String(),
 		"g",
 		[]string{"fdm_printing", "other"},
 		nil,
@@ -497,10 +499,10 @@ func TestConcurrentJobClaimsAndCardReferenceUniqueness(t *testing.T) {
 		t.Fatal(e)
 	}
 	payment := receipt("card", "10")
-	if _, e = f.s.RecordPayment(ctx, f.p, a.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: a.Version, Payment: payment}, nil); e != nil {
+	if _, e = f.s.RecordPayment(ctx, f.p, a.ID, RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: a.Version, Payment: payment}, nil); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.RecordPayment(ctx, f.p, b.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: b.Version, Payment: payment}, nil); !apperror.IsCode(
+	if _, e = f.s.RecordPayment(ctx, f.p, b.ID, RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: b.Version, Payment: payment}, nil); !apperror.IsCode(
 		e,
 		"already_exists",
 	) {
@@ -524,7 +526,7 @@ func TestConcurrentReplacementAndAuditPaymentRollback(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")},
 		nil,
 	)
 	if e != nil {
@@ -583,7 +585,7 @@ func TestConcurrentReplacementAndAuditPaymentRollback(t *testing.T) {
 	if _, e = f.pool.Exec(ctx, "CREATE FUNCTION reject_payment_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='payment.recorded' THEN RAISE EXCEPTION 'injected audit failure'; END IF;RETURN NEW;END $$;CREATE TRIGGER reject_payment_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_payment_audit()"); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.RecordPayment(ctx, f.p, unpaid.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: unpaid.Version, Payment: receipt("cash", "3")}, nil); e == nil {
+	if _, e = f.s.RecordPayment(ctx, f.p, unpaid.ID, RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: unpaid.Version, Payment: receipt("cash", "3")}, nil); e == nil {
 		t.Fatal("payment escaped audit failure")
 	}
 	unpaid, e = f.s.Get(ctx, f.p, unpaid.ID)

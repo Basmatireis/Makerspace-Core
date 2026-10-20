@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -29,7 +31,7 @@ func (f *fillFixture) mountSpool(t *testing.T, spool FilamentSpool) (machine Mac
 	if err != nil {
 		t.Fatal(err)
 	}
-	unit, slot := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	unit, slot := ids.New(), ids.New()
 	unitName, slotName = "AMS A", "Slot 3"
 	for _, step := range []struct {
 		sql  string
@@ -46,7 +48,7 @@ func (f *fillFixture) mountSpool(t *testing.T, spool FilamentSpool) (machine Mac
 		},
 		{
 			`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`,
-			[]any{uuid.Must(uuid.NewV7()), slot, spool.ID, f.now.Add(-time.Hour)},
+			[]any{ids.New(), slot, spool.ID, f.now.Add(-time.Hour)},
 		},
 	} {
 		if _, err = f.pool.Exec(t.Context(), step.sql, step.args...); err != nil {

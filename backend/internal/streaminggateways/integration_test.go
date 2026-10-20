@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -50,7 +52,7 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID, requestID := ids.New(), ids.New(), ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	if _, err = pool.Exec(
@@ -101,7 +103,7 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 			if _, createErr = pool.Exec(
 				ctx,
 				`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, $4)`,
-				uuid.Must(uuid.NewV7()),
+				ids.New(),
 				connectorID,
 				machine.ID,
 				adapter,
@@ -135,7 +137,7 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := service.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), credentialSecret, "test", ProtocolVersion)
+	result, err := service.Enroll(ctx, issue.Secret, ids.New(), credentialSecret, "test", ProtocolVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +219,7 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID, requestID := ids.New(), ids.New(), ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	if _, err = pool.Exec(
@@ -266,7 +268,7 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		if _, createErr = service.Enroll(
 			ctx,
 			issue.Secret,
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
 			secret,
 			"test",
 			ProtocolVersion,
@@ -299,7 +301,7 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		if _, createErr = pool.Exec(
 			ctx,
 			`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'bambu_x1c')`,
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
 			connector.ID,
 			machine.ID,
 		); createErr != nil {

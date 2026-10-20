@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -27,9 +29,9 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	migrations := orderedMigrationFiles(t)
 	applyMigrationFiles(t, pool, migrations[:3])
 
-	personID := uuid.Must(uuid.NewV7())
-	accountID := uuid.Must(uuid.NewV7())
-	identityID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	accountID := ids.New()
+	identityID := ids.New()
 	email := "Existing.Master@Example.test"
 	password := "original migration password 2026"
 	hash, err := security.HashPassword(password)
@@ -81,7 +83,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preMigrationSessionID := uuid.Must(uuid.NewV7())
+	preMigrationSessionID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
@@ -94,7 +96,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	_, err = pool.Exec(ctx, `
 		INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
 		VALUES ($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
-		uuid.Must(uuid.NewV7()), accountID, identityID, bytes.Repeat([]byte{9}, 32), bytes.Repeat([]byte{8}, 32))
+		ids.New(), accountID, identityID, bytes.Repeat([]byte{9}, 32), bytes.Repeat([]byte{8}, 32))
 	var pgErr *pgconn.PgError
 	if !strings.Contains(errorString(err), "authenticated_at") || !asPostgresError(err, &pgErr) ||
 		pgErr.Code != "23502" {
@@ -150,7 +152,8 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pre-migration session cookie after migration: %v", err)
 	}
-	if preMigrationAuthentication.Principal.AccountID != accountID || preMigrationAuthentication.Principal.PersonID != personID ||
+	if preMigrationAuthentication.Principal.AccountID != accountID ||
+		preMigrationAuthentication.Principal.PersonID != personID ||
 		!preMigrationAuthentication.Principal.Master ||
 		preMigrationAuthentication.Principal.Assurance != "normal" ||
 		preMigrationAuthentication.AuthMethod != "password" {
@@ -205,7 +208,7 @@ func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
 	migrations := orderedMigrationFiles(t)
 	applyMigrationFiles(t, pool, migrations[:19])
 
-	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Historical', 'Actor', 'historical@example.test')`,
@@ -290,7 +293,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	).Scan(&passwordIdentityID); err != nil {
 		t.Fatal(err)
 	}
-	pinIdentityID := uuid.Must(uuid.NewV7())
+	pinIdentityID := ids.New()
 	pinHash, err := security.HashPIN([]byte("integration-test-pin-pepper-key-32"), "654321")
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +314,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	); err != nil {
 		t.Fatal(err)
 	}
-	providerID, oidcIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	providerID, oidcIdentityID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret) VALUES ($1,'cli-test','CLI Test','https://issuer.example.test','client',$2)`,
@@ -340,7 +343,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO password_reset_tokens (id,account_id,token_digest,expires_at) VALUES ($1,$2,$3,now()+interval '1 hour')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		accountID,
 		bytes.Repeat([]byte{3}, 32),
 	); err != nil {
@@ -349,7 +352,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO auth_challenges (id,kind,account_id,auth_identity_id,code_digest,delivery_address,expires_at) VALUES ($1,'password_reset',$2,$3,$4,'cli-login@example.test',now()+interval '1 hour')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		accountID,
 		passwordIdentityID,
 		bytes.Repeat([]byte{4}, 32),
@@ -438,7 +441,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 func TestAdministrativeResetPasswordRefusesPINAndContactOnlyMatches(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	personID, accountID, pinIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID, pinIdentityID := ids.New(), ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id,first_name,last_name,email) VALUES ($1,'PIN','Only','pin-contact@example.test')`,

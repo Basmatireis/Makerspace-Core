@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -69,7 +73,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 		return err
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
-		ID: uuid.Must(uuid.NewV7()), Kind: "password_reset", AccountID: target.AccountID,
+		ID: ids.New(), Kind: "password_reset", AccountID: target.AccountID,
 		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest("password_reset", target.AccountID, code),
 		DeliveryAddress: target.DeliveryAddress, ExpiresAt: expiresAt,
 	})
@@ -179,7 +183,7 @@ func (s *Service) CompletePasswordResetCode(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("password_reset")},
+		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: optional.Of("password_reset")},
 	); err != nil {
 		return err
 	}
@@ -305,7 +309,7 @@ func (s *Service) CompleteInvitation(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: ptr("invitation_completed")},
+		authdb.RevokeSessionsForAccountParams{AccountID: target.AccountID, Reason: optional.Of("invitation_completed")},
 	); err != nil {
 		return err
 	}
@@ -342,7 +346,11 @@ func (s *Service) RequestOwnEmailVerification(
 	requestID *uuid.UUID,
 ) error {
 	if s.notifier == nil {
-		return apperror.New(http.StatusServiceUnavailable, "mail_unavailable", "Email verification delivery is unavailable")
+		return apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_unavailable",
+			"Email verification delivery is unavailable",
+		)
 	}
 	allowed, err := s.consumeChallengeLimit(ctx, "email_verification_request_account", principal.AccountID.String(), 5)
 	if err != nil {
@@ -382,10 +390,14 @@ func (s *Service) RequestOwnEmailVerification(
 		return apperror.New(http.StatusConflict, "email_already_verified", "The local login email is already verified")
 	}
 	if target.DeliveryAddress == nil {
-		return apperror.New(http.StatusServiceUnavailable, "mail_unavailable", "Email verification delivery is unavailable")
+		return apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_unavailable",
+			"Email verification delivery is unavailable",
+		)
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
-		ID: uuid.Must(uuid.NewV7()), Kind: "email_verification", AccountID: principal.AccountID,
+		ID: ids.New(), Kind: "email_verification", AccountID: principal.AccountID,
 		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest(
 			"email_verification",
 			principal.AccountID,
@@ -417,7 +429,11 @@ func (s *Service) RequestOwnEmailVerification(
 	deliveryErr := s.notifier.SendEmailVerification(ctx, *target.DeliveryAddress, code, expiresAt)
 	s.recordChallengeDelivery(ctx, challenge.ID, deliveryErr)
 	if deliveryErr != nil {
-		return apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Email verification could not be delivered")
+		return apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_delivery_failed",
+			"Email verification could not be delivered",
+		)
 	}
 	return nil
 }

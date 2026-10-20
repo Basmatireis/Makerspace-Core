@@ -15,6 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -102,9 +105,9 @@ func (s *Service) Create(
 	if !principal.Has(authorization.PeopleCreate) {
 		return Person{}, apperror.PermissionDenied
 	}
-	email := cleanOptional(input.Email)
-	phone := cleanOptional(input.Phone)
-	matriculation := cleanOptional(input.MatriculationNumber)
+	email := optional.Trimmed(input.Email)
+	phone := optional.Trimmed(input.Phone)
+	matriculation := optional.Trimmed(input.MatriculationNumber)
 	if matriculation != nil && !principal.Has(authorization.PeopleUpdateMatriculation) {
 		return Person{}, apperror.PermissionDenied
 	}
@@ -116,7 +119,7 @@ func (s *Service) Create(
 		return Person{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := peopledb.New(tx).CreatePerson(ctx, peopledb.CreatePersonParams{
 		ID: id, FirstName: strings.TrimSpace(input.FirstName), LastName: strings.TrimSpace(input.LastName),
 		Email: email, Phone: phone, MatriculationNumber: matriculation, PhotoReference: nil,
@@ -303,7 +306,7 @@ func (s *Service) Update(
 	}
 	if input.ExpectedVersion < 1 ||
 		(input.FirstName == nil && input.LastName == nil && !input.Email.Set && !input.Phone.Set && !input.MatriculationNumber.Set) {
-		return Person{}, validation("at least one field and a valid expectedVersion are required")
+		return Person{}, apperror.InvalidField("at least one field and a valid expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -327,13 +330,13 @@ func (s *Service) Update(
 	}
 	email, phone, matriculation := current.Email, current.Phone, current.MatriculationNumber
 	if input.Email.Set {
-		email = cleanOptional(input.Email.Value)
+		email = optional.Trimmed(input.Email.Value)
 	}
 	if input.Phone.Set {
-		phone = cleanOptional(input.Phone.Value)
+		phone = optional.Trimmed(input.Phone.Value)
 	}
 	if input.MatriculationNumber.Set {
-		matriculation = cleanOptional(input.MatriculationNumber.Value)
+		matriculation = optional.Trimmed(input.MatriculationNumber.Value)
 	}
 	if err := validate(firstName, lastName, email, phone, matriculation); err != nil {
 		return Person{}, err
@@ -391,7 +394,7 @@ func (s *Service) Delete(
 		return apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -499,11 +502,12 @@ func (s *Service) PutProfileImage(
 	if s.files == nil {
 		return Person{}, errors.New("file storage is unavailable")
 	}
-	if !principal.Has(authorization.PeopleProfileImageUpdateAll) && (principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageUpdateSelf)) {
+	if !principal.Has(authorization.PeopleProfileImageUpdateAll) &&
+		(principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageUpdateSelf)) {
 		return Person{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return Person{}, validation("expectedVersion must be positive")
+		return Person{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	if source == "" {
 		if principal.PersonID == id {
@@ -513,7 +517,7 @@ func (s *Service) PutProfileImage(
 		}
 	}
 	if source != "terminal_capture" && source != "self_upload" && source != "admin_upload" {
-		return Person{}, validation("profile image source is invalid")
+		return Person{}, apperror.InvalidField("profile image source is invalid")
 	}
 	if source == "self_upload" && principal.PersonID != id {
 		source = "admin_upload"
@@ -605,7 +609,8 @@ func (s *Service) DeleteProfileImage(
 	if s.files == nil {
 		return errors.New("file storage is unavailable")
 	}
-	if !principal.Has(authorization.PeopleProfileImageRemoveAll) && (principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageRemoveSelf)) {
+	if !principal.Has(authorization.PeopleProfileImageRemoveAll) &&
+		(principal.PersonID != id || !principal.Has(authorization.PeopleProfileImageRemoveSelf)) {
 		return apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -692,7 +697,7 @@ func (s *Service) ChangeRole(
 		return Person{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return Person{}, validation("expectedVersion must be positive")
+		return Person{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -819,7 +824,11 @@ func ValidateProvisionedRoleTransfer(
 	}
 	for _, role := range roles {
 		if role.SystemKey != nil && *role.SystemKey == "master" {
-			return apperror.New(http.StatusConflict, "master_role_transfer", "SCIM reconciliation cannot transfer the master role")
+			return apperror.New(
+				http.StatusConflict,
+				"master_role_transfer",
+				"SCIM reconciliation cannot transfer the master role",
+			)
 		}
 		if _, err := authorizeRoleAssignment(ctx, queries, principal, role.ID); err != nil {
 			return err
@@ -847,7 +856,11 @@ func protectLastEnabledMaster(ctx context.Context, queries *peopledb.Queries, pe
 		return err
 	}
 	if count <= 1 {
-		return apperror.New(http.StatusConflict, "last_master_required", "At least one enabled master account must remain")
+		return apperror.New(
+			http.StatusConflict,
+			"last_master_required",
+			"At least one enabled master account must remain",
+		)
 	}
 	return nil
 }
@@ -923,20 +936,24 @@ func NormalizeProfileImage(reader io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if len(raw) == 0 || len(raw) > MaxProfileImageBytes {
-		return nil, apperror.New(http.StatusRequestEntityTooLarge, "profile_image_too_large", "Profile image exceeds 8 MiB")
+		return nil, apperror.New(
+			http.StatusRequestEntityTooLarge,
+			"profile_image_too_large",
+			"Profile image exceeds 8 MiB",
+		)
 	}
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil || (format != "jpeg" && format != "png" && format != "webp") {
-		return nil, validation("profile image must be a valid JPEG, PNG, or WebP image")
+		return nil, apperror.InvalidField("profile image must be a valid JPEG, PNG, or WebP image")
 	}
 	if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > 4096 ||
 		configuration.Height > 4096 ||
 		int64(configuration.Width)*int64(configuration.Height) > 16_000_000 {
-		return nil, validation("profile image dimensions exceed 4096x4096 or 16 megapixels")
+		return nil, apperror.InvalidField("profile image dimensions exceed 4096x4096 or 16 megapixels")
 	}
 	decoded, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
-		return nil, validation("profile image could not be decoded")
+		return nil, apperror.InvalidField("profile image could not be decoded")
 	}
 	width, height := configuration.Width, configuration.Height
 	if width > 1024 || height > 1024 {
@@ -957,34 +974,23 @@ func normalizeProfileImage(reader io.Reader) ([]byte, error) { return NormalizeP
 func validate(firstName, lastName string, email, phone, matriculation *string) error {
 	firstName, lastName = strings.TrimSpace(firstName), strings.TrimSpace(lastName)
 	if firstName == "" || lastName == "" || len([]rune(firstName)) > 100 || len([]rune(lastName)) > 100 {
-		return validation("firstName and lastName are required and limited to 100 characters")
+		return apperror.InvalidField("firstName and lastName are required and limited to 100 characters")
 	}
 	if email == nil && phone == nil {
-		return validation("at least one contact method is required")
+		return apperror.InvalidField("at least one contact method is required")
 	}
 	if email != nil {
 		if _, _, err := security.NormalizeEmail(*email); err != nil {
-			return validation("email is invalid")
+			return apperror.InvalidField("email is invalid")
 		}
 	}
 	if phone != nil && (strings.TrimSpace(*phone) == "" || len([]rune(*phone)) > 64) {
-		return validation("phone is invalid")
+		return apperror.InvalidField("phone is invalid")
 	}
 	if matriculation != nil && (strings.TrimSpace(*matriculation) == "" || len([]rune(*matriculation)) > 64) {
-		return validation("matriculationNumber is invalid")
+		return apperror.InvalidField("matriculationNumber is invalid")
 	}
 	return nil
-}
-
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	clean := strings.TrimSpace(*value)
-	if clean == "" {
-		return nil
-	}
-	return &clean
 }
 
 func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Person {
@@ -1086,12 +1092,6 @@ func databaseError(err error) error {
 	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503") {
 		return apperror.Conflict
 	}
-	return err
-}
-
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
 	return err
 }
 

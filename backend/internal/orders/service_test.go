@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -20,7 +22,7 @@ import (
 func TestFinancialPermissionsBeforePersistence(t *testing.T) {
 	s := NewService(nil, nil)
 	p := authorization.Principal{}
-	id := newID()
+	id := ids.New()
 	ctx := t.Context()
 	tests := map[string]func() error{
 		"read": func() error { _, e := s.Get(ctx, p, id); return e }, "list": func() error { _, e := s.List(ctx, p, "", "", 1, 25); return e }, "create": func() error { _, e := s.Create(ctx, p, OrderDraftInput{}, nil); return e }, "edit": func() error { _, e := s.Update(ctx, p, id, UpdateOrderDraftInput{}, nil); return e }, "items": func() error { _, e := s.ChangeItem(ctx, p, id, id, OrderItemInput{}, "add", nil); return e }, "finalize": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "finalize", nil); return e }, "reverse": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "reverse", nil); return e }, "payments": func() error { _, e := s.RecordPayment(ctx, p, id, RecordOrderPayment{}, nil); return e }, "payment reverse": func() error { _, e := s.ReversePayment(ctx, p, id, ReversePaymentCommand{}, nil); return e }, "payment read": func() error { _, e := s.GetPayment(ctx, p, id); return e }, "journal": func() error { _, e := s.ListPayments(ctx, p, "", nil, nil, 1, 25); return e }, "reconcile": func() error { _, e := s.Reconciliation(ctx, p, "", nil, nil, 1, 25); return e }, "request create": func() error { _, e := s.CreateRequest(ctx, p, id, CreateInvoiceRequest{}, nil); return e }, "request read": func() error { _, e := s.GetRequest(ctx, p, id); return e }, "request list": func() error { _, e := s.ListRequests(ctx, p, "", "", nil, 1, 25); return e }, "request update": func() error { _, e := s.UpdateRequest(ctx, p, id, UpdateInvoiceRequest{}, nil); return e }, "request return": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "return", nil); return e }, "request forward": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "forward", nil); return e }, "cash movement": func() error { _, e := s.CreateCashMovement(ctx, p, CashMovementInput{}, nil); return e }, "cash movements": func() error { _, e := s.ListCashMovements(ctx, p, "", nil, nil, 1, 25); return e }, "cash register": func() error { _, e := s.CashRegister(ctx, p, nil); return e }, "request command": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "submit", nil); return e }, "requirements": func() error { _, e := s.UpdateRequirements(ctx, p, id, UpdateInvoicingRequirements{}, nil); return e }, "association": func() error { _, e := s.JobAssociation(ctx, p, id); return e }}
@@ -69,7 +71,7 @@ func newFixture(t *testing.T) *fixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	schema := "orders_test_" + strings.ReplaceAll(newID().String(), "-", "")
+	schema := "orders_test_" + strings.ReplaceAll(ids.New().String(), "-", "")
 	if _, e = admin.Exec(ctx, "CREATE SCHEMA "+schema); e != nil {
 		t.Fatal(e)
 	}
@@ -102,8 +104,8 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatalf("migrate %s: %v", path, e)
 		}
 	}
-	f := &fixture{pool: pool, person: newID(), organization: newID(), request: newID()}
-	account := newID()
+	f := &fixture{pool: pool, person: ids.New(), organization: ids.New(), request: ids.New()}
+	account := ids.New()
 	if _, e = pool.Exec(
 		ctx,
 		"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Financial','Operator','finance@example.test')",
@@ -195,7 +197,7 @@ func (f *fixture) draft(t *testing.T, named bool, amount string) Order {
 	return o
 }
 func cmd(o Order) OrderCommand {
-	return OrderCommand{OperationKey: newID(), ExpectedVersion: o.Version}
+	return OrderCommand{OperationKey: ids.New(), ExpectedVersion: o.Version}
 }
 func receipt(method, amount string) PaymentInput {
 	return PaymentInput{
@@ -203,7 +205,7 @@ func receipt(method, amount string) PaymentInput {
 		Amount:            amount,
 		OccurredAt:        time.Now().UTC(),
 		ExternalSource:    "Terminal 1",
-		ExternalReference: newID().String(),
+		ExternalReference: ids.New().String(),
 	}
 }
 func TestOrderPaymentsReplacementAndImmutability(t *testing.T) {
@@ -227,7 +229,7 @@ func TestOrderPaymentsReplacementAndImmutability(t *testing.T) {
 	) {
 		t.Fatalf("finalized edit accepted: %v", e)
 	}
-	input := RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "4")}
+	input := RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "4")}
 	paid, e := f.s.RecordPayment(ctx, f.p, o.ID, input, &f.request)
 	if e != nil {
 		t.Fatal(e)
@@ -244,7 +246,7 @@ func TestOrderPaymentsReplacementAndImmutability(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: paid.Version, Payment: receipt("card", "6")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: paid.Version, Payment: receipt("card", "6")},
 		&f.request,
 	)
 	if e != nil {
@@ -319,7 +321,7 @@ func TestAnonymousCheckoutRollbackAndCustomerDeletion(t *testing.T) {
 		f.p,
 		id,
 		ReversePaymentCommand{
-			OperationKey:    newID(),
+			OperationKey:    ids.New(),
 			ExpectedVersion: o.Version,
 			Reversal: PaymentReversalInput{
 				PaymentID:  id,
@@ -396,7 +398,7 @@ func TestConcurrentReceiptsAndAuditRollback(t *testing.T) {
 				context.Background(),
 				f.p,
 				o.ID,
-				RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "7")},
+				RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "7")},
 				&f.request,
 			)
 			results <- err

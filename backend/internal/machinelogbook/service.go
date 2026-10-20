@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -530,7 +529,7 @@ type StatisticMachine struct {
 
 func pageBounds(page, pageSize int) (int32, int32, error) {
 	if page < 1 || pageSize < 1 || pageSize > 100 {
-		return 0, 0, validation("page must be positive and pageSize must be between 1 and 100")
+		return 0, 0, apperror.Invalid("page must be positive and pageSize must be between 1 and 100")
 	}
 	return int32((page - 1) * pageSize), int32(pageSize), nil
 }
@@ -545,28 +544,15 @@ func require(p authorization.Principal, permission authorization.Permission) err
 func validateName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 200 {
-		return "", validation("name must be between 1 and 200 characters")
+		return "", apperror.Invalid("name must be between 1 and 200 characters")
 	}
 	return name, nil
 }
 
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	v := strings.TrimSpace(*value)
-	if v == "" {
-		return nil
-	}
-	return &v
-}
-
-func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
-
 func parseDecimal(value string, positive bool) (decimal.Decimal, error) {
 	d, err := decimal.NewFromString(strings.TrimSpace(value))
 	if err != nil || (positive && !d.IsPositive()) {
-		return decimal.Zero, validation("invalid decimal value")
+		return decimal.Zero, apperror.Invalid("invalid decimal value")
 	}
 	return d, nil
 }
@@ -615,17 +601,12 @@ func pgNullableNumeric(value *string, positive bool) (pgtype.Numeric, error) {
 	return numericFromString(*value, positive)
 }
 
-func validation(message string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
-}
-func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
-
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23505":
-			return conflict("already_exists", "A conflicting resource already exists")
+			return apperror.Conflicting("already_exists", "A conflicting resource already exists")
 		case "23503", "23514":
 			return apperror.Conflict
 		}

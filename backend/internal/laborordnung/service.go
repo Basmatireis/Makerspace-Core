@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
@@ -80,18 +83,22 @@ func (s *Service) CreateVersion(
 	}
 	revision = strings.TrimSpace(revision)
 	if revision == "" || len([]rune(revision)) > 100 {
-		return Version{}, validation("human revision is required and limited to 100 characters")
+		return Version{}, apperror.InvalidField("human revision is required and limited to 100 characters")
 	}
 	data, err := io.ReadAll(io.LimitReader(reader, MaxPDFBytes+1))
 	if err != nil {
 		return Version{}, err
 	}
 	if len(data) == 0 || len(data) > MaxPDFBytes {
-		return Version{}, apperror.New(http.StatusRequestEntityTooLarge, "laborordnung_pdf_too_large", "Lab Rules PDF exceeds 25 MiB")
+		return Version{}, apperror.New(
+			http.StatusRequestEntityTooLarge,
+			"laborordnung_pdf_too_large",
+			"Lab Rules PDF exceeds 25 MiB",
+		)
 	}
 	parsed, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil || parsed.NumPage() < 1 {
-		return Version{}, validation("uploaded content is not a parseable PDF with at least one page")
+		return Version{}, apperror.InvalidField("uploaded content is not a parseable PDF with at least one page")
 	}
 	stored, err := s.files.StoreBytes(ctx, principal, filename, "application/pdf", data, requestID)
 	if err != nil {
@@ -108,7 +115,7 @@ func (s *Service) CreateVersion(
 		return Version{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	actor := principal.AccountID
 	row, err := laborordnungdb.New(tx).CreateVersion(ctx, laborordnungdb.CreateVersionParams{
 		ID: id, HumanRevision: revision, PdfFileID: stored.ID, PdfSha256: stored.SHA256[:], CreatedByAccountID: &actor,
@@ -163,7 +170,7 @@ func (s *Service) Publish(
 		return Version{}, apperror.PermissionDenied
 	}
 	if effectiveAt.IsZero() {
-		return Version{}, validation("effectiveAt is required")
+		return Version{}, apperror.InvalidField("effectiveAt is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -179,7 +186,11 @@ func (s *Service) Publish(
 			},
 		)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Version{}, apperror.New(http.StatusConflict, "laborordnung_not_draft", "Only an existing draft can be published")
+		return Version{}, apperror.New(
+			http.StatusConflict,
+			"laborordnung_not_draft",
+			"Only an existing draft can be published",
+		)
 	}
 	if err != nil {
 		return Version{}, err
@@ -313,7 +324,11 @@ func (s *Service) RequestOwnConfirmation(
 		return Request{}, false, err
 	}
 	if mode == "not_required" {
-		return Request{}, false, apperror.New(http.StatusConflict, "lab_rules_not_required", "Lab Rules confirmation is not required")
+		return Request{}, false, apperror.New(
+			http.StatusConflict,
+			"lab_rules_not_required",
+			"Lab Rules confirmation is not required",
+		)
 	}
 	current, err := queries.GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -328,7 +343,11 @@ func (s *Service) RequestOwnConfirmation(
 	}
 	completed, completedErr := queries.GetLatestCompletedRequest(ctx, principal.PersonID)
 	if completedErr == nil && completed.RequiredVersionID == current.ID {
-		return Request{}, false, apperror.New(http.StatusConflict, "lab_rules_current", "The current Lab Rules are already confirmed")
+		return Request{}, false, apperror.New(
+			http.StatusConflict,
+			"lab_rules_current",
+			"The current Lab Rules are already confirmed",
+		)
 	}
 	if completedErr != nil && !errors.Is(completedErr, pgx.ErrNoRows) {
 		return Request{}, false, completedErr
@@ -356,7 +375,7 @@ func (s *Service) RequestOwnConfirmation(
 		previous = &completed.RequiredVersionID
 	}
 	created, err := queries.CreateRequest(ctx, laborordnungdb.CreateRequestParams{
-		ID: uuid.Must(uuid.NewV7()), PersonID: principal.PersonID,
+		ID: ids.New(), PersonID: principal.PersonID,
 		RequiredVersionID: current.ID, PreviousVersionID: previous,
 	})
 	if err != nil {
@@ -420,11 +439,11 @@ func (s *Service) Confirm(
 	}
 	reference = strings.TrimSpace(reference)
 	if reference == "" || len([]rune(reference)) > 255 {
-		return Request{}, validation("physical document reference is required and limited to 255 characters")
+		return Request{}, apperror.InvalidField("physical document reference is required and limited to 255 characters")
 	}
-	archiveNote = cleanOptional(archiveNote)
+	archiveNote = optional.Trimmed(archiveNote)
 	if archiveNote != nil && len([]rune(*archiveNote)) > 1000 {
-		return Request{}, validation("archive note is too long")
+		return Request{}, apperror.InvalidField("archive note is too long")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -544,21 +563,4 @@ func versionFromRow(row laborordnungdb.LaborordnungVersion) Version {
 		result.PublishedAt = &row.PublishedAt.Time
 	}
 	return result
-}
-
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	clean := strings.TrimSpace(*value)
-	if clean == "" {
-		return nil
-	}
-	return &clean
-}
-
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
-	return err
 }

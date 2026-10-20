@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -44,7 +46,7 @@ func newLiveRunHarness(t *testing.T) *runHarness {
 func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 	t.Helper()
 	f := newJobFixtureAt(t, now)
-	h := &runHarness{jobFixture: f, connectorID: uuid.Must(uuid.NewV7()), assignments: map[uuid.UUID]uuid.UUID{}}
+	h := &runHarness{jobFixture: f, connectorID: ids.New(), assignments: map[uuid.UUID]uuid.UUID{}}
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(h.connectorID.String(), "-", "")[:12]
 	if _, err := f.pool.Exec(
@@ -84,7 +86,7 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 		}
 	})
 	for _, machineID := range []uuid.UUID{f.machine.ID, f.bareMachine.ID} {
-		assignmentID := uuid.Must(uuid.NewV7())
+		assignmentID := ids.New()
 		if _, err := f.pool.Exec(ctx, `INSERT INTO printer_profiles (machine_id) VALUES ($1)`, machineID); err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +142,7 @@ func at(base time.Time, offset time.Duration) *time.Time {
 func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	first := h.now.Truncate(time.Second).Add(-5 * time.Hour)
 	if spec.started != nil {
 		first = *spec.started
@@ -208,7 +210,7 @@ func (h *runHarness) insertEvent(
 ) uuid.UUID {
 	t.Helper()
 	h.sequence++
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	assignmentID := h.assignments[machineID]
 	var revision any
 	if kind == "consumption_report" {
@@ -385,7 +387,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	if _, err := h.s.AttachRun(
 		ctx,
 		h.p,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		job.ID,
 		true,
 		job.Version,
@@ -617,7 +619,7 @@ func TestUnassignedRecordedRunConsumesAndCanBecomeAJob(t *testing.T) {
 	if _, err = h.s.CreateJobFromRun(ctx, h.p, runID, in, &h.request); !apperror.IsCode(err, "run_already_assigned") {
 		t.Fatalf("second create: %v", err)
 	}
-	if _, err = h.s.CreateJobFromRun(ctx, h.p, uuid.Must(uuid.NewV7()), in, &h.request); !apperror.IsCode(
+	if _, err = h.s.CreateJobFromRun(ctx, h.p, ids.New(), in, &h.request); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -816,7 +818,7 @@ func TestListAndGetRuns(t *testing.T) {
 	) {
 		t.Fatalf("get without read: %v", err)
 	}
-	if _, err = h.s.GetRun(ctx, h.p, uuid.Must(uuid.NewV7())); !apperror.IsCode(err, "not_found") {
+	if _, err = h.s.GetRun(ctx, h.p, ids.New()); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("unknown run: %v", err)
 	}
 }

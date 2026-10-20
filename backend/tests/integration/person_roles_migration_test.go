@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -22,7 +24,7 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 
 	actor := seedAccount(t, pool, "role-migration-actor", false)
 	target := seedAccount(t, pool, "role-migration-target", false)
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	assignedAt := time.Date(2026, time.October, 4, 9, 15, 0, 123000000, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO roles(id,name) VALUES($1,'Migrated membership');
@@ -59,7 +61,7 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE permission_id='people.roles.assign'`, 1)
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE permission_id='accounts.roles.assign'`, 0)
 
-	accountlessID := uuid.Must(uuid.NewV7())
+	accountlessID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Migration','Accountless','migration-accountless@example.test');
 		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, accountlessID, roleID); err != nil {

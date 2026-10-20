@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -26,18 +28,18 @@ func laborordnungPrincipal(t *testing.T, permissions ...authorization.Permission
 	rows := make([]authorizationdb.GetPrincipalRolePermissionsRow, 0, len(permissions))
 	for _, permission := range permissions {
 		permissionID := string(permission)
-		grantID := uuid.Must(uuid.NewV7())
+		grantID := ids.New()
 		scope := string(authorization.GrantEverywhere)
 		minimum := string(authorization.AssuranceLow)
 		rows = append(rows, authorizationdb.GetPrincipalRolePermissionsRow{
-			RoleID: uuid.Must(uuid.NewV7()), GrantID: &grantID, PermissionID: &permissionID,
+			RoleID: ids.New(), GrantID: &grantID, PermissionID: &permissionID,
 			Scope: &scope, MinimumAssurance: &minimum,
 		})
 	}
 	principal, err := authorization.LoadPermissions(
 		t.Context(),
 		personStatusPermissionsStub{rows: rows},
-		authorization.Principal{AccountID: uuid.Must(uuid.NewV7())},
+		authorization.Principal{AccountID: ids.New()},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +48,7 @@ func laborordnungPrincipal(t *testing.T, permissions ...authorization.Permission
 }
 
 func TestEvaluateForPersonRequiresBothPersonAndRequestRead(t *testing.T) {
-	personID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
 	service := NewService(nil, nil)
 
 	for name, principal := range map[string]authorization.Principal{

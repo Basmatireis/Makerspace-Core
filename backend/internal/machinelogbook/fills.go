@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -54,14 +57,14 @@ func (s *Service) lockConsumableFill(
 		return spool, fillRef{}, decimal.Zero, noRows(err)
 	}
 	if spool.Lifecycle != "active" {
-		return spool, fillRef{}, decimal.Zero, conflict(
+		return spool, fillRef{}, decimal.Zero, apperror.Conflicting(
 			"spool_not_consumable",
 			"The spool is archived or has no open fill",
 		)
 	}
 	fill, err := q.GetOpenFilamentSpoolFill(ctx, spoolID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return spool, fillRef{}, decimal.Zero, conflict(
+		return spool, fillRef{}, decimal.Zero, apperror.Conflicting(
 			"spool_not_consumable",
 			"The spool is archived or has no open fill",
 		)
@@ -112,10 +115,10 @@ func (s *Service) insertFillTransferRow(
 	}
 	actor := p.AccountID
 	params := machinelogbookdb.InsertSpoolTransferParams{
-		ID:               newID(),
+		ID:               ids.New(),
 		MaterialID:       materialID,
 		OccurredAt:       occurredAt.UTC(),
-		Note:             cleanOptional(note),
+		Note:             optional.Trimmed(note),
 		ActorAccountID:   &actor,
 		TransferQuantity: numericFromDecimal(quantity),
 	}
@@ -176,7 +179,7 @@ func (s *Service) checkFillMaterialAndProduct(
 		return nil, nil, noRows(err)
 	}
 	if detail.Unit != "g" || !detail.DiameterMm.Valid {
-		return nil, nil, conflict(
+		return nil, nil, apperror.Conflicting(
 			"material_not_filament",
 			"Spools require a gram-denominated material with filament properties",
 		)
@@ -186,7 +189,7 @@ func (s *Service) checkFillMaterialAndProduct(
 	}
 	product, err := q.GetFilamentProduct(ctx, *productID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, validation("productId does not exist")
+		return nil, nil, apperror.Invalid("productId does not exist")
 	}
 	if err != nil {
 		return nil, nil, err
@@ -195,7 +198,7 @@ func (s *Service) checkFillMaterialAndProduct(
 		return nil, nil, unprocessable("product_inactive", "The product is inactive")
 	}
 	if product.MaterialID != materialID {
-		return nil, nil, validation("materialId must be the product's material")
+		return nil, nil, apperror.Invalid("materialId must be the product's material")
 	}
 	if manufacturer == nil {
 		manufacturer = &product.Manufacturer
@@ -220,11 +223,11 @@ func planLeftover(tare pgtype.Numeric, remaining decimal.Decimal, in LeftoverInp
 		plan.Leftover = decimal.Max(remaining, decimal.Zero)
 	case "weighed":
 		if in.GrossWeightG == nil {
-			return plan, validation("grossWeightG is required for a weighed leftover")
+			return plan, apperror.Invalid("grossWeightG is required for a weighed leftover")
 		}
 		gross, err := parseDecimal(*in.GrossWeightG, false)
 		if err != nil || gross.IsNegative() {
-			return plan, validation("grossWeightG must be non-negative")
+			return plan, apperror.Invalid("grossWeightG must be non-negative")
 		}
 		if !tare.Valid {
 			return plan, unprocessable("tare_required", "The spool needs a tare weight to weigh the leftover")
@@ -234,10 +237,10 @@ func planLeftover(tare pgtype.Numeric, remaining decimal.Decimal, in LeftoverInp
 		plan.Leftover = decimal.Zero
 		plan.Reason = "mark_empty"
 	default:
-		return plan, validation("invalid leftover basis")
+		return plan, apperror.Invalid("invalid leftover basis")
 	}
 	if in.Disposition != nil && *in.Disposition != "returned_to_stock" && *in.Disposition != "disposed" {
-		return plan, validation("invalid leftover disposition")
+		return plan, apperror.Invalid("invalid leftover disposition")
 	}
 	if plan.Leftover.IsPositive() {
 		if in.Disposition == nil {
@@ -375,7 +378,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 		return FilamentSpool{}, err
 	}
 	if in.ExpectedVersion < 1 || in.OccurredAt.IsZero() {
-		return FilamentSpool{}, validation("occurredAt and expectedVersion are required")
+		return FilamentSpool{}, apperror.Invalid("occurredAt and expectedVersion are required")
 	}
 	weight, err := parseDecimal(in.Fill.NetWeightG, true)
 	if err != nil {
@@ -386,14 +389,14 @@ func (s *Service) ChangeFilamentSpoolFill(
 	case "loose_stock":
 	case "purchase":
 		if in.Fill.TotalPrice == nil {
-			return FilamentSpool{}, validation("totalPrice is required for a purchase")
+			return FilamentSpool{}, apperror.Invalid("totalPrice is required for a purchase")
 		}
 		price, err = parseDecimal(*in.Fill.TotalPrice, false)
 		if err != nil || price.IsNegative() {
-			return FilamentSpool{}, validation("totalPrice must be non-negative")
+			return FilamentSpool{}, apperror.Invalid("totalPrice must be non-negative")
 		}
 	default:
-		return FilamentSpool{}, validation("invalid fill source")
+		return FilamentSpool{}, apperror.Invalid("invalid fill source")
 	}
 	supplier, err := validateOptionalText(in.Fill.Supplier, "supplier", 200)
 	if err != nil {
@@ -408,13 +411,13 @@ func (s *Service) ChangeFilamentSpoolFill(
 		return FilamentSpool{}, err
 	}
 	if len(in.KeepIdentifierIDs) > 20 || len(in.NewIdentifiers) > 20 {
-		return FilamentSpool{}, validation("too many identifiers")
+		return FilamentSpool{}, apperror.Invalid("too many identifiers")
 	}
 	newIdentifiers := make([]NewSpoolIdentifier, 0, len(in.NewIdentifiers))
 	for _, identifier := range in.NewIdentifiers {
 		value := strings.TrimSpace(identifier.Value)
 		if !validIdentifierKind(identifier.Kind) || value == "" || len(value) > 255 {
-			return FilamentSpool{}, validation("invalid spool identifier")
+			return FilamentSpool{}, apperror.Invalid("invalid spool identifier")
 		}
 		newIdentifiers = append(newIdentifiers, NewSpoolIdentifier{Kind: identifier.Kind, Value: value})
 	}
@@ -430,10 +433,10 @@ func (s *Service) ChangeFilamentSpoolFill(
 		return FilamentSpool{}, noRows(err)
 	}
 	if spool.Kind != "reusable" {
-		return FilamentSpool{}, conflict("spool_not_reusable", "Only reusable spools can be refilled")
+		return FilamentSpool{}, apperror.Conflicting("spool_not_reusable", "Only reusable spools can be refilled")
 	}
 	if spool.Lifecycle == "archived" {
-		return FilamentSpool{}, conflict("spool_archived", "An archived spool cannot be refilled")
+		return FilamentSpool{}, apperror.Conflicting("spool_archived", "An archived spool cannot be refilled")
 	}
 	if spool.Version != in.ExpectedVersion {
 		return FilamentSpool{}, apperror.StaleWrite
@@ -462,7 +465,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 	for _, id := range in.KeepIdentifierIDs {
 		identifier, ok := activeByID[id]
 		if !ok || (hasOpen && identifier.FillID != open.ID) {
-			return FilamentSpool{}, validation("keepIdentifierIds must belong to the open fill")
+			return FilamentSpool{}, apperror.Invalid("keepIdentifierIds must belong to the open fill")
 		}
 		if !seenKept[id] {
 			seenKept[id] = true
@@ -491,7 +494,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 
 	if hasOpen {
 		if in.OccurredAt.Before(open.FilledAt) {
-			return FilamentSpool{}, validation("occurredAt must not precede the start of the open fill")
+			return FilamentSpool{}, apperror.Invalid("occurredAt must not precede the start of the open fill")
 		}
 		plan, planErr := planLeftover(spool.TareWeightG, decimalFromNumeric(open.RemainingQuantity), *in.Leftover)
 		if planErr != nil {
@@ -513,7 +516,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 	fill, err := q.InsertFilamentSpoolFill(
 		ctx,
 		machinelogbookdb.InsertFilamentSpoolFillParams{
-			ID:                newID(),
+			ID:                ids.New(),
 			SpoolID:           spoolID,
 			FillNumber:        number,
 			MaterialID:        in.Fill.MaterialID,
@@ -564,7 +567,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 	for i, identifier := range wanted {
 		key := identifier.Kind + "/" + strings.ToLower(identifier.Value)
 		if seen[key] {
-			return FilamentSpool{}, conflict("identifier_in_use", "An identifier is used twice")
+			return FilamentSpool{}, apperror.Conflicting("identifier_in_use", "An identifier is used twice")
 		}
 		seen[key] = true
 		if i >= len(kept) {
@@ -576,13 +579,16 @@ func (s *Service) ChangeFilamentSpoolFill(
 				return FilamentSpool{}, useErr
 			}
 			if inUse {
-				return FilamentSpool{}, conflict("identifier_in_use", "An identifier is already assigned to a fill")
+				return FilamentSpool{}, apperror.Conflicting(
+					"identifier_in_use",
+					"An identifier is already assigned to a fill",
+				)
 			}
 		}
 		if _, err = q.AddFilamentSpoolIdentifier(
 			ctx,
 			machinelogbookdb.AddFilamentSpoolIdentifierParams{
-				ID:      newID(),
+				ID:      ids.New(),
 				SpoolID: spoolID,
 				FillID:  fill.ID,
 				Kind:    identifier.Kind,
@@ -591,7 +597,10 @@ func (s *Service) ChangeFilamentSpoolFill(
 		); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return FilamentSpool{}, conflict("identifier_in_use", "An identifier is already assigned to a fill")
+				return FilamentSpool{}, apperror.Conflicting(
+					"identifier_in_use",
+					"An identifier is already assigned to a fill",
+				)
 			}
 			return FilamentSpool{}, databaseError(err)
 		}
@@ -637,7 +646,7 @@ func (s *Service) FinishFilamentSpool(
 		return FilamentSpool{}, err
 	}
 	if in.ExpectedVersion < 1 || in.OccurredAt.IsZero() {
-		return FilamentSpool{}, validation("occurredAt and expectedVersion are required")
+		return FilamentSpool{}, apperror.Invalid("occurredAt and expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -654,13 +663,13 @@ func (s *Service) FinishFilamentSpool(
 	}
 	open, err := q.GetOpenFilamentSpoolFill(ctx, spoolID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return FilamentSpool{}, conflict("no_open_fill", "The spool has no open fill")
+		return FilamentSpool{}, apperror.Conflicting("no_open_fill", "The spool has no open fill")
 	}
 	if err != nil {
 		return FilamentSpool{}, err
 	}
 	if in.OccurredAt.Before(open.FilledAt) {
-		return FilamentSpool{}, validation("occurredAt must not precede the start of the open fill")
+		return FilamentSpool{}, apperror.Invalid("occurredAt must not precede the start of the open fill")
 	}
 	plan, err := planLeftover(spool.TareWeightG, decimalFromNumeric(open.RemainingQuantity), in.Leftover)
 	if err != nil {
@@ -745,7 +754,7 @@ func (s *Service) CleanUpFilamentSpools(
 		return nil, false, err
 	}
 	if !validCleanupMonths(olderThanMonths) {
-		return nil, false, validation("olderThanMonths must be 1, 3, 6 or 12")
+		return nil, false, apperror.Invalid("olderThanMonths must be 1, 3, 6 or 12")
 	}
 	cutoff := pgTimestamp(s.now().AddDate(0, -olderThanMonths, 0))
 	if dryRun {
@@ -768,7 +777,7 @@ func (s *Service) CleanUpFilamentSpools(
 		return items, false, nil
 	}
 	if len(spoolIDs) == 0 {
-		return nil, false, validation("spoolIds is required without dryRun")
+		return nil, false, apperror.Invalid("spoolIds is required without dryRun")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -788,7 +797,7 @@ func (s *Service) CleanUpFilamentSpools(
 		if _, err = q.DeleteFilamentSpool(ctx, row.ID); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return nil, false, conflict(
+				return nil, false, apperror.Conflicting(
 					"spool_cleanup_conflict",
 					"A job already has an unassigned usage of the same material",
 				)

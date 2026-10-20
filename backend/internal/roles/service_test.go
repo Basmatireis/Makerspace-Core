@@ -5,15 +5,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/google/uuid"
 )
 
 func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T) {
 	service := NewService(nil)
-	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
-	roleID := uuid.Must(uuid.NewV7())
+	principal := authorization.Principal{Master: true, AccountID: ids.New()}
+	roleID := ids.New()
 	name := "renamed"
 
 	tests := []struct {
@@ -44,11 +46,11 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 
 func TestCleanOptionalDescription(t *testing.T) {
 	spaces := strings.Repeat(" ", 501)
-	if got := cleanOptional(&spaces); got != nil {
+	if got := optional.Trimmed(&spaces); got != nil {
 		t.Fatalf("whitespace-only description normalized to %q, want nil", *got)
 	}
 	padded := "  description  "
-	if got := cleanOptional(&padded); got == nil || *got != "description" {
+	if got := optional.Trimmed(&padded); got == nil || *got != "description" {
 		t.Fatalf("padded description normalized to %v, want description", got)
 	}
 }

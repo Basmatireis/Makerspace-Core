@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -194,11 +196,6 @@ type EventReceipt struct {
 	ReasonCode  *string
 }
 
-func validation(message string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
-}
-func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
-
 func nullableTime(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -215,18 +212,18 @@ func validateAssignmentContract(
 	creating bool,
 ) (json.RawMessage, map[string]string, error) {
 	if version != 1 {
-		return nil, nil, validation("unsupported adapter schema version")
+		return nil, nil, apperror.Invalid("unsupported adapter schema version")
 	}
 	if len(settings) == 0 {
 		settings = json.RawMessage(`{}`)
 	}
 	if len(settings) > 32768 {
-		return nil, nil, validation("settings must be a bounded JSON object")
+		return nil, nil, apperror.Invalid("settings must be a bounded JSON object")
 	}
 	if !isBambuLANAdapter(kind) {
 		var object map[string]any
 		if json.Unmarshal(settings, &object) != nil || object == nil {
-			return nil, nil, validation("settings must be a bounded JSON object")
+			return nil, nil, apperror.Invalid("settings must be a bounded JSON object")
 		}
 		return settings, secrets, nil
 	}
@@ -238,38 +235,40 @@ func validateAssignmentContract(
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 ||
 		len(raw) > 3 {
-		return nil, nil, validation(kind + " settings require ipAddress, serialNumber, and optional autoDetectSpools")
+		return nil, nil, apperror.Invalid(
+			kind + " settings require ipAddress, serialNumber, and optional autoDetectSpools",
+		)
 	}
 	for key := range raw {
 		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
-			return nil, nil, validation(kind + " settings contain an unsupported field")
+			return nil, nil, apperror.Invalid(kind + " settings contain an unsupported field")
 		}
 	}
 	if encoded, ok := raw["autoDetectSpools"]; ok {
 		var enabled bool
 		if json.Unmarshal(encoded, &enabled) != nil {
-			return nil, nil, validation("autoDetectSpools must be a boolean")
+			return nil, nil, apperror.Invalid("autoDetectSpools must be a boolean")
 		}
 	}
 	addr, err := netip.ParseAddr(strings.TrimSpace(value.IPAddress))
 	if err != nil || !addr.Is4() || !addr.IsGlobalUnicast() && !addr.IsLinkLocalUnicast() {
-		return nil, nil, validation("ipAddress must be an IPv4 unicast literal")
+		return nil, nil, apperror.Invalid("ipAddress must be an IPv4 unicast literal")
 	}
 	serial := strings.ToUpper(strings.TrimSpace(value.SerialNumber))
 	if !bambuSerialPattern.MatchString(serial) {
-		return nil, nil, validation("serialNumber must be an 8 to 32 character Bambu serial")
+		return nil, nil, apperror.Invalid("serialNumber must be an 8 to 32 character Bambu serial")
 	}
 	for key := range secrets {
 		if key != "lanAccessCode" {
-			return nil, nil, validation(kind + " secrets contain only lanAccessCode")
+			return nil, nil, apperror.Invalid(kind + " secrets contain only lanAccessCode")
 		}
 	}
 	code := strings.TrimSpace(secrets["lanAccessCode"])
 	if creating && code == "" {
-		return nil, nil, validation("lanAccessCode is required")
+		return nil, nil, apperror.Invalid("lanAccessCode is required")
 	}
 	if len(code) > 128 {
-		return nil, nil, validation("lanAccessCode is invalid")
+		return nil, nil, apperror.Invalid("lanAccessCode is invalid")
 	}
 	normalized, err := json.Marshal(struct {
 		IPAddress        string `json:"ipAddress"`
@@ -316,7 +315,7 @@ func connectorFrom(row db.PrinterConnector) Connector {
 func normalizeName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 {
-		return "", validation("name is required and limited to 120 characters")
+		return "", apperror.Invalid("name is required and limited to 120 characters")
 	}
 	return name, nil
 }
@@ -327,7 +326,7 @@ func normalizeLocation(value *string) (*string, error) {
 	}
 	clean := strings.TrimSpace(*value)
 	if clean == "" || len(clean) > 200 {
-		return nil, validation("locationLabel must be non-empty and limited to 200 characters")
+		return nil, apperror.Invalid("locationLabel must be non-empty and limited to 200 characters")
 	}
 	return &clean, nil
 }
@@ -355,7 +354,7 @@ func (s *Service) Create(
 		return Connector{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := db.New(tx).CreateConnector(ctx, db.CreateConnectorParams{ID: id, Name: name, LocationLabel: location})
 	if err != nil {
 		return Connector{}, databaseError(err)
@@ -523,13 +522,13 @@ func (s *Service) Update(
 		return Connector{}, err
 	}
 	if current.Lifecycle == "revoked" {
-		return Connector{}, conflict("printer_connector_revoked", "A revoked connector cannot be updated")
+		return Connector{}, apperror.Conflicting("printer_connector_revoked", "A revoked connector cannot be updated")
 	}
 	lifecycle := current.Lifecycle
 	var disabledAt *time.Time
 	if lifecycle == "pending" {
 		if !enabled {
-			return Connector{}, validation("A pending connector cannot be disabled before enrollment")
+			return Connector{}, apperror.Invalid("A pending connector cannot be disabled before enrollment")
 		}
 	} else if enabled {
 		lifecycle = "active"
@@ -605,13 +604,16 @@ func (s *Service) IssueEnrollment(
 	// Pending connectors are enrolled for the first time; active and disabled ones are re-enrolled
 	// (new host, lost data volume). Their current credential stays valid until the secret is used.
 	if connector.Lifecycle == "revoked" {
-		return EnrollmentIssue{}, conflict("printer_connector_revoked", "A revoked connector cannot be enrolled")
+		return EnrollmentIssue{}, apperror.Conflicting(
+			"printer_connector_revoked",
+			"A revoked connector cannot be enrolled",
+		)
 	}
 	if err = q.RevokeOpenEnrollments(ctx, id); err != nil {
 		return EnrollmentIssue{}, err
 	}
 	expires := time.Now().UTC().Add(enrollmentTTL).Truncate(time.Microsecond)
-	enrollmentID := uuid.Must(uuid.NewV7())
+	enrollmentID := ids.New()
 	actor := principal.AccountID
 	if _, err = q.CreateEnrollment(
 		ctx,
@@ -667,7 +669,7 @@ func (s *Service) Enroll(
 	}
 	softwareVersion = strings.TrimSpace(softwareVersion)
 	if softwareVersion == "" || len(softwareVersion) > 80 || protocolVersion != 1 {
-		return EnrollmentResult{}, validation("unsupported connector identity or protocol version")
+		return EnrollmentResult{}, apperror.Invalid("unsupported connector identity or protocol version")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -691,7 +693,7 @@ func (s *Service) Enroll(
 		if enrollment.CredentialFingerprint == nil || *enrollment.CredentialFingerprint != fingerprint ||
 			enrollment.AcceptedCredentialID == nil ||
 			*enrollment.AcceptedCredentialID != credentialID {
-			return EnrollmentResult{}, conflict(
+			return EnrollmentResult{}, apperror.Conflicting(
 				"enrollment_replay_conflict",
 				"Enrollment was already consumed with different credentials",
 			)
@@ -720,7 +722,7 @@ func (s *Service) Enroll(
 		return EnrollmentResult{}, err
 	}
 	if current.Lifecycle == "revoked" {
-		return EnrollmentResult{}, conflict(
+		return EnrollmentResult{}, apperror.Conflicting(
 			"printer_connector_revoked",
 			"Connector cannot be enrolled in its current state",
 		)
@@ -762,7 +764,7 @@ func (s *Service) Enroll(
 		row, err = q.ActivateConnector(ctx, enrollment.ConnectorID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EnrollmentResult{}, conflict(
+		return EnrollmentResult{}, apperror.Conflicting(
 			"printer_connector_revoked",
 			"Connector cannot be enrolled in its current state",
 		)
@@ -942,7 +944,7 @@ func (s *Service) CreateAssignment(
 	}
 	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
-		return Assignment{}, validation("adapterKind and supported schema version are required")
+		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
 	}
 	var err error
 	input.Settings, input.Secrets, err = validateAssignmentContract(
@@ -958,23 +960,23 @@ func (s *Service) CreateAssignment(
 	var encrypted []byte
 	if len(input.Secrets) != 0 {
 		if s.keyring == nil {
-			return Assignment{}, conflict(
+			return Assignment{}, apperror.Conflicting(
 				"encryption_not_configured",
 				"Application encryption must be configured before storing printer credentials",
 			)
 		}
 		plain, err := json.Marshal(input.Secrets)
 		if err != nil {
-			return Assignment{}, validation("invalid printer secrets")
+			return Assignment{}, apperror.Invalid("invalid printer secrets")
 		}
-		assignmentID := uuid.Must(uuid.NewV7())
+		assignmentID := ids.New()
 		encrypted, err = s.keyring.Encrypt(plain, "printer-connector-assignment:"+assignmentID.String())
 		if err != nil {
 			return Assignment{}, err
 		}
 		return s.createAssignment(ctx, principal, connectorID, assignmentID, input, encrypted, requestID)
 	}
-	return s.createAssignment(ctx, principal, connectorID, uuid.Must(uuid.NewV7()), input, nil, requestID)
+	return s.createAssignment(ctx, principal, connectorID, ids.New(), input, nil, requestID)
 }
 
 func (s *Service) ListAssignments(
@@ -1034,7 +1036,7 @@ func (s *Service) UpdateAssignment(
 	}
 	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
-		return Assignment{}, validation("adapterKind and supported schema version are required")
+		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
 	}
 	providedSecrets := map[string]string{}
 	if input.Secrets != nil {
@@ -1068,21 +1070,24 @@ func (s *Service) UpdateAssignment(
 		return Assignment{}, err
 	}
 	if current.EndedAt.Valid {
-		return Assignment{}, conflict("printer_connector_assignment_ended", "An ended assignment cannot be updated")
+		return Assignment{}, apperror.Conflicting(
+			"printer_connector_assignment_ended",
+			"An ended assignment cannot be updated",
+		)
 	}
 	encrypted := current.EncryptedSecrets
 	if input.Secrets != nil && (!isBambuLANAdapter(input.AdapterKind) || len(providedSecrets) != 0) {
 		encrypted = nil
 		if len(providedSecrets) != 0 {
 			if s.keyring == nil {
-				return Assignment{}, conflict(
+				return Assignment{}, apperror.Conflicting(
 					"encryption_not_configured",
 					"Application encryption must be configured before storing printer credentials",
 				)
 			}
 			plain, marshalErr := json.Marshal(providedSecrets)
 			if marshalErr != nil {
-				return Assignment{}, validation("invalid printer secrets")
+				return Assignment{}, apperror.Invalid("invalid printer secrets")
 			}
 			encrypted, err = s.keyring.Encrypt(plain, "printer-connector-assignment:"+assignmentID.String())
 			if err != nil {
@@ -1249,7 +1254,7 @@ func (s *Service) RotateCredential(
 	credentialSecret string,
 ) (time.Time, error) {
 	if connector.Lifecycle != "active" || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
-		return time.Time{}, validation("valid connector credentials are required")
+		return time.Time{}, apperror.Invalid("valid connector credentials are required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1263,7 +1268,7 @@ func (s *Service) RotateCredential(
 	)
 	if existingErr == nil {
 		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || existing.State == "revoked" {
-			return time.Time{}, conflict(
+			return time.Time{}, apperror.Conflicting(
 				"credential_rotation_conflict",
 				"Credential identifier was reused with different credentials",
 			)
@@ -1336,7 +1341,10 @@ func (s *Service) createAssignment(
 		return Assignment{}, err
 	}
 	if connector.Lifecycle == "revoked" {
-		return Assignment{}, conflict("printer_connector_revoked", "A revoked connector cannot receive printers")
+		return Assignment{}, apperror.Conflicting(
+			"printer_connector_revoked",
+			"A revoked connector cannot receive printers",
+		)
 	}
 	row, err := q.CreateAssignment(
 		ctx,
@@ -1394,7 +1402,11 @@ func (s *Service) createAssignment(
 
 func (s *Service) Configuration(ctx context.Context, connector Context) (Configuration, error) {
 	if connector.Lifecycle != "active" && connector.Lifecycle != "disabled" {
-		return Configuration{}, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
+		return Configuration{}, apperror.New(
+			http.StatusForbidden,
+			"printer_connector_inactive",
+			"Connector is not active",
+		)
 	}
 	q := db.New(s.pool)
 	row, err := q.GetConnector(ctx, connector.ID)
@@ -1421,7 +1433,10 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 		secrets := map[string]string{}
 		if len(a.EncryptedSecrets) != 0 {
 			if s.keyring == nil {
-				return Configuration{}, conflict("encryption_not_configured", "Printer credentials cannot be decrypted")
+				return Configuration{}, apperror.Conflicting(
+					"encryption_not_configured",
+					"Printer credentials cannot be decrypted",
+				)
 			}
 			plain, decryptErr := s.keyring.Decrypt(a.EncryptedSecrets, "printer-connector-assignment:"+a.ID.String())
 			if decryptErr != nil {
@@ -1460,7 +1475,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 		input.AppliedConfigurationRevision < 0 ||
 		input.PendingEventCount < 0 ||
 		input.QuarantinedEventCount < 0 {
-		return Connector{}, validation("invalid heartbeat")
+		return Connector{}, apperror.Invalid("invalid heartbeat")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1471,7 +1486,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	for _, h := range input.Assignments {
 		if h.AppliedConfigurationVersion < 0 ||
 			(h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
-			return Connector{}, validation("invalid assignment health")
+			return Connector{}, apperror.Invalid("invalid assignment health")
 		}
 		if err = q.UpdateAssignmentRuntime(
 			ctx,
@@ -1518,7 +1533,7 @@ func (s *Service) IngestEvents(ctx context.Context, connector Context, inputs []
 		return nil, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if len(inputs) == 0 || len(inputs) > 20 {
-		return nil, validation("events must contain between 1 and 20 items")
+		return nil, apperror.Invalid("events must contain between 1 and 20 items")
 	}
 	seen := map[uuid.UUID]struct{}{}
 	receipts := make([]EventReceipt, 0, len(inputs))
@@ -1761,7 +1776,7 @@ func applyPrinterError(
 	return q.UpsertPrinterErrorOccurrence(
 		ctx,
 		db.UpsertPrinterErrorOccurrenceParams{
-			ID:           uuid.Must(uuid.NewV7()),
+			ID:           ids.New(),
 			MachineID:    machineID,
 			AssignmentID: &assignmentID,
 			RunID:        runID,
@@ -1817,7 +1832,7 @@ func databaseError(err error) error {
 		return nil
 	}
 	if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
-		return conflict("printer_connector_conflict", "Connector identity or assignment already exists")
+		return apperror.Conflicting("printer_connector_conflict", "Connector identity or assignment already exists")
 	}
 	if strings.Contains(err.Error(), "foreign key") {
 		return apperror.NotFound

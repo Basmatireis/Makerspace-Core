@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
 func TestOrdersMigrationRoundTripAndPopulatedDowngradeGuard(t *testing.T) {
@@ -38,7 +38,7 @@ func TestOrdersMigrationRoundTripAndPopulatedDowngradeGuard(t *testing.T) {
 	if _, e = pool.Exec(
 		ctx,
 		"INSERT INTO orders(id,reference,customer_kind,fulfillment_mode) VALUES($1,'O-2026-000001','anonymous','immediate')",
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 	); e != nil {
 		t.Fatal(e)
 	}

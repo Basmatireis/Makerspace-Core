@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,7 +18,7 @@ func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
 	s := NewService(nil)
 	ctx := t.Context()
 	p := authorization.Principal{}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 
 	tests := []struct {
 		name string
@@ -66,9 +67,9 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	ctx := t.Context()
 	jobs := machinelogbook.NewService(pool)
 	service := NewService(pool)
-	personID := uuid.Must(uuid.NewV7())
-	accountID := uuid.Must(uuid.NewV7())
-	requestID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	accountID := ids.New()
+	requestID := ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 

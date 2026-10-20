@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -208,7 +209,7 @@ func (s *Service) CreatePeriod(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := opendaysdb.New(tx)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := queries.CreatePeriod(
 		ctx,
 		opendaysdb.CreatePeriodParams{ID: id, Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn)},
@@ -251,7 +252,7 @@ func (s *Service) UpdatePeriod(
 		if err != nil {
 			return Period{}, err
 		}
-		return Period{}, validation("expectedVersion must be positive")
+		return Period{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -270,7 +271,7 @@ func (s *Service) UpdatePeriod(
 		return Period{}, apperror.StaleWrite
 	}
 	if current.Status != "draft" {
-		return Period{}, conflict("period_not_draft", "Period metadata can only be edited in draft")
+		return Period{}, apperror.Conflicting("period_not_draft", "Period metadata can only be edited in draft")
 	}
 	days, err := queries.ListOpenDaysByPeriod(ctx, id)
 	if err != nil {
@@ -279,7 +280,7 @@ func (s *Service) UpdatePeriod(
 	for _, day := range days {
 		if !dateWithin(day.StartsAt.In(s.location), startsOn, endsOn) ||
 			!dateWithin(day.EndsAt.Add(-time.Nanosecond).In(s.location), startsOn, endsOn) {
-			return Period{}, validation("period bounds must contain every Open Day")
+			return Period{}, apperror.Invalid("period bounds must contain every Open Day")
 		}
 	}
 	row, err := queries.UpdatePeriod(
@@ -327,7 +328,7 @@ func (s *Service) DeletePeriod(
 		return apperror.PermissionDenied
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -401,7 +402,7 @@ func (s *Service) TransitionPeriod(
 		return Period{}, apperror.StaleWrite
 	}
 	if !allowed[current.Status][target] {
-		return Period{}, conflict("invalid_period_transition", "Open Day period transition is not allowed")
+		return Period{}, apperror.Conflicting("invalid_period_transition", "Open Day period transition is not allowed")
 	}
 	row, err := q.TransitionPeriod(
 		ctx,
@@ -571,7 +572,7 @@ func (s *Service) SaveSchedule(
 		return Schedule{}, apperror.PermissionDenied
 	}
 	if delta.ExpectedPeriodVersion < 1 {
-		return Schedule{}, validation("expectedPeriodVersion must be positive")
+		return Schedule{}, apperror.Invalid("expectedPeriodVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -590,7 +591,7 @@ func (s *Service) SaveSchedule(
 		return Schedule{}, apperror.StaleWrite
 	}
 	if period.Status == "archived" {
-		return Schedule{}, conflict("period_archived", "Archived Open Day periods are read-only")
+		return Schedule{}, apperror.Conflicting("period_archived", "Archived Open Day periods are read-only")
 	}
 	existing, err := q.ListOpenDaysByPeriod(ctx, periodID)
 	if err != nil {
@@ -604,7 +605,7 @@ func (s *Service) SaveSchedule(
 	removing := map[uuid.UUID]bool{}
 	for _, rm := range delta.Removals {
 		if rm.ID == uuid.Nil || targets[rm.ID] {
-			return Schedule{}, validation("schedule operations must target each Open Day at most once")
+			return Schedule{}, apperror.Invalid("schedule operations must target each Open Day at most once")
 		}
 		targets[rm.ID] = true
 		day, ok := byID[rm.ID]
@@ -619,7 +620,7 @@ func (s *Service) SaveSchedule(
 	updates := map[uuid.UUID]ScheduleInput{}
 	for _, input := range delta.Updates {
 		if input.ID == uuid.Nil || targets[input.ID] {
-			return Schedule{}, validation("schedule operations must target each Open Day at most once")
+			return Schedule{}, apperror.Invalid("schedule operations must target each Open Day at most once")
 		}
 		targets[input.ID] = true
 		day, ok := byID[input.ID]
@@ -630,7 +631,7 @@ func (s *Service) SaveSchedule(
 			return Schedule{}, apperror.StaleWrite
 		}
 		if day.Status != "scheduled" {
-			return Schedule{}, conflict("open_day_cancelled", "Cancelled Open Days cannot be edited")
+			return Schedule{}, apperror.Conflicting("open_day_cancelled", "Cancelled Open Days cannot be edited")
 		}
 		updates[input.ID] = input
 	}
@@ -648,7 +649,10 @@ func (s *Service) SaveSchedule(
 		}
 		key := slotKey(start, end)
 		if other, ok := seen[key]; ok && other != day.ID {
-			return Schedule{}, conflict("duplicate_open_day", "An Open Day already uses this exact time range")
+			return Schedule{}, apperror.Conflicting(
+				"duplicate_open_day",
+				"An Open Day already uses this exact time range",
+			)
 		}
 		seen[key] = day.ID
 	}
@@ -658,7 +662,10 @@ func (s *Service) SaveSchedule(
 		}
 		key := slotKey(input.StartsAt, input.EndsAt)
 		if _, ok := seen[key]; ok {
-			return Schedule{}, conflict("duplicate_open_day", "An Open Day already uses this exact time range")
+			return Schedule{}, apperror.Conflicting(
+				"duplicate_open_day",
+				"An Open Day already uses this exact time range",
+			)
 		}
 		seen[key] = uuid.Nil
 	}
@@ -723,7 +730,7 @@ func (s *Service) SaveSchedule(
 		}
 	}
 	for _, input := range delta.Creates {
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		row, err := q.CreateOpenDay(
 			ctx,
 			opendaysdb.CreateOpenDayParams{
@@ -907,7 +914,7 @@ func createRequirements(
 	inputs []RequirementInput,
 ) error {
 	for _, input := range inputs {
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		if _, err := q.CreateRequirement(
 			ctx,
 			opendaysdb.CreateRequirementParams{
@@ -948,14 +955,17 @@ func replaceRequirements(
 	for _, input := range inputs {
 		r, ok := byKind[input.Kind]
 		if !ok {
-			return validation("both supervisor and trainee requirements are required")
+			return apperror.Invalid("both supervisor and trainee requirements are required")
 		}
 		count, err := q.CountRequirementAssignments(ctx, r.ID)
 		if err != nil {
 			return err
 		}
 		if int64(input.RequiredCount) < count {
-			return conflict("requirement_below_assignments", "Required staff count cannot be below current assignments")
+			return apperror.Conflicting(
+				"requirement_below_assignments",
+				"Required staff count cannot be below current assignments",
+			)
 		}
 		if _, err := q.UpdateRequirement(
 			ctx,
@@ -983,22 +993,22 @@ func (s *Service) validateInput(period opendaysdb.OpenDayPeriod, input ScheduleI
 		return err
 	}
 	if len(input.Requirements) != 2 {
-		return validation("exactly supervisor and trainee requirements are required")
+		return apperror.Invalid("exactly supervisor and trainee requirements are required")
 	}
 	seen := map[string]bool{}
 	for _, r := range input.Requirements {
 		if r.Kind != "supervisor" && r.Kind != "trainee" {
-			return validation("requirement kind is invalid")
+			return apperror.Invalid("requirement kind is invalid")
 		}
 		if seen[r.Kind] {
-			return validation("requirement kinds must be unique")
+			return apperror.Invalid("requirement kinds must be unique")
 		}
 		seen[r.Kind] = true
 		if r.RequiredCount < 0 || r.RequiredCount > 100 {
-			return validation("requiredCount must be between 0 and 100")
+			return apperror.Invalid("requiredCount must be between 0 and 100")
 		}
 		if r.RequiredCount > 0 && len(uniqueIDs(r.EligibleRoleIDs)) == 0 {
-			return validation("positive requirements need at least one eligible role")
+			return apperror.Invalid("positive requirements need at least one eligible role")
 		}
 	}
 	return nil
@@ -1006,7 +1016,7 @@ func (s *Service) validateInput(period opendaysdb.OpenDayPeriod, input ScheduleI
 
 func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.Time) error {
 	if start.IsZero() || end.IsZero() || !end.After(start) {
-		return validation("endsAt must be after startsAt")
+		return apperror.Invalid("endsAt must be after startsAt")
 	}
 	if err := s.validateSlotInstant(start); err != nil {
 		return err
@@ -1016,7 +1026,7 @@ func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.
 	}
 	if !dateWithin(start.In(s.location), period.StartsOn.Time, period.EndsOn.Time) ||
 		!dateWithin(end.Add(-time.Nanosecond).In(s.location), period.StartsOn.Time, period.EndsOn.Time) {
-		return validation("Open Day must be within the period in the makerspace timezone")
+		return apperror.Invalid("Open Day must be within the period in the makerspace timezone")
 	}
 	return nil
 }
@@ -1024,10 +1034,10 @@ func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.
 func validatePeriod(name string, start, end time.Time) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 150 {
-		return "", validation("period name is invalid")
+		return "", apperror.Invalid("period name is invalid")
 	}
 	if start.IsZero() || end.IsZero() || end.Before(start) {
-		return "", validation("period date range is invalid")
+		return "", apperror.Invalid("period date range is invalid")
 	}
 	return name, nil
 }
@@ -1079,10 +1089,6 @@ func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
 	}
 	return out
 }
-func validation(message string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
-}
-func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514") {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
@@ -182,7 +184,7 @@ func (s *Service) Create(
 		return Event{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	actor := principal.AccountID
 	row, err := eventsdb.New(tx).
 		CreateEvent(
@@ -281,7 +283,9 @@ func (s *Service) Update(
 			return Event{}, err
 		}
 		if !facts.HasPublicRequirement {
-			return Event{}, validation("Add a public shift with at least one requirement before enabling public signup")
+			return Event{}, apperror.Invalid(
+				"Add a public shift with at least one requirement before enabling public signup",
+			)
 		}
 	}
 	row, err := q.UpdateEvent(
@@ -374,7 +378,11 @@ func (s *Service) Transition(
 		return Event{}, apperror.StaleWrite
 	}
 	if !lifecycleTransitions[current.Status][target] {
-		return Event{}, apperror.New(http.StatusConflict, "invalid_event_transition", "Event lifecycle transition is not allowed")
+		return Event{}, apperror.New(
+			http.StatusConflict,
+			"invalid_event_transition",
+			"Event lifecycle transition is not allowed",
+		)
 	}
 	if target == "confirmed" {
 		facts, err := q.EventPublicationFacts(ctx, id)
@@ -382,7 +390,7 @@ func (s *Service) Transition(
 			return Event{}, err
 		}
 		if current.OwnerPersonID == nil || (!facts.HasSession && !facts.HasShift) {
-			return Event{}, validation("confirmation requires an owner and a scheduled session or shift")
+			return Event{}, apperror.Invalid("confirmation requires an owner and a scheduled session or shift")
 		}
 	}
 	closedAt := pgtype.Timestamptz{}
@@ -462,7 +470,7 @@ func (s *Service) SetPublished(
 	}
 	if published {
 		if current.Status != "planning" && current.Status != "confirmed" {
-			return Event{}, validation("only planning or confirmed events can be published")
+			return Event{}, apperror.Invalid("only planning or confirmed events can be published")
 		}
 		facts, err := q.EventPublicationFacts(ctx, id)
 		if err != nil {
@@ -470,10 +478,12 @@ func (s *Service) SetPublished(
 		}
 		if current.OwnerPersonID == nil || current.PublicTitle == nil ||
 			(!facts.HasPublicSession && !facts.HasPublicShift) {
-			return Event{}, validation("publication requires an owner, public title, and public schedule content")
+			return Event{}, apperror.Invalid("publication requires an owner, public title, and public schedule content")
 		}
 		if current.PublicSignupEnabled && !facts.HasPublicRequirement {
-			return Event{}, validation("Add a public shift with at least one requirement before enabling public signup")
+			return Event{}, apperror.Invalid(
+				"Add a public shift with at least one requirement before enabling public signup",
+			)
 		}
 	}
 	row, err := q.SetEventPublication(
@@ -603,7 +613,11 @@ func (s *Service) Delete(
 		return nil, err
 	}
 	if count != 0 {
-		return nil, apperror.New(http.StatusConflict, "event_has_assignment_history", "Event assignment history prevents deletion")
+		return nil, apperror.New(
+			http.StatusConflict,
+			"event_has_assignment_history",
+			"Event assignment history prevents deletion",
+		)
 	}
 	fileIDs, err := q.ListEventFileIDsForDelete(ctx, id)
 	if err != nil {
@@ -706,11 +720,11 @@ func databaseError(err error) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23503":
-			return validation("A referenced resource does not exist")
+			return apperror.Invalid("A referenced resource does not exist")
 		case "23505":
 			return apperror.Conflict
 		case "23514":
-			return validation("The requested values are invalid")
+			return apperror.Invalid("The requested values are invalid")
 		}
 	}
 	return err

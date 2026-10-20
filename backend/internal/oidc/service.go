@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -174,7 +176,7 @@ func (s *Service) CreateProvider(
 	if err != nil {
 		return Provider{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	secret, err := s.keyring.Encrypt([]byte(*input.ClientSecret), providerSecretPurpose(id))
 	if err != nil {
 		return Provider{}, err
@@ -473,7 +475,7 @@ func (s *Service) startFlow(
 	if err != nil {
 		return FlowStart{}, err
 	}
-	flowID := uuid.Must(uuid.NewV7())
+	flowID := ids.New()
 	encryptedNonce, err := s.keyring.Encrypt([]byte(nonce), flowNoncePurpose(flowID))
 	if err != nil {
 		return FlowStart{}, err
@@ -555,7 +557,11 @@ func (s *Service) Complete(
 	}
 	provider, err := queries.GetProviderForFlow(ctx, flow.ProviderID)
 	if err != nil || !provider.Enabled {
-		return Completion{}, apperror.New(http.StatusForbidden, "oidc_provider_unavailable", "OIDC provider is unavailable")
+		return Completion{}, apperror.New(
+			http.StatusForbidden,
+			"oidc_provider_unavailable",
+			"OIDC provider is unavailable",
+		)
 	}
 	nonce, err := s.keyring.Decrypt(flow.EncryptedNonce, flowNoncePurpose(flow.ID))
 	if err != nil {
@@ -616,7 +622,7 @@ func (s *Service) Complete(
 		} else if !errors.Is(findErr, pgx.ErrNoRows) {
 			return Completion{}, findErr
 		}
-		identityID = uuid.Must(uuid.NewV7())
+		identityID = ids.New()
 		accountID = *flow.AccountID
 		if _, err := queries.CreateOIDCIdentity(
 			ctx,
@@ -654,7 +660,8 @@ func (s *Service) Complete(
 			return Completion{}, apperror.PermissionDenied
 		}
 		authenticatedAt := time.Unix(claims.AuthTime, 0).UTC()
-		if claims.AuthTime == 0 || authenticatedAt.Before(flow.CreatedAt.Truncate(time.Second)) || authenticatedAt.After(s.now()) {
+		if claims.AuthTime == 0 || authenticatedAt.Before(flow.CreatedAt.Truncate(time.Second)) ||
+			authenticatedAt.After(s.now()) {
 			return Completion{}, invalidRequest("OIDC reauthentication did not prove recent authentication")
 		}
 		if err := s.auth.GrantRecentAuthentication(
@@ -678,9 +685,9 @@ func (s *Service) Complete(
 			}
 			accountID, identityID = found.AccountID, found.IdentityID
 		} else if errors.Is(findErr, pgx.ErrNoRows) && provider.JitEnabled {
-			personID := uuid.Must(uuid.NewV7())
-			accountID = uuid.Must(uuid.NewV7())
-			identityID = uuid.Must(uuid.NewV7())
+			personID := ids.New()
+			accountID = ids.New()
+			identityID = ids.New()
 			firstName, lastName, email, phone, claimErr := jitPersonFields(claims)
 			if claimErr != nil {
 				return Completion{}, claimErr

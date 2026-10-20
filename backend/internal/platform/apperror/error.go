@@ -21,6 +21,24 @@ func New(status int, code, message string) *Error {
 	return &Error{HTTPStatus: status, Code: code, Message: message, Details: map[string]any{}}
 }
 
+// InvalidField reports a request that failed validation with the generic message; reason is
+// the machine-readable detail clients show next to the field.
+func InvalidField(reason string) *Error {
+	err := New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
+	err.Details["reason"] = reason
+	return err
+}
+
+// Invalid reports a request that failed validation with a specific message.
+func Invalid(message string) *Error {
+	return New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
+
+// Conflicting reports a request that conflicts with the current state under a specific code.
+func Conflicting(code, message string) *Error {
+	return New(http.StatusConflict, code, message)
+}
+
 // RateLimited reports a throttled request that may be repeated after retryAfter.
 func RateLimited(code, message string, retryAfter time.Duration) *Error {
 	err := New(http.StatusTooManyRequests, code, message)

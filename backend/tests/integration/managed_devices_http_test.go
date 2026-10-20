@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
@@ -47,9 +49,9 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	roleID := uuid.Must(uuid.NewV7())
-	rolesReadGrantID := uuid.Must(uuid.NewV7())
-	manageGrantID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
+	rolesReadGrantID := ids.New()
+	manageGrantID := ids.New()
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO roles(id, name) VALUES($1, 'Reception operator');
 		INSERT INTO role_permission_grants(id, role_id, permission_id, scope)
@@ -414,7 +416,7 @@ func insertTestSession(
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at, managed_device_id)
 		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours', $6)`,
-		uuid.Must(uuid.NewV7()), account.accountID, account.identity, sessionDigest, csrfDigest, managedDeviceID,
+		ids.New(), account.accountID, account.identity, sessionDigest, csrfDigest, managedDeviceID,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -37,6 +37,8 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -1350,7 +1352,7 @@ func (s *seeder) setupConnector() {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
 	secret := base64.RawURLEncoding.EncodeToString(b)
-	_, err = s.pc.Enroll(s.ctx, enr.Secret, uuid.Must(uuid.NewV7()), secret, "devseed-1.0.0", 1)
+	_, err = s.pc.Enroll(s.ctx, enr.Secret, ids.New(), secret, "devseed-1.0.0", 1)
 	check("enroll", err)
 	cx, err := s.pc.Authenticate(s.ctx, secret)
 	check("auth", err)
@@ -1394,7 +1396,7 @@ func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, 
 		s.ctx,
 		s.connCtx,
 		[]printerconnectors.EventInput{
-			{EventID: uuid.Must(uuid.NewV7()), AssignmentID: m.assign, RunID: &run, HistoryComplete: true,
+			{EventID: ids.New(), AssignmentID: m.assign, RunID: &run, HistoryComplete: true,
 				ConfigurationVersion: m.cfgVer,
 				Sequence:             m.seq,
 				OccurredAt:           at.UTC(),
@@ -1444,7 +1446,7 @@ func (s *seeder) printRun(
 	report *float64,
 	slotExt string,
 ) uuid.UUID {
-	run := uuid.Must(uuid.NewV7())
+	run := ids.New()
 	ext := "sim-" + run.String()[:8]
 	f := file + ".gcode.3mf"
 	total := end.Sub(start)
@@ -2266,7 +2268,7 @@ func (s *seeder) unlinkedPrints() {
 	s.printRun(x1c, s.ago(49*time.Hour), s.ago(48*time.Hour+20*time.Minute), "failed", "turbine_hub_v2", r, e)
 	// currently printing on X1C (no terminal event)
 	m := x1c
-	run := uuid.Must(uuid.NewV7())
+	run := ids.New()
 	ext := "sim-" + run.String()[:8]
 	f := "gearbox_housing_v4.gcode.3mf"
 	start := s.ago(55 * time.Minute)
@@ -2440,7 +2442,7 @@ func (s *seeder) createOrders() {
 			s.ctx,
 			s.actor,
 			o.ID,
-			orders.OrderCommand{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payments: pays},
+			orders.OrderCommand{OperationKey: ids.New(), ExpectedVersion: o.Version, Payments: pays},
 			"finalize",
 			nil,
 		)
@@ -2464,7 +2466,7 @@ func (s *seeder) createOrders() {
 			s.actor,
 			o.ID,
 			orders.RecordOrderPayment{
-				OperationKey:    uuid.Must(uuid.NewV7()),
+				OperationKey:    ids.New(),
 				ExpectedVersion: o.Version,
 				Payment: orders.PaymentInput{
 					Method:            "card",

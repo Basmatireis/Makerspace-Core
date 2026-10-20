@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -14,7 +16,7 @@ import (
 // uniqueYear picks a far-away year in the past per test run (job aggregates treat future runs as running). Inventory history is immutable, so rows
 // written by a run cannot be cleaned up and must never be seen by the next run's reports.
 func uniqueYear() int {
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	return 1000 + (int(id[14])<<8|int(id[15]))%900
 }
 
@@ -66,7 +68,7 @@ func (f *jobFixture) insertTransaction(t *testing.T, kind, reason string, quanti
 		adjustment = reason
 	}
 	if _, err := f.pool.Exec(t.Context(), `INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, occurred_at, adjustment_reason)
-		VALUES ($1, $2, $3, $4::numeric, 0.5, $5::numeric, $6, $7)`, uuid.Must(uuid.NewV7()), f.material.ID, kind, quantity, value, at, adjustment); err != nil {
+		VALUES ($1, $2, $3, $4::numeric, 0.5, $5::numeric, $6, $7)`, ids.New(), f.material.ID, kind, quantity, value, at, adjustment); err != nil {
 		t.Fatal(err)
 	}
 }

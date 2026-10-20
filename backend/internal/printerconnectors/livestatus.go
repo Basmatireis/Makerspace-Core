@@ -43,14 +43,14 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 	if input.AssignmentID == uuid.Nil || input.ProtocolVersion != 1 || input.ConfigurationVersion < 1 ||
 		input.ObservedAt.IsZero() ||
 		input.ObservedAt.After(now.Add(5*time.Minute)) {
-		return validation("invalid live status report")
+		return apperror.Invalid("invalid live status report")
 	}
 	if len(input.Snapshot) == 0 || len(input.Snapshot) > maximumLiveStatusBytes {
-		return validation("live status snapshot is empty or too large")
+		return apperror.Invalid("live status snapshot is empty or too large")
 	}
 	var object map[string]any
 	if json.Unmarshal(input.Snapshot, &object) != nil || object == nil {
-		return validation("live status snapshot must be a JSON object")
+		return apperror.Invalid("live status snapshot must be a JSON object")
 	}
 	q := db.New(s.pool)
 	assignment, err := q.GetAssignmentForLiveStatus(
@@ -70,7 +70,10 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 		return apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if !assignment.Enabled || assignment.ConfigurationVersion != input.ConfigurationVersion {
-		return conflict("configuration_version_mismatch", "The assignment configuration changed; discard this snapshot")
+		return apperror.Conflicting(
+			"configuration_version_mismatch",
+			"The assignment configuration changed; discard this snapshot",
+		)
 	}
 	return q.UpsertPrinterLiveStatus(
 		ctx,

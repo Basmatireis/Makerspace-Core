@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -38,7 +41,7 @@ func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processes [
 func validateMaterialTypeName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 {
-		return "", validation("name is required and limited to 120 characters")
+		return "", apperror.Invalid("name is required and limited to 120 characters")
 	}
 	return name, nil
 }
@@ -47,12 +50,12 @@ func validateMaterialTypeName(name string) (string, error) {
 // duplicates. The result is ordered like machineProcesses.
 func validateProcesses(processes []string) ([]string, error) {
 	if len(processes) == 0 {
-		return nil, validation("at least one process is required")
+		return nil, apperror.Invalid("at least one process is required")
 	}
 	chosen := map[string]bool{}
 	for _, process := range processes {
 		if !validProcess(process) {
-			return nil, validation("invalid process")
+			return nil, apperror.Invalid("invalid process")
 		}
 		chosen[process] = true
 	}
@@ -117,7 +120,7 @@ func replaceMaterialTypeProcesses(
 func materialTypeConflict(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return conflict("material_type_exists", "A material type with this name already exists")
+		return apperror.Conflicting("material_type_exists", "A material type with this name already exists")
 	}
 	return databaseError(err)
 }
@@ -178,7 +181,7 @@ func (s *Service) CreateMaterialType(
 		return MaterialType{}, err
 	}
 	if !validUnit(unit) {
-		return MaterialType{}, validation("invalid material unit")
+		return MaterialType{}, apperror.Invalid("invalid material unit")
 	}
 	processes, err = validateProcesses(processes)
 	if err != nil {
@@ -190,7 +193,7 @@ func (s *Service) CreateMaterialType(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
-	id := newID()
+	id := ids.New()
 	if _, err = q.CreateMaterialType(
 		ctx,
 		machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit},
@@ -240,14 +243,14 @@ func (s *Service) UpdateMaterialType(
 		return MaterialType{}, err
 	}
 	if expected < 1 {
-		return MaterialType{}, validation("expectedVersion must be positive")
+		return MaterialType{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	name, err := validateMaterialTypeName(name)
 	if err != nil {
 		return MaterialType{}, err
 	}
 	if !validUnit(unit) {
-		return MaterialType{}, validation("invalid material unit")
+		return MaterialType{}, apperror.Invalid("invalid material unit")
 	}
 	if processes != nil {
 		processes, err = validateProcesses(processes)
@@ -274,7 +277,7 @@ func (s *Service) UpdateMaterialType(
 			return MaterialType{}, refErr
 		}
 		if referenced {
-			return MaterialType{}, conflict(
+			return MaterialType{}, apperror.Conflicting(
 				"material_type_unit_in_use",
 				"The unit cannot change while materials or pricing rules use this material type",
 			)
@@ -339,7 +342,7 @@ func (s *Service) DeleteMaterialType(
 		return err
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -359,7 +362,7 @@ func (s *Service) DeleteMaterialType(
 		return err
 	}
 	if referenced {
-		return conflict(
+		return apperror.Conflicting(
 			"material_type_in_use",
 			"Materials or pricing rules use this material type and it cannot be deleted; deactivate it instead",
 		)
@@ -387,26 +390,26 @@ func resolveMaterialType(
 ) (machinelogbookdb.MaterialType, error) {
 	row, err := q.GetMaterialTypeForShare(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return row, validation("materialTypeId does not refer to a material type")
+		return row, apperror.Invalid("materialTypeId does not refer to a material type")
 	}
 	if err != nil {
 		return row, err
 	}
 	if requireActive && !row.Active {
-		return row, conflict("material_type_inactive", "The material type is inactive")
+		return row, apperror.Conflicting("material_type_inactive", "The material type is inactive")
 	}
 	return row, nil
 }
 
 // validateColor normalises the optional colour name and checks the colour code.
 func validateColor(name, hex *string) (*string, *string, error) {
-	name = cleanOptional(name)
+	name = optional.Trimmed(name)
 	if name != nil && len(*name) > 80 {
-		return nil, nil, validation("colorName is limited to 80 characters")
+		return nil, nil, apperror.Invalid("colorName is limited to 80 characters")
 	}
-	hex = cleanOptional(hex)
+	hex = optional.Trimmed(hex)
 	if hex != nil && !colorHexPattern.MatchString(*hex) {
-		return nil, nil, validation("colorHex must look like #RRGGBB with upper-case hexadecimal digits")
+		return nil, nil, apperror.Invalid("colorHex must look like #RRGGBB with upper-case hexadecimal digits")
 	}
 	return name, hex, nil
 }

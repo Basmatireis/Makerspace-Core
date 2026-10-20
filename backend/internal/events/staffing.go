@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
@@ -88,7 +90,7 @@ func (s *Service) CreateRequirement(
 	} else if err != nil {
 		return Requirement{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateEventRequirement(
 		ctx,
 		eventsdb.CreateEventRequirementParams{
@@ -171,7 +173,7 @@ func (s *Service) UpdateRequirement(
 		return Requirement{}, err
 	}
 	if int64(input.RequiredCount) < count {
-		return Requirement{}, validation("requiredCount cannot be below active assignments")
+		return Requirement{}, apperror.Invalid("requiredCount cannot be below active assignments")
 	}
 	row, err := q.UpdateEventRequirement(
 		ctx,
@@ -402,7 +404,11 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, err
 	}
 	if eligible == nil || !*eligible {
-		return Assignment{}, apperror.New(http.StatusConflict, "person_not_eligible", "Person is not eligible for this requirement")
+		return Assignment{}, apperror.New(
+			http.StatusConflict,
+			"person_not_eligible",
+			"Person is not eligible for this requirement",
+		)
 	}
 	if _, err = q.LockPersonForEventAssignment(ctx, personID); err != nil {
 		return Assignment{}, databaseError(err)
@@ -420,7 +426,11 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, err
 	}
 	if len(conflicts) != 0 {
-		return Assignment{}, apperror.New(http.StatusConflict, "assignment_conflict", "Person has an overlapping Event assignment")
+		return Assignment{}, apperror.New(
+			http.StatusConflict,
+			"assignment_conflict",
+			"Person has an overlapping Event assignment",
+		)
 	}
 	row, err := q.LinkEventAssignmentPerson(
 		ctx,
@@ -466,7 +476,7 @@ func (s *Service) MoveAssignment(
 		return Assignment{}, apperror.PermissionDenied
 	}
 	if input.ShiftID == nil || input.RequirementID == nil {
-		return Assignment{}, validation("shiftId and requirementId are required")
+		return Assignment{}, apperror.Invalid("shiftId and requirementId are required")
 	}
 	return s.moveAssignment(
 		ctx,
@@ -508,7 +518,7 @@ func (s *Service) FindPeople(
 	}
 	search = strings.TrimSpace(search)
 	if len([]rune(search)) > 200 {
-		return nil, validation("search is too long")
+		return nil, apperror.Invalid("search is too long")
 	}
 	rows, err := eventsdb.New(s.pool).
 		FindEventPeople(ctx, eventsdb.FindEventPeopleParams{Search: search, PageLimit: 50})
@@ -626,7 +636,11 @@ func (s *Service) createAssignment(
 		if publicFlow {
 			return Assignment{}, nil, signupUnavailable()
 		}
-		return Assignment{}, nil, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot receive assignments")
+		return Assignment{}, nil, apperror.New(
+			http.StatusConflict,
+			"shift_cancelled",
+			"Cancelled shifts cannot receive assignments",
+		)
 	}
 	if publicFlow && !isEffectivePublicSignup(event, shift) {
 		return Assignment{}, nil, signupUnavailable()
@@ -731,7 +745,7 @@ func (s *Service) createAssignment(
 	if principal != nil {
 		creator = &principal.AccountID
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateEventAssignment(
 		ctx,
 		eventsdb.CreateEventAssignmentParams{
@@ -856,16 +870,16 @@ func validateRequirementInput(input RequirementInput) (RequirementInput, error) 
 		return input, err
 	}
 	if input.RequiredCount < 1 || input.RequiredCount > 1000 {
-		return input, validation("requiredCount must be between 1 and 1000")
+		return input, apperror.Invalid("requiredCount must be between 1 and 1000")
 	}
 	if input.EligibilityMode == "" {
 		input.EligibilityMode = "anyone"
 	}
 	if input.EligibilityMode != "anyone" && input.EligibilityMode != "roles" {
-		return input, validation("eligibilityMode is invalid")
+		return input, apperror.Invalid("eligibilityMode is invalid")
 	}
 	if input.EligibilityMode == "roles" && len(input.EligibleRoleIDs) == 0 {
-		return input, validation("role eligibility requires at least one Role")
+		return input, apperror.Invalid("role eligibility requires at least one Role")
 	}
 	return input, nil
 }

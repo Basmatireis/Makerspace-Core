@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -40,10 +41,6 @@ func require(p authorization.Principal, perms ...authorization.Permission) error
 	}
 	return nil
 }
-func validation(m string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", m)
-}
-func conflict(code, m string) error { return apperror.New(http.StatusConflict, code, m) }
 func databaseError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -52,16 +49,18 @@ func databaseError(err error) error {
 	if errors.As(err, &e) {
 		switch e.Code {
 		case "22003":
-			return validation("Financial amount exceeds supported precision")
+			return apperror.Invalid("Financial amount exceeds supported precision")
 		case "23505":
-			return conflict("already_exists", "A conflicting financial record exists")
+			return apperror.Conflicting("already_exists", "A conflicting financial record exists")
 		case "23503", "23514":
-			return conflict("financial_integrity_conflict", "The financial operation conflicts with retained records")
+			return apperror.Conflicting(
+				"financial_integrity_conflict",
+				"The financial operation conflicts with retained records",
+			)
 		}
 	}
 	return err
 }
-func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 func reference(prefix string, n int64) string {
 	return fmt.Sprintf("%s-%04d-%06d", prefix, time.Now().UTC().Year(), n)
 }
@@ -80,12 +79,12 @@ var decimalPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]{1,6})?$`)
 
 func parseAmount(v string, scale int32, positive bool) (decimal.Decimal, error) {
 	if !decimalPattern.MatchString(v) {
-		return decimal.Zero, validation("A nonnegative decimal string is required")
+		return decimal.Zero, apperror.Invalid("A nonnegative decimal string is required")
 	}
 	x, e := decimal.NewFromString(v)
 	if e != nil || x.Exponent() < -scale || x.GreaterThanOrEqual(decimal.New(1, 20-scale)) ||
 		(positive && !x.IsPositive()) {
-		return decimal.Zero, validation("Amount exceeds supported precision or must be positive")
+		return decimal.Zero, apperror.Invalid("Amount exceeds supported precision or must be positive")
 	}
 	return x, nil
 }
@@ -97,7 +96,7 @@ func timePointer(v pgtype.Timestamptz) *time.Time {
 }
 func pageBounds(page, size int) (int32, int32, error) {
 	if page < 1 || size < 1 || size > 100 || page > 21474836 {
-		return 0, 0, validation("Invalid pagination")
+		return 0, 0, apperror.Invalid("Invalid pagination")
 	}
 	return int32(size), int32((page - 1) * size), nil
 }
@@ -126,7 +125,7 @@ func writeAudit(
 }
 func checkVersion(o db.Order, expected int64) error {
 	if expected < 1 {
-		return validation("expectedVersion is required")
+		return apperror.Invalid("expectedVersion is required")
 	}
 	if o.Version != expected {
 		return apperror.StaleWrite
@@ -135,7 +134,7 @@ func checkVersion(o db.Order, expected int64) error {
 }
 func draft(o db.Order) error {
 	if o.Status != "draft" {
-		return conflict("order_not_draft", "Only draft orders may be edited")
+		return apperror.Conflicting("order_not_draft", "Only draft orders may be edited")
 	}
 	return nil
 }
@@ -150,7 +149,7 @@ func beginOperation(
 	input any,
 ) (*db.OrderOperation, []byte, error) {
 	if key == uuid.Nil {
-		return nil, nil, validation("operationKey is required")
+		return nil, nil, apperror.Invalid("operationKey is required")
 	}
 	encoded, err := json.Marshal(struct {
 		Actor uuid.UUID
@@ -172,7 +171,7 @@ func beginOperation(
 		return nil, nil, err
 	}
 	if op.Kind != kind || !bytes.Equal(op.RequestFingerprint, sum[:]) {
-		return nil, nil, conflict("idempotency_conflict", "Operation key was used for different input")
+		return nil, nil, apperror.Conflicting("idempotency_conflict", "Operation key was used for different input")
 	}
 	return &op, sum[:], nil
 }
@@ -189,7 +188,7 @@ func finishOperation(
 	return q.SaveOperation(
 		ctx,
 		db.SaveOperationParams{
-			ID:                 newID(),
+			ID:                 ids.New(),
 			OperationKey:       key,
 			Kind:               kind,
 			RequestFingerprint: hash,
@@ -218,11 +217,11 @@ func (s *Service) validateCustomer(
 			return "", nil, nil, "", nil, databaseError(e)
 		}
 		if !v.Active {
-			return "", nil, nil, "", nil, conflict("organization_inactive", "Organization is inactive")
+			return "", nil, nil, "", nil, apperror.Conflicting("organization_inactive", "Organization is inactive")
 		}
 		return c.Kind, nil, &c.ID, v.Name, &v.Kind, nil
 	}
-	return "", nil, nil, "", nil, validation("Invalid customer")
+	return "", nil, nil, "", nil, apperror.Invalid("Invalid customer")
 }
 
 func (s *Service) create(
@@ -239,14 +238,14 @@ func (s *Service) create(
 		return db.Order{}, err
 	}
 	if input.FulfillmentMode != "immediate" && input.FulfillmentMode != "deferred" {
-		return db.Order{}, validation("Invalid fulfillment mode")
+		return db.Order{}, apperror.Invalid("Invalid fulfillment mode")
 	}
 	n, err := q.NextOrderReference(ctx)
 	if err != nil {
 		return db.Order{}, err
 	}
 	params := db.CreateOrderParams{
-		ID:                     newID(),
+		ID:                     ids.New(),
 		Reference:              reference("O", n),
 		CustomerKind:           kind,
 		CustomerPersonID:       person,
@@ -325,7 +324,7 @@ func (s *Service) Update(
 		return Order{}, err
 	}
 	if input.FulfillmentMode != "immediate" && input.FulfillmentMode != "deferred" {
-		return Order{}, validation("Invalid fulfillment mode")
+		return Order{}, apperror.Invalid("Invalid fulfillment mode")
 	}
 	_, err = q.UpdateDraft(
 		ctx,

@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -142,7 +145,7 @@ func (s *Service) UpdateConfiguration(
 	methods, err := normalizeMethods(input.AllowedMethods)
 	if err != nil || input.ExpectedVersion < 1 ||
 		(input.Enabled && (input.InitialRoleID == nil || len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
-		return Configuration{}, validation(
+		return Configuration{}, apperror.InvalidField(
 			"enabled enrollment requires an initial Role, at least one Device Type, and at least one authentication method",
 		)
 	}
@@ -244,7 +247,7 @@ func (s *Service) Begin(ctx context.Context, device manageddevices.DeviceContext
 		return ContextIssue{}, err
 	}
 	expiresAt := time.Now().UTC().Add(enrollmentTTL)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := queries.CreateEnrollmentContext(
 		ctx,
 		visitordb.CreateEnrollmentContextParams{
@@ -386,13 +389,17 @@ func (s *Service) Submit(
 		}
 	}
 	if configuration.InitialRoleID == nil {
-		return SubmissionResult{}, apperror.New(http.StatusConflict, "visitor_enrollment_disabled", "Visitor enrollment is unavailable")
+		return SubmissionResult{}, apperror.New(
+			http.StatusConflict,
+			"visitor_enrollment_disabled",
+			"Visitor enrollment is unavailable",
+		)
 	}
 	role, err := queries.GetAssignableRole(ctx, *configuration.InitialRoleID)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
-	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID := ids.New(), ids.New()
 	if _, err := queries.CreateVisitorPerson(
 		ctx,
 		visitordb.CreateVisitorPersonParams{
@@ -419,7 +426,7 @@ func (s *Service) Submit(
 		identity, err := queries.CreateVisitorPasswordIdentity(
 			ctx,
 			visitordb.CreateVisitorPasswordIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				AccountID:            accountID,
 				IdentifierDisplay:    &display,
 				IdentifierNormalized: &normalized,
@@ -428,7 +435,7 @@ func (s *Service) Submit(
 		if err != nil {
 			return SubmissionResult{}, databaseError(err)
 		}
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		if _, err := queries.CreateVisitorInvitation(
 			ctx,
 			visitordb.CreateVisitorInvitationParams{
@@ -453,7 +460,7 @@ func (s *Service) Submit(
 		identity, err := queries.CreateVisitorPINIdentity(
 			ctx,
 			visitordb.CreateVisitorPINIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				AccountID:            accountID,
 				IdentifierDisplay:    &pinDisplay,
 				IdentifierNormalized: &pinNormalized,
@@ -491,7 +498,7 @@ func (s *Service) Submit(
 		requestRow, err := queries.CreateLabRulesRequest(
 			ctx,
 			visitordb.CreateLabRulesRequestParams{
-				ID:                uuid.Must(uuid.NewV7()),
+				ID:                ids.New(),
 				PersonID:          personID,
 				RequiredVersionID: current.ID,
 			},
@@ -601,53 +608,55 @@ func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, st
 	input.FirstName, input.LastName = strings.TrimSpace(input.FirstName), strings.TrimSpace(input.LastName)
 	if input.FirstName == "" || input.LastName == "" || len([]rune(input.FirstName)) > 100 ||
 		len([]rune(input.LastName)) > 100 {
-		return SubmissionInput{}, "", "", "", nil, validation("firstName and lastName are required")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("firstName and lastName are required")
 	}
-	input.Email = cleanOptional(input.Email)
-	input.Phone = cleanOptional(input.Phone)
+	input.Email = optional.Trimmed(input.Email)
+	input.Phone = optional.Trimmed(input.Phone)
 	if input.Email == nil && input.Phone == nil {
-		return SubmissionInput{}, "", "", "", nil, validation("at least one contact method is required")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("at least one contact method is required")
 	}
 	if input.Email != nil {
 		display, _, err := security.NormalizeEmail(*input.Email)
 		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, validation("email is invalid")
+			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is invalid")
 		}
 		input.Email = &display
 	}
 	if input.Phone != nil && len([]rune(*input.Phone)) > 64 {
-		return SubmissionInput{}, "", "", "", nil, validation("phone is invalid")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("phone is invalid")
 	}
 	methods, err := normalizeMethods(input.AuthMethods)
 	if err != nil || len(methods) == 0 {
-		return SubmissionInput{}, "", "", "", nil, validation(
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(
 			"at least one supported authentication method is required",
 		)
 	}
 	input.AuthMethods = methods
 	if contains(methods, "password") && input.Email == nil {
-		return SubmissionInput{}, "", "", "", nil, validation("email is required for password invitation")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is required for password invitation")
 	}
 	var pinDisplay, pinNormalized, pinHash string
 	if contains(methods, "pin") {
 		if input.PINLoginName == nil || input.PIN == nil {
-			return SubmissionInput{}, "", "", "", nil, validation("PIN username and PIN are required")
+			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("PIN username and PIN are required")
 		}
 		pinDisplay, pinNormalized, err = auth.NormalizePINLoginName(*input.PINLoginName)
 		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, validation(err.Error())
+			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(err.Error())
 		}
 		pinHash, err = security.HashPIN(s.config.PINPepper, *input.PIN)
 		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, validation(err.Error())
+			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(err.Error())
 		}
 	}
 	if !input.RequestConfirmation {
-		return SubmissionInput{}, "", "", "", nil, validation("explicit Lab Rules signing request is required")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(
+			"explicit Lab Rules signing request is required",
+		)
 	}
 	imageBytes := input.ProfileImage
 	if len(imageBytes) == 0 {
-		return SubmissionInput{}, "", "", "", nil, validation("profile image is invalid")
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("profile image is invalid")
 	}
 	return input, pinDisplay, pinNormalized, pinHash, imageBytes, nil
 }
@@ -761,10 +770,10 @@ func uniqueUUIDs(values []uuid.UUID) ([]uuid.UUID, error) {
 	result := make([]uuid.UUID, 0, len(values))
 	for _, value := range values {
 		if value == uuid.Nil {
-			return nil, validation("Device Type IDs must be valid")
+			return nil, apperror.InvalidField("Device Type IDs must be valid")
 		}
 		if _, exists := seen[value]; exists {
-			return nil, validation("Device Type IDs must be unique")
+			return nil, apperror.InvalidField("Device Type IDs must be unique")
 		}
 		seen[value] = struct{}{}
 		result = append(result, value)
@@ -782,17 +791,6 @@ func contains(values []string, value string) bool {
 	return false
 }
 
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	clean := strings.TrimSpace(*value)
-	if clean == "" {
-		return nil
-	}
-	return &clean
-}
-
 func databaseError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
@@ -802,11 +800,5 @@ func databaseError(err error) error {
 			"This login identifier already belongs to an Account; use returning-user login",
 		)
 	}
-	return err
-}
-
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
 	return err
 }

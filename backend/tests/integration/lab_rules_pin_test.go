@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
@@ -32,7 +34,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, accountID).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
-	warningRoleID := uuid.Must(uuid.NewV7())
+	warningRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Lab warning','warning')`,
@@ -116,7 +118,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 		t.Fatalf("status after confirmation: %#v err=%v", status, err)
 	}
 
-	blockingRoleID := uuid.Must(uuid.NewV7())
+	blockingRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Admission block','blocking')`,
@@ -257,7 +259,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		AuthenticatedAt: time.Now().UTC(),
 	}
 
-	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Phone','Only','+43 660 123456')`,
@@ -397,7 +399,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatalf("login with reset PIN: %v", err)
 	}
 
-	conflictPersonID, conflictAccountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	conflictPersonID, conflictAccountID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'PIN','Conflict','+43 660 654321')`,
@@ -513,7 +515,7 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 		Assurance:       authorization.AssuranceNormal,
 		AuthenticatedAt: time.Now().UTC(),
 	}
-	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Manual','PIN','+43 660 999999')`,
@@ -629,7 +631,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 		t.Fatal("reset-required password identity was projected usable")
 	}
 
-	pinIdentityID := uuid.Must(uuid.NewV7())
+	pinIdentityID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO auth_identities (id,account_id,kind,identifier_display,identifier_normalized,verified_at) VALUES ($1,$2,'pin','usability.pin','usability.pin',now())`,
@@ -657,7 +659,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 		t.Fatal("PIN identity with a credential was projected unusable")
 	}
 
-	providerID, oidcIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	providerID, oidcIdentityID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,'usability','Usability SSO','https://usability.example.test','client',$2,false)`,
@@ -770,7 +772,7 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 func insertPublishedLabRulesVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID, revision string) uuid.UUID {
 	t.Helper()
 	ctx := testContext(t)
-	fileID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	fileID, versionID := ids.New(), ids.New()
 	digest := bytes.Repeat([]byte{5}, 32)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO files (id,storage_key,original_filename,content_type,size_bytes,sha256,created_by_account_id)

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -306,7 +308,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		server.URL+orgPath+"/members",
 		origin,
 		managerCSRF,
-		map[string]any{"personId": uuid.Must(uuid.NewV7()).String()},
+		map[string]any{"personId": ids.New().String()},
 	)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
@@ -353,7 +355,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		t,
 		readerClient,
 		http.MethodGet,
-		server.URL+"/api/v1/organizations?kind=company&pricingGroupId="+uuid.Must(uuid.NewV7()).String(),
+		server.URL+"/api/v1/organizations?kind=company&pricingGroupId="+ids.New().String(),
 		"",
 		"",
 		nil,
@@ -425,7 +427,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		t,
 		readerClient,
 		http.MethodGet,
-		server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(),
+		server.URL+"/api/v1/organizations/"+ids.New().String(),
 		"",
 		"",
 		nil,
@@ -463,7 +465,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if err = pool.QueryRow(
 		ctx,
 		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Member', 'Cascade', 'cascade@example.test') RETURNING id`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 	).Scan(&otherID); err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +511,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		t,
 		managerClient,
 		http.MethodDelete,
-		server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(),
+		server.URL+"/api/v1/organizations/"+ids.New().String(),
 		origin,
 		managerCSRF,
 		map[string]any{"expectedVersion": 1},
@@ -531,7 +533,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	// A referenced organization (here by a machine job) is refused with
 	// organization_in_use, and the reference is untouched.
-	machineTypeID, machineID, jobID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	machineTypeID, machineID, jobID := ids.New(), ids.New(), ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO machine_types (id, name) VALUES ($1, 'Delete test type')`,
@@ -592,7 +594,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response = doJSON(t, managerClient, http.MethodPost, server.URL+orgPath+"/members", origin, managerCSRF, memberBody)
 	assertStatus(t, response, http.StatusCreated)
 	response.Body.Close()
-	pricingGroupID := uuid.Must(uuid.NewV7())
+	pricingGroupID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO pricing_groups (id, name) VALUES ($1, 'Delete test group')`,

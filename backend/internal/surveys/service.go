@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
@@ -102,39 +105,39 @@ type PublicSurvey struct {
 func clean(input Input) (Input, error) {
 	input.Name, input.Title = strings.TrimSpace(input.Name), strings.TrimSpace(input.Title)
 	if input.Name == "" || len([]rune(input.Name)) > 160 || input.Title == "" || len([]rune(input.Title)) > 200 {
-		return input, validation("name and title are required")
+		return input, apperror.InvalidField("name and title are required")
 	}
-	input.Description = cleanOptional(input.Description)
-	input.Introduction = cleanOptional(input.Introduction)
+	input.Description = optional.Trimmed(input.Description)
+	input.Introduction = optional.Trimmed(input.Introduction)
 	if len(input.Questions) < 1 || len(input.Questions) > 100 {
-		return input, validation("a survey needs between 1 and 100 questions")
+		return input, apperror.InvalidField("a survey needs between 1 and 100 questions")
 	}
 	for index := range input.Questions {
 		q := &input.Questions[index]
 		q.Prompt = strings.TrimSpace(q.Prompt)
 		if q.Prompt == "" || len([]rune(q.Prompt)) > 1000 {
-			return input, validation("question prompts are required")
+			return input, apperror.InvalidField("question prompts are required")
 		}
 		switch q.Kind {
 		case "single_choice", "multiple_choice":
 			if len(q.Options) < 2 || len(q.Options) > 50 {
-				return input, validation("choice questions need between 2 and 50 options")
+				return input, apperror.InvalidField("choice questions need between 2 and 50 options")
 			}
 			if q.RatingMin != nil || q.RatingMax != nil {
-				return input, validation("only rating questions accept rating bounds")
+				return input, apperror.InvalidField("only rating questions accept rating bounds")
 			}
 		case "rating":
 			if q.RatingMin == nil || q.RatingMax == nil || *q.RatingMin < 0 || *q.RatingMax > 10 ||
 				*q.RatingMin >= *q.RatingMax ||
 				len(q.Options) != 0 {
-				return input, validation("rating bounds are invalid")
+				return input, apperror.InvalidField("rating bounds are invalid")
 			}
 		case "free_text", "yes_no":
 			if len(q.Options) != 0 || q.RatingMin != nil || q.RatingMax != nil {
-				return input, validation("this question type does not accept options or rating bounds")
+				return input, apperror.InvalidField("this question type does not accept options or rating bounds")
 			}
 		default:
-			return input, validation("question kind is invalid")
+			return input, apperror.InvalidField("question kind is invalid")
 		}
 		seen := map[string]bool{}
 		for optionIndex := range q.Options {
@@ -142,7 +145,7 @@ func clean(input Input) (Input, error) {
 			label := q.Options[optionIndex].Label
 			key := strings.ToLower(label)
 			if label == "" || len([]rune(label)) > 500 || seen[key] {
-				return input, validation("choice labels must be unique and non-empty")
+				return input, apperror.InvalidField("choice labels must be unique and non-empty")
 			}
 			seen[key] = true
 		}
@@ -169,7 +172,7 @@ func (s *Service) Create(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
-	id, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	id, versionID := ids.New(), ids.New()
 	if _, err = q.CreateSurvey(
 		ctx,
 		surveysdb.CreateSurveyParams{
@@ -218,7 +221,7 @@ func (s *Service) Create(
 
 func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.UUID, inputs []QuestionInput) error {
 	for index, input := range inputs {
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		if _, err := q.CreateSurveyQuestion(
 			ctx,
 			surveysdb.CreateSurveyQuestionParams{
@@ -238,7 +241,7 @@ func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.U
 			if _, err := q.CreateSurveyOption(
 				ctx,
 				surveysdb.CreateSurveyOptionParams{
-					ID:         uuid.Must(uuid.NewV7()),
+					ID:         ids.New(),
 					QuestionID: id,
 					Label:      option.Label,
 					Position:   int32(optionIndex + 1),
@@ -266,7 +269,7 @@ func (s *Service) Update(
 		return Survey{}, err
 	}
 	if input.ExpectedVersion < 1 {
-		return Survey{}, validation("expectedVersion must be positive")
+		return Survey{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -373,7 +376,7 @@ func (s *Service) Publish(
 		return Survey{}, err
 	}
 	if len(questions) == 0 {
-		return Survey{}, validation("survey needs questions before publication")
+		return Survey{}, apperror.InvalidField("survey needs questions before publication")
 	}
 	if _, err = q.PublishSurvey(ctx, surveysdb.PublishSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(
 		err,
@@ -417,7 +420,7 @@ func (s *Service) Close(
 		return Survey{}, apperror.PermissionDenied
 	}
 	if expected < 1 {
-		return Survey{}, validation("expectedVersion must be positive")
+		return Survey{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -482,7 +485,7 @@ func (s *Service) UpdateTrigger(
 		return Trigger{}, apperror.PermissionDenied
 	}
 	if delay < 0 || delay > 604800 || cooldown < 0 || cooldown > 3650 {
-		return Trigger{}, validation("trigger values are invalid")
+		return Trigger{}, apperror.InvalidField("trigger values are invalid")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -508,7 +511,7 @@ func (s *Service) UpdateTrigger(
 		row, err = q.CreateSurveyTrigger(
 			ctx,
 			surveysdb.CreateSurveyTriggerParams{
-				ID:           uuid.Must(uuid.NewV7()),
+				ID:           ids.New(),
 				SurveyID:     surveyID,
 				Enabled:      enabled,
 				DelaySeconds: delay,
@@ -702,7 +705,7 @@ func (s *Service) CreatePostVisitInvitations(ctx context.Context, tx pgx.Tx, per
 		if trigger.Email == nil {
 			continue
 		}
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		token := s.tokenForID(id)
 		due := now.Add(time.Duration(trigger.DelaySeconds) * time.Second)
 		if _, err = q.CreateSurveyInvitation(
@@ -770,7 +773,11 @@ func (s *Service) Public(ctx context.Context, token string) (PublicSurvey, error
 		return PublicSurvey{}, err
 	}
 	if time.Now().UTC().After(row.ExpiresAt) {
-		return PublicSurvey{}, apperror.New(http.StatusGone, "survey_invitation_expired", "Survey invitation has expired")
+		return PublicSurvey{}, apperror.New(
+			http.StatusGone,
+			"survey_invitation_expired",
+			"Survey invitation has expired",
+		)
 	}
 	if row.Status == "redeemed" || row.Status == "cancelled" || row.Status == "expired" {
 		return PublicSurvey{}, apperror.New(
@@ -813,7 +820,11 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 		return apperror.New(http.StatusConflict, "survey_already_submitted", "Survey response was already submitted")
 	}
 	if invitation.Status == "cancelled" || invitation.Status == "expired" {
-		return apperror.New(http.StatusGone, "survey_invitation_unavailable", "Survey invitation is no longer available")
+		return apperror.New(
+			http.StatusGone,
+			"survey_invitation_unavailable",
+			"Survey invitation is no longer available",
+		)
 	}
 	questions, err := q.ListSurveyQuestions(ctx, invitation.SurveyVersionID)
 	if err != nil {
@@ -822,11 +833,11 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	answerMap := map[uuid.UUID]AnswerInput{}
 	for _, answer := range answers {
 		if _, exists := answerMap[answer.QuestionID]; exists {
-			return validation("each question may be answered once")
+			return apperror.InvalidField("each question may be answered once")
 		}
 		answerMap[answer.QuestionID] = answer
 	}
-	responseID := uuid.Must(uuid.NewV7())
+	responseID := ids.New()
 	var personID *uuid.UUID
 	if !invitation.Anonymous {
 		personID = invitation.PersonID
@@ -848,7 +859,7 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 		answer, exists := answerMap[question.ID]
 		if !exists {
 			if question.Required {
-				return validation("all required questions must be answered")
+				return apperror.InvalidField("all required questions must be answered")
 			}
 			continue
 		}
@@ -858,7 +869,7 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 		delete(answerMap, question.ID)
 	}
 	if len(answerMap) > 0 {
-		return validation("answer references an unknown question")
+		return apperror.InvalidField("answer references an unknown question")
 	}
 	count, err := q.ConsumeSurveyInvitation(ctx, invitation.InvitationID)
 	if err != nil {
@@ -893,23 +904,23 @@ func storeAnswer(
 	switch question.Kind {
 	case "single_choice":
 		if valueCount != 1 || len(answer.OptionIDs) != 1 {
-			return validation("single-choice answer is invalid")
+			return apperror.InvalidField("single-choice answer is invalid")
 		}
 		return storeOptions(ctx, q, responseID, question.ID, answer.OptionIDs)
 	case "multiple_choice":
 		if valueCount != 1 || len(answer.OptionIDs) == 0 {
-			return validation("multiple-choice answer is invalid")
+			return apperror.InvalidField("multiple-choice answer is invalid")
 		}
 		return storeOptions(ctx, q, responseID, question.ID, answer.OptionIDs)
 	case "free_text":
 		if valueCount != 1 || answer.TextValue == nil || strings.TrimSpace(*answer.TextValue) == "" {
-			return validation("free-text answer is invalid")
+			return apperror.InvalidField("free-text answer is invalid")
 		}
 		value := strings.TrimSpace(*answer.TextValue)
 		return q.CreateSurveyAnswer(
 			ctx,
 			surveysdb.CreateSurveyAnswerParams{
-				ID:         uuid.Must(uuid.NewV7()),
+				ID:         ids.New(),
 				ResponseID: responseID,
 				QuestionID: question.ID,
 				TextValue:  &value,
@@ -920,12 +931,12 @@ func storeAnswer(
 		if valueCount != 1 || answer.NumericValue == nil || question.RatingMin == nil || question.RatingMax == nil ||
 			*answer.NumericValue < *question.RatingMin ||
 			*answer.NumericValue > *question.RatingMax {
-			return validation("rating answer is invalid")
+			return apperror.InvalidField("rating answer is invalid")
 		}
 		return q.CreateSurveyAnswer(
 			ctx,
 			surveysdb.CreateSurveyAnswerParams{
-				ID:           uuid.Must(uuid.NewV7()),
+				ID:           ids.New(),
 				ResponseID:   responseID,
 				QuestionID:   question.ID,
 				NumericValue: answer.NumericValue,
@@ -934,12 +945,12 @@ func storeAnswer(
 		)
 	case "yes_no":
 		if valueCount != 1 || answer.BooleanValue == nil {
-			return validation("yes/no answer is invalid")
+			return apperror.InvalidField("yes/no answer is invalid")
 		}
 		return q.CreateSurveyAnswer(
 			ctx,
 			surveysdb.CreateSurveyAnswerParams{
-				ID:           uuid.Must(uuid.NewV7()),
+				ID:           ids.New(),
 				ResponseID:   responseID,
 				QuestionID:   question.ID,
 				BooleanValue: answer.BooleanValue,
@@ -947,7 +958,7 @@ func storeAnswer(
 			},
 		)
 	}
-	return validation("question kind is invalid")
+	return apperror.InvalidField("question kind is invalid")
 }
 
 func storeOptions(
@@ -967,13 +978,13 @@ func storeOptions(
 	seen := map[uuid.UUID]bool{}
 	for index, id := range optionIDs {
 		if !valid[id] || seen[id] {
-			return validation("choice answer contains an invalid option")
+			return apperror.InvalidField("choice answer contains an invalid option")
 		}
 		seen[id] = true
 		if err = q.CreateSurveyAnswer(
 			ctx,
 			surveysdb.CreateSurveyAnswerParams{
-				ID:         uuid.Must(uuid.NewV7()),
+				ID:         ids.New(),
 				ResponseID: responseID,
 				QuestionID: questionID,
 				OptionID:   &id,
@@ -994,21 +1005,6 @@ func triggerFromRow(row surveysdb.SurveyTrigger) Trigger {
 		CooldownDays: row.CooldownDays,
 		Version:      row.Version,
 	}
-}
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	clean := strings.TrimSpace(*value)
-	if clean == "" {
-		return nil
-	}
-	return &clean
-}
-func validation(message string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = message
-	return err
 }
 
 var _ Notifier = (*notifications.Service)(nil)

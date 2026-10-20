@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -25,7 +27,7 @@ func newKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey, string) {
 func TestSignVerifyRoundTrip(t *testing.T) {
 	public, private, kid := newKey(t)
 	now := time.Now().UTC()
-	display, machine := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	display, machine := ids.New(), ids.New()
 	name := StreamName(machine)
 	ticket, claims, err := Sign(private, kid, display, machine, name, now)
 	if err != nil {
@@ -49,7 +51,7 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 func TestExpiryAllowsSkewOnly(t *testing.T) {
 	public, private, kid := newKey(t)
 	now := time.Now().UTC()
-	ticket, _, _ := Sign(private, kid, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), "cam-x", now)
+	ticket, _, _ := Sign(private, kid, ids.New(), ids.New(), "cam-x", now)
 	keys := Keys{kid: public}
 	if _, err := Verify(ticket, keys, now.Add(TTL+ClockSkew-time.Second)); err != nil {
 		t.Fatalf("within skew: %v", err)
@@ -63,8 +65,8 @@ func TestTamperingAndWrongKeysAreRejected(t *testing.T) {
 	public, private, kid := newKey(t)
 	otherPublic, _, _ := newKey(t)
 	now := time.Now().UTC()
-	machine := uuid.Must(uuid.NewV7())
-	ticket, _, _ := Sign(private, kid, uuid.Must(uuid.NewV7()), machine, "cam-a", now)
+	machine := ids.New()
+	ticket, _, _ := Sign(private, kid, ids.New(), machine, "cam-a", now)
 	keys := Keys{kid: public}
 
 	payloadText, signatureText, _ := strings.Cut(ticket, ".")
@@ -112,7 +114,7 @@ func TestUnknownFieldsAndVersionAreRejected(t *testing.T) {
 		encoded := base64.RawURLEncoding.EncodeToString([]byte(payload))
 		return encoded + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(private, []byte(encoded)))
 	}
-	id := uuid.Must(uuid.NewV7()).String()
+	id := ids.New().String()
 	now := time.Now().UTC()
 	base := `"displayId":"` + id + `","machineId":"` + id + `","streamName":"cam-a","exp":` + strconv.FormatInt(
 		now.Add(time.Minute).Unix(),
@@ -147,7 +149,7 @@ func TestTicketsWithAnExcessiveLifetimeAreRejected(t *testing.T) {
 	public, private, kid := newKey(t)
 	now := time.Now().UTC()
 	sign := func(issuedAt time.Time) string {
-		ticket, _, err := Sign(private, kid, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), "cam-a", issuedAt)
+		ticket, _, err := Sign(private, kid, ids.New(), ids.New(), "cam-a", issuedAt)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/google/uuid"
 )
 
 func liveStatusSnapshot(state string) json.RawMessage {
@@ -32,7 +33,7 @@ func TestLiveStatusRequiresMachinesRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.LiveStatus(t.Context(), authorization.Principal{}, uuid.Must(uuid.NewV7())); !apperror.IsCode(
+	if _, err = service.LiveStatus(t.Context(), authorization.Principal{}, ids.New()); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -113,12 +114,12 @@ func TestLiveStatusReportRejections(t *testing.T) {
 	now := time.Now().UTC()
 
 	other := h.connector
-	other.ID = uuid.Must(uuid.NewV7())
+	other.ID = ids.New()
 	if err := h.service.ReportLiveStatus(ctx, other, h.liveReport(now, "idle")); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("another connector's assignment must be not_found, got %v", err)
 	}
 	unknown := h.liveReport(now, "idle")
-	unknown.AssignmentID = uuid.Must(uuid.NewV7())
+	unknown.AssignmentID = ids.New()
 	if err := h.service.ReportLiveStatus(ctx, h.connector, unknown); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("unknown assignment must be not_found, got %v", err)
 	}

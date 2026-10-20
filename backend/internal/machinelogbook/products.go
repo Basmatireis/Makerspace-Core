@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -50,22 +52,22 @@ func validateProduct(in FilamentProductInput) (validatedProduct, error) {
 	v.manufacturer = strings.TrimSpace(in.Manufacturer)
 	v.name = strings.TrimSpace(in.Name)
 	if v.manufacturer == "" || len(v.manufacturer) > 150 {
-		return v, validation("manufacturer is required and limited to 150 characters")
+		return v, apperror.Invalid("manufacturer is required and limited to 150 characters")
 	}
 	if v.name == "" || len(v.name) > 200 {
-		return v, validation("name is required and limited to 200 characters")
+		return v, apperror.Invalid("name is required and limited to 200 characters")
 	}
 	if in.Packaging != "refill" && in.Packaging != "spool" {
-		return v, validation("invalid packaging")
+		return v, apperror.Invalid("invalid packaging")
 	}
 	v.packaging = in.Packaging
 	var err error
 	if v.netWeight, err = numericFromString(in.NetWeightG, true); err != nil {
-		return v, validation("netWeightG must be positive")
+		return v, apperror.Invalid("netWeightG must be positive")
 	}
 	if v.defaultPrice, err = pgNullableNumeric(in.DefaultPrice, false); err != nil ||
 		(v.defaultPrice.Valid && decimalFromNumeric(v.defaultPrice).IsNegative()) {
-		return v, validation("defaultPrice must be non-negative")
+		return v, apperror.Invalid("defaultPrice must be non-negative")
 	}
 	if v.notes, err = validateOptionalText(in.Notes, "notes", 2000); err != nil {
 		return v, err
@@ -76,7 +78,7 @@ func validateProduct(in FilamentProductInput) (validatedProduct, error) {
 func productConflict(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return conflict("product_exists", "A product with this manufacturer and name already exists")
+		return apperror.Conflicting("product_exists", "A product with this manufacturer and name already exists")
 	}
 	return databaseError(err)
 }
@@ -105,7 +107,7 @@ func (s *Service) ListFilamentProducts(
 		return nil, 0, err
 	}
 	if f.Packaging != "" && f.Packaging != "refill" && f.Packaging != "spool" {
-		return nil, 0, validation("invalid packaging")
+		return nil, 0, apperror.Invalid("invalid packaging")
 	}
 	offset, limit, err := pageBounds(f.Page, f.PageSize)
 	if err != nil {
@@ -170,7 +172,7 @@ func (s *Service) CreateFilamentProduct(
 	if _, err = q.GetMaterial(ctx, in.MaterialID); err != nil {
 		return FilamentProduct{}, noRows(err)
 	}
-	id := newID()
+	id := ids.New()
 	if _, err = q.CreateFilamentProduct(
 		ctx,
 		machinelogbookdb.CreateFilamentProductParams{
@@ -221,7 +223,7 @@ func (s *Service) UpdateFilamentProduct(
 		return FilamentProduct{}, err
 	}
 	if in.ExpectedVersion < 1 {
-		return FilamentProduct{}, validation("expectedVersion must be positive")
+		return FilamentProduct{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	v, err := validateProduct(in)
 	if err != nil {

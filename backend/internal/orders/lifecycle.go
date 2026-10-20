@@ -6,6 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/google/uuid"
@@ -65,11 +68,14 @@ func (s *Service) finalize(
 				return o, e
 			}
 			if i.SourceJobVersion == nil || job.Version != *i.SourceJobVersion {
-				return o, conflict("source_snapshot_stale", "Refresh the changed job snapshot before finalization")
+				return o, apperror.Conflicting(
+					"source_snapshot_stale",
+					"Refresh the changed job snapshot before finalization",
+				)
 			}
 			claim, e := q.GetJobClaim(ctx, job.ID)
 			if e == nil && claim.OrderID != o.ID {
-				return o, conflict("job_already_ordered", "Job still belongs to another order")
+				return o, apperror.Conflicting("job_already_ordered", "Job still belongs to another order")
 			}
 			if errors.Is(e, pgx.ErrNoRows) {
 				if e = q.ClaimJob(ctx, db.ClaimJobParams{MachineJobID: job.ID, OrderItemID: i.ID}); e != nil {
@@ -81,15 +87,15 @@ func (s *Service) finalize(
 		}
 	}
 	if count == 0 {
-		return o, validation("An order requires at least one item")
+		return o, apperror.Invalid("An order requires at least one item")
 	}
 	if total.GreaterThanOrEqual(decimal.New(1, 18)) {
-		return o, validation("Order total exceeds supported precision")
+		return o, apperror.Invalid("Order total exceeds supported precision")
 	}
 	c := customerReference(o)
 	if o.CustomerKind != "anonymous" {
 		if c == nil {
-			return o, conflict("customer_unavailable", "Choose a current customer before finalizing")
+			return o, apperror.Conflicting("customer_unavailable", "Choose a current customer before finalizing")
 		}
 		_, _, _, name, kind, e := s.validateCustomer(ctx, q, c)
 		if e != nil {
@@ -103,7 +109,10 @@ func (s *Service) finalize(
 		}
 	}
 	if o.CustomerKind == "anonymous" && o.FulfillmentMode != "immediate" {
-		return o, conflict("anonymous_requires_full_settlement", "Deferred fulfillment requires a named customer")
+		return o, apperror.Conflicting(
+			"anonymous_requires_full_settlement",
+			"Deferred fulfillment requires a named customer",
+		)
 	}
 	if err = q.TransitionOrder(
 		ctx,
@@ -140,11 +149,11 @@ func (s *Service) reverse(
 		return err
 	}
 	if o.Status != "finalized" {
-		return conflict("order_not_finalized", "Only finalized orders can be reversed")
+		return apperror.Conflicting("order_not_finalized", "Only finalized orders can be reversed")
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" || len(reason) > 500 {
-		return validation("Reversal reason is required")
+		return apperror.Invalid("Reversal reason is required")
 	}
 	q := db.New(tx)
 	r, e := q.LatestRequest(ctx, &o.ID)
@@ -152,7 +161,7 @@ func (s *Service) reverse(
 		return e
 	}
 	if e == nil && r.State != "cancelled" {
-		return conflict(
+		return apperror.Conflicting(
 			"external_reconciliation_required",
 			"Cancel or reconcile the active external invoice request first",
 		)
@@ -162,7 +171,7 @@ func (s *Service) reverse(
 		return err
 	}
 	if !d(balance).IsZero() {
-		return conflict(
+		return apperror.Conflicting(
 			"payment_reconciliation_required",
 			"Refund/correct payments or transfer them to a replacement first",
 		)
@@ -171,7 +180,7 @@ func (s *Service) reverse(
 	if err != nil {
 		return err
 	}
-	adj := newID()
+	adj := ids.New()
 	if err = q.InsertAdjustment(
 		ctx,
 		db.InsertAdjustmentParams{
@@ -195,7 +204,7 @@ func (s *Service) reverse(
 			if err = q.InsertAdjustmentItems(
 				ctx,
 				db.InsertAdjustmentItemsParams{
-					ID:                   newID(),
+					ID:                   ids.New(),
 					AdjustmentID:         adj,
 					OriginalOrderItemID:  &i.ID,
 					OriginalItemPosition: i.Position,
@@ -262,14 +271,14 @@ func (s *Service) Command(
 	}
 	if old != nil {
 		if old.OrderID == nil {
-			return Order{}, conflict("operation_expired", "Operation result is unavailable")
+			return Order{}, apperror.Conflicting("operation_expired", "Operation result is unavailable")
 		}
 		return s.load(ctx, q, *old.OrderID)
 	}
 	var o, replacement db.Order
 	if action == "replace" {
 		if input.ReplacementOrderID == uuid.Nil {
-			return Order{}, validation("Replacement order is required")
+			return Order{}, apperror.Invalid("Replacement order is required")
 		}
 		ids := []uuid.UUID{id, input.ReplacementOrderID}
 		sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
@@ -310,7 +319,7 @@ func (s *Service) Command(
 		}
 	case "finalize", "checkout":
 		if o.ReplacesOrderReference != nil {
-			return Order{}, conflict(
+			return Order{}, apperror.Conflicting(
 				"replacement_commit_required",
 				"Finalize replacements through their original order",
 			)
@@ -337,10 +346,16 @@ func (s *Service) Command(
 		}
 	case "replacements":
 		if o.Status != "finalized" && o.Status != "reversed" {
-			return Order{}, conflict("order_not_finalized", "Replacement requires finalized or reversed original")
+			return Order{}, apperror.Conflicting(
+				"order_not_finalized",
+				"Replacement requires finalized or reversed original",
+			)
 		}
 		if _, e := q.CommittedReplacement(ctx, &id); e == nil {
-			return Order{}, conflict("order_already_replaced", "This order already has a committed replacement")
+			return Order{}, apperror.Conflicting(
+				"order_already_replaced",
+				"This order already has a committed replacement",
+			)
 		} else if !errors.Is(e, pgx.ErrNoRows) {
 			return Order{}, e
 		}
@@ -379,7 +394,7 @@ func (s *Service) Command(
 					v.MachineJobID = job.ID
 					v.ExpectedJobVersion = job.Version
 				} else if i.Kind == "machine_job" {
-					err = conflict(
+					err = apperror.Conflicting(
 						"source_unavailable",
 						"The original job is unavailable; add a manual replacement item explicitly",
 					)
@@ -405,14 +420,14 @@ func (s *Service) Command(
 			return Order{}, err
 		}
 		if replacement.ReplacesOrderID == nil || *replacement.ReplacesOrderID != id {
-			return Order{}, validation("Replacement is not linked to this original")
+			return Order{}, apperror.Invalid("Replacement is not linked to this original")
 		}
 		if o.Status != "finalized" && o.Status != "reversed" {
-			return Order{}, conflict("order_not_finalized", "Original is no longer replaceable")
+			return Order{}, apperror.Conflicting("order_not_finalized", "Original is no longer replaceable")
 		}
 		r, e := q.LatestRequest(ctx, &id)
 		if e == nil && r.State != "cancelled" {
-			return Order{}, conflict("external_reconciliation_required", "Resolve external invoicing first")
+			return Order{}, apperror.Conflicting("external_reconciliation_required", "Resolve external invoicing first")
 		}
 		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 			return Order{}, e
@@ -429,7 +444,7 @@ func (s *Service) Command(
 		paid := decimal.Zero
 		for _, payment := range receipts {
 			if payment.Method == "external" {
-				return Order{}, conflict(
+				return Order{}, apperror.Conflicting(
 					"external_reconciliation_required",
 					"External payments cannot be carried forward",
 				)
@@ -445,7 +460,7 @@ func (s *Service) Command(
 			return Order{}, e
 		}
 		if paid.GreaterThan(newTotal) {
-			return Order{}, conflict(
+			return Order{}, apperror.Conflicting(
 				"payment_exceeds_outstanding",
 				"Reverse whole receipts explicitly before replacing with a lower total",
 			)
@@ -498,7 +513,7 @@ func (s *Service) Command(
 		}
 		resultID = replacement.ID
 	default:
-		return Order{}, validation("Unsupported order action")
+		return Order{}, apperror.Invalid("Unsupported order action")
 	}
 	if err != nil {
 		return Order{}, databaseError(err)

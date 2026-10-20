@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/google/uuid"
 )
 
 func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
@@ -23,11 +24,11 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'Workshop supervisor')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	readerRoleID := uuid.Must(uuid.NewV7())
+	readerRoleID := ids.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'Audit reader')`, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 		t.Fatalf("unauthorized list error = %v", err)
 	}
 
-	requestID := uuid.Must(uuid.NewV7())
+	requestID := ids.New()
 	if err := audit.Write(ctx, pool, audit.Event{
 		ActorAccountID: &actor.accountID,
 		Action:         "person.role_assigned",

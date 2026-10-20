@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -21,7 +23,7 @@ func restrictedPrincipal(
 ) authorization.Principal {
 	t.Helper()
 	ctx := t.Context()
-	person, account, role := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	person, account, role := ids.New(), ids.New(), ids.New()
 	for _, step := range []struct {
 		sql  string
 		args []any
@@ -51,7 +53,7 @@ func restrictedPrincipal(
 		if _, err := pool.Exec(
 			ctx,
 			`INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES($1,$2,$3)`,
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
 			role,
 			string(permission),
 		); err != nil {
@@ -291,7 +293,7 @@ func TestWorkItemFilters(t *testing.T) {
 		WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unassigned", "running_unassigned", "running"}},
 		w.running.ID,
 	)
-	stranger := uuid.Must(uuid.NewV7())
+	stranger := ids.New()
 	only("unknown customer", WorkItemFilters{CustomerID: &stranger})
 
 	from, to := *w.recorded.StartedAt, *w.running.StartedAt

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/google/uuid"
@@ -68,7 +70,7 @@ func TestSignageDisplayPreview(t *testing.T) {
 		})
 	}
 	e.expectCode(
-		e.as(reader, http.MethodGet, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/preview", nil),
+		e.as(reader, http.MethodGet, "/signage/displays/"+ids.New().String()+"/preview", nil),
 		http.StatusNotFound,
 		"not_found",
 	)

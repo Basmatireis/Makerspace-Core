@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -14,7 +16,7 @@ func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 	materialType, e := f.jobs.CreateMaterialType(
 		t.Context(),
 		f.p,
-		"PLA "+newID().String(),
+		"PLA "+ids.New().String(),
 		"g",
 		[]string{"fdm_printing", "other"},
 		nil,

@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
-	"github.com/google/uuid"
 )
 
 func TestManagedDeviceTokenLifecycle(t *testing.T) {
@@ -62,7 +63,7 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if invalid, err := service.Authenticate(ctx, unknownToken); err != nil || invalid != nil {
 		t.Fatalf("unknown well-formed token result=%v err=%v", invalid, err)
 	}
-	boundSessionID := uuid.Must(uuid.NewV7())
+	boundSessionID := ids.New()
 	_, boundDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +99,7 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 		!sessionRevoked {
 		t.Fatalf("rotation did not revoke bound session: revoked=%t err=%v", sessionRevoked, err)
 	}
-	revocationSessionID := uuid.Must(uuid.NewV7())
+	revocationSessionID := ids.New()
 	_, revocationDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		t.Fatal(err)
@@ -156,8 +157,8 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 func TestExpiredDeviceAndGlobalGrantMigration(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	typeID := uuid.Must(uuid.NewV7())
-	deviceID := uuid.Must(uuid.NewV7())
+	typeID := ids.New()
+	deviceID := ids.New()
 	raw, digest, err := security.NewOpaqueToken()
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +179,7 @@ func TestExpiredDeviceAndGlobalGrantMigration(t *testing.T) {
 	if err != nil || device != nil {
 		t.Fatalf("expired token result=%v err=%v", device, err)
 	}
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO roles(id,name) VALUES($1,'legacy'); INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES(uuidv7(),$1,'people.read.all')`,

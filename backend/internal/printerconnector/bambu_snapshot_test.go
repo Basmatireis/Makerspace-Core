@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -69,7 +71,8 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		*job.RemainingMinutes != 37 {
 		t.Fatalf("job = %+v", job)
 	}
-	if len(snapshot.Temperatures.Extruders) != 2 || *snapshot.Temperatures.Extruders[0].CurrentC != 219 || *snapshot.Temperatures.Extruders[0].TargetC != 220 ||
+	if len(snapshot.Temperatures.Extruders) != 2 || *snapshot.Temperatures.Extruders[0].CurrentC != 219 ||
+		*snapshot.Temperatures.Extruders[0].TargetC != 220 ||
 		*snapshot.Temperatures.Extruders[1].CurrentC != 31 ||
 		*snapshot.Temperatures.BedC != 59.6 ||
 		*snapshot.Temperatures.BedTargetC != 60 ||
@@ -474,7 +477,7 @@ func TestLiveStatusHubThrottlesAndKeepsOnlyTheNewestSnapshot(t *testing.T) {
 	hub := newLiveStatusHub()
 	clock := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 	hub.now = func() time.Time { return clock }
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	connected := func(uuid.UUID) bool { return true }
 	disconnected := func(uuid.UUID) bool { return false }
 
@@ -556,7 +559,7 @@ func TestRuntimeDeliversLiveStatusWithoutQueueingAndDropsStaleVersions(t *testin
 		health: map[uuid.UUID]AssignmentHealth{},
 		logger: discardLogger(),
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	runtime.live.Report(id, 2, json.RawMessage(`{"state":"idle"}`))
 	runtime.deliverLiveStatus(context.Background(), Identity{CredentialSecret: "secret"})
 	if puts.Load() != 1 {

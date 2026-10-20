@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
@@ -249,7 +251,7 @@ func (s *Service) CreateAcademicBreak(
 		return AcademicBreak{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := opendaysdb.New(tx).
 		CreateAcademicBreak(
 			ctx,
@@ -292,7 +294,7 @@ func (s *Service) UpdateAcademicBreak(
 		return AcademicBreak{}, apperror.PermissionDenied
 	}
 	if expected < 1 {
-		return AcademicBreak{}, validation("expectedVersion must be positive")
+		return AcademicBreak{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	name, err := validateBreak(name, start, end)
 	if err != nil {
@@ -356,7 +358,7 @@ func (s *Service) DeleteAcademicBreak(
 		return apperror.PermissionDenied
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -422,19 +424,19 @@ func (s *Service) PreviewRecurrence(
 	}
 	if input.Weekday < 1 || input.Weekday > 7 || input.EveryWeeks < 1 || input.EveryWeeks > 52 ||
 		input.EndsOn.Before(input.StartsOn) {
-		return nil, validation("recurrence range is invalid")
+		return nil, apperror.Invalid("recurrence range is invalid")
 	}
 	startClock, err := time.Parse("15:04", input.StartTime)
 	if err != nil {
-		return nil, validation("startTime is invalid")
+		return nil, apperror.Invalid("startTime is invalid")
 	}
 	endClock, err := time.Parse("15:04", input.EndTime)
 	if err != nil {
-		return nil, validation("endTime is invalid")
+		return nil, apperror.Invalid("endTime is invalid")
 	}
 	if !input.StartsOn.Equal(dateOnly(input.StartsOn)) || !dateWithin(input.StartsOn, period.StartsOn, period.EndsOn) ||
 		!dateWithin(input.EndsOn, period.StartsOn, period.EndsOn) {
-		return nil, validation("recurrence must stay within the period")
+		return nil, apperror.Invalid("recurrence must stay within the period")
 	}
 	q := opendaysdb.New(s.pool)
 	days, err := q.ListOpenDaysByPeriod(ctx, periodID)
@@ -589,10 +591,10 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 func validateBreak(name string, start, end time.Time) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 150 {
-		return "", validation("academic break name is invalid")
+		return "", apperror.Invalid("academic break name is invalid")
 	}
 	if start.IsZero() || end.IsZero() || end.Before(start) {
-		return "", validation("academic break date range is invalid")
+		return "", apperror.Invalid("academic break date range is invalid")
 	}
 	return name, nil
 }

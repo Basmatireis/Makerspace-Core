@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -37,7 +39,7 @@ func signageActor(
 	ctx := testContext(t)
 	account := seedAccount(t, pool, "signage-"+suffix, false)
 	if len(permissions) > 0 {
-		roleID := uuid.Must(uuid.NewV7())
+		roleID := ids.New()
 		if _, err := pool.Exec(
 			ctx,
 			`INSERT INTO roles (id, name) VALUES ($1, $2)`,
@@ -138,7 +140,7 @@ func (f signageFixture) uploadImage(t *testing.T, name string) signage.Asset {
 
 func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 	t.Helper()
-	typeID, machineID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	typeID, machineID := ids.New(), ids.New()
 	if _, err := f.pool.Exec(
 		testContext(t),
 		`INSERT INTO machine_types (id, name) VALUES ($1, $2)`,
@@ -163,7 +165,7 @@ func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 func (f signageFixture) display(t *testing.T, name string, playlistID uuid.UUID) uuid.UUID {
 	t.Helper()
 	ctx := testContext(t)
-	typeID, deviceID, displayID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	typeID, deviceID, displayID := ids.New(), ids.New(), ids.New()
 	if _, err := f.pool.Exec(
 		ctx,
 		`INSERT INTO device_types (id, name) VALUES ($1, $2)`,
@@ -714,7 +716,7 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	if err != nil || renamed.Name != "Welcome poster" {
 		t.Fatalf("rename = %#v, %v", renamed, err)
 	}
-	if _, err := f.service.RenameAsset(ctx, f.admin, uuid.Must(uuid.NewV7()), "x", nil); !apperror.IsCode(
+	if _, err := f.service.RenameAsset(ctx, f.admin, ids.New(), "x", nil); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -846,7 +848,7 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		"zone not in layout":    {func(i *signage.SceneInput) { i.Zones = emptyZonesJSON("main") }},
 		"background is a video": {func(i *signage.SceneInput) { i.BackgroundAssetID = &video.ID }},
 		"background missing": {
-			func(i *signage.SceneInput) { missing := uuid.Must(uuid.NewV7()); i.BackgroundAssetID = &missing },
+			func(i *signage.SceneInput) { missing := ids.New(); i.BackgroundAssetID = &missing },
 		},
 		"image widget uses video": {func(i *signage.SceneInput) {
 			i.Zones = map[string]json.RawMessage{
@@ -861,7 +863,7 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		"missing machine": {func(i *signage.SceneInput) {
 			i.Zones = map[string]json.RawMessage{
 				"left": json.RawMessage(
-					`{"type":"status","machineIds":["` + uuid.Must(uuid.NewV7()).
+					`{"type":"status","machineIds":["` + ids.New().
 						String() +
 						`"],"showProgress":true,"showRemaining":true}`,
 				),
@@ -870,7 +872,7 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		"missing template": {func(i *signage.SceneInput) {
 			i.Zones = map[string]json.RawMessage{
 				"left": json.RawMessage(
-					`{"type":"announcement","templateIds":["` + uuid.Must(uuid.NewV7()).
+					`{"type":"announcement","templateIds":["` + ids.New().
 						String() +
 						`"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
 				),
@@ -935,7 +937,7 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	if err := f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale delete: %v", err)
 	}
-	if _, err := f.service.UpdateScene(ctx, f.admin, uuid.Must(uuid.NewV7()), 1, renamed, nil); !apperror.IsCode(
+	if _, err := f.service.UpdateScene(ctx, f.admin, ids.New(), 1, renamed, nil); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -1070,7 +1072,7 @@ func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
 	}
 
 	// A failing replacement leaves name, version and items untouched.
-	missing := uuid.Must(uuid.NewV7())
+	missing := ids.New()
 	for name, items := range map[string][]signage.PlaylistItem{
 		"missing scene": {
 			{SceneID: three.ID, Seconds: 10, Transition: "cut"},
@@ -1225,14 +1227,14 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 		"bad datetime":      func(i *signage.AnnouncementInput) { i.Values["back_on"] = "tomorrow" },
 		"bad choice":        func(i *signage.AnnouncementInput) { i.Values["room"] = "Attic" },
 		"machine not an id": func(i *signage.AnnouncementInput) { i.Values["machine"] = "laser" },
-		"machine missing":   func(i *signage.AnnouncementInput) { i.Values["machine"] = uuid.Must(uuid.NewV7()).String() },
+		"machine missing":   func(i *signage.AnnouncementInput) { i.Values["machine"] = ids.New().String() },
 		"all and selected":  func(i *signage.AnnouncementInput) { i.DisplayIDs = []uuid.UUID{display} },
 		"no target":         func(i *signage.AnnouncementInput) { i.AllDisplays = false },
 		"display missing": func(i *signage.AnnouncementInput) {
 			i.AllDisplays = false
-			i.DisplayIDs = []uuid.UUID{uuid.Must(uuid.NewV7())}
+			i.DisplayIDs = []uuid.UUID{ids.New()}
 		},
-		"template missing": func(i *signage.AnnouncementInput) { i.TemplateID = uuid.Must(uuid.NewV7()) },
+		"template missing": func(i *signage.AnnouncementInput) { i.TemplateID = ids.New() },
 		"end in the past":  func(i *signage.AnnouncementInput) { past := time.Now().Add(-time.Hour); i.EndsAt = &past },
 		"end before start": func(i *signage.AnnouncementInput) {
 			later := time.Now().Add(2 * time.Hour)
@@ -1290,7 +1292,7 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	}
 
 	// Ended announcements are hidden, and removed 30 days after they ended.
-	ended, recent := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	ended, recent := ids.New(), ids.New()
 	for id, endedAgo := range map[uuid.UUID]string{ended: "31 days", recent: "2 hours"} {
 		if _, err := f.pool.Exec(
 			ctx,

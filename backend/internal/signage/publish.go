@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -92,7 +94,7 @@ func (s *Service) publishDisplay(
 	digest := sha256.Sum256(encoded)
 	actor := principal.AccountID
 	if err := q.InsertSignagePublication(ctx, signagedb.InsertSignagePublicationParams{
-		ID:                   uuid.Must(uuid.NewV7()),
+		ID:                   ids.New(),
 		DisplayID:            id,
 		Revision:             revision,
 		Manifest:             string(encoded),

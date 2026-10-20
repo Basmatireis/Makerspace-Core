@@ -5,6 +5,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
@@ -28,18 +31,18 @@ func principalWithPermissions(t *testing.T, permissions ...authorization.Permiss
 	rows := make([]authorizationdb.GetPrincipalRolePermissionsRow, 0, len(permissions))
 	for _, permission := range permissions {
 		permissionID := string(permission)
-		grantID := uuid.Must(uuid.NewV7())
+		grantID := ids.New()
 		scope := string(authorization.GrantEverywhere)
 		minimum := string(authorization.AssuranceLow)
 		rows = append(rows, authorizationdb.GetPrincipalRolePermissionsRow{
-			RoleID: uuid.Must(uuid.NewV7()), GrantID: &grantID, PermissionID: &permissionID,
+			RoleID: ids.New(), GrantID: &grantID, PermissionID: &permissionID,
 			Scope: &scope, MinimumAssurance: &minimum,
 		})
 	}
 	principal, err := authorization.LoadPermissions(
 		t.Context(),
 		permissionsStub{rows: rows},
-		authorization.Principal{AccountID: uuid.Must(uuid.NewV7())},
+		authorization.Principal{AccountID: ids.New()},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -88,11 +91,11 @@ func TestFromRowRequiresDedicatedMatriculationReadPermission(t *testing.T) {
 
 func TestCleanOptionalNormalizesWhitespaceToNull(t *testing.T) {
 	whitespace := "   "
-	if cleanOptional(&whitespace) != nil {
+	if optional.Trimmed(&whitespace) != nil {
 		t.Fatal("empty optional string was not normalized to nil")
 	}
 	value := "  retained value  "
-	cleaned := cleanOptional(&value)
+	cleaned := optional.Trimmed(&value)
 	if cleaned == nil || *cleaned != "retained value" {
 		t.Fatalf("optional string was not trimmed: %v", cleaned)
 	}
@@ -117,8 +120,8 @@ func TestListRequiresAccountsReadForAccountStatusFiltering(t *testing.T) {
 
 func TestRoleMutationRejectsNonPositivePersonVersionBeforePersistence(t *testing.T) {
 	service := NewService(nil, nil)
-	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
-	_, err := service.ChangeRole(t.Context(), principal, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 0, true, nil)
+	principal := authorization.Principal{Master: true, AccountID: ids.New()}
+	_, err := service.ChangeRole(t.Context(), principal, ids.New(), ids.New(), 0, true, nil)
 	if !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("expected validation_failed, got %v", err)
 	}

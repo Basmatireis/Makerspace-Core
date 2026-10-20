@@ -17,6 +17,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
@@ -632,7 +634,7 @@ func isNativeDeviceHardwareReport(r *http.Request) bool {
 
 func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProxies []netip.Prefix) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := uuid.Must(uuid.NewV7())
+		requestID := ids.New()
 		w.Header().Set(requestIDHeaderName, requestID.String())
 		ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
 		ctx = context.WithValue(ctx, sourceAddressContextKey, requestClientIP(r, trustedProxies))

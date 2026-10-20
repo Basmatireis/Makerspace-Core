@@ -6,6 +6,9 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
@@ -43,14 +46,14 @@ func (s *Service) CreateMachineType(
 		return MachineType{}, err
 	}
 	if !validProcess(process) {
-		return MachineType{}, validation("invalid machine process")
+		return MachineType{}, apperror.Invalid("invalid machine process")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MachineType{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := newID()
+	id := ids.New()
 	row, err := machinelogbookdb.New(tx).
 		CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
 	if err != nil {
@@ -88,7 +91,7 @@ func (s *Service) UpdateMachineType(
 		return MachineType{}, err
 	}
 	if expected < 1 {
-		return MachineType{}, validation("expectedVersion must be positive")
+		return MachineType{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -114,7 +117,7 @@ func (s *Service) UpdateMachineType(
 	}
 	if process != nil {
 		if !validProcess(*process) {
-			return MachineType{}, validation("invalid machine process")
+			return MachineType{}, apperror.Invalid("invalid machine process")
 		}
 		current.Process = *process
 	}
@@ -154,10 +157,10 @@ func (s *Service) UpdateMachineType(
 
 func validateMachine(status string, automatic bool, external *string) error {
 	if status != "active" && status != "maintenance" && status != "retired" {
-		return validation("invalid machine status")
+		return apperror.Invalid("invalid machine status")
 	}
-	if cleanOptional(external) != nil && !automatic {
-		return validation("externalIdentifier requires automatic collection")
+	if optional.Trimmed(external) != nil && !automatic {
+		return apperror.Invalid("externalIdentifier requires automatic collection")
 	}
 	return nil
 }
@@ -287,7 +290,7 @@ func (s *Service) CreateMachine(
 	if err != nil {
 		return Machine{}, err
 	}
-	external = cleanOptional(external)
+	external = optional.Trimmed(external)
 	if err = validateMachine(status, automatic, external); err != nil {
 		return Machine{}, err
 	}
@@ -302,9 +305,9 @@ func (s *Service) CreateMachine(
 		return Machine{}, noRows(err)
 	}
 	if !typeRow.Active {
-		return Machine{}, conflict("machine_type_inactive", "Machine type is inactive")
+		return Machine{}, apperror.Conflicting("machine_type_inactive", "Machine type is inactive")
 	}
-	id := newID()
+	id := ids.New()
 	_, err = q.CreateMachine(
 		ctx,
 		machinelogbookdb.CreateMachineParams{
@@ -352,14 +355,14 @@ func (s *Service) UpdateMachine(
 		return Machine{}, err
 	}
 	if expected < 1 {
-		return Machine{}, validation("expectedVersion must be positive")
+		return Machine{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	var err error
 	name, err = validateName(name)
 	if err != nil {
 		return Machine{}, err
 	}
-	external = cleanOptional(external)
+	external = optional.Trimmed(external)
 	if err = validateMachine(status, automatic, external); err != nil {
 		return Machine{}, err
 	}
@@ -381,7 +384,7 @@ func (s *Service) UpdateMachine(
 		return Machine{}, noRows(err)
 	}
 	if !typeRow.Active && machineTypeID != current.MachineTypeID {
-		return Machine{}, conflict("machine_type_inactive", "Machine type is inactive")
+		return Machine{}, apperror.Conflicting("machine_type_inactive", "Machine type is inactive")
 	}
 	_, err = q.UpdateMachine(
 		ctx,
@@ -433,7 +436,7 @@ func (s *Service) DeleteMachine(
 		return err
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -462,14 +465,20 @@ func (s *Service) DeleteMachine(
 		return err
 	}
 	if inUse {
-		return conflict("machine_in_use", "The machine has jobs or runs and cannot be deleted; retire it instead")
+		return apperror.Conflicting(
+			"machine_in_use",
+			"The machine has jobs or runs and cannot be deleted; retire it instead",
+		)
 	}
 	mounted, err := q.MachineHasMountedSpool(ctx, id)
 	if err != nil {
 		return err
 	}
 	if mounted {
-		return conflict("machine_has_mounted_spools", "Unmount the spools of this machine before deleting it")
+		return apperror.Conflicting(
+			"machine_has_mounted_spools",
+			"Unmount the spools of this machine before deleting it",
+		)
 	}
 	// Order matters: runs go before printer events and assignments they reference.
 	for _, step := range []func(context.Context, uuid.UUID) error{
@@ -517,7 +526,7 @@ func organizationFromRow(row machinelogbookdb.Organization) Organization {
 }
 func validateOrganizationKind(kind string) error {
 	if kind != "company" && kind != "institute" && kind != "association" && kind != "other" {
-		return validation("invalid organization kind")
+		return apperror.Invalid("invalid organization kind")
 	}
 	return nil
 }
@@ -531,7 +540,7 @@ func mergeOrganizationDetails(current OrganizationDetails, in OrganizationDetail
 		}
 		v := strings.TrimSpace(*value)
 		if len([]rune(v)) > max {
-			return validation(field + " is too long")
+			return apperror.Invalid(field + " is too long")
 		}
 		*target = v
 		return nil
@@ -556,14 +565,14 @@ func mergeOrganizationDetails(current OrganizationDetails, in OrganizationDetail
 	if in.CountryCode != nil {
 		code := strings.ToUpper(strings.TrimSpace(*in.CountryCode))
 		if code != "" && (len(code) != 2 || code[0] < 'A' || code[0] > 'Z' || code[1] < 'A' || code[1] > 'Z') {
-			return OrganizationDetails{}, validation("countryCode must be a two-letter ISO 3166-1 code")
+			return OrganizationDetails{}, apperror.Invalid("countryCode must be a two-letter ISO 3166-1 code")
 		}
 		out.CountryCode = code
 	}
 	if out.ContactEmail != "" {
 		addr, err := mail.ParseAddress(out.ContactEmail)
 		if err != nil || addr.Address != out.ContactEmail || addr.Name != "" {
-			return OrganizationDetails{}, validation("contactEmail must be a plain email address")
+			return OrganizationDetails{}, apperror.Invalid("contactEmail must be a plain email address")
 		}
 	}
 	return out, nil
@@ -706,7 +715,7 @@ func (s *Service) CreateOrganization(
 		return Organization{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	id := newID()
+	id := ids.New()
 	row, err := machinelogbookdb.New(tx).
 		CreateOrganization(
 			ctx,
@@ -758,7 +767,7 @@ func (s *Service) DeleteOrganization(
 		return err
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -778,7 +787,7 @@ func (s *Service) DeleteOrganization(
 		return err
 	}
 	if referenced {
-		return conflict(
+		return apperror.Conflicting(
 			"organization_in_use",
 			"The organization is referenced by jobs, orders or invoice requests and cannot be deleted; deactivate it instead",
 		)
@@ -810,7 +819,7 @@ func (s *Service) UpdateOrganization(
 		return Organization{}, err
 	}
 	if expected < 1 {
-		return Organization{}, validation("expectedVersion must be positive")
+		return Organization{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	var err error
 	name, err = validateName(name)
@@ -930,7 +939,7 @@ func (s *Service) AddOrganizationMember(
 	person, err := q.GetBillingPerson(ctx, personID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return OrganizationMember{}, validation("person does not exist")
+			return OrganizationMember{}, apperror.Invalid("person does not exist")
 		}
 		return OrganizationMember{}, err
 	}
@@ -1010,7 +1019,7 @@ func (s *Service) SearchBillingParties(
 		return nil, apperror.PermissionDenied
 	}
 	if limit < 1 || limit > 50 {
-		return nil, validation("limit must be between 1 and 50")
+		return nil, apperror.Invalid("limit must be between 1 and 50")
 	}
 	rows, err := machinelogbookdb.New(s.pool).
 		SearchBillingParties(
@@ -1078,7 +1087,7 @@ func (s *Service) SearchOperators(
 		return nil, apperror.PermissionDenied
 	}
 	if limit < 1 || limit > 50 {
-		return nil, validation("limit must be between 1 and 50")
+		return nil, apperror.Invalid("limit must be between 1 and 50")
 	}
 	rows, err := machinelogbookdb.New(s.pool).
 		SearchMachineJobOperators(
@@ -1197,14 +1206,14 @@ func (s *Service) CreatePricingGroup(
 	if err != nil {
 		return PricingGroup{}, err
 	}
-	description = cleanOptional(description)
+	description = optional.Trimmed(description)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return PricingGroup{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
-	id := newID()
+	id := ids.New()
 	if isDefault {
 		if err = q.ClearDefaultPricingGroup(ctx, id); err != nil {
 			return PricingGroup{}, err
@@ -1249,16 +1258,16 @@ func (s *Service) UpdatePricingGroup(
 		return PricingGroup{}, err
 	}
 	if expected < 1 {
-		return PricingGroup{}, validation("expectedVersion must be positive")
+		return PricingGroup{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	var err error
 	name, err = validateName(name)
 	if err != nil {
 		return PricingGroup{}, err
 	}
-	description = cleanOptional(description)
+	description = optional.Trimmed(description)
 	if isDefault && !active {
-		return PricingGroup{}, validation("default pricing group must be active")
+		return PricingGroup{}, apperror.Invalid("default pricing group must be active")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1335,12 +1344,12 @@ func resolveRuleTarget(
 	switch kind {
 	case "machine_runtime":
 		if machineTypeID == nil || materialTypeID != nil || measure != nil {
-			return ruleTarget{}, validation("machine runtime rules require only machineTypeId")
+			return ruleTarget{}, apperror.Invalid("machine runtime rules require only machineTypeId")
 		}
 		return ruleTarget{}, nil
 	case "material":
 		if machineTypeID != nil || materialTypeID == nil || measure != nil {
-			return ruleTarget{}, validation("material rules require only materialTypeId")
+			return ruleTarget{}, apperror.Invalid("material rules require only materialTypeId")
 		}
 		materialType, err := resolveMaterialType(ctx, q, *materialTypeID, requireActiveType)
 		if err != nil {
@@ -1350,15 +1359,15 @@ func resolveRuleTarget(
 		return ruleTarget{MaterialUnit: &unit, MaterialTypeName: &name}, nil
 	case "machine_measure":
 		if machineTypeID == nil || materialTypeID != nil || measure == nil {
-			return ruleTarget{}, validation("machine measure rules require machineTypeId and measure")
+			return ruleTarget{}, apperror.Invalid("machine measure rules require machineTypeId and measure")
 		}
 		definition, known := measureDefinitions[*measure]
 		if !known {
-			return ruleTarget{}, validation("unknown measure")
+			return ruleTarget{}, apperror.Invalid("unknown measure")
 		}
 		machineType, err := q.GetMachineType(ctx, *machineTypeID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ruleTarget{}, validation("machineTypeId does not refer to a machine type")
+			return ruleTarget{}, apperror.Invalid("machineTypeId does not refer to a machine type")
 		}
 		if err != nil {
 			return ruleTarget{}, err
@@ -1373,7 +1382,7 @@ func resolveRuleTarget(
 		block := definition.BlockSize
 		return ruleTarget{Measure: &definition.Key, BlockSize: &block}, nil
 	}
-	return ruleTarget{}, validation("invalid pricing rule kind")
+	return ruleTarget{}, apperror.Invalid("invalid pricing rule kind")
 }
 
 func (s *Service) CreatePricingRule(
@@ -1391,7 +1400,7 @@ func (s *Service) CreatePricingRule(
 	}
 	numeric, err := numericFromString(rate, false)
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
-		return PricingRule{}, validation("rate must be non-negative")
+		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1408,9 +1417,9 @@ func (s *Service) CreatePricingRule(
 		return PricingRule{}, noRows(err)
 	}
 	if !group.Active {
-		return PricingRule{}, conflict("pricing_group_inactive", "Pricing group is inactive")
+		return PricingRule{}, apperror.Conflicting("pricing_group_inactive", "Pricing group is inactive")
 	}
-	id := newID()
+	id := ids.New()
 	row, err := q.CreatePricingRule(
 		ctx,
 		machinelogbookdb.CreatePricingRuleParams{
@@ -1462,11 +1471,11 @@ func (s *Service) UpdatePricingRule(
 		return PricingRule{}, err
 	}
 	if expected < 1 {
-		return PricingRule{}, validation("expectedVersion must be positive")
+		return PricingRule{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	numeric, err := numericFromString(rate, false)
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
-		return PricingRule{}, validation("rate must be non-negative")
+		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1547,7 +1556,7 @@ func (s *Service) SetPartyPricingGroup(
 		return BillingParty{}, err
 	}
 	if party.Kind != "organization" {
-		return BillingParty{}, validation(
+		return BillingParty{}, apperror.Invalid(
 			"pricing groups are assigned to organizations; people are priced through their roles",
 		)
 	}
@@ -1563,7 +1572,7 @@ func (s *Service) SetPartyPricingGroup(
 			return BillingParty{}, noRows(err)
 		}
 		if !group.Active {
-			return BillingParty{}, conflict("pricing_group_inactive", "Pricing group is inactive")
+			return BillingParty{}, apperror.Conflicting("pricing_group_inactive", "Pricing group is inactive")
 		}
 		actor := p.AccountID
 		_, err = q.UpsertOrganizationPricingAssignment(
@@ -1685,19 +1694,19 @@ func (s *Service) SetRolePricingGroups(
 		return nil, err
 	}
 	if len(input) > 200 {
-		return nil, validation("at most 200 role mappings")
+		return nil, apperror.Invalid("at most 200 role mappings")
 	}
 	roles := map[uuid.UUID]bool{}
 	priorities := map[int32]bool{}
 	for _, item := range input {
 		if item.Priority < 1 || item.Priority > maxRolePriority {
-			return nil, validation("priority must be between 1 and 1000000")
+			return nil, apperror.Invalid("priority must be between 1 and 1000000")
 		}
 		if roles[item.RoleID] {
-			return nil, validation("each role can be mapped once")
+			return nil, apperror.Invalid("each role can be mapped once")
 		}
 		if priorities[item.Priority] {
-			return nil, validation("priorities must be unique")
+			return nil, apperror.Invalid("priorities must be unique")
 		}
 		roles[item.RoleID], priorities[item.Priority] = true, true
 	}
@@ -1723,7 +1732,7 @@ func (s *Service) SetRolePricingGroups(
 			return nil, noRows(err)
 		}
 		if !group.Active {
-			return nil, conflict("pricing_group_inactive", "Pricing group is inactive")
+			return nil, apperror.Conflicting("pricing_group_inactive", "Pricing group is inactive")
 		}
 	}
 	if err = q.DeleteRolePricingGroups(ctx); err != nil {

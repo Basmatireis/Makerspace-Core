@@ -7,6 +7,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -201,7 +204,9 @@ func (s *Service) create(
 		display, normalized, err = security.NormalizeEmail(*loginEmail)
 	}
 	if err != nil || expectedPersonVersion < 1 {
-		return Account{}, validation("loginEmail must be valid when supplied and expectedVersion is required")
+		return Account{}, apperror.InvalidField(
+			"loginEmail must be valid when supplied and expectedVersion is required",
+		)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -219,7 +224,7 @@ func (s *Service) create(
 	if version != expectedPersonVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	accountID := uuid.Must(uuid.NewV7())
+	accountID := ids.New()
 	if _, err := queries.CreateAccount(
 		ctx,
 		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"},
@@ -230,7 +235,7 @@ func (s *Service) create(
 		if _, err := queries.CreateAuthIdentity(
 			ctx,
 			accountsdb.CreateAuthIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				AccountID:            accountID,
 				IdentifierDisplay:    display,
 				IdentifierNormalized: normalized,
@@ -279,7 +284,7 @@ func (s *Service) SetStatus(
 		return Account{}, apperror.PermissionDenied
 	}
 	if (status != "enabled" && status != "disabled") || expectedVersion < 1 {
-		return Account{}, validation("status and expectedVersion are invalid")
+		return Account{}, apperror.InvalidField("status and expectedVersion are invalid")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -322,7 +327,7 @@ func (s *Service) SetStatus(
 	if status == "disabled" {
 		if err := queries.RevokeSessionsForAccount(
 			ctx,
-			accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("account_disabled")},
+			accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: optional.Of("account_disabled")},
 		); err != nil {
 			return Account{}, err
 		}
@@ -364,7 +369,7 @@ func (s *Service) Delete(
 		return apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -442,11 +447,11 @@ func (s *Service) UpdateLoginEmail(
 		return Account{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return Account{}, validation("expectedVersion must be positive")
+		return Account{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	display, normalized, err := security.NormalizeEmail(email)
 	if err != nil {
-		return Account{}, validation("loginEmail is invalid")
+		return Account{}, apperror.InvalidField("loginEmail is invalid")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -464,7 +469,7 @@ func (s *Service) UpdateLoginEmail(
 	_, identityErr := queries.GetPasswordIdentityForAccountForUpdate(ctx, id)
 	if errors.Is(identityErr, pgx.ErrNoRows) {
 		if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{
-			ID: uuid.Must(uuid.NewV7()), AccountID: id,
+			ID: ids.New(), AccountID: id,
 			IdentifierDisplay: display, IdentifierNormalized: normalized,
 		}); err != nil {
 			return Account{}, databaseError(err)
@@ -495,7 +500,7 @@ func (s *Service) UpdateLoginEmail(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("login_email_changed")},
+		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: optional.Of("login_email_changed")},
 	); err != nil {
 		return Account{}, err
 	}
@@ -536,11 +541,11 @@ func (s *Service) SetPassword(
 		return Account{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return Account{}, validation("expectedVersion must be positive")
+		return Account{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	hash, err := security.HashPassword(password)
 	if err != nil {
-		return Account{}, validation(err.Error())
+		return Account{}, apperror.InvalidField(err.Error())
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -576,7 +581,7 @@ func (s *Service) SetPassword(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_set_by_admin")},
+		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: optional.Of("password_set_by_admin")},
 	); err != nil {
 		return Account{}, err
 	}
@@ -629,7 +634,7 @@ func (s *Service) RemoveAuthIdentity(
 		return apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -685,7 +690,7 @@ func (s *Service) RemoveAuthIdentity(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr(policy.revocationReason)},
+		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: optional.Of(policy.revocationReason)},
 	); err != nil {
 		return err
 	}
@@ -756,7 +761,7 @@ func (s *Service) IssuePasswordReset(
 		return ResetIssue{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return ResetIssue{}, validation("expectedVersion must be positive")
+		return ResetIssue{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -782,10 +787,10 @@ func (s *Service) IssuePasswordReset(
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
 	if identity.IdentifierDisplay == nil {
-		return ResetIssue{}, validation("the account has no password login email")
+		return ResetIssue{}, apperror.InvalidField("the account has no password login email")
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: uuid.Must(uuid.NewV7()), Kind: "password_reset", AccountID: id,
+		ID: ids.New(), Kind: "password_reset", AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "password_reset", id, code),
 		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
@@ -856,7 +861,11 @@ func (s *Service) IssuePasswordReset(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Password recovery could not be delivered")
+		return ResetIssue{}, apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_delivery_failed",
+			"Password recovery could not be delivered",
+		)
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -872,7 +881,7 @@ func (s *Service) IssuePINEnrollment(
 		return ResetIssue{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return ResetIssue{}, validation("expectedVersion must be positive")
+		return ResetIssue{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	notifier, notifierAvailable := s.notifier.(PINEnrollmentNotificationService)
 	tx, err := s.pool.Begin(ctx)
@@ -913,7 +922,7 @@ func (s *Service) IssuePINEnrollment(
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: uuid.Must(uuid.NewV7()), Kind: "pin_enrollment", AccountID: id,
+		ID: ids.New(), Kind: "pin_enrollment", AccountID: id,
 		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(
 			s.config.ChallengeHMACKey,
 			"pin_enrollment",
@@ -984,7 +993,11 @@ func (s *Service) IssuePINEnrollment(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "PIN setup could not be delivered")
+		return ResetIssue{}, apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_delivery_failed",
+			"PIN setup could not be delivered",
+		)
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -1000,7 +1013,7 @@ func (s *Service) IssueInvitation(
 		return ResetIssue{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return ResetIssue{}, validation("expectedVersion must be positive")
+		return ResetIssue{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1027,7 +1040,7 @@ func (s *Service) IssueInvitation(
 		return ResetIssue{}, err
 	}
 	if identity.IdentifierDisplay == nil {
-		return ResetIssue{}, validation("the account has no password login email")
+		return ResetIssue{}, apperror.InvalidField("the account has no password login email")
 	}
 	code, err := security.NewChallengeCode()
 	if err != nil {
@@ -1036,7 +1049,7 @@ func (s *Service) IssueInvitation(
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
-		ID: uuid.Must(uuid.NewV7()), Kind: "invitation", AccountID: id,
+		ID: ids.New(), Kind: "invitation", AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", id, code),
 		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
@@ -1110,7 +1123,11 @@ func (s *Service) IssueInvitation(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Invitation could not be delivered")
+		return ResetIssue{}, apperror.New(
+			http.StatusServiceUnavailable,
+			"mail_delivery_failed",
+			"Invitation could not be delivered",
+		)
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -1179,7 +1196,11 @@ func protectLastMaster(ctx context.Context, queries *accountsdb.Queries, account
 		return err
 	}
 	if count <= 1 {
-		return apperror.New(http.StatusConflict, "last_master_required", "At least one enabled master account must remain")
+		return apperror.New(
+			http.StatusConflict,
+			"last_master_required",
+			"At least one enabled master account must remain",
+		)
 	}
 	return nil
 }
@@ -1191,11 +1212,3 @@ func databaseError(err error) error {
 	}
 	return err
 }
-
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
-	return err
-}
-
-func ptr(value string) *string { return &value }

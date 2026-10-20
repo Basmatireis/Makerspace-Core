@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
@@ -396,7 +398,7 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 
 func insertSCIMOIDCProvider(t *testing.T, pool *pgxpool.Pool, issuer string) uuid.UUID {
 	t.Helper()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := pool.Exec(
 		testContext(t),
 		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,$2,'SCIM OIDC',$3,'client',$4,true)`,
@@ -417,8 +419,8 @@ func insertConflictingSCIMAssignments(
 ) (uuid.UUID, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := testContext(t)
-	periodID, openDayID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	sourceRequirementID, targetRequirementID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	periodID, openDayID := ids.New(), ids.New()
+	sourceRequirementID, targetRequirementID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO open_day_periods (id,name,starts_on,ends_on) VALUES ($1,'SCIM period',current_date,current_date)`,
@@ -446,8 +448,8 @@ func insertConflictingSCIMAssignments(
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO open_day_assignments (id,open_day_id,requirement_id,person_id) VALUES ($1,$3,$4,$6),($2,$3,$5,$7)`,
-		uuid.Must(uuid.NewV7()),
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
+		ids.New(),
 		openDayID,
 		sourceRequirementID,
 		targetRequirementID,

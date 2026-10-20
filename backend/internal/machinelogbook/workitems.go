@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/google/uuid"
@@ -125,7 +127,7 @@ func (s *Service) ListWorkItems(
 		!containsAll(workItemStatuses, filters.Statuses) ||
 		!containsAll(workItemSources, filters.Sources) ||
 		!containsAll(billingStates, filters.Billing) {
-		return nil, 0, validation("unsupported work item filter or sort")
+		return nil, 0, apperror.Invalid("unsupported work item filter or sort")
 	}
 	params := machinelogbookdb.ListWorkItemsParams{
 		Statuses: nonNil(

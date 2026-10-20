@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
 func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (*Runtime, *[]string) {
@@ -25,7 +25,7 @@ func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).
 			Encode(map[string]any{
-				"connectorId":         uuid.Must(uuid.NewV7()),
+				"connectorId":         ids.New(),
 				"credentialExpiresAt": time.Now().UTC().Add(30 * 24 * time.Hour),
 			})
 	}))

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -17,7 +19,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	pool := integrationPool(t)
 	ctx := t.Context()
 	s := NewService(pool)
-	account, person, request := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	account, person, request := ids.New(), ids.New(), ids.New()
 	suffix := strings.ReplaceAll(person.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: account, PersonID: person, Master: true}
 	if _, err := pool.Exec(
@@ -282,7 +284,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	}
 
 	// Without a permission nothing is read or written.
-	nobody := authorization.Principal{AccountID: uuid.Must(uuid.NewV7())}
+	nobody := authorization.Principal{AccountID: ids.New()}
 	if _, err = s.ListMaterialTypes(ctx, nobody); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("list without permission: %v", err)
 	}
@@ -498,7 +500,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 	) {
 		t.Fatalf("material rule without type: %v", err)
 	}
-	unknown := uuid.Must(uuid.NewV7())
+	unknown := ids.New()
 	if _, err = f.s.CreatePricingRule(
 		ctx,
 		f.p,

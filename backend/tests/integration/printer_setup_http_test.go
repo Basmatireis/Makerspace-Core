@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -344,7 +346,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		"/api/v1/printer-connector/enroll",
 		*enrollment.EnrollmentSecret,
 		map[string]any{
-			"credentialId":     uuid.Must(uuid.NewV7()).String(),
+			"credentialId":     ids.New().String(),
 			"credentialSecret": credentialSecret,
 			"softwareVersion":  "test",
 			"protocolVersion":  1,
@@ -409,7 +411,9 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 	var live openapi.PrinterLiveStatus
 	decodeResponse(t, response, &live)
-	if live.AssignmentId != assignment.Id || live.Status.State != openapi.PrinterLiveStatusStatePrinting || len(live.Status.Units) != 2 || len(live.Status.Units[0].Trays) != 2 ||
+	if live.AssignmentId != assignment.Id || live.Status.State != openapi.PrinterLiveStatusStatePrinting ||
+		len(live.Status.Units) != 2 ||
+		len(live.Status.Units[0].Trays) != 2 ||
 		live.Status.Units[0].Trays[0].ColorHex.MustGet() != "FFF144" ||
 		live.Status.ActiveTray.MustGet().TrayExternalId != "0" ||
 		live.Status.WifiSignalDbm.MustGet() != -39 ||

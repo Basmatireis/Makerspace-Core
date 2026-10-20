@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -63,7 +65,7 @@ func newReenrollRuntime(
 }
 
 func TestNewEnrollmentSecretReplacesTheIdentity(t *testing.T) {
-	first, second := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	first, second := ids.New(), ids.New()
 	core := &reenrollCore{accepted: map[string]uuid.UUID{"old-secret": first, "new-secret": second}}
 	dir := filepath.Join(t.TempDir(), "data")
 	var logs bytes.Buffer
@@ -103,7 +105,7 @@ func TestNewEnrollmentSecretReplacesTheIdentity(t *testing.T) {
 }
 
 func TestSameEnrollmentSecretIsIgnored(t *testing.T) {
-	core := &reenrollCore{accepted: map[string]uuid.UUID{"s": uuid.Must(uuid.NewV7())}}
+	core := &reenrollCore{accepted: map[string]uuid.UUID{"s": ids.New()}}
 	var logs bytes.Buffer
 	runtime, _ := newReenrollRuntime(t, core, filepath.Join(t.TempDir(), "d"), Enrollment{Secret: " s\n"}, &logs)
 	for range 3 {
@@ -117,7 +119,7 @@ func TestSameEnrollmentSecretIsIgnored(t *testing.T) {
 }
 
 func TestFailedReenrollmentKeepsTheOldIdentity(t *testing.T) {
-	first := uuid.Must(uuid.NewV7())
+	first := ids.New()
 	core := &reenrollCore{accepted: map[string]uuid.UUID{"old": first}}
 	var logs bytes.Buffer
 	runtime, store := newReenrollRuntime(t, core, filepath.Join(t.TempDir(), "d"), Enrollment{Secret: "old"}, &logs)
@@ -143,7 +145,7 @@ func TestFailedReenrollmentKeepsTheOldIdentity(t *testing.T) {
 }
 
 func TestLegacyIdentityWithoutDigestReenrollsWhenASecretIsSet(t *testing.T) {
-	second := uuid.Must(uuid.NewV7())
+	second := ids.New()
 	core := &reenrollCore{accepted: map[string]uuid.UUID{"fresh": second}}
 	runtime, store := newReenrollRuntime(
 		t,
@@ -153,8 +155,8 @@ func TestLegacyIdentityWithoutDigestReenrollsWhenASecretIsSet(t *testing.T) {
 		&bytes.Buffer{},
 	)
 	legacy := Identity{
-		ConnectorID:         uuid.Must(uuid.NewV7()),
-		CredentialID:        uuid.Must(uuid.NewV7()),
+		ConnectorID:         ids.New(),
+		CredentialID:        ids.New(),
 		CredentialSecret:    "x",
 		Enrolled:            true,
 		CredentialExpiresAt: time.Now().Add(time.Hour),
@@ -172,8 +174,8 @@ func TestEnrolledIdentityWithoutASecretIsLeftAlone(t *testing.T) {
 	core := &reenrollCore{}
 	runtime, store := newReenrollRuntime(t, core, filepath.Join(t.TempDir(), "d"), Enrollment{}, &bytes.Buffer{})
 	legacy := Identity{
-		ConnectorID:      uuid.Must(uuid.NewV7()),
-		CredentialID:     uuid.Must(uuid.NewV7()),
+		ConnectorID:      ids.New(),
+		CredentialID:     ids.New(),
 		CredentialSecret: "x",
 		Enrolled:         true,
 	}

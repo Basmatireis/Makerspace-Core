@@ -200,7 +200,7 @@ func (s *Service) DeleteRun(
 		return apperror.PermissionDenied
 	}
 	if expected < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -226,7 +226,7 @@ func (s *Service) DeleteRun(
 			return err
 		}
 		if len(active) <= 1 {
-			return conflict("last_run", "The only run of a job cannot be deleted; delete the job instead")
+			return apperror.Conflicting("last_run", "The only run of a job cannot be deleted; delete the job instead")
 		}
 	}
 	if err = s.deleteRunRows(ctx, tx, q, p, run, reverseConsumption, requestID); err != nil {
@@ -299,7 +299,7 @@ func (s *Service) DeleteJob(
 		return err
 	}
 	if input.ExpectedVersion < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -319,7 +319,7 @@ func (s *Service) DeleteJob(
 		return err
 	}
 	if onOrder {
-		return conflict("job_on_order", "A job on an order cannot be deleted")
+		return apperror.Conflicting("job_on_order", "A job on an order cannot be deleted")
 	}
 	runs, err := q.ListJobRunsForUpdate(ctx, &id)
 	if err != nil {

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -50,7 +52,7 @@ func hasBlocker(blockers []string, want string) bool {
 func (f *jobFixture) putOnOrder(t *testing.T, job MachineJob) {
 	t.Helper()
 	ctx := t.Context()
-	orderID, itemID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	orderID, itemID := ids.New(), ids.New()
 	reference := fmt.Sprintf("O-2020-%09d", time.Now().UnixNano()%1_000_000_000)
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -201,7 +203,7 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 			f.item(good),
 			f.item(onOrder),
 			{ID: stale.ID, ExpectedVersion: stale.Version + 5},
-			{ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1},
+			{ID: ids.New(), ExpectedVersion: 1},
 		},
 		Runs:               []BulkItem{free, {ID: owned.ID, ExpectedVersion: owned.ExpectedVersion + 1}},
 		ReverseConsumption: true,
@@ -605,7 +607,7 @@ func TestBulkAttachRuns(t *testing.T) {
 	if _, err := h.s.BulkAttachRuns(
 		ctx,
 		h.p,
-		BulkAttachInput{JobID: uuid.Must(uuid.NewV7()), ExpectedJobVersion: 1, Runs: input.Runs},
+		BulkAttachInput{JobID: ids.New(), ExpectedJobVersion: 1, Runs: input.Runs},
 		&h.request,
 	); !apperror.IsCode(
 		err,

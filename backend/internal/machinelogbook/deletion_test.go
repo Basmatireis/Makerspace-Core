@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -90,7 +92,7 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 	) {
 		t.Fatalf("stale delete: %v", err)
 	}
-	if err := f.s.DeleteRun(ctx, f.p, uuid.Must(uuid.NewV7()), 1, false, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteRun(ctx, f.p, ids.New(), 1, false, &f.request); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -273,7 +275,7 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 	if err := f.s.DeleteJob(
 		ctx,
 		f.p,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		DeleteJobInput{ExpectedVersion: 1},
 		&f.request,
 	); !apperror.IsCode(

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -179,7 +181,7 @@ func (s *Store) EnqueueBambuStateFor(
 		_, err = tx.ExecContext(
 			ctx,
 			`INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			uuid.Must(uuid.NewV7()).String(),
+			ids.New().String(),
 			assignmentID.String(),
 			configurationVersion,
 			sequence+int64(index),
@@ -260,7 +262,7 @@ func (s *Store) StageArtifact(
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return ArtifactTransfer{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	path := filepath.Join(directory, id.String()+".3mf")
 	//nolint:gosec // path is built from a generated UUID inside the connector data directory
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)

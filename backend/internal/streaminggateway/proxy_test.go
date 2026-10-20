@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streamticket"
 	"github.com/google/uuid"
 )
@@ -44,7 +46,7 @@ type proxyFixture struct {
 
 func newProxyFixture(t *testing.T) *proxyFixture {
 	t.Helper()
-	f := &proxyFixture{t: t, now: time.Now().UTC(), machine: uuid.Must(uuid.NewV7())}
+	f := &proxyFixture{t: t, now: time.Now().UTC(), machine: ids.New()}
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +103,7 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 
 func (f *proxyFixture) ticket(stream string, issuedAt time.Time) string {
 	f.t.Helper()
-	ticket, _, err := streamticket.Sign(f.private, f.kid, uuid.Must(uuid.NewV7()), f.machine, stream, issuedAt)
+	ticket, _, err := streamticket.Sign(f.private, f.kid, ids.New(), f.machine, stream, issuedAt)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -192,11 +194,11 @@ func TestProxyAcceptsBearerTicket(t *testing.T) {
 
 func TestProxyRejectsMissingBadAndMismatchedTickets(t *testing.T) {
 	f := newProxyFixture(t)
-	other := streamticket.StreamName(uuid.Must(uuid.NewV7()))
+	other := streamticket.StreamName(ids.New())
 	expired := f.ticket(f.stream(), f.now.Add(-streamticket.TTL-streamticket.ClockSkew-time.Second))
 	justExpired := f.ticket(f.stream(), f.now.Add(-streamticket.TTL-10*time.Second)) // inside the 30 s skew
 	_, strangerKey, _ := ed25519.GenerateKey(rand.Reader)
-	forged, _, _ := streamticket.Sign(strangerKey, f.kid, uuid.Must(uuid.NewV7()), f.machine, f.stream(), f.now)
+	forged, _, _ := streamticket.Sign(strangerKey, f.kid, ids.New(), f.machine, f.stream(), f.now)
 	cases := map[string]struct {
 		query string
 		want  int
@@ -393,7 +395,7 @@ func TestEmptySnapshotServesNothing(t *testing.T) {
 
 func TestProxyRefusesTicketsOfRevokedDisplays(t *testing.T) {
 	f := newProxyFixture(t)
-	display := uuid.Must(uuid.NewV7())
+	display := ids.New()
 	ticket, _, err := streamticket.Sign(f.private, f.kid, display, f.machine, f.stream(), f.now)
 	if err != nil {
 		t.Fatal(err)

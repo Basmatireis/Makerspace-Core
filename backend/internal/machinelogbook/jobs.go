@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -45,7 +48,7 @@ func parseOutcome(value string) (*string, error) {
 	case "successful", "partial_failure", "failed", "cancelled":
 		return &value, nil
 	}
-	return nil, validation("invalid outcome")
+	return nil, apperror.Invalid("invalid outcome")
 }
 
 func validateOptionalOutcome(value *string) (*string, error) {
@@ -53,13 +56,13 @@ func validateOptionalOutcome(value *string) (*string, error) {
 		return nil, nil
 	}
 	if *value == "unknown" || *value == "" {
-		return nil, validation("invalid outcome")
+		return nil, apperror.Invalid("invalid outcome")
 	}
 	return parseOutcome(*value)
 }
 func validateInterval(startsAt, endsAt time.Time) error {
 	if startsAt.IsZero() || endsAt.IsZero() || !endsAt.After(startsAt) {
-		return validation("endsAt must be after startsAt")
+		return apperror.Invalid("endsAt must be after startsAt")
 	}
 	return nil
 }
@@ -74,28 +77,28 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 			input.QuantityBasis = "actual"
 		}
 		if input.QuantityBasis != "actual" && input.QuantityBasis != "estimated" {
-			return nil, validation("invalid quantityBasis")
+			return nil, apperror.Invalid("invalid quantityBasis")
 		}
 		switch input.Ownership {
 		case "makerspace":
 			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil {
-				return nil, validation("makerspace usage requires a material")
+				return nil, apperror.Invalid("makerspace usage requires a material")
 			}
 			key := "material/" + input.MaterialID.String()
 			if input.SpoolID != nil {
 				key = "spool/" + input.SpoolID.String()
 			}
 			if seen[key] {
-				return nil, validation("makerspace usage sources must be unique")
+				return nil, apperror.Invalid("makerspace usage sources must be unique")
 			}
 			seen[key] = true
 		case "external":
-			if input.SpoolID != nil || cleanOptional(input.ExternalMaterialName) == nil {
-				return nil, validation("external usage requires a material description and cannot use a spool")
+			if input.SpoolID != nil || optional.Trimmed(input.ExternalMaterialName) == nil {
+				return nil, apperror.Invalid("external usage requires a material description and cannot use a spool")
 			}
-			input.ExternalMaterialName = cleanOptional(input.ExternalMaterialName)
+			input.ExternalMaterialName = optional.Trimmed(input.ExternalMaterialName)
 		default:
-			return nil, validation("invalid filament ownership")
+			return nil, apperror.Invalid("invalid filament ownership")
 		}
 		quantity, err := parseDecimal(input.Quantity, true)
 		if err != nil {
@@ -115,7 +118,7 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 				ExternalMaterialName: input.ExternalMaterialName,
 				QuantityBasis:        input.QuantityBasis,
 				Quantity:             quantity,
-				UsageID:              newID(),
+				UsageID:              ids.New(),
 			},
 		)
 	}
@@ -125,20 +128,13 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 
 func usageSortKey(item parsedUsage) string {
 	if item.MaterialID == nil {
-		return "z/" + stringValue(item.ExternalMaterialName) + "/" + item.UsageID.String()
+		return "z/" + optional.Value(item.ExternalMaterialName) + "/" + item.UsageID.String()
 	}
 	spool := ""
 	if item.SpoolID != nil {
 		spool = item.SpoolID.String()
 	}
 	return item.MaterialID.String() + "/" + spool
-}
-
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func validateParty(
@@ -172,7 +168,7 @@ func validateParty(
 		}
 		return nil, &party.ID, nil
 	default:
-		return nil, nil, validation("invalid billing party")
+		return nil, nil, apperror.Invalid("invalid billing party")
 	}
 }
 
@@ -211,7 +207,7 @@ func resolvePricingGroupSource(
 			return group, "", err
 		}
 		if !group.Active {
-			return group, "", conflict("pricing_group_inactive", "Pricing group is inactive")
+			return group, "", apperror.Conflicting("pricing_group_inactive", "Pricing group is inactive")
 		}
 		return group, PricingSourceExplicit, nil
 	}
@@ -234,7 +230,7 @@ func resolvePricingGroupSource(
 	}
 	group, err := q.GetDefaultPricingGroup(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return group, "", validation("pricingGroupId is required because no default pricing group resolves")
+		return group, "", apperror.Invalid("pricingGroupId is required because no default pricing group resolves")
 	}
 	if err != nil {
 		return group, "", err
@@ -272,7 +268,7 @@ func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Que
 			return err
 		}
 		if items[i].MaterialID == nil || ref.MaterialID != *items[i].MaterialID {
-			return conflict("spool_material_mismatch", "Spool does not belong to the selected material")
+			return apperror.Conflicting("spool_material_mismatch", "Spool does not belong to the selected material")
 		}
 		items[i].Fill = &ref
 	}
@@ -373,7 +369,7 @@ func (s *Service) consumeUsages(
 			return noRows(err)
 		}
 		if !current.Active {
-			return conflict("material_inactive", "An inactive material cannot be consumed")
+			return apperror.Conflicting("material_inactive", "An inactive material cannot be consumed")
 		}
 		average := decimalFromNumeric(current.AverageUnitCost)
 		_, err = s.applyInventoryMutation(
@@ -501,7 +497,7 @@ func (s *Service) capturePricingSnapshot(
 		}
 	}
 	runtimeEntry := machinelogbookdb.InsertPricingSnapshotRuleParams{
-		ID:       newID(),
+		ID:       ids.New(),
 		Kind:     "machine_runtime",
 		Label:    "Machine runtime",
 		Selector: machine.MachineTypeID.String(),
@@ -532,7 +528,7 @@ func (s *Service) capturePricingSnapshot(
 		definition := measureDefinitions[key]
 		block := definition.BlockSize
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
-			ID:        newID(),
+			ID:        ids.New(),
 			Kind:      "machine_measure",
 			Label:     definition.Label,
 			Selector:  key,
@@ -582,7 +578,7 @@ func (s *Service) capturePricingSnapshot(
 			}
 		}
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
-			ID:             newID(),
+			ID:             ids.New(),
 			Kind:           "material",
 			Label:          usage.MaterialName,
 			Selector:       usage.MaterialTypeName,
@@ -603,7 +599,7 @@ func (s *Service) capturePricingSnapshot(
 	if err != nil {
 		return job, err
 	}
-	snapshotID := newID()
+	snapshotID := ids.New()
 	calculated := pgtype.Numeric{}
 	status := "incomplete"
 	if complete {
@@ -711,7 +707,7 @@ func (s *Service) storeManualRun(
 	run, err := q.InsertManualRun(
 		ctx,
 		machinelogbookdb.InsertManualRunParams{
-			ID:        newID(),
+			ID:        ids.New(),
 			DisplayID: formatRunDisplayID(sequence, s.now()),
 			MachineID: job.MachineID,
 			JobID:     &job.ID,
@@ -801,7 +797,7 @@ func (s *Service) CreateManualJobInTransaction(
 		return MachineJob{}, noRows(err)
 	}
 	if machine.Status == "retired" {
-		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive new jobs")
+		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new jobs")
 	}
 	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
 	if err != nil {
@@ -820,7 +816,7 @@ func (s *Service) CreateManualJobInTransaction(
 		organizationID,
 		input.OperatorPersonID,
 		title,
-		cleanOptional(input.Notes),
+		optional.Trimmed(input.Notes),
 	)
 	if err != nil {
 		return MachineJob{}, err
@@ -863,7 +859,7 @@ func (s *Service) insertJob(
 	job, err := q.CreateMachineJob(
 		ctx,
 		machinelogbookdb.CreateMachineJobParams{
-			ID:                     newID(),
+			ID:                     ids.New(),
 			DisplayID:              formatDisplayID(sequence, now),
 			MachineID:              machineID,
 			CustomerPersonID:       personID,
@@ -1009,7 +1005,7 @@ func (s *Service) jobFromRow(
 		item.PriceAdjustment = &PriceAdjustment{
 			Kind:       *row.PriceAdjustmentKind,
 			Value:      decimalString(row.PriceAdjustmentValue),
-			Reason:     stringValue(row.PriceAdjustmentReason),
+			Reason:     optional.Value(row.PriceAdjustmentReason),
 			AdjustedAt: row.PriceAdjustedAt.Time,
 		}
 	}
@@ -1089,7 +1085,7 @@ func (s *Service) ListJobs(
 		return nil, 0, err
 	}
 	if filters.From != nil && filters.To != nil && !filters.To.After(*filters.From) {
-		return nil, 0, validation("to must be after from")
+		return nil, 0, apperror.Invalid("to must be after from")
 	}
 	params := machinelogbookdb.ListMachineJobIDsParams{
 		Search:     strings.TrimSpace(filters.Search),
@@ -1154,7 +1150,7 @@ func (s *Service) UpdateJobFacts(
 		return MachineJob{}, err
 	}
 	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	override, err := validateOptionalOutcome(input.OutcomeOverride)
 	if err != nil {
@@ -1187,14 +1183,14 @@ func (s *Service) UpdateJobFacts(
 	}
 	if newMachine.ID != oldMachine.ID {
 		if newMachine.Status == "retired" {
-			return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive jobs")
+			return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive jobs")
 		}
 		recorded, err := q.CountJobRecordedRuns(ctx, &id)
 		if err != nil {
 			return MachineJob{}, err
 		}
 		if recorded > 0 {
-			return MachineJob{}, conflict(
+			return MachineJob{}, apperror.Conflicting(
 				"machine_change_not_allowed",
 				"The machine of a job with recorded runs cannot change",
 			)
@@ -1266,7 +1262,7 @@ func (s *Service) UpdateJobFacts(
 			OperatorPersonID:       &input.OperatorPersonID,
 			OutcomeOverride:        override,
 			Title:                  title,
-			Notes:                  cleanOptional(input.Notes),
+			Notes:                  optional.Trimmed(input.Notes),
 			ID:                     id,
 			ExpectedVersion:        expected,
 		},
@@ -1608,13 +1604,13 @@ func (s *Service) ChargeSource(
 	// Progress events reprice a running job without a version bump, so a
 	// charge snapshot of it could not be kept in step.
 	if job.Status == "running" {
-		return MachineJob{}, conflict(
+		return MachineJob{}, apperror.Conflicting(
 			"job_running",
 			"A job with a running run cannot be ordered until its runs have ended",
 		)
 	}
 	if job.Status == "planned" {
-		return MachineJob{}, conflict("job_planned", "A planned job cannot be ordered until it has a run")
+		return MachineJob{}, apperror.Conflicting("job_planned", "A planned job cannot be ordered until it has a run")
 	}
 	return job, nil
 }
@@ -1627,14 +1623,14 @@ func validateJobAssignments(
 	anonymous bool,
 ) (*uuid.UUID, *uuid.UUID, error) {
 	if operator == uuid.Nil {
-		return nil, nil, validation("operatorPersonId is required")
+		return nil, nil, apperror.Invalid("operatorPersonId is required")
 	}
 	ok, err := q.OperatorExists(ctx, operator)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !ok {
-		return nil, nil, validation("operator must have an enabled account")
+		return nil, nil, apperror.Invalid("operator must have an enabled account")
 	}
 	return validateParty(ctx, q, party, anonymous)
 }

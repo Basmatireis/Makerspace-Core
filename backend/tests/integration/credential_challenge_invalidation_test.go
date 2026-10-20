@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
-	"github.com/google/uuid"
 )
 
 func TestPasswordChallengeCompletionUsesAccountSecurityLock(t *testing.T) {
@@ -25,7 +26,7 @@ func TestPasswordChallengeCompletionUsesAccountSecurityLock(t *testing.T) {
 			if _, err := pool.Exec(ctx, `INSERT INTO auth_challenges
 				(id,kind,account_id,auth_identity_id,code_digest,delivery_address,expires_at)
 				VALUES ($1,$2,$3,$4,$5,'locked-challenge@example.test',now()+interval '30 minutes')`,
-				uuid.Must(uuid.NewV7()), kind, account.accountID, account.identity,
+				ids.New(), kind, account.accountID, account.identity,
 				security.ChallengeDigest(cfg.ChallengeHMACKey, kind, account.accountID, code)); err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +106,7 @@ func TestOIDCSessionRejectsDisabledOrForeignIdentity(t *testing.T) {
 	account := seedAccount(t, pool, "oidc-session", false)
 	other := seedAccount(t, pool, "oidc-other", false)
 	providerID := insertSCIMOIDCProvider(t, pool, "https://session.example.test")
-	identityID := uuid.Must(uuid.NewV7())
+	identityID := ids.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject)
 		VALUES ($1,$2,'oidc',$3,'https://session.example.test','subject')`, identityID, account.accountID, providerID); err != nil {
 		t.Fatal(err)
@@ -166,7 +167,7 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 				if _, err := pool.Exec(ctx, `INSERT INTO auth_challenges
 					(id, kind, account_id, auth_identity_id, code_digest, delivery_address, expires_at)
 					VALUES ($1,$2,$3,$4,$5,$6,now()+interval '30 minutes')`,
-					uuid.Must(uuid.NewV7()), kind, account.accountID, account.identity,
+					ids.New(), kind, account.accountID, account.identity,
 					security.ChallengeDigest(cfg.ChallengeHMACKey, kind, account.accountID, code), email); err != nil {
 					t.Fatal(err)
 				}

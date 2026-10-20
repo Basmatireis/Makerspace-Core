@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/google/uuid"
@@ -175,7 +177,7 @@ func reconcileBambuSlotObservation(
 		}
 	}
 	if err = q.CreateReconciledMount(ctx, db.CreateReconciledMountParams{
-		ID:            uuid.Must(uuid.NewV7()),
+		ID:            ids.New(),
 		SlotID:        slotID,
 		SpoolID:       spoolID,
 		MountedAt:     mountedAt,
@@ -425,7 +427,7 @@ func applyReportedUsage(
 	if err = q.InsertReportedUsageItem(
 		ctx,
 		db.InsertReportedUsageItemParams{
-			ID:                   uuid.Must(uuid.NewV7()),
+			ID:                   ids.New(),
 			RunID:                run.ID,
 			SourcePrinterEventID: eventID,
 			ReportRevision:       *reportRevision,
@@ -505,7 +507,7 @@ func applyReportedUsageItems(
 		if err = q.InsertReportedUsageItem(
 			ctx,
 			db.InsertReportedUsageItemParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				RunID:                run.ID,
 				SourcePrinterEventID: eventID,
 				ReportRevision:       revision,

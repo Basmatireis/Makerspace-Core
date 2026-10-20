@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -262,7 +265,7 @@ func (s *Service) Logout(ctx context.Context, principal authorization.Principal,
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := authdb.New(tx).RevokeSession(
 		ctx,
-		authdb.RevokeSessionParams{ID: principal.SessionID, Reason: ptr("logout")},
+		authdb.RevokeSessionParams{ID: principal.SessionID, Reason: optional.Of("logout")},
 	); err != nil {
 		return err
 	}
@@ -311,7 +314,11 @@ func (s *Service) ChangePassword(
 	}
 	credential, err := queries.GetPasswordCredentialForAccount(ctx, principal.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Session{}, apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
+		return Session{}, apperror.New(
+			http.StatusUnprocessableEntity,
+			"current_password_invalid",
+			"Current password is invalid",
+		)
 	}
 	if err != nil {
 		return Session{}, err
@@ -320,7 +327,11 @@ func (s *Service) ChangePassword(
 		return Session{}, apperror.Unauthenticated
 	}
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
-		return Session{}, apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
+		return Session{}, apperror.New(
+			http.StatusUnprocessableEntity,
+			"current_password_invalid",
+			"Current password is invalid",
+		)
 	}
 	if err := queries.UpsertPasswordCredential(
 		ctx,
@@ -330,7 +341,7 @@ func (s *Service) ChangePassword(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_changed")},
+		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: optional.Of("password_changed")},
 	); err != nil {
 		return Session{}, err
 	}
@@ -395,7 +406,7 @@ func (s *Service) RemovePassword(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_removed")},
+		authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: optional.Of("password_removed")},
 	); err != nil {
 		return err
 	}
@@ -437,19 +448,31 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword
 	tokenDigest := security.DigestToken(rawToken)
 	accountID, err := queries.FindPasswordResetAccountByDigest(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(
+			http.StatusUnprocessableEntity,
+			"password_reset_invalid",
+			"Password reset token is invalid or expired",
+		)
 	}
 	if err != nil {
 		return err
 	}
 	if _, err := queries.GetAccountForAuthentication(ctx, accountID); errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(
+			http.StatusUnprocessableEntity,
+			"password_reset_invalid",
+			"Password reset token is invalid or expired",
+		)
 	} else if err != nil {
 		return err
 	}
 	reset, err := queries.GetPasswordResetByDigest(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(
+			http.StatusUnprocessableEntity,
+			"password_reset_invalid",
+			"Password reset token is invalid or expired",
+		)
 	}
 	if err != nil {
 		return err
@@ -465,7 +488,7 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: reset.AccountID, Reason: ptr("password_reset_redeemed")},
+		authdb.RevokeSessionsForAccountParams{AccountID: reset.AccountID, Reason: optional.Of("password_reset_redeemed")},
 	); err != nil {
 		return err
 	}
@@ -505,7 +528,7 @@ func (s *Service) createSession(
 	if err != nil {
 		return Session{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := queries.CreateSession(ctx, authdb.CreateSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID,
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
@@ -571,7 +594,7 @@ func (s *Service) CreateOIDCSession(
 	if err != nil {
 		return Session{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := queries.CreateOIDCSession(ctx, authdb.CreateOIDCSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
 		CsrfDigest:        csrfDigest,
@@ -606,8 +629,6 @@ func validationError(message string) *apperror.Error {
 	err.Details["reason"] = message
 	return err
 }
-
-func ptr(value string) *string { return &value }
 
 // loginLimits throttles credential verification in memory (single-instance deployment). The
 // per-attempt limit stops guessing one identifier from one source; the per-source limit stops

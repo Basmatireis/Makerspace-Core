@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -46,7 +48,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC(),
 	}
 
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles (id,name,laborordnung_mode,profile_image_required) VALUES ($1,'Visitor','blocking',true)`,
@@ -373,7 +375,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		id := uuid.Must(uuid.NewV7())
+		id := ids.New()
 		if _, err := pool.Exec(
 			ctx,
 			`INSERT INTO laborordnung_versions(id,human_revision,pdf_file_id,pdf_sha256) VALUES($1,$2,$3,$4)`,
@@ -390,7 +392,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		return id
 	}
 	original := publish("original")
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Pinned visitor','blocking')`,

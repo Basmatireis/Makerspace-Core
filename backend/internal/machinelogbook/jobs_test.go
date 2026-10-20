@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -45,9 +47,9 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	t.Helper()
 	pool := integrationPool(t)
 	ctx := t.Context()
-	f := &jobFixture{pool: pool, person: uuid.Must(uuid.NewV7()), request: uuid.Must(uuid.NewV7()), now: now}
+	f := &jobFixture{pool: pool, person: ids.New(), request: ids.New(), now: now}
 	f.s = NewService(pool, WithClock(func() time.Time { return f.now }))
-	accountID := uuid.Must(uuid.NewV7())
+	accountID := ids.New()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
 	f.p = authorization.Principal{AccountID: accountID, PersonID: f.person, Master: true}
 	if _, err := pool.Exec(
@@ -669,7 +671,7 @@ func TestUpdateRunTimesAndPermissions(t *testing.T) {
 	) {
 		t.Fatalf("inverted interval: %v", err)
 	}
-	if _, err := f.s.UpdateRun(ctx, f.p, uuid.Must(uuid.NewV7()), 1, RunUpdate{}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateRun(ctx, f.p, ids.New(), 1, RunUpdate{}, &f.request); !apperror.IsCode(
 		err,
 		"not_found",
 	) {

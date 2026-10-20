@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -84,7 +86,7 @@ func (s *Service) assign(
 		return Assignment{}, apperror.NotFound
 	}
 	if day.Status != "scheduled" || (period.Status != "staffing" && period.Status != "published") {
-		return Assignment{}, conflict(
+		return Assignment{}, apperror.Conflicting(
 			"assignment_closed",
 			"Assignments are open only for scheduled Open Days in staffing or published periods",
 		)
@@ -97,16 +99,19 @@ func (s *Service) assign(
 		return Assignment{}, err
 	}
 	if !eligible {
-		return Assignment{}, conflict("person_not_eligible", "The person is not eligible for this requirement")
+		return Assignment{}, apperror.Conflicting(
+			"person_not_eligible",
+			"The person is not eligible for this requirement",
+		)
 	}
 	count, err := q.CountRequirementAssignments(ctx, requirementID)
 	if err != nil {
 		return Assignment{}, err
 	}
 	if count >= int64(req.RequiredCount) {
-		return Assignment{}, conflict("requirement_full", "This staffing requirement is full")
+		return Assignment{}, apperror.Conflicting("requirement_full", "This staffing requirement is full")
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	actor := p.AccountID
 	row, err := q.CreateAssignment(
 		ctx,
@@ -219,7 +224,7 @@ func (s *Service) removeAssignment(
 		return err
 	}
 	if day.Status != "scheduled" || period.Status == "archived" {
-		return conflict("assignment_closed", "Assignments cannot change after cancellation or archive")
+		return apperror.Conflicting("assignment_closed", "Assignments cannot change after cancellation or archive")
 	}
 	if _, err := q.DeleteAssignment(ctx, assignmentID); err != nil {
 		return err

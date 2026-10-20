@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
@@ -60,15 +62,15 @@ func bulkBlockedError(blockers []BulkBlocker) error {
 // which rows are locked.
 func validateBulkItems(items []BulkItem, name string) ([]BulkItem, error) {
 	if len(items) > bulkLimit {
-		return nil, validation(name + " is limited to 100 items")
+		return nil, apperror.Invalid(name + " is limited to 100 items")
 	}
 	seen := map[uuid.UUID]bool{}
 	for _, item := range items {
 		if item.ExpectedVersion < 1 {
-			return nil, validation("expectedVersion must be positive")
+			return nil, apperror.Invalid("expectedVersion must be positive")
 		}
 		if seen[item.ID] {
-			return nil, validation(name + " must not name an item twice")
+			return nil, apperror.Invalid(name + " must not name an item twice")
 		}
 		seen[item.ID] = true
 	}
@@ -112,7 +114,7 @@ func (s *Service) BulkDelete(
 		return err
 	}
 	if len(input.Jobs)+len(input.Runs) == 0 {
-		return validation("name at least one job or run")
+		return apperror.Invalid("name at least one job or run")
 	}
 	jobItems, err := validateBulkItems(input.Jobs, "jobs")
 	if err != nil {
@@ -456,7 +458,7 @@ func (s *Service) BulkCreateJobsFromRuns(
 		return nil, err
 	}
 	if len(input.Runs) == 0 {
-		return nil, validation("name at least one run")
+		return nil, apperror.Invalid("name at least one run")
 	}
 	items, err := validateBulkItems(input.Runs, "runs")
 	if err != nil {
@@ -483,7 +485,7 @@ func (s *Service) BulkCreateJobsFromRuns(
 	if err != nil {
 		return nil, err
 	}
-	notes := cleanOptional(input.Notes)
+	notes := optional.Trimmed(input.Notes)
 	sort.SliceStable(runs, func(i, j int) bool {
 		if a, b := runStart(runs[i]), runStart(runs[j]); !a.Equal(b) {
 			return a.Before(b)
@@ -511,7 +513,7 @@ func (s *Service) BulkCreateJobsFromRuns(
 			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: run.MachineID},
 		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, conflict("run_already_assigned", "The run already belongs to a job")
+				return nil, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 			}
 			return nil, databaseError(err)
 		}
@@ -554,7 +556,7 @@ func (s *Service) BulkCombineRuns(
 		return MachineJob{}, err
 	}
 	if len(input.Runs) < 2 {
-		return MachineJob{}, validation("name at least two runs to combine")
+		return MachineJob{}, apperror.Invalid("name at least two runs to combine")
 	}
 	title, err := cleanTitle(input.Title)
 	if err != nil {
@@ -603,7 +605,7 @@ func (s *Service) BulkCombineRuns(
 		organizationID,
 		input.OperatorPersonID,
 		title,
-		cleanOptional(input.Notes),
+		optional.Trimmed(input.Notes),
 	)
 	if err != nil {
 		return MachineJob{}, err
@@ -614,7 +616,7 @@ func (s *Service) BulkCombineRuns(
 			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID},
 		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+				return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 			}
 			return MachineJob{}, databaseError(err)
 		}
@@ -665,10 +667,10 @@ func (s *Service) BulkAttachRuns(
 		return MachineJob{}, err
 	}
 	if input.ExpectedJobVersion < 1 {
-		return MachineJob{}, validation("expectedJobVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedJobVersion must be positive")
 	}
 	if len(input.Runs) == 0 {
-		return MachineJob{}, validation("name at least one run")
+		return MachineJob{}, apperror.Invalid("name at least one run")
 	}
 	items, err := validateBulkItems(input.Runs, "runs")
 	if err != nil {
@@ -734,7 +736,7 @@ func (s *Service) BulkAttachRuns(
 			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: job.MachineID},
 		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+				return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 			}
 			return MachineJob{}, databaseError(err)
 		}

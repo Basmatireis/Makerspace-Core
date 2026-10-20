@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -120,7 +122,7 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 		if err != nil {
 			return Identity{}, err
 		}
-		value := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: secret}
+		value := Identity{CredentialID: ids.New(), CredentialSecret: secret}
 		if err = g.store.SaveIdentity(value); err != nil {
 			return Identity{}, err
 		}
@@ -167,7 +169,7 @@ func (g *Gateway) reenrollIfNewSecret(ctx context.Context, current Identity) Ide
 		g.logger.Error("re-enrollment skipped; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
 		return current
 	}
-	candidate := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: credentialSecret}
+	candidate := Identity{CredentialID: ids.New(), CredentialSecret: credentialSecret}
 	enrolled, err := g.core.Enroll(ctx, secret, candidate, Version)
 	if err != nil {
 		attrs := []any{"reason", enrollmentFailureReason(err)}
@@ -230,7 +232,7 @@ func (g *Gateway) rotateCredentialIfNeeded(ctx context.Context, identity Identit
 		}
 		// Persist the next credential before Core hears of it: if the answer is lost, the retry sends
 		// the same credential (Core treats that as idempotent) instead of leaving an unknown one behind.
-		next := uuid.Must(uuid.NewV7())
+		next := ids.New()
 		identity.NextCredentialID, identity.NextCredentialSecret = &next, secret
 		if err = g.store.SaveIdentity(identity); err != nil {
 			return identity, err
@@ -459,7 +461,8 @@ func (g *Gateway) writeHealth(status string) error {
 
 // CheckHealth is the container healthcheck: the main loop must have refreshed the health file recently.
 func CheckHealth(dataDir string) error {
-	value, err := os.ReadFile(filepath.Join(dataDir, "health.json")) //nolint:gosec // path is the fixed health file name inside the operator-configured data directory
+	//nolint:gosec // path is the fixed health file name inside the operator-configured data directory
+	value, err := os.ReadFile(filepath.Join(dataDir, "health.json"))
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
@@ -47,7 +49,7 @@ func CreateSignagePlayerDeviceTx(
 ) (uuid.UUID, error) {
 	q := manageddevicesdb.New(tx)
 	if err := q.EnsureManagedDeviceTypeByName(ctx, manageddevicesdb.EnsureManagedDeviceTypeByNameParams{
-		ID:          uuid.Must(uuid.NewV7()),
+		ID:          ids.New(),
 		Name:        signageDeviceTypeName,
 		Description: stringPointer("Managed devices that run a digital-signage player."),
 	}); err != nil {

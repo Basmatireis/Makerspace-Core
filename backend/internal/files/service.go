@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	filesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/files/db"
@@ -106,9 +108,13 @@ func (s *Service) storeReaderInTransaction(
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 0 {
-		return File{}, func() {}, apperror.New(http.StatusUnprocessableEntity, "file_metadata_invalid", "File name or content type is invalid")
+		return File{}, func() {}, apperror.New(
+			http.StatusUnprocessableEntity,
+			"file_metadata_invalid",
+			"File name or content type is invalid",
+		)
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
 	hasher := sha256.New()
 	var read int64
@@ -204,9 +210,13 @@ func (s *Service) storeReader(
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || metadata.Size < 0 {
-		return File{}, apperror.New(http.StatusUnprocessableEntity, "file_metadata_invalid", "File name or content type is invalid")
+		return File{}, apperror.New(
+			http.StatusUnprocessableEntity,
+			"file_metadata_invalid",
+			"File name or content type is invalid",
+		)
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
 	if err := s.store.Put(ctx, key, reader, metadata); err != nil {
 		return File{}, err
@@ -263,7 +273,11 @@ func (s *Service) Open(ctx context.Context, id uuid.UUID) (File, io.ReadCloser, 
 	}
 	reader, err := s.store.Open(ctx, row.StorageKey)
 	if errors.Is(err, storage.ErrNotFound) {
-		return File{}, nil, apperror.New(http.StatusInternalServerError, "file_blob_missing", "Stored file is unavailable")
+		return File{}, nil, apperror.New(
+			http.StatusInternalServerError,
+			"file_blob_missing",
+			"Stored file is unavailable",
+		)
 	}
 	return fromRow(row), reader, err
 }

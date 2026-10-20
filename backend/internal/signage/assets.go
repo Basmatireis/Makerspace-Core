@@ -13,6 +13,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -329,7 +331,7 @@ func (s *Service) UploadAsset(
 			cleanup()
 		}
 	}()
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	actor := principal.AccountID
 	if _, err := signagedb.New(tx).CreateSignageAsset(ctx, signagedb.CreateSignageAssetParams{
 		ID:                 id,
@@ -364,7 +366,11 @@ func (s *Service) UploadAsset(
 
 func assetTooLarge(kind string) error {
 	if kind == "video" {
-		return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Videos are limited to 200 MiB")
+		return apperror.New(
+			http.StatusRequestEntityTooLarge,
+			"signage_asset_too_large",
+			"Videos are limited to 200 MiB",
+		)
 	}
 	return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Images are limited to 20 MiB")
 }

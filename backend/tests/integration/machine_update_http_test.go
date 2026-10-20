@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -394,7 +396,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, now() - interval '1 hour', 'manual')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		profile.Slots[0].Id,
 		spool.Id,
 	); err != nil {

@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -160,7 +162,7 @@ func (r *Runtime) rotateCredentialIfNeeded(ctx context.Context, identity Identit
 	if err != nil {
 		return identity, err
 	}
-	identity.CredentialID = uuid.Must(uuid.NewV7())
+	identity.CredentialID = ids.New()
 	identity.CredentialSecret = secret
 	rotated, err := r.client.RotateCredential(ctx, previousToken, identity)
 	if err != nil {
@@ -182,7 +184,7 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 		if err != nil {
 			return Identity{}, err
 		}
-		value := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: secret}
+		value := Identity{CredentialID: ids.New(), CredentialSecret: secret}
 		if err = r.store.SaveIdentity(ctx, value); err != nil {
 			return Identity{}, err
 		}
@@ -237,7 +239,7 @@ func (r *Runtime) reenrollIfNewSecret(ctx context.Context, current Identity) Ide
 		r.logger.Error("re-enrollment skipped; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
 		return current
 	}
-	candidate := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: credentialSecret}
+	candidate := Identity{CredentialID: ids.New(), CredentialSecret: credentialSecret}
 	enrolled, err := r.client.Enroll(ctx, secret, candidate, Version)
 	if err != nil {
 		attrs := []any{"reason", enrollmentFailureReason(err)}
@@ -346,7 +348,8 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 			r.mu.Unlock()
 			continue
 		}
-		ctx, cancel := context.WithCancel(parent) //nolint:gosec // cancel is stored in r.adapters and invoked when the assignment stops or the runtime closes
+		//nolint:gosec // cancel is stored in r.adapters and invoked when the assignment stops or the runtime closes
+		ctx, cancel := context.WithCancel(parent)
 		r.mu.Lock()
 		r.adapters[id] = cancel
 		r.health[id] = AssignmentHealth{
@@ -665,7 +668,10 @@ func (r *Runtime) writeHealth(status string) error {
 }
 
 func CheckHealth(dataDir string) error {
-	value, err := os.ReadFile(filepath.Join(dataDir, "health.json")) //nolint:gosec // path is the fixed health file name inside the operator-configured data directory
+	//nolint:gosec // path is the fixed health file name inside the operator-configured data directory
+	value, err := os.ReadFile(
+		filepath.Join(dataDir, "health.json"),
+	)
 	if err != nil {
 		return err
 	}

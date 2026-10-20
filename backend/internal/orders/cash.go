@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/google/uuid"
@@ -96,7 +99,7 @@ func (s *Service) ListCashMovements(
 		return CashMovementPage{}, err
 	}
 	if kind != "" && kind != "withdrawal" && kind != "deposit" {
-		return CashMovementPage{}, validation("Unsupported cash movement kind")
+		return CashMovementPage{}, apperror.Invalid("Unsupported cash movement kind")
 	}
 	limit, offset, err := pageBounds(page, size)
 	if err != nil {
@@ -145,15 +148,15 @@ func (s *Service) CreateCashMovement(
 		return CashMovement{}, err
 	}
 	if input.OperationKey == uuid.Nil {
-		return CashMovement{}, validation("operationKey is required")
+		return CashMovement{}, apperror.Invalid("operationKey is required")
 	}
 	if input.Kind != "withdrawal" && input.Kind != "deposit" {
-		return CashMovement{}, validation("Unsupported cash movement kind")
+		return CashMovement{}, apperror.Invalid("Unsupported cash movement kind")
 	}
 	switch input.Reason {
 	case "bank_deposit", "safe", "float", "other":
 	default:
-		return CashMovement{}, validation("Unsupported cash movement reason")
+		return CashMovement{}, apperror.Invalid("Unsupported cash movement reason")
 	}
 	amount, err := parseAmount(input.Amount, 2, true)
 	if err != nil {
@@ -161,16 +164,16 @@ func (s *Service) CreateCashMovement(
 	}
 	note := strings.TrimSpace(input.Note)
 	if len(note) > 500 {
-		return CashMovement{}, validation("The note can have up to 500 characters")
+		return CashMovement{}, apperror.Invalid("The note can have up to 500 characters")
 	}
 	if input.Reason == "other" && note == "" {
-		return CashMovement{}, validation("Say what the money was for in the note")
+		return CashMovement{}, apperror.Invalid("Say what the money was for in the note")
 	}
 	if input.OccurredAt.IsZero() {
-		return CashMovement{}, validation("The time of the movement is required")
+		return CashMovement{}, apperror.Invalid("The time of the movement is required")
 	}
 	if input.OccurredAt.After(time.Now().Add(time.Minute)) {
-		return CashMovement{}, validation("A cash movement cannot be in the future")
+		return CashMovement{}, apperror.Invalid("A cash movement cannot be in the future")
 	}
 	occurred := input.OccurredAt.UTC().Truncate(time.Microsecond)
 	tx, err := s.pool.Begin(ctx)
@@ -191,7 +194,10 @@ func (s *Service) CreateCashMovement(
 			((existing.RecordedByPersonID == nil && p.PersonID == uuid.Nil) ||
 				(existing.RecordedByPersonID != nil && *existing.RecordedByPersonID == p.PersonID))
 		if !same {
-			return CashMovement{}, conflict("idempotency_conflict", "Operation key was used for different input")
+			return CashMovement{}, apperror.Conflicting(
+				"idempotency_conflict",
+				"Operation key was used for different input",
+			)
 		}
 		return s.cashMovement(ctx, q, existing)
 	}
@@ -209,7 +215,7 @@ func (s *Service) CreateCashMovement(
 			return CashMovement{}, e
 		}
 		if amount.GreaterThan(held.expected()) || amount.GreaterThan(now.expected()) {
-			return CashMovement{}, conflict(
+			return CashMovement{}, apperror.Conflicting(
 				"insufficient_cash",
 				"The register does not hold enough cash for this withdrawal",
 			)
@@ -226,7 +232,7 @@ func (s *Service) CreateCashMovement(
 	row, err := q.InsertCashMovement(
 		ctx,
 		db.InsertCashMovementParams{
-			ID:                 newID(),
+			ID:                 ids.New(),
 			Reference:          reference("C", n),
 			OperationKey:       input.OperationKey,
 			Kind:               input.Kind,

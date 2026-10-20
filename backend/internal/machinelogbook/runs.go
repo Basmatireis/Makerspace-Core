@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
@@ -357,11 +359,11 @@ func (s *Service) ListRuns(
 		return nil, 0, err
 	}
 	if filters.From != nil && filters.To != nil && !filters.To.After(*filters.From) {
-		return nil, 0, validation("to must be after from")
+		return nil, 0, apperror.Invalid("to must be after from")
 	}
 	if !containsAll(runStates, filters.States) ||
 		(filters.Source != nil && *filters.Source != "manual" && *filters.Source != "recorded") {
-		return nil, 0, validation("unsupported run filter")
+		return nil, 0, apperror.Invalid("unsupported run filter")
 	}
 	return s.queryRuns(
 		ctx,
@@ -699,7 +701,7 @@ func (s *Service) UpdateRun(
 		return RunUpdateResult{}, err
 	}
 	if expected < 1 {
-		return RunUpdateResult{}, validation("expectedVersion must be positive")
+		return RunUpdateResult{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	outcome, err := validateOptionalOutcome(input.Outcome)
 	if err != nil {
@@ -723,7 +725,7 @@ func (s *Service) UpdateRun(
 	var updated machinelogbookdb.MachineRun
 	if run.Source == "manual" {
 		if manualRunState(run, now) == "replaced" {
-			return RunUpdateResult{}, conflict("run_replaced", "A replaced run cannot be changed")
+			return RunUpdateResult{}, apperror.Conflicting("run_replaced", "A replaced run cannot be changed")
 		}
 		startsAt, endsAt := run.StartedAt.Time, run.EndedAt.Time
 		if input.StartsAt != nil {
@@ -820,7 +822,7 @@ func (s *Service) ReplaceRunUsages(
 		return RunUpdateResult{}, err
 	}
 	if expected < 1 {
-		return RunUpdateResult{}, validation("expectedVersion must be positive")
+		return RunUpdateResult{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	parsed, err := parseUsages(inputs)
 	if err != nil {
@@ -843,7 +845,7 @@ func (s *Service) ReplaceRunUsages(
 		return RunUpdateResult{}, apperror.StaleWrite
 	}
 	if run.State != nil && *run.State == "replaced" {
-		return RunUpdateResult{}, conflict("run_replaced", "A replaced run cannot be changed")
+		return RunUpdateResult{}, apperror.Conflicting("run_replaced", "A replaced run cannot be changed")
 	}
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, id)
 	if err != nil {
@@ -904,7 +906,7 @@ func (s *Service) CancelRun(
 		return MachineJob{}, err
 	}
 	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -921,7 +923,7 @@ func (s *Service) CancelRun(
 	}
 	now := s.now()
 	if run.Source != "manual" || manualRunState(run, now) != "running" {
-		return MachineJob{}, conflict("run_not_running", "Only a running manual run can be cancelled")
+		return MachineJob{}, apperror.Conflicting("run_not_running", "Only a running manual run can be cancelled")
 	}
 	endsAt := now.UTC().Truncate(time.Second)
 	if earliest := run.StartedAt.Time.Add(time.Second); endsAt.Before(earliest) {
@@ -968,7 +970,7 @@ func (s *Service) AddManualRun(
 		return MachineJob{}, err
 	}
 	if expectedJobVersion < 1 {
-		return MachineJob{}, validation("expectedJobVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedJobVersion must be positive")
 	}
 	plan, err := planManualRun(input, s.now())
 	if err != nil {
@@ -992,7 +994,7 @@ func (s *Service) AddManualRun(
 		return MachineJob{}, err
 	}
 	if machine.Status == "retired" {
-		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive new runs")
+		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new runs")
 	}
 	if _, err = s.storeManualRun(ctx, tx, q, p, job, plan, requestID); err != nil {
 		return MachineJob{}, err
@@ -1045,14 +1047,14 @@ func (s *Service) CreateJobFromRun(
 		return MachineJob{}, noRows(err)
 	}
 	if run.JobID != nil {
-		return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+		return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 	}
 	machine, err := q.GetMachineForUpdate(ctx, run.MachineID)
 	if err != nil {
 		return MachineJob{}, noRows(err)
 	}
 	if machine.Status == "retired" {
-		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive new jobs")
+		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new jobs")
 	}
 	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
 	if err != nil {
@@ -1071,7 +1073,7 @@ func (s *Service) CreateJobFromRun(
 		organizationID,
 		input.OperatorPersonID,
 		title,
-		cleanOptional(input.Notes),
+		optional.Trimmed(input.Notes),
 	)
 	if err != nil {
 		return MachineJob{}, err
@@ -1081,7 +1083,7 @@ func (s *Service) CreateJobFromRun(
 		machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: runID, MachineID: run.MachineID},
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+			return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 		}
 		return MachineJob{}, databaseError(err)
 	}
@@ -1123,7 +1125,7 @@ func (s *Service) AttachRun(
 		return MachineJob{}, err
 	}
 	if expectedJobVersion < 1 {
-		return MachineJob{}, validation("expectedJobVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedJobVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1140,13 +1142,19 @@ func (s *Service) AttachRun(
 		return MachineJob{}, noRows(err)
 	}
 	if run.JobID != nil {
-		return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+		return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 	}
 	if job.MachineID != run.MachineID {
-		return MachineJob{}, conflict("run_machine_mismatch", "The run was recorded on another machine than the job")
+		return MachineJob{}, apperror.Conflicting(
+			"run_machine_mismatch",
+			"The run was recorded on another machine than the job",
+		)
 	}
 	if job.ArtifactID != nil && run.ArtifactID != nil && *job.ArtifactID != *run.ArtifactID {
-		return MachineJob{}, conflict("artifact_mismatch", "Run and job reference different print artifacts")
+		return MachineJob{}, apperror.Conflicting(
+			"artifact_mismatch",
+			"Run and job reference different print artifacts",
+		)
 	}
 	if job.Version != expectedJobVersion {
 		return MachineJob{}, apperror.StaleWrite
@@ -1164,7 +1172,7 @@ func (s *Service) AttachRun(
 		machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID},
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
+			return MachineJob{}, apperror.Conflicting("run_already_assigned", "The run already belongs to a job")
 		}
 		return MachineJob{}, databaseError(err)
 	}
@@ -1250,7 +1258,7 @@ func (s *Service) AttachPlannedRunSystem(
 	if job.ArtifactID == nil || run.ArtifactID == nil || *job.ArtifactID != artifactID ||
 		*run.ArtifactID != artifactID ||
 		job.MachineID != run.MachineID {
-		return false, conflict("artifact_mismatch", "Run and planned job artifacts must match exactly")
+		return false, apperror.Conflicting("artifact_mismatch", "Run and planned job artifacts must match exactly")
 	}
 	active, err := q.ListActiveJobRunIDs(ctx, &jobID)
 	if err != nil {
@@ -1324,7 +1332,7 @@ func (s *Service) DetachRun(
 		return MachineJob{}, err
 	}
 	if expectedJobVersion < 1 {
-		return MachineJob{}, validation("expectedJobVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedJobVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1337,10 +1345,10 @@ func (s *Service) DetachRun(
 		return MachineJob{}, err
 	}
 	if run.Source != "recorded" {
-		return MachineJob{}, conflict("run_not_recorded", "Only recorded runs can be detached")
+		return MachineJob{}, apperror.Conflicting("run_not_recorded", "Only recorded runs can be detached")
 	}
 	if job == nil {
-		return MachineJob{}, conflict("run_not_assigned", "The run does not belong to a job")
+		return MachineJob{}, apperror.Conflicting("run_not_assigned", "The run does not belong to a job")
 	}
 	if job.Version != expectedJobVersion {
 		return MachineJob{}, apperror.StaleWrite

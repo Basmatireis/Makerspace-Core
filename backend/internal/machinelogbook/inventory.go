@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -85,7 +88,7 @@ func validateMaterial(in MaterialInput) (validatedMaterial, error) {
 		return v, err
 	}
 	if in.MaterialTypeID == uuid.Nil {
-		return v, validation("materialTypeId is required")
+		return v, apperror.Invalid("materialTypeId is required")
 	}
 	if v.colorName, v.colorHex, err = validateColor(in.ColorName, in.ColorHex); err != nil {
 		return v, err
@@ -94,7 +97,7 @@ func validateMaterial(in MaterialInput) (validatedMaterial, error) {
 		return v, err
 	}
 	if v.threshold.Valid && decimalFromNumeric(v.threshold).IsNegative() {
-		return v, validation("lowStockThreshold must be non-negative")
+		return v, apperror.Invalid("lowStockThreshold must be non-negative")
 	}
 	return v, nil
 }
@@ -138,7 +141,7 @@ func (s *Service) ListMaterials(
 		return nil, 0, "", err
 	}
 	if state != "" && state != "empty" && state != "low_stock" && state != "in_stock" {
-		return nil, 0, "", validation("invalid stock state")
+		return nil, 0, "", apperror.Invalid("invalid stock state")
 	}
 	q := machinelogbookdb.New(s.pool)
 	params := machinelogbookdb.ListMaterialsParams{
@@ -201,7 +204,7 @@ func (s *Service) CreateMaterial(
 	if err != nil {
 		return Material{}, err
 	}
-	id := newID()
+	id := ids.New()
 	_, err = q.CreateMaterial(
 		ctx,
 		machinelogbookdb.CreateMaterialParams{
@@ -223,7 +226,7 @@ func (s *Service) CreateMaterial(
 	if in.FilamentDiameterMM != nil {
 		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
 		if parseErr != nil || unit != "g" {
-			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
+			return Material{}, apperror.Invalid("filamentDiameterMm requires a gram-denominated material")
 		}
 		if _, err = q.UpsertMaterialFilamentProperties(
 			ctx,
@@ -265,7 +268,7 @@ func (s *Service) UpdateMaterial(
 		return Material{}, err
 	}
 	if in.ExpectedVersion < 1 {
-		return Material{}, validation("expectedVersion must be positive")
+		return Material{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	v, err := validateMaterial(in)
 	if err != nil {
@@ -294,7 +297,10 @@ func (s *Service) UpdateMaterial(
 		return Material{}, err
 	}
 	if current.Unit != unit && !decimalFromNumeric(current.Quantity).IsZero() {
-		return Material{}, conflict("material_unit_in_use", "Material unit cannot change while stock exists")
+		return Material{}, apperror.Conflicting(
+			"material_unit_in_use",
+			"Material unit cannot change while stock exists",
+		)
 	}
 	if current.Unit != unit {
 		fillCount, fillErr := q.CountMaterialFills(ctx, id)
@@ -302,7 +308,7 @@ func (s *Service) UpdateMaterial(
 			return Material{}, fillErr
 		}
 		if fillCount > 0 {
-			return Material{}, conflict(
+			return Material{}, apperror.Conflicting(
 				"material_unit_in_use",
 				"Material unit cannot change while filament spools exist",
 			)
@@ -335,7 +341,7 @@ func (s *Service) UpdateMaterial(
 	} else {
 		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
 		if parseErr != nil || unit != "g" {
-			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
+			return Material{}, apperror.Invalid("filamentDiameterMm requires a gram-denominated material")
 		}
 		if _, err = q.UpsertMaterialFilamentProperties(
 			ctx,
@@ -503,7 +509,7 @@ func (s *Service) applyInventoryMutation(
 	newQuantity := oldQuantity.Add(m.QuantityDelta)
 	newValue := oldValue.Add(m.ValueDelta)
 	if newQuantity.IsNegative() {
-		return InventoryMutationResult{}, conflict("insufficient_stock", "Inventory would become negative")
+		return InventoryMutationResult{}, apperror.Conflicting("insufficient_stock", "Inventory would become negative")
 	}
 	var spoolVersion int64
 	if m.Fill != nil {
@@ -516,16 +522,16 @@ func (s *Service) applyInventoryMutation(
 			return InventoryMutationResult{}, noRows(fillErr)
 		}
 		if fill.MaterialID != id {
-			return InventoryMutationResult{}, conflict(
+			return InventoryMutationResult{}, apperror.Conflicting(
 				"spool_material_mismatch",
 				"Spool does not belong to the selected material",
 			)
 		}
 		if fill.ClosedAt.Valid {
-			return InventoryMutationResult{}, conflict("spool_not_consumable", "The spool has no open fill")
+			return InventoryMutationResult{}, apperror.Conflicting("spool_not_consumable", "The spool has no open fill")
 		}
 		if decimalFromNumeric(fill.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
-			return InventoryMutationResult{}, conflict(
+			return InventoryMutationResult{}, apperror.Conflicting(
 				"insufficient_spool_stock",
 				"Spool inventory would become negative",
 			)
@@ -537,7 +543,7 @@ func (s *Service) applyInventoryMutation(
 			return InventoryMutationResult{}, allocationErr
 		}
 		if newQuantity.LessThan(decimalFromNumeric(allocated)) {
-			return InventoryMutationResult{}, conflict(
+			return InventoryMutationResult{}, apperror.Conflicting(
 				"insufficient_unassigned_stock",
 				"Unassigned material inventory would become negative",
 			)
@@ -547,7 +553,7 @@ func (s *Service) applyInventoryMutation(
 		if newValue.Abs().LessThan(decimal.RequireFromString("0.000000001")) {
 			newValue = decimal.Zero
 		} else {
-			return InventoryMutationResult{}, conflict(
+			return InventoryMutationResult{}, apperror.Conflicting(
 				"invalid_inventory_value",
 				"Inventory value would become negative",
 			)
@@ -583,7 +589,7 @@ func (s *Service) applyInventoryMutation(
 		ledger, err = q.InsertSpoolInventoryTransaction(
 			ctx,
 			machinelogbookdb.InsertSpoolInventoryTransactionParams{
-				ID:                  newID(),
+				ID:                  ids.New(),
 				MaterialID:          id,
 				Kind:                m.Kind,
 				QuantityDelta:       numericFromDecimal(m.QuantityDelta),
@@ -591,8 +597,8 @@ func (s *Service) applyInventoryMutation(
 				InventoryValueDelta: numericFromDecimal(m.ValueDelta),
 				TotalPurchasePrice:  total,
 				OccurredAt:          m.OccurredAt.UTC(),
-				Supplier:            cleanOptional(m.Supplier),
-				Note:                cleanOptional(m.Note),
+				Supplier:            optional.Trimmed(m.Supplier),
+				Note:                optional.Trimmed(m.Note),
 				AdjustmentReason:    m.Reason,
 				RunUsageID:          m.UsageID,
 				ActorAccountID:      actor,
@@ -606,7 +612,7 @@ func (s *Service) applyInventoryMutation(
 		ledger, err = q.InsertInventoryTransaction(
 			ctx,
 			machinelogbookdb.InsertInventoryTransactionParams{
-				ID:                  newID(),
+				ID:                  ids.New(),
 				MaterialID:          id,
 				Kind:                m.Kind,
 				QuantityDelta:       numericFromDecimal(m.QuantityDelta),
@@ -614,8 +620,8 @@ func (s *Service) applyInventoryMutation(
 				InventoryValueDelta: numericFromDecimal(m.ValueDelta),
 				TotalPurchasePrice:  total,
 				OccurredAt:          m.OccurredAt.UTC(),
-				Supplier:            cleanOptional(m.Supplier),
-				Note:                cleanOptional(m.Note),
+				Supplier:            optional.Trimmed(m.Supplier),
+				Note:                optional.Trimmed(m.Note),
 				AdjustmentReason:    m.Reason,
 				RunUsageID:          m.UsageID,
 				ActorAccountID:      actor,
@@ -674,10 +680,10 @@ func (s *Service) AddPurchase(
 	}
 	price, err := parseDecimal(totalPrice, false)
 	if err != nil || price.IsNegative() {
-		return InventoryMutationResult{}, validation("totalPrice must be non-negative")
+		return InventoryMutationResult{}, apperror.Invalid("totalPrice must be non-negative")
 	}
 	if occurredAt.IsZero() {
-		return InventoryMutationResult{}, validation("occurredAt is required")
+		return InventoryMutationResult{}, apperror.Invalid("occurredAt is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -731,7 +737,7 @@ func (s *Service) RecordConsumption(
 		return InventoryMutationResult{}, err
 	}
 	if occurredAt.IsZero() {
-		return InventoryMutationResult{}, validation("occurredAt is required")
+		return InventoryMutationResult{}, apperror.Invalid("occurredAt is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -764,7 +770,7 @@ func (s *Service) RecordConsumption(
 			UnitCost:      average,
 			ValueDelta:    qty.Mul(average).Neg(),
 			OccurredAt:    occurredAt,
-			Reason:        cleanOptional(reason),
+			Reason:        optional.Trimmed(reason),
 			Note:          note,
 		},
 		requestID,
@@ -795,14 +801,14 @@ func (s *Service) CorrectStock(
 	}
 	physical, err := parseDecimal(physicalQuantity, false)
 	if err != nil || physical.IsNegative() {
-		return InventoryMutationResult{}, validation("physicalQuantity must be non-negative")
+		return InventoryMutationResult{}, apperror.Invalid("physicalQuantity must be non-negative")
 	}
 	if occurredAt.IsZero() {
-		return InventoryMutationResult{}, validation("occurredAt is required")
+		return InventoryMutationResult{}, apperror.Invalid("occurredAt is required")
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		return InventoryMutationResult{}, validation("reason is required")
+		return InventoryMutationResult{}, apperror.Invalid("reason is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -820,19 +826,19 @@ func (s *Service) CorrectStock(
 	old := decimalFromNumeric(current.Quantity)
 	delta := physical.Sub(old)
 	if delta.IsZero() {
-		return InventoryMutationResult{}, validation("physicalQuantity equals current stock")
+		return InventoryMutationResult{}, apperror.Invalid("physicalQuantity equals current stock")
 	}
 	average := decimalFromNumeric(current.AverageUnitCost)
 	unitCost := average
 	if delta.IsPositive() && average.IsZero() {
 		if acquisitionUnitCost == nil {
-			return InventoryMutationResult{}, validation(
+			return InventoryMutationResult{}, apperror.Invalid(
 				"acquisitionUnitCost is required for positive stock without an average cost",
 			)
 		}
 		unitCost, err = parseDecimal(*acquisitionUnitCost, false)
 		if err != nil || unitCost.IsNegative() {
-			return InventoryMutationResult{}, validation("acquisitionUnitCost must be non-negative")
+			return InventoryMutationResult{}, apperror.Invalid("acquisitionUnitCost must be non-negative")
 		}
 	}
 	valueDelta := delta.Mul(unitCost)
@@ -876,7 +882,7 @@ func (s *Service) MarkEmpty(
 		return InventoryMutationResult{}, err
 	}
 	if occurredAt.IsZero() {
-		return InventoryMutationResult{}, validation("occurredAt is required")
+		return InventoryMutationResult{}, apperror.Invalid("occurredAt is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -893,7 +899,7 @@ func (s *Service) MarkEmpty(
 	}
 	qty := decimalFromNumeric(current.Quantity)
 	if qty.IsZero() {
-		return InventoryMutationResult{}, validation("material is already empty")
+		return InventoryMutationResult{}, apperror.Invalid("material is already empty")
 	}
 	value := decimalFromNumeric(current.InventoryValue)
 	average := decimalFromNumeric(current.AverageUnitCost)

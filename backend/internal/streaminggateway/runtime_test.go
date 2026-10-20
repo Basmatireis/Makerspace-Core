@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -33,7 +35,7 @@ func (c *fakeCore) Enroll(_ context.Context, secret string, identity Identity, _
 	if c.enrollErr != nil {
 		return identity, c.enrollErr
 	}
-	identity.Enrolled, identity.GatewayID = true, uuid.Must(uuid.NewV7())
+	identity.Enrolled, identity.GatewayID = true, ids.New()
 	return identity, nil
 }
 func (c *fakeCore) Configuration(context.Context, string) (Configuration, error) {
@@ -84,7 +86,7 @@ func testConfiguration(revision int64, names ...string) Configuration {
 		configuration.Cameras = append(
 			configuration.Cameras,
 			Camera{
-				MachineID:  uuid.Must(uuid.NewV7()).String(),
+				MachineID:  ids.New().String(),
 				Name:       name,
 				StreamName: "cam-" + name,
 				SourceURL:  "rtspx://bblp:12345678@10.0.0.9:322/streaming/live/1",
@@ -368,7 +370,7 @@ func TestSessionEpochChangeRestartsGo2RTCOnce(t *testing.T) {
 
 func TestRevokedDisplaysReachTheProxySnapshot(t *testing.T) {
 	g, core, _, _ := newTestGateway(t)
-	display := uuid.Must(uuid.NewV7())
+	display := ids.New()
 	configuration := testConfiguration(1, "a")
 	configuration.RevokedDisplayIDs = []uuid.UUID{display}
 	core.set(configuration, nil)
@@ -409,7 +411,7 @@ func TestCredentialRotationPersistsTheNextCredentialAndRetriesWithIt(t *testing.
 	g, core, _, _ := newTestGateway(t)
 	ctx := context.Background()
 	identity := Identity{
-		CredentialID:        uuid.Must(uuid.NewV7()),
+		CredentialID:        ids.New(),
 		CredentialSecret:    "old",
 		Enrolled:            true,
 		CredentialExpiresAt: g.now().Add(24 * time.Hour),

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -95,7 +97,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountlessPersonID := uuid.Must(uuid.NewV7())
+	accountlessPersonID := ids.New()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Supervisor','accountless-supervisor@example.test');
 		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, accountlessPersonID, masterRoleID); err != nil {
@@ -116,7 +118,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		t.Fatal("self assignment is not marked current")
 	}
 	readerAccount := seedAccount(t, pool, "open-days-reader", false)
-	readerRoleID := uuid.Must(uuid.NewV7())
+	readerRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles (id, name) VALUES ($1, 'Open Days reader')`,

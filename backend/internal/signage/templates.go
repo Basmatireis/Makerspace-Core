@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -340,7 +342,7 @@ func (s *Service) CreateTemplate(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := q.CreateSignageTemplate(
 		ctx,
 		signagedb.CreateSignageTemplateParams{

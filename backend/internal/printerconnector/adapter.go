@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -166,7 +168,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 	ticker := time.NewTicker(a.interval)
 	defer ticker.Stop()
 	progress := 0
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	fileName := "simulated_part_" + strconv.FormatUint(simulatedPrintCounter.Add(1), 10) + ".gcode"
 	job := "sim-" + runID.String()
 	revision := int64(1)

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 )
@@ -61,7 +63,7 @@ func validTimeWindow() RuleInput {
 			1,
 		}, TimeFrom: str("22:00"), TimeTo: str("06:00"),
 		TargetKind:       "scene",
-		TargetID:         uuid.Must(uuid.NewV7()),
+		TargetID:         ids.New(),
 		MinSeconds:       20,
 		MultiMode:        "split",
 		AlternateSeconds: 10,
@@ -69,8 +71,8 @@ func validTimeWindow() RuleInput {
 }
 
 func TestValidateRuleInputPerKind(t *testing.T) {
-	machine := uuid.Must(uuid.NewV7())
-	template := uuid.Must(uuid.NewV7())
+	machine := ids.New()
+	template := ids.New()
 	cases := []struct {
 		name   string
 		mutate func(*RuleInput)
@@ -219,8 +221,8 @@ func sampleScene(name string, version int64, zones map[string]json.RawMessage) M
 }
 
 func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
-	image, video, unused := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	machine := uuid.Must(uuid.NewV7())
+	image, video, unused := ids.New(), ids.New(), ids.New()
+	machine := ids.New()
 	ruleScene := sampleScene("Rule scene", 1, map[string]json.RawMessage{
 		"main": json.RawMessage(`{"type":"video","mediaId":"` + video.String() + `","fit":"cover"}`),
 	})
@@ -232,7 +234,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	listScene.BackgroundAssetID = &image
 	orphan := sampleScene("Orphan", 1, map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)})
 	playlist := ManifestPlaylist{
-		ID:      uuid.Must(uuid.NewV7()),
+		ID:      ids.New(),
 		Name:    "Default",
 		Version: 3,
 		Items:   []ManifestPlaylistItem{{SceneID: listScene.ID, Seconds: 10, Transition: "cut"}},
@@ -247,7 +249,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		},
 	}
 	enabled := Rule{
-		ID:               uuid.Must(uuid.NewV7()),
+		ID:               ids.New(),
 		Enabled:          true,
 		ConditionKind:    "live_data_unavailable",
 		TargetKind:       "scene",
@@ -257,7 +259,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		AlternateSeconds: 10,
 	}
 	disabled := Rule{
-		ID:            uuid.Must(uuid.NewV7()),
+		ID:            ids.New(),
 		Enabled:       false,
 		ConditionKind: "live_data_unavailable",
 		TargetKind:    "scene",
@@ -306,24 +308,24 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	if string(first) != string(second) {
 		t.Fatal("equal drafts produced different manifests")
 	}
-	if _, err := assembleManifest(displayDraft{DefaultPlaylistID: uuid.Must(uuid.NewV7())}, content); err == nil {
+	if _, err := assembleManifest(displayDraft{DefaultPlaylistID: ids.New()}, content); err == nil {
 		t.Fatal("a missing default playlist was accepted")
 	}
 }
 
 func TestDiffManifests(t *testing.T) {
-	sceneA := ManifestScene{ID: uuid.Must(uuid.NewV7()), Name: "A", Version: 1}
-	sceneB := ManifestScene{ID: uuid.Must(uuid.NewV7()), Name: "B", Version: 1}
-	playlist := ManifestPlaylist{ID: uuid.Must(uuid.NewV7()), Name: "P", Version: 1}
+	sceneA := ManifestScene{ID: ids.New(), Name: "A", Version: 1}
+	sceneB := ManifestScene{ID: ids.New(), Name: "B", Version: 1}
+	playlist := ManifestPlaylist{ID: ids.New(), Name: "P", Version: 1}
 	rule1 := ManifestRule{
-		ID:         uuid.Must(uuid.NewV7()),
+		ID:         ids.New(),
 		Kind:       "live_data_unavailable",
 		TargetKind: "scene",
 		TargetID:   sceneA.ID,
 		MinSeconds: 20,
 	}
 	rule2 := ManifestRule{
-		ID:         uuid.Must(uuid.NewV7()),
+		ID:         ids.New(),
 		Kind:       "announcement_active",
 		TargetKind: "scene",
 		TargetID:   sceneB.ID,
@@ -335,7 +337,7 @@ func TestDiffManifests(t *testing.T) {
 			rule1,
 			rule2,
 		}, Scenes: []ManifestScene{sceneA, sceneB}, Playlists: []ManifestPlaylist{playlist},
-		Assets: []ManifestAsset{{ID: uuid.Must(uuid.NewV7()), Name: "logo", SHA256: "x"}},
+		Assets: []ManifestAsset{{ID: ids.New(), Name: "logo", SHA256: "x"}},
 	}
 	if changes := diffManifests(base, base); len(changes) != 0 {
 		t.Fatalf("identical manifests differ: %#v", changes)
@@ -351,7 +353,7 @@ func TestDiffManifests(t *testing.T) {
 	changed := base
 	changed.Display.Orientation = "portrait"
 	changed.Rules = []ManifestRule{rule2, rule1}
-	removedScene := ManifestScene{ID: uuid.Must(uuid.NewV7()), Name: "C", Version: 1}
+	removedScene := ManifestScene{ID: ids.New(), Name: "C", Version: 1}
 	changed.Scenes = []ManifestScene{sceneA, removedScene}
 	changed.Playlists = nil
 	changed.Assets = []ManifestAsset{{ID: base.Assets[0].ID, Name: "logo", SHA256: "y"}}
@@ -376,7 +378,7 @@ func TestDiffManifests(t *testing.T) {
 	edited.Rules = []ManifestRule{
 		rule1,
 		{ID: rule2.ID, Kind: "announcement_active", TargetKind: "scene", TargetID: sceneB.ID, MinSeconds: 30},
-		{ID: uuid.Must(uuid.NewV7()), Kind: "live_data_unavailable"},
+		{ID: ids.New(), Kind: "live_data_unavailable"},
 	}
 	changes := diffManifests(base, edited)
 	var added, modifiedRules int
@@ -426,7 +428,7 @@ func TestValidateHeartbeat(t *testing.T) {
 }
 
 func TestLiveMachineStaleness(t *testing.T) {
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	snapshot := []byte(
 		`{"state":"printing","job":{"fileName":"secret.3mf","progressPercent":42,"remainingMinutes":17}}`,

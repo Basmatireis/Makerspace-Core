@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	printerconnectorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
@@ -68,11 +70,11 @@ func validSetupName(name string) bool {
 // database, so malformed input never opens a transaction.
 func normalizeSetup(input SetupInput) (SetupInput, error) {
 	if input.ExpectedVersion < 0 || len(input.InputUnits) > maxSetupUnits {
-		return SetupInput{}, validation("invalid printer setup")
+		return SetupInput{}, apperror.Invalid("invalid printer setup")
 	}
 	input.Model = clean(input.Model)
 	if input.Model != nil && !validModel(*input.Model) {
-		return SetupInput{}, validation("invalid printer model")
+		return SetupInput{}, apperror.Invalid("invalid printer model")
 	}
 	units := make([]SetupUnitInput, len(input.InputUnits))
 	seenUnitIDs := map[uuid.UUID]bool{}
@@ -84,11 +86,11 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 		unit.Nozzle = clean(unit.Nozzle)
 		if !validSetupName(unit.Name) || (unit.Nozzle != nil && *unit.Nozzle != "left" && *unit.Nozzle != "right") ||
 			(unit.ExternalIdentifier != nil && len(*unit.ExternalIdentifier) > maxSetupIdentifierLen) || len(unit.Slots) > maxSetupSlotsPerUnit {
-			return SetupInput{}, validation("invalid spool input unit")
+			return SetupInput{}, apperror.Invalid("invalid spool input unit")
 		}
 		if unit.ID != nil {
 			if *unit.ID == uuid.Nil || seenUnitIDs[*unit.ID] {
-				return SetupInput{}, validation("spool input unit IDs must be unique")
+				return SetupInput{}, apperror.Invalid("spool input unit IDs must be unique")
 			}
 			seenUnitIDs[*unit.ID] = true
 		}
@@ -105,11 +107,11 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 			slot.ExternalIdentifier = clean(slot.ExternalIdentifier)
 			if !validSetupName(slot.Name) || (slot.Status != "available" && slot.Status != "unavailable") ||
 				(slot.ExternalIdentifier != nil && len(*slot.ExternalIdentifier) > maxSetupIdentifierLen) {
-				return SetupInput{}, validation("invalid printer slot")
+				return SetupInput{}, apperror.Invalid("invalid printer slot")
 			}
 			if slot.ID != nil {
 				if *slot.ID == uuid.Nil || seenSlotIDs[*slot.ID] {
-					return SetupInput{}, validation("printer slot IDs must be unique")
+					return SetupInput{}, apperror.Invalid("printer slot IDs must be unique")
 				}
 				seenSlotIDs[*slot.ID] = true
 			}
@@ -140,7 +142,10 @@ func samePointer(a, b *string) bool {
 func setupDatabaseError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return conflict("duplicate_external_identifier", "A printer identifier is already used on this printer")
+		return apperror.Conflicting(
+			"duplicate_external_identifier",
+			"A printer identifier is already used on this printer",
+		)
 	}
 	return dbError(err)
 }
@@ -262,7 +267,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 	for _, unit := range input.InputUnits {
 		if unit.ID != nil {
 			if _, ok := unitByID[*unit.ID]; !ok {
-				return validation("unknown spool input unit")
+				return apperror.Invalid("unknown spool input unit")
 			}
 			keptUnits[*unit.ID] = true
 		}
@@ -272,14 +277,14 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			}
 			existing, ok := slotByID[*slot.ID]
 			if !ok || unit.ID == nil || existing.InputUnitID != *unit.ID {
-				return validation("unknown printer slot")
+				return apperror.Invalid("unknown printer slot")
 			}
 			keptSlots[*slot.ID] = true
 		}
 	}
 	for _, slot := range existingSlots {
 		if !keptSlots[slot.ID] && slot.Status != "retired" && occupied[slot.ID] {
-			return conflict("slot_occupied", "Unmount the spool before removing the slot \""+slot.Name+"\"")
+			return apperror.Conflicting("slot_occupied", "Unmount the spool before removing the slot \""+slot.Name+"\"")
 		}
 	}
 
@@ -293,7 +298,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		maxPosition = max(maxPosition, slot.Position)
 	}
 	if maxPosition > 1_000_000_000 {
-		return conflict("position_overflow", "Printer positions are too large to renumber")
+		return apperror.Conflicting("position_overflow", "Printer positions are too large to renumber")
 	}
 	offset := maxPosition + 1
 	if err = q.ShiftPrinterInputUnitsForSetup(
@@ -315,7 +320,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 				if _, err := q.CreatePrinterSlot(
 					ctx,
 					db.CreatePrinterSlotParams{
-						ID:                 newID(),
+						ID:                 ids.New(),
 						InputUnitID:        unitID,
 						Name:               slot.Name,
 						Position:           int32(position),
@@ -370,7 +375,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 	for position, unit := range input.InputUnits {
 		var unitID uuid.UUID
 		if unit.ID == nil {
-			unitID = newID()
+			unitID = ids.New()
 			if _, err = q.CreatePrinterInputUnit(
 				ctx,
 				db.CreatePrinterInputUnitParams{

@@ -74,13 +74,17 @@ type RunMeasures map[string]int64
 func validateMeasures(process string, input RunMeasures) error {
 	for key, value := range input {
 		if _, known := measureDefinitions[key]; !known {
-			return validation("unknown measure")
+			return apperror.Invalid("unknown measure")
 		}
 		if value < 0 {
-			return validation("a measure cannot be negative")
+			return apperror.Invalid("a measure cannot be negative")
 		}
 		if !processSupportsMeasure(process, key) {
-			return apperror.New(http.StatusUnprocessableEntity, "run_measure_unsupported", "The machine's process does not record this measure")
+			return apperror.New(
+				http.StatusUnprocessableEntity,
+				"run_measure_unsupported",
+				"The machine's process does not record this measure",
+			)
 		}
 	}
 	return nil

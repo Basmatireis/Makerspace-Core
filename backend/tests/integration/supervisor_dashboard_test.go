@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
-	"github.com/google/uuid"
 )
 
 func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
@@ -19,7 +20,7 @@ func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
 	}
 
 	member := seedAccount(t, pool, "supervisor-dashboard-counts", false)
-	designatedRoleID := uuid.Must(uuid.NewV7())
+	designatedRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles(id,name,supervisor_dashboard) VALUES($1,'Dashboard members',true)`,
@@ -39,11 +40,11 @@ func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	periodID := uuid.Must(uuid.NewV7())
-	firstDayID := uuid.Must(uuid.NewV7())
-	secondDayID := uuid.Must(uuid.NewV7())
-	supervisorRequirementID := uuid.Must(uuid.NewV7())
-	traineeRequirementID := uuid.Must(uuid.NewV7())
+	periodID := ids.New()
+	firstDayID := ids.New()
+	secondDayID := ids.New()
+	supervisorRequirementID := ids.New()
+	traineeRequirementID := ids.New()
 	startsAt := time.Date(2026, time.October, 10, 8, 0, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO open_day_periods(id,name,starts_on,ends_on,status)
@@ -61,8 +62,8 @@ func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
 		INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES
 			($1,$2,$3,$6),
 			($4,$5,$7,$6)`,
-		uuid.Must(uuid.NewV7()), firstDayID, supervisorRequirementID,
-		uuid.Must(uuid.NewV7()), secondDayID, member.personID, traineeRequirementID); err != nil {
+		ids.New(), firstDayID, supervisorRequirementID,
+		ids.New(), secondDayID, member.personID, traineeRequirementID); err != nil {
 		t.Fatal(err)
 	}
 

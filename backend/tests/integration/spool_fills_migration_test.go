@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -25,7 +26,7 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 	}
 	applyMigrationFiles(t, schemaPool, paths[:37])
 
-	material, active, retired := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	material, active, retired := ids.New(), ids.New(), ids.New()
 	occurred := time.Date(2030, 1, 2, 10, 0, 0, 0, time.UTC)
 	exec := func(query string, args ...any) {
 		t.Helper()
@@ -48,7 +49,7 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 	)
 	exec(
 		`INSERT INTO filament_spool_identifiers (id, spool_id, kind, value) VALUES ($1, $2, 'barcode', 'LEGACY-1')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		active,
 	)
 	type row struct {
@@ -66,7 +67,7 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 		exec(
 			`INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, spool_id, to_spool_id, transfer_quantity)
 			VALUES ($1, $2, $3::text, $4, CASE WHEN $3::text = 'spool_transfer' THEN 0 ELSE 0.02 END, $5, $6, $7, $8, $9, $10)`,
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
 			material,
 			r.kind,
 			r.delta,
@@ -128,8 +129,8 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 	t.Cleanup(pool.Close)
 	service := machinelogbook.NewService(pool)
 	master := authorization.Principal{
-		AccountID: uuid.Must(uuid.NewV7()),
-		PersonID:  uuid.Must(uuid.NewV7()),
+		AccountID: ids.New(),
+		PersonID:  ids.New(),
 		Master:    true,
 	}
 	exec(
@@ -143,7 +144,10 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if spool.FillNumber != 1 || spool.FillID == nil || spool.RemainingQuantity != "300" || spool.Status != "active" || spool.Kind != "single_use" || spool.Lifecycle != "active" ||
-		spool.InitialNetWeightG == nil || *spool.InitialNetWeightG != "500" || spool.Manufacturer == nil || *spool.Manufacturer != "Prusa" || spool.MaterialID == nil || *spool.MaterialID != material ||
+		spool.InitialNetWeightG == nil || *spool.InitialNetWeightG != "500" || spool.Manufacturer == nil ||
+		*spool.Manufacturer != "Prusa" ||
+		spool.MaterialID == nil ||
+		*spool.MaterialID != material ||
 		len(spool.Identifiers) != 1 ||
 		spool.Identifiers[0].Value != "LEGACY-1" ||
 		spool.AcquiredOn == nil ||

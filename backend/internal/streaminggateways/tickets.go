@@ -8,6 +8,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -86,7 +88,7 @@ func (s *Service) activeKey(ctx context.Context) (*signingKey, error) {
 }
 
 func conflictEncryption() error {
-	return conflict(
+	return apperror.Conflicting(
 		"encryption_not_configured",
 		"Application encryption must be configured before stream tickets can be signed",
 	)
@@ -194,7 +196,7 @@ func (s *Service) createKey(
 	if err != nil {
 		return err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	encrypted, err := s.keyring.Encrypt(private.Seed(), ticketKeyPurpose(id))
 	if err != nil {
 		return err

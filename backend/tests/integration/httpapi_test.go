@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -150,7 +152,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t,
 		adminClient,
 		http.MethodGet,
-		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(uuid.NewV7()).
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+ids.New().
 			String(),
 		"",
 		"",

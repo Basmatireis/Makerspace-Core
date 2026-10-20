@@ -242,7 +242,7 @@ func (s *Service) SignupAuthenticated(
 		assignment.PublicID = publicID
 		return SignupResult{Assignment: assignment, ManagementURL: url}, createErr
 	default:
-		return SignupResult{}, validation("signupFor must be self or other")
+		return SignupResult{}, apperror.Invalid("signupFor must be self or other")
 	}
 }
 
@@ -290,7 +290,7 @@ func (s *Service) UpdateManagedSignup(
 	}
 	if input.ShiftID != nil || input.RequirementID != nil {
 		if input.ShiftID == nil || input.RequirementID == nil {
-			return Assignment{}, validation("shiftId and requirementId must be provided together")
+			return Assignment{}, apperror.Invalid("shiftId and requirementId must be provided together")
 		}
 		result, err := s.moveAssignment(
 			ctx,
@@ -378,7 +378,7 @@ func (s *Service) UpdateOwnAssignment(
 	}
 	if input.ShiftID != nil || input.RequirementID != nil {
 		if input.ShiftID == nil || input.RequirementID == nil {
-			return Assignment{}, validation("shiftId and requirementId must be provided together")
+			return Assignment{}, apperror.Invalid("shiftId and requirementId must be provided together")
 		}
 		result, err := s.moveAssignment(
 			ctx,
@@ -487,7 +487,7 @@ func (s *Service) updateAssignmentContact(
 		changedFields = append(changedFields, "phone")
 	}
 	if len(changedFields) == 0 {
-		return Assignment{}, validation("at least one contact field must be provided")
+		return Assignment{}, apperror.Invalid("at least one contact field must be provided")
 	}
 	emailDisplay, emailNormalized, phoneDisplay, phoneNormalized, err := normalizeContact(email, phone)
 	if err != nil {
@@ -624,7 +624,11 @@ func (s *Service) moveAssignment(
 		if publicFlow {
 			return Assignment{}, signupUnavailable()
 		}
-		return Assignment{}, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot receive assignments")
+		return Assignment{}, apperror.New(
+			http.StatusConflict,
+			"shift_cancelled",
+			"Cancelled shifts cannot receive assignments",
+		)
 	}
 	req, err := q.GetEventRequirement(
 		ctx,

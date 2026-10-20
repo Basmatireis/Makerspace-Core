@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -33,11 +35,11 @@ func principalWith(t *testing.T, accountID uuid.UUID, permissions ...authorizati
 		), string(
 			authorization.AssuranceLow,
 		)
-		grantID := uuid.Must(uuid.NewV7())
+		grantID := ids.New()
 		rows = append(
 			rows,
 			authorizationdb.GetPrincipalRolePermissionsRow{
-				RoleID:           uuid.Must(uuid.NewV7()),
+				RoleID:           ids.New(),
 				GrantID:          &grantID,
 				PermissionID:     &permissionID,
 				Scope:            &scope,
@@ -92,20 +94,20 @@ func TestDeleteRequiresManagePermission(t *testing.T) {
 func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	h := newIngestHarness(t)
 	ctx := t.Context()
-	runID := uuid.Must(uuid.NewV7())
-	runningID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
+	runningID := ids.New()
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
 	h.accepted(runID, "operational_state", t0, `{"state":"printing","fileName":"part.gcode"}`)
 	h.accepted(runID, "terminal_outcome", t0.Add(10*time.Minute), `{"outcome":"completed"}`)
 	h.accepted(runningID, "operational_state", t0.Add(time.Hour), `{"state":"printing"}`)
 	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_error_occurrences (id, machine_id, assignment_id, run_id, source_family, original_code, first_observed_at, last_observed_at)
-		VALUES ($1, $2, $3, $4, 'hms', '0300_0001', now(), now())`, uuid.Must(uuid.NewV7()), h.machine.ID, h.assignment.ID, runningID); err != nil {
+		VALUES ($1, $2, $3, $4, 'hms', '0300_0001', now(), now())`, ids.New(), h.machine.ID, h.assignment.ID, runningID); err != nil {
 		t.Fatal(err)
 	}
 	// A diagnostic event no run rests on.
 	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, source_sequence, payload, connector_id, connector_assignment_id, configuration_version)
 		VALUES ($1, $2, $3, repeat('a', 64), 1, $4, 'connectivity', now(), 9999, '{}', $5, $6, 1)`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		"diag-"+h.suffix,
 		"diag-"+h.suffix,
 		h.machine.ID,

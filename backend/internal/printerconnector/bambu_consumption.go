@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
 	"github.com/google/uuid"
 )
@@ -163,7 +165,7 @@ func (s *Store) EnqueueArtifactConsumption(
 	if _, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,'consumption_report',?,?,?,?,?,?,?)`,
-		uuid.Must(uuid.NewV7()).String(),
+		ids.New().String(),
 		transfer.AssignmentID.String(),
 		transfer.ConfigurationVersion,
 		sequence,

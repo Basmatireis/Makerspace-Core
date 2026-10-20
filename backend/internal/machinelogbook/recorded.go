@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
@@ -258,7 +260,7 @@ func (s *Service) consumeItemizedReportedUsage(
 				Ownership:            "makerspace",
 				QuantityBasis:        "estimated",
 				Quantity:             quantity,
-				UsageID:              uuid.Must(uuid.NewV7()),
+				UsageID:              ids.New(),
 				SourcePrinterEventID: &eventID,
 				EstimationMethod:     &method,
 				CalculationVersion:   &version,

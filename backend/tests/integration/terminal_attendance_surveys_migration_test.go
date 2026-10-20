@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	surveysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/surveys/db"
 	"github.com/google/uuid"
@@ -23,10 +25,10 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		ctx,
 		`INSERT INTO session_policies(id,name,idle_timeout_seconds,absolute_lifetime_seconds,post_session_destination,is_default)
 		VALUES($1,'Second default',60,300,'login',true)`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 	)
 	expectPostgresCode(t, err, "23505")
-	deviceTypeID := uuid.Must(uuid.NewV7())
+	deviceTypeID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO device_types(id,name) VALUES($1,'Constraint terminal')`,
@@ -35,11 +37,11 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO managed_devices(id,name,device_type_id,token_digest,terminal_enabled)
-		VALUES($1,'Uncontrolled terminal',$2,$3,true)`, uuid.Must(uuid.NewV7()), deviceTypeID, bytes.Repeat([]byte{6}, 32))
+		VALUES($1,'Uncontrolled terminal',$2,$3,true)`, ids.New(), deviceTypeID, bytes.Repeat([]byte{6}, 32))
 	expectPostgresCode(t, err, "23514")
 
 	person := seedAccount(t, pool, "attendance-constraints", false)
-	firstVisit := uuid.Must(uuid.NewV7())
+	firstVisit := ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
 		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`, firstVisit, person.personID); err != nil {
 		t.Fatal(err)
@@ -48,7 +50,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		ctx,
 		`INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
 		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		person.personID,
 	)
 	expectPostgresCode(t, err, "23505")
@@ -79,7 +81,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		1,
 	)
 
-	voidVisit := uuid.Must(uuid.NewV7())
+	voidVisit := ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO visits(id,person_id,checked_in_at,status,check_in_method,check_in_assurance,admission_decision)
 		VALUES($1,$2,now(),'checked_in','supervisor','normal','admitted')`, voidVisit, person.personID); err != nil {
 		t.Fatal(err)
@@ -94,7 +96,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	surveyID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	surveyID, versionID := ids.New(), ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO surveys(id,name,anonymous) VALUES($1,'Anonymous survey',true)`,
@@ -110,7 +112,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	responseID := uuid.Must(uuid.NewV7())
+	responseID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO survey_responses(id,survey_version_id,submitted_on) VALUES($1,$2,current_date)`,
@@ -131,10 +133,10 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		t.Fatal("anonymous response retained a direct person identifier")
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO survey_responses(id,survey_version_id,submitted_on,identified_person_id)
-		VALUES($1,$2,current_date,$3)`, uuid.Must(uuid.NewV7()), versionID, person.personID)
+		VALUES($1,$2,current_date,$3)`, ids.New(), versionID, person.personID)
 	expectPostgresCode(t, err, "23514")
 
-	questionA, questionB, optionA := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	questionA, questionB, optionA := ids.New(), ids.New(), ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO survey_questions(id,survey_version_id,kind,prompt,position) VALUES
 		($1,$3,'single_choice','First',1),($2,$3,'single_choice','Second',2)`, questionA, questionB, versionID); err != nil {
 		t.Fatal(err)
@@ -157,19 +159,19 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 	_, err = pool.Exec(ctx, `UPDATE survey_question_options SET label='Changed after publication' WHERE id=$1`, optionA)
 	expectPostgresCode(t, err, "23514")
 	_, err = pool.Exec(ctx, `INSERT INTO survey_answers(id,response_id,question_id,option_id)
-		VALUES($1,$2,$3,$4)`, uuid.Must(uuid.NewV7()), responseID, questionB, optionA)
+		VALUES($1,$2,$3,$4)`, ids.New(), responseID, questionB, optionA)
 	expectPostgresCode(t, err, "23503")
-	secondVersion, questionC := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	secondVersion, questionC := ids.New(), ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO survey_versions(id,survey_id,revision,title) VALUES($1,$2,2,'Later feedback');
 		INSERT INTO survey_questions(id,survey_version_id,kind,prompt,position) VALUES($3,$1,'free_text','Later question',1)`, secondVersion, surveyID, questionC); err != nil {
 		t.Fatal(err)
 	}
 	answerText := "cross-version"
 	_, err = pool.Exec(ctx, `INSERT INTO survey_answers(id,response_id,question_id,text_value)
-		VALUES($1,$2,$3,$4)`, uuid.Must(uuid.NewV7()), responseID, questionC, answerText)
+		VALUES($1,$2,$3,$4)`, ids.New(), responseID, questionC, answerText)
 	expectPostgresCode(t, err, "23514")
 
-	invitationID := uuid.Must(uuid.NewV7())
+	invitationID := ids.New()
 	if _, err = pool.Exec(ctx, `INSERT INTO survey_invitations(id,survey_version_id,person_id,token_digest,recipient_email,due_at,expires_at)
 		VALUES($1,$2,$3,$4,'visitor@example.test',now()-interval '3 days',now()-interval '2 days')`, invitationID, versionID, person.personID, bytes.Repeat([]byte{7}, 32)); err != nil {
 		t.Fatal(err)
@@ -203,7 +205,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		ctx,
 		`INSERT INTO sessions(id,account_id,auth_identity_id,token_digest,csrf_digest,auth_method,idle_expires_at,absolute_expires_at)
 		VALUES($1,$2,$3,$4,$5,'password',now()+interval '1 hour',now()+interval '2 hours')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		person.accountID,
 		person.identity,
 		bytes.Repeat([]byte{8}, 32),

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
@@ -83,20 +85,24 @@ func (s *Service) AttachFile(
 		return EventFile{}, errors.New("file storage is unavailable")
 	}
 	if len(data) > MaxFileBytes {
-		return EventFile{}, apperror.New(http.StatusRequestEntityTooLarge, "event_file_too_large", "Event files are limited to 25 MiB")
+		return EventFile{}, apperror.New(
+			http.StatusRequestEntityTooLarge,
+			"event_file_too_large",
+			"Event files are limited to 25 MiB",
+		)
 	}
 	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 	if _, ok := allowedEventFileTypes[contentType]; !ok {
-		return EventFile{}, validation("file type is not allowed")
+		return EventFile{}, apperror.Invalid("file type is not allowed")
 	}
 	if err := validateEventFileContent(contentType, data); err != nil {
 		return EventFile{}, err
 	}
 	if visibility != "internal" && visibility != "public" {
-		return EventFile{}, validation("visibility is invalid")
+		return EventFile{}, apperror.Invalid("visibility is invalid")
 	}
 	if isBanner && (visibility != "public" || !isEventImageType(contentType)) {
-		return EventFile{}, validation("a banner must be a public JPEG, PNG, GIF, or WebP image")
+		return EventFile{}, apperror.Invalid("a banner must be a public JPEG, PNG, GIF, or WebP image")
 	}
 	description, err := cleanOptional(description, 2000)
 	if err != nil {
@@ -121,7 +127,7 @@ func (s *Service) AttachFile(
 	if err = requireEventWritable(ctx, q, eventID, true); err != nil {
 		return EventFile{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if isBanner {
 		if err = q.ClearOtherEventBanners(
 			ctx,
@@ -197,21 +203,21 @@ func validateEventFileContent(declared string, data []byte) error {
 		bytes.HasPrefix(lower, []byte("<script")) || bytes.HasPrefix(lower, []byte("#!")) ||
 		bytes.Contains(lower, []byte("<svg")) || bytes.HasPrefix(prefix, []byte("MZ")) ||
 		bytes.HasPrefix(prefix, []byte{0x7f, 'E', 'L', 'F'}) || isMachO(prefix) {
-		return validation("file content is not allowed")
+		return apperror.Invalid("file content is not allowed")
 	}
 	detected := strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(prefix), ";")[0]))
 	switch declared {
 	case "application/pdf":
 		if detected != "application/pdf" {
-			return validation("file content does not match its type")
+			return apperror.Invalid("file content does not match its type")
 		}
 	case "image/jpeg", "image/png", "image/gif", "image/webp":
 		if detected != declared {
-			return validation("file content does not match its type")
+			return apperror.Invalid("file content does not match its type")
 		}
 	case "text/plain", "text/csv", "application/csv":
 		if detected != "text/plain" {
-			return validation("file content does not match its type")
+			return apperror.Invalid("file content does not match its type")
 		}
 	}
 	return nil
@@ -244,7 +250,7 @@ func (s *Service) UpdateFile(
 		return EventFile{}, err
 	}
 	if visibility != "internal" && visibility != "public" {
-		return EventFile{}, validation("visibility is invalid")
+		return EventFile{}, apperror.Invalid("visibility is invalid")
 	}
 	description, err := cleanOptional(description, 2000)
 	if err != nil {
@@ -277,7 +283,7 @@ func (s *Service) UpdateFile(
 		nextBanner = false
 	}
 	if nextBanner && !isEventImageType(current.ContentType) {
-		return EventFile{}, validation("a banner must be a public JPEG, PNG, GIF, or WebP image")
+		return EventFile{}, apperror.Invalid("a banner must be a public JPEG, PNG, GIF, or WebP image")
 	}
 	if nextBanner {
 		if err = q.ClearOtherEventBanners(

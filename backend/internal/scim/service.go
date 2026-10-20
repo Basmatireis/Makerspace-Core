@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -156,7 +158,7 @@ func (s *Service) CreateConnector(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := queries.CreateConnector(
 		ctx,
 		scimdb.CreateConnectorParams{ID: id, Name: name, OidcProviderID: providerID, Enabled: enabled},
@@ -167,7 +169,7 @@ func (s *Service) CreateConnector(
 	if _, err := queries.CreateConnectorToken(
 		ctx,
 		scimdb.CreateConnectorTokenParams{
-			ID:                 uuid.Must(uuid.NewV7()),
+			ID:                 ids.New(),
 			ConnectorID:        id,
 			TokenDigest:        digest,
 			ExpiresAt:          expiresAt.UTC(),
@@ -322,7 +324,7 @@ func (s *Service) RotateToken(
 	if _, err := queries.CreateConnectorToken(
 		ctx,
 		scimdb.CreateConnectorTokenParams{
-			ID:                 uuid.Must(uuid.NewV7()),
+			ID:                 ids.New(),
 			ConnectorID:        id,
 			TokenDigest:        digest,
 			ExpiresAt:          expiresAt.UTC(),
@@ -436,7 +438,7 @@ func (s *Service) CreateUser(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	personID, accountID, userID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID, userID := ids.New(), ids.New(), ids.New()
 	if _, err := queries.CreateProvisionedPerson(
 		ctx,
 		scimdb.CreateProvisionedPersonParams{
@@ -470,7 +472,7 @@ func (s *Service) CreateUser(
 		if _, err := queries.CreateBoundOIDCIdentity(
 			ctx,
 			scimdb.CreateBoundOIDCIdentityParams{
-				ID:         uuid.Must(uuid.NewV7()),
+				ID:         ids.New(),
 				AccountID:  accountID,
 				ProviderID: connector.OIDCProviderID,
 				Issuer:     connector.Issuer,

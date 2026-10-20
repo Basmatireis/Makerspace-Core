@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
 func TestEventMigrationUpDownUpAndGuardedDown(t *testing.T) {
@@ -44,7 +44,7 @@ func TestEventMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO events(id,name,public_id) VALUES($1,'Guarded event',$2)`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		strings.Repeat("A", 43),
 	); err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestEventBannerMigrationUpDownUpAndGuardedDown(t *testing.T) {
 	if _, err = pool.Exec(ctx, up); err != nil {
 		t.Fatalf("second up: %v", err)
 	}
-	eventID, fileID, eventFileID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	eventID, fileID, eventFileID := ids.New(), ids.New(), ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO events(id,name,public_id) VALUES($1,'Banner event',$2)`,

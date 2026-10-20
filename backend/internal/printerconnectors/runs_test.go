@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
@@ -40,7 +42,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID, requestID := ids.New(), ids.New(), ids.New()
 	h.suffix = strings.ReplaceAll(personID.String(), "-", "")[:12]
 	h.principal = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	if _, err = pool.Exec(
@@ -97,7 +99,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.service.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), secret, "test", 1); err != nil {
+	if _, err = h.service.Enroll(ctx, issue.Secret, ids.New(), secret, "test", 1); err != nil {
 		t.Fatal(err)
 	}
 	connectorContext, err := h.service.Authenticate(ctx, secret)
@@ -130,7 +132,7 @@ func (h *ingestHarness) send(runID uuid.UUID, kind string, at time.Time, payload
 	h.sequence++
 	return h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			RunID:                &runID,
 			HistoryComplete:      true,
@@ -291,7 +293,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	unitID, slotID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	unitID, slotID := ids.New(), ids.New()
 	var position int
 	if err = h.pool.QueryRow(
 		ctx,
@@ -324,7 +326,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	if _, err = h.pool.Exec(
 		ctx,
 		`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		slotID,
 		spool.ID,
 		mountedAt,
@@ -340,7 +342,7 @@ func (h *ingestHarness) unitExternal(name string) string {
 
 func TestIngestRecordsPrintFacts(t *testing.T) {
 	h := newIngestHarness(t)
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
 	slot := "slot-a-" + h.suffix
 	spoolID := h.mountSpool("A", &slot, t0.Add(-time.Hour))
@@ -382,7 +384,7 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 
 	// Duplicates change nothing and never allocate a number.
 	duplicate := EventInput{
-		EventID:              uuid.Must(uuid.NewV7()),
+		EventID:              ids.New(),
 		AssignmentID:         h.assignment.ID,
 		RunID:                &runID,
 		HistoryComplete:      true,
@@ -476,7 +478,7 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 	slotA, slotB := "slot-a-"+h.suffix, "slot-b-"+h.suffix
 	spoolA := h.mountSpool("A", &slotA, t0.Add(-time.Hour))
 
-	one := uuid.Must(uuid.NewV7())
+	one := ids.New()
 	h.accepted(one, "progress", t0, `{"percent":10}`)
 	h.report(one, t0.Add(time.Minute), `{"quantityGrams":"5","quantityBasis":"actual"}`, 1)
 	if run := h.run(one); run.spoolID != nil {
@@ -484,7 +486,7 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 	}
 	spoolB := h.mountSpool("B", &slotB, t0.Add(-time.Hour))
 
-	ambiguous := uuid.Must(uuid.NewV7())
+	ambiguous := ids.New()
 	h.accepted(ambiguous, "progress", t0, `{"percent":10}`)
 	h.report(ambiguous, t0.Add(time.Minute), `{"quantityGrams":"5","quantityBasis":"actual"}`, 1)
 	if run := h.run(ambiguous); run.grams == nil || run.spoolID != nil {
@@ -494,7 +496,7 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 		spool uuid.UUID
 		unit  string
 	}{slotA: {spoolA, h.unitExternal("A")}, slotB: {spoolB, h.unitExternal("B")}} {
-		runID := uuid.Must(uuid.NewV7())
+		runID := ids.New()
 		h.accepted(runID, "progress", t0, `{"percent":10}`)
 		h.report(
 			runID,
@@ -507,7 +509,7 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 		}
 	}
 	// A slot id that is unknown on this machine falls back to the mount count.
-	unknown := uuid.Must(uuid.NewV7())
+	unknown := ids.New()
 	h.accepted(unknown, "progress", t0, `{"percent":10}`)
 	h.report(
 		unknown,
@@ -519,7 +521,7 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 		t.Fatalf("unknown slot with two mounts resolved: %+v", run)
 	}
 	// A spool that was mounted only after the report is not used for the slot.
-	early := uuid.Must(uuid.NewV7())
+	early := ids.New()
 	h.accepted(early, "progress", t0.Add(-3*time.Hour), `{"percent":10}`)
 	h.report(
 		early,
@@ -564,7 +566,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	h.sequence++
 	receipt := h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
@@ -605,7 +607,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	h.sequence++
 	receipt = h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
@@ -633,7 +635,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	h.sequence++
 	receipt = h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
@@ -669,7 +671,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	if _, err := h.pool.Exec(
 		ctx,
 		`INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source) VALUES ($1,$2,$3,$4,'manual')`,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		slotID,
 		manualSpool,
 		at.Add(4*time.Minute),
@@ -679,7 +681,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	h.sequence++
 	receipt = h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
@@ -707,7 +709,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	h.sequence++
 	receipt = h.sendEvent(
 		EventInput{
-			EventID:              uuid.Must(uuid.NewV7()),
+			EventID:              ids.New(),
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
@@ -737,7 +739,7 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 func TestIngestClampsTheEndToTheStart(t *testing.T) {
 	h := newIngestHarness(t)
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	h.accepted(runID, "terminal_outcome", t0, `{"outcome":"failed"}`)
 	if run := h.run(runID); run.state != "failed" || run.ended == nil || run.started != nil || run.percent != nil {
 		t.Fatalf("terminal-first run: %+v", run)
@@ -776,7 +778,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatal(err)
 	}
 
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	h.accepted(runID, "progress", t0, `{"state":"printing","percent":10,"remainingSeconds":3600}`)
 	job, err := h.logbook.CreateJobFromRun(
 		ctx,
@@ -856,7 +858,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 	}
 
 	// A run without a job consumes as well.
-	free := uuid.Must(uuid.NewV7())
+	free := ids.New()
 	h.accepted(free, "progress", t0, `{"percent":10}`)
 	h.accepted(free, "terminal_outcome", t0.Add(10*time.Minute), `{"outcome":"failed"}`)
 	h.report(
@@ -897,7 +899,7 @@ func (h *ingestHarness) endedRunWithReport(name string) (runID, spoolID uuid.UUI
 	at = time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
 	slot = "slot-" + name + "-" + h.suffix
 	spoolID = h.mountSpool(name, &slot, at.Add(-time.Hour))
-	runID = uuid.Must(uuid.NewV7())
+	runID = ids.New()
 	h.accepted(runID, "progress", at, `{"state":"printing","percent":10}`)
 	h.accepted(runID, "terminal_outcome", at.Add(30*time.Minute), `{"outcome":"completed"}`)
 	h.report(
@@ -1037,7 +1039,7 @@ func TestIngestIgnoresEventsOfADeletedRun(t *testing.T) {
 	h := newIngestHarness(t)
 	ctx := t.Context()
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	h.accepted(runID, "progress", t0, `{"state":"printing","percent":10,"remainingSeconds":3600}`)
 	before := h.run(runID)
 	if err := h.logbook.DeleteRun(ctx, h.principal, runID, before.version, false, nil); err != nil {
@@ -1082,7 +1084,7 @@ func TestClearEventsHidesThemUntilIncluded(t *testing.T) {
 	h := newIngestHarness(t)
 	ctx := t.Context()
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	h.accepted(runID, "progress", t0, `{"state":"printing","percent":10}`)
 	events, err := h.service.ListEvents(ctx, h.principal, h.connector.ID, false)
 	if err != nil || len(events) == 0 {
@@ -1092,7 +1094,7 @@ func TestClearEventsHidesThemUntilIncluded(t *testing.T) {
 	if _, err = h.service.ClearEvents(ctx, reader, h.connector.ID, nil); err == nil {
 		t.Fatal("clearing needs printer_connectors.manage")
 	}
-	if _, err = h.service.ClearEvents(ctx, h.principal, uuid.Must(uuid.NewV7()), nil); err == nil {
+	if _, err = h.service.ClearEvents(ctx, h.principal, ids.New(), nil); err == nil {
 		t.Fatal("unknown connector")
 	}
 	cleared, err := h.service.ClearEvents(ctx, h.principal, h.connector.ID, nil)

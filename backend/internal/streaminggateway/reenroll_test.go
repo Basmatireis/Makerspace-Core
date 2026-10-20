@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
 func newReenrollGateway(t *testing.T, secret string) (*Gateway, *fakeCore, *bytes.Buffer) {
@@ -89,8 +89,8 @@ func TestFailedReenrollmentKeepsTheOldIdentity(t *testing.T) {
 func TestLegacyIdentityWithoutDigestReenrollsWhenASecretIsSet(t *testing.T) {
 	g, core, _ := newReenrollGateway(t, "fresh")
 	legacy := Identity{
-		GatewayID:        uuid.Must(uuid.NewV7()),
-		CredentialID:     uuid.Must(uuid.NewV7()),
+		GatewayID:        ids.New(),
+		CredentialID:     ids.New(),
 		CredentialSecret: "x",
 		Enrolled:         true,
 	}

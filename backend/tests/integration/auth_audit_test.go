@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
@@ -180,7 +182,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	requestID := uuid.Must(uuid.NewV7())
+	requestID := ids.New()
 	session, err := authService.Login(ctx, strings.ToLower(loginEmail), bootstrapPassword, "127.0.0.1", &requestID)
 	if err != nil {
 		t.Fatalf("login: %v", err)

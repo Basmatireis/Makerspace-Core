@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	auditdb "github.com/Basmatireis/Makerspace-Core/backend/internal/audit/db"
 	"github.com/google/uuid"
 )
@@ -109,7 +111,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		return err
 	}
 	_, err = queries.InsertAuditEvent(ctx, auditdb.InsertAuditEventParams{
-		ID:             uuid.Must(uuid.NewV7()),
+		ID:             ids.New(),
 		ActorType:      actorType,
 		ActorAccountID: event.ActorAccountID,
 		Action:         event.Action,

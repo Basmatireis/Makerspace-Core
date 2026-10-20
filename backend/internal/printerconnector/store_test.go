@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
 func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) {
@@ -17,10 +17,10 @@ func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	connectorID := uuid.Must(uuid.NewV7())
-	credentialID := uuid.Must(uuid.NewV7())
-	assignmentID := uuid.Must(uuid.NewV7())
-	runID := uuid.Must(uuid.NewV7())
+	connectorID := ids.New()
+	credentialID := ids.New()
+	assignmentID := ids.New()
+	runID := ids.New()
 	identity := Identity{
 		ConnectorID:         connectorID,
 		CredentialID:        credentialID,
@@ -34,7 +34,7 @@ func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) 
 		Assignments: []RuntimeAssignment{
 			{
 				ID:                   assignmentID.String(),
-				MachineID:            uuid.Must(uuid.NewV7()).String(),
+				MachineID:            ids.New().String(),
 				AdapterKind:          "simulator",
 				AdapterSchemaVersion: 1,
 				ConfigurationVersion: 3,
@@ -131,7 +131,7 @@ func TestStoreQuarantinesRejectedEventsAndLocksDataDirectory(t *testing.T) {
 	}
 	event, err := store.Enqueue(
 		ctx,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		1,
 		"progress",
 		json.RawMessage(`{"percent":20}`),
@@ -164,7 +164,7 @@ func TestArtifactRetrievalPersistsAndRequiresStableCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	assignmentID, runID := ids.New(), ids.New()
 	if err = store.ScheduleArtifactRetrieval(
 		ctx,
 		assignmentID,

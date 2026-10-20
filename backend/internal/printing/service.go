@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -88,10 +89,6 @@ func require(p authorization.Principal, permission authorization.Permission) err
 	}
 	return nil
 }
-func validation(message string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
-}
-func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 func noRows(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -102,7 +99,7 @@ func dbError(err error) error {
 	var e *pgconn.PgError
 	if errors.As(err, &e) {
 		if e.Code == "23505" {
-			return conflict("already_exists", "A conflicting resource already exists")
+			return apperror.Conflicting("already_exists", "A conflicting resource already exists")
 		}
 		if e.Code == "23503" || e.Code == "23514" {
 			return apperror.Conflict
@@ -110,7 +107,6 @@ func dbError(err error) error {
 	}
 	return err
 }
-func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 func clean(value *string) *string {
 	if value == nil {
 		return nil
@@ -257,7 +253,10 @@ func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) err
 		return err
 	}
 	if process != "fdm_printing" {
-		return conflict("machine_not_fdm_printing", "Only machines with the FDM printing process have a printer setup")
+		return apperror.Conflicting(
+			"machine_not_fdm_printing",
+			"Only machines with the FDM printing process have a printer setup",
+		)
 	}
 	return nil
 }
@@ -325,7 +324,7 @@ func (s *Service) CreateInputUnit(
 	}
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 || position < 0 {
-		return InputUnit{}, validation("invalid input unit")
+		return InputUnit{}, apperror.Invalid("invalid input unit")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -336,7 +335,7 @@ func (s *Service) CreateInputUnit(
 	if _, err = q.GetPrinterProfile(ctx, machineID); err != nil {
 		return InputUnit{}, noRows(err)
 	}
-	id := newID()
+	id := ids.New()
 	row, err := q.CreatePrinterInputUnit(
 		ctx,
 		db.CreatePrinterInputUnitParams{
@@ -385,7 +384,7 @@ func (s *Service) UpdateInputUnit(
 	name = strings.TrimSpace(name)
 	external = clean(external)
 	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) {
-		return InputUnit{}, validation("invalid input unit")
+		return InputUnit{}, apperror.Invalid("invalid input unit")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -447,7 +446,7 @@ func (s *Service) CreateSlot(
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 || position < 0 ||
 		(status != "available" && status != "unavailable" && status != "retired") {
-		return Slot{}, validation("invalid printer slot")
+		return Slot{}, apperror.Invalid("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -458,7 +457,7 @@ func (s *Service) CreateSlot(
 	if _, err = q.GetPrinterInputUnitForUpdate(ctx, inputUnitID); err != nil {
 		return Slot{}, noRows(err)
 	}
-	id := newID()
+	id := ids.New()
 	if _, err = q.CreatePrinterSlot(
 		ctx,
 		db.CreatePrinterSlotParams{
@@ -509,7 +508,7 @@ func (s *Service) UpdateSlot(
 	external = clean(external)
 	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) ||
 		(status != "available" && status != "unavailable" && status != "retired") {
-		return Slot{}, validation("invalid printer slot")
+		return Slot{}, apperror.Invalid("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -583,7 +582,7 @@ func (s *Service) Mount(
 		return Slot{}, noRows(err)
 	}
 	if slot.Status != "available" {
-		return Slot{}, conflict("slot_unavailable", "Printer slot is not available")
+		return Slot{}, apperror.Conflicting("slot_unavailable", "Printer slot is not available")
 	}
 	// A spool can be mounted while it is active and its open fill still holds stock.
 	lifecycle, err := q.LockSpoolLifecycle(ctx, spoolID)
@@ -595,22 +594,25 @@ func (s *Service) Mount(
 		return Slot{}, err
 	}
 	if lifecycle != "active" || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
-		return Slot{}, conflict("spool_unavailable", "Only active spools with an open, nonempty fill can be mounted")
+		return Slot{}, apperror.Conflicting(
+			"spool_unavailable",
+			"Only active spools with an open, nonempty fill can be mounted",
+		)
 	}
 	if _, err = q.GetOpenAssignmentForSlot(ctx, slotID); err == nil {
-		return Slot{}, conflict("slot_occupied", "Unmount the current spool before mounting another")
+		return Slot{}, apperror.Conflicting("slot_occupied", "Unmount the current spool before mounting another")
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Slot{}, err
 	}
 	if _, err = q.GetOpenAssignmentForSpool(ctx, spoolID); err == nil {
-		return Slot{}, conflict("spool_already_mounted", "Spool is already mounted")
+		return Slot{}, apperror.Conflicting("spool_already_mounted", "Spool is already mounted")
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Slot{}, err
 	}
 	actor := p.AccountID
-	id := newID()
+	id := ids.New()
 	if _, err = q.CreatePrinterSpoolAssignment(
 		ctx,
 		db.CreatePrinterSpoolAssignmentParams{
@@ -716,10 +718,11 @@ func (s *Service) IngestConnectorEvent(
 	input ConnectorEventInput,
 ) (PrinterEvent, bool, error) {
 	if input.EventID == uuid.Nil || input.ConnectorID == uuid.Nil || input.AssignmentID == uuid.Nil || input.MachineID == uuid.Nil ||
-		input.ConfigurationVersion < 1 || input.Sequence < 1 || input.OccurredAt.IsZero() ||
+		input.ConfigurationVersion < 1 || input.Sequence < 1 ||
+		input.OccurredAt.IsZero() ||
 		len(input.Payload) == 0 ||
 		len(input.Payload) > 32768 {
-		return PrinterEvent{}, false, validation("invalid printer event")
+		return PrinterEvent{}, false, apperror.Invalid("invalid printer event")
 	}
 	switch input.Kind {
 	case "identity",
@@ -730,22 +733,22 @@ func (s *Service) IngestConnectorEvent(
 		"consumption_report",
 		"terminal_outcome":
 	default:
-		return PrinterEvent{}, false, validation("invalid printer event kind")
+		return PrinterEvent{}, false, apperror.Invalid("invalid printer event kind")
 	}
 	var payloadObject map[string]any
 	if json.Unmarshal(input.Payload, &payloadObject) != nil || payloadObject == nil {
-		return PrinterEvent{}, false, validation("printer event payload must be a JSON object")
+		return PrinterEvent{}, false, apperror.Invalid("printer event payload must be a JSON object")
 	}
 	if input.ApplicationState != "applied" && input.ApplicationState != "review_required" &&
 		input.ApplicationState != "recorded" {
-		return PrinterEvent{}, false, validation("invalid printer event application state")
+		return PrinterEvent{}, false, apperror.Invalid("invalid printer event application state")
 	}
 	if input.Kind == "consumption_report" {
 		if input.ReportRevision == nil || *input.ReportRevision < 1 {
-			return PrinterEvent{}, false, validation("consumption reports require a positive report revision")
+			return PrinterEvent{}, false, apperror.Invalid("consumption reports require a positive report revision")
 		}
 	} else if input.ReportRevision != nil {
-		return PrinterEvent{}, false, validation("only consumption reports may have a report revision")
+		return PrinterEvent{}, false, apperror.Invalid("only consumption reports may have a report revision")
 	}
 	sourceID := "printer-connector:" + input.AssignmentID.String()
 	eventKey := input.EventID.String()
@@ -781,7 +784,10 @@ func (s *Service) IngestConnectorEvent(
 	)
 	if err == nil {
 		if existing.Fingerprint != fp {
-			return PrinterEvent{}, false, conflict("printer_event_mismatch", "Event ID was reused with different facts")
+			return PrinterEvent{}, false, apperror.Conflicting(
+				"printer_event_mismatch",
+				"Event ID was reused with different facts",
+			)
 		}
 		return connectorEventFromRow(existing), false, nil
 	}
@@ -799,7 +805,7 @@ func (s *Service) IngestConnectorEvent(
 		if bySequence.EventKey == eventKey && bySequence.Fingerprint == fp {
 			return connectorEventFromRow(bySequence), false, nil
 		}
-		return PrinterEvent{}, false, conflict(
+		return PrinterEvent{}, false, apperror.Conflicting(
 			"printer_event_sequence_conflict",
 			"Event sequence was reused with different facts",
 		)

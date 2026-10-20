@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
-	"github.com/google/uuid"
 )
 
 func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T) {
 	service := NewService(nil, config.Config{}, nil)
-	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
-	accountID := uuid.Must(uuid.NewV7())
+	principal := authorization.Principal{Master: true, AccountID: ids.New()}
+	accountID := ids.New()
 
 	tests := []struct {
 		name string
@@ -46,7 +47,7 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 				context.Background(),
 				principal,
 				accountID,
-				uuid.Must(uuid.NewV7()),
+				ids.New(),
 				0,
 				nil,
 			)

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -58,7 +60,7 @@ func (s *Service) CreateTaskList(
 	if err = requireEventWritable(ctx, q, eventID, true); err != nil {
 		return TaskList{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateEventTaskList(
 		ctx,
 		eventsdb.CreateEventTaskListParams{
@@ -259,7 +261,7 @@ func (s *Service) CreateTask(
 	if err = requireEventWritable(ctx, q, eventID, true); err != nil {
 		return Task{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	var completedAt *time.Time
 	var completedBy *uuid.UUID
 	if input.Status == "done" {
@@ -475,7 +477,7 @@ func validateTaskInput(input TaskInput) (TaskInput, error) {
 	switch input.Status {
 	case "open", "in_progress", "blocked", "done", "cancelled":
 	default:
-		return input, validation("task status is invalid")
+		return input, apperror.Invalid("task status is invalid")
 	}
 	if input.Priority == "" {
 		input.Priority = "normal"
@@ -483,7 +485,7 @@ func validateTaskInput(input TaskInput) (TaskInput, error) {
 	switch input.Priority {
 	case "low", "normal", "high", "urgent":
 	default:
-		return input, validation("task priority is invalid")
+		return input, apperror.Invalid("task priority is invalid")
 	}
 	return input, nil
 }

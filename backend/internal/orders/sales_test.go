@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -60,7 +62,7 @@ func (f *fixture) pay(t *testing.T, o Order, method, amount string) Order {
 		t.Context(),
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt(method, amount)},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt(method, amount)},
 		nil,
 	)
 	if e != nil {
@@ -75,7 +77,7 @@ func (f *fixture) newRequest(t *testing.T, who authorization.Principal, o Order)
 		t.Context(),
 		who,
 		o.ID,
-		CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()},
+		CreateInvoiceRequest{OperationKey: ids.New(), ExpectedVersion: o.Version, Details: completeDetails()},
 		nil,
 	)
 	if e != nil {
@@ -90,7 +92,7 @@ func (f *fixture) act(
 	action string,
 	mod func(*InvoiceRequestCommand),
 ) (ExternalInvoiceRequest, error) {
-	c := InvoiceRequestCommand{OperationKey: newID(), ExpectedVersion: r.Version}
+	c := InvoiceRequestCommand{OperationKey: ids.New(), ExpectedVersion: r.Version}
 	if mod != nil {
 		mod(&c)
 	}
@@ -224,7 +226,7 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 	}
 	r = f.ok(t, a.staff, r, "submit", nil)
 	// Forwarding issues the request and settles the open balance with an external payment, in one transaction.
-	forward := InvoiceRequestCommand{OperationKey: newID(), ExpectedVersion: r.Version}
+	forward := InvoiceRequestCommand{OperationKey: ids.New(), ExpectedVersion: r.Version}
 	issued, e := f.s.RequestCommand(ctx, a.approver, r.ID, forward, "forward", nil)
 	if e != nil || issued.State != "issued" {
 		t.Fatalf("forward %v %+v", e, issued)
@@ -251,7 +253,7 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("external", "1")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("external", "1")},
 		nil,
 	)
 	wantCode(t, e, "invoice_settles_balance")
@@ -259,7 +261,7 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
 		nil,
 	)
 	wantCode(t, e, "invoice_amount_frozen")
@@ -311,7 +313,7 @@ func TestForwardWithOptionalInvoiceNumberAndConcurrentForward(t *testing.T) {
 				a.approver,
 				r.ID,
 				InvoiceRequestCommand{
-					OperationKey:      newID(),
+					OperationKey:      ids.New(),
 					ExpectedVersion:   r.Version,
 					ExternalReference: "RE-7",
 					EffectiveAt:       time.Now(),
@@ -372,7 +374,7 @@ func TestInvoiceForPartiallyPaidOrderFreezesPayments(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
+		RecordOrderPayment{OperationKey: ids.New(), ExpectedVersion: o.Version, Payment: receipt("cash", "1")},
 		nil,
 	)
 	wantCode(t, e, "invoice_amount_frozen")
@@ -382,7 +384,7 @@ func TestInvoiceForPartiallyPaidOrderFreezesPayments(t *testing.T) {
 		f.p,
 		cashID,
 		ReversePaymentCommand{
-			OperationKey:    newID(),
+			OperationKey:    ids.New(),
 			ExpectedVersion: o.Version,
 			Reversal: PaymentReversalInput{
 				PaymentID:  cashID,
@@ -503,7 +505,7 @@ func TestInvoiceRequestNeedsACharge(t *testing.T) {
 		t.Context(),
 		a.staff,
 		o.ID,
-		CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: completeDetails()},
+		CreateInvoiceRequest{OperationKey: ids.New(), ExpectedVersion: o.Version, Details: completeDetails()},
 		nil,
 	)
 	wantCode(t, e, "nothing_to_invoice")
@@ -518,7 +520,7 @@ func (f *fixture) cashMove(
 		stdcontext.Background(),
 		who,
 		CashMovementInput{
-			OperationKey: newID(),
+			OperationKey: ids.New(),
 			Kind:         kind,
 			Amount:       amount,
 			Reason:       reason,
@@ -586,7 +588,7 @@ func TestCashRegisterCountsOnlyCash(t *testing.T) {
 			f.p,
 			id,
 			ReversePaymentCommand{
-				OperationKey:    newID(),
+				OperationKey:    ids.New(),
 				ExpectedVersion: o.Version,
 				Reversal: PaymentReversalInput{
 					PaymentID:         id,
@@ -653,7 +655,7 @@ func TestCashMovementRules(t *testing.T) {
 	wantCode(t, e, "insufficient_cash")
 	// Retries are idempotent; other input under the same key conflicts.
 	in := CashMovementInput{
-		OperationKey: newID(),
+		OperationKey: ids.New(),
 		Kind:         "withdrawal",
 		Amount:       "10",
 		Reason:       "other",
@@ -680,7 +682,7 @@ func TestCashMovementRules(t *testing.T) {
 	for _, sql := range []string{
 		"UPDATE cash_movements SET amount=1",
 		"UPDATE cash_movements SET note='x'",
-		"UPDATE cash_movements SET recorded_by_person_id='" + newID().String() + "'",
+		"UPDATE cash_movements SET recorded_by_person_id='" + ids.New().String() + "'",
 	} {
 		if _, e = f.pool.Exec(ctx, sql); e == nil {
 			t.Fatalf("allowed %s", sql)
@@ -750,7 +752,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 	}
 	staffG, studentG, orgG, jobG := mk("Staff", false), mk("Students", false), mk("Org", false), mk("Special", false)
 	role := func(name string) uuid.UUID {
-		id := newID()
+		id := ids.New()
 		if _, e := f.pool.Exec(ctx, "INSERT INTO roles(id,name) VALUES($1,$2)", id, name); e != nil {
 			t.Fatal(e)
 		}
@@ -758,7 +760,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 	}
 	staffR, studentR, unmappedR := role("staff"), role("student"), role("member")
 	person := func(roles ...uuid.UUID) uuid.UUID {
-		id := newID()
+		id := ids.New()
 		if _, e := f.pool.Exec(
 			ctx,
 			"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'P','Q',$2)",
@@ -871,7 +873,7 @@ func TestRolePricingGroupMappingRules(t *testing.T) {
 	if _, e := f.pool.Exec(ctx, "UPDATE pricing_groups SET active=false WHERE id=$1", inactive.ID); e != nil {
 		t.Fatal(e)
 	}
-	r1, r2 := newID(), newID()
+	r1, r2 := ids.New(), ids.New()
 	for _, r := range []uuid.UUID{r1, r2} {
 		if _, e := f.pool.Exec(ctx, "INSERT INTO roles(id,name) VALUES($1,$2)", r, "r-"+r.String()); e != nil {
 			t.Fatal(e)
@@ -894,7 +896,7 @@ func TestRolePricingGroupMappingRules(t *testing.T) {
 			t.Fatalf("%s accepted", name)
 		}
 	}
-	if e := set(in(newID(), g.ID, 1)); !apperror.IsCode(e, "not_found") {
+	if e := set(in(ids.New(), g.ID, 1)); !apperror.IsCode(e, "not_found") {
 		t.Fatalf("unknown role: %v", e)
 	}
 	if e := set(in(r1, g.ID, 5), in(r2, g.ID, 9)); e != nil {

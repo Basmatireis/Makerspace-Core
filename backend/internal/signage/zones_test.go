@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -79,7 +81,7 @@ func TestParseZonesAcceptsEveryWidgetType(t *testing.T) {
 }
 
 func TestParseZonesRejectsInvalidInput(t *testing.T) {
-	id := uuid.Must(uuid.NewV7()).String()
+	id := ids.New().String()
 	cases := map[string]string{
 		"unknown zone":          `{"nowhere":{"type":"empty"}}`,
 		"unknown field":         `{"left":{"type":"empty","extra":1}}`,
@@ -147,8 +149,8 @@ func TestParseZonesRejectsInvalidInput(t *testing.T) {
 }
 
 func TestParseZonesDropsStaleCameraFields(t *testing.T) {
-	machine := uuid.Must(uuid.NewV7())
-	image := uuid.Must(uuid.NewV7())
+	machine := ids.New()
+	image := ids.New()
 	zones, refs, err := ParseZones(
 		mustLayout(t, "full"),
 		zonesFrom(
@@ -282,7 +284,7 @@ func asApp(err error, target **apperror.Error) bool {
 }
 
 func TestValidateFieldValueByType(t *testing.T) {
-	machine := uuid.Must(uuid.NewV7()).String()
+	machine := ids.New().String()
 	good := []struct {
 		field TemplateField
 		value string
@@ -347,7 +349,7 @@ func TestNormalizeValuesAppliesDefaultsAndRequired(t *testing.T) {
 }
 
 func TestParseZonesCameraMachineList(t *testing.T) {
-	a, b := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	a, b := ids.New(), ids.New()
 	camera := func(source, machineID, machineIDs string) string {
 		return `{"main":{"type":"camera","source":"` + source + `","machineId":` + machineID + `,"multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":null` + machineIDs + `}}`
 	}
@@ -400,7 +402,7 @@ func manyIDs(n int) []uuid.UUID {
 }
 
 func TestManifestCameraMachineIDs(t *testing.T) {
-	a, b := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	a, b := ids.New(), ids.New()
 	manifestWith := func(widgets ...string) Manifest {
 		zones := map[string]json.RawMessage{}
 		for index, widget := range widgets {

@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/google/uuid"
@@ -43,7 +46,7 @@ func (s *Service) allocate(
 	return q.InsertAllocation(
 		ctx,
 		db.InsertAllocationParams{
-			ID:               newID(),
+			ID:               ids.New(),
 			PaymentID:        &payment.ID,
 			PaymentReference: payment.Reference,
 			OrderID:          &o.ID,
@@ -68,10 +71,10 @@ func (s *Service) receipt(
 		return db.Payment{}, err
 	}
 	if o.Status != "finalized" {
-		return db.Payment{}, conflict("order_not_finalized", "Payments require a finalized order")
+		return db.Payment{}, apperror.Conflicting("order_not_finalized", "Payments require a finalized order")
 	}
 	if input.Method == "external" {
-		return db.Payment{}, conflict(
+		return db.Payment{}, apperror.Conflicting(
 			"invoice_settles_balance",
 			"An issued wiRef invoice settles the open balance by itself; it cannot be recorded as a payment",
 		)
@@ -82,19 +85,19 @@ func (s *Service) receipt(
 		return db.Payment{}, err
 	}
 	if input.OccurredAt.IsZero() {
-		return db.Payment{}, validation("Payment occurrence time is required")
+		return db.Payment{}, apperror.Invalid("Payment occurrence time is required")
 	}
 	if input.Method != "cash" && input.Method != "card" {
-		return db.Payment{}, validation("Unsupported payment method")
+		return db.Payment{}, apperror.Invalid("Unsupported payment method")
 	}
 	if input.Method == "card" &&
 		(strings.TrimSpace(input.ExternalSource) == "" || strings.TrimSpace(input.ExternalReference) == "") {
-		return db.Payment{}, validation("Card terminal and transaction references are required")
+		return db.Payment{}, apperror.Invalid("Card terminal and transaction references are required")
 	}
 	// The request states what was already paid. From submission on that figure is frozen, until the request is returned or cancelled.
 	if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
 		if r.State != "draft" {
-			return db.Payment{}, conflict(
+			return db.Payment{}, apperror.Conflicting(
 				"invoice_amount_frozen",
 				"The wiRef request "+r.Reference+" states what was already paid; return or cancel it before recording cash or card",
 			)
@@ -108,7 +111,7 @@ func (s *Service) receipt(
 	}
 	for _, v := range receipts {
 		if v.Method == "external" {
-			return db.Payment{}, conflict(
+			return db.Payment{}, apperror.Conflicting(
 				"settlement_workflow_conflict",
 				"Cash/card cannot be added while an external invoice payment is active",
 			)
@@ -119,7 +122,7 @@ func (s *Service) receipt(
 		return db.Payment{}, err
 	}
 	if amount.GreaterThan(d(o.TotalAmount).Sub(d(balance))) {
-		return db.Payment{}, conflict("payment_exceeds_outstanding", "Payment exceeds outstanding amount")
+		return db.Payment{}, apperror.Conflicting("payment_exceeds_outstanding", "Payment exceeds outstanding amount")
 	}
 	n, err := q.NextPaymentReference(ctx)
 	if err != nil {
@@ -128,7 +131,7 @@ func (s *Service) receipt(
 	payment, err := q.InsertPayment(
 		ctx,
 		db.InsertPaymentParams{
-			ID:                newID(),
+			ID:                ids.New(),
 			Reference:         reference("P", n),
 			EntryKind:         "receipt",
 			Method:            input.Method,
@@ -183,41 +186,44 @@ func (s *Service) reverseReceipt(
 		return databaseError(err)
 	}
 	if original.EntryKind != "receipt" {
-		return validation("Only original receipts can be reversed")
+		return apperror.Invalid("Only original receipts can be reversed")
 	}
 	reversed, err := q.PaymentReversalExists(ctx, &original.ID)
 	if err != nil {
 		return err
 	}
 	if reversed {
-		return conflict("payment_already_reversed", "Payment was already reversed")
+		return apperror.Conflicting("payment_already_reversed", "Payment was already reversed")
 	}
 	allocated, err := q.AllocatedOrderID(ctx, &original.ID)
 	if err != nil {
 		return databaseError(err)
 	}
 	if allocated == nil || *allocated != o.ID {
-		return conflict("payment_allocation_changed", "Payment is no longer allocated to this order")
+		return apperror.Conflicting("payment_allocation_changed", "Payment is no longer allocated to this order")
 	}
 	reason := strings.TrimSpace(input.Reason)
 	if reason == "" || len(reason) > 500 || input.OccurredAt.IsZero() {
-		return validation("Reason and occurrence time are required")
+		return apperror.Invalid("Reason and occurrence time are required")
 	}
 	if original.Method == "external" {
 		if input.ReasonKind != "external_correction" || strings.TrimSpace(input.ExternalReference) == "" {
-			return validation("External accounting correction evidence is required")
+			return apperror.Invalid("External accounting correction evidence is required")
 		}
 		r, e := q.LatestRequest(ctx, &o.ID)
 		if e != nil || r.State != "cancelled" {
-			return conflict("external_reconciliation_required", "Confirm external cancellation/correction first")
+			return apperror.Conflicting(
+				"external_reconciliation_required",
+				"Confirm external cancellation/correction first",
+			)
 		}
 	} else {
 		if input.ReasonKind != "refund" && input.ReasonKind != "recording_error" {
-			return validation("Select refund or recording error")
+			return apperror.Invalid("Select refund or recording error")
 		}
 		if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
 			if r.State != "draft" {
-				return conflict(
+				return apperror.Conflicting(
 					"invoice_amount_frozen",
 					"The wiRef request "+r.Reference+" states what was already paid; return or cancel it first",
 				)
@@ -237,7 +243,7 @@ func (s *Service) reverseReceipt(
 	v, err := q.InsertPayment(
 		ctx,
 		db.InsertPaymentParams{
-			ID:                       newID(),
+			ID:                       ids.New(),
 			Reference:                reference("P", n),
 			EntryKind:                "reversal",
 			Method:                   original.Method,
@@ -254,7 +260,7 @@ func (s *Service) reverseReceipt(
 		},
 	)
 	if original.Method == "card" && input.ExternalReference == "" {
-		return validation("Card refund/correction reference is required")
+		return apperror.Invalid("Card refund/correction reference is required")
 	}
 	if err != nil {
 		return databaseError(err)
@@ -301,7 +307,7 @@ func (s *Service) RecordPayment(
 	}
 	if old != nil {
 		if old.OrderID == nil {
-			return Order{}, conflict("operation_expired", "Operation source is unavailable")
+			return Order{}, apperror.Conflicting("operation_expired", "Operation source is unavailable")
 		}
 		return s.load(ctx, q, *old.OrderID)
 	}
@@ -341,7 +347,7 @@ func (s *Service) ReversePayment(
 		return Order{}, err
 	}
 	if input.Reversal.PaymentID != id {
-		return Order{}, validation("Reversal payment ID does not match resource")
+		return Order{}, apperror.Invalid("Reversal payment ID does not match resource")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -361,7 +367,7 @@ func (s *Service) ReversePayment(
 	}
 	orderID, err := q.AllocatedOrderID(ctx, &id)
 	if err != nil || orderID == nil {
-		return Order{}, conflict("payment_already_reversed", "No current allocation exists")
+		return Order{}, apperror.Conflicting("payment_already_reversed", "No current allocation exists")
 	}
 	o, err := q.LockOrder(ctx, *orderID)
 	if err != nil {
@@ -399,7 +405,7 @@ func (s *Service) checkAnonymous(ctx context.Context, q *db.Queries, o db.Order)
 		return err
 	}
 	if o.FulfillmentMode != "immediate" || !d(balance).Equal(d(o.TotalAmount)) {
-		return conflict(
+		return apperror.Conflicting(
 			"anonymous_requires_full_settlement",
 			"Anonymous sales require immediate fulfillment and full settlement",
 		)

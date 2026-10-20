@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -244,7 +246,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			p.state.CurrentSessionKey = sessionKey
 			p.state.CurrentRunID = p.state.Sessions[sessionKey]
 			if p.state.CurrentRunID == "" {
-				p.state.CurrentRunID = uuid.Must(uuid.NewV7()).String()
+				p.state.CurrentRunID = ids.New().String()
 				if len(p.state.Sessions) >= 64 {
 					p.state.Sessions = map[string]string{}
 					p.state.RunFacts = map[string]bambuRunFacts{}

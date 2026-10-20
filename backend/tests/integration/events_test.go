@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
@@ -384,7 +386,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 		t.Fatalf("managed move back = %#v, err=%v", managed, err)
 	}
 
-	matchPersonID := uuid.Must(uuid.NewV7())
+	matchPersonID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Matching','Person',$2)`,
@@ -471,7 +473,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 		staffOverride.ID,
 	)
 
-	restrictedRoleID := uuid.Must(uuid.NewV7())
+	restrictedRoleID := ids.New()
 	if _, err = pool.Exec(
 		ctx,
 		`INSERT INTO roles(id,name) VALUES($1,'Temporary event role'); INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`,

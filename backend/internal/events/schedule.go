@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -60,7 +62,7 @@ func (s *Service) CreateSession(
 	if err := requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Session{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateEventSession(
 		ctx,
 		eventsdb.CreateEventSessionParams{
@@ -296,7 +298,7 @@ func (s *Service) CreateShift(
 	if err := requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Shift{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateEventShift(
 		ctx,
 		eventsdb.CreateEventShiftParams{
@@ -479,7 +481,7 @@ func validateSessionInput(input SessionInput) (SessionInput, error) {
 		input.Status = "scheduled"
 	}
 	if input.Status != "scheduled" && input.Status != "cancelled" {
-		return input, validation("session status is invalid")
+		return input, apperror.Invalid("session status is invalid")
 	}
 	if input.Name, err = cleanOptional(input.Name, 200); err != nil {
 		return input, err
@@ -509,10 +511,10 @@ func validateShiftInput(input ShiftInput) (ShiftInput, error) {
 		input.Status = "draft"
 	}
 	if input.Status != "draft" && input.Status != "open" && input.Status != "closed" && input.Status != "cancelled" {
-		return input, validation("shift status is invalid")
+		return input, apperror.Invalid("shift status is invalid")
 	}
 	if input.SignupOpensAt != nil && input.SignupClosesAt != nil && !input.SignupClosesAt.After(*input.SignupOpensAt) {
-		return input, validation("signupClosesAt must be after signupOpensAt")
+		return input, apperror.Invalid("signupClosesAt must be after signupOpensAt")
 	}
 	return input, nil
 }

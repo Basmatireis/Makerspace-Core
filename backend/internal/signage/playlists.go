@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -179,7 +181,7 @@ func (s *Service) CreatePlaylist(
 	if err != nil {
 		return Playlist{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if _, err := q.CreateSignagePlaylist(ctx, signagedb.CreateSignagePlaylistParams{ID: id, Name: name}); err != nil {
 		return Playlist{}, databaseError(err)
 	}

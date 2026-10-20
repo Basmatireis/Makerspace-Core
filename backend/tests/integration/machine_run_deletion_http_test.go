@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -453,7 +455,7 @@ type recordedRunFixture struct {
 func insertRecordedRun(t *testing.T, pool *pgxpool.Pool, machineID uuid.UUID) recordedRunFixture {
 	t.Helper()
 	ctx := testContext(t)
-	connectorID, assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	connectorID, assignmentID, runID := ids.New(), ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, 'Delete test connector', 'active')`,

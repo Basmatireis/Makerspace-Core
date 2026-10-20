@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -177,7 +181,11 @@ func (s *Service) EnrollOwnPIN(
 		return apperror.PermissionDenied
 	}
 	if !principal.HasFreshAssurance(authorization.AssuranceNormal, freshMethodAuthentication, time.Now()) {
-		return apperror.New(http.StatusForbidden, "fresh_authentication_required", "Fresh normal authentication is required")
+		return apperror.New(
+			http.StatusForbidden,
+			"fresh_authentication_required",
+			"Fresh normal authentication is required",
+		)
 	}
 	display, normalized, err := normalizeLoginName(loginName)
 	if err != nil {
@@ -201,7 +209,7 @@ func (s *Service) EnrollOwnPIN(
 		identity, err = queries.CreatePINIdentity(
 			ctx,
 			authdb.CreatePINIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				AccountID:            principal.AccountID,
 				IdentifierDisplay:    &display,
 				IdentifierNormalized: &normalized,
@@ -233,7 +241,7 @@ func (s *Service) EnrollOwnPIN(
 	if err := queries.RevokeOtherSessionsForAccount(
 		ctx,
 		authdb.RevokeOtherSessionsForAccountParams{
-			Reason:           ptr("pin_changed"),
+			Reason:           optional.Of("pin_changed"),
 			AccountID:        principal.AccountID,
 			CurrentSessionID: principal.SessionID,
 		},
@@ -305,7 +313,7 @@ func (s *Service) SetAccountPIN(
 			return apperror.PermissionDenied
 		}
 		identity, err = queries.CreatePINIdentity(ctx, authdb.CreatePINIdentityParams{
-			ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
+			ID: ids.New(), AccountID: accountID,
 			IdentifierDisplay: &display, IdentifierNormalized: &normalized,
 		})
 	} else if identityErr != nil {
@@ -336,7 +344,7 @@ func (s *Service) SetAccountPIN(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_set_by_admin")},
+		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: optional.Of("pin_set_by_admin")},
 	); err != nil {
 		return err
 	}
@@ -423,7 +431,7 @@ func (s *Service) CompletePINEnrollment(
 		identity, err = queries.CreatePINIdentity(
 			ctx,
 			authdb.CreatePINIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
+				ID:                   ids.New(),
 				AccountID:            accountID,
 				IdentifierDisplay:    &display,
 				IdentifierNormalized: &normalized,
@@ -460,7 +468,7 @@ func (s *Service) CompletePINEnrollment(
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_enrollment_completed")},
+		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: optional.Of("pin_enrollment_completed")},
 	); err != nil {
 		return err
 	}
@@ -499,7 +507,11 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 		return apperror.PermissionDenied
 	}
 	if !principal.HasFreshAssurance(authorization.AssuranceNormal, freshMethodAuthentication, time.Now()) {
-		return apperror.New(http.StatusForbidden, "fresh_authentication_required", "Fresh normal authentication is required")
+		return apperror.New(
+			http.StatusForbidden,
+			"fresh_authentication_required",
+			"Fresh normal authentication is required",
+		)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -523,7 +535,7 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 	if err := queries.RevokeOtherSessionsForAccount(
 		ctx,
 		authdb.RevokeOtherSessionsForAccountParams{
-			Reason:           ptr("pin_removed"),
+			Reason:           optional.Of("pin_removed"),
 			AccountID:        principal.AccountID,
 			CurrentSessionID: principal.SessionID,
 		},
@@ -571,7 +583,7 @@ func (s *Service) createPINSession(
 	}
 	row, err := queries.CreatePINSession(
 		ctx,
-		authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
+		authdb.CreatePINSessionParams{ID: ids.New(), AccountID: accountID,
 			AuthIdentityID:    identityID,
 			TokenDigest:       tokenDigest,
 			CsrfDigest:        csrfDigest,

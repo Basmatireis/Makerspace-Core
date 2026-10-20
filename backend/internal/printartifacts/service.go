@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
@@ -89,7 +92,6 @@ type PlannedJobInput struct {
 func validation(code, message string) error {
 	return apperror.New(http.StatusUnprocessableEntity, code, message)
 }
-func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Artifact, error) {
 	if !principal.Has(authorization.PrintArtifactsRead) {
@@ -142,8 +144,8 @@ func (s *Service) artifactFromRow(ctx context.Context, q *db.Queries, row db.Get
 			result.Filaments,
 			Filament{
 				Key:         item.FilamentKey,
-				Type:        stringValue(item.FilamentType),
-				Color:       stringValue(item.Color),
+				Type:        optional.Value(item.FilamentType),
+				Color:       optional.Value(item.Color),
 				Extruder:    extruder,
 				WeightGrams: numericString(item.PlannedWeightG),
 				LengthMM:    numericString(item.PlannedLengthMm),
@@ -292,7 +294,10 @@ func (s *Service) Upload(
 		return UploadResult{}, err
 	}
 	if check.ConfigurationVersion != configurationVersion {
-		return UploadResult{}, conflict("configuration_version_mismatch", "Assignment configuration has changed")
+		return UploadResult{}, apperror.Conflicting(
+			"configuration_version_mismatch",
+			"Assignment configuration has changed",
+		)
 	}
 	temp, err := os.CreateTemp("", "makerspace-artifact-*.3mf")
 	if err != nil {
@@ -430,7 +435,10 @@ func (s *Service) persistUpload(
 		return UploadResult{}, err
 	}
 	if target.ConfigurationVersion != configurationVersion {
-		return UploadResult{}, conflict("configuration_version_mismatch", "Assignment configuration has changed")
+		return UploadResult{}, apperror.Conflicting(
+			"configuration_version_mismatch",
+			"Assignment configuration has changed",
+		)
 	}
 	if existing, getErr := q.GetArtifactBySHA256(ctx, digest); getErr == nil {
 		return s.attachExisting(
@@ -467,7 +475,7 @@ func (s *Service) persistUpload(
 		return UploadResult{}, err
 	}
 	cleanups = append(cleanups, cleanup)
-	artifactID := uuid.Must(uuid.NewV7())
+	artifactID := ids.New()
 	status := "complete"
 	if parsed.Status == parser.StatusPartial {
 		status = "partial"
@@ -549,7 +557,7 @@ func (s *Service) persistUpload(
 			v := int32(*preview.PlateNumber)
 			plate = &v
 		}
-		previewID := uuid.Must(uuid.NewV7())
+		previewID := ids.New()
 		row, insertErr := q.InsertArtifactPreview(
 			ctx,
 			db.InsertArtifactPreviewParams{
@@ -648,7 +656,10 @@ func (s *Service) attachExistingAfterRace(
 	}
 	existing, err := q.GetArtifactBySHA256(ctx, digest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return UploadResult{}, conflict("artifact_deduplication_race", "Artifact upload conflicted and can be retried")
+		return UploadResult{}, apperror.Conflicting(
+			"artifact_deduplication_race",
+			"Artifact upload conflicted and can be retried",
+		)
 	}
 	if err != nil {
 		return UploadResult{}, err
@@ -687,7 +698,7 @@ func (s *Service) attachArtifact(
 	requestID *uuid.UUID,
 ) (UploadResult, error) {
 	if target.ArtifactID != nil && *target.ArtifactID != artifactID {
-		return UploadResult{}, conflict("artifact_mismatch", "Run already references a different artifact")
+		return UploadResult{}, apperror.Conflicting("artifact_mismatch", "Run already references a different artifact")
 	}
 	if _, err := q.AttachArtifactToRun(
 		ctx,
@@ -788,7 +799,7 @@ func (s *Service) CreatePlannedJob(
 		return machinelogbook.MachineJob{}, err
 	}
 	if machine.Status == "retired" || !machine.ProfileEnabled {
-		return machinelogbook.MachineJob{}, conflict(
+		return machinelogbook.MachineJob{}, apperror.Conflicting(
 			"printer_profile_disabled",
 			"An enabled printer profile is required",
 		)
@@ -831,7 +842,7 @@ func (s *Service) CreatePlannedJob(
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	jobID := uuid.Must(uuid.NewV7())
+	jobID := ids.New()
 	displayID := fmt.Sprintf("J-%04d-%06d", time.Now().UTC().Year(), sequence)
 	job, err := q.CreatePlannedMachineJob(
 		ctx,
@@ -854,7 +865,7 @@ func (s *Service) CreatePlannedJob(
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	snapshotID := uuid.Must(uuid.NewV7())
+	snapshotID := ids.New()
 	if _, err = q.CreatePricingSnapshot(
 		ctx,
 		db.CreatePricingSnapshotParams{
@@ -917,12 +928,6 @@ func optionalString(value string) *string {
 		return nil
 	}
 	return &value
-}
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 func numericString(value pgtype.Numeric) *string {
 	if !value.Valid {

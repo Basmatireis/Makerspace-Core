@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
@@ -136,7 +138,7 @@ func TestBrowserManagedDeviceProvisioningNeverExposesTokenToJavaScript(t *testin
 	server := &Server{config: cfg}
 	expiresAt := time.Now().UTC().Add(24 * time.Hour)
 	provisioned := manageddevices.ProvisionedDevice{
-		Device: manageddevices.Device{ID: uuid.Must(uuid.NewV7()), Name: "Visitor terminal", ExpiresAt: &expiresAt},
+		Device: manageddevices.Device{ID: ids.New(), Name: "Visitor terminal", ExpiresAt: &expiresAt},
 		Token:  "one-time-device-token",
 	}
 
@@ -195,7 +197,7 @@ func TestVisitorEnrollmentCookiesUseStrictOneReadableCSRFPattern(t *testing.T) {
 }
 
 func TestRequestMetadataAlwaysGeneratesUUIDv7(t *testing.T) {
-	supplied := uuid.Must(uuid.NewV7())
+	supplied := ids.New()
 	var gotID uuid.UUID
 	var gotSource string
 	handler := requestMetadataMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -553,7 +555,7 @@ func TestSuccessfulProbeIsQuietAtInfoAndFailedProbeRemainsVisible(t *testing.T) 
 func TestAccessLogIncludesAuthenticatedAccountAndMethodOnlyWhenPresent(t *testing.T) {
 	for _, authMethod := range []string{"password", "pin", "oidc"} {
 		t.Run(authMethod, func(t *testing.T) {
-			accountID := uuid.Must(uuid.NewV7())
+			accountID := ids.New()
 			router := chi.NewRouter()
 			router.Get("/known", func(w http.ResponseWriter, r *http.Request) {
 				state := r.Context().Value(operationStateContextKey).(*operationState)

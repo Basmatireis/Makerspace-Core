@@ -3,6 +3,8 @@ package opendays
 import (
 	"fmt"
 	"time"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 )
 
 // resolveWallTime requires exactly one instant for the supplied calendar fields.
@@ -55,7 +57,7 @@ func (s *Service) resolveWallTime(wall time.Time) (time.Time, error) {
 	if len(matches) > 1 {
 		reason = "is ambiguous"
 	}
-	return time.Time{}, validation(
+	return time.Time{}, apperror.Invalid(
 		fmt.Sprintf(
 			"Local time %s %s in %s because of a clock change; choose a different time",
 			naive.Format("02.01.2006 15:04"),
@@ -73,7 +75,7 @@ func (s *Service) validateSlotInstant(instant time.Time) error {
 	// must match the configured zone; otherwise a gap could be disguised as an
 	// instant by retaining the pre-transition offset.
 	if suppliedOffset != 0 && suppliedOffset != localOffset {
-		return validation(
+		return apperror.Invalid(
 			"The supplied local time offset does not match the makerspace timezone; choose a valid local time or send UTC",
 		)
 	}

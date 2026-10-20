@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -230,7 +232,7 @@ func (s *Service) CreateScene(
 	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, refs); err != nil {
 		return Scene{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateSignageScene(ctx, signagedb.CreateSignageSceneParams{
 		ID:                id,
 		Name:              checked.name,

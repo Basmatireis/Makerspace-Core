@@ -22,7 +22,7 @@ var localPhone = regexp.MustCompile(`^[0-9]{6,15}$`)
 func cleanRequired(value, field string, max int) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" || utf8.RuneCountInString(value) > max {
-		return "", validation(fmt.Sprintf("%s is required and limited to %d characters", field, max))
+		return "", apperror.Invalid(fmt.Sprintf("%s is required and limited to %d characters", field, max))
 	}
 	return value, nil
 }
@@ -36,7 +36,7 @@ func cleanOptional(value *string, max int) (*string, error) {
 		return nil, nil
 	}
 	if utf8.RuneCountInString(clean) > max {
-		return nil, validation(fmt.Sprintf("value is limited to %d characters", max))
+		return nil, apperror.Invalid(fmt.Sprintf("value is limited to %d characters", max))
 	}
 	return &clean, nil
 }
@@ -62,39 +62,35 @@ func normalizeContact(
 	if email != nil && strings.TrimSpace(*email) != "" {
 		display, normalized, emailErr := security.NormalizeEmail(*email)
 		if emailErr != nil {
-			return nil, nil, nil, nil, validation("email is invalid")
+			return nil, nil, nil, nil, apperror.Invalid("email is invalid")
 		}
 		emailDisplay, emailNormalized = &display, &normalized
 	}
 	if phone != nil && strings.TrimSpace(*phone) != "" {
 		display, normalized, phoneErr := normalizePhone(*phone)
 		if phoneErr != nil {
-			return nil, nil, nil, nil, validation("phone is invalid")
+			return nil, nil, nil, nil, apperror.Invalid("phone is invalid")
 		}
 		phoneDisplay, phoneNormalized = &display, &normalized
 	}
 	if emailNormalized == nil && phoneNormalized == nil {
-		return nil, nil, nil, nil, validation("email or phone is required")
+		return nil, nil, nil, nil, apperror.Invalid("email or phone is required")
 	}
 	return
 }
 
 func validateInterval(startsAt, endsAt time.Time) error {
 	if startsAt.IsZero() || endsAt.IsZero() || !endsAt.After(startsAt) {
-		return validation("endsAt must be after startsAt")
+		return apperror.Invalid("endsAt must be after startsAt")
 	}
 	return nil
 }
 
 func validateVersion(version int64) error {
 	if version < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.Invalid("expectedVersion must be positive")
 	}
 	return nil
-}
-
-func validation(message string) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
 }
 
 func signupUnavailable() error {

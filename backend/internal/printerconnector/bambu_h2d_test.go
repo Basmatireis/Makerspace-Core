@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
 	"github.com/google/uuid"
 )
@@ -75,7 +77,7 @@ func TestBambuX1CAdapterUsesSharedLANContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	adapter, err := NewBambuX1C(uuid.Must(uuid.NewV7()), 1, bambuX1CSchemaVersion,
+	adapter, err := NewBambuX1C(ids.New(), 1, bambuX1CSchemaVersion,
 		map[string]any{"ipAddress": "192.168.1.43", "serialNumber": " 00m00a123456789 ", "autoDetectSpools": true},
 		map[string]string{"lanAccessCode": "secret"}, store)
 	if err != nil {
@@ -438,7 +440,7 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID := uuid.Must(uuid.NewV7())
+	assignmentID := ids.New()
 	processor, err := newBambuProcessor(ctx, assignmentID, store)
 	if err != nil {
 		t.Fatal(err)
@@ -559,7 +561,7 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID := uuid.Must(uuid.NewV7())
+	assignmentID := ids.New()
 	processor, err := newBambuProcessor(ctx, assignmentID, store)
 	if err != nil {
 		t.Fatal(err)
@@ -634,7 +636,7 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 
 func TestBambuReconnectBeforeTimeoutKeepsRunActive(t *testing.T) {
 	t.Parallel()
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	disconnectedAt := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
 	processor := &bambuProcessor{state: bambuPersistedState{
 		Lifecycle:      "RUNNING",
@@ -657,7 +659,7 @@ func TestArtifactRetrievalUsesArchivePathNotProjectName(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	assignmentID, runID := ids.New(), ids.New()
 	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 2, store: store}
 	observation := Observation{
 		Kind:    "progress",
@@ -681,8 +683,8 @@ func TestInternalGCodePathIsNotScheduledAsAnArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID := uuid.Must(uuid.NewV7())
-	runID := uuid.Must(uuid.NewV7())
+	assignmentID := ids.New()
+	runID := ids.New()
 	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 1, store: store}
 	observation := Observation{
 		Kind:  "progress",
@@ -764,7 +766,7 @@ func TestBambuReducerIgnoresRetainedTerminalAtStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	processor, err := newBambuProcessor(context.Background(), uuid.Must(uuid.NewV7()), store)
+	processor, err := newBambuProcessor(context.Background(), ids.New(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -786,7 +788,7 @@ func TestBambuReducerDoesNotClaimCompleteHistoryForPrintStartedWhileOffline(t *t
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID := uuid.Must(uuid.NewV7())
+	assignmentID := ids.New()
 	processor, err := newBambuProcessor(ctx, assignmentID, store)
 	if err != nil {
 		t.Fatal(err)
@@ -903,8 +905,8 @@ func TestArtifactTransferQueueStagesValidZIPAndDeletesOnlyOnCompletion(t *testin
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
 	transfer, err := store.StageArtifact(
 		ctx,
-		uuid.Must(uuid.NewV7()),
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
+		ids.New(),
 		2,
 		"/cache/part.3mf",
 		"part.3mf",
@@ -930,8 +932,8 @@ func TestArtifactTransferQueueStagesValidZIPAndDeletesOnlyOnCompletion(t *testin
 	unsafe := syntheticZIP(t, "../escape", "bad")
 	if _, err = store.StageArtifact(
 		ctx,
-		uuid.Must(uuid.NewV7()),
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
+		ids.New(),
 		1,
 		"/bad.3mf",
 		"bad.3mf",
@@ -951,7 +953,7 @@ func TestClientUploadsQueuedArtifactWithIntegrityHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	assignmentID, runID := ids.New(), ids.New()
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
 	transfer, err := store.StageArtifact(
 		ctx,
@@ -1248,7 +1250,7 @@ func TestAcknowledgedArtifactIsRetainedUntilConsumptionIsDurable(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	assignmentID, runID := ids.New(), ids.New()
 	if err = store.SaveBambuState(ctx, assignmentID, bambuPersistedState{
 		Document: map[string]any{}, Ready: true, RunFacts: map[string]bambuRunFacts{
 			runID.String(): {Outcome: "completed", HistoryComplete: true, ExternalPrintID: "task-7"},
@@ -1368,8 +1370,8 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 		archive := syntheticZIP(t, "3D/3dmodel.model", "model")
 		transfer, err := store.StageArtifact(
 			ctx,
-			uuid.Must(uuid.NewV7()),
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
+			ids.New(),
 			3,
 			"/cache/part.3mf",
 			"part.3mf",
@@ -1433,8 +1435,8 @@ func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
 	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
 	transfer, err := store.StageArtifact(
 		ctx,
-		uuid.Must(uuid.NewV7()),
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
+		ids.New(),
 		3,
 		"/cache/part.3mf",
 		"part.3mf",

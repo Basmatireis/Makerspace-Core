@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -32,10 +34,10 @@ func newFillFixture(t *testing.T) *fillFixture {
 	t.Helper()
 	pool := integrationPool(t)
 	ctx := t.Context()
-	person, account := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	person, account := ids.New(), ids.New()
 	f := &fillFixture{
 		pool:    pool,
-		request: uuid.Must(uuid.NewV7()),
+		request: ids.New(),
 		now:     fillsClock,
 		suffix:  strings.ReplaceAll(person.String(), "-", "")[:12],
 	}
@@ -684,7 +686,7 @@ func TestChangeFilamentProductRules(t *testing.T) {
 		t.Fatalf("material mismatch: %v", err)
 	}
 	unknown := f.newFill(m, "50")
-	unknown.ProductID = ptr(uuid.Must(uuid.NewV7()))
+	unknown.ProductID = ptr(ids.New())
 	if _, err = f.change(t, spool.ID, leftover, unknown); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("unknown product: %v", err)
 	}
@@ -934,7 +936,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		unit, slot := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+		unit, slot := ids.New(), ids.New()
 		for _, step := range []struct {
 			sql  string
 			args []any
@@ -942,7 +944,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 			{`INSERT INTO printer_profiles (machine_id) VALUES ($1)`, []any{machine.ID}},
 			{`INSERT INTO printer_input_units (id, machine_id, name, position) VALUES ($1, $2, 'Unit', 0)`, []any{unit, machine.ID}},
 			{`INSERT INTO printer_slots (id, input_unit_id, name, position) VALUES ($1, $2, 'Slot', 0)`, []any{slot, unit}},
-			{`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`, []any{uuid.Must(uuid.NewV7()), slot, spool.ID, f.now.Add(-time.Hour)}},
+			{`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`, []any{ids.New(), slot, spool.ID, f.now.Add(-time.Hour)}},
 		} {
 			if _, err = f.pool.Exec(ctx, step.sql, step.args...); err != nil {
 				t.Fatal(err)
@@ -1288,7 +1290,7 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 			active.ID,
 			retiredOpen.ID,
 			recent.ID,
-			uuid.Must(uuid.NewV7()),
+			ids.New(),
 		},
 		&f.request,
 	)
@@ -1568,7 +1570,7 @@ func TestFilamentProductsCatalog(t *testing.T) {
 		t.Fatalf("case-insensitive duplicate: %v", err)
 	}
 	missing := input
-	missing.Name, missing.MaterialID = "Other", uuid.Must(uuid.NewV7())
+	missing.Name, missing.MaterialID = "Other", ids.New()
 	if _, err = f.s.CreateFilamentProduct(ctx, f.p, missing, &f.request); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("unknown material: %v", err)
 	}

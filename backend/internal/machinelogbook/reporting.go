@@ -137,7 +137,7 @@ func (s *Service) Statistics(ctx context.Context, p authorization.Principal, fro
 		return Statistics{}, err
 	}
 	if from.IsZero() || to.IsZero() || !to.After(from) {
-		return Statistics{}, validation("to must be after from")
+		return Statistics{}, apperror.Invalid("to must be after from")
 	}
 	q := machinelogbookdb.New(s.pool)
 	result := Statistics{

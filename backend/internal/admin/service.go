@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -67,14 +70,14 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	if count != 0 {
 		return uuid.Nil, errors.New("a master account already exists; bootstrap made no changes")
 	}
-	personID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
 	if _, err := peopleQueries.CreatePerson(
 		ctx,
 		peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay},
 	); err != nil {
 		return uuid.Nil, err
 	}
-	accountID := uuid.Must(uuid.NewV7())
+	accountID := ids.New()
 	if _, err := accountQueries.CreateAccount(
 		ctx,
 		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"},
@@ -84,7 +87,7 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	identity, err := accountQueries.CreateAuthIdentity(
 		ctx,
 		accountsdb.CreateAuthIdentityParams{
-			ID:                   uuid.Must(uuid.NewV7()),
+			ID:                   ids.New(),
 			AccountID:            accountID,
 			IdentifierDisplay:    loginDisplay,
 			IdentifierNormalized: loginNormalized,
@@ -219,7 +222,7 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: account.ID, Reason: ptr("master_recovery")},
+		accountsdb.RevokeSessionsForAccountParams{AccountID: account.ID, Reason: optional.Of("master_recovery")},
 	); err != nil {
 		return uuid.Nil, err
 	}
@@ -291,7 +294,7 @@ func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("admin_password_reset")},
+		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: optional.Of("admin_password_reset")},
 	); err != nil {
 		return uuid.Nil, err
 	}
@@ -362,5 +365,3 @@ func (s *Service) Cleanup(
 	}
 	return sessions, resets, auditEvents, eventAssignments, err
 }
-
-func ptr(value string) *string { return &value }

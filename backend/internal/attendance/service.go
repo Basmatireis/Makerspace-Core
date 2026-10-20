@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
@@ -199,7 +201,11 @@ func (s *Service) checkIn(
 		return Visit{}, err
 	}
 	if status.Mode != "not_required" && status.State == "no_published_version" {
-		return Visit{}, apperror.New(http.StatusConflict, "lab_rules_unavailable", "Required Lab Rules are not currently available")
+		return Visit{}, apperror.New(
+			http.StatusConflict,
+			"lab_rules_unavailable",
+			"Required Lab Rules are not currently available",
+		)
 	}
 	if status.ActionRequired {
 		principal := authorization.Principal{
@@ -256,7 +262,7 @@ func (s *Service) checkIn(
 	accountID := verified.AccountID
 	row, err := q.CreateVisit(
 		ctx,
-		attendancedb.CreateVisitParams{ID: uuid.Must(uuid.NewV7()), PersonID: verified.PersonID,
+		attendancedb.CreateVisitParams{ID: ids.New(), PersonID: verified.PersonID,
 			CheckInDeviceID: &device.ID, CheckInMethod: verified.Method, CheckInAssurance: string(verified.Assurance),
 			AdmissionDecision: decision, LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID},
 	)
@@ -428,7 +434,11 @@ func (s *Service) SupervisedCheckIn(
 		return Visit{}, err
 	}
 	if status.Mode != "not_required" && status.State == "no_published_version" {
-		return Visit{}, apperror.New(http.StatusConflict, "lab_rules_unavailable", "Required Lab Rules are not currently available")
+		return Visit{}, apperror.New(
+			http.StatusConflict,
+			"lab_rules_unavailable",
+			"Required Lab Rules are not currently available",
+		)
 	}
 	if status.ActionRequired {
 		requestPrincipal := principal
@@ -472,7 +482,7 @@ func (s *Service) SupervisedCheckIn(
 	row, err := q.CreateVisit(
 		ctx,
 		attendancedb.CreateVisitParams{
-			ID:                    uuid.Must(uuid.NewV7()),
+			ID:                    ids.New(),
 			PersonID:              personID,
 			CheckInMethod:         "supervisor",
 			CheckInAssurance:      string(principal.Assurance),
@@ -573,7 +583,7 @@ func (s *Service) Void(
 	}
 	reason = strings.TrimSpace(reason)
 	if expectedVersion < 1 || reason == "" || len([]rune(reason)) > 500 {
-		return Visit{}, validation(
+		return Visit{}, apperror.InvalidField(
 			"expectedVersion must be positive and reason is required with at most 500 characters",
 		)
 	}
@@ -593,7 +603,11 @@ func (s *Service) Void(
 		return Visit{}, apperror.StaleWrite
 	}
 	if current.Status == "voided" {
-		return Visit{}, apperror.New(http.StatusConflict, "visit_already_voided", "The attendance record is already voided")
+		return Visit{}, apperror.New(
+			http.StatusConflict,
+			"visit_already_voided",
+			"The attendance record is already voided",
+		)
 	}
 	row, err := q.VoidVisit(
 		ctx,
@@ -667,7 +681,7 @@ func (s *Service) Statistics(
 		return Statistics{}, apperror.PermissionDenied
 	}
 	if from.IsZero() || to.IsZero() || !to.After(from) || to.Sub(from) > 90*24*time.Hour {
-		return Statistics{}, validation("from and to must define a period of at most 90 days")
+		return Statistics{}, apperror.InvalidField("from and to must define a period of at most 90 days")
 	}
 	row, err := attendancedb.New(s.pool).
 		AttendanceStatistics(ctx, attendancedb.AttendanceStatisticsParams{FromTime: from.UTC(), ToTime: to.UTC()})
@@ -770,10 +784,5 @@ func numericString(value pgtype.Numeric) string {
 		return "0"
 	}
 	return d.Shift(value.Exp).String()
-}
-func validation(message string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = message
-	return err
 }
 func databaseError(err error) error { return err }

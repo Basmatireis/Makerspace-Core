@@ -3,6 +3,8 @@ package integration_test
 import (
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/google/uuid"
@@ -19,7 +21,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='disabled' WHERE id=$1`, disabled.accountID); err != nil {
 		t.Fatal(err)
 	}
-	withoutAccountID := uuid.Must(uuid.NewV7())
+	withoutAccountID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO people(id,first_name,last_name,email) VALUES($1,'No','Account','directory-filter-no-account@example.test')`,
@@ -38,7 +40,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 
 	creator := seedAccount(t, pool, "directory-filter-version-creator", false)
 	currentVersionID := insertPublishedLabRulesVersion(t, pool, creator.accountID, "directory-filter-v1")
-	warningRoleID := uuid.Must(uuid.NewV7())
+	warningRoleID := ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Directory filter warning','warning')`,
@@ -64,11 +66,11 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 		INSERT INTO laborordnung_requests(
 			id,person_id,required_version_id,status,completed_at,confirmed_by_account_id,physical_document_reference
 		) VALUES($1,$2,$3,'completed',now(),$4,'directory-filter-current')`,
-		uuid.Must(uuid.NewV7()), current.personID, currentVersionID, creator.accountID); err != nil {
+		ids.New(), current.personID, currentVersionID, creator.accountID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO laborordnung_requests(id,person_id,required_version_id) VALUES($1,$2,$3)`,
-		uuid.Must(uuid.NewV7()), pending.personID, currentVersionID); err != nil {
+		ids.New(), pending.personID, currentVersionID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,7 +102,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	subject := seedAccount(t, pool, "directory-filter-no-published-version", false)
 	if _, err := pool.Exec(
 		ctx,
@@ -118,9 +120,10 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := people.NewService(pool, nil).List(ctx, authorization.Principal{Master: true}, 1, 100, people.ListFilters{
-		Search: "directory-filter-no-published-version", LaborordnungStatuses: []string{"no_published_version"},
-	})
+	page, err := people.NewService(pool, nil).
+		List(ctx, authorization.Principal{Master: true}, 1, 100, people.ListFilters{
+			Search: "directory-filter-no-published-version", LaborordnungStatuses: []string{"no_published_version"},
+		})
 	if err != nil {
 		t.Fatal(err)
 	}

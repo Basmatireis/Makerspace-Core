@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
@@ -313,7 +315,7 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	// A wrong code and an expired code give the identical answer.
 	wrong := e.expect(claim(staff, "AAAAAA"), http.StatusUnprocessableEntity)
 	if _, err := e.pool.Exec(ctx, `INSERT INTO signage_pairing_requests (id, code_digest, poll_secret_digest, created_at, expires_at)
-		VALUES ($1, $2, $3, now() - interval '20 minutes', now() - interval '5 minutes')`, uuid.Must(uuid.NewV7()), signageCodeDigest("EXPIRD"), security.DigestToken("expired-secret")); err != nil {
+		VALUES ($1, $2, $3, now() - interval '20 minutes', now() - interval '5 minutes')`, ids.New(), signageCodeDigest("EXPIRD"), security.DigestToken("expired-secret")); err != nil {
 		t.Fatal(err)
 	}
 	expired := e.expect(claim(staff, "EXPIRD"), http.StatusUnprocessableEntity)
@@ -455,7 +457,7 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	e2 := newSignageEnv(t)
 	ctx2 := testContext(t)
 	if _, err := e2.pool.Exec(ctx2, `INSERT INTO signage_pairing_requests (id, code_digest, poll_secret_digest, created_at, expires_at)
-		VALUES ($1, $2, $3, now() - interval '30 minutes', now() - interval '15 minutes')`, uuid.Must(uuid.NewV7()), signageCodeDigest("OLDONE"), security.DigestToken("old")); err != nil {
+		VALUES ($1, $2, $3, now() - interval '30 minutes', now() - interval '15 minutes')`, ids.New(), signageCodeDigest("OLDONE"), security.DigestToken("old")); err != nil {
 		t.Fatal(err)
 	}
 	e2.expect(e2.do(e2.newPlayer(), "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
@@ -1580,7 +1582,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 			player,
 			"",
 			http.MethodGet,
-			assetPath(signage.Asset{ID: uuid.Must(uuid.NewV7()), SHA256: image.SHA256}),
+			assetPath(signage.Asset{ID: ids.New(), SHA256: image.SHA256}),
 			nil,
 		),
 		http.StatusNotFound,
@@ -1668,7 +1670,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 		t.Fatalf("publish audit events = %d, want 7", got)
 	}
 	e.expectCode(
-		e.as(staff, http.MethodPost, "/signage/displays/"+uuid.Must(uuid.NewV7()).String()+"/publish", nil),
+		e.as(staff, http.MethodPost, "/signage/displays/"+ids.New().String()+"/publish", nil),
 		http.StatusNotFound,
 		"not_found",
 	)
@@ -1689,7 +1691,7 @@ func (e *signageEnv) printer(name string) signagePrinter {
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	requestID := uuid.Must(uuid.NewV7())
+	requestID := ids.New()
 	machineType, err := logbook.CreateMachineType(ctx, admin, name+" type", "fdm_printing", &requestID)
 	if err != nil {
 		e.t.Fatal(err)
@@ -1713,7 +1715,7 @@ func (e *signageEnv) printer(name string) signagePrinter {
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	if _, err = connectors.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), secret, "test", 1); err != nil {
+	if _, err = connectors.Enroll(ctx, issue.Secret, ids.New(), secret, "test", 1); err != nil {
 		e.t.Fatal(err)
 	}
 	if _, err := connectors.Authenticate(ctx, secret); err != nil {
@@ -1723,7 +1725,7 @@ func (e *signageEnv) printer(name string) signagePrinter {
 	assignment := struct {
 		ID                   uuid.UUID
 		ConfigurationVersion int64
-	}{ID: uuid.Must(uuid.NewV7()), ConfigurationVersion: 1}
+	}{ID: ids.New(), ConfigurationVersion: 1}
 	if _, err = e.pool.Exec(
 		ctx,
 		`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`,

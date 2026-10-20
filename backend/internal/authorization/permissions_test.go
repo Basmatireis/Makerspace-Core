@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/google/uuid"
@@ -62,16 +64,16 @@ func TestRegistryMatchesGeneratedOpenAPIEnumAndDescriptions(t *testing.T) {
 }
 
 func TestSelfScope(t *testing.T) {
-	personID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
 	principal := Principal{PersonID: personID, permissions: map[Permission]struct{}{PeopleReadSelf: {}}}
-	if !principal.CanReadPerson(personID) || principal.CanReadPerson(uuid.Must(uuid.NewV7())) {
+	if !principal.CanReadPerson(personID) || principal.CanReadPerson(ids.New()) {
 		t.Fatal("self scope was not enforced")
 	}
 }
 
 func TestPersonScopeMatrix(t *testing.T) {
-	ownPersonID := uuid.Must(uuid.NewV7())
-	otherPersonID := uuid.Must(uuid.NewV7())
+	ownPersonID := ids.New()
+	otherPersonID := ids.New()
 
 	tests := []struct {
 		name           string
@@ -132,19 +134,19 @@ func TestLoadPermissionsRebuildsPrivilegeStateAndIgnoresDrift(t *testing.T) {
 	knownPermission := string(PeopleReadSelf)
 	unknownPermission := "future.permission"
 	global, low := string(GrantEverywhere), string(AssuranceLow)
-	knownGrant, unknownGrant := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	knownGrant, unknownGrant := ids.New(), ids.New()
 	principal, err := LoadPermissions(
 		context.Background(),
 		permissionsQuerierStub{rows: []authorizationdb.GetPrincipalRolePermissionsRow{
 			{
-				RoleID:           uuid.Must(uuid.NewV7()),
+				RoleID:           ids.New(),
 				GrantID:          &knownGrant,
 				PermissionID:     &knownPermission,
 				Scope:            &global,
 				MinimumAssurance: &low,
 			},
 			{
-				RoleID:           uuid.Must(uuid.NewV7()),
+				RoleID:           ids.New(),
 				GrantID:          &unknownGrant,
 				PermissionID:     &unknownPermission,
 				Scope:            &global,
@@ -152,7 +154,7 @@ func TestLoadPermissionsRebuildsPrivilegeStateAndIgnoresDrift(t *testing.T) {
 			},
 		}},
 		Principal{
-			AccountID:   uuid.Must(uuid.NewV7()),
+			AccountID:   ids.New(),
 			Master:      true,
 			permissions: map[Permission]struct{}{PeopleDelete: {}},
 		},
@@ -182,9 +184,9 @@ func TestLoadPermissionsDerivesMasterFromRoleEveryTime(t *testing.T) {
 	principal, err := LoadPermissions(
 		context.Background(),
 		permissionsQuerierStub{rows: []authorizationdb.GetPrincipalRolePermissionsRow{
-			{RoleID: uuid.Must(uuid.NewV7()), SystemKey: &systemKey},
+			{RoleID: ids.New(), SystemKey: &systemKey},
 		}},
-		Principal{AccountID: uuid.Must(uuid.NewV7())},
+		Principal{AccountID: ids.New()},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -195,9 +197,9 @@ func TestLoadPermissionsDerivesMasterFromRoleEveryTime(t *testing.T) {
 }
 
 func TestDeviceScopedPermissionMatrix(t *testing.T) {
-	typeID := uuid.Must(uuid.NewV7())
-	otherTypeID := uuid.Must(uuid.NewV7())
-	device := &ManagedDevice{ID: uuid.Must(uuid.NewV7()), DeviceTypeID: typeID}
+	typeID := ids.New()
+	otherTypeID := ids.New()
+	device := &ManagedDevice{ID: ids.New(), DeviceTypeID: typeID}
 	tests := []struct {
 		name   string
 		device *ManagedDevice
@@ -260,8 +262,8 @@ func TestDeviceScopedPermissionMatrix(t *testing.T) {
 }
 
 func TestEffectivePermissionsUsesLiveGrantSemantics(t *testing.T) {
-	typeA := uuid.Must(uuid.NewV7())
-	typeB := uuid.Must(uuid.NewV7())
+	typeA := ids.New()
+	typeB := ids.New()
 	grants := []PermissionGrant{
 		{PermissionID: PeopleReadSelf, Scope: GrantEverywhere, MinimumAssurance: AssuranceLow},
 		{
@@ -320,16 +322,16 @@ func TestEffectivePermissionsUsesLiveGrantSemantics(t *testing.T) {
 }
 
 func TestLoadPermissionsUnionsSelectedTypesAndUsesBroadestGrant(t *testing.T) {
-	typeA := uuid.Must(uuid.NewV7())
-	typeB := uuid.Must(uuid.NewV7())
+	typeA := ids.New()
+	typeB := ids.New()
 	permission := string(PeopleReadAll)
 	selected := string(GrantSelectedDeviceTypes)
 	anyDevice := string(GrantAnyManagedDevice)
 	minimum := string(AssuranceLow)
-	grantA, grantB := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	grantA, grantB := ids.New(), ids.New()
 	rows := []authorizationdb.GetPrincipalRolePermissionsRow{
 		{
-			RoleID:           uuid.Must(uuid.NewV7()),
+			RoleID:           ids.New(),
 			GrantID:          &grantA,
 			PermissionID:     &permission,
 			Scope:            &selected,
@@ -337,7 +339,7 @@ func TestLoadPermissionsUnionsSelectedTypesAndUsesBroadestGrant(t *testing.T) {
 			DeviceTypeID:     &typeA,
 		},
 		{
-			RoleID:           uuid.Must(uuid.NewV7()),
+			RoleID:           ids.New(),
 			GrantID:          &grantB,
 			PermissionID:     &permission,
 			Scope:            &selected,
@@ -346,8 +348,8 @@ func TestLoadPermissionsUnionsSelectedTypesAndUsesBroadestGrant(t *testing.T) {
 		},
 	}
 	principal, err := LoadPermissions(context.Background(), permissionsQuerierStub{rows: rows}, Principal{
-		AccountID: uuid.Must(uuid.NewV7()),
-		Device:    &ManagedDevice{ID: uuid.Must(uuid.NewV7()), DeviceTypeID: typeB},
+		AccountID: ids.New(),
+		Device:    &ManagedDevice{ID: ids.New(), DeviceTypeID: typeB},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -362,12 +364,12 @@ func TestLoadPermissionsUnionsSelectedTypesAndUsesBroadestGrant(t *testing.T) {
 	rows = append(rows, authorizationdb.GetPrincipalRolePermissionsRow{
 		RoleID: uuid.Must(
 			uuid.NewV7(),
-		), GrantID: func() *uuid.UUID { id := uuid.Must(uuid.NewV7()); return &id }(), PermissionID: &permission, Scope: &anyDevice, MinimumAssurance: &minimum,
+		), GrantID: func() *uuid.UUID { id := ids.New(); return &id }(), PermissionID: &permission, Scope: &anyDevice, MinimumAssurance: &minimum,
 	})
 	principal, err = LoadPermissions(
 		context.Background(),
 		permissionsQuerierStub{rows: rows},
-		Principal{AccountID: uuid.Must(uuid.NewV7())},
+		Principal{AccountID: ids.New()},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -381,8 +383,8 @@ func TestLoadPermissionsUnionsSelectedTypesAndUsesBroadestGrant(t *testing.T) {
 }
 
 func TestScopeAwareDelegationLattice(t *testing.T) {
-	typeA := uuid.Must(uuid.NewV7())
-	typeB := uuid.Must(uuid.NewV7())
+	typeA := ids.New()
+	typeB := ids.New()
 	selected := PermissionGrant{
 		PermissionID:     PeopleReadAll,
 		Scope:            GrantSelectedDeviceTypes,
@@ -414,7 +416,7 @@ func TestScopeAwareDelegationLattice(t *testing.T) {
 		PermissionGrant{
 			PermissionID:     PeopleReadAll,
 			Scope:            GrantSelectedDeviceTypes,
-			DeviceTypeIDs:    []uuid.UUID{uuid.Must(uuid.NewV7())},
+			DeviceTypeIDs:    []uuid.UUID{ids.New()},
 			MinimumAssurance: AssuranceNormal,
 		},
 	) {

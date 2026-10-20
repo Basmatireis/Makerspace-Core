@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 )
 
@@ -38,7 +40,7 @@ func TestMaterialTypesMigrationMapsCategoriesAndKeepsPricing(t *testing.T) {
 			t.Fatalf("%v\n%s", err, query)
 		}
 	}
-	id := func() uuid.UUID { return uuid.Must(uuid.NewV7()) }
+	id := func() uuid.UUID { return ids.New() }
 	pla, petg, longName, sheetM2, sheetPiece, unusedRule := id(), id(), id(), id(), id(), id()
 	for _, m := range []struct {
 		id                          uuid.UUID

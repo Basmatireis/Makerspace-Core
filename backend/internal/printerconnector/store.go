@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 	_ "modernc.org/sqlite"
@@ -62,7 +64,12 @@ func OpenStore(dataDir string) (*Store, error) {
 	if err := os.Chmod(dataDir, 0o700); err != nil { //nolint:gosec // directories need the owner execute bit; 0700 is the strictest usable mode
 		return nil, fmt.Errorf("protect data directory: %w", err)
 	}
-	lockFile, err := os.OpenFile(filepath.Join(dataDir, "connector.lock"), os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // path is a fixed file name inside the operator-configured data directory
+	//nolint:gosec // path is a fixed file name inside the operator-configured data directory
+	lockFile, err := os.OpenFile(
+		filepath.Join(dataDir, "connector.lock"),
+		os.O_CREATE|os.O_RDWR,
+		0o600,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("open process lock: %w", err)
 	}
@@ -90,7 +97,8 @@ func OpenStore(dataDir string) (*Store, error) {
 }
 
 func loadLocalAEAD(path string) (cipher.AEAD, error) {
-	key, err := os.ReadFile(path) //nolint:gosec // path is a fixed file name inside the operator-configured data directory
+	//nolint:gosec // path is a fixed file name inside the operator-configured data directory
+	key, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		key = make([]byte, 32)
 		if _, err = rand.Read(key); err != nil {
@@ -295,9 +303,7 @@ func (s *Store) Enqueue(
 		return QueuedEvent{}, err
 	}
 	if queued >= maxOutboxEvents {
-		return QueuedEvent{}, errors.New(
-			"connector event queue is full; printer polling is paused until delivery resumes",
-		)
+		return QueuedEvent{}, errors.New("connector event queue is full; printer polling is paused until delivery resumes")
 	}
 	var sequence int64
 	err = tx.QueryRowContext(
@@ -326,7 +332,7 @@ func (s *Store) Enqueue(
 	}
 	now := time.Now().UTC()
 	event := QueuedEvent{
-		EventID:              uuid.Must(uuid.NewV7()),
+		EventID:              ids.New(),
 		AssignmentID:         assignmentID,
 		RunID:                runID,
 		HistoryComplete:      historyComplete,

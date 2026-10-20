@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -75,15 +78,15 @@ func (s *Service) CreateWithBehaviors(
 		return Role{}, apperror.PermissionDenied
 	}
 	name = strings.TrimSpace(name)
-	description = cleanOptional(description)
+	description = optional.Trimmed(description)
 	if name == "" || len([]rune(name)) > 100 || strings.EqualFold(name, "master") {
-		return Role{}, validation("role name is invalid or reserved")
+		return Role{}, apperror.InvalidField("role name is invalid or reserved")
 	}
 	if description != nil && len([]rune(*description)) > 500 {
-		return Role{}, validation("description is too long")
+		return Role{}, apperror.InvalidField("description is too long")
 	}
 	if laborordnungMode != "not_required" && laborordnungMode != "warning" && laborordnungMode != "blocking" {
-		return Role{}, validation("Lab Rules mode is invalid")
+		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
 	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
@@ -95,7 +98,7 @@ func (s *Service) CreateWithBehaviors(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := rolesdb.New(tx)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	row, err := q.CreateRole(
 		ctx,
 		rolesdb.CreateRoleParams{
@@ -150,7 +153,7 @@ func (s *Service) ReplacePermissions(
 		return Role{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return Role{}, validation("expectedVersion must be positive")
+		return Role{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
@@ -170,7 +173,11 @@ func (s *Service) ReplacePermissions(
 		return Role{}, err
 	}
 	if current.SystemKey != nil {
-		return Role{}, apperror.New(http.StatusConflict, "system_role_protected", "The master role permissions cannot be edited")
+		return Role{}, apperror.New(
+			http.StatusConflict,
+			"system_role_protected",
+			"The master role permissions cannot be edited",
+		)
 	}
 	if err = ensureExistingSubset(ctx, q, principal, id); err != nil {
 		return Role{}, err
@@ -223,7 +230,7 @@ func insertGrants(
 	grants []authorization.PermissionGrant,
 ) error {
 	for _, g := range grants {
-		grantID := uuid.Must(uuid.NewV7())
+		grantID := ids.New()
 		if err := q.AddRolePermission(
 			ctx,
 			rolesdb.AddRolePermissionParams{
@@ -256,32 +263,32 @@ func validateGrants(
 	result := append([]authorization.PermissionGrant(nil), grants...)
 	for i, g := range result {
 		if !authorization.Known(g.PermissionID) {
-			return nil, validation("unknown permission: " + string(g.PermissionID))
+			return nil, apperror.InvalidField("unknown permission: " + string(g.PermissionID))
 		}
 		if g.MinimumAssurance == "" {
 			g.MinimumAssurance = authorization.AssuranceLow
 		}
 		key := string(g.PermissionID) + "\x00" + string(g.Scope) + "\x00" + string(g.MinimumAssurance)
 		if _, ok := seen[key]; ok {
-			return nil, validation("duplicate permission grant")
+			return nil, apperror.InvalidField("duplicate permission grant")
 		}
 		seen[key] = struct{}{}
 		types := map[uuid.UUID]struct{}{}
 		for _, id := range g.DeviceTypeIDs {
 			if _, ok := types[id]; ok {
-				return nil, validation("deviceTypeIds must be unique")
+				return nil, apperror.InvalidField("deviceTypeIds must be unique")
 			}
 			types[id] = struct{}{}
 		}
 		if g.Scope == authorization.GrantSelectedDeviceTypes && len(g.DeviceTypeIDs) == 0 {
-			return nil, validation("selected device types cannot be empty")
+			return nil, apperror.InvalidField("selected device types cannot be empty")
 		}
 		if g.Scope != authorization.GrantSelectedDeviceTypes && len(g.DeviceTypeIDs) != 0 {
-			return nil, validation("deviceTypeIds are only valid for selected device types")
+			return nil, apperror.InvalidField("deviceTypeIds are only valid for selected device types")
 		}
 		if g.Scope != authorization.GrantEverywhere && g.Scope != authorization.GrantAnyManagedDevice &&
 			g.Scope != authorization.GrantSelectedDeviceTypes {
-			return nil, validation("permission scope is invalid")
+			return nil, apperror.InvalidField("permission scope is invalid")
 		}
 		sort.Slice(
 			g.DeviceTypeIDs,
@@ -443,7 +450,7 @@ func (s *Service) UpdateWithBehaviors(
 	}
 	if expectedVersion < 1 ||
 		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && supervisorDashboard == nil) {
-		return Role{}, validation("at least one field and a positive expectedVersion are required")
+		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -474,7 +481,7 @@ func (s *Service) UpdateWithBehaviors(
 		changed = append(changed, "name")
 	}
 	if descriptionSet {
-		newDescription = cleanOptional(description)
+		newDescription = optional.Trimmed(description)
 		changed = append(changed, "description")
 	}
 	if profileImageRequired != nil {
@@ -490,13 +497,13 @@ func (s *Service) UpdateWithBehaviors(
 		changed = append(changed, "supervisorDashboard")
 	}
 	if newLaborordnungMode != "not_required" && newLaborordnungMode != "warning" && newLaborordnungMode != "blocking" {
-		return Role{}, validation("Lab Rules mode is invalid")
+		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
 	}
 	if newName == "" || len([]rune(newName)) > 100 || strings.EqualFold(newName, "master") {
-		return Role{}, validation("role name is invalid or reserved")
+		return Role{}, apperror.InvalidField("role name is invalid or reserved")
 	}
 	if newDescription != nil && len([]rune(*newDescription)) > 500 {
-		return Role{}, validation("description is too long")
+		return Role{}, apperror.InvalidField("description is too long")
 	}
 	row, err := queries.UpdateRole(
 		ctx,
@@ -552,7 +559,7 @@ func (s *Service) Delete(
 		return apperror.PermissionDenied
 	}
 	if expectedVersion < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -709,28 +716,11 @@ func ensureExistingSubset(
 	return nil
 }
 
-func cleanOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	clean := strings.TrimSpace(*value)
-	if clean == "" {
-		return nil
-	}
-	return &clean
-}
-
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503") {
 		return apperror.Conflict
 	}
-	return err
-}
-
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
 	return err
 }
 

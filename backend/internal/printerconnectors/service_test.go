@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -23,7 +24,7 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 	}
 	ctx := t.Context()
 	principal := authorization.Principal{}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	tests := []struct {
 		name string
 		call func() error
@@ -86,9 +87,9 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	personID := uuid.Must(uuid.NewV7())
-	accountID := uuid.Must(uuid.NewV7())
-	requestID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	accountID := ids.New()
+	requestID := ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	if _, err = pool.Exec(
@@ -141,7 +142,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	credentialID := uuid.Must(uuid.NewV7())
+	credentialID := ids.New()
 	credentialSecret, _, err := security.NewOpaqueToken()
 	if err != nil {
 		t.Fatal(err)
@@ -169,9 +170,9 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID := uuid.Must(uuid.NewV7())
+	runID := ids.New()
 	vendorJobID := "sim-" + suffix
-	firstID := uuid.Must(uuid.NewV7())
+	firstID := ids.New()
 	receipts, err := service.IngestEvents(
 		ctx,
 		*connectorContext,
@@ -197,7 +198,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("observed runs=%+v err=%v", runs, err)
 	}
-	secondID := uuid.Must(uuid.NewV7())
+	secondID := ids.New()
 	second := EventInput{
 		EventID:              secondID,
 		AssignmentID:         assignment.ID,

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
@@ -200,10 +202,10 @@ func (s *Service) ReportHardware(
 	report.Platform = strings.TrimSpace(report.Platform)
 	report.BridgeVersion = strings.TrimSpace(report.BridgeVersion)
 	if report.Platform != "desktop" && report.Platform != "android" {
-		return HardwareContext{}, validation("platform is invalid")
+		return HardwareContext{}, apperror.InvalidField("platform is invalid")
 	}
 	if report.BridgeVersion == "" || len([]rune(report.BridgeVersion)) > 40 {
-		return HardwareContext{}, validation("bridgeVersion is required and limited to 40 characters")
+		return HardwareContext{}, apperror.InvalidField("bridgeVersion is required and limited to 40 characters")
 	}
 	if err := validateCapabilities(report.Capabilities); err != nil {
 		return HardwareContext{}, err
@@ -424,7 +426,7 @@ func (s *Service) UpdateConfigured(
 		return Device{}, err
 	}
 	if version < 1 {
-		return Device{}, validation("expectedVersion must be positive")
+		return Device{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -442,7 +444,7 @@ func (s *Service) UpdateConfigured(
 		return Device{}, apperror.StaleWrite
 	}
 	if isSignagePlayer(current.AllowedAppModes) {
-		return Device{}, validation("signage player devices are managed through signage displays")
+		return Device{}, apperror.InvalidField("signage player devices are managed through signage displays")
 	}
 	now := time.Now().UTC()
 	expirationUnchanged := (expiresAt == nil && !current.ExpiresAt.Valid) ||
@@ -455,7 +457,7 @@ func (s *Service) UpdateConfigured(
 		)
 	}
 	if expiresAt != nil && !expiresAt.After(now) && !expirationUnchanged {
-		return Device{}, validation("expiration must be in the future")
+		return Device{}, apperror.InvalidField("expiration must be in the future")
 	}
 	if _, err = q.GetDeviceType(ctx, typeID); errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, apperror.NotFound
@@ -550,7 +552,7 @@ func (s *Service) Delete(
 		return apperror.PermissionDenied
 	}
 	if version < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -569,7 +571,11 @@ func (s *Service) Delete(
 		return apperror.StaleWrite
 	}
 	if !current.RevokedAt.Valid {
-		return apperror.New(http.StatusConflict, "managed_device_not_revoked", "A managed device must be revoked before deletion")
+		return apperror.New(
+			http.StatusConflict,
+			"managed_device_not_revoked",
+			"A managed device must be revoked before deletion",
+		)
 	}
 	if _, err = q.DeleteManagedDevice(
 		ctx,
@@ -616,7 +622,7 @@ func (s *Service) CreateType(
 	row, err := manageddevicesdb.New(tx).
 		CreateDeviceType(
 			ctx,
-			manageddevicesdb.CreateDeviceTypeParams{ID: uuid.Must(uuid.NewV7()), Name: name, Description: description},
+			manageddevicesdb.CreateDeviceTypeParams{ID: ids.New(), Name: name, Description: description},
 		)
 	if err != nil {
 		return DeviceType{}, databaseError(err)
@@ -701,7 +707,7 @@ func (s *Service) CreateConfigured(
 	}
 	row, err := q.CreateManagedDevice(
 		ctx,
-		manageddevicesdb.CreateManagedDeviceParams{ID: uuid.Must(uuid.NewV7()), Name: name,
+		manageddevicesdb.CreateManagedDeviceParams{ID: ids.New(), Name: name,
 			DeviceTypeID:    typeID,
 			TokenDigest:     digest,
 			ExpiresAt:       timestamp(expiresAt),
@@ -774,7 +780,7 @@ func (s *Service) UpdateType(
 		return DeviceType{}, err
 	}
 	if version < 1 {
-		return DeviceType{}, validation("expectedVersion must be positive")
+		return DeviceType{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -829,7 +835,7 @@ func (s *Service) DeleteType(
 		return apperror.PermissionDenied
 	}
 	if version < 1 {
-		return validation("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -877,7 +883,7 @@ func (s *Service) Revoke(
 		return Device{}, apperror.PermissionDenied
 	}
 	if version < 1 {
-		return Device{}, validation("expectedVersion must be positive")
+		return Device{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -895,7 +901,11 @@ func (s *Service) Revoke(
 		return Device{}, apperror.StaleWrite
 	}
 	if current.RevokedAt.Valid {
-		return Device{}, apperror.New(http.StatusConflict, "managed_device_revoked", "The managed device is already revoked")
+		return Device{}, apperror.New(
+			http.StatusConflict,
+			"managed_device_revoked",
+			"The managed device is already revoked",
+		)
 	}
 	_, err = q.RevokeManagedDevice(ctx, manageddevicesdb.RevokeManagedDeviceParams{ID: id, ExpectedVersion: version})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -948,7 +958,7 @@ func (s *Service) Rotate(
 		return ProvisionedDevice{}, err
 	}
 	if version < 1 {
-		return ProvisionedDevice{}, validation("expectedVersion must be positive")
+		return ProvisionedDevice{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	token, digest, err := security.NewOpaqueToken()
 	if err != nil {
@@ -978,7 +988,7 @@ func (s *Service) Rotate(
 		)
 	}
 	if isSignagePlayer(current.AllowedAppModes) {
-		return ProvisionedDevice{}, validation(
+		return ProvisionedDevice{}, apperror.InvalidField(
 			"signage player devices cannot rotate their token; pair the display again",
 		)
 	}
@@ -1084,15 +1094,15 @@ func (s *Service) ListSessionPolicies(ctx context.Context, principal authorizati
 func validateSessionPolicy(input SessionPolicyInput) (SessionPolicyInput, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	if input.Name == "" || len([]rune(input.Name)) > 120 {
-		return input, validation("name is required and limited to 120 characters")
+		return input, apperror.InvalidField("name is required and limited to 120 characters")
 	}
 	if input.IdleTimeoutSeconds < 60 || input.IdleTimeoutSeconds > 2592000 || input.AbsoluteLifetimeSeconds < 300 ||
 		input.AbsoluteLifetimeSeconds > 7776000 ||
 		input.IdleTimeoutSeconds > input.AbsoluteLifetimeSeconds {
-		return input, validation("session lifetimes are invalid")
+		return input, apperror.InvalidField("session lifetimes are invalid")
 	}
 	if input.PostSessionDestination != "login" && input.PostSessionDestination != "visitor_terminal" {
-		return input, validation("postSessionDestination is invalid")
+		return input, apperror.InvalidField("postSessionDestination is invalid")
 	}
 	return input, nil
 }
@@ -1116,7 +1126,7 @@ func (s *Service) CreateSessionPolicy(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	if input.IsDefault {
 		previous, previousErr := q.GetDefaultSessionPolicy(ctx)
 		if previousErr != nil && !errors.Is(previousErr, pgx.ErrNoRows) {
@@ -1172,7 +1182,7 @@ func (s *Service) UpdateSessionPolicy(
 		return SessionPolicy{}, err
 	}
 	if input.ExpectedVersion < 1 {
-		return SessionPolicy{}, validation("expectedVersion must be positive")
+		return SessionPolicy{}, apperror.InvalidField("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1191,7 +1201,7 @@ func (s *Service) UpdateSessionPolicy(
 		return SessionPolicy{}, apperror.StaleWrite
 	}
 	if current.IsDefault && !input.IsDefault {
-		return SessionPolicy{}, validation(
+		return SessionPolicy{}, apperror.InvalidField(
 			"the default policy can only be replaced by making another policy the default",
 		)
 	}
@@ -1280,10 +1290,10 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	seenModes := map[string]bool{}
 	for _, mode := range settings.AllowedApplicationModes {
 		if mode == SignagePlayerMode {
-			return settings, validation("signage player devices are created by pairing a signage display")
+			return settings, apperror.InvalidField("signage player devices are created by pairing a signage display")
 		}
 		if (mode != "visitor_terminal" && mode != "staff_ui") || seenModes[mode] {
-			return settings, validation("allowedApplicationModes must contain unique supported values")
+			return settings, apperror.InvalidField("allowedApplicationModes must contain unique supported values")
 		}
 		seenModes[mode] = true
 	}
@@ -1298,19 +1308,19 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	}
 	validAssurance := func(v string) bool { return v == "low" || v == "normal" || v == "strong" || v == "strong_mfa" }
 	if !validAssurance(settings.CheckInAssurance) || !validAssurance(settings.CheckOutAssurance) {
-		return settings, validation("attendance assurance is invalid")
+		return settings, apperror.InvalidField("attendance assurance is invalid")
 	}
 	if settings.CheckoutMode != "verified" && settings.CheckoutMode != "public_tap" {
-		return settings, validation("checkoutMode is invalid")
+		return settings, apperror.InvalidField("checkoutMode is invalid")
 	}
 	if err := validateCapabilities(settings.Capabilities); err != nil {
 		return settings, err
 	}
 	if settings.TerminalEnabled && settings.SessionPolicyID == nil {
-		return settings, validation("terminal-enabled devices require a session policy")
+		return settings, apperror.InvalidField("terminal-enabled devices require a session policy")
 	}
 	if settings.TerminalEnabled && !seenModes["visitor_terminal"] {
-		return settings, validation("terminal-enabled devices must allow visitor_terminal mode")
+		return settings, apperror.InvalidField("terminal-enabled devices must allow visitor_terminal mode")
 	}
 	return settings, nil
 }
@@ -1327,7 +1337,7 @@ func validateCapabilities(capabilities []string) error {
 	seen := map[string]bool{}
 	for _, value := range capabilities {
 		if !allowed[value] || seen[value] {
-			return validation("capabilities must be unique supported values")
+			return apperror.InvalidField("capabilities must be unique supported values")
 		}
 		seen[value] = true
 	}
@@ -1349,11 +1359,11 @@ func timestamp(value *time.Time) pgtype.Timestamptz {
 func validateType(name string, description *string) (string, *string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 100 {
-		return "", nil, validation("device type name is invalid")
+		return "", nil, apperror.InvalidField("device type name is invalid")
 	}
 	description = clean(description)
 	if description != nil && len([]rune(*description)) > 500 {
-		return "", nil, validation("description is too long")
+		return "", nil, apperror.InvalidField("description is too long")
 	}
 	return name, description, nil
 }
@@ -1363,14 +1373,14 @@ func validateDevice(name string, expiresAt *time.Time) (string, *time.Time, erro
 		return "", nil, err
 	}
 	if expiresAt != nil && !expiresAt.After(time.Now().UTC()) {
-		return "", nil, validation("expiration must be in the future")
+		return "", nil, apperror.InvalidField("expiration must be in the future")
 	}
 	return name, expiresAt, nil
 }
 func validateDeviceName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 100 {
-		return "", validation("device name is invalid")
+		return "", apperror.InvalidField("device name is invalid")
 	}
 	return name, nil
 }
@@ -1383,11 +1393,6 @@ func clean(value *string) *string {
 		return nil
 	}
 	return &v
-}
-func validation(reason string) *apperror.Error {
-	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
-	err.Details["reason"] = reason
-	return err
 }
 func invalidRequest(reason string) *apperror.Error {
 	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")

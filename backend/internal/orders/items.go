@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
@@ -18,7 +20,10 @@ import (
 
 func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	if job.EffectivePrice == nil || job.PricingSnapshot == nil {
-		return nil, conflict("pricing_incomplete", "A calculated charge or explicit final override is required")
+		return nil, apperror.Conflicting(
+			"pricing_incomplete",
+			"A calculated charge or explicit final override is required",
+		)
 	}
 	p := job.PricingSnapshot
 	pricing := PricingEvidence{
@@ -119,7 +124,7 @@ func (s *Service) insertItem(
 ) (db.OrderItem, error) {
 	q := db.New(tx)
 	params := db.InsertItemParams{
-		ID:                 newID(),
+		ID:                 ids.New(),
 		OrderID:            o.ID,
 		Kind:               input.Kind,
 		Description:        strings.TrimSpace(input.Description),
@@ -138,7 +143,7 @@ func (s *Service) insertItem(
 		}
 		amount := qty.Mul(price).Round(2)
 		if amount.GreaterThanOrEqual(decimal.New(1, 18)) {
-			return db.OrderItem{}, validation("Item amount exceeds supported precision")
+			return db.OrderItem{}, apperror.Invalid("Item amount exceeds supported precision")
 		}
 		params.Quantity = numeric(qty)
 		params.UnitPrice = numeric(price)
@@ -173,10 +178,10 @@ func (s *Service) insertItem(
 			return db.OrderItem{}, err
 		}
 	default:
-		return db.OrderItem{}, validation("Invalid item kind")
+		return db.OrderItem{}, apperror.Invalid("Invalid item kind")
 	}
 	if params.Description == "" || len(params.Description) > 500 || params.Unit == "" || len(params.Unit) > 40 {
-		return db.OrderItem{}, validation("Description and unit are required and must fit their limits")
+		return db.OrderItem{}, apperror.Invalid("Description and unit are required and must fit their limits")
 	}
 	item, err := q.InsertItem(ctx, params)
 	if err != nil {
@@ -186,14 +191,14 @@ func (s *Service) insertItem(
 		claim, err := q.GetJobClaim(ctx, *item.SourceMachineJobID)
 		if err == nil {
 			if o.ReplacesOrderID == nil || claim.OrderID != *o.ReplacesOrderID {
-				return item, conflict("job_already_ordered", "This job belongs to another active order")
+				return item, apperror.Conflicting("job_already_ordered", "This job belongs to another active order")
 			}
 		} else if errors.Is(err, pgx.ErrNoRows) {
 			if err = q.ClaimJob(
 				ctx,
 				db.ClaimJobParams{MachineJobID: *item.SourceMachineJobID, OrderItemID: item.ID},
 			); err != nil {
-				return item, conflict("job_already_ordered", "This job belongs to another active order")
+				return item, apperror.Conflicting("job_already_ordered", "This job belongs to another active order")
 			}
 		} else {
 			return item, err
@@ -238,7 +243,7 @@ func (s *Service) ChangeItem(
 			return Order{}, databaseError(e)
 		}
 		if old.RemovedAt.Valid {
-			return Order{}, conflict("item_removed", "Item has already been removed")
+			return Order{}, apperror.Conflicting("item_removed", "Item has already been removed")
 		}
 		if e = q.ReleaseItemClaim(ctx, itemID); e != nil {
 			return Order{}, e
@@ -251,7 +256,7 @@ func (s *Service) ChangeItem(
 		}
 		if action == "refresh" {
 			if old.SourceMachineJobID == nil {
-				return Order{}, validation("Only job items can be refreshed")
+				return Order{}, apperror.Invalid("Only job items can be refreshed")
 			}
 			job, e := s.jobs.ChargeSource(ctx, tx, p, *old.SourceMachineJobID)
 			if e != nil {

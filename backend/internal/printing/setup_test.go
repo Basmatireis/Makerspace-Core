@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -29,9 +31,9 @@ func newSetupFixture(t *testing.T) *setupFixture {
 		t:       t,
 		service: NewService(pool),
 		jobs:    machinelogbook.NewService(pool),
-		request: uuid.Must(uuid.NewV7()),
+		request: ids.New(),
 	}
-	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	personID, accountID := ids.New(), ids.New()
 	f.suffix = strings.ReplaceAll(personID.String(), "-", "")[:12]
 	f.principal = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	if _, err := pool.Exec(
@@ -131,7 +133,7 @@ func h2dSetup() SetupInput {
 
 func TestSaveSetupRequiresMachinesManage(t *testing.T) {
 	service := NewService(nil)
-	_, err := service.SaveSetup(t.Context(), authorization.Principal{}, uuid.Must(uuid.NewV7()), SetupInput{}, nil)
+	_, err := service.SaveSetup(t.Context(), authorization.Principal{}, ids.New(), SetupInput{}, nil)
 	if !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("expected permission_denied, got %v", err)
 	}
@@ -140,7 +142,7 @@ func TestSaveSetupRequiresMachinesManage(t *testing.T) {
 func TestSaveSetupValidatesBeforeTouchingTheDatabase(t *testing.T) {
 	service := NewService(nil)
 	master := authorization.Principal{Master: true}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	dupUnits := h2dSetup()
 	dupUnits.InputUnits[1].ExternalIdentifier = str("0")
 	dupSlots := h2dSetup()
@@ -236,7 +238,8 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 	}
 	slots := slotsOf(edited, first.ID)
 	if len(slots) != 2 || slots[0].ID != firstSlots[1].ID || slots[0].Position != 0 || slots[0].Status != "unavailable" ||
-		slots[0].ExternalIdentifier == nil || *slots[0].ExternalIdentifier != "0" ||
+		slots[0].ExternalIdentifier == nil ||
+		*slots[0].ExternalIdentifier != "0" ||
 		slots[1].ID != firstSlots[0].ID ||
 		*slots[1].ExternalIdentifier != "1" {
 		t.Fatalf("reordered slots = %+v", slots)
@@ -318,7 +321,7 @@ func TestSaveSetupRejectsStaleAndUnknownReferences(t *testing.T) {
 	if _, err := f.save(created.Version+4, h2dSetup()); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("expected stale_write, got %v", err)
 	}
-	unknown := uuid.Must(uuid.NewV7())
+	unknown := ids.New()
 	input := h2dSetup()
 	input.InputUnits[0].ID = &unknown
 	if _, err := f.save(created.Version, input); !apperror.IsCode(err, "validation_failed") {
@@ -335,7 +338,7 @@ func TestSaveSetupRejectsStaleAndUnknownReferences(t *testing.T) {
 	if _, err := f.service.SaveSetup(
 		t.Context(),
 		f.principal,
-		uuid.Must(uuid.NewV7()),
+		ids.New(),
 		h2dSetup(),
 		nil,
 	); !apperror.IsCode(
@@ -444,7 +447,7 @@ func TestSaveSetupBumpsTheConnectorConfigurationWhenEnabledChanges(t *testing.T)
 	pool := printingIntegrationPool(t)
 	ctx := t.Context()
 	created := f.mustSave(0, h2dSetup())
-	connectorID, assignmentID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	connectorID, assignmentID := ids.New(), ids.New()
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, $2, 'active')`,

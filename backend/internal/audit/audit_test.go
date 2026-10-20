@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	auditdb "github.com/Basmatireis/Makerspace-Core/backend/internal/audit/db"
-	"github.com/google/uuid"
 )
 
 type recordingAuditQueries struct {
@@ -49,7 +50,7 @@ func TestWriteRejectsMetadataOutsidePrivacyAllowlist(t *testing.T) {
 
 func TestWriteAcceptsOpaqueRoleIDAndDefaultsHTTPSource(t *testing.T) {
 	queries := &recordingAuditQueries{}
-	roleID := uuid.Must(uuid.NewV7())
+	roleID := ids.New()
 	err := write(context.Background(), queries, Event{
 		Action:       "person.role_assigned",
 		ResourceType: "person",
@@ -71,7 +72,7 @@ func TestWriteAcceptsOpaqueRoleIDAndDefaultsHTTPSource(t *testing.T) {
 
 func TestWriteDerivesUserActorType(t *testing.T) {
 	queries := &recordingAuditQueries{}
-	actorID := uuid.Must(uuid.NewV7())
+	actorID := ids.New()
 	if err := write(context.Background(), queries, Event{
 		ActorAccountID: &actorID,
 		Action:         "person.updated",
@@ -85,7 +86,7 @@ func TestWriteDerivesUserActorType(t *testing.T) {
 }
 
 func TestWriteRejectsInconsistentActorTypeAndNonUUIDMetadata(t *testing.T) {
-	actorID := uuid.Must(uuid.NewV7())
+	actorID := ids.New()
 	tests := []Event{
 		{ActorType: "user", Action: "person.updated", ResourceType: "person"},
 		{ActorType: "system", ActorAccountID: &actorID, Action: "person.updated", ResourceType: "person"},

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
@@ -19,7 +21,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 	s := NewService(nil)
 	ctx := t.Context()
 	p := authorization.Principal{}
-	id := uuid.Must(uuid.NewV7())
+	id := ids.New()
 	now := time.Now().UTC()
 	jobInput := JobInput{
 		MachineID:        id,
@@ -96,7 +98,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 				ctx,
 				p,
 				BulkRunJobInput{
-					Runs: []BulkItem{{ID: id, ExpectedVersion: 1}, {ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1}},
+					Runs: []BulkItem{{ID: id, ExpectedVersion: 1}, {ID: ids.New(), ExpectedVersion: 1}},
 				},
 				nil,
 			)
@@ -225,9 +227,9 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	pool := integrationPool(t)
 	ctx := t.Context()
 	s := NewService(pool)
-	personID := uuid.Must(uuid.NewV7())
-	accountID := uuid.Must(uuid.NewV7())
-	requestID := uuid.Must(uuid.NewV7())
+	personID := ids.New()
+	accountID := ids.New()
+	requestID := ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 

@@ -8,6 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -26,15 +28,19 @@ var maxAdjustmentValue = decimal.NewFromInt(1_000_000_000_000)
 // validateOutcomeTiming rejects outcomes recorded before the run has ended.
 func validateOutcomeTiming(endsAt time.Time, outcome *string, now time.Time) error {
 	if outcome != nil && endsAt.After(now) {
-		return apperror.New(http.StatusUnprocessableEntity, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
+		return apperror.New(
+			http.StatusUnprocessableEntity,
+			"outcome_before_run_end",
+			"An outcome cannot be recorded before the run has ended",
+		)
 	}
 	return nil
 }
 
 func cleanTitle(value *string) (*string, error) {
-	title := cleanOptional(value)
+	title := optional.Trimmed(value)
 	if title != nil && utf8.RuneCountInString(*title) > 200 {
-		return nil, validation("title is limited to 200 characters")
+		return nil, apperror.Invalid("title is limited to 200 characters")
 	}
 	return title, nil
 }
@@ -43,25 +49,25 @@ func validatePriceAdjustment(kind string, value decimal.Decimal) error {
 	switch kind {
 	case "fixed":
 		if value.IsNegative() {
-			return validation("a fixed price must not be negative")
+			return apperror.Invalid("a fixed price must not be negative")
 		}
 	case "discount_percent":
 		if !value.IsPositive() || value.GreaterThan(decimal.NewFromInt(100)) {
-			return validation("a percent discount must be greater than 0 and at most 100")
+			return apperror.Invalid("a percent discount must be greater than 0 and at most 100")
 		}
 	case "discount_amount":
 		if !value.IsPositive() {
-			return validation("a discount amount must be greater than 0")
+			return apperror.Invalid("a discount amount must be greater than 0")
 		}
 	case "multiplier":
 		if !value.IsPositive() || value.GreaterThan(decimal.NewFromInt(100)) {
-			return validation("a multiplier must be greater than 0 and at most 100")
+			return apperror.Invalid("a multiplier must be greater than 0 and at most 100")
 		}
 	default:
-		return validation("invalid price adjustment kind")
+		return apperror.Invalid("invalid price adjustment kind")
 	}
 	if value.GreaterThan(maxAdjustmentValue) {
-		return validation("price adjustment value is too large")
+		return apperror.Invalid("price adjustment value is too large")
 	}
 	return nil
 }
@@ -123,11 +129,11 @@ func (s *Service) SetJobPriceAdjustment(
 		return MachineJob{}, err
 	}
 	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	amount, err := parseDecimal(value, false)
 	if err != nil {
-		return MachineJob{}, validation("value must be a decimal number")
+		return MachineJob{}, apperror.Invalid("value must be a decimal number")
 	}
 	amount = amount.Round(6)
 	if err = validatePriceAdjustment(kind, amount); err != nil {
@@ -135,7 +141,7 @@ func (s *Service) SetJobPriceAdjustment(
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" || utf8.RuneCountInString(reason) > 500 {
-		return MachineJob{}, validation("reason is required and limited to 500 characters")
+		return MachineJob{}, apperror.Invalid("reason is required and limited to 500 characters")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -201,7 +207,7 @@ func (s *Service) ClearJobPriceAdjustment(
 		return MachineJob{}, err
 	}
 	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
+		return MachineJob{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
