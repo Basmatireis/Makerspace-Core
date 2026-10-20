@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
@@ -46,7 +47,7 @@ func printerConnectorAssignmentDTO(value printerconnectors.Assignment) openapi.P
 	}
 	return openapi.PrinterConnectorAssignment{Id: value.ID, ConnectorId: value.ConnectorID, MachineId: value.MachineID,
 		MachineName:          value.MachineName,
-		AdapterKind:          value.AdapterKind,
+		AdapterKind:          string(value.AdapterKind),
 		AdapterSchemaVersion: value.AdapterSchemaVersion,
 		Settings:             settings,
 		ConfigurationVersion: value.ConfigurationVersion, AppliedConfigurationVersion: value.AppliedVersion,
@@ -261,7 +262,7 @@ func (s *Server) CreatePrinterConnectorAssignment(
 		request.PrinterConnectorId,
 		printerconnectors.AssignmentInput{
 			MachineID:            request.Body.MachineId,
-			AdapterKind:          request.Body.AdapterKind,
+			AdapterKind:          printerconnectors.AdapterKind(request.Body.AdapterKind),
 			AdapterSchemaVersion: request.Body.AdapterSchemaVersion,
 			Settings:             settings,
 			Secrets:              secrets,
@@ -312,7 +313,7 @@ func (s *Server) UpdatePrinterConnectorAssignment(
 		request.PrinterConnectorId,
 		request.AssignmentId,
 		printerconnectors.AssignmentUpdate{
-			AdapterKind: request.Body.AdapterKind, AdapterSchemaVersion: request.Body.AdapterSchemaVersion,
+			AdapterKind: printerconnectors.AdapterKind(request.Body.AdapterKind), AdapterSchemaVersion: request.Body.AdapterSchemaVersion,
 			Settings: settings, Secrets: request.Body.Secrets, Enabled: request.Body.Enabled, End: request.Body.End,
 			ExpectedVersion: request.Body.ExpectedVersion,
 		},
@@ -423,7 +424,7 @@ func (s *Server) GetPrinterConnectorConfiguration(
 				Id:                   value.ID,
 				MachineId:            value.MachineID,
 				MachineName:          value.MachineName,
-				AdapterKind:          value.AdapterKind,
+				AdapterKind:          string(value.AdapterKind),
 				AdapterSchemaVersion: value.AdapterSchemaVersion,
 				ConfigurationVersion: value.ConfigurationVersion,
 				Settings:             settings,
@@ -460,7 +461,7 @@ func (s *Server) ReportPrinterConnectorHeartbeat(
 			printerconnectors.AssignmentHealth{
 				AssignmentID:                value.AssignmentId,
 				AppliedConfigurationVersion: value.AppliedConfigurationVersion,
-				State:                       string(value.State),
+				State:                       printerconnectors.AssignmentState(value.State),
 				ErrorCode:                   nullableStringPointer(value.ErrorCode),
 			},
 		)
@@ -472,7 +473,7 @@ func (s *Server) ReportPrinterConnectorHeartbeat(
 			SoftwareVersion:              request.Body.SoftwareVersion,
 			ProtocolVersion:              request.Body.ProtocolVersion,
 			AppliedConfigurationRevision: request.Body.AppliedConfigurationRevision,
-			HealthState:                  string(request.Body.HealthState),
+			HealthState:                  printerconnectors.HealthState(request.Body.HealthState),
 			HealthSummary:                nullableStringPointer(request.Body.HealthSummary),
 			PendingEventCount:            request.Body.PendingEventCount,
 			QuarantinedEventCount:        request.Body.QuarantinedEventCount,
@@ -509,7 +510,7 @@ func (s *Server) IngestPrinterConnectorEvents(
 				ConfigurationVersion: value.ConfigurationVersion,
 				Sequence:             value.Sequence,
 				OccurredAt:           value.OccurredAt,
-				Kind:                 string(value.Kind),
+				Kind:                 printing.EventKind(value.Kind),
 				ExternalPrintID:      nullableStringPointer(value.ExternalPrintId),
 				ReportRevision:       nullableInt64Pointer(value.ReportRevision),
 				Payload:              payload,

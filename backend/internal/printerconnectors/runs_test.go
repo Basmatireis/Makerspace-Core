@@ -127,7 +127,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	return h
 }
 
-func (h *ingestHarness) send(runID uuid.UUID, kind string, at time.Time, payload string, revision *int64) EventReceipt {
+func (h *ingestHarness) send(runID uuid.UUID, kind printing.EventKind, at time.Time, payload string, revision *int64) EventReceipt {
 	h.t.Helper()
 	h.sequence++
 	return h.sendEvent(
@@ -155,7 +155,7 @@ func (h *ingestHarness) sendEvent(input EventInput) EventReceipt {
 	return receipts[0]
 }
 
-func (h *ingestHarness) accepted(runID uuid.UUID, kind string, at time.Time, payload string) {
+func (h *ingestHarness) accepted(runID uuid.UUID, kind printing.EventKind, at time.Time, payload string) {
 	h.t.Helper()
 	if receipt := h.send(runID, kind, at, payload, nil); receipt.Status != "accepted" {
 		h.t.Fatalf("%s receipt = %+v", kind, receipt)

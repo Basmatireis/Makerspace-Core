@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"math"
 	"strings"
 	"time"
@@ -220,7 +222,7 @@ func recordObservedRun(
 	q *db.Queries,
 	id, assignmentID, machineID uuid.UUID,
 	vendorJobID *string,
-	state string,
+	state RunState,
 	historyComplete bool,
 	observedAt time.Time,
 ) (db.MachineRun, error) {
@@ -242,7 +244,7 @@ func recordObservedRun(
 				AssignmentID:    &assignmentID,
 				MachineID:       machineID,
 				VendorJobID:     vendorJobID,
-				State:           &state,
+				State:           optional.Of(string(state)),
 				HistoryComplete: historyComplete,
 				ObservedAt:      pgTimestamp(&observedAt),
 			},
@@ -261,7 +263,7 @@ func recordObservedRun(
 			AssignmentID:    &assignmentID,
 			MachineID:       machineID,
 			VendorJobID:     vendorJobID,
-			State:           state,
+			State:           string(state),
 			HistoryComplete: historyComplete,
 			ObservedAt:      observedAt,
 		},
@@ -331,7 +333,7 @@ func applyPrintFacts(
 	q *db.Queries,
 	run db.MachineRun,
 	eventID uuid.UUID,
-	kind string,
+	kind printing.EventKind,
 	payload json.RawMessage,
 	occurredAt time.Time,
 	reportRevision *int64,
@@ -341,7 +343,7 @@ func applyPrintFacts(
 		return nil //nolint:nilerr // a malformed connector payload is ignored
 	}
 	at := occurredAt.UTC()
-	if kind == "consumption_report" {
+	if kind == printing.EventConsumptionReport {
 		return applyReportedUsage(ctx, q, run, eventID, values, at, reportRevision)
 	}
 	started, ended := timePointer(run.StartedAt), timePointer(run.EndedAt)
@@ -350,12 +352,12 @@ func applyPrintFacts(
 	var percent *int16
 	var estimatedEnd *time.Time
 	switch kind {
-	case "operational_state":
+	case printing.EventOperationalState:
 		if state, _ := payloadString(values, "state"); state == "printing" && started == nil {
 			started = &at
 		}
 		fileName = payloadFileName(values)
-	case "progress":
+	case printing.EventProgress:
 		if started == nil {
 			started = &at
 		}
@@ -367,7 +369,7 @@ func applyPrintFacts(
 				estimatedEnd = &end
 			}
 		}
-	case "terminal_outcome":
+	case printing.EventTerminalOutcome:
 		if ended == nil {
 			ended = &at
 		}

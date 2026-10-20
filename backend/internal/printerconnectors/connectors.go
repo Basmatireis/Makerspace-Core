@@ -205,19 +205,19 @@ func (s *Service) Update(
 	if err != nil {
 		return Connector{}, err
 	}
-	if current.Lifecycle == "revoked" {
+	if Lifecycle(current.Lifecycle) == LifecycleRevoked {
 		return Connector{}, apperror.Conflicting("printer_connector_revoked", "A revoked connector cannot be updated")
 	}
-	lifecycle := current.Lifecycle
+	lifecycle := Lifecycle(current.Lifecycle)
 	var disabledAt *time.Time
-	if lifecycle == "pending" {
+	if lifecycle == LifecyclePending {
 		if !enabled {
 			return Connector{}, apperror.Invalid("A pending connector cannot be disabled before enrollment")
 		}
 	} else if enabled {
-		lifecycle = "active"
+		lifecycle = LifecycleActive
 	} else {
-		lifecycle = "disabled"
+		lifecycle = LifecycleDisabled
 		now := time.Now().UTC()
 		disabledAt = &now
 	}
@@ -226,7 +226,7 @@ func (s *Service) Update(
 		db.UpdateConnectorParams{
 			Name:            name,
 			LocationLabel:   location,
-			Lifecycle:       lifecycle,
+			Lifecycle:       string(lifecycle),
 			DisabledAt:      timestamptz(disabledAt),
 			ID:              id,
 			ExpectedVersion: expected,

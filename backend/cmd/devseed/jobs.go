@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"log"
 	"time"
 	_ "time/tzdata"
@@ -66,7 +67,7 @@ func (s *seeder) setupConnector() {
 	}
 }
 
-func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, payload map[string]any, rev *int64) {
+func (s *seeder) ingest(m *mach, run uuid.UUID, ext string, kind printing.EventKind, at time.Time, payload map[string]any, rev *int64) {
 	m.seq++
 	raw, _ := json.Marshal(payload)
 	rc, err := s.pc.IngestEvents(
@@ -83,7 +84,7 @@ func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, 
 				Payload:              raw},
 		},
 	)
-	check("ingest "+kind, err)
+	check("ingest "+string(kind), err)
 	if rc[0].Status != "accepted" {
 		reason := ""
 		if rc[0].ReasonCode != nil {
@@ -321,7 +322,7 @@ func (s *seeder) unlinkedPrints() {
 
 func (s *seeder) finishPrints() {
 	cid := s.connCtx.ID
-	hb := func(m *mach, state string, code *string) printerconnectors.AssignmentHealth {
+	hb := func(m *mach, state printerconnectors.AssignmentState, code *string) printerconnectors.AssignmentHealth {
 		return printerconnectors.AssignmentHealth{
 			AssignmentID:                m.assign,
 			AppliedConfigurationVersion: m.cfgVer,
@@ -343,8 +344,8 @@ func (s *seeder) finishPrints() {
 				"P1S reports intermittent MQTT timeouts",
 			),
 			Assignments: []printerconnectors.AssignmentHealth{
-				hb(s.machines["x1c"], "connected", nil),
-				hb(s.machines["p1s"], "degraded", ptr("mqtt_timeout")),
+				hb(s.machines["x1c"], printerconnectors.AssignmentConnected, nil),
+				hb(s.machines["p1s"], printerconnectors.AssignmentDegraded, ptr("mqtt_timeout")),
 			},
 		},
 	)

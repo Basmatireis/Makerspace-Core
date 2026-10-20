@@ -49,7 +49,7 @@ func (s *Service) IssueEnrollment(
 	}
 	// Pending connectors are enrolled for the first time; active and disabled ones are re-enrolled
 	// (new host, lost data volume). Their current credential stays valid until the secret is used.
-	if connector.Lifecycle == "revoked" {
+	if Lifecycle(connector.Lifecycle) == LifecycleRevoked {
 		return EnrollmentIssue{}, apperror.Conflicting(
 			"printer_connector_revoked",
 			"A revoked connector cannot be enrolled",
@@ -167,13 +167,13 @@ func (s *Service) Enroll(
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if current.Lifecycle == "revoked" {
+	if Lifecycle(current.Lifecycle) == LifecycleRevoked {
 		return EnrollmentResult{}, apperror.Conflicting(
 			"printer_connector_revoked",
 			"Connector cannot be enrolled in its current state",
 		)
 	}
-	reenroll := current.Lifecycle != "pending"
+	reenroll := Lifecycle(current.Lifecycle) != LifecyclePending
 	if reenroll {
 		if err = q.RevokeConnectorCredentials(ctx, enrollment.ConnectorID); err != nil {
 			return EnrollmentResult{}, err
@@ -251,7 +251,7 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*Context, error
 		return nil, err
 	}
 	_ = q.TouchCredential(ctx, row.CredentialID)
-	return &Context{ID: row.ID, CredentialID: row.CredentialID, Name: row.Name, Lifecycle: row.Lifecycle}, nil
+	return &Context{ID: row.ID, CredentialID: row.CredentialID, Name: row.Name, Lifecycle: Lifecycle(row.Lifecycle)}, nil
 }
 
 func (s *Service) Revoke(
@@ -313,7 +313,7 @@ func (s *Service) RotateCredential(
 	credentialID uuid.UUID,
 	credentialSecret string,
 ) (time.Time, error) {
-	if connector.Lifecycle != "active" || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
+	if connector.Lifecycle != LifecycleActive || credentialID == uuid.Nil || !validOpaqueToken(credentialSecret) {
 		return time.Time{}, apperror.Invalid("valid connector credentials are required")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -327,7 +327,7 @@ func (s *Service) RotateCredential(
 		db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: connector.ID},
 	)
 	if existingErr == nil {
-		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || existing.State == "revoked" {
+		if !bytes.Equal(existing.TokenDigest, security.DigestToken(credentialSecret)) || CredentialState(existing.State) == CredentialRevoked {
 			return time.Time{}, apperror.Conflicting(
 				"credential_rotation_conflict",
 				"Credential identifier was reused with different credentials",

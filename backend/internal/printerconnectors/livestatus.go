@@ -36,7 +36,7 @@ type LiveStatus struct {
 // Live status is telemetry: it replaces the previous row, is never audited and
 // an older snapshot never overwrites a newer one.
 func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input LiveStatusReport) error {
-	if connector.Lifecycle != "active" {
+	if connector.Lifecycle != LifecycleActive {
 		return apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	now := time.Now().UTC()
@@ -66,7 +66,7 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 	if assignment.EndedAt.Valid {
 		return apperror.NotFound
 	}
-	if assignment.ConnectorLifecycle != "active" {
+	if Lifecycle(assignment.ConnectorLifecycle) != LifecycleActive {
 		return apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if !assignment.Enabled || assignment.ConfigurationVersion != input.ConfigurationVersion {

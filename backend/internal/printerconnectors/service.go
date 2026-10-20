@@ -9,6 +9,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
@@ -49,18 +50,20 @@ func NewService(pool *pgxpool.Pool, printingService *printing.Service, encryptio
 }
 
 type Connector struct {
-	ID                                          uuid.UUID
-	Name, Lifecycle                             string
-	LocationLabel, SoftwareVersion, HealthState *string
-	HealthSummary                               *string
-	ConfigurationRevision, AppliedRevision      int64
-	PendingEventCount, QuarantinedEventCount    int64
-	ProtocolVersion                             *int
-	LastHeartbeatAt, EnrolledAt, DisabledAt     *time.Time
-	RevokedAt, EventsClearedAt                  *time.Time
-	EventsClearedByName                         *string
-	Version                                     int64
-	CreatedAt, UpdatedAt                        time.Time
+	ID                                       uuid.UUID
+	Name                                     string
+	Lifecycle                                Lifecycle
+	LocationLabel, SoftwareVersion           *string
+	HealthState                              *HealthState
+	HealthSummary                            *string
+	ConfigurationRevision, AppliedRevision   int64
+	PendingEventCount, QuarantinedEventCount int64
+	ProtocolVersion                          *int
+	LastHeartbeatAt, EnrolledAt, DisabledAt  *time.Time
+	RevokedAt, EventsClearedAt               *time.Time
+	EventsClearedByName                      *string
+	Version                                  int64
+	CreatedAt, UpdatedAt                     time.Time
 }
 
 type EnrollmentIssue struct {
@@ -77,18 +80,21 @@ type EnrollmentResult struct {
 
 type Context struct {
 	ID, CredentialID uuid.UUID
-	Name, Lifecycle  string
+	Name             string
+	Lifecycle        Lifecycle
 }
 
 type Assignment struct {
 	ID, ConnectorID, MachineID           uuid.UUID
-	MachineName, AdapterKind             string
+	MachineName                          string
+	AdapterKind                          AdapterKind
 	AdapterSchemaVersion                 int
 	Settings                             json.RawMessage
 	EncryptedSecrets                     []byte
 	ConfigurationVersion, AppliedVersion int64
 	Enabled, PrinterEnabled              bool
-	RuntimeState, RuntimeErrorCode       *string
+	RuntimeState                         *AssignmentState
+	RuntimeErrorCode                     *string
 	ActivatedAt                          time.Time
 	EndedAt                              *time.Time
 	Version                              int64
@@ -97,7 +103,7 @@ type Assignment struct {
 
 type AssignmentInput struct {
 	MachineID            uuid.UUID
-	AdapterKind          string
+	AdapterKind          AdapterKind
 	AdapterSchemaVersion int
 	Settings             json.RawMessage
 	Secrets              map[string]string
@@ -105,7 +111,7 @@ type AssignmentInput struct {
 }
 
 type AssignmentUpdate struct {
-	AdapterKind          string
+	AdapterKind          AdapterKind
 	AdapterSchemaVersion int
 	Settings             json.RawMessage
 	Secrets              *map[string]string
@@ -114,13 +120,14 @@ type AssignmentUpdate struct {
 }
 
 type RuntimeAssignment struct {
-	ID, MachineID            uuid.UUID
-	MachineName, AdapterKind string
-	AdapterSchemaVersion     int
-	ConfigurationVersion     int64
-	Settings                 json.RawMessage
-	Secrets                  map[string]string
-	Enabled                  bool
+	ID, MachineID        uuid.UUID
+	MachineName          string
+	AdapterKind          AdapterKind
+	AdapterSchemaVersion int
+	ConfigurationVersion int64
+	Settings             json.RawMessage
+	Secrets              map[string]string
+	Enabled              bool
 }
 
 type Configuration struct {
@@ -132,12 +139,13 @@ type Configuration struct {
 type AssignmentHealth struct {
 	AssignmentID                uuid.UUID
 	AppliedConfigurationVersion int64
-	State                       string
+	State                       AssignmentState
 	ErrorCode                   *string
 }
 
 type Heartbeat struct {
-	SoftwareVersion, HealthState             string
+	SoftwareVersion                          string
+	HealthState                              HealthState
 	ProtocolVersion                          int
 	AppliedConfigurationRevision             int64
 	HealthSummary                            *string
@@ -152,7 +160,7 @@ type EventInput struct {
 	ConfigurationVersion  int64
 	Sequence              int64
 	OccurredAt            time.Time
-	Kind                  string
+	Kind                  printing.EventKind
 	ExternalPrintID       *string
 	ReportRevision        *int64
 	Payload               json.RawMessage
@@ -162,7 +170,7 @@ type ObservedRun struct {
 	ID, AssignmentID, MachineID     uuid.UUID
 	MachineName                     string
 	VendorJobID                     *string
-	State                           string
+	State                           RunState
 	HistoryComplete                 bool
 	FirstObservedAt, LastObservedAt time.Time
 	Version                         int64
@@ -170,9 +178,9 @@ type ObservedRun struct {
 
 type ConnectorEvent struct {
 	ID, MachineID, AssignmentID uuid.UUID
-	Kind                        string
+	Kind                        printing.EventKind
 	OccurredAt, ReceivedAt      time.Time
-	ApplicationState            string
+	ApplicationState            printing.ApplicationState
 	ApplicationReason           *string
 	Payload                     json.RawMessage
 }
@@ -180,7 +188,7 @@ type ConnectorEvent struct {
 type EventReceipt struct {
 	EventID     uuid.UUID
 	CoreEventID *uuid.UUID
-	Status      string
+	Status      ReceiptStatus
 	ReasonCode  *string
 }
 
@@ -193,7 +201,7 @@ func nullableTime(value pgtype.Timestamptz) *time.Time {
 }
 
 func validateAssignmentContract(
-	kind string,
+	kind AdapterKind,
 	version int,
 	settings json.RawMessage,
 	secrets map[string]string,
@@ -224,12 +232,12 @@ func validateAssignmentContract(
 	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 ||
 		len(raw) > 3 {
 		return nil, nil, apperror.Invalid(
-			kind + " settings require ipAddress, serialNumber, and optional autoDetectSpools",
+			string(kind) + " settings require ipAddress, serialNumber, and optional autoDetectSpools",
 		)
 	}
 	for key := range raw {
 		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
-			return nil, nil, apperror.Invalid(kind + " settings contain an unsupported field")
+			return nil, nil, apperror.Invalid(string(kind) + " settings contain an unsupported field")
 		}
 	}
 	if encoded, ok := raw["autoDetectSpools"]; ok {
@@ -248,7 +256,7 @@ func validateAssignmentContract(
 	}
 	for key := range secrets {
 		if key != "lanAccessCode" {
-			return nil, nil, apperror.Invalid(kind + " secrets contain only lanAccessCode")
+			return nil, nil, apperror.Invalid(string(kind) + " secrets contain only lanAccessCode")
 		}
 	}
 	code := strings.TrimSpace(secrets["lanAccessCode"])
@@ -286,9 +294,9 @@ func connectorFrom(row db.PrinterConnector) Connector {
 		value := int(*row.ProtocolVersion)
 		protocol = &value
 	}
-	return Connector{ID: row.ID, Name: row.Name, LocationLabel: row.LocationLabel, Lifecycle: row.Lifecycle,
+	return Connector{ID: row.ID, Name: row.Name, LocationLabel: row.LocationLabel, Lifecycle: Lifecycle(row.Lifecycle),
 		ConfigurationRevision: row.ConfigurationRevision, AppliedRevision: row.AppliedConfigurationRevision,
-		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: row.HealthState,
+		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: optional.Convert[HealthState](row.HealthState),
 		HealthSummary:         row.HealthSummary,
 		PendingEventCount:     row.PendingEventCount,
 		QuarantinedEventCount: row.QuarantinedEventCount,

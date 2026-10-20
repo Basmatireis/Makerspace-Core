@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -26,7 +28,7 @@ func (s *Service) CreateAssignment(
 	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.MachinesManage) {
 		return Assignment{}, apperror.PermissionDenied
 	}
-	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
+	input.AdapterKind = AdapterKind(strings.TrimSpace(string(input.AdapterKind)))
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
 	}
@@ -89,13 +91,13 @@ func (s *Service) ListAssignments(
 				ConnectorID:          row.ConnectorID,
 				MachineID:            row.MachineID,
 				MachineName:          row.MachineName,
-				AdapterKind:          row.AdapterKind,
+				AdapterKind:          AdapterKind(row.AdapterKind),
 				AdapterSchemaVersion: int(row.AdapterSchemaVersion),
 				Settings:             row.Settings,
 				ConfigurationVersion: row.ConfigurationVersion,
 				AppliedVersion:       row.AppliedConfigurationVersion,
 				Enabled:              row.Enabled,
-				RuntimeState:         row.RuntimeState,
+				RuntimeState:         optional.Convert[AssignmentState](row.RuntimeState),
 				RuntimeErrorCode:     row.RuntimeErrorCode,
 				ActivatedAt:          row.ActivatedAt,
 				EndedAt:              nullableTime(row.EndedAt),
@@ -118,7 +120,7 @@ func (s *Service) UpdateAssignment(
 	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.MachinesManage) {
 		return Assignment{}, apperror.PermissionDenied
 	}
-	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
+	input.AdapterKind = AdapterKind(strings.TrimSpace(string(input.AdapterKind)))
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
 	}
@@ -182,7 +184,7 @@ func (s *Service) UpdateAssignment(
 	_, err = q.UpdateAssignment(
 		ctx,
 		db.UpdateAssignmentParams{
-			AdapterKind:          input.AdapterKind,
+			AdapterKind:          string(input.AdapterKind),
 			AdapterSchemaVersion: int32(input.AdapterSchemaVersion),
 			Settings:             input.Settings,
 			EncryptedSecrets:     encrypted,
@@ -229,13 +231,13 @@ func (s *Service) UpdateAssignment(
 		ConnectorID:          row.ConnectorID,
 		MachineID:            row.MachineID,
 		MachineName:          row.MachineName,
-		AdapterKind:          row.AdapterKind,
+		AdapterKind:          AdapterKind(row.AdapterKind),
 		AdapterSchemaVersion: int(row.AdapterSchemaVersion),
 		Settings:             row.Settings,
 		ConfigurationVersion: row.ConfigurationVersion,
 		AppliedVersion:       row.AppliedConfigurationVersion,
 		Enabled:              row.Enabled,
-		RuntimeState:         row.RuntimeState,
+		RuntimeState:         optional.Convert[AssignmentState](row.RuntimeState),
 		RuntimeErrorCode:     row.RuntimeErrorCode,
 		ActivatedAt:          row.ActivatedAt,
 		EndedAt:              nullableTime(row.EndedAt),
@@ -275,7 +277,7 @@ func (s *Service) ListObservedRuns(
 				MachineID:       row.MachineID,
 				MachineName:     row.MachineName,
 				VendorJobID:     row.VendorJobID,
-				State:           *row.State,
+				State:           RunState(*row.State),
 				HistoryComplete: row.HistoryComplete,
 				FirstObservedAt: row.FirstObservedAt.Time,
 				LastObservedAt:  row.LastObservedAt.Time,
@@ -319,10 +321,10 @@ func (s *Service) ListEvents(
 				ID:                row.ID,
 				MachineID:         *row.MachineID,
 				AssignmentID:      *row.ConnectorAssignmentID,
-				Kind:              row.Kind,
+				Kind:              printing.EventKind(row.Kind),
 				OccurredAt:        row.OccurredAt,
 				ReceivedAt:        row.ReceivedAt,
-				ApplicationState:  row.ApplicationState,
+				ApplicationState:  printing.ApplicationState(row.ApplicationState),
 				ApplicationReason: row.ApplicationReason,
 				Payload:           row.Payload,
 			},
@@ -352,7 +354,7 @@ func (s *Service) createAssignment(
 	if err != nil {
 		return Assignment{}, err
 	}
-	if connector.Lifecycle == "revoked" {
+	if Lifecycle(connector.Lifecycle) == LifecycleRevoked {
 		return Assignment{}, apperror.Conflicting(
 			"printer_connector_revoked",
 			"A revoked connector cannot receive printers",
@@ -364,7 +366,7 @@ func (s *Service) createAssignment(
 			ID:                   assignmentID,
 			ConnectorID:          connectorID,
 			MachineID:            input.MachineID,
-			AdapterKind:          input.AdapterKind,
+			AdapterKind:          string(input.AdapterKind),
 			AdapterSchemaVersion: int32(input.AdapterSchemaVersion),
 			Settings:             input.Settings,
 			EncryptedSecrets:     encrypted,
@@ -399,7 +401,7 @@ func (s *Service) createAssignment(
 		ID:                   row.ID,
 		ConnectorID:          row.ConnectorID,
 		MachineID:            row.MachineID,
-		AdapterKind:          row.AdapterKind,
+		AdapterKind:          AdapterKind(row.AdapterKind),
 		AdapterSchemaVersion: int(row.AdapterSchemaVersion),
 		Settings:             row.Settings,
 		ConfigurationVersion: row.ConfigurationVersion,

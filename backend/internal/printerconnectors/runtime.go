@@ -12,6 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ import (
 )
 
 func (s *Service) Configuration(ctx context.Context, connector Context) (Configuration, error) {
-	if connector.Lifecycle != "active" && connector.Lifecycle != "disabled" {
+	if connector.Lifecycle != LifecycleActive && connector.Lifecycle != LifecycleDisabled {
 		return Configuration{}, apperror.New(
 			http.StatusForbidden,
 			"printer_connector_inactive",
@@ -31,7 +32,7 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
-	if connector.Lifecycle == "disabled" {
+	if connector.Lifecycle == LifecycleDisabled {
 		return Configuration{
 			Revision:        row.ConfigurationRevision,
 			ProtocolVersion: 1,
@@ -70,7 +71,7 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 				ID:                   a.ID,
 				MachineID:            a.MachineID,
 				MachineName:          a.MachineName,
-				AdapterKind:          a.AdapterKind,
+				AdapterKind:          AdapterKind(a.AdapterKind),
 				AdapterSchemaVersion: int(a.AdapterSchemaVersion),
 				ConfigurationVersion: a.ConfigurationVersion,
 				Settings:             a.Settings,
@@ -83,13 +84,13 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 }
 
 func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartbeat) (Connector, error) {
-	if connector.Lifecycle != "active" {
+	if connector.Lifecycle != LifecycleActive {
 		return Connector{}, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
-	input.HealthState = strings.TrimSpace(input.HealthState)
+	input.HealthState = HealthState(strings.TrimSpace(string(input.HealthState)))
 	if input.SoftwareVersion == "" || len(input.SoftwareVersion) > 80 || input.ProtocolVersion != 1 ||
-		(input.HealthState != "connected" && input.HealthState != "degraded") ||
+		(input.HealthState != HealthConnected && input.HealthState != HealthDegraded) ||
 		input.AppliedConfigurationRevision < 0 ||
 		input.PendingEventCount < 0 ||
 		input.QuarantinedEventCount < 0 {
@@ -103,14 +104,14 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	q := db.New(tx)
 	for _, h := range input.Assignments {
 		if h.AppliedConfigurationVersion < 0 ||
-			(h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
+			!h.State.valid() {
 			return Connector{}, apperror.Invalid("invalid assignment health")
 		}
 		if err = q.UpdateAssignmentRuntime(
 			ctx,
 			db.UpdateAssignmentRuntimeParams{
 				AppliedConfigurationVersion: h.AppliedConfigurationVersion,
-				RuntimeState:                &h.State,
+				RuntimeState:                optional.Of(string(h.State)),
 				RuntimeErrorCode:            h.ErrorCode,
 				ID:                          h.AssignmentID,
 				ConnectorID:                 connector.ID,
@@ -125,7 +126,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 			SoftwareVersion:              &input.SoftwareVersion,
 			ProtocolVersion:              int32Pointer(input.ProtocolVersion),
 			AppliedConfigurationRevision: input.AppliedConfigurationRevision,
-			HealthState:                  &input.HealthState,
+			HealthState:                  optional.Of(string(input.HealthState)),
 			HealthSummary:                input.HealthSummary,
 			PendingEventCount:            input.PendingEventCount,
 			QuarantinedEventCount:        input.QuarantinedEventCount,
@@ -147,7 +148,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 func int32Pointer(value int) *int32 { v := int32(value); return &v }
 
 func (s *Service) IngestEvents(ctx context.Context, connector Context, inputs []EventInput) ([]EventReceipt, error) {
-	if connector.Lifecycle != "active" {
+	if connector.Lifecycle != LifecycleActive {
 		return nil, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if len(inputs) == 0 || len(inputs) > 20 {
@@ -158,7 +159,7 @@ func (s *Service) IngestEvents(ctx context.Context, connector Context, inputs []
 	for _, input := range inputs {
 		if _, duplicate := seen[input.EventID]; duplicate {
 			reason := "duplicate_event_in_batch"
-			receipts = append(receipts, EventReceipt{EventID: input.EventID, Status: "rejected", ReasonCode: &reason})
+			receipts = append(receipts, EventReceipt{EventID: input.EventID, Status: ReceiptRejected, ReasonCode: &reason})
 			continue
 		}
 		seen[input.EventID] = struct{}{}
@@ -170,7 +171,7 @@ func (s *Service) IngestEvents(ctx context.Context, connector Context, inputs []
 
 func (s *Service) ingestOne(ctx context.Context, connector Context, input EventInput) EventReceipt {
 	rejected := func(code string) EventReceipt {
-		return EventReceipt{EventID: input.EventID, Status: "rejected", ReasonCode: &code}
+		return EventReceipt{EventID: input.EventID, Status: ReceiptRejected, ReasonCode: &code}
 	}
 	if input.EventID == uuid.Nil || input.AssignmentID == uuid.Nil || input.ConfigurationVersion < 1 ||
 		input.Sequence < 1 ||
@@ -182,7 +183,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		code := "temporarily_unavailable"
-		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	a, err := db.New(tx).
@@ -195,15 +196,15 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	if err != nil {
 		code := "temporarily_unavailable"
-		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 	}
-	applicationState, reason := "applied", (*string)(nil)
-	if a.EndedAt.Valid || a.ConnectorLifecycle != "active" || !a.Enabled {
-		applicationState = "review_required"
+	applicationState, reason := printing.ApplicationApplied, (*string)(nil)
+	if a.EndedAt.Valid || Lifecycle(a.ConnectorLifecycle) != LifecycleActive || !a.Enabled {
+		applicationState = printing.ApplicationReviewRequired
 		v := "stale_assignment"
 		reason = &v
 	} else if input.ConfigurationVersion != a.ConfigurationVersion {
-		applicationState = "review_required"
+		applicationState = printing.ApplicationReviewRequired
 		v := "configuration_version_mismatch"
 		reason = &v
 	}
@@ -219,7 +220,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		if _, _, lockErr := machinelogbook.LockRunChain(ctx, tx, *input.RunID); lockErr != nil &&
 			!apperror.IsCode(lockErr, "not_found") {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
 		var runErr error
 		run, runErr = recordObservedRun(
@@ -240,17 +241,17 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			// Staff deleted the run. The event is stored for idempotency but
 			// never resurrects or changes the run.
 			runDeleted = true
-			applicationState = "recorded"
+			applicationState = printing.ApplicationRecorded
 			v := "run_deleted"
 			reason = &v
 			runErr = nil
 		}
 		if runErr != nil {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
-		if !runDeleted && !run.HistoryComplete && applicationState == "applied" {
-			applicationState = "review_required"
+		if !runDeleted && !run.HistoryComplete && applicationState == printing.ApplicationApplied {
+			applicationState = printing.ApplicationReviewRequired
 			v := "incomplete_run_history"
 			reason = &v
 		}
@@ -266,12 +267,12 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			RunID:                input.RunID,
 			ConfigurationVersion: input.ConfigurationVersion,
 			Sequence:             input.Sequence,
-			Kind:                 printing.EventKind(input.Kind),
+			Kind:                 input.Kind,
 			OccurredAt:           input.OccurredAt,
 			ExternalPrintID:      input.ExternalPrintID,
 			Payload:              input.Payload,
 			ReportRevision:       input.ReportRevision,
-			ApplicationState:     printing.ApplicationState(applicationState),
+			ApplicationState:     applicationState,
 			ApplicationReason:    reason,
 		},
 	)
@@ -281,7 +282,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			return rejected(apperrorCode(err))
 		}
 		code := "temporarily_unavailable"
-		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 	}
 	if inserted && input.RunID != nil && !runDeleted {
 		if err = applyPrintFacts(
@@ -295,20 +296,20 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			input.ReportRevision,
 		); err != nil {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
 		// The recorded run's outcome, material usage and job price follow the
 		// event in the same transaction.
 		if err = s.logbook.ApplyRecordedRunEvent(
 			ctx,
 			tx,
-			machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: input.Kind},
+			machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: string(input.Kind)},
 		); err != nil {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
 	}
-	if inserted && input.Kind == "printer_error" {
+	if inserted && input.Kind == EventPrinterError {
 		if err = applyPrinterError(
 			ctx,
 			db.New(tx),
@@ -319,11 +320,11 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			input.OccurredAt,
 		); err != nil {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
 	}
-	if inserted && input.Kind == "slot_observation" && applicationState == "applied" &&
-		isBambuLANAdapter(a.AdapterKind) &&
+	if inserted && input.Kind == printing.EventSlotObservation && applicationState == printing.ApplicationApplied &&
+		isBambuLANAdapter(AdapterKind(a.AdapterKind)) &&
 		bambuAutoDetectSpools(a.Settings) {
 		if err = reconcileBambuSlotObservation(
 			ctx,
@@ -336,23 +337,23 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			input.OccurredAt,
 		); err != nil {
 			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		code := "temporarily_unavailable"
-		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 	}
-	status := "accepted"
+	status := ReceiptAccepted
 	if !inserted {
-		status = "duplicate"
+		status = ReceiptDuplicate
 	}
 	id := event.ID
 	return EventReceipt{EventID: input.EventID, CoreEventID: &id, Status: status}
 }
 
-func isBambuLANAdapter(kind string) bool {
-	return kind == "bambu_h2d" || kind == "bambu_x1c"
+func isBambuLANAdapter(kind AdapterKind) bool {
+	return kind == AdapterBambuH2D || kind == AdapterBambuX1C
 }
 
 func applyPrinterError(
@@ -406,11 +407,11 @@ func applyPrinterError(
 	)
 }
 
-func recordedRunState(kind string, payload json.RawMessage) (string, error) {
+func recordedRunState(kind printing.EventKind, payload json.RawMessage) (RunState, error) {
 	switch kind {
-	case "progress":
-		return "running", nil
-	case "terminal_outcome":
+	case printing.EventProgress:
+		return RunRunning, nil
+	case printing.EventTerminalOutcome:
 		var value struct {
 			Outcome string `json:"outcome"`
 		}
@@ -419,21 +420,21 @@ func recordedRunState(kind string, payload json.RawMessage) (string, error) {
 		}
 		switch value.Outcome {
 		case "completed":
-			return "finished", nil
+			return RunFinished, nil
 		case "failed", "cancelled", "unknown":
-			return value.Outcome, nil
+			return RunState(value.Outcome), nil
 		default:
 			return "", errors.New("invalid terminal outcome")
 		}
-	case "operational_state":
+	case printing.EventOperationalState:
 		var value struct {
 			State string `json:"state"`
 		}
 		if json.Unmarshal(payload, &value) == nil && value.State == "printing" {
-			return "running", nil
+			return RunRunning, nil
 		}
 	}
-	return "running", nil
+	return RunRunning, nil
 }
 
 func apperrorCode(err error) string {
