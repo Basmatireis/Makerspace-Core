@@ -228,7 +228,17 @@ func (s *Service) storeReader(
 	if err != nil {
 		return File{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: "file.created", ResourceType: "file", ResourceID: &id, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: actor,
+			Action:         "file.created",
+			ResourceType:   "file",
+			ResourceID:     &id,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return File{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -280,7 +290,17 @@ func (s *Service) delete(ctx context.Context, actor *uuid.UUID, id uuid.UUID, re
 	if err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: "file.deleted", ResourceType: "file", ResourceID: &id, RequestID: requestID}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: actor,
+			Action:         "file.deleted",
+			ResourceType:   "file",
+			ResourceID:     &id,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

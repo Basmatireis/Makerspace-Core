@@ -38,7 +38,11 @@ func bambuTLSConfig(serial string) (*tls.Config, error) {
 			for _, certificate := range state.PeerCertificates[1:] {
 				intermediates.AddCert(certificate)
 			}
-			if _, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
+			if _, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{
+				Roots:         roots,
+				Intermediates: intermediates,
+				KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			}); err != nil {
 				return fmt.Errorf("verify Bambu printer certificate chain: %w", err)
 			}
 			if state.PeerCertificates[0].Subject.CommonName != serial {

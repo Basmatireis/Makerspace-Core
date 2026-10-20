@@ -189,7 +189,10 @@ func (s *Service) insertItem(
 				return item, conflict("job_already_ordered", "This job belongs to another active order")
 			}
 		} else if errors.Is(err, pgx.ErrNoRows) {
-			if err = q.ClaimJob(ctx, db.ClaimJobParams{MachineJobID: *item.SourceMachineJobID, OrderItemID: item.ID}); err != nil {
+			if err = q.ClaimJob(
+				ctx,
+				db.ClaimJobParams{MachineJobID: *item.SourceMachineJobID, OrderItemID: item.ID},
+			); err != nil {
 				return item, conflict("job_already_ordered", "This job belongs to another active order")
 			}
 		} else {

@@ -78,7 +78,17 @@ func (s *Service) CreateSession(
 		return Session{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_session.created", "event_session", id, requestID, []string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_session.created",
+		"event_session",
+		id,
+		requestID,
+		[]string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -145,7 +155,17 @@ func (s *Service) UpdateSession(
 		return Session{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_session.updated", "event_session", id, requestID, []string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_session.updated",
+		"event_session",
+		id,
+		requestID,
+		[]string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -186,11 +206,24 @@ func (s *Service) DeleteSession(
 	if int64(current.Version) != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeleteEventSession(ctx, eventsdb.DeleteEventSessionParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)}); err != nil {
+	if _, err := q.DeleteEventSession(
+		ctx,
+		eventsdb.DeleteEventSessionParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_session.deleted", "event_session", id, requestID, nil, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_session.deleted",
+		"event_session",
+		id,
+		requestID,
+		nil,
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -283,7 +316,17 @@ func (s *Service) CreateShift(
 		return Shift{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_shift.created", "event_shift", id, requestID, []string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_shift.created",
+		"event_shift",
+		id,
+		requestID,
+		[]string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Shift{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -352,7 +395,17 @@ func (s *Service) UpdateShift(
 		return Shift{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_shift.updated", "event_shift", id, requestID, []string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_shift.updated",
+		"event_shift",
+		id,
+		requestID,
+		[]string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Shift{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -393,11 +446,24 @@ func (s *Service) DeleteShift(
 	if int64(current.Version) != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeleteEventShift(ctx, eventsdb.DeleteEventShiftParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)}); err != nil {
+	if _, err := q.DeleteEventShift(
+		ctx,
+		eventsdb.DeleteEventShiftParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event_shift.deleted", "event_shift", id, requestID, nil, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_shift.deleted",
+		"event_shift",
+		id,
+		requestID,
+		nil,
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

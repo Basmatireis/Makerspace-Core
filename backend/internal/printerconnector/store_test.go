@@ -104,7 +104,10 @@ func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) 
 	if pending[0].RunID == nil || *pending[0].RunID != runID {
 		t.Fatalf("run identifier did not survive restart: %#v", pending[0].RunID)
 	}
-	if err = store.ApplyReceipts(ctx, []EventReceipt{{EventID: first.EventID, Status: "accepted"}, {EventID: second.EventID, Status: "duplicate"}}); err != nil {
+	if err = store.ApplyReceipts(
+		ctx,
+		[]EventReceipt{{EventID: first.EventID, Status: "accepted"}, {EventID: second.EventID, Status: "duplicate"}},
+	); err != nil {
 		t.Fatal(err)
 	}
 	pendingCount, quarantinedCount, err := store.QueueCounts(ctx)
@@ -141,7 +144,10 @@ func TestStoreQuarantinesRejectedEventsAndLocksDataDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	reason := "invalid_event"
-	if err = store.ApplyReceipts(ctx, []EventReceipt{{EventID: event.EventID, Status: "rejected", ReasonCode: &reason}}); err != nil {
+	if err = store.ApplyReceipts(
+		ctx,
+		[]EventReceipt{{EventID: event.EventID, Status: "rejected", ReasonCode: &reason}},
+	); err != nil {
 		t.Fatal(err)
 	}
 	pending, quarantined, err := store.QueueCounts(ctx)
@@ -159,7 +165,14 @@ func TestArtifactRetrievalPersistsAndRequiresStableCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if err = store.ScheduleArtifactRetrieval(ctx, assignmentID, runID, 4, "plate.3mf", time.Now().UTC().Add(time.Hour)); err != nil {
+	if err = store.ScheduleArtifactRetrieval(
+		ctx,
+		assignmentID,
+		runID,
+		4,
+		"plate.3mf",
+		time.Now().UTC().Add(time.Hour),
+	); err != nil {
 		t.Fatal(err)
 	}
 	retrieval, err := store.PendingArtifactRetrieval(ctx, assignmentID)
@@ -179,7 +192,13 @@ func TestArtifactRetrievalPersistsAndRequiresStableCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
+	if _, err = store.db.ExecContext(
+		ctx,
+		`UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`,
+		time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano),
+		assignmentID.String(),
+		runID.String(),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if deferred, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil || deferred != nil {

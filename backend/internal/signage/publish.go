@@ -92,12 +92,19 @@ func (s *Service) publishDisplay(
 	digest := sha256.Sum256(encoded)
 	actor := principal.AccountID
 	if err := q.InsertSignagePublication(ctx, signagedb.InsertSignagePublicationParams{
-		ID: uuid.Must(uuid.NewV7()), DisplayID: id, Revision: revision, Manifest: string(encoded), ManifestSha256: digest[:],
+		ID:                   uuid.Must(uuid.NewV7()),
+		DisplayID:            id,
+		Revision:             revision,
+		Manifest:             string(encoded),
+		ManifestSha256:       digest[:],
 		PublishedByAccountID: &actor, PublishedAt: s.now(),
 	}); err != nil {
 		return Display{}, databaseError(err)
 	}
-	if err := q.PruneSignagePublications(ctx, signagedb.PruneSignagePublicationsParams{DisplayID: id, MaxRevision: revision - retainedPublications}); err != nil {
+	if err := q.PruneSignagePublications(
+		ctx,
+		signagedb.PruneSignagePublicationsParams{DisplayID: id, MaxRevision: revision - retainedPublications},
+	); err != nil {
 		return Display{}, err
 	}
 	if hadPrevious && camerasRemoved(cameraSetOf(previous), cameraSetOf(manifest)) {
@@ -106,7 +113,16 @@ func (s *Service) publishDisplay(
 			return Display{}, err
 		}
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_display.published", "signage_display", id, requestID, []string{"revision"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_display.published",
+		"signage_display",
+		id,
+		requestID,
+		[]string{"revision"},
+	); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, id)

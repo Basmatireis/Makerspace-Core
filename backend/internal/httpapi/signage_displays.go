@@ -40,8 +40,11 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 		Orientation: openapi.SignageOrientation(
 			display.Orientation,
 		), Resolution: openapi.SignageResolution{Width: display.Resolution.Width, Height: display.Resolution.Height},
-		VisibleFromOutside: display.VisibleFromOutside, AllowCameraOutside: display.AllowCameraOutside, DefaultPlaylistId: display.DefaultPlaylistID, Status: openapi.SignageDisplayStatus(display.Status),
-		RevokedAt: nullableTimeValue(display.RevokedAt), LastHeartbeatAt: nullableTimeValue(display.LastHeartbeatAt),
+		VisibleFromOutside: display.VisibleFromOutside,
+		AllowCameraOutside: display.AllowCameraOutside,
+		DefaultPlaylistId:  display.DefaultPlaylistID,
+		Status:             openapi.SignageDisplayStatus(display.Status),
+		RevokedAt:          nullableTimeValue(display.RevokedAt), LastHeartbeatAt: nullableTimeValue(display.LastHeartbeatAt),
 		PublishedRevision: nullableValue(
 			display.PublishedRevision,
 		), PublishedAt: nullableTimeValue(display.PublishedAt), PendingChanges: pending,
@@ -201,10 +204,21 @@ func signageRuleListDTO(list signage.RuleList) openapi.SignageRuleList {
 			match = nullable.NewNullableWithValue(openapi.SignageMachineMatch(*rule.MachineMatch))
 		}
 		items = append(items, openapi.SignageRule{
-			Id: rule.ID, Position: rule.Position, Enabled: rule.Enabled, ConditionKind: openapi.SignageRuleConditionKind(rule.ConditionKind),
-			Weekdays: rule.Weekdays, TimeFrom: nullableValue(rule.TimeFrom), TimeTo: nullableValue(rule.TimeTo), MachineIds: rule.MachineIDs, MachineMatch: match,
-			AnnouncementTemplateIds: rule.AnnouncementTemplateIDs, TargetKind: openapi.SignageRuleTargetKind(rule.TargetKind), TargetId: rule.TargetID,
-			MinSeconds: rule.MinSeconds, MultiMode: openapi.SignageMultiMode(rule.MultiMode), AlternateSeconds: rule.AlternateSeconds,
+			Id:                      rule.ID,
+			Position:                rule.Position,
+			Enabled:                 rule.Enabled,
+			ConditionKind:           openapi.SignageRuleConditionKind(rule.ConditionKind),
+			Weekdays:                rule.Weekdays,
+			TimeFrom:                nullableValue(rule.TimeFrom),
+			TimeTo:                  nullableValue(rule.TimeTo),
+			MachineIds:              rule.MachineIDs,
+			MachineMatch:            match,
+			AnnouncementTemplateIds: rule.AnnouncementTemplateIDs,
+			TargetKind:              openapi.SignageRuleTargetKind(rule.TargetKind),
+			TargetId:                rule.TargetID,
+			MinSeconds:              rule.MinSeconds,
+			MultiMode:               openapi.SignageMultiMode(rule.MultiMode),
+			AlternateSeconds:        rule.AlternateSeconds,
 		})
 	}
 	return openapi.SignageRuleList{Items: items, DisplayVersion: list.DisplayVersion}
@@ -217,7 +231,11 @@ func signageRuleInput(body *openapi.SignageRuleRequest) signage.RuleInput {
 		match = &value
 	}
 	return signage.RuleInput{
-		Enabled: body.Enabled, ConditionKind: string(body.ConditionKind), Weekdays: derefSlice(body.Weekdays), TimeFrom: body.TimeFrom, TimeTo: body.TimeTo,
+		Enabled:       body.Enabled,
+		ConditionKind: string(body.ConditionKind),
+		Weekdays:      derefSlice(body.Weekdays),
+		TimeFrom:      body.TimeFrom,
+		TimeTo:        body.TimeTo,
 		MachineIDs: derefSlice(
 			body.MachineIds,
 		), MachineMatch: match, AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
@@ -380,7 +398,11 @@ func (s *Server) signagePairingCookieName() string {
 
 func (s *Server) signagePairingCookie(value string, maxAge int) *http.Cookie {
 	return &http.Cookie{
-		Name: s.signagePairingCookieName(), Value: value, Path: "/", HttpOnly: true, Secure: s.config.SessionCookieSecure,
+		Name:     s.signagePairingCookieName(),
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   s.config.SessionCookieSecure,
 		SameSite: http.SameSiteStrictMode, MaxAge: maxAge,
 	}
 }
@@ -478,9 +500,19 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			match = nullable.NewNullableWithValue(openapi.SignageMachineMatch(*rule.MachineMatch))
 		}
 		rules = append(rules, openapi.SignagePlayerRule{
-			Id: rule.ID, Kind: openapi.SignageRuleConditionKind(rule.Kind), Weekdays: rule.Weekdays, TimeFrom: nullableValue(rule.TimeFrom), TimeTo: nullableValue(rule.TimeTo),
-			MachineIds: rule.MachineIDs, MachineMatch: match, AnnouncementTemplateIds: rule.AnnouncementTemplateIDs, TargetKind: openapi.SignageRuleTargetKind(rule.TargetKind),
-			TargetId: rule.TargetID, MinSeconds: rule.MinSeconds, MultiMode: openapi.SignageMultiMode(rule.MultiMode), AlternateSeconds: rule.AlternateSeconds,
+			Id:                      rule.ID,
+			Kind:                    openapi.SignageRuleConditionKind(rule.Kind),
+			Weekdays:                rule.Weekdays,
+			TimeFrom:                nullableValue(rule.TimeFrom),
+			TimeTo:                  nullableValue(rule.TimeTo),
+			MachineIds:              rule.MachineIDs,
+			MachineMatch:            match,
+			AnnouncementTemplateIds: rule.AnnouncementTemplateIDs,
+			TargetKind:              openapi.SignageRuleTargetKind(rule.TargetKind),
+			TargetId:                rule.TargetID,
+			MinSeconds:              rule.MinSeconds,
+			MultiMode:               openapi.SignageMultiMode(rule.MultiMode),
+			AlternateSeconds:        rule.AlternateSeconds,
 		})
 	}
 	scenes := make([]openapi.SignagePlayerScene, 0, len(manifest.Scenes))
@@ -494,9 +526,17 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			zones[key] = widget
 		}
 		scenes = append(scenes, openapi.SignagePlayerScene{
-			Id: scene.ID, Name: scene.Name, Orientation: openapi.SignageOrientation(scene.Orientation), LayoutId: openapi.SignageLayoutId(scene.LayoutID),
-			BackgroundColor: scene.BackgroundColor, BackgroundAssetId: nullableValue(scene.BackgroundAssetID), BackgroundFit: openapi.SignageFit(scene.BackgroundFit),
-			BackgroundDim: scene.BackgroundDim, Theme: openapi.SignagePlayerSceneTheme(scene.Theme), Zones: zones, Version: scene.Version,
+			Id:                scene.ID,
+			Name:              scene.Name,
+			Orientation:       openapi.SignageOrientation(scene.Orientation),
+			LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
+			BackgroundColor:   scene.BackgroundColor,
+			BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
+			BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
+			BackgroundDim:     scene.BackgroundDim,
+			Theme:             openapi.SignagePlayerSceneTheme(scene.Theme),
+			Zones:             zones,
+			Version:           scene.Version,
 		})
 	}
 	playlists := make([]openapi.SignagePlayerPlaylist, 0, len(manifest.Playlists))
@@ -525,7 +565,12 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 	assets := make([]openapi.SignagePlayerAsset, 0, len(manifest.Assets))
 	for _, asset := range manifest.Assets {
 		assets = append(assets, openapi.SignagePlayerAsset{
-			Id: asset.ID, Kind: openapi.SignageAssetKind(asset.Kind), Name: asset.Name, ContentType: asset.ContentType, Sha256: asset.SHA256, SizeBytes: asset.SizeBytes,
+			Id:          asset.ID,
+			Kind:        openapi.SignageAssetKind(asset.Kind),
+			Name:        asset.Name,
+			ContentType: asset.ContentType,
+			Sha256:      asset.SHA256,
+			SizeBytes:   asset.SizeBytes,
 			Width: nullableValue(
 				asset.Width,
 			), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
@@ -533,7 +578,9 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 		})
 	}
 	return openapi.SignagePlayerManifest{
-		Revision: manifest.Revision, DefaultPlaylistId: manifest.DefaultPlaylistID, LayoutsVersion: manifest.LayoutsVersion,
+		Revision:          manifest.Revision,
+		DefaultPlaylistId: manifest.DefaultPlaylistID,
+		LayoutsVersion:    manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
 			Orientation: openapi.SignageOrientation(manifest.Display.Orientation),
 			Resolution: openapi.SignageResolution{
@@ -647,7 +694,10 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	machines := make([]openapi.SignagePlayerLiveMachine, 0, len(live.Machines))
 	for _, machine := range live.Machines {
 		machines = append(machines, openapi.SignagePlayerLiveMachine{
-			MachineId: machine.MachineID, Name: machine.Name, State: openapi.SignagePlayerMachineState(machine.State), ProgressPercent: nullableValue(machine.ProgressPercent),
+			MachineId:       machine.MachineID,
+			Name:            machine.Name,
+			State:           openapi.SignagePlayerMachineState(machine.State),
+			ProgressPercent: nullableValue(machine.ProgressPercent),
 			RemainingMinutes: nullableValue(
 				machine.RemainingMinutes,
 			), ObservedAt: nullableTimeValue(machine.ObservedAt), Stale: machine.Stale,
@@ -656,8 +706,11 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	announcements := make([]openapi.SignagePlayerLiveAnnouncement, 0, len(live.Announcements))
 	for _, announcement := range live.Announcements {
 		announcements = append(announcements, openapi.SignagePlayerLiveAnnouncement{
-			Id: announcement.ID, TemplateId: announcement.TemplateID, Tone: openapi.SignageTone(announcement.Tone), Title: announcement.Title,
-			Body: announcement.Body, StartsAt: announcement.StartsAt, EndsAt: nullableTimeValue(announcement.EndsAt),
+			Id:         announcement.ID,
+			TemplateId: announcement.TemplateID,
+			Tone:       openapi.SignageTone(announcement.Tone),
+			Title:      announcement.Title,
+			Body:       announcement.Body, StartsAt: announcement.StartsAt, EndsAt: nullableTimeValue(announcement.EndsAt),
 		})
 	}
 	openDays, events := signageCalendarDTO(live.OpenDays, live.Events)
@@ -675,8 +728,11 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		)
 	}
 	return openapi.SignagePlayerLive{
-		ServerTime: live.ServerTime, Revision: nullableValue(live.Revision), Machines: machines, Announcements: announcements,
-		OpenDays: openDays, Events: events, Streams: streams,
+		ServerTime:    live.ServerTime,
+		Revision:      nullableValue(live.Revision),
+		Machines:      machines,
+		Announcements: announcements,
+		OpenDays:      openDays, Events: events, Streams: streams,
 	}
 }
 
@@ -739,8 +795,11 @@ func (s *Server) PostSignagePlayerHeartbeat(
 		return nil, invalidRequest("request body is required")
 	}
 	if err := s.signage.RecordHeartbeat(ctx, display, signage.Heartbeat{
-		Revision: nullableToPointer(r.Body.Revision), CurrentRule: nullableToPointer(r.Body.CurrentRule), CurrentSceneID: nullableToPointer(r.Body.CurrentSceneId),
-		PlayerVersion: nullableToPointer(r.Body.PlayerVersion), CacheUsedBytes: nullableToPointer(r.Body.CacheUsedBytes),
+		Revision:        nullableToPointer(r.Body.Revision),
+		CurrentRule:     nullableToPointer(r.Body.CurrentRule),
+		CurrentSceneID:  nullableToPointer(r.Body.CurrentSceneId),
+		PlayerVersion:   nullableToPointer(r.Body.PlayerVersion),
+		CacheUsedBytes:  nullableToPointer(r.Body.CacheUsedBytes),
 		CacheQuotaBytes: nullableToPointer(r.Body.CacheQuotaBytes), Errors: r.Body.Errors,
 	}); err != nil {
 		return nil, err

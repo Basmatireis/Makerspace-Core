@@ -19,7 +19,24 @@ func TestNormalizePublicHost(t *testing.T) {
 			t.Errorf("%q = %q, %v; want %q", input, got, err, want)
 		}
 	}
-	for _, input := range []string{"", "https://gw.example.org", "gw.example.org/path", "user@gw.example.org", "gw.example.org:", "gw.example.org:0", "gw.example.org:65536", "gw.example.org:08443", "gw example.org", "-gw.example.org", "gw..example.org", "[::1]:8443", "::1", "gw.example.org?x=1", "gw.example.org#frag", "gw_underscore.example.org"} {
+	for _, input := range []string{
+		"",
+		"https://gw.example.org",
+		"gw.example.org/path",
+		"user@gw.example.org",
+		"gw.example.org:",
+		"gw.example.org:0",
+		"gw.example.org:65536",
+		"gw.example.org:08443",
+		"gw example.org",
+		"-gw.example.org",
+		"gw..example.org",
+		"[::1]:8443",
+		"::1",
+		"gw.example.org?x=1",
+		"gw.example.org#frag",
+		"gw_underscore.example.org",
+	} {
 		if got, err := NormalizePublicHost(input); err == nil {
 			t.Errorf("%q accepted as %q", input, got)
 		}

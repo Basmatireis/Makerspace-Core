@@ -300,7 +300,11 @@ func (s *Store) Enqueue(
 		)
 	}
 	var sequence int64
-	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, assignmentID.String()).
+	err = tx.QueryRowContext(
+		ctx,
+		`SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`,
+		assignmentID.String(),
+	).
 		Scan(&sequence)
 	if errors.Is(err, sql.ErrNoRows) {
 		sequence = 1
@@ -310,7 +314,12 @@ func (s *Store) Enqueue(
 			assignmentID.String(),
 		)
 	} else if err == nil {
-		_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+1, assignmentID.String())
+		_, err = tx.ExecContext(
+			ctx,
+			`UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`,
+			sequence+1,
+			assignmentID.String(),
+		)
 	}
 	if err != nil {
 		return QueuedEvent{}, err
@@ -370,7 +379,11 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 	defer tx.Rollback()
 	for _, event := range events {
 		var attempt int
-		if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, event.EventID.String()).Scan(&attempt); errors.Is(
+		if err = tx.QueryRowContext(
+			ctx,
+			`SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`,
+			event.EventID.String(),
+		).Scan(&attempt); errors.Is(
 			err,
 			sql.ErrNoRows,
 		) {
@@ -412,7 +425,19 @@ func (s *Store) Pending(ctx context.Context, limit int) ([]QueuedEvent, error) {
 		var event QueuedEvent
 		var runID, external sql.NullString
 		var revision sql.NullInt64
-		if err = rows.Scan(&eventID, &assignmentID, &event.ConfigurationVersion, &event.Sequence, &occurred, &event.Kind, &runID, &event.HistoryComplete, &external, &revision, &event.Payload); err != nil {
+		if err = rows.Scan(
+			&eventID,
+			&assignmentID,
+			&event.ConfigurationVersion,
+			&event.Sequence,
+			&occurred,
+			&event.Kind,
+			&runID,
+			&event.HistoryComplete,
+			&external,
+			&revision,
+			&event.Payload,
+		); err != nil {
 			return nil, err
 		}
 		event.EventID, err = uuid.Parse(eventID)
@@ -464,7 +489,11 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 			)
 		case "retry":
 			var attempt int
-			if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, receipt.EventID.String()).Scan(&attempt); errors.Is(
+			if err = tx.QueryRowContext(
+				ctx,
+				`SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`,
+				receipt.EventID.String(),
+			).Scan(&attempt); errors.Is(
 				err,
 				sql.ErrNoRows,
 			) {
@@ -493,7 +522,10 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 }
 
 func (s *Store) QueueCounts(ctx context.Context) (pending, quarantined int64, err error) {
-	err = s.db.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`).
+	err = s.db.QueryRowContext(
+		ctx,
+		`SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`,
+	).
 		Scan(&pending, &quarantined)
 	return
 }

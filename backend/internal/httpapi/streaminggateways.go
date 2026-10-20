@@ -69,10 +69,15 @@ func streamingGatewayDTO(value streaminggateways.Gateway) openapi.StreamingGatew
 		health = nullable.NewNullableWithValue(openapi.StreamingGatewayHealthState(*value.HealthState))
 	}
 	return openapi.StreamingGateway{
-		Id: value.ID, Name: value.Name, PublicHost: value.PublicHost, Lifecycle: openapi.StreamingGatewayLifecycle(value.Lifecycle),
+		Id:                    value.ID,
+		Name:                  value.Name,
+		PublicHost:            value.PublicHost,
+		Lifecycle:             openapi.StreamingGatewayLifecycle(value.Lifecycle),
 		ConfigurationRevision: value.ConfigurationRevision, AppliedConfigurationRevision: value.AppliedRevison,
 		SoftwareVersion: nullableString(value.SoftwareVersion), ProtocolVersion: nullableValue(value.ProtocolVersion),
-		HealthState: health, HealthSummary: nullableString(value.HealthSummary), LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
+		HealthState:     health,
+		HealthSummary:   nullableString(value.HealthSummary),
+		LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
 		EnrolledAt: nullableValue(
 			value.EnrolledAt,
 		), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt), CredentialExpiresAt: nullableValue(value.CredentialExpiresAt),
@@ -89,8 +94,14 @@ func nullableFloat32(value *float64) nullable.Nullable[float32] {
 
 func streamingCameraDTO(value streaminggateways.Camera) openapi.StreamingCamera {
 	return openapi.StreamingCamera{
-		Id: value.ID, GatewayId: value.GatewayID, GatewayName: value.GatewayName, GatewayLifecycle: openapi.StreamingGatewayLifecycle(value.GatewayLifecycle),
-		MachineId: value.MachineID, MachineName: value.MachineName, Enabled: value.Enabled, Health: openapi.StreamingCameraHealth(value.Health),
+		Id:               value.ID,
+		GatewayId:        value.GatewayID,
+		GatewayName:      value.GatewayName,
+		GatewayLifecycle: openapi.StreamingGatewayLifecycle(value.GatewayLifecycle),
+		MachineId:        value.MachineID,
+		MachineName:      value.MachineName,
+		Enabled:          value.Enabled,
+		Health:           openapi.StreamingCameraHealth(value.Health),
 		Viewers: nullableValue(
 			value.Viewers,
 		), Codec: nullableString(value.Codec), Width: nullableValue(value.Width), Height: nullableValue(value.Height),
@@ -203,7 +214,13 @@ func (s *Server) DeleteStreamingGateway(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.streamingGateways.Delete(ctx, principal, request.StreamingGatewayId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.streamingGateways.Delete(
+		ctx,
+		principal,
+		request.StreamingGatewayId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteStreamingGateway204Response{}, nil
@@ -331,7 +348,13 @@ func (s *Server) DeleteStreamingGatewayCamera(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.streamingGateways.DeleteCamera(ctx, principal, request.StreamingGatewayId, request.CameraId, requestIDPointer(ctx)); err != nil {
+	if err = s.streamingGateways.DeleteCamera(
+		ctx,
+		principal,
+		request.StreamingGatewayId,
+		request.CameraId,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteStreamingGatewayCamera204Response{}, nil
@@ -496,7 +519,9 @@ func (s *Server) ReportStreamingGatewayHeartbeat(
 		)
 	}
 	item, err := s.streamingGateways.Heartbeat(ctx, gateway, streaminggateways.Heartbeat{
-		SoftwareVersion: request.Body.SoftwareVersion, ProtocolVersion: request.Body.ProtocolVersion, AppliedConfigurationRevision: request.Body.AppliedConfigurationRevision,
+		SoftwareVersion:              request.Body.SoftwareVersion,
+		ProtocolVersion:              request.Body.ProtocolVersion,
+		AppliedConfigurationRevision: request.Body.AppliedConfigurationRevision,
 		HealthState: string(
 			request.Body.HealthState,
 		), HealthSummary: nullableStringPointer(request.Body.HealthSummary), Cameras: cameras,

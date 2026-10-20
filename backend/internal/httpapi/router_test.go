@@ -170,7 +170,9 @@ func TestVisitorEnrollmentCookiesUseStrictOneReadableCSRFPattern(t *testing.T) {
 	cfg.EnrollmentCookieName = "__Host-makerspace_enrollment"
 	cfg.EnrollmentCSRFName = "__Host-makerspace_enrollment_csrf"
 	response := visitorContextCookieResponse{config: cfg, issue: visitor.ContextIssue{
-		ContextToken: "enrollment-context-token", CSRFToken: "enrollment-csrf-token", ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
+		ContextToken: "enrollment-context-token",
+		CSRFToken:    "enrollment-csrf-token",
+		ExpiresAt:    time.Now().UTC().Add(15 * time.Minute),
 	}}
 	recorder := httptest.NewRecorder()
 	if err := response.VisitBeginVisitorEnrollmentResponse(recorder); err != nil {
@@ -689,7 +691,15 @@ func TestAccessLogBoundsUserAgentAndOmitsSensitiveInputs(t *testing.T) {
 		headers,
 		nil,
 	)
-	for _, forbidden := range []string{secret, "Authorization", "Cookie", "private@example.test", "Private Person", "super-secret-password", "one-time-token"} {
+	for _, forbidden := range []string{
+		secret,
+		"Authorization",
+		"Cookie",
+		"private@example.test",
+		"Private Person",
+		"super-secret-password",
+		"one-time-token",
+	} {
 		if strings.Contains(raw, forbidden) {
 			t.Fatalf("request log exposed %q: %s", forbidden, raw)
 		}
@@ -724,7 +734,12 @@ func TestManagedDeviceApplicationModeBoundaries(t *testing.T) {
 	if managedDeviceAllowsMode(visitorOnly, "staff_ui") || !managedDeviceAllowsMode(staff, "staff_ui") {
 		t.Fatal("staff UI mode was not enforced")
 	}
-	for _, path := range []string{apiBasePath + "/auth/login", apiBasePath + "/auth/pin/login", apiBasePath + "/auth/oidc/company/start", apiBasePath + "/auth/oidc/callback"} {
+	for _, path := range []string{
+		apiBasePath + "/auth/login",
+		apiBasePath + "/auth/pin/login",
+		apiBasePath + "/auth/oidc/company/start",
+		apiBasePath + "/auth/oidc/callback",
+	} {
 		if !isStaffSessionEntryPath(path) {
 			t.Fatalf("staff session entry path was not classified: %s", path)
 		}

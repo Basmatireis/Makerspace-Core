@@ -80,7 +80,11 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	expectAppCode(t, err, "duplicate_open_day")
 	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 1, period.ID)
 	var version int64
-	if err := pool.QueryRow(ctx, `SELECT version FROM open_day_periods WHERE id = $1`, period.ID).Scan(&version); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT version FROM open_day_periods WHERE id = $1`,
+		period.ID,
+	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
 	if version != 2 {
@@ -113,13 +117,27 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	}
 	readerAccount := seedAccount(t, pool, "open-days-reader", false)
 	readerRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'Open Days reader')`, readerRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO roles (id, name) VALUES ($1, 'Open Days reader')`,
+		readerRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`, readerRoleID, authorization.OpenDaysRead); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`,
+		readerRoleID,
+		authorization.OpenDaysRead,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, readerAccount.personID, readerRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		readerAccount.personID,
+		readerRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := authorization.LoadPermissionsFrom(
@@ -294,7 +312,14 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.TransitionPeriod(ctx, manager, period.ID, schedule.Period.Version, "staffing", nil); err != nil {
+	if _, err := service.TransitionPeriod(
+		ctx,
+		manager,
+		period.ID,
+		schedule.Period.Version,
+		"staffing",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	day := schedule.Items[0]
@@ -366,7 +391,14 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.TransitionPeriod(ctx, manager, period.ID, schedule.Period.Version, "staffing", nil); err != nil {
+	if _, err := service.TransitionPeriod(
+		ctx,
+		manager,
+		period.ID,
+		schedule.Period.Version,
+		"staffing",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	supervisorRequirement := func(day opendays.OpenDay) uuid.UUID {
@@ -378,13 +410,34 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 		t.Fatalf("Open Day %s has no supervisor requirement", day.ID)
 		return uuid.Nil
 	}
-	if _, err := service.Assign(ctx, manager, schedule.Items[0].ID, supervisorRequirement(schedule.Items[0]), managerAccount.personID, nil); err != nil {
+	if _, err := service.Assign(
+		ctx,
+		manager,
+		schedule.Items[0].ID,
+		supervisorRequirement(schedule.Items[0]),
+		managerAccount.personID,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Assign(ctx, manager, schedule.Items[2].ID, supervisorRequirement(schedule.Items[2]), managerAccount.personID, nil); err != nil {
+	if _, err := service.Assign(
+		ctx,
+		manager,
+		schedule.Items[2].ID,
+		supervisorRequirement(schedule.Items[2]),
+		managerAccount.personID,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Assign(ctx, manager, schedule.Items[2].ID, supervisorRequirement(schedule.Items[2]), secondSupervisor.personID, nil); err != nil {
+	if _, err := service.Assign(
+		ctx,
+		manager,
+		schedule.Items[2].ID,
+		supervisorRequirement(schedule.Items[2]),
+		secondSupervisor.personID,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	summary, err := service.GetPeriod(ctx, manager, period.ID)
@@ -499,7 +552,13 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Join(ctx, manager, schedule.Items[0].ID, schedule.Items[0].Requirements[0].ID, nil); err != nil {
+	if _, err := service.Join(
+		ctx,
+		manager,
+		schedule.Items[0].ID,
+		schedule.Items[0].Requirements[0].ID,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := service.DeletePeriod(ctx, manager, staffed.ID, staffing.Version, nil); err != nil {
@@ -585,7 +644,16 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 	}
 
 	publicHolidayPreview, err := service.PreviewRecurrence(ctx, manager, period.ID, opendays.RecurrenceInput{
-		Weekday: 1, StartsOn: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
+		Weekday: 1, StartsOn: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(
+			2026,
+			10,
+			26,
+			0,
+			0,
+			0,
+			0,
+			time.UTC,
+		),
 		StartTime: "16:00", EndTime: "19:00", EveryWeeks: 1, SkipPublicHolidays: true, SkipAcademicBreaks: true,
 	})
 	if err != nil {
@@ -595,7 +663,16 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 		t.Fatalf("public holiday preview = %#v", publicHolidayPreview)
 	}
 	academicBreakPreview, err := service.PreviewRecurrence(ctx, manager, period.ID, opendays.RecurrenceInput{
-		Weekday: 1, StartsOn: time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC),
+		Weekday: 1, StartsOn: time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(
+			2026,
+			12,
+			28,
+			0,
+			0,
+			0,
+			0,
+			time.UTC,
+		),
 		StartTime: "16:00", EndTime: "19:00", EveryWeeks: 1, SkipPublicHolidays: true, SkipAcademicBreaks: true,
 	})
 	if err != nil {

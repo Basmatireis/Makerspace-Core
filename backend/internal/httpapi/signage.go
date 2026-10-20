@@ -280,9 +280,14 @@ func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
 		zones[key] = widget
 	}
 	return openapi.SignageScene{
-		Id: scene.ID, Name: scene.Name, Orientation: openapi.SignageOrientation(scene.Orientation), LayoutId: openapi.SignageLayoutId(scene.LayoutID),
-		BackgroundColor: scene.BackgroundColor, BackgroundAssetId: nullableValue(scene.BackgroundAssetID), BackgroundFit: openapi.SignageFit(scene.BackgroundFit),
-		BackgroundDim: scene.BackgroundDim, Theme: openapi.SignageSceneTheme(scene.Theme), Zones: zones,
+		Id:                scene.ID,
+		Name:              scene.Name,
+		Orientation:       openapi.SignageOrientation(scene.Orientation),
+		LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
+		BackgroundColor:   scene.BackgroundColor,
+		BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
+		BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
+		BackgroundDim:     scene.BackgroundDim, Theme: openapi.SignageSceneTheme(scene.Theme), Zones: zones,
 		Version: scene.Version, CreatedAt: scene.CreatedAt, UpdatedAt: scene.UpdatedAt,
 	}, nil
 }
@@ -326,7 +331,10 @@ func (s *Server) CreateSignageScene(
 		return nil, err
 	}
 	scene, err := s.signage.CreateScene(ctx, p, signage.SceneInput{
-		Name: r.Body.Name, Orientation: string(r.Body.Orientation), LayoutID: string(r.Body.LayoutId), BackgroundColor: r.Body.BackgroundColor,
+		Name:            r.Body.Name,
+		Orientation:     string(r.Body.Orientation),
+		LayoutID:        string(r.Body.LayoutId),
+		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
 		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
@@ -377,7 +385,10 @@ func (s *Server) UpdateSignageScene(
 		return nil, err
 	}
 	scene, err := s.signage.UpdateScene(ctx, p, r.SceneId, r.Body.ExpectedVersion, signage.SceneInput{
-		Name: r.Body.Name, Orientation: string(r.Body.Orientation), LayoutID: string(r.Body.LayoutId), BackgroundColor: r.Body.BackgroundColor,
+		Name:            r.Body.Name,
+		Orientation:     string(r.Body.Orientation),
+		LayoutID:        string(r.Body.LayoutId),
+		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
 		), BackgroundFit: string(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
@@ -538,7 +549,13 @@ func (s *Server) DeleteSignagePlaylist(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.signage.DeletePlaylist(ctx, p, r.PlaylistId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.signage.DeletePlaylist(
+		ctx,
+		p,
+		r.PlaylistId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteSignagePlaylist204Response{}, nil
@@ -555,7 +572,11 @@ func signageTemplateDTO(template signage.Template) openapi.SignageAnnouncementTe
 		})
 	}
 	return openapi.SignageAnnouncementTemplate{
-		Id: template.ID, Name: template.Name, Tone: openapi.SignageTone(template.Tone), Title: template.Title, Body: template.Body,
+		Id:     template.ID,
+		Name:   template.Name,
+		Tone:   openapi.SignageTone(template.Tone),
+		Title:  template.Title,
+		Body:   template.Body,
 		Fields: fields, Version: template.Version, CreatedAt: template.CreatedAt, UpdatedAt: template.UpdatedAt,
 	}
 }
@@ -602,7 +623,11 @@ func (s *Server) CreateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.CreateTemplate(ctx, p, signage.TemplateInput{
-		Name: r.Body.Name, Tone: string(r.Body.Tone), Title: r.Body.Title, Body: r.Body.Body, Fields: signageTemplateFields(r.Body.Fields),
+		Name:   r.Body.Name,
+		Tone:   string(r.Body.Tone),
+		Title:  r.Body.Title,
+		Body:   r.Body.Body,
+		Fields: signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -637,7 +662,11 @@ func (s *Server) UpdateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.UpdateTemplate(ctx, p, r.TemplateId, r.Body.ExpectedVersion, signage.TemplateInput{
-		Name: r.Body.Name, Tone: string(r.Body.Tone), Title: r.Body.Title, Body: r.Body.Body, Fields: signageTemplateFields(r.Body.Fields),
+		Name:   r.Body.Name,
+		Tone:   string(r.Body.Tone),
+		Title:  r.Body.Title,
+		Body:   r.Body.Body,
+		Fields: signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -656,7 +685,13 @@ func (s *Server) DeleteSignageAnnouncementTemplate(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.signage.DeleteTemplate(ctx, p, r.TemplateId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.signage.DeleteTemplate(
+		ctx,
+		p,
+		r.TemplateId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteSignageAnnouncementTemplate204Response{}, nil
@@ -668,8 +703,14 @@ func signageAnnouncementDTO(item signage.Announcement) openapi.SignageAnnounceme
 	displayIDs := make([]openapi.UUIDv7, 0, len(item.DisplayIDs))
 	displayIDs = append(displayIDs, item.DisplayIDs...)
 	return openapi.SignageAnnouncement{
-		Id: item.ID, TemplateId: item.TemplateID, Values: item.Values, AllDisplays: item.AllDisplays, DisplayIds: displayIDs,
-		StartsAt: item.StartsAt, EndsAt: nullableValue(item.EndsAt), Status: openapi.SignageAnnouncementStatus(item.Status),
+		Id:          item.ID,
+		TemplateId:  item.TemplateID,
+		Values:      item.Values,
+		AllDisplays: item.AllDisplays,
+		DisplayIds:  displayIDs,
+		StartsAt:    item.StartsAt,
+		EndsAt:      nullableValue(item.EndsAt),
+		Status:      openapi.SignageAnnouncementStatus(item.Status),
 		Rendered: openapi.SignageRenderedMessage{
 			Title: item.Rendered.Title,
 			Body:  item.Rendered.Body,
@@ -712,8 +753,11 @@ func (s *Server) StartSignageAnnouncement(
 		return nil, invalidRequest("request body is required")
 	}
 	item, err := s.signage.StartAnnouncement(ctx, p, signage.AnnouncementInput{
-		TemplateID: r.Body.TemplateId, Values: r.Body.Values, AllDisplays: r.Body.AllDisplays, DisplayIDs: uuidSlice(r.Body.DisplayIds),
-		StartsAt: r.Body.StartsAt, EndsAt: nullableTime(r.Body.EndsAt),
+		TemplateID:  r.Body.TemplateId,
+		Values:      r.Body.Values,
+		AllDisplays: r.Body.AllDisplays,
+		DisplayIDs:  uuidSlice(r.Body.DisplayIds),
+		StartsAt:    r.Body.StartsAt, EndsAt: nullableTime(r.Body.EndsAt),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -754,7 +798,11 @@ func (s *Server) UpdateSignageAnnouncement(
 		r.AnnouncementId,
 		r.Body.ExpectedVersion,
 		signage.AnnouncementInput{
-			Values: r.Body.Values, AllDisplays: r.Body.AllDisplays, DisplayIDs: uuidSlice(r.Body.DisplayIds), StartsAt: &startsAt, EndsAt: nullableTime(r.Body.EndsAt),
+			Values:      r.Body.Values,
+			AllDisplays: r.Body.AllDisplays,
+			DisplayIDs:  uuidSlice(r.Body.DisplayIds),
+			StartsAt:    &startsAt,
+			EndsAt:      nullableTime(r.Body.EndsAt),
 		},
 		requestIDPointer(ctx),
 	)
@@ -775,7 +823,13 @@ func (s *Server) StopSignageAnnouncement(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.signage.StopAnnouncement(ctx, p, r.AnnouncementId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.signage.StopAnnouncement(
+		ctx,
+		p,
+		r.AnnouncementId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.StopSignageAnnouncement204Response{}, nil

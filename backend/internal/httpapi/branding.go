@@ -50,7 +50,9 @@ func (s *Server) GetPublicBrandingAsset(
 		return nil, err
 	}
 	headers := openapi.GetPublicBrandingAsset200ResponseHeaders{
-		CacheControl: "public, max-age=31536000, immutable", ETag: `"` + request.Sha256 + `"`, XContentTypeOptions: "nosniff",
+		CacheControl:          "public, max-age=31536000, immutable",
+		ETag:                  `"` + request.Sha256 + `"`,
+		XContentTypeOptions:   "nosniff",
 		ContentSecurityPolicy: "default-src 'none'; style-src 'none'; sandbox",
 	}
 	switch asset.ContentType {
@@ -257,7 +259,10 @@ func publicBrandingConfigurationDTO(value branding.Configuration, timeZone strin
 		return openapi.PublicLegalLink{Mode: openapi.PublicLegalLinkMode(value.Mode), Href: href}
 	}
 	return openapi.PublicConfiguration{
-		TimeZone: timeZone, Identity: brandingIdentityDTO(value.Identity), Colors: brandingColorsDTO(value.Colors), Version: value.Version,
+		TimeZone: timeZone,
+		Identity: brandingIdentityDTO(value.Identity),
+		Colors:   brandingColorsDTO(value.Colors),
+		Version:  value.Version,
 		Assets: openapi.PublicBrandingAssets{
 			LogoUrl: nullableString(
 				value.Assets[branding.Logo].URL,

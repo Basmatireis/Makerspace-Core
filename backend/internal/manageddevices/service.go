@@ -227,11 +227,25 @@ func (s *Service) ReportHardware(
 		return HardwareContext{}, err
 	}
 	for _, capability := range report.Capabilities {
-		if err = q.AddReportedDeviceCapability(ctx, manageddevicesdb.AddReportedDeviceCapabilityParams{ManagedDeviceID: device.ID, Capability: capability}); err != nil {
+		if err = q.AddReportedDeviceCapability(
+			ctx,
+			manageddevicesdb.AddReportedDeviceCapabilityParams{ManagedDeviceID: device.ID, Capability: capability},
+		); err != nil {
 			return HardwareContext{}, databaseError(err)
 		}
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: "unknown", Action: "managed_device.hardware_reported", ResourceType: "managed_device", ResourceID: &device.ID, RequestID: requestID, ChangedFields: []string{"platform", "bridgeVersion", "reportedCapabilities"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "unknown",
+			Action:        "managed_device.hardware_reported",
+			ResourceType:  "managed_device",
+			ResourceID:    &device.ID,
+			RequestID:     requestID,
+			ChangedFields: []string{"platform", "bridgeVersion", "reportedCapabilities"},
+		},
+	); err != nil {
 		return HardwareContext{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -474,7 +488,10 @@ func (s *Service) UpdateConfigured(
 		return Device{}, err
 	}
 	for _, capability := range settings.Capabilities {
-		if err = q.AddDeviceCapability(ctx, manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: id, Capability: capability}); err != nil {
+		if err = q.AddDeviceCapability(
+			ctx,
+			manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: id, Capability: capability},
+		); err != nil {
 			return Device{}, err
 		}
 	}
@@ -486,7 +503,27 @@ func (s *Service) UpdateConfigured(
 		}
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.updated", ResourceType: "managed_device", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "deviceTypeId", "expiresAt", "sessionPolicyId", "terminalEnabled", "allowedApplicationModes", "attendancePolicy", "capabilities"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "managed_device.updated",
+			ResourceType:   "managed_device",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields: []string{
+				"name",
+				"deviceTypeId",
+				"expiresAt",
+				"sessionPolicyId",
+				"terminalEnabled",
+				"allowedApplicationModes",
+				"attendancePolicy",
+				"capabilities",
+			},
+		},
+	); err != nil {
 		return Device{}, err
 	}
 	view, err := q.GetManagedDevice(ctx, id)
@@ -533,11 +570,24 @@ func (s *Service) Delete(
 	if !current.RevokedAt.Valid {
 		return apperror.New(409, "managed_device_not_revoked", "A managed device must be revoked before deletion")
 	}
-	if _, err = q.DeleteManagedDevice(ctx, manageddevicesdb.DeleteManagedDeviceParams{ID: id, ExpectedVersion: version}); err != nil {
+	if _, err = q.DeleteManagedDevice(
+		ctx,
+		manageddevicesdb.DeleteManagedDeviceParams{ID: id, ExpectedVersion: version},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.deleted", ResourceType: "managed_device", ResourceID: &id, RequestID: requestID}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "managed_device.deleted",
+			ResourceType:   "managed_device",
+			ResourceID:     &id,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -563,12 +613,26 @@ func (s *Service) CreateType(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	row, err := manageddevicesdb.New(tx).
-		CreateDeviceType(ctx, manageddevicesdb.CreateDeviceTypeParams{ID: uuid.Must(uuid.NewV7()), Name: name, Description: description})
+		CreateDeviceType(
+			ctx,
+			manageddevicesdb.CreateDeviceTypeParams{ID: uuid.Must(uuid.NewV7()), Name: name, Description: description},
+		)
 	if err != nil {
 		return DeviceType{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "device_type.created", ResourceType: "device_type", ResourceID: &row.ID, RequestID: requestID, ChangedFields: []string{"name", "description"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "device_type.created",
+			ResourceType:   "device_type",
+			ResourceID:     &row.ID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"name", "description"},
+		},
+	); err != nil {
 		return DeviceType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -637,7 +701,10 @@ func (s *Service) CreateConfigured(
 	row, err := q.CreateManagedDevice(
 		ctx,
 		manageddevicesdb.CreateManagedDeviceParams{ID: uuid.Must(uuid.NewV7()), Name: name,
-			DeviceTypeID: typeID, TokenDigest: digest, ExpiresAt: timestamp(expiresAt), SessionPolicyID: settings.SessionPolicyID,
+			DeviceTypeID:    typeID,
+			TokenDigest:     digest,
+			ExpiresAt:       timestamp(expiresAt),
+			SessionPolicyID: settings.SessionPolicyID,
 			TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: settings.CheckInAssurance,
 			AllowedAppModes:   settings.AllowedApplicationModes,
 			CheckOutAssurance: settings.CheckOutAssurance, CheckoutMode: settings.CheckoutMode},
@@ -646,12 +713,35 @@ func (s *Service) CreateConfigured(
 		return ProvisionedDevice{}, databaseError(err)
 	}
 	for _, capability := range settings.Capabilities {
-		if err = q.AddDeviceCapability(ctx, manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: row.ID, Capability: capability}); err != nil {
+		if err = q.AddDeviceCapability(
+			ctx,
+			manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: row.ID, Capability: capability},
+		); err != nil {
 			return ProvisionedDevice{}, err
 		}
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.created", ResourceType: "managed_device", ResourceID: &row.ID, RequestID: requestID, ChangedFields: []string{"name", "deviceTypeId", "expiresAt", "sessionPolicyId", "terminalEnabled", "allowedApplicationModes", "attendancePolicy", "capabilities"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "managed_device.created",
+			ResourceType:   "managed_device",
+			ResourceID:     &row.ID,
+			RequestID:      requestID,
+			ChangedFields: []string{
+				"name",
+				"deviceTypeId",
+				"expiresAt",
+				"sessionPolicyId",
+				"terminalEnabled",
+				"allowedApplicationModes",
+				"attendancePolicy",
+				"capabilities",
+			},
+		},
+	); err != nil {
 		return ProvisionedDevice{}, err
 	}
 	view, err := q.GetManagedDevice(ctx, row.ID)
@@ -707,7 +797,18 @@ func (s *Service) UpdateType(
 		return DeviceType{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "device_type.updated", ResourceType: "device_type", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "description"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "device_type.updated",
+			ResourceType:   "device_type",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"name", "description"},
+		},
+	); err != nil {
 		return DeviceType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -748,7 +849,17 @@ func (s *Service) DeleteType(
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "device_type.deleted", ResourceType: "device_type", ResourceID: &id, RequestID: requestID}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "device_type.deleted",
+			ResourceType:   "device_type",
+			ResourceID:     &id,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -796,7 +907,18 @@ func (s *Service) Revoke(
 		return Device{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.revoked", ResourceType: "managed_device", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"revokedAt"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "managed_device.revoked",
+			ResourceType:   "managed_device",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"revokedAt"},
+		},
+	); err != nil {
 		return Device{}, err
 	}
 	view, err := q.GetManagedDevice(ctx, id)
@@ -878,7 +1000,18 @@ func (s *Service) Rotate(
 		return ProvisionedDevice{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.token_rotated", ResourceType: "managed_device", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"expiresAt"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "managed_device.token_rotated",
+			ResourceType:   "managed_device",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"expiresAt"},
+		},
+	); err != nil {
 		return ProvisionedDevice{}, err
 	}
 	view, err := q.GetManagedDevice(ctx, row.ID)
@@ -906,7 +1039,9 @@ func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 		ExpiresAt: timePointer(
 			row.ExpiresAt,
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
-		SessionPolicyID: row.SessionPolicyID, TerminalEnabled: row.TerminalEnabled, CheckInAssurance: row.CheckInAssurance,
+		SessionPolicyID:         row.SessionPolicyID,
+		TerminalEnabled:         row.TerminalEnabled,
+		CheckInAssurance:        row.CheckInAssurance,
 		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
 		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
@@ -916,7 +1051,9 @@ func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
 		ExpiresAt: timePointer(
 			row.ExpiresAt,
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
-		SessionPolicyID: row.SessionPolicyID, TerminalEnabled: row.TerminalEnabled, CheckInAssurance: row.CheckInAssurance,
+		SessionPolicyID:         row.SessionPolicyID,
+		TerminalEnabled:         row.TerminalEnabled,
+		CheckInAssurance:        row.CheckInAssurance,
 		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
 		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
@@ -1000,7 +1137,17 @@ func (s *Service) CreateSessionPolicy(
 		return SessionPolicy{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "session_policy.created", ResourceType: "session_policy", ResourceID: &id, RequestID: requestID}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "session_policy.created",
+			ResourceType:   "session_policy",
+			ResourceID:     &id,
+			RequestID:      requestID,
+		},
+	); err != nil {
 		return SessionPolicy{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1063,7 +1210,9 @@ func (s *Service) UpdateSessionPolicy(
 	}
 	row, err := q.UpdateSessionPolicy(ctx, manageddevicesdb.UpdateSessionPolicyParams{ID: id, Name: input.Name,
 		IdleTimeoutSeconds: input.IdleTimeoutSeconds, AbsoluteLifetimeSeconds: input.AbsoluteLifetimeSeconds,
-		PostSessionDestination: input.PostSessionDestination, IsDefault: input.IsDefault, ExpectedVersion: input.ExpectedVersion})
+		PostSessionDestination: input.PostSessionDestination,
+		IsDefault:              input.IsDefault,
+		ExpectedVersion:        input.ExpectedVersion})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SessionPolicy{}, apperror.StaleWrite
 	}
@@ -1074,7 +1223,24 @@ func (s *Service) UpdateSessionPolicy(
 		return SessionPolicy{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "session_policy.updated", ResourceType: "session_policy", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "idleTimeoutSeconds", "absoluteLifetimeSeconds", "postSessionDestination", "isDefault"}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "session_policy.updated",
+			ResourceType:   "session_policy",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields: []string{
+				"name",
+				"idleTimeoutSeconds",
+				"absoluteLifetimeSeconds",
+				"postSessionDestination",
+				"isDefault",
+			},
+		},
+	); err != nil {
 		return SessionPolicy{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

@@ -12,7 +12,13 @@ import (
 )
 
 func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.T) {
-	for _, scenario := range []string{"provisional", "established", "permitted_roles", "missing_assignment", "forbidden_subset"} {
+	for _, scenario := range []string{
+		"provisional",
+		"established",
+		"permitted_roles",
+		"missing_assignment",
+		"forbidden_subset",
+	} {
 		t.Run(scenario, func(t *testing.T) {
 			pool := migratedPool(t)
 			ctx := testContext(t)
@@ -54,7 +60,11 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 				t.Fatal(err)
 			}
 			var source, sourcePerson uuid.UUID
-			if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&source, &sourcePerson); err != nil {
+			if err := pool.QueryRow(
+				ctx,
+				`SELECT account_id,person_id FROM scim_users WHERE id=$1`,
+				user.ID,
+			).Scan(&source, &sourcePerson); err != nil {
 				t.Fatal(err)
 			}
 			grants := []authorization.PermissionGrant{
@@ -83,7 +93,12 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, actor.personID, actorRole.ID); err != nil {
+			if _, err := pool.Exec(
+				ctx,
+				`INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`,
+				actor.personID,
+				actorRole.ID,
+			); err != nil {
 				t.Fatal(err)
 			}
 			var sourceRole uuid.UUID
@@ -102,12 +117,21 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 					t.Fatal(err)
 				}
 				sourceRole = role.ID
-				if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, sourcePerson, sourceRole); err != nil {
+				if _, err := pool.Exec(
+					ctx,
+					`INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`,
+					sourcePerson,
+					sourceRole,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if scenario == "established" {
-				if _, err := pool.Exec(ctx, `UPDATE accounts SET first_authenticated_at=now() WHERE id=$1`, source); err != nil {
+				if _, err := pool.Exec(
+					ctx,
+					`UPDATE accounts SET first_authenticated_at=now() WHERE id=$1`,
+					source,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -162,8 +186,21 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 				}
 				assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, source)
 				assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, sourcePerson)
-				assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`, 1, user.ID, source)
-				assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='source-subject'`, 1, source)
+				assertCount(
+					t,
+					pool,
+					`SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`,
+					1,
+					user.ID,
+					source,
+				)
+				assertCount(
+					t,
+					pool,
+					`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='source-subject'`,
+					1,
+					source,
+				)
 				assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, target.personID)
 				assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='scim.account_reconciled'`, 0)
 			}

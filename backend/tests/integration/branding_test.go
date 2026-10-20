@@ -98,7 +98,10 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 
 	var changedFields []string
 	var metadata string
-	if err := pool.QueryRow(ctx, `SELECT changed_fields, metadata::text FROM audit_events WHERE action='branding.configuration_updated' ORDER BY occurred_at DESC LIMIT 1`).Scan(&changedFields, &metadata); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT changed_fields, metadata::text FROM audit_events WHERE action='branding.configuration_updated' ORDER BY occurred_at DESC LIMIT 1`,
+	).Scan(&changedFields, &metadata); err != nil {
 		t.Fatal(err)
 	}
 	if len(changedFields) != 4 || metadata != "{}" || strings.Contains(metadata, "example.test") ||
@@ -161,10 +164,16 @@ func TestBrandingConfigurationAssetsAndAuditLifecycle(t *testing.T) {
 		t.Fatalf("default was not restored: %#v", restored.Assets[branding.Logo])
 	}
 
-	if _, err := pool.Exec(ctx, `CREATE FUNCTION reject_branding_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='branding.configuration_updated' THEN RAISE EXCEPTION 'forced branding audit failure'; END IF; RETURN NEW; END; $$`); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`CREATE FUNCTION reject_branding_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='branding.configuration_updated' THEN RAISE EXCEPTION 'forced branding audit failure'; END IF; RETURN NEW; END; $$`,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `CREATE TRIGGER reject_branding_audit_insert BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_branding_audit()`); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`CREATE TRIGGER reject_branding_audit_insert BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_branding_audit()`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	input.ExpectedVersion = restored.Version

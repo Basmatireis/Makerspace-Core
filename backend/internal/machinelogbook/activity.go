@@ -101,7 +101,14 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 					EndsAt:    nullableTime(current.EndsAt),
 				}
 			} else {
-				item.Current = &MachineCurrentItem{Kind: "run", ID: current.ID, DisplayID: current.DisplayID, FileName: current.FileName, StartedAt: current.StartedAt.UTC(), EndsAt: nullableTime(current.EndsAt)}
+				item.Current = &MachineCurrentItem{
+					Kind:      "run",
+					ID:        current.ID,
+					DisplayID: current.DisplayID,
+					FileName:  current.FileName,
+					StartedAt: current.StartedAt.UTC(),
+					EndsAt:    nullableTime(current.EndsAt),
+				}
 			}
 		}
 		result = append(result, item)

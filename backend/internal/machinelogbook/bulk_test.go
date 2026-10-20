@@ -57,7 +57,10 @@ func (f *jobFixture) putOnOrder(t *testing.T, job MachineJob) {
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO orders (id, reference, customer_kind, fulfillment_mode) VALUES ($1, $2, 'anonymous', 'deferred')`, []any{orderID, reference}},
+		{
+			`INSERT INTO orders (id, reference, customer_kind, fulfillment_mode) VALUES ($1, $2, 'anonymous', 'deferred')`,
+			[]any{orderID, reference},
+		},
 		{`INSERT INTO order_items (id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot)
 			VALUES ($1, $2, 1, 'machine_job', 'Job', 1, 'job', 1, 1, $3, $4, '{}'::jsonb)`, []any{itemID, orderID, job.ID, job.Version}},
 		{`INSERT INTO order_job_claims (machine_job_id, order_item_id) VALUES ($1, $2)`, []any{job.ID, itemID}},
@@ -98,7 +101,11 @@ func (h *runHarness) unassigned(t *testing.T, machine uuid.UUID, offset time.Dur
 func (h *runHarness) jobCount(t *testing.T, machine uuid.UUID) int {
 	t.Helper()
 	var count int
-	if err := h.pool.QueryRow(t.Context(), `SELECT count(*) FROM machine_jobs WHERE machine_id = $1 AND deleted_at IS NULL`, machine).Scan(&count); err != nil {
+	if err := h.pool.QueryRow(
+		t.Context(),
+		`SELECT count(*) FROM machine_jobs WHERE machine_id = $1 AND deleted_at IS NULL`,
+		machine,
+	).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	return count
@@ -115,8 +122,14 @@ func TestBulkDeleteAuthorizationAndValidation(t *testing.T) {
 	job := f.manualJob(t, -10*time.Hour, "")
 	input := BulkDeleteInput{Jobs: []BulkItem{f.item(job)}}
 	for name, principal := range map[string]authorization.Principal{
-		"no permission":     {AccountID: f.p.AccountID},
-		"create, edit only": restrictedPrincipal(t, f.pool, authorization.MachineJobsRead, authorization.MachineJobsEdit, authorization.MachineJobsCreate),
+		"no permission": {AccountID: f.p.AccountID},
+		"create, edit only": restrictedPrincipal(
+			t,
+			f.pool,
+			authorization.MachineJobsRead,
+			authorization.MachineJobsEdit,
+			authorization.MachineJobsCreate,
+		),
 	} {
 		if err := f.s.BulkDelete(ctx, principal, input, &f.request); !apperror.IsCode(err, "permission_denied") {
 			t.Fatalf("%s: %v", name, err)
@@ -131,7 +144,12 @@ func TestBulkDeleteAuthorizationAndValidation(t *testing.T) {
 	) {
 		t.Fatalf("missing version: %v", err)
 	}
-	if err := f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(job)}}, &f.request); !apperror.IsCode(
+	if err := f.s.BulkDelete(
+		ctx,
+		f.p,
+		BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(job)}},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -157,7 +175,18 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 	stale := f.manualJob(t, -8*time.Hour, "")
 	owned := h.unassigned(t, h.machine.ID, -7*time.Hour, "owned.gcode")
 	title := "Holds a run"
-	if _, err := h.s.CreateJobFromRun(ctx, h.p, owned.ID, RunJobInput{Title: &title, Customer: PartyReference{Kind: "person", ID: h.person}, OperatorPersonID: h.person, PricingGroupID: &h.group.ID}, &h.request); err != nil {
+	if _, err := h.s.CreateJobFromRun(
+		ctx,
+		h.p,
+		owned.ID,
+		RunJobInput{
+			Title:            &title,
+			Customer:         PartyReference{Kind: "person", ID: h.person},
+			OperatorPersonID: h.person,
+			PricingGroupID:   &h.group.ID,
+		},
+		&h.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	free := h.unassigned(t, h.machine.ID, -6*time.Hour, "free.gcode")
@@ -201,7 +230,12 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 	}
 
 	// A stale unassigned run alone refuses too, and the run stays.
-	if err = f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Runs: []BulkItem{{ID: free.ID, ExpectedVersion: free.ExpectedVersion + 1}}}, &f.request); !hasBlocker(
+	if err = f.s.BulkDelete(
+		ctx,
+		f.p,
+		BulkDeleteInput{Runs: []BulkItem{{ID: free.ID, ExpectedVersion: free.ExpectedVersion + 1}}},
+		&f.request,
+	); !hasBlocker(
 		bulkBlockers(t, err),
 		"run:stale_write",
 	) {
@@ -283,7 +317,11 @@ func TestBulkDeleteDeletesJobsAndRunsWithOneAuditEventEach(t *testing.T) {
 		)
 	}
 	var fields []string
-	if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = 'machine_job.deleted' AND resource_id = $1`, withRun.ID).Scan(&fields); err != nil ||
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT changed_fields FROM audit_events WHERE action = 'machine_job.deleted' AND resource_id = $1`,
+		withRun.ID,
+	).Scan(&fields); err != nil ||
 		!strings.Contains(strings.Join(fields, ","), "recordedRunsDetached") {
 		t.Fatalf("job audit fields = %v err=%v", fields, err)
 	}
@@ -310,14 +348,27 @@ func TestBulkDeleteKeepsTheLedgerAndCanDeleteRecordedRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ledger int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&ledger); err != nil {
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM inventory_transactions WHERE material_id = $1`,
+		f.material.ID,
+	).Scan(&ledger); err != nil {
 		t.Fatal(err)
 	}
-	if err = f.s.BulkDelete(ctx, f.p, BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(withRun)}, DeleteRecordedRuns: true}, &f.request); err != nil {
+	if err = f.s.BulkDelete(
+		ctx,
+		f.p,
+		BulkDeleteInput{Jobs: []BulkItem{f.item(job), f.item(withRun)}, DeleteRecordedRuns: true},
+		&f.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	var after int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&after); err != nil ||
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM inventory_transactions WHERE material_id = $1`,
+		f.material.ID,
+	).Scan(&after); err != nil ||
 		after != ledger {
 		t.Fatalf("ledger rows %d -> %d err=%v", ledger, after, err)
 	}
@@ -343,8 +394,14 @@ func TestBulkCreateJobsFromRuns(t *testing.T) {
 	}
 
 	for name, principal := range map[string]authorization.Principal{
-		"no permission":   {AccountID: h.p.AccountID},
-		"read, edit only": restrictedPrincipal(t, h.pool, authorization.MachineJobsRead, authorization.MachineJobsEdit, authorization.MachineJobsDelete),
+		"no permission": {AccountID: h.p.AccountID},
+		"read, edit only": restrictedPrincipal(
+			t,
+			h.pool,
+			authorization.MachineJobsRead,
+			authorization.MachineJobsEdit,
+			authorization.MachineJobsDelete,
+		),
 	} {
 		if _, err := h.s.BulkCreateJobsFromRuns(ctx, principal, input, &h.request); !apperror.IsCode(
 			err,
@@ -353,7 +410,12 @@ func TestBulkCreateJobsFromRuns(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
-	if _, err := h.s.BulkCreateJobsFromRuns(ctx, h.p, BulkRunJobInput{Customer: input.Customer, OperatorPersonID: h.person}, &h.request); !apperror.IsCode(
+	if _, err := h.s.BulkCreateJobsFromRuns(
+		ctx,
+		h.p,
+		BulkRunJobInput{Customer: input.Customer, OperatorPersonID: h.person},
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -432,7 +494,12 @@ func TestBulkCombineRuns(t *testing.T) {
 		PricingGroupID:   &h.group.ID,
 	}
 
-	if _, err := h.s.BulkCombineRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(
+	if _, err := h.s.BulkCombineRuns(
+		ctx,
+		authorization.Principal{AccountID: h.p.AccountID},
+		input,
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -502,7 +569,12 @@ func TestBulkAttachRuns(t *testing.T) {
 		ReplaceManualRuns:  true,
 	}
 
-	if _, err := h.s.BulkAttachRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, input, &h.request); !apperror.IsCode(
+	if _, err := h.s.BulkAttachRuns(
+		ctx,
+		authorization.Principal{AccountID: h.p.AccountID},
+		input,
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -523,13 +595,23 @@ func TestBulkAttachRuns(t *testing.T) {
 	if _, err := h.s.BulkAttachRuns(ctx, h.p, staleJob, &h.request); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale job: %v", err)
 	}
-	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: uuid.Must(uuid.NewV7()), ExpectedJobVersion: 1, Runs: input.Runs}, &h.request); !apperror.IsCode(
+	if _, err := h.s.BulkAttachRuns(
+		ctx,
+		h.p,
+		BulkAttachInput{JobID: uuid.Must(uuid.NewV7()), ExpectedJobVersion: 1, Runs: input.Runs},
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
 		t.Fatalf("unknown job: %v", err)
 	}
-	if _, err := h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: manual.ID, ExpectedJobVersion: manual.Version}, &h.request); !apperror.IsCode(
+	if _, err := h.s.BulkAttachRuns(
+		ctx,
+		h.p,
+		BulkAttachInput{JobID: manual.ID, ExpectedJobVersion: manual.Version},
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -566,14 +648,23 @@ func TestBulkAttachRuns(t *testing.T) {
 		t.Fatal("attach audit events are missing")
 	}
 	var metadata []byte
-	if err = h.pool.QueryRow(ctx, `SELECT metadata FROM audit_events WHERE action = 'machine_run.assigned' AND resource_id = $1`, a.ID).Scan(&metadata); err != nil {
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT metadata FROM audit_events WHERE action = 'machine_run.assigned' AND resource_id = $1`,
+		a.ID,
+	).Scan(&metadata); err != nil {
 		t.Fatal(err)
 	}
 	var decoded map[string]string
 	if err = json.Unmarshal(metadata, &decoded); err != nil || decoded["jobId"] != job.ID.String() {
 		t.Fatalf("assignment metadata = %s err=%v", metadata, err)
 	}
-	if _, err = h.s.BulkAttachRuns(ctx, h.p, BulkAttachInput{JobID: job.ID, ExpectedJobVersion: job.Version, Runs: []BulkItem{a}}, &h.request); !hasBlocker(
+	if _, err = h.s.BulkAttachRuns(
+		ctx,
+		h.p,
+		BulkAttachInput{JobID: job.ID, ExpectedJobVersion: job.Version, Runs: []BulkItem{a}},
+		&h.request,
+	); !hasBlocker(
 		bulkBlockers(t, err),
 		"run:run_already_assigned",
 	) {

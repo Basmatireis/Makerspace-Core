@@ -247,7 +247,11 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 // FDM printers have a printer setup.
 func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) error {
 	var process string
-	err := tx.QueryRow(ctx, "SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1", machineID).
+	err := tx.QueryRow(
+		ctx,
+		"SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1",
+		machineID,
+	).
 		Scan(&process)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
@@ -281,14 +285,26 @@ func (s *Service) ConfigureProfile(
 		return Profile{}, err
 	}
 	row, err := db.New(tx).
-		UpsertPrinterProfile(ctx, db.UpsertPrinterProfileParams{MachineID: machineID, Enabled: enabled, ExpectedVersion: expected})
+		UpsertPrinterProfile(
+			ctx,
+			db.UpsertPrinterProfileParams{MachineID: machineID, Enabled: enabled, ExpectedVersion: expected},
+		)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Profile{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return Profile{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_profile.configured", "machine", machineID, requestID, []string{"printerProfile", "enabled"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_profile.configured",
+		"machine",
+		machineID,
+		requestID,
+		[]string{"printerProfile", "enabled"},
+	); err != nil {
 		return Profile{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -337,7 +353,16 @@ func (s *Service) CreateInputUnit(
 	if err != nil {
 		return InputUnit{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_input_unit.created", "printer_input_unit", id, requestID, []string{"machineId", "name", "position"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_input_unit.created",
+		"printer_input_unit",
+		id,
+		requestID,
+		[]string{"machineId", "name", "position"},
+	); err != nil {
 		return InputUnit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -391,7 +416,16 @@ func (s *Service) UpdateInputUnit(
 	if err != nil {
 		return InputUnit{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_input_unit.updated", "printer_input_unit", inputUnitID, requestID, []string{"name", "position", "externalIdentifier", "enabled"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_input_unit.updated",
+		"printer_input_unit",
+		inputUnitID,
+		requestID,
+		[]string{"name", "position", "externalIdentifier", "enabled"},
+	); err != nil {
 		return InputUnit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -428,10 +462,29 @@ func (s *Service) CreateSlot(
 		return Slot{}, noRows(err)
 	}
 	id := newID()
-	if _, err = q.CreatePrinterSlot(ctx, db.CreatePrinterSlotParams{ID: id, InputUnitID: inputUnitID, Name: name, Position: int32(position), ExternalIdentifier: clean(external), Status: status}); err != nil {
+	if _, err = q.CreatePrinterSlot(
+		ctx,
+		db.CreatePrinterSlotParams{
+			ID:                 id,
+			InputUnitID:        inputUnitID,
+			Name:               name,
+			Position:           int32(position),
+			ExternalIdentifier: clean(external),
+			Status:             status,
+		},
+	); err != nil {
 		return Slot{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_slot.created", "printer_slot", id, requestID, []string{"inputUnitId", "name", "position", "status"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_slot.created",
+		"printer_slot",
+		id,
+		requestID,
+		[]string{"inputUnitId", "name", "position", "status"},
+	); err != nil {
 		return Slot{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -470,7 +523,17 @@ func (s *Service) UpdateSlot(
 	if _, err = q.GetPrinterSlotForUpdate(ctx, slotID); err != nil {
 		return Slot{}, noRows(err)
 	}
-	if _, err = q.UpdatePrinterSlot(ctx, db.UpdatePrinterSlotParams{ID: slotID, Name: name, Position: int32(position), ExternalIdentifier: external, Status: status, ExpectedVersion: expected}); errors.Is(
+	if _, err = q.UpdatePrinterSlot(
+		ctx,
+		db.UpdatePrinterSlotParams{
+			ID:                 slotID,
+			Name:               name,
+			Position:           int32(position),
+			ExternalIdentifier: external,
+			Status:             status,
+			ExpectedVersion:    expected,
+		},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -478,7 +541,16 @@ func (s *Service) UpdateSlot(
 	} else if err != nil {
 		return Slot{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_slot.updated", "printer_slot", slotID, requestID, []string{"name", "position", "externalIdentifier", "status"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_slot.updated",
+		"printer_slot",
+		slotID,
+		requestID,
+		[]string{"name", "position", "externalIdentifier", "status"},
+	); err != nil {
 		return Slot{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -518,7 +590,11 @@ func (s *Service) Mount(
 	}
 	// A spool can be mounted while it is active and its open fill still holds stock.
 	var lifecycle string
-	if err = tx.QueryRow(ctx, "SELECT lifecycle FROM filament_spools WHERE id=$1 FOR UPDATE", spoolID).Scan(&lifecycle); err != nil {
+	if err = tx.QueryRow(
+		ctx,
+		"SELECT lifecycle FROM filament_spools WHERE id=$1 FOR UPDATE",
+		spoolID,
+	).Scan(&lifecycle); err != nil {
 		return Slot{}, noRows(err)
 	}
 	var remaining pgtype.Numeric
@@ -544,10 +620,29 @@ func (s *Service) Mount(
 	}
 	actor := p.AccountID
 	id := newID()
-	if _, err = q.CreatePrinterSpoolAssignment(ctx, db.CreatePrinterSpoolAssignmentParams{ID: id, SlotID: slotID, SpoolID: spoolID, MountedAt: time.Now().UTC(), MountedByAccountID: &actor, Source: "manual"}); err != nil {
+	if _, err = q.CreatePrinterSpoolAssignment(
+		ctx,
+		db.CreatePrinterSpoolAssignmentParams{
+			ID:                 id,
+			SlotID:             slotID,
+			SpoolID:            spoolID,
+			MountedAt:          time.Now().UTC(),
+			MountedByAccountID: &actor,
+			Source:             "manual",
+		},
+	); err != nil {
 		return Slot{}, dbError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "printer_slot.spool_mounted", "printer_slot", slotID, requestID, []string{"assignment", "spoolId"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_slot.spool_mounted",
+		"printer_slot",
+		slotID,
+		requestID,
+		[]string{"assignment", "spoolId"},
+	); err != nil {
 		return Slot{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -580,10 +675,26 @@ func (s *Service) Unmount(
 		return Slot{}, noRows(err)
 	}
 	actor := p.AccountID
-	if _, err = q.ClosePrinterSpoolAssignment(ctx, db.ClosePrinterSpoolAssignmentParams{UnmountedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, UnmountedByAccountID: &actor, ID: assignment.ID}); err != nil {
+	if _, err = q.ClosePrinterSpoolAssignment(
+		ctx,
+		db.ClosePrinterSpoolAssignmentParams{
+			UnmountedAt:          pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			UnmountedByAccountID: &actor,
+			ID:                   assignment.ID,
+		},
+	); err != nil {
 		return Slot{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "printer_slot.spool_unmounted", "printer_slot", slotID, requestID, []string{"assignment", "spoolId"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_slot.spool_unmounted",
+		"printer_slot",
+		slotID,
+		requestID,
+		[]string{"assignment", "spoolId"},
+	); err != nil {
 		return Slot{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -658,7 +769,11 @@ func (s *Service) IngestConnectorEvent(
 		ReportRevision                   *int64
 	}{input.EventID, input.AssignmentID, input.MachineID, input.RunID, input.ConfigurationVersion, input.Sequence, input.Kind, input.OccurredAt.UTC(), clean(input.ExternalPrintID), input.Payload, input.ReportRevision})
 	q := printerconnectorsdb.New(tx)
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", sourceID+"\n"+eventKey); err != nil {
+	if _, err := tx.Exec(
+		ctx,
+		"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+		sourceID+"\n"+eventKey,
+	); err != nil {
 		return PrinterEvent{}, false, err
 	}
 	existing, err := q.GetConnectorEventByKey(
@@ -719,7 +834,18 @@ func (s *Service) IngestConnectorEvent(
 	if err != nil {
 		return PrinterEvent{}, false, dbError(err)
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "printer_event.ingested", ResourceType: "printer_event", ResourceID: &input.EventID, ChangedFields: []string{"kind", "state"}, Source: "http"}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:     "system",
+			Action:        "printer_event.ingested",
+			ResourceType:  "printer_event",
+			ResourceID:    &input.EventID,
+			ChangedFields: []string{"kind", "state"},
+			Source:        "http",
+		},
+	); err != nil {
 		return PrinterEvent{}, false, err
 	}
 	return connectorEventFromRow(row), true, nil

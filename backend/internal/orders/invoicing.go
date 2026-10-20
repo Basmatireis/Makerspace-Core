@@ -100,7 +100,16 @@ func (s *Service) UpdateRequirements(
 	if err != nil {
 		return InvoicingRequirements{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "organization.invoicing_requirements_updated", "organization", id, requestID, "requirePurchaseOrderReference"); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"organization.invoicing_requirements_updated",
+		"organization",
+		id,
+		requestID,
+		"requirePurchaseOrderReference",
+	); err != nil {
 		return InvoicingRequirements{}, err
 	}
 	return InvoicingRequirements{
@@ -162,7 +171,14 @@ func (s *Service) saveDetails(
 		}
 	}
 	if ready {
-		for _, v := range []string{input.RecipientName, input.AddressLine1, input.PostalCode, input.Locality, input.CountryCode, input.ServiceDescription} {
+		for _, v := range []string{
+			input.RecipientName,
+			input.AddressLine1,
+			input.PostalCode,
+			input.Locality,
+			input.CountryCode,
+			input.ServiceDescription,
+		} {
 			if strings.TrimSpace(v) == "" {
 				return validation("Recipient, billing address, service period and description are required")
 			}
@@ -208,7 +224,12 @@ func (s *Service) CreateRequest(
 	input CreateInvoiceRequest,
 	requestID *uuid.UUID,
 ) (ExternalInvoiceRequest, error) {
-	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead, authorization.ExternalInvoiceRequestsManage); err != nil {
+	if err := require(
+		p,
+		authorization.OrdersRead,
+		authorization.ExternalInvoiceRequestsRead,
+		authorization.ExternalInvoiceRequestsManage,
+	); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -295,7 +316,16 @@ func (s *Service) CreateRequest(
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	if err = q.CreateRequestDetails(ctx, db.CreateRequestDetailsParams{RequestID: r.ID, RecipientKind: o.CustomerKind, RecipientPersonID: o.CustomerPersonID, RecipientOrganizationID: o.CustomerOrganizationID, ItemSummary: summary}); err != nil {
+	if err = q.CreateRequestDetails(
+		ctx,
+		db.CreateRequestDetailsParams{
+			RequestID:               r.ID,
+			RecipientKind:           o.CustomerKind,
+			RecipientPersonID:       o.CustomerPersonID,
+			RecipientOrganizationID: o.CustomerOrganizationID,
+			ItemSummary:             summary,
+		},
+	); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	details := input.Details
@@ -312,7 +342,16 @@ func (s *Service) CreateRequest(
 	if err = q.BumpOrder(ctx, id); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "external_invoice_request.created", "external_invoice_request", r.ID, requestID, "details"); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"external_invoice_request.created",
+		"external_invoice_request",
+		r.ID,
+		requestID,
+		"details",
+	); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	if err = finishOperation(ctx, q, p, input.OperationKey, "request.create", hash, &id, &r.ID); err != nil {
@@ -504,7 +543,16 @@ func (s *Service) UpdateRequest(
 	if err = q.TransitionRequest(ctx, db.TransitionRequestParams{ID: id, State: r.State}); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "external_invoice_request.updated", "external_invoice_request", id, requestID, "details"); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"external_invoice_request.updated",
+		"external_invoice_request",
+		id,
+		requestID,
+		"details",
+	); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	v, err := s.loadRequest(ctx, q, id)
@@ -618,7 +666,17 @@ func (s *Service) reverseInvoiceSettlement(
 		if err = s.allocate(ctx, q, p, original, o, d(original.Amount).Neg(), op); err != nil {
 			return err
 		}
-		if err = writeAudit(ctx, tx, p, "payment.reversed", "payment", reversal.ID, requestID, "reversal", "allocations"); err != nil {
+		if err = writeAudit(
+			ctx,
+			tx,
+			p,
+			"payment.reversed",
+			"payment",
+			reversal.ID,
+			requestID,
+			"reversal",
+			"allocations",
+		); err != nil {
 			return err
 		}
 	}
@@ -820,7 +878,18 @@ func (s *Service) RequestCommand(
 				if err = require(p, authorization.PaymentsRead, authorization.PaymentsReverse); err != nil {
 					return ExternalInvoiceRequest{}, err
 				}
-				if err = s.reverseInvoiceSettlement(ctx, tx, p, *order, receipts, input.ReconciliationKind, input.ExternalReference, effective, input.OperationKey, requestID); err != nil {
+				if err = s.reverseInvoiceSettlement(
+					ctx,
+					tx,
+					p,
+					*order,
+					receipts,
+					input.ReconciliationKind,
+					input.ExternalReference,
+					effective,
+					input.OperationKey,
+					requestID,
+				); err != nil {
 					return ExternalInvoiceRequest{}, err
 				}
 			}
@@ -848,11 +917,26 @@ func (s *Service) RequestCommand(
 				recorded{kind: "reference_corrected", reference: input.ExternalReference, reason: input.Reason},
 			)
 		} else {
-			events = append(events, recorded{kind: "reference_added", reference: input.ExternalReference, reason: input.Reason})
+			events = append(
+				events,
+				recorded{kind: "reference_added", reference: input.ExternalReference, reason: input.Reason},
+			)
 		}
 	}
 	for _, e := range events {
-		if err = q.InsertRequestEvent(ctx, db.InsertRequestEventParams{ID: newID(), RequestID: id, Kind: e.kind, ExternalReference: e.reference, ReconciliationKind: e.reconciliation, Reason: e.reason, EffectiveAt: effective.UTC(), ActorAccountID: &p.AccountID}); err != nil {
+		if err = q.InsertRequestEvent(
+			ctx,
+			db.InsertRequestEventParams{
+				ID:                 newID(),
+				RequestID:          id,
+				Kind:               e.kind,
+				ExternalReference:  e.reference,
+				ReconciliationKind: e.reconciliation,
+				Reason:             e.reason,
+				EffectiveAt:        effective.UTC(),
+				ActorAccountID:     &p.AccountID,
+			},
+		); err != nil {
 			return ExternalInvoiceRequest{}, err
 		}
 	}
@@ -868,7 +952,17 @@ func (s *Service) RequestCommand(
 		}
 	}
 	auditEvent := events[0].kind
-	if err = writeAudit(ctx, tx, p, "external_invoice_request."+auditEvent, "external_invoice_request", id, requestID, "state", "events"); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"external_invoice_request."+auditEvent,
+		"external_invoice_request",
+		id,
+		requestID,
+		"state",
+		"events",
+	); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	if err = finishOperation(ctx, q, p, input.OperationKey, kind, hash, r.OrderID, &id); err != nil {

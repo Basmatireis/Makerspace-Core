@@ -71,7 +71,14 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 	}
 	reversed, noUsage, kept := job.Runs[1], job.Runs[2], job.Runs[3]
 
-	if err := f.s.DeleteRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, noUsage.ID, noUsage.Version, false, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteRun(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		noUsage.ID,
+		noUsage.Version,
+		false,
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -117,19 +124,31 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 		reversals != 1 {
 		t.Fatalf("reversal ledger entries = %d err=%v", reversals, err)
 	}
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM machine_run_usages WHERE run_id = $1 AND active`, reversed.ID).Scan(&activeUsages); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM machine_run_usages WHERE run_id = $1 AND active`,
+		reversed.ID,
+	).Scan(&activeUsages); err != nil ||
 		activeUsages != 0 {
 		t.Fatalf("active usages of the reversed run = %d err=%v", activeUsages, err)
 	}
 
 	// Keeping the consumption leaves the ledger untouched.
 	var ledgerBefore int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&ledgerBefore); err != nil {
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM inventory_transactions WHERE material_id = $1`,
+		f.material.ID,
+	).Scan(&ledgerBefore); err != nil {
 		t.Fatal(err)
 	}
 	f.deleteRun(t, kept, false)
 	var ledgerAfter int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, f.material.ID).Scan(&ledgerAfter); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM inventory_transactions WHERE material_id = $1`,
+		f.material.ID,
+	).Scan(&ledgerAfter); err != nil ||
 		ledgerAfter != ledgerBefore {
 		t.Fatalf("ledger rows %d -> %d err=%v", ledgerBefore, ledgerAfter, err)
 	}
@@ -156,7 +175,11 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 	}
 	var fields []string
 	var metadataJob string
-	if err := f.pool.QueryRow(ctx, `SELECT changed_fields, metadata->>'jobId' FROM audit_events WHERE action = 'machine_run.deleted' AND resource_id = $1`, reversed.ID).Scan(&fields, &metadataJob); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT changed_fields, metadata->>'jobId' FROM audit_events WHERE action = 'machine_run.deleted' AND resource_id = $1`,
+		reversed.ID,
+	).Scan(&fields, &metadataJob); err != nil ||
 		strings.Join(fields, ",") != "deletedAt,usages,inventory" ||
 		metadataJob != job.ID.String() {
 		t.Fatalf("audit fields=%v job=%s err=%v", fields, metadataJob, err)
@@ -166,7 +189,12 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 func (f *jobFixture) auditCount(t *testing.T, action string, resource uuid.UUID) int {
 	t.Helper()
 	var count int
-	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, action, resource).Scan(&count); err != nil {
+	if err := f.pool.QueryRow(
+		t.Context(),
+		`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		action,
+		resource,
+	).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	return count
@@ -193,7 +221,13 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 		t.Fatalf("setup quantity = %s", got)
 	}
 
-	if err := f.s.DeleteJob(ctx, authorization.Principal{AccountID: f.p.AccountID}, reverse.ID, DeleteJobInput{ExpectedVersion: reverse.Version, ReverseConsumption: true}, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteJob(
+		ctx,
+		authorization.Principal{AccountID: f.p.AccountID},
+		reverse.ID,
+		DeleteJobInput{ExpectedVersion: reverse.Version, ReverseConsumption: true},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -206,13 +240,25 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 		authorization.MachineJobsEdit,
 		authorization.MachineJobsCreate,
 	)
-	if err := f.s.DeleteJob(ctx, editor, reverse.ID, DeleteJobInput{ExpectedVersion: reverse.Version}, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteJob(
+		ctx,
+		editor,
+		reverse.ID,
+		DeleteJobInput{ExpectedVersion: reverse.Version},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
 		t.Fatalf("delete with edit and create only: %v", err)
 	}
-	if err := f.s.DeleteJob(ctx, f.p, reverse.ID, DeleteJobInput{ExpectedVersion: reverse.Version + 1}, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteJob(
+		ctx,
+		f.p,
+		reverse.ID,
+		DeleteJobInput{ExpectedVersion: reverse.Version + 1},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
@@ -224,14 +270,26 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 	) {
 		t.Fatalf("missing version: %v", err)
 	}
-	if err := f.s.DeleteJob(ctx, f.p, uuid.Must(uuid.NewV7()), DeleteJobInput{ExpectedVersion: 1}, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteJob(
+		ctx,
+		f.p,
+		uuid.Must(uuid.NewV7()),
+		DeleteJobInput{ExpectedVersion: 1},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
 		t.Fatalf("unknown job: %v", err)
 	}
 
-	if err := f.s.DeleteJob(ctx, f.p, reverse.ID, DeleteJobInput{ExpectedVersion: reverse.Version, ReverseConsumption: true}, &f.request); err != nil {
+	if err := f.s.DeleteJob(
+		ctx,
+		f.p,
+		reverse.ID,
+		DeleteJobInput{ExpectedVersion: reverse.Version, ReverseConsumption: true},
+		&f.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.quantity(t, f.material.ID); got != "950" {
@@ -254,13 +312,30 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 	if _, err := f.s.GetJob(ctx, f.p, reverse.ID); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("get of a deleted job: %v", err)
 	}
-	if err := f.s.DeleteJob(ctx, f.p, reverse.ID, DeleteJobInput{ExpectedVersion: reverse.Version}, &f.request); !apperror.IsCode(
+	if err := f.s.DeleteJob(
+		ctx,
+		f.p,
+		reverse.ID,
+		DeleteJobInput{ExpectedVersion: reverse.Version},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
 		t.Fatalf("second delete: %v", err)
 	}
-	if _, err := f.s.UpdateJobFacts(ctx, f.p, reverse.ID, reverse.Version+1, JobUpdate{MachineID: f.machine.ID, Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person}, &f.request); !apperror.IsCode(
+	if _, err := f.s.UpdateJobFacts(
+		ctx,
+		f.p,
+		reverse.ID,
+		reverse.Version+1,
+		JobUpdate{
+			MachineID:        f.machine.ID,
+			Customer:         PartyReference{Kind: "person", ID: f.person},
+			OperatorPersonID: f.person,
+		},
+		&f.request,
+	); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -279,7 +354,11 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 		t.Fatalf("quantity after keeping 50 g consumed = %s", got)
 	}
 	var active int
-	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM machine_run_usages u JOIN machine_runs r ON r.id = u.run_id WHERE r.machine_id = $1 AND u.active AND r.deleted_at IS NOT NULL`, f.machine.ID).Scan(&active); err != nil ||
+	if err := f.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM machine_run_usages u JOIN machine_runs r ON r.id = u.run_id WHERE r.machine_id = $1 AND u.active AND r.deleted_at IS NOT NULL`,
+		f.machine.ID,
+	).Scan(&active); err != nil ||
 		active != 2 {
 		t.Fatalf("usages kept for the ledger = %d err=%v", active, err)
 	}
@@ -324,7 +403,11 @@ func TestDeleteJobWithRecordedRuns(t *testing.T) {
 	fillSum := func() string {
 		t.Helper()
 		var sum string
-		if err := h.pool.QueryRow(ctx, `SELECT COALESCE(sum(t.quantity_delta), 0)::text FROM inventory_transactions t WHERE t.spool_id = $1`, h.spool.ID).Scan(&sum); err != nil {
+		if err := h.pool.QueryRow(
+			ctx,
+			`SELECT COALESCE(sum(t.quantity_delta), 0)::text FROM inventory_transactions t WHERE t.spool_id = $1`,
+			h.spool.ID,
+		).Scan(&sum); err != nil {
 			t.Fatal(err)
 		}
 		return sum
@@ -343,7 +426,13 @@ func TestDeleteJobWithRecordedRuns(t *testing.T) {
 	}
 
 	// Recorded runs are detached and keep their consumption.
-	if err := h.s.DeleteJob(ctx, h.p, detachJob.ID, DeleteJobInput{ExpectedVersion: detachJob.Version}, &h.request); err != nil {
+	if err := h.s.DeleteJob(
+		ctx,
+		h.p,
+		detachJob.ID,
+		DeleteJobInput{ExpectedVersion: detachJob.Version},
+		&h.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	run := h.run(t, detachedRun)
@@ -374,7 +463,13 @@ func TestDeleteJobWithRecordedRuns(t *testing.T) {
 	}
 
 	// Recorded runs are deleted and their consumption goes back to the open spool fill.
-	if err = h.s.DeleteJob(ctx, h.p, deleteJob.ID, DeleteJobInput{ExpectedVersion: deleteJob.Version, ReverseConsumption: true, DeleteRecordedRuns: true}, &h.request); err != nil {
+	if err = h.s.DeleteJob(
+		ctx,
+		h.p,
+		deleteJob.ID,
+		DeleteJobInput{ExpectedVersion: deleteJob.Version, ReverseConsumption: true, DeleteRecordedRuns: true},
+		&h.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = h.s.GetRun(ctx, h.p, deletedRun); !apperror.IsCode(err, "not_found") {
@@ -408,7 +503,12 @@ func TestDeleteJobWithRecordedRuns(t *testing.T) {
 func (f *jobFixture) auditFields(t *testing.T, action string, resource uuid.UUID) string {
 	t.Helper()
 	var fields []string
-	if err := f.pool.QueryRow(t.Context(), `SELECT changed_fields FROM audit_events WHERE action = $1 AND resource_id = $2`, action, resource).Scan(&fields); err != nil {
+	if err := f.pool.QueryRow(
+		t.Context(),
+		`SELECT changed_fields FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		action,
+		resource,
+	).Scan(&fields); err != nil {
 		t.Fatal(err)
 	}
 	return strings.Join(fields, ",")
@@ -431,7 +531,12 @@ func TestReversalToLooseStockWhenTheSpoolFillIsClosed(t *testing.T) {
 	)
 	h.finish(t, id, "finished", *ended)
 	h.apply(t, id, "terminal_outcome")
-	if _, err := h.pool.Exec(ctx, `UPDATE filament_spool_fills SET closed_at = $2, leftover_g = 0, leftover_outcome = 'used_up' WHERE spool_id = $1 AND closed_at IS NULL`, h.spool.ID, h.now.Add(time.Hour)); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`UPDATE filament_spool_fills SET closed_at = $2, leftover_g = 0, leftover_outcome = 'used_up' WHERE spool_id = $1 AND closed_at IS NULL`,
+		h.spool.ID,
+		h.now.Add(time.Hour),
+	); err != nil {
 		t.Fatal(err)
 	}
 	before := h.quantity(t, h.material.ID)
@@ -441,7 +546,11 @@ func TestReversalToLooseStockWhenTheSpoolFillIsClosed(t *testing.T) {
 	}
 	var fillID *uuid.UUID
 	var note string
-	if err := h.pool.QueryRow(ctx, `SELECT t.fill_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1 AND t.kind = 'adjustment'`, id).Scan(&fillID, &note); err != nil {
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT t.fill_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1 AND t.kind = 'adjustment'`,
+		id,
+	).Scan(&fillID, &note); err != nil {
 		t.Fatal(err)
 	}
 	if fillID != nil || !strings.Contains(note, "loose stock") {
@@ -486,7 +595,13 @@ func TestDeletedJobsAndRunsDisappearFromEveryAggregate(t *testing.T) {
 	_ = items
 
 	// Delete the running manual job, the printing unassigned run, an ended unassigned run and a finished job.
-	if err = w.s.DeleteJob(ctx, w.p, w.running.ID, DeleteJobInput{ExpectedVersion: w.running.Version}, &w.request); err != nil {
+	if err = w.s.DeleteJob(
+		ctx,
+		w.p,
+		w.running.ID,
+		DeleteJobInput{ExpectedVersion: w.running.Version},
+		&w.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range []uuid.UUID{w.printing, w.ended} {
@@ -495,7 +610,13 @@ func TestDeletedJobsAndRunsDisappearFromEveryAggregate(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err = w.s.DeleteJob(ctx, w.p, w.recorded.ID, DeleteJobInput{ExpectedVersion: w.recorded.Version, ReverseConsumption: true}, &w.request); err != nil {
+	if err = w.s.DeleteJob(
+		ctx,
+		w.p,
+		w.recorded.ID,
+		DeleteJobInput{ExpectedVersion: w.recorded.Version, ReverseConsumption: true},
+		&w.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -514,11 +635,19 @@ func TestDeletedJobsAndRunsDisappearFromEveryAggregate(t *testing.T) {
 			t.Fatalf("deleted job %s is listed", job.DisplayID)
 		}
 	}
-	if _, searched, searchErr := w.s.ListJobs(ctx, w.p, JobFilters{Search: w.recorded.DisplayID, Page: 1, PageSize: 10}); searchErr != nil ||
+	if _, searched, searchErr := w.s.ListJobs(
+		ctx,
+		w.p,
+		JobFilters{Search: w.recorded.DisplayID, Page: 1, PageSize: 10},
+	); searchErr != nil ||
 		searched != 0 {
 		t.Fatalf("search finds the deleted job: %d %v", searched, searchErr)
 	}
-	if _, searched, searchErr := w.s.ListRuns(ctx, w.p, RunFilters{Search: "vase.gcode", Page: 1, PageSize: 10}); searchErr != nil ||
+	if _, searched, searchErr := w.s.ListRuns(
+		ctx,
+		w.p,
+		RunFilters{Search: "vase.gcode", Page: 1, PageSize: 10},
+	); searchErr != nil ||
 		searched != 0 {
 		t.Fatalf("run search finds the deleted run: %d %v", searched, searchErr)
 	}
@@ -588,7 +717,13 @@ func TestDeletedJobsLeaveStatistics(t *testing.T) {
 	}
 	assertDecimal(t, "material usage before", usageOfType(t, before, f.materialType.ID), "100")
 
-	if err = f.s.DeleteJob(ctx, f.p, gone.ID, DeleteJobInput{ExpectedVersion: gone.Version, ReverseConsumption: true}, &f.request); err != nil {
+	if err = f.s.DeleteJob(
+		ctx,
+		f.p,
+		gone.ID,
+		DeleteJobInput{ExpectedVersion: gone.Version, ReverseConsumption: true},
+		&f.request,
+	); err != nil {
 		t.Fatal(err)
 	}
 	// The extra run of the other job is deleted on its own.
@@ -662,7 +797,13 @@ func TestDeleteRunAuthorizationBySource(t *testing.T) {
 		}
 	}
 	// Deleting a job needs machine_jobs.delete.
-	if err := h.s.DeleteJob(ctx, editor, job.ID, DeleteJobInput{ExpectedVersion: job.Version}, &h.request); !apperror.IsCode(
+	if err := h.s.DeleteJob(
+		ctx,
+		editor,
+		job.ID,
+		DeleteJobInput{ExpectedVersion: job.Version},
+		&h.request,
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {

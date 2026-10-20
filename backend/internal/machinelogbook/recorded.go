@@ -65,7 +65,18 @@ func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event Re
 	}
 	metadata := map[string]any{"connectorId": event.ConnectorID.String()}
 	if len(fields) > 0 {
-		if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "machine_run.recorded", ResourceType: "machine_run", ResourceID: &run.ID, ChangedFields: fields, Metadata: metadata}); err != nil {
+		if err = audit.Write(
+			ctx,
+			tx,
+			audit.Event{
+				ActorType:     "system",
+				Action:        "machine_run.recorded",
+				ResourceType:  "machine_run",
+				ResourceID:    &run.ID,
+				ChangedFields: fields,
+				Metadata:      metadata,
+			},
+		); err != nil {
 			return err
 		}
 	}
@@ -169,14 +180,27 @@ func (s *Service) consumeReportedUsage(
 		return false, err
 	}
 	defer savepoint.Rollback(ctx)
-	if err = s.replaceRunUsages(ctx, savepoint, machinelogbookdb.New(savepoint), actor, run.ID, old, parsed, occurredAt, nil); err != nil {
+	if err = s.replaceRunUsages(
+		ctx,
+		savepoint,
+		machinelogbookdb.New(savepoint),
+		actor,
+		run.ID,
+		old,
+		parsed,
+		occurredAt,
+		nil,
+	); err != nil {
 		var appErr *apperror.Error
 		if errors.As(err, &appErr) && appErr.HTTPStatus == 409 {
 			return false, nil
 		}
 		return false, err
 	}
-	if _, err = machinelogbookdb.New(savepoint).BumpRunVersion(ctx, machinelogbookdb.BumpRunVersionParams{ID: run.ID, ExpectedVersion: run.Version}); err != nil {
+	if _, err = machinelogbookdb.New(savepoint).BumpRunVersion(
+		ctx,
+		machinelogbookdb.BumpRunVersionParams{ID: run.ID, ExpectedVersion: run.Version},
+	); err != nil {
 		return false, err
 	}
 	if err = savepoint.Commit(ctx); err != nil {
@@ -255,14 +279,27 @@ func (s *Service) consumeItemizedReportedUsage(
 		return false, err
 	}
 	defer savepoint.Rollback(ctx)
-	if err = s.replaceRunUsages(ctx, savepoint, machinelogbookdb.New(savepoint), actor, run.ID, old, parsed, occurredAt, nil); err != nil {
+	if err = s.replaceRunUsages(
+		ctx,
+		savepoint,
+		machinelogbookdb.New(savepoint),
+		actor,
+		run.ID,
+		old,
+		parsed,
+		occurredAt,
+		nil,
+	); err != nil {
 		var appErr *apperror.Error
 		if errors.As(err, &appErr) && appErr.HTTPStatus == 409 {
 			return false, nil
 		}
 		return false, err
 	}
-	if _, err = machinelogbookdb.New(savepoint).BumpRunVersion(ctx, machinelogbookdb.BumpRunVersionParams{ID: run.ID, ExpectedVersion: run.Version}); err != nil {
+	if _, err = machinelogbookdb.New(savepoint).BumpRunVersion(
+		ctx,
+		machinelogbookdb.BumpRunVersionParams{ID: run.ID, ExpectedVersion: run.Version},
+	); err != nil {
 		return false, err
 	}
 	if err = savepoint.Commit(ctx); err != nil {

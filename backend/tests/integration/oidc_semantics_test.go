@@ -69,7 +69,13 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 		mux.HandleFunc("/"+name+"/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).
-				Encode(map[string]any{"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token", "jwks_uri": server.URL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+				Encode(map[string]any{
+					"issuer":                                issuer,
+					"authorization_endpoint":                issuer + "/authorize",
+					"token_endpoint":                        issuer + "/token",
+					"jwks_uri":                              server.URL + "/keys",
+					"id_token_signing_alg_values_supported": []string{"RS256"},
+				})
 		})
 		mux.HandleFunc("/"+name+"/token", func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
@@ -94,14 +100,26 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).
-			Encode(map[string]any{"keys": []any{map[string]any{"kty": "RSA", "kid": "semantics", "alg": "RS256", "use": "sig", "n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB"}}})
+			Encode(map[string]any{"keys": []any{map[string]any{
+				"kty": "RSA",
+				"kid": "semantics",
+				"alg": "RS256",
+				"use": "sig",
+				"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
+				"e":   "AQAB",
+			}}})
 	})
 	actor := seedAccount(t, f.pool, "oidc-semantics", true)
 	hash, err := security.HashPassword(bootstrapPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `UPDATE password_credentials SET password_hash=$1 WHERE auth_identity_id=$2`, hash, actor.identity); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`UPDATE password_credentials SET password_hash=$1 WHERE auth_identity_id=$2`,
+		hash,
+		actor.identity,
+	); err != nil {
 		t.Fatal(err)
 	}
 	cfg := integrationConfig(t)
@@ -137,7 +155,14 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 	}
 	f.one, f.two = create("one"), create("two")
 	f.identity = uuid.Must(uuid.NewV7())
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES($1,$2,'oidc',$3,$4,'owned-subject',now())`, f.identity, actor.accountID, f.one.ID, f.one.Issuer); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES($1,$2,'oidc',$3,$4,'owned-subject',now())`,
+		f.identity,
+		actor.accountID,
+		f.one.ID,
+		f.one.Issuer,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if oidcOnly {
@@ -227,7 +252,11 @@ func (f *oidcSemanticsFixture) complete(
 
 func TestOIDCLinkUsesRecentSessionAssurance(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, false)
-	if _, err := f.pool.Exec(f.ctx, `UPDATE sessions SET authenticated_at=now()-interval '1 hour' WHERE id=$1`, f.session.ID); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`UPDATE sessions SET authenticated_at=now()-interval '1 hour' WHERE id=$1`,
+		f.session.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	_, err := f.service.StartLink(f.ctx, f.principal, "two", "")
@@ -252,7 +281,11 @@ func TestOIDCLinkUsesRecentSessionAssurance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `UPDATE sessions SET assurance_expires_at=now()-interval '1 second' WHERE id=$1`, f.session.ID); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`UPDATE sessions SET assurance_expires_at=now()-interval '1 second' WHERE id=$1`,
+		f.session.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	_, err = f.complete(flow, "must-not-link", time.Now(), f.principal)
@@ -260,7 +293,11 @@ func TestOIDCLinkUsesRecentSessionAssurance(t *testing.T) {
 	_, err = f.service.StartLink(f.ctx, f.principal, "two", "")
 	expectAppCode(t, err, "reauthentication_required")
 	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE subject='must-not-link'`, 0)
-	if _, err := f.pool.Exec(f.ctx, `UPDATE sessions SET current_assurance='low',base_assurance='low',authenticated_at=now(),assurance_expires_at=NULL WHERE id=$1`, f.session.ID); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`UPDATE sessions SET current_assurance='low',base_assurance='low',authenticated_at=now(),assurance_expires_at=NULL WHERE id=$1`,
+		f.session.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	_, err = f.service.StartLink(f.ctx, f.principal, "two", "")
@@ -271,7 +308,13 @@ func TestOIDCOnlyAccountReauthenticatesThroughItsLinkedIdentity(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, true)
 	_, err := f.service.StartReauthentication(f.ctx, f.principal, "two")
 	expectAppCode(t, err, "permission_denied")
-	for _, scenario := range []string{"missing_auth_time", "stale_auth_time", "wrong_subject", "other_session", "valid"} {
+	for _, scenario := range []string{
+		"missing_auth_time",
+		"stale_auth_time",
+		"wrong_subject",
+		"other_session",
+		"valid",
+	} {
 		t.Run(scenario, func(t *testing.T) {
 			flow, err := f.service.StartReauthentication(f.ctx, f.principal, "one")
 			if err != nil {
@@ -346,13 +389,27 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 	}
 
 	passwordFixture := newOIDCSemanticsFixture(t, false)
-	if _, err := passwordFixture.pool.Exec(passwordFixture.ctx, `UPDATE oidc_providers SET enabled=false WHERE id=$1`, passwordFixture.one.ID); err != nil {
+	if _, err := passwordFixture.pool.Exec(
+		passwordFixture.ctx,
+		`UPDATE oidc_providers SET enabled=false WHERE id=$1`,
+		passwordFixture.one.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := passwordFixture.service.StartLink(passwordFixture.ctx, passwordFixture.principal, "one", ""); err == nil {
+	if _, err := passwordFixture.service.StartLink(
+		passwordFixture.ctx,
+		passwordFixture.principal,
+		"one",
+		"",
+	); err == nil {
 		t.Fatal("disabled provider started linking")
 	}
-	if err := passwordFixture.auth.RemovePassword(passwordFixture.ctx, passwordFixture.principal, bootstrapPassword, nil); err != nil {
+	if err := passwordFixture.auth.RemovePassword(
+		passwordFixture.ctx,
+		passwordFixture.principal,
+		bootstrapPassword,
+		nil,
+	); err != nil {
 		t.Fatalf("remove last usable password method: %v", err)
 	}
 	assertCount(
@@ -363,7 +420,12 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 		passwordFixture.principal.AccountID,
 	)
 	// The active Account remains valid with only an unavailable OIDC identity.
-	if err := passwordFixture.service.Unlink(passwordFixture.ctx, passwordFixture.principal, passwordFixture.identity, nil); err != nil {
+	if err := passwordFixture.service.Unlink(
+		passwordFixture.ctx,
+		passwordFixture.principal,
+		passwordFixture.identity,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(
@@ -388,7 +450,12 @@ func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T
 	if _, err := f.pool.Exec(f.ctx, `DELETE FROM person_roles WHERE person_id=$1`, f.principal.PersonID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO roles(id,name) VALUES($1,'Reserved linker'); INSERT INTO role_permission_grants(id,role_id,permission_id,scope) VALUES(uuidv7(),$1,'identities.oidc.link.all','global'); INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, role, f.principal.PersonID); err != nil {
+	if _, err := f.pool.Exec(
+		f.ctx,
+		`INSERT INTO roles(id,name) VALUES($1,'Reserved linker'); INSERT INTO role_permission_grants(id,role_id,permission_id,scope) VALUES(uuidv7(),$1,'identities.oidc.link.all','global'); INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`,
+		role,
+		f.principal.PersonID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	_, err := f.service.StartLink(f.ctx, f.principal, "two", "")
@@ -412,7 +479,14 @@ func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
 		t.Run(disabled, func(t *testing.T) {
 			f := newOIDCSemanticsFixture(t, true)
 			other := uuid.Must(uuid.NewV7())
-			if _, err := f.pool.Exec(f.ctx, `INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,$4,'other-subject')`, other, f.principal.AccountID, f.two.ID, f.two.Issuer); err != nil {
+			if _, err := f.pool.Exec(
+				f.ctx,
+				`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,$4,'other-subject')`,
+				other,
+				f.principal.AccountID,
+				f.two.ID,
+				f.two.Issuer,
+			); err != nil {
 				t.Fatal(err)
 			}
 			disable := `UPDATE oidc_providers SET enabled=false WHERE id=$1`
@@ -451,7 +525,14 @@ func TestAdministrativeOIDCIdentityRemovalRevokesSessionsWithoutChangingAccountS
 	if len(account.AuthIdentities) != 1 || account.AuthIdentities[0].ID != f.identity {
 		t.Fatalf("account before OIDC removal=%#v", account)
 	}
-	if err := accountService.RemoveAuthIdentity(f.ctx, f.principal, account.ID, f.identity, account.Version, nil); err != nil {
+	if err := accountService.RemoveAuthIdentity(
+		f.ctx,
+		f.principal,
+		account.ID,
+		f.identity,
+		account.Version,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, account.ID)
@@ -518,7 +599,11 @@ func TestOIDCReauthenticationAndLinkHTTPRequireBoundSessionAndCSRF(t *testing.T)
 		}
 		flow := oidc.FlowStart{AuthorizationURL: body.AuthorizationURL, BrowserToken: browser}
 		state, code := f.prepareCallback(flow, subject, time.Now())
-		request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/oidc/callback?state="+url.QueryEscape(state)+"&code="+url.QueryEscape(code), nil).
+		request := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v1/auth/oidc/callback?state="+url.QueryEscape(state)+"&code="+url.QueryEscape(code),
+			nil,
+		).
 			WithContext(f.ctx)
 		request.AddCookie(&http.Cookie{Name: cfg.SessionCookieName, Value: f.session.Token})
 		request.AddCookie(&http.Cookie{Name: cfg.OIDCFlowCookieName, Value: browser})

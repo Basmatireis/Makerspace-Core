@@ -138,7 +138,15 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"192.168", "AA:BB", "00MREAL123", "rtsp", "0123456789ABCDEF", "tray_uuid", "3232235826"} {
+	for _, forbidden := range []string{
+		"192.168",
+		"AA:BB",
+		"00MREAL123",
+		"rtsp",
+		"0123456789ABCDEF",
+		"tray_uuid",
+		"3232235826",
+	} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("snapshot leaks %q: %s", forbidden, encoded)
 		}
@@ -175,7 +183,16 @@ func TestBuildBambuLiveSnapshotFromX1CDocument(t *testing.T) {
 func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
-	for gcode, want := range map[string]string{"IDLE": "idle", "PREPARE": "preparing", "RUNNING": "printing", "PAUSE": "paused", "FINISH": "finished", "FAILED": "failed", "SLICING": "unknown", "": "unknown"} {
+	for gcode, want := range map[string]string{
+		"IDLE":    "idle",
+		"PREPARE": "preparing",
+		"RUNNING": "printing",
+		"PAUSE":   "paused",
+		"FINISH":  "finished",
+		"FAILED":  "failed",
+		"SLICING": "unknown",
+		"":        "unknown",
+	} {
 		snapshot := buildBambuLiveSnapshot(
 			map[string]any{"print": map[string]any{"gcode_state": gcode}},
 			map[string]time.Time{},
@@ -201,7 +218,17 @@ func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &generic); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"state", "job", "temperatures", "nozzles", "units", "activeTray", "errors", "firmwareVersion", "wifiSignalDbm"} {
+	for _, key := range []string{
+		"state",
+		"job",
+		"temperatures",
+		"nozzles",
+		"units",
+		"activeTray",
+		"errors",
+		"firmwareVersion",
+		"wifiSignalDbm",
+	} {
 		if _, ok := generic[key]; !ok {
 			t.Errorf("snapshot key %q must always be present: %s", key, encoded)
 		}

@@ -231,10 +231,20 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 
-	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Test', 'Operator', $2)`, personID, "machine-logbook-"+suffix+"@example.test"); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Test', 'Operator', $2)`,
+		personID,
+		"machine-logbook-"+suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -572,7 +582,14 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	organizationIDs = append(organizationIDs, organization2.ID)
-	if _, err = s.SetPartyPricingGroup(ctx, p, PartyReference{Kind: "organization", ID: organization2.ID}, &group.ID, 0, &requestID); err != nil {
+	if _, err = s.SetPartyPricingGroup(
+		ctx,
+		p,
+		PartyReference{Kind: "organization", ID: organization2.ID},
+		&group.ID,
+		0,
+		&requestID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	repriced, err := s.UpdateJobFacts(
@@ -601,7 +618,11 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 	var revisions int
 	var snapshotAmounts []string
-	if err = pool.QueryRow(ctx, `SELECT count(*), array_agg(calculated_amount::text ORDER BY revision) FROM machine_job_pricing_snapshots WHERE machine_job_id = $1`, repriced.ID).Scan(&revisions, &snapshotAmounts); err != nil {
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT count(*), array_agg(calculated_amount::text ORDER BY revision) FROM machine_job_pricing_snapshots WHERE machine_job_id = $1`,
+		repriced.ID,
+	).Scan(&revisions, &snapshotAmounts); err != nil {
 		t.Fatal(err)
 	}
 	if revisions != 2 || len(snapshotAmounts) != 2 || snapshotAmounts[0] != "6.19" || snapshotAmounts[1] != "7.02" {

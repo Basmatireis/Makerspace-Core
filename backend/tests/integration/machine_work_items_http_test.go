@@ -39,7 +39,16 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		adminLogin    = "work-items-admin@example.test"
 		adminPassword = "Work items admin password 51"
 	)
-	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Work", LastName: "Admin", ContactEmail: "work-items-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err := admin.NewService(pool).BootstrapMaster(
+		ctx,
+		admin.BootstrapInput{
+			FirstName:    "Work",
+			LastName:     "Admin",
+			ContactEmail: "work-items-contact@example.test",
+			LoginEmail:   adminLogin,
+			Password:     adminPassword,
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -170,7 +179,11 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 
 	// Fixtures go through the services as the bootstrapped master.
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
+		adminLogin,
+	).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -188,7 +201,17 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "10", nil); err != nil {
+	if _, err = logbook.CreatePricingRule(
+		ctx,
+		master,
+		group.ID,
+		"machine_runtime",
+		&machineType.ID,
+		nil,
+		nil,
+		"10",
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-6 * time.Hour).Truncate(time.Second)
@@ -221,7 +244,20 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		if orderErr != nil {
 			t.Fatal(orderErr)
 		}
-		if _, orderErr = orderService.ChangeItem(ctx, master, order.ID, uuid.Nil, orders.OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: order.Version}, "add", nil); orderErr != nil {
+		if _, orderErr = orderService.ChangeItem(
+			ctx,
+			master,
+			order.ID,
+			uuid.Nil,
+			orders.OrderItemInput{
+				Kind:               "machine_job",
+				MachineJobID:       job.ID,
+				ExpectedJobVersion: job.Version,
+				ExpectedVersion:    order.Version,
+			},
+			"add",
+			nil,
+		); orderErr != nil {
 			t.Fatal(orderErr)
 		}
 	}

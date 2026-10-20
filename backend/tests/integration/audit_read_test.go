@@ -16,7 +16,11 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	ctx := testContext(t)
 	reader := seedAccount(t, pool, "audit-reader", false)
 	actor := seedAccount(t, pool, "audit-actor", false)
-	if _, err := pool.Exec(ctx, `UPDATE people SET phone='+43 000 private', matriculation_number='private-matriculation' WHERE id=$1`, actor.personID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`UPDATE people SET phone='+43 000 private', matriculation_number='private-matriculation' WHERE id=$1`,
+		actor.personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	roleID := uuid.Must(uuid.NewV7())
@@ -27,10 +31,19 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'Audit reader')`, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'audit.read')`, readerRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'audit.read')`,
+		readerRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, reader.personID, readerRoleID); err != nil {
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`,
+		reader.personID,
+		readerRoleID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID})
@@ -56,7 +69,11 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := audit.Write(ctx, pool, audit.Event{Action: "role.updated", ResourceType: "role", ResourceID: &roleID, Source: "system"}); err != nil {
+	if err := audit.Write(
+		ctx,
+		pool,
+		audit.Event{Action: "role.updated", ResourceType: "role", ResourceID: &roleID, Source: "system"},
+	); err != nil {
 		t.Fatal(err)
 	}
 

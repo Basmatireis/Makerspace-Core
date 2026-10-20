@@ -336,7 +336,14 @@ func (s *Server) DeleteOpenDay(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if _, err := s.opendays.RemoveOpenDay(ctx, p, r.OpenDayId, 0, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if _, err := s.opendays.RemoveOpenDay(
+		ctx,
+		p,
+		r.OpenDayId,
+		0,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteOpenDay204Response{}, nil
@@ -353,7 +360,14 @@ func (s *Server) CancelOpenDay(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if _, err := s.opendays.CancelOpenDay(ctx, p, r.OpenDayId, 0, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if _, err := s.opendays.CancelOpenDay(
+		ctx,
+		p,
+		r.OpenDayId,
+		0,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	item, err := s.opendays.GetOpenDay(ctx, p, r.OpenDayId)
@@ -680,7 +694,13 @@ func (s *Server) DeleteOpenDayAcademicBreak(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.opendays.DeleteAcademicBreak(ctx, p, r.AcademicBreakId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.opendays.DeleteAcademicBreak(
+		ctx,
+		p,
+		r.AcademicBreakId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteOpenDayAcademicBreak204Response{}, nil

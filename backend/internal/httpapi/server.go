@@ -180,7 +180,13 @@ func (s *Server) DeleteAccount(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.accounts.Delete(ctx, principal, request.AccountId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.accounts.Delete(
+		ctx,
+		principal,
+		request.AccountId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteAccount204Response{}, nil
@@ -587,7 +593,13 @@ func (s *Server) EnrollOwnPin(
 	if request.Body == nil || request.Body.Pin == nil {
 		return nil, invalidRequest("loginName and pin are required")
 	}
-	if err := s.auth.EnrollOwnPIN(ctx, principal, request.Body.LoginName, *request.Body.Pin, requestIDPointer(ctx)); err != nil {
+	if err := s.auth.EnrollOwnPIN(
+		ctx,
+		principal,
+		request.Body.LoginName,
+		*request.Body.Pin,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.EnrollOwnPin204Response{}, nil
@@ -600,7 +612,15 @@ func (s *Server) CompletePinEnrollment(
 	if request.Body == nil || request.Body.Pin == nil {
 		return nil, invalidRequest("accountId, code, loginName, and pin are required")
 	}
-	if err := s.auth.CompletePINEnrollment(ctx, request.Body.AccountId, request.Body.Code, request.Body.LoginName, *request.Body.Pin, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+	if err := s.auth.CompletePINEnrollment(
+		ctx,
+		request.Body.AccountId,
+		request.Body.Code,
+		request.Body.LoginName,
+		*request.Body.Pin,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.CompletePinEnrollment204Response{}, nil
@@ -763,7 +783,12 @@ func (s *Server) CompletePasswordReset(
 	if request.Body == nil || request.Body.Token == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("token and newPassword are required")
 	}
-	if err := s.auth.RedeemPasswordReset(ctx, *request.Body.Token, *request.Body.NewPassword, requestIDPointer(ctx)); err != nil {
+	if err := s.auth.RedeemPasswordReset(
+		ctx,
+		*request.Body.Token,
+		*request.Body.NewPassword,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return cookieNoContentResponse{config: s.config, clear: true}, nil
@@ -776,7 +801,12 @@ func (s *Server) RequestPasswordReset(
 	if request.Body == nil {
 		return nil, invalidRequest("email is required")
 	}
-	if err := s.auth.RequestPasswordReset(ctx, string(request.Body.Email), sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+	if err := s.auth.RequestPasswordReset(
+		ctx,
+		string(request.Body.Email),
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.RequestPasswordReset202Response{
@@ -791,7 +821,14 @@ func (s *Server) CompletePasswordResetCode(
 	if request.Body == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("email, code, and newPassword are required")
 	}
-	if err := s.auth.CompletePasswordResetCode(ctx, string(request.Body.Email), request.Body.Code, *request.Body.NewPassword, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+	if err := s.auth.CompletePasswordResetCode(
+		ctx,
+		string(request.Body.Email),
+		request.Body.Code,
+		*request.Body.NewPassword,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.CompletePasswordResetCode204Response{
@@ -806,7 +843,14 @@ func (s *Server) CompleteInvitation(
 	if request.Body == nil || request.Body.NewPassword == nil {
 		return nil, invalidRequest("email, code, and newPassword are required")
 	}
-	if err := s.auth.CompleteInvitation(ctx, string(request.Body.Email), request.Body.Code, *request.Body.NewPassword, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+	if err := s.auth.CompleteInvitation(
+		ctx,
+		string(request.Body.Email),
+		request.Body.Code,
+		*request.Body.NewPassword,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.CompleteInvitation204Response{
@@ -837,7 +881,13 @@ func (s *Server) CompleteEmailVerification(
 	if request.Body == nil {
 		return nil, invalidRequest("email and code are required")
 	}
-	if err := s.auth.CompleteEmailVerification(ctx, string(request.Body.Email), request.Body.Code, sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+	if err := s.auth.CompleteEmailVerification(
+		ctx,
+		string(request.Body.Email),
+		request.Body.Code,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.CompleteEmailVerification204Response{
@@ -999,7 +1049,8 @@ func (s *Server) CreatePerson(
 		return nil, err
 	}
 	return openapi.CreatePerson201JSONResponse{
-		Body: response, Headers: openapi.CreatePerson201ResponseHeaders{Location: apiBasePath + "/people/" + person.ID.String()},
+		Body:    response,
+		Headers: openapi.CreatePerson201ResponseHeaders{Location: apiBasePath + "/people/" + person.ID.String()},
 	}, nil
 }
 
@@ -1014,7 +1065,13 @@ func (s *Server) DeletePerson(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.people.Delete(ctx, principal, request.PersonId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.people.Delete(
+		ctx,
+		principal,
+		request.PersonId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeletePerson204Response{}, nil
@@ -1129,7 +1186,13 @@ func (s *Server) DeletePersonProfileImage(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.people.DeleteProfileImage(ctx, principal, request.PersonId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.people.DeleteProfileImage(
+		ctx,
+		principal,
+		request.PersonId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeletePersonProfileImage204Response{}, nil
@@ -1161,7 +1224,14 @@ func (s *Server) CreatePersonAccount(
 			requestIDPointer(ctx),
 		)
 	} else {
-		account, err = s.accounts.Create(ctx, principal, request.PersonId, *loginEmail, request.Body.ExpectedVersion, requestIDPointer(ctx))
+		account, err = s.accounts.Create(
+			ctx,
+			principal,
+			request.PersonId,
+			*loginEmail,
+			request.Body.ExpectedVersion,
+			requestIDPointer(ctx),
+		)
 	}
 	if err != nil {
 		return nil, err
@@ -1307,7 +1377,13 @@ func (s *Server) DeleteRole(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.roles.Delete(ctx, principal, request.RoleId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err := s.roles.Delete(
+		ctx,
+		principal,
+		request.RoleId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteRole204Response{}, nil
@@ -1465,7 +1541,10 @@ func accountDTO(account accounts.Account) openapi.Account {
 	identities := make([]openapi.AuthIdentitySummary, 0, len(account.AuthIdentities))
 	for _, identity := range account.AuthIdentities {
 		identities = append(identities, openapi.AuthIdentitySummary{
-			Id: identity.ID, Kind: openapi.AuthIdentitySummaryKind(identity.Kind), CreatedAt: identity.CreatedAt, ProviderSlug: identity.ProviderSlug,
+			Id:           identity.ID,
+			Kind:         openapi.AuthIdentitySummaryKind(identity.Kind),
+			CreatedAt:    identity.CreatedAt,
+			ProviderSlug: identity.ProviderSlug,
 			DisplayIdentifier: nullablePointer[string](
 				identity.DisplayIdentifier,
 				func(value string) string { return value },
@@ -1559,8 +1638,10 @@ func auditPageDTO(page audit.Page) openapi.AuditEventPage {
 		response := openapi.AuditEvent{
 			Id: event.ID, Action: event.Action, ResourceType: event.ResourceType,
 			OccurredAt: event.OccurredAt, ChangedFields: event.ChangedFields,
-			Metadata: event.Metadata, ResolvedMetadata: &event.ResolvedMetadata, Source: openapi.AuditEventSource(event.Source),
-			ActorType: openapi.AuditActorType(event.ActorType),
+			Metadata:         event.Metadata,
+			ResolvedMetadata: &event.ResolvedMetadata,
+			Source:           openapi.AuditEventSource(event.Source),
+			ActorType:        openapi.AuditActorType(event.ActorType),
 			ActorAccountId: nullablePointer[openapi.UUIDv7](
 				event.ActorAccountID,
 				func(value uuid.UUID) openapi.UUIDv7 { return value },

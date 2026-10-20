@@ -196,7 +196,10 @@ func (e *signageEnv) pair(staff staffSession, name string, playlistID uuid.UUID)
 			"height": 1080,
 		}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
 	}), http.StatusCreated)
-	if poll := e.expect(e.do(player, "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK); poll["status"] != "paired" {
+	if poll := e.expect(
+		e.do(player, "", http.MethodGet, "/public/signage/pairing", nil),
+		http.StatusOK,
+	); poll["status"] != "paired" {
 		e.t.Fatalf("poll after claim = %v", poll)
 	}
 	return display, player
@@ -223,7 +226,11 @@ func (e *signageEnv) displayVersion(staff staffSession, id string) int64 {
 func (e *signageEnv) countAudit(action string) int {
 	e.t.Helper()
 	var count int
-	if err := e.pool.QueryRow(testContext(e.t), `SELECT count(*) FROM audit_events WHERE action = $1`, action).Scan(&count); err != nil {
+	if err := e.pool.QueryRow(
+		testContext(e.t),
+		`SELECT count(*) FROM audit_events WHERE action = $1`,
+		action,
+	).Scan(&count); err != nil {
 		e.t.Fatal(err)
 	}
 	return count
@@ -246,7 +253,10 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	player := e.newPlayer()
 
 	// Without the poll cookie there is nothing to poll.
-	if poll := e.expect(e.do(e.newPlayer(), "", http.MethodGet, "/public/signage/pairing", nil), http.StatusOK); poll["status"] != "expired" {
+	if poll := e.expect(
+		e.do(e.newPlayer(), "", http.MethodGet, "/public/signage/pairing", nil),
+		http.StatusOK,
+	); poll["status"] != "expired" {
 		t.Fatalf("poll without cookie = %v", poll)
 	}
 
@@ -271,7 +281,10 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 
 	// Only digests are stored.
 	var storedCodeDigest, storedSecretDigest []byte
-	if err := e.pool.QueryRow(ctx, `SELECT code_digest, poll_secret_digest FROM signage_pairing_requests`).Scan(&storedCodeDigest, &storedSecretDigest); err != nil {
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT code_digest, poll_secret_digest FROM signage_pairing_requests`,
+	).Scan(&storedCodeDigest, &storedSecretDigest); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(storedCodeDigest, []byte(code)) || len(storedCodeDigest) != 32 ||
@@ -322,7 +335,11 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	}
 	var modes []string
 	var deviceTypeName string
-	if err := e.pool.QueryRow(ctx, `SELECT md.allowed_app_modes, dt.name FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id WHERE md.id = $1`, display["managedDeviceId"]).Scan(&modes, &deviceTypeName); err != nil {
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT md.allowed_app_modes, dt.name FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id WHERE md.id = $1`,
+		display["managedDeviceId"],
+	).Scan(&modes, &deviceTypeName); err != nil {
 		t.Fatal(err)
 	}
 	if len(modes) != 1 || modes[0] != "signage_player" || deviceTypeName != "Signage display" {
@@ -350,14 +367,21 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 		t.Fatalf("poll = %v", poll)
 	}
 	var storedDigest []byte
-	if err := e.pool.QueryRow(ctx, `SELECT token_digest FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&storedDigest); err != nil {
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT token_digest FROM managed_devices WHERE id = $1`,
+		display["managedDeviceId"],
+	).Scan(&storedDigest); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(storedDigest, security.DigestToken(deviceCookie.Value)) {
 		t.Fatal("the stored device credential must be the digest of the delivered token")
 	}
 	var open int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_pairing_requests WHERE claimed_display_id IS NOT NULL`).Scan(&open); err != nil ||
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM signage_pairing_requests WHERE claimed_display_id IS NOT NULL`,
+	).Scan(&open); err != nil ||
 		open != 0 {
 		t.Fatalf("delivered request must be deleted: %d %v", open, err)
 	}
@@ -465,8 +489,14 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	// A signage device reaches the player API and the pairing endpoints, nothing else.
 	for _, request := range []struct{ method, path string }{
 		{http.MethodGet, "/signage/displays"}, {http.MethodGet, "/auth/me"}, {http.MethodGet, "/permissions"},
-		{http.MethodGet, "/public/open-days"}, {http.MethodGet, "/public/config"}, {http.MethodGet, "/managed-devices/self/hardware"},
-		{http.MethodGet, "/visitor-enrollment/state"}, {http.MethodPost, "/visitor-enrollment/context"}, {http.MethodGet, "/signage/layouts"},
+		{http.MethodGet, "/public/open-days"}, {http.MethodGet, "/public/config"}, {
+			http.MethodGet,
+			"/managed-devices/self/hardware",
+		},
+		{http.MethodGet, "/visitor-enrollment/state"}, {
+			http.MethodPost,
+			"/visitor-enrollment/context",
+		}, {http.MethodGet, "/signage/layouts"},
 	} {
 		e.expectCode(e.do(player, "", request.method, request.path, nil), http.StatusForbidden, "device_mode_denied")
 	}
@@ -544,10 +574,18 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	var signageType uuid.UUID
-	if err := e.pool.QueryRow(ctx, `SELECT id FROM device_types WHERE name = 'Signage display'`).Scan(&signageType); err != nil {
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT id FROM device_types WHERE name = 'Signage display'`,
+	).Scan(&signageType); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.pool.Exec(ctx, `INSERT INTO managed_devices (id, name, device_type_id, token_digest, allowed_app_modes) VALUES (uuidv7(), 'Orphan', $1, $2, ARRAY['signage_player'])`, signageType, orphanDigest); err != nil {
+	if _, err := e.pool.Exec(
+		ctx,
+		`INSERT INTO managed_devices (id, name, device_type_id, token_digest, allowed_app_modes) VALUES (uuidv7(), 'Orphan', $1, $2, ARRAY['signage_player'])`,
+		signageType,
+		orphanDigest,
+	); err != nil {
 		t.Fatal(err)
 	}
 	e.expectCode(
@@ -557,8 +595,16 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	)
 
 	// The database refuses a signage player combined with any other mode.
-	for _, modes := range []string{"ARRAY['signage_player','staff_ui']", "ARRAY['staff_ui','signage_player']", "ARRAY['visitor_terminal','signage_player']"} {
-		if _, err := e.pool.Exec(ctx, `INSERT INTO managed_devices (id, name, device_type_id, token_digest, allowed_app_modes) VALUES (uuidv7(), 'Mixed', $1, sha256(gen_random_uuid()::text::bytea), `+modes+`)`, signageType); err == nil {
+	for _, modes := range []string{
+		"ARRAY['signage_player','staff_ui']",
+		"ARRAY['staff_ui','signage_player']",
+		"ARRAY['visitor_terminal','signage_player']",
+	} {
+		if _, err := e.pool.Exec(
+			ctx,
+			`INSERT INTO managed_devices (id, name, device_type_id, token_digest, allowed_app_modes) VALUES (uuidv7(), 'Mixed', $1, sha256(gen_random_uuid()::text::bytea), `+modes+`)`,
+			signageType,
+		); err == nil {
 			t.Fatalf("modes %s were accepted by the database", modes)
 		}
 	}
@@ -617,7 +663,11 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	)
 	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+displayID, nil), http.StatusNotFound, "not_found")
 	var devices int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil ||
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM managed_devices WHERE id = $1`,
+		display["managedDeviceId"],
+	).Scan(&devices); err != nil ||
 		devices != 0 {
 		t.Fatalf("managed device should be deleted with its display: %d %v", devices, err)
 	}
@@ -708,11 +758,19 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 		t.Fatalf("session epoch = %d, want %d", e.epoch(), epoch+1)
 	}
 	var listed, devices int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`, id).Scan(&listed); err != nil ||
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`,
+		id,
+	).Scan(&listed); err != nil ||
 		listed != 1 {
 		t.Fatalf("deleted display must be on the revoked list: %d %v", listed, err)
 	}
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil ||
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM managed_devices WHERE id = $1`,
+		display["managedDeviceId"],
+	).Scan(&devices); err != nil ||
 		devices != 0 {
 		t.Fatalf("managed device should be deleted: %d %v", devices, err)
 	}
@@ -763,8 +821,17 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 	}
 	create := func(modes ...string) *http.Response {
 		return e.as(manager, http.MethodPost, "/managed-devices", map[string]any{
-			"name": "Sneaky", "deviceTypeId": deviceType.ID.String(), "expiresAt": nil, "credentialDelivery": "nativeToken", "sessionPolicyId": nil,
-			"terminalEnabled": false, "allowedApplicationModes": modes, "checkInAssurance": "low", "checkOutAssurance": "low", "checkoutMode": "verified", "capabilities": []string{},
+			"name":                    "Sneaky",
+			"deviceTypeId":            deviceType.ID.String(),
+			"expiresAt":               nil,
+			"credentialDelivery":      "nativeToken",
+			"sessionPolicyId":         nil,
+			"terminalEnabled":         false,
+			"allowedApplicationModes": modes,
+			"checkInAssurance":        "low",
+			"checkOutAssurance":       "low",
+			"checkoutMode":            "verified",
+			"capabilities":            []string{},
 		})
 	}
 	e.expectCode(create("signage_player"), http.StatusUnprocessableEntity, "validation_failed")
@@ -776,8 +843,17 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 	device := e.expect(e.as(manager, http.MethodGet, "/managed-devices/"+deviceID, nil), http.StatusOK)
 	update := func(modes ...string) *http.Response {
 		return e.as(manager, http.MethodPatch, "/managed-devices/"+deviceID, map[string]any{
-			"name": "Renamed", "deviceTypeId": device["deviceTypeId"], "expiresAt": nil, "expectedVersion": device["version"], "sessionPolicyId": nil,
-			"terminalEnabled": false, "allowedApplicationModes": modes, "checkInAssurance": "low", "checkOutAssurance": "low", "checkoutMode": "verified", "capabilities": []string{},
+			"name":                    "Renamed",
+			"deviceTypeId":            device["deviceTypeId"],
+			"expiresAt":               nil,
+			"expectedVersion":         device["version"],
+			"sessionPolicyId":         nil,
+			"terminalEnabled":         false,
+			"allowedApplicationModes": modes,
+			"checkInAssurance":        "low",
+			"checkOutAssurance":       "low",
+			"checkoutMode":            "verified",
+			"capabilities":            []string{},
 		})
 	}
 	e.expectCode(update("staff_ui"), http.StatusUnprocessableEntity, "validation_failed")
@@ -832,8 +908,16 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	version := func() int64 { return e.displayVersion(owner, displayID) }
 	rule := func() map[string]any {
 		return map[string]any{
-			"expectedVersion": version(), "enabled": true, "conditionKind": "machine_printing", "machineIds": []string{machine.String()}, "machineMatch": "any",
-			"targetKind": "scene", "targetId": scene.ID.String(), "minSeconds": 20, "multiMode": "split", "alternateSeconds": 10,
+			"expectedVersion":  version(),
+			"enabled":          true,
+			"conditionKind":    "machine_printing",
+			"machineIds":       []string{machine.String()},
+			"machineMatch":     "any",
+			"targetKind":       "scene",
+			"targetId":         scene.ID.String(),
+			"minSeconds":       20,
+			"multiMode":        "split",
+			"alternateSeconds": 10,
 		}
 	}
 	settings := func() map[string]any {
@@ -854,7 +938,11 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	}
 
 	// Reads need signage.read.
-	for _, request := range []string{"/signage/displays", "/signage/displays/" + displayID, "/signage/displays/" + displayID + "/rules"} {
+	for _, request := range []string{
+		"/signage/displays",
+		"/signage/displays/" + displayID,
+		"/signage/displays/" + displayID + "/rules",
+	} {
 		for _, denied := range []staffSession{nobody, manager, publisher, content} {
 			e.expectCode(e.as(denied, http.MethodGet, request, nil), http.StatusForbidden, "permission_denied")
 		}
@@ -1009,7 +1097,12 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	staff := e.allStaff()
 	scene, playlist := e.seedContent("Rules")
 	portrait, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, signage.SceneInput{
-		Name: "Portrait scene", Orientation: "portrait", LayoutID: "full", BackgroundColor: "#101820", BackgroundFit: "cover", Theme: "dark",
+		Name:            "Portrait scene",
+		Orientation:     "portrait",
+		LayoutID:        "full",
+		BackgroundColor: "#101820",
+		BackgroundFit:   "cover",
+		Theme:           "dark",
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1033,7 +1126,11 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 				staff,
 				displayID,
 			), "enabled": true, "conditionKind": "live_data_unavailable",
-			"targetKind": "scene", "targetId": scene.ID.String(), "minSeconds": 20, "multiMode": "split", "alternateSeconds": 10,
+			"targetKind":       "scene",
+			"targetId":         scene.ID.String(),
+			"minSeconds":       20,
+			"multiMode":        "split",
+			"alternateSeconds": 10,
 		}
 		for key, override := range overrides {
 			value[key] = override
@@ -1073,7 +1170,11 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		t.Fatalf("weekdays = %v", first["weekdays"])
 	}
 	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
-		"conditionKind": "machine_printing", "machineIds": []string{machine.String()}, "machineMatch": "all", "targetKind": "playlist", "targetId": playlist.ID.String(),
+		"conditionKind": "machine_printing",
+		"machineIds":    []string{machine.String()},
+		"machineMatch":  "all",
+		"targetKind":    "playlist",
+		"targetId":      playlist.ID.String(),
 	})), http.StatusCreated)
 	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
 		"conditionKind": "announcement_active", "announcementTemplateIds": []string{template.ID.String()},
@@ -1096,17 +1197,38 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 
 	// Validation: kind-specific fields, references, orientation.
 	for name, overrides := range map[string]map[string]any{
-		"time window with machines":     {"conditionKind": "time_window", "weekdays": []int{1}, "timeFrom": "08:00", "timeTo": "09:00", "machineIds": []string{machine.String()}},
-		"time window without weekdays":  {"conditionKind": "time_window", "timeFrom": "08:00", "timeTo": "09:00"},
-		"time window equal bounds":      {"conditionKind": "time_window", "weekdays": []int{1}, "timeFrom": "08:00", "timeTo": "08:00"},
-		"machine rule without match":    {"conditionKind": "machine_printing", "machineIds": []string{machine.String()}},
+		"time window with machines": {
+			"conditionKind": "time_window",
+			"weekdays":      []int{1},
+			"timeFrom":      "08:00",
+			"timeTo":        "09:00",
+			"machineIds":    []string{machine.String()},
+		},
+		"time window without weekdays": {"conditionKind": "time_window", "timeFrom": "08:00", "timeTo": "09:00"},
+		"time window equal bounds": {
+			"conditionKind": "time_window",
+			"weekdays":      []int{1},
+			"timeFrom":      "08:00",
+			"timeTo":        "08:00",
+		},
+		"machine rule without match": {
+			"conditionKind": "machine_printing",
+			"machineIds":    []string{machine.String()},
+		},
 		"machine rule without machines": {"conditionKind": "machine_printing", "machineMatch": "any"},
-		"unknown machine":               {"conditionKind": "machine_printing", "machineMatch": "any", "machineIds": []string{uuid.Must(uuid.NewV7()).String()}},
-		"unknown template":              {"conditionKind": "announcement_active", "announcementTemplateIds": []string{uuid.Must(uuid.NewV7()).String()}},
-		"live rule with weekdays":       {"weekdays": []int{1}},
-		"unknown scene":                 {"targetId": uuid.Must(uuid.NewV7()).String()},
-		"unknown playlist":              {"targetKind": "playlist", "targetId": uuid.Must(uuid.NewV7()).String()},
-		"scene of another orientation":  {"targetId": portrait.ID.String()},
+		"unknown machine": {
+			"conditionKind": "machine_printing",
+			"machineMatch":  "any",
+			"machineIds":    []string{uuid.Must(uuid.NewV7()).String()},
+		},
+		"unknown template": {
+			"conditionKind":           "announcement_active",
+			"announcementTemplateIds": []string{uuid.Must(uuid.NewV7()).String()},
+		},
+		"live rule with weekdays":      {"weekdays": []int{1}},
+		"unknown scene":                {"targetId": uuid.Must(uuid.NewV7()).String()},
+		"unknown playlist":             {"targetKind": "playlist", "targetId": uuid.Must(uuid.NewV7()).String()},
+		"scene of another orientation": {"targetId": portrait.ID.String()},
 	} {
 		response := e.as(staff, http.MethodPost, base+"/rules", body(overrides))
 		if response.StatusCode != http.StatusUnprocessableEntity {
@@ -1115,9 +1237,19 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		response.Body.Close()
 	}
 	for name, overrides := range map[string]map[string]any{
-		"clock out of range":   {"conditionKind": "time_window", "weekdays": []int{1}, "timeFrom": "24:00", "timeTo": "09:00"},
-		"weekday out of range": {"conditionKind": "time_window", "weekdays": []int{8}, "timeFrom": "08:00", "timeTo": "09:00"},
-		"minimum too long":     {"minSeconds": 601},
+		"clock out of range": {
+			"conditionKind": "time_window",
+			"weekdays":      []int{1},
+			"timeFrom":      "24:00",
+			"timeTo":        "09:00",
+		},
+		"weekday out of range": {
+			"conditionKind": "time_window",
+			"weekdays":      []int{8},
+			"timeFrom":      "08:00",
+			"timeTo":        "09:00",
+		},
+		"minimum too long": {"minSeconds": 601},
 	} {
 		response := e.as(staff, http.MethodPost, base+"/rules", body(overrides))
 		if response.StatusCode != http.StatusBadRequest {
@@ -1265,7 +1397,12 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	settings["orientation"] = "landscape"
 	e.expectCode(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity, "validation_failed")
 
-	for action, want := range map[string]int{"signage_rule.created": 5, "signage_rule.updated": 2, "signage_rule.deleted": 2, "signage_display.rules_reordered": 1} {
+	for action, want := range map[string]int{
+		"signage_rule.created":            5,
+		"signage_rule.updated":            2,
+		"signage_rule.deleted":            2,
+		"signage_display.rules_reordered": 1,
+	} {
 		if got := e.countAudit(action); got != want {
 			t.Errorf("audit %s = %d, want %d", action, got, want)
 		}
@@ -1341,7 +1478,11 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 				staff,
 				displayID,
 			), "enabled": enabled, "conditionKind": "live_data_unavailable",
-			"targetKind": "scene", "targetId": scene.ID.String(), "minSeconds": 20, "multiMode": "split", "alternateSeconds": 10,
+			"targetKind":       "scene",
+			"targetId":         scene.ID.String(),
+			"minSeconds":       20,
+			"multiMode":        "split",
+			"alternateSeconds": 10,
 		}), http.StatusCreated)
 	}
 	addRule(true, sceneB)
@@ -1410,7 +1551,10 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	if unchanged["unchanged"] != true || unchanged["manifest"] != nil {
 		t.Fatalf("known=1 = %v", unchanged)
 	}
-	if again := e.expect(e.do(player, "", http.MethodGet, "/signage/player/manifest?known=0", nil), http.StatusOK); again["unchanged"] != false {
+	if again := e.expect(
+		e.do(player, "", http.MethodGet, "/signage/player/manifest?known=0", nil),
+		http.StatusOK,
+	); again["unchanged"] != false {
 		t.Fatalf("known=0 = %v", again)
 	}
 
@@ -1477,7 +1621,10 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 		),
 		http.StatusOK,
 	)
-	if pending = pendingSet(e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK)); !pending["rule|Rule 1 (live_data_unavailable)|removed"] {
+	if pending = pendingSet(e.expect(
+		e.as(staff, http.MethodGet, base, nil),
+		http.StatusOK,
+	)); !pending["rule|Rule 1 (live_data_unavailable)|removed"] {
 		t.Fatalf("pending after disabling = %v", pending)
 	}
 	// The list endpoint reports the same pending changes.
@@ -1492,7 +1639,10 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 		t.Fatalf("second publication = %v", second)
 	}
 	e.expectCode(e.do(player, "", http.MethodGet, assetPath(image), nil), http.StatusNotFound, "not_found")
-	if latest := e.expect(e.do(player, "", http.MethodGet, "/signage/player/manifest?known=1", nil), http.StatusOK); latest["unchanged"] != false ||
+	if latest := e.expect(
+		e.do(player, "", http.MethodGet, "/signage/player/manifest?known=1", nil),
+		http.StatusOK,
+	); latest["unchanged"] != false ||
 		latest["manifest"].(map[string]any)["revision"] != float64(2) {
 		t.Fatalf("latest = %v", latest)
 	}
@@ -1506,7 +1656,11 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 		e.expect(e.as(staff, http.MethodPost, base+"/publish", nil), http.StatusOK)
 	}
 	var count, oldest, newest int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*), min(revision), max(revision) FROM signage_publications WHERE display_id = $1`, displayID).Scan(&count, &oldest, &newest); err != nil {
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*), min(revision), max(revision) FROM signage_publications WHERE display_id = $1`,
+		displayID,
+	).Scan(&count, &oldest, &newest); err != nil {
 		t.Fatal(err)
 	}
 	if count != 5 || oldest != 3 || newest != 7 {
@@ -1572,7 +1726,13 @@ func (e *signageEnv) printer(name string) signagePrinter {
 		ID                   uuid.UUID
 		ConfigurationVersion int64
 	}{ID: uuid.Must(uuid.NewV7()), ConfigurationVersion: 1}
-	if _, err = e.pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`, assignment.ID, connector.ID, machine.ID); err != nil {
+	if _, err = e.pool.Exec(
+		ctx,
+		`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`,
+		assignment.ID,
+		connector.ID,
+		machine.ID,
+	); err != nil {
 		e.t.Fatal(err)
 	}
 	return signagePrinter{machineID: machine.ID, report: func(state string, observedAt time.Time) {
@@ -1646,11 +1806,20 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	targeted := start(false, displayID)
 	start(false, otherDisplay["id"].(string))
 	future := time.Now().UTC().Add(2 * time.Hour)
-	if _, err := svc.StartAnnouncement(ctx, admin, signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true, StartsAt: &future}, nil); err != nil {
+	if _, err := svc.StartAnnouncement(
+		ctx,
+		admin,
+		signage.AnnouncementInput{TemplateID: template.ID, AllDisplays: true, StartsAt: &future},
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	ended := start(true)
-	if _, err := e.pool.Exec(ctx, `UPDATE signage_announcements SET starts_at = now() - interval '2 hours', ends_at = now() - interval '1 minute' WHERE id = $1`, ended.ID); err != nil {
+	if _, err := e.pool.Exec(
+		ctx,
+		`UPDATE signage_announcements SET starts_at = now() - interval '2 hours', ends_at = now() - interval '1 minute' WHERE id = $1`,
+		ended.ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1682,7 +1851,14 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	}
 	raw, _ := io.ReadAll(response.Body)
 	response.Body.Close()
-	for _, leaked := range []string{"customer-secret", "secret note", "internal text", "Internal room", "Internal name", "example.test"} {
+	for _, leaked := range []string{
+		"customer-secret",
+		"secret note",
+		"internal text",
+		"Internal room",
+		"Internal name",
+		"example.test",
+	} {
 		if strings.Contains(string(raw), leaked) {
 			t.Fatalf("live response leaks %q: %s", leaked, raw)
 		}
@@ -1739,7 +1915,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	}
 
 	// Machine status goes stale after three minutes.
-	if _, err := e.pool.Exec(ctx, `UPDATE printer_live_statuses SET received_at = now() - interval '4 minutes'`); err != nil {
+	if _, err := e.pool.Exec(
+		ctx,
+		`UPDATE printer_live_statuses SET received_at = now() - interval '4 minutes'`,
+	); err != nil {
 		t.Fatal(err)
 	}
 	live = e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
@@ -1779,7 +1958,11 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		t.Fatalf("display after heartbeat = %v", view)
 	}
 	status := func(age string) any {
-		if _, err := e.pool.Exec(ctx, `UPDATE signage_display_states SET last_heartbeat_at = now() - interval '`+age+`' WHERE display_id = $1`, displayID); err != nil {
+		if _, err := e.pool.Exec(
+			ctx,
+			`UPDATE signage_display_states SET last_heartbeat_at = now() - interval '`+age+`' WHERE display_id = $1`,
+			displayID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		return e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+displayID, nil), http.StatusOK)["status"]
@@ -1793,7 +1976,11 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		http.StatusNoContent,
 	)
 	var rows int
-	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_display_states WHERE display_id = $1 AND current_rule IS NULL AND errors = '[]'::jsonb`, displayID).Scan(&rows); err != nil ||
+	if err := e.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM signage_display_states WHERE display_id = $1 AND current_rule IS NULL AND errors = '[]'::jsonb`,
+		displayID,
+	).Scan(&rows); err != nil ||
 		rows != 1 {
 		t.Fatalf("state rows = %d (%v)", rows, err)
 	}
@@ -1808,8 +1995,14 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		tooMany[index] = "x"
 	}
 	for name, bad := range map[string]map[string]any{
-		"too many errors": {"errors": tooMany}, "long error": {"errors": []string{strings.Repeat("x", 201)}}, "revision zero": {"revision": 0, "errors": []string{}},
-		"negative cache": {"cacheUsedBytes": -1, "errors": []string{}}, "long version": {"playerVersion": strings.Repeat("v", 65), "errors": []string{}},
+		"too many errors": {"errors": tooMany}, "long error": {"errors": []string{strings.Repeat("x", 201)}}, "revision zero": {
+			"revision": 0,
+			"errors":   []string{},
+		},
+		"negative cache": {"cacheUsedBytes": -1, "errors": []string{}}, "long version": {
+			"playerVersion": strings.Repeat("v", 65),
+			"errors":        []string{},
+		},
 		"unknown field": {"errors": []string{}, "extra": 1}, "missing errors": {"revision": 1},
 	} {
 		response := e.do(player, "", http.MethodPost, "/signage/player/heartbeat", bad)
@@ -1819,7 +2012,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		response.Body.Close()
 	}
 	for name, bad := range map[string]map[string]any{
-		"control character": {"errors": []string{"a\nb"}}, "rule with space": {"currentRule": "a b", "errors": []string{}},
+		"control character": {"errors": []string{"a\nb"}}, "rule with space": {
+			"currentRule": "a b",
+			"errors":      []string{},
+		},
 	} {
 		response := e.do(player, "", http.MethodPost, "/signage/player/heartbeat", bad)
 		if response.StatusCode != http.StatusUnprocessableEntity {

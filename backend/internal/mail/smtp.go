@@ -40,7 +40,10 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	var connection net.Conn
 	var err error
 	if p.config.TLSMode == "tls" {
-		connection, err = (&tls.Dialer{NetDialer: dialer, Config: &tls.Config{MinVersion: tls.VersionTLS12, ServerName: p.config.Host}}).DialContext(
+		connection, err = (&tls.Dialer{
+			NetDialer: dialer,
+			Config:    &tls.Config{MinVersion: tls.VersionTLS12, ServerName: p.config.Host},
+		}).DialContext(
 			ctx,
 			"tcp",
 			address,

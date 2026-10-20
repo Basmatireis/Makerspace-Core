@@ -73,7 +73,17 @@ func (s *Service) CreateTaskList(
 		return TaskList{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_task_list.created", "event_task_list", id, requestID, []string{"name", "description", "sortOrder"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_task_list.created",
+		"event_task_list",
+		id,
+		requestID,
+		[]string{"name", "description", "sortOrder"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return TaskList{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -137,7 +147,17 @@ func (s *Service) UpdateTaskList(
 		return TaskList{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_task_list.updated", "event_task_list", id, requestID, []string{"name", "description", "sortOrder"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_task_list.updated",
+		"event_task_list",
+		id,
+		requestID,
+		[]string{"name", "description", "sortOrder"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return TaskList{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -178,11 +198,24 @@ func (s *Service) DeleteTaskList(
 	if int64(current.Version) != expected {
 		return apperror.StaleWrite
 	}
-	if _, err = q.DeleteEventTaskList(ctx, eventsdb.DeleteEventTaskListParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)}); err != nil {
+	if _, err = q.DeleteEventTaskList(
+		ctx,
+		eventsdb.DeleteEventTaskListParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_task_list.deleted", "event_task_list", id, requestID, nil, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_task_list.deleted",
+		"event_task_list",
+		id,
+		requestID,
+		nil,
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -261,7 +294,17 @@ func (s *Service) CreateTask(
 		action = "event_task.completed"
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, action, "event_task", id, requestID, []string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		action,
+		"event_task",
+		id,
+		requestID,
+		[]string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Task{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -342,7 +385,17 @@ func (s *Service) UpdateTask(
 		return Task{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, action, "event_task", id, requestID, []string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"}, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		action,
+		"event_task",
+		id,
+		requestID,
+		[]string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"},
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return Task{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -383,11 +436,24 @@ func (s *Service) DeleteTask(
 	if int64(current.Version) != expected {
 		return apperror.StaleWrite
 	}
-	if _, err = q.DeleteEventTask(ctx, eventsdb.DeleteEventTaskParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)}); err != nil {
+	if _, err = q.DeleteEventTask(
+		ctx,
+		eventsdb.DeleteEventTaskParams{ID: id, EventID: eventID, ExpectedVersion: int32(expected)},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_task.deleted", "event_task", id, requestID, nil, map[string]any{"eventId": eventID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_task.deleted",
+		"event_task",
+		id,
+		requestID,
+		nil,
+		map[string]any{"eventId": eventID.String()},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

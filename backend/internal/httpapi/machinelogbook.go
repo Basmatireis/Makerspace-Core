@@ -184,7 +184,13 @@ func (s *Server) DeleteMachine(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.machineLogbook.DeleteMachine(ctx, p, r.MachineId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.machineLogbook.DeleteMachine(
+		ctx,
+		p,
+		r.MachineId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteMachine204Response{}, nil
@@ -308,7 +314,13 @@ func (s *Server) DeleteOrganization(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.machineLogbook.DeleteOrganization(ctx, p, r.OrganizationId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.machineLogbook.DeleteOrganization(
+		ctx,
+		p,
+		r.OrganizationId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteOrganization204Response{}, nil
@@ -385,7 +397,13 @@ func (s *Server) RemoveOrganizationMember(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.machineLogbook.RemoveOrganizationMember(ctx, p, r.OrganizationId, r.PersonId, requestIDPointer(ctx)); err != nil {
+	if err = s.machineLogbook.RemoveOrganizationMember(
+		ctx,
+		p,
+		r.OrganizationId,
+		r.PersonId,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.RemoveOrganizationMember204Response{}, nil
@@ -1229,7 +1247,17 @@ func (s *Server) DeleteMachineJob(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.machineLogbook.DeleteJob(ctx, p, r.MachineJobId, machinelogbook.DeleteJobInput{ExpectedVersion: r.Body.ExpectedVersion, ReverseConsumption: r.Body.ReverseConsumption, DeleteRecordedRuns: r.Body.DeleteRecordedRuns}, requestIDPointer(ctx)); err != nil {
+	if err := s.machineLogbook.DeleteJob(
+		ctx,
+		p,
+		r.MachineJobId,
+		machinelogbook.DeleteJobInput{
+			ExpectedVersion:    r.Body.ExpectedVersion,
+			ReverseConsumption: r.Body.ReverseConsumption,
+			DeleteRecordedRuns: r.Body.DeleteRecordedRuns,
+		},
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteMachineJob204Response{}, nil
@@ -1333,7 +1361,13 @@ func (s *Server) DeleteMaterialType(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.machineLogbook.DeleteMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+	if err = s.machineLogbook.DeleteMaterialType(
+		ctx,
+		p,
+		r.MaterialTypeId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteMaterialType204Response{}, nil

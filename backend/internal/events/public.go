@@ -344,7 +344,10 @@ func (s *Service) ListOwnAssignments(
 	publicID string,
 ) ([]Assignment, error) {
 	rows, err := eventsdb.New(s.pool).
-		ListOwnEventAssignments(ctx, eventsdb.ListOwnEventAssignmentsParams{PublicID: publicID, PersonID: &principal.PersonID})
+		ListOwnEventAssignments(
+			ctx,
+			eventsdb.ListOwnEventAssignmentsParams{PublicID: publicID, PersonID: &principal.PersonID},
+		)
 	if err != nil {
 		return nil, err
 	}
@@ -540,7 +543,20 @@ func (s *Service) updateAssignmentContact(
 		actor = &principal.AccountID
 		actorType = "user"
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: actorType, ActorAccountID: actor, Action: "event_assignment.updated", ResourceType: "event_assignment", ResourceID: &current.ID, RequestID: requestID, ChangedFields: changedFields, Metadata: map[string]any{"eventId": current.EventID.String(), "shiftId": current.ShiftID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:      actorType,
+			ActorAccountID: actor,
+			Action:         "event_assignment.updated",
+			ResourceType:   "event_assignment",
+			ResourceID:     &current.ID,
+			RequestID:      requestID,
+			ChangedFields:  changedFields,
+			Metadata:       map[string]any{"eventId": current.EventID.String(), "shiftId": current.ShiftID.String()},
+		},
+	); err != nil {
 		return Assignment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -674,7 +690,16 @@ func (s *Service) moveAssignment(
 				return Assignment{}, err
 			}
 		}
-		rows, err := q.FindContactEventShiftConflicts(ctx, eventsdb.FindContactEventShiftConflictsParams{ExcludeAssignmentID: current.ID, EmailNormalized: current.EmailNormalized, PhoneNormalized: current.PhoneNormalized, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+		rows, err := q.FindContactEventShiftConflicts(
+			ctx,
+			eventsdb.FindContactEventShiftConflictsParams{
+				ExcludeAssignmentID: current.ID,
+				EmailNormalized:     current.EmailNormalized,
+				PhoneNormalized:     current.PhoneNormalized,
+				EndsAt:              shift.EndsAt,
+				StartsAt:            shift.StartsAt,
+			},
+		)
 		if err != nil {
 			return Assignment{}, err
 		}
@@ -706,11 +731,35 @@ func (s *Service) moveAssignment(
 		actor = &principal.AccountID
 		actorType = "user"
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: actorType, ActorAccountID: actor, Action: "event_assignment.moved", ResourceType: "event_assignment", ResourceID: &current.ID, RequestID: requestID, ChangedFields: []string{"shiftId", "requirementId"}, Metadata: map[string]any{"eventId": current.EventID.String(), "shiftId": destinationShiftID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:      actorType,
+			ActorAccountID: actor,
+			Action:         "event_assignment.moved",
+			ResourceType:   "event_assignment",
+			ResourceID:     &current.ID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"shiftId", "requirementId"},
+			Metadata:       map[string]any{"eventId": current.EventID.String(), "shiftId": destinationShiftID.String()},
+		},
+	); err != nil {
 		return Assignment{}, err
 	}
 	if overrideActor != nil {
-		if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: overrideActor, Action: "event_assignment.conflict_overridden", ResourceType: "event_assignment", ResourceID: &current.ID, RequestID: requestID, Metadata: map[string]any{"eventId": current.EventID.String(), "shiftId": destinationShiftID.String()}}); err != nil {
+		if err = audit.Write(
+			ctx,
+			tx,
+			audit.Event{
+				ActorAccountID: overrideActor,
+				Action:         "event_assignment.conflict_overridden",
+				ResourceType:   "event_assignment",
+				ResourceID:     &current.ID,
+				RequestID:      requestID,
+				Metadata:       map[string]any{"eventId": current.EventID.String(), "shiftId": destinationShiftID.String()},
+			},
+		); err != nil {
 			return Assignment{}, err
 		}
 	}
@@ -771,7 +820,20 @@ func (s *Service) cancelAssignment(
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: actorType, ActorAccountID: actor, Action: "event_assignment.cancelled", ResourceType: "event_assignment", ResourceID: &current.ID, RequestID: requestID, ChangedFields: []string{"status"}, Metadata: map[string]any{"eventId": current.EventID.String(), "shiftId": current.ShiftID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:      actorType,
+			ActorAccountID: actor,
+			Action:         "event_assignment.cancelled",
+			ResourceType:   "event_assignment",
+			ResourceID:     &current.ID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"status"},
+			Metadata:       map[string]any{"eventId": current.EventID.String(), "shiftId": current.ShiftID.String()},
+		},
+	); err != nil {
 		return Assignment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -792,7 +854,10 @@ func loadAuthorizedAssignment(
 	if len(digest) != 0 {
 		row, err = q.GetEventAssignmentByTokenDigestForUpdate(ctx, digest)
 	} else {
-		row, err = q.GetEventAssignmentForUpdate(ctx, eventsdb.GetEventAssignmentForUpdateParams{ID: id, EventID: eventID})
+		row, err = q.GetEventAssignmentForUpdate(
+			ctx,
+			eventsdb.GetEventAssignmentForUpdateParams{ID: id, EventID: eventID},
+		)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return row, apperror.NotFound
@@ -824,7 +889,10 @@ type UpcomingPublicEvent struct {
 // It exposes only title, start and location.
 func (s *Service) ListUpcomingPublic(ctx context.Context, now time.Time, limit int) ([]UpcomingPublicEvent, error) {
 	rows, err := eventsdb.New(s.pool).
-		ListUpcomingPublicEventSessions(ctx, eventsdb.ListUpcomingPublicEventSessionsParams{Now: now.UTC(), RowLimit: int32(limit)})
+		ListUpcomingPublicEventSessions(
+			ctx,
+			eventsdb.ListUpcomingPublicEventSessionsParams{Now: now.UTC(), RowLimit: int32(limit)},
+		)
 	if err != nil {
 		return nil, err
 	}

@@ -184,11 +184,32 @@ func (s *Service) Create(
 	id := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	row, err := eventsdb.New(tx).
-		CreateEvent(ctx, eventsdb.CreateEventParams{ID: id, Name: name, InternalDescription: description, Location: location, OwnerPersonID: input.OwnerPersonID, PublicID: publicID, CreatedByAccountID: &actor})
+		CreateEvent(
+			ctx,
+			eventsdb.CreateEventParams{
+				ID:                  id,
+				Name:                name,
+				InternalDescription: description,
+				Location:            location,
+				OwnerPersonID:       input.OwnerPersonID,
+				PublicID:            publicID,
+				CreatedByAccountID:  &actor,
+			},
+		)
 	if err != nil {
 		return Event{}, databaseError(err)
 	}
-	if err := eventAudit(ctx, tx, &actor, "event.created", "event", id, requestID, []string{"name", "internalDescription", "location", "ownerPersonId"}, nil); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event.created",
+		"event",
+		id,
+		requestID,
+		[]string{"name", "internalDescription", "location", "ownerPersonId"},
+		nil,
+	); err != nil {
 		return Event{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -284,7 +305,26 @@ func (s *Service) Update(
 		return Event{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event.updated", "event", id, requestID, []string{"name", "internalDescription", "location", "ownerPersonId", "publicTitle", "publicDescription", "publicLocation", "publicSignupEnabled"}, nil); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event.updated",
+		"event",
+		id,
+		requestID,
+		[]string{
+			"name",
+			"internalDescription",
+			"location",
+			"ownerPersonId",
+			"publicTitle",
+			"publicDescription",
+			"publicLocation",
+			"publicSignupEnabled",
+		},
+		nil,
+	); err != nil {
 		return Event{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -367,7 +407,17 @@ func (s *Service) Transition(
 		return Event{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event."+target, "event", id, requestID, []string{"status"}, nil); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event."+target,
+		"event",
+		id,
+		requestID,
+		[]string{"status"},
+		nil,
+	); err != nil {
 		return Event{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -496,7 +546,17 @@ func (s *Service) RotatePublicID(
 		return Event{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := eventAudit(ctx, tx, &actor, "event.public_id_rotated", "event", id, requestID, []string{"publicId"}, nil); err != nil {
+	if err := eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event.public_id_rotated",
+		"event",
+		id,
+		requestID,
+		[]string{"publicId"},
+		nil,
+	); err != nil {
 		return Event{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -548,7 +608,10 @@ func (s *Service) Delete(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := q.DeleteDraftEvent(ctx, eventsdb.DeleteDraftEventParams{ID: id, ExpectedVersion: int32(expectedVersion)}); err != nil {
+	if _, err := q.DeleteDraftEvent(
+		ctx,
+		eventsdb.DeleteDraftEventParams{ID: id, ExpectedVersion: int32(expectedVersion)},
+	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperror.StaleWrite
 		}

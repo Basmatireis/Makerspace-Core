@@ -53,10 +53,20 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	if _, err = pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Gateway', 'Operator', $2)`, personID, "gateway-"+suffix+"@example.test"); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Gateway', 'Operator', $2)`,
+		personID,
+		"gateway-"+suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := logbook.CreateMachineType(ctx, master, "Camera printer "+suffix, "fdm_printing", &requestID)
@@ -78,10 +88,24 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 			t.Fatal(createErr)
 		}
 		if profile {
-			if _, createErr = printingService.ConfigureProfile(ctx, master, machine.ID, true, 0, &requestID); createErr != nil {
+			if _, createErr = printingService.ConfigureProfile(
+				ctx,
+				master,
+				machine.ID,
+				true,
+				0,
+				&requestID,
+			); createErr != nil {
 				t.Fatal(createErr)
 			}
-			if _, createErr = pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, $4)`, uuid.Must(uuid.NewV7()), connectorID, machine.ID, adapter); createErr != nil {
+			if _, createErr = pool.Exec(
+				ctx,
+				`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, $4)`,
+				uuid.Must(uuid.NewV7()),
+				connectorID,
+				machine.ID,
+				adapter,
+			); createErr != nil {
 				t.Fatal(createErr)
 			}
 		}
@@ -169,7 +193,10 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 			t.Fatalf("non-Bambu machine offered: %+v", candidate)
 		}
 	}
-	if _, err = service.ListCameraCandidates(ctx, authorization.Principal{AccountID: accountID, PersonID: personID}); !apperror.IsCode(
+	if _, err = service.ListCameraCandidates(
+		ctx,
+		authorization.Principal{AccountID: accountID, PersonID: personID},
+	); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -193,10 +220,20 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	if _, err = pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Gateway', 'Deleter', $2)`, personID, "gwdel-"+suffix+"@example.test"); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Gateway', 'Deleter', $2)`,
+		personID,
+		"gwdel-"+suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := logbook.CreateMachineType(ctx, master, "Delete printer "+suffix, "fdm_printing", &requestID)
@@ -226,7 +263,14 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		if createErr != nil {
 			t.Fatal(createErr)
 		}
-		if _, createErr = service.Enroll(ctx, issue.Secret, uuid.Must(uuid.NewV7()), secret, "test", ProtocolVersion); createErr != nil {
+		if _, createErr = service.Enroll(
+			ctx,
+			issue.Secret,
+			uuid.Must(uuid.NewV7()),
+			secret,
+			"test",
+			ProtocolVersion,
+		); createErr != nil {
 			t.Fatal(createErr)
 		}
 		machine, createErr := logbook.CreateMachine(
@@ -242,13 +286,33 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 		if createErr != nil {
 			t.Fatal(createErr)
 		}
-		if _, createErr = printingService.ConfigureProfile(ctx, master, machine.ID, true, 0, &requestID); createErr != nil {
+		if _, createErr = printingService.ConfigureProfile(
+			ctx,
+			master,
+			machine.ID,
+			true,
+			0,
+			&requestID,
+		); createErr != nil {
 			t.Fatal(createErr)
 		}
-		if _, createErr = pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'bambu_x1c')`, uuid.Must(uuid.NewV7()), connector.ID, machine.ID); createErr != nil {
+		if _, createErr = pool.Exec(
+			ctx,
+			`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'bambu_x1c')`,
+			uuid.Must(uuid.NewV7()),
+			connector.ID,
+			machine.ID,
+		); createErr != nil {
 			t.Fatal(createErr)
 		}
-		if _, createErr = service.AssignCamera(ctx, master, gateway.ID, machine.ID, true, &requestID); createErr != nil {
+		if _, createErr = service.AssignCamera(
+			ctx,
+			master,
+			gateway.ID,
+			machine.ID,
+			true,
+			&requestID,
+		); createErr != nil {
 			t.Fatal(createErr)
 		}
 		current, createErr := service.Get(ctx, master, gateway.ID)
@@ -287,13 +351,19 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 	if gotContext, authErr := service.Authenticate(ctx, activeSecret); authErr != nil || gotContext != nil {
 		t.Fatalf("deleted gateway credential authenticated: %+v %v", gotContext, authErr)
 	}
-	if n := rowCount(`SELECT (SELECT count(*) FROM streaming_gateways WHERE id = $1) + (SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_credentials WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_enrollments WHERE gateway_id = $1)`, active.ID); n != 0 {
+	if n := rowCount(
+		`SELECT (SELECT count(*) FROM streaming_gateways WHERE id = $1) + (SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_credentials WHERE gateway_id = $1) + (SELECT count(*) FROM streaming_gateway_enrollments WHERE gateway_id = $1)`,
+		active.ID,
+	); n != 0 {
 		t.Fatalf("gateway data survived: %d", n)
 	}
 	if n := rowCount(`SELECT count(*) FROM machines WHERE id = $1`, activeMachine); n != 1 {
 		t.Fatal("the machine must survive")
 	}
-	if n := rowCount(`SELECT count(*) FROM audit_events WHERE action = 'streaming_gateway.deleted' AND resource_id = $1`, active.ID); n != 1 {
+	if n := rowCount(
+		`SELECT count(*) FROM audit_events WHERE action = 'streaming_gateway.deleted' AND resource_id = $1`,
+		active.ID,
+	); n != 1 {
 		t.Fatalf("audit rows = %d", n)
 	}
 	if err = service.Delete(ctx, master, active.ID, active.Version, nil); !apperror.IsCode(err, "not_found") {

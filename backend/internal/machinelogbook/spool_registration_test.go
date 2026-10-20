@@ -36,9 +36,18 @@ func (f *fillFixture) mountSpool(t *testing.T, spool FilamentSpool) (machine Mac
 		args []any
 	}{
 		{`INSERT INTO printer_profiles (machine_id) VALUES ($1)`, []any{machine.ID}},
-		{`INSERT INTO printer_input_units (id, machine_id, name, position) VALUES ($1, $2, $3, 0)`, []any{unit, machine.ID, unitName}},
-		{`INSERT INTO printer_slots (id, input_unit_id, name, position) VALUES ($1, $2, $3, 0)`, []any{slot, unit, slotName}},
-		{`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`, []any{uuid.Must(uuid.NewV7()), slot, spool.ID, f.now.Add(-time.Hour)}},
+		{
+			`INSERT INTO printer_input_units (id, machine_id, name, position) VALUES ($1, $2, $3, 0)`,
+			[]any{unit, machine.ID, unitName},
+		},
+		{
+			`INSERT INTO printer_slots (id, input_unit_id, name, position) VALUES ($1, $2, $3, 0)`,
+			[]any{slot, unit, slotName},
+		},
+		{
+			`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`,
+			[]any{uuid.Must(uuid.NewV7()), slot, spool.ID, f.now.Add(-time.Hour)},
+		},
 	} {
 		if _, err = f.pool.Exec(t.Context(), step.sql, step.args...); err != nil {
 			t.Fatal(err)
@@ -67,7 +76,11 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 		t.Fatalf("empty spool: %+v", spool)
 	}
 	var fills, ledger int
-	if err = f.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM filament_spool_fills WHERE spool_id = $1), (SELECT count(*) FROM inventory_transactions WHERE spool_id = $1 OR from_spool_id = $1 OR to_spool_id = $1)`, spool.ID).Scan(&fills, &ledger); err != nil {
+	if err = f.pool.QueryRow(
+		ctx,
+		`SELECT (SELECT count(*) FROM filament_spool_fills WHERE spool_id = $1), (SELECT count(*) FROM inventory_transactions WHERE spool_id = $1 OR from_spool_id = $1 OR to_spool_id = $1)`,
+		spool.ID,
+	).Scan(&fills, &ledger); err != nil {
 		t.Fatal(err)
 	}
 	if fills != 0 || ledger != 0 {
@@ -143,10 +156,29 @@ func TestCreateEmptySpoolRules(t *testing.T) {
 	}
 	// New acquisitions and existing stock still require material, weight and version.
 	for name, input := range map[string]FilamentSpoolInput{
-		"no material": {Kind: "reusable", StockMode: "existing_stock", InitialNetWeightG: "100", OccurredAt: f.now, ExpectedInventoryVersion: 1},
-		"no weight":   {Kind: "reusable", StockMode: "existing_stock", MaterialID: m.ID, OccurredAt: f.now, ExpectedInventoryVersion: 1},
-		"no version":  {Kind: "reusable", StockMode: "new_acquisition", MaterialID: m.ID, InitialNetWeightG: "100", TotalPrice: ptr("5"), OccurredAt: f.now},
-		"bad mode":    {Kind: "reusable", StockMode: "bogus", OccurredAt: f.now},
+		"no material": {
+			Kind:                     "reusable",
+			StockMode:                "existing_stock",
+			InitialNetWeightG:        "100",
+			OccurredAt:               f.now,
+			ExpectedInventoryVersion: 1,
+		},
+		"no weight": {
+			Kind:                     "reusable",
+			StockMode:                "existing_stock",
+			MaterialID:               m.ID,
+			OccurredAt:               f.now,
+			ExpectedInventoryVersion: 1,
+		},
+		"no version": {
+			Kind:              "reusable",
+			StockMode:         "new_acquisition",
+			MaterialID:        m.ID,
+			InitialNetWeightG: "100",
+			TotalPrice:        ptr("5"),
+			OccurredAt:        f.now,
+		},
+		"bad mode": {Kind: "reusable", StockMode: "bogus", OccurredAt: f.now},
 	} {
 		if _, err := f.s.CreateFilamentSpool(ctx, f.p, input, &f.request); !apperror.IsCode(err, "validation_failed") {
 			t.Fatalf("%s: %v", name, err)
@@ -154,7 +186,12 @@ func TestCreateEmptySpoolRules(t *testing.T) {
 	}
 	// Registering an empty spool needs the same permissions as any other spool.
 	for name, p := range map[string]authorization.Principal{
-		"spools only":    restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.FilamentSpoolsManage),
+		"spools only": restrictedPrincipal(
+			t,
+			f.pool,
+			authorization.InventoryRead,
+			authorization.FilamentSpoolsManage,
+		),
 		"inventory only": restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage),
 		"read only":      restrictedPrincipal(t, f.pool, authorization.InventoryRead),
 	} {
@@ -205,7 +242,11 @@ func TestSpoolSupplierAndLedgerActorName(t *testing.T) {
 		t.Fatalf("material actor: %+v", materialRows[0])
 	}
 	// Entries without a recorded actor (for example after account deletion) stay anonymous.
-	if _, err = f.pool.Exec(ctx, `UPDATE inventory_transactions SET actor_account_id = NULL WHERE id = $1`, materialRows[0].ID); err != nil {
+	if _, err = f.pool.Exec(
+		ctx,
+		`UPDATE inventory_transactions SET actor_account_id = NULL WHERE id = $1`,
+		materialRows[0].ID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	materialRows, _, err = f.s.ListMaterialTransactions(ctx, f.p, m.ID, 1, 25)
@@ -259,7 +300,12 @@ func TestSpoolMountedOn(t *testing.T) {
 	}
 
 	// Closed assignments no longer count.
-	if _, err = f.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at = $2 WHERE spool_id = $1`, mounted.ID, f.now); err != nil {
+	if _, err = f.pool.Exec(
+		ctx,
+		`UPDATE printer_spool_assignments SET unmounted_at = $2 WHERE spool_id = $1`,
+		mounted.ID,
+		f.now,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if after := f.get(t, mounted.ID); after.Mounted || after.MountedOn != nil {

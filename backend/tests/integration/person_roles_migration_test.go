@@ -45,7 +45,12 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 	}
 	var gotActor *uuid.UUID
 	var gotAssignedAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT assigned_by_account_id,assigned_at FROM person_roles WHERE person_id=$1 AND role_id=$2`, target.personID, roleID).Scan(&gotActor, &gotAssignedAt); err != nil {
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT assigned_by_account_id,assigned_at FROM person_roles WHERE person_id=$1 AND role_id=$2`,
+		target.personID,
+		roleID,
+	).Scan(&gotActor, &gotAssignedAt); err != nil {
 		t.Fatal(err)
 	}
 	if gotActor == nil || *gotActor != actor.accountID || !gotAssignedAt.Equal(assignedAt) {

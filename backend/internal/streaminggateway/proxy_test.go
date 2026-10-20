@@ -235,7 +235,23 @@ func TestProxyRejectsMissingBadAndMismatchedTickets(t *testing.T) {
 func TestProxyExposesNothingElse(t *testing.T) {
 	f := newProxyFixture(t)
 	ticket := "&ticket=" + f.ticket(f.stream(), f.now)
-	for _, path := range []string{"/", "/api", "/api/streams", "/api/streams?src=" + f.stream() + ticket, "/api/config", "/api/restart", "/api/webrtc/", "/api/ws/x", "/api/exit", "/index.html", "/static/x", "/api/frame.jpeg?src=" + f.stream() + ticket, "/api/stream.mp4?src=" + f.stream() + ticket, "/api/../api/streams", "//api/webrtc"} {
+	for _, path := range []string{
+		"/",
+		"/api",
+		"/api/streams",
+		"/api/streams?src=" + f.stream() + ticket,
+		"/api/config",
+		"/api/restart",
+		"/api/webrtc/",
+		"/api/ws/x",
+		"/api/exit",
+		"/index.html",
+		"/static/x",
+		"/api/frame.jpeg?src=" + f.stream() + ticket,
+		"/api/stream.mp4?src=" + f.stream() + ticket,
+		"/api/../api/streams",
+		"//api/webrtc",
+	} {
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
 			response := f.do(method, path, "x", nil)
 			response.Body.Close()

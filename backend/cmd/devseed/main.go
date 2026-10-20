@@ -238,9 +238,15 @@ func main() {
 	anchor := time.Date(timelineAnchor.Year(), timelineAnchor.Month(), timelineAnchor.Day(), 0, 0, 0, 0, loc)
 	today := now.In(loc)
 	s := &seeder{ctx: ctx, pool: pool, cfg: cfg, rng: mrand.New(mrand.NewSource(*seed)), loc: loc, now: now,
-		tag:   hex.EncodeToString(tagBytes),
-		shift: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc).Sub(anchor),
-		orgs:  map[string]party{}, mats: map[string]*mat{}, matTypes: map[string]uuid.UUID{}, newMats: map[string]bool{}, prods: map[string]*product{}, machines: map[string]*mach{}, roles: map[string]uuid.UUID{}}
+		tag:      hex.EncodeToString(tagBytes),
+		shift:    time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc).Sub(anchor),
+		orgs:     map[string]party{},
+		mats:     map[string]*mat{},
+		matTypes: map[string]uuid.UUID{},
+		newMats:  map[string]bool{},
+		prods:    map[string]*product{},
+		machines: map[string]*mach{},
+		roles:    map[string]uuid.UUID{}}
 	log.Printf("devseed run %s (seed %d)", s.tag, *seed)
 	s.people = people.NewService(pool)
 	s.rolesSvc = roles.NewService(pool)
@@ -299,7 +305,9 @@ func (s *seeder) setupActor(email string) {
 		_, _ = rand.Read(pw)
 		_, err = admin.NewService(s.pool).
 			BootstrapMaster(s.ctx, admin.BootstrapInput{FirstName: "Devseed", LastName: "Admin",
-				ContactEmail: "devseed-admin@makerspace.example.org", LoginEmail: "devseed-admin@makerspace.example.org", Password: base64.RawURLEncoding.EncodeToString(pw)})
+				ContactEmail: "devseed-admin@makerspace.example.org",
+				LoginEmail:   "devseed-admin@makerspace.example.org",
+				Password:     base64.RawURLEncoding.EncodeToString(pw)})
 		check("bootstrap devseed master", err)
 		log.Println(
 			"no master found; created Devseed Admin (devseed-admin@makerspace.example.org) without a usable password",
@@ -354,11 +362,18 @@ func (s *seeder) ensureRoles() {
 	}{
 		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
 			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
-			authorization.MachinesRead, authorization.MachineJobsRead, authorization.MachineJobsCreate, authorization.MachineJobsEdit,
+			authorization.MachinesRead,
+			authorization.MachineJobsRead,
+			authorization.MachineJobsCreate,
+			authorization.MachineJobsEdit,
 			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign,
 			authorization.OrganizationsRead, authorization.PricingRead), true},
 		{"trainee", "Supervisor in training (created by devseed)", grants(
-			authorization.OpenDaysRead, authorization.OpenDaysSignup, authorization.MachinesRead, authorization.MachineJobsRead, authorization.InventoryRead), false},
+			authorization.OpenDaysRead,
+			authorization.OpenDaysSignup,
+			authorization.MachinesRead,
+			authorization.MachineJobsRead,
+			authorization.InventoryRead), false},
 		{"Visitor", "External visitor without permissions (created by devseed)", nil, false},
 	} {
 		if _, ok := s.roles[strings.ToLower(r.name)]; ok {
@@ -605,7 +620,10 @@ func (s *seeder) createPeople() {
 	var maxMat int64
 	check(
 		"matriculation",
-		s.pool.QueryRow(s.ctx, "SELECT coalesce(max(matriculation_number::bigint), 0) FROM people WHERE matriculation_number ~ '^[0-9]{1,15}$'").
+		s.pool.QueryRow(
+			s.ctx,
+			"SELECT coalesce(max(matriculation_number::bigint), 0) FROM people WHERE matriculation_number ~ '^[0-9]{1,15}$'",
+		).
 			Scan(&maxMat),
 	)
 	mat := max(3000000+s.rng.Intn(500000), int(maxMat))
@@ -684,7 +702,10 @@ func (s *seeder) createPeople() {
 // compatible ($2...) decides reusability. Otherwise it returns the name to
 // create: name itself, or a tagged variant when an incompatible row holds it.
 func (s *seeder) claim(table, name, compatible string, args ...any) (uuid.UUID, string) {
-	if id, ok := s.existing("SELECT id FROM "+table+" WHERE lower(name) = lower($1) AND "+compatible, append([]any{name}, args...)...); ok {
+	if id, ok := s.existing(
+		"SELECT id FROM "+table+" WHERE lower(name) = lower($1) AND "+compatible,
+		append([]any{name}, args...)...,
+	); ok {
 		return id, ""
 	}
 	if _, ok := s.existing("SELECT id FROM "+table+" WHERE lower(name) = lower($1)", name); ok {
@@ -732,7 +753,15 @@ func (s *seeder) createOrgsAndPricing() {
 	ext, extNew := group("External", "Companies and private persons", false)
 
 	// Material types are what prices attach to; materials are variants of them.
-	for _, t := range [][2]string{{"PLA", "g"}, {"PETG", "g"}, {"TPU 95A", "g"}, {"ASA", "g"}, {"Plywood", "m2"}, {"Acrylic", "m2"}, {"MDF", "m2"}} {
+	for _, t := range [][2]string{
+		{"PLA", "g"},
+		{"PETG", "g"},
+		{"TPU 95A", "g"},
+		{"ASA", "g"},
+		{"Plywood", "m2"},
+		{"Acrylic", "m2"},
+		{"MDF", "m2"},
+	} {
 		if t[1] == "g" {
 			s.materialType(t[0], t[1], "fdm_printing")
 		} else {
@@ -817,7 +846,13 @@ func (s *seeder) createOrgsAndPricing() {
 			case material != nil:
 				selector = *material
 			}
-			if _, taken := s.existing("SELECT id FROM pricing_rules WHERE pricing_group_id = $1 AND kind = $2 AND active AND COALESCE(machine_type_id, material_type_id) = $3 AND measure IS NOT DISTINCT FROM $4::text", g.id, kind, selector, measure); taken {
+			if _, taken := s.existing(
+				"SELECT id FROM pricing_rules WHERE pricing_group_id = $1 AND kind = $2 AND active AND COALESCE(machine_type_id, material_type_id) = $3 AND measure IS NOT DISTINCT FROM $4::text",
+				g.id,
+				kind,
+				selector,
+				measure,
+			); taken {
 				return
 			}
 			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, measure, f4(rate), nil)
@@ -905,12 +940,27 @@ func (s *seeder) createCatalog() {
 		s.mats[name] = &mat{id, name, typeName}
 	}
 	for _, f := range []struct{ name, typeName, colorName, hex string }{
-		{"PLA Black", "PLA", "Black", "#1A1A1A"}, {"PLA White", "PLA", "White", "#F2F2F2"}, {"PLA Grey", "PLA", "Grey", "#8C8C8C"}, {"PLA Red", "PLA", "Red", "#C62828"},
-		{"PETG Black", "PETG", "Black", "#222222"}, {"PETG Clear", "PETG", "Clear", "#DDE8EE"}, {"TPU 95A Black", "TPU 95A", "Black", "#111111"}, {"ASA White", "ASA", "White", "#FAFAFA"},
+		{"PLA Black", "PLA", "Black", "#1A1A1A"}, {
+			"PLA White",
+			"PLA",
+			"White",
+			"#F2F2F2",
+		}, {"PLA Grey", "PLA", "Grey", "#8C8C8C"}, {"PLA Red", "PLA", "Red", "#C62828"},
+		{"PETG Black", "PETG", "Black", "#222222"}, {"PETG Clear", "PETG", "Clear", "#DDE8EE"}, {
+			"TPU 95A Black",
+			"TPU 95A",
+			"Black",
+			"#111111",
+		}, {"ASA White", "ASA", "White", "#FAFAFA"},
 	} {
 		material(f.name, f.typeName, "g", ptr(f.colorName), ptr(f.hex))
 	}
-	for _, f := range [][2]string{{"Plywood 3 mm", "Plywood"}, {"Plywood 4 mm", "Plywood"}, {"Acrylic 3 mm clear", "Acrylic"}, {"MDF 3 mm", "MDF"}} {
+	for _, f := range [][2]string{
+		{"Plywood 3 mm", "Plywood"},
+		{"Plywood 4 mm", "Plywood"},
+		{"Acrylic 3 mm clear", "Acrylic"},
+		{"MDF 3 mm", "MDF"},
+	} {
 		material(f[0], f[1], "m2", nil, nil)
 	}
 	// Materials of the other processes. They stay out of newMats: the generic
@@ -937,7 +987,11 @@ func (s *seeder) createCatalog() {
 		s.mats[name] = &mat{id, name, typeName}
 	}
 	for _, ink := range []struct{ name, color, hex string }{
-		{"UV ink Cyan", "Cyan", "#00AEEF"}, {"UV ink Magenta", "Magenta", "#EC008C"}, {"UV ink Yellow", "Yellow", "#FFF200"},
+		{"UV ink Cyan", "Cyan", "#00AEEF"}, {
+			"UV ink Magenta",
+			"Magenta",
+			"#EC008C",
+		}, {"UV ink Yellow", "Yellow", "#FFF200"},
 		{"UV ink Black", "Black", "#1A1A1A"}, {"UV ink White", "White", "#F5F5F5"},
 	} {
 		extra(ink.name, "UV ink", "ml", ptr(ink.color), ptr(ink.hex))
@@ -1349,7 +1403,13 @@ func (s *seeder) ingest(m *mach, run uuid.UUID, ext, kind string, at time.Time, 
 		s.connCtx,
 		[]printerconnectors.EventInput{
 			{EventID: uuid.Must(uuid.NewV7()), AssignmentID: m.assign, RunID: &run, HistoryComplete: true,
-				ConfigurationVersion: m.cfgVer, Sequence: m.seq, OccurredAt: at.UTC(), Kind: kind, ExternalPrintID: &ext, ReportRevision: rev, Payload: raw},
+				ConfigurationVersion: m.cfgVer,
+				Sequence:             m.seq,
+				OccurredAt:           at.UTC(),
+				Kind:                 kind,
+				ExternalPrintID:      &ext,
+				ReportRevision:       rev,
+				Payload:              raw},
 		},
 	)
 	check("ingest "+kind, err)
@@ -1775,7 +1835,17 @@ func (s *seeder) stockEvents() {
 		sp := s.spool(r.id)
 		at := d(9, 28)
 		_, err := s.mlAt(at).
-			FinishFilamentSpool(s.ctx, s.actor, r.id, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, false), OccurredAt: at, ExpectedVersion: sp.Version}, nil)
+			FinishFilamentSpool(
+				s.ctx,
+				s.actor,
+				r.id,
+				machinelogbook.FinishSpoolInput{
+					Leftover:        *s.leftover(sp, false),
+					OccurredAt:      at,
+					ExpectedVersion: sp.Version,
+				},
+				nil,
+			)
 		check("finish r8", err)
 	})
 	add(d(7, 15), func() {
@@ -1837,7 +1907,17 @@ func (s *seeder) ensure(sl *slot, qty float64, at time.Time) (uuid.UUID, float64
 			fa = sp.FilledAt.Add(2 * time.Minute)
 		}
 		_, err := s.mlAt(fa).
-			FinishFilamentSpool(s.ctx, s.actor, sl.cur, machinelogbook.FinishSpoolInput{Leftover: *s.leftover(sp, rem < qty+1), OccurredAt: fa, ExpectedVersion: sp.Version}, nil)
+			FinishFilamentSpool(
+				s.ctx,
+				s.actor,
+				sl.cur,
+				machinelogbook.FinishSpoolInput{
+					Leftover:        *s.leftover(sp, rem < qty+1),
+					OccurredAt:      fa,
+					ExpectedVersion: sp.Version,
+				},
+				nil,
+			)
 		check("finish spool", err)
 		sl.gi++
 		sl.cur = uuid.Nil
@@ -1942,7 +2022,12 @@ func (s *seeder) usagesFor(p *plan, single bool) ([]machinelogbook.UsageInput, *
 		return out, primary, q0
 	}
 	// laser
-	name := []string{"Plywood 3 mm", "Plywood 4 mm", "Acrylic 3 mm clear", "MDF 3 mm"}[s.pickWeighted([]float64{4, 1.5, 2.5, 2})]
+	name := []string{
+		"Plywood 3 mm",
+		"Plywood 4 mm",
+		"Acrylic 3 mm clear",
+		"MDF 3 mm",
+	}[s.pickWeighted([]float64{4, 1.5, 2.5, 2})]
 	if p.acrylic {
 		name = "Acrylic 3 mm clear"
 	}

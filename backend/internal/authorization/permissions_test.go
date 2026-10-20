@@ -403,7 +403,11 @@ func TestScopeAwareDelegationLattice(t *testing.T) {
 	if principal.CanDelegate(
 		PermissionGrant{PermissionID: PeopleReadAll, Scope: GrantAnyManagedDevice, MinimumAssurance: AssuranceNormal},
 	) ||
-		principal.CanDelegate(PermissionGrant{PermissionID: PeopleReadAll, Scope: GrantEverywhere, MinimumAssurance: AssuranceNormal}) {
+		principal.CanDelegate(PermissionGrant{
+			PermissionID:     PeopleReadAll,
+			Scope:            GrantEverywhere,
+			MinimumAssurance: AssuranceNormal,
+		}) {
 		t.Fatal("selected-type grant delegated a broader scope")
 	}
 	if principal.CanDelegate(

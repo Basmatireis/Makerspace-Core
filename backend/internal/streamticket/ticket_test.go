@@ -159,7 +159,11 @@ func TestTicketsWithAnExcessiveLifetimeAreRejected(t *testing.T) {
 	if _, err := Verify(sign(now.Add(ClockSkew-time.Second)), Keys{kid: public}, now); err != nil {
 		t.Fatalf("ticket inside the skew: %v", err)
 	}
-	for name, issuedAt := range map[string]time.Time{"an hour": now.Add(time.Hour), "a year": now.Add(365 * 24 * time.Hour), "just beyond the skew": now.Add(ClockSkew + 2*time.Second)} {
+	for name, issuedAt := range map[string]time.Time{
+		"an hour":              now.Add(time.Hour),
+		"a year":               now.Add(365 * 24 * time.Hour),
+		"just beyond the skew": now.Add(ClockSkew + 2*time.Second),
+	} {
 		if _, err := Verify(sign(issuedAt), Keys{kid: public}, now); !errors.Is(err, ErrLifetime) {
 			t.Errorf("ticket valid %s ahead = %v, want ErrLifetime", name, err)
 		}

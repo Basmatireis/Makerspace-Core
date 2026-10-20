@@ -107,7 +107,17 @@ func (s *Service) CreateRequirement(
 		return Requirement{}, err
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_requirement.created", "event_requirement", id, requestID, []string{"name", "description", "requiredCount", "eligibilityMode", "eligibleRoleIds"}, map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_requirement.created",
+		"event_requirement",
+		id,
+		requestID,
+		[]string{"name", "description", "requiredCount", "eligibilityMode", "eligibleRoleIds"},
+		map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()},
+	); err != nil {
 		return Requirement{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -182,7 +192,17 @@ func (s *Service) UpdateRequirement(
 		return Requirement{}, err
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_requirement.updated", "event_requirement", id, requestID, []string{"name", "description", "requiredCount", "eligibilityMode", "eligibleRoleIds"}, map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_requirement.updated",
+		"event_requirement",
+		id,
+		requestID,
+		[]string{"name", "description", "requiredCount", "eligibilityMode", "eligibleRoleIds"},
+		map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()},
+	); err != nil {
 		return Requirement{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -233,11 +253,29 @@ func (s *Service) DeleteRequirement(
 	if count != 0 {
 		return apperror.New(409, "requirement_has_assignments", "Requirement has active assignments")
 	}
-	if _, err = q.DeleteEventRequirement(ctx, eventsdb.DeleteEventRequirementParams{ID: id, ShiftID: shiftID, EventID: eventID, ExpectedVersion: int32(expected)}); err != nil {
+	if _, err = q.DeleteEventRequirement(
+		ctx,
+		eventsdb.DeleteEventRequirementParams{
+			ID:              id,
+			ShiftID:         shiftID,
+			EventID:         eventID,
+			ExpectedVersion: int32(expected),
+		},
+	); err != nil {
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(ctx, tx, &actor, "event_requirement.deleted", "event_requirement", id, requestID, nil, map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()}); err != nil {
+	if err = eventAudit(
+		ctx,
+		tx,
+		&actor,
+		"event_requirement.deleted",
+		"event_requirement",
+		id,
+		requestID,
+		nil,
+		map[string]any{"eventId": eventID.String(), "shiftId": shiftID.String()},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -391,7 +429,23 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "event_assignment.person_linked", ResourceType: "event_assignment", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"personId"}, Metadata: map[string]any{"eventId": eventID.String(), "shiftId": assignment.ShiftID.String(), "personId": personID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "event_assignment.person_linked",
+			ResourceType:   "event_assignment",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"personId"},
+			Metadata: map[string]any{
+				"eventId":  eventID.String(),
+				"shiftId":  assignment.ShiftID.String(),
+				"personId": personID.String(),
+			},
+		},
+	); err != nil {
 		return Assignment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -488,7 +542,13 @@ func (s *Service) FindAssignmentPersonMatches(
 		return nil, err
 	}
 	rows, err := eventsdb.New(s.pool).
-		FindEventPeopleByExactContact(ctx, eventsdb.FindEventPeopleByExactContactParams{EmailNormalized: assignment.EmailNormalized, PhoneNormalized: assignment.PhoneNormalized})
+		FindEventPeopleByExactContact(
+			ctx,
+			eventsdb.FindEventPeopleByExactContactParams{
+				EmailNormalized: assignment.EmailNormalized,
+				PhoneNormalized: assignment.PhoneNormalized,
+			},
+		)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +686,16 @@ func (s *Service) createAssignment(
 				return Assignment{}, nil, err
 			}
 		}
-		rows, err := q.FindContactEventShiftConflicts(ctx, eventsdb.FindContactEventShiftConflictsParams{ExcludeAssignmentID: uuid.Nil, EmailNormalized: emailNormalized, PhoneNormalized: phoneNormalized, EndsAt: shift.EndsAt, StartsAt: shift.StartsAt})
+		rows, err := q.FindContactEventShiftConflicts(
+			ctx,
+			eventsdb.FindContactEventShiftConflictsParams{
+				ExcludeAssignmentID: uuid.Nil,
+				EmailNormalized:     emailNormalized,
+				PhoneNormalized:     phoneNormalized,
+				EndsAt:              shift.EndsAt,
+				StartsAt:            shift.StartsAt,
+			},
+		)
 		if err != nil {
 			return Assignment{}, nil, err
 		}
@@ -693,11 +762,35 @@ func (s *Service) createAssignment(
 	if principal != nil {
 		actorType = "user"
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: actorType, ActorAccountID: creator, Action: "event_assignment.created", ResourceType: "event_assignment", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"shiftId", "requirementId", "personId", "source"}, Metadata: map[string]any{"eventId": eventID.String(), "shiftId": input.ShiftID.String()}}); err != nil {
+	if err = audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorType:      actorType,
+			ActorAccountID: creator,
+			Action:         "event_assignment.created",
+			ResourceType:   "event_assignment",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"shiftId", "requirementId", "personId", "source"},
+			Metadata:       map[string]any{"eventId": eventID.String(), "shiftId": input.ShiftID.String()},
+		},
+	); err != nil {
 		return Assignment{}, nil, err
 	}
 	if overrideActor != nil {
-		if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: overrideActor, Action: "event_assignment.conflict_overridden", ResourceType: "event_assignment", ResourceID: &id, RequestID: requestID, Metadata: map[string]any{"eventId": eventID.String(), "shiftId": input.ShiftID.String()}}); err != nil {
+		if err = audit.Write(
+			ctx,
+			tx,
+			audit.Event{
+				ActorAccountID: overrideActor,
+				Action:         "event_assignment.conflict_overridden",
+				ResourceType:   "event_assignment",
+				ResourceID:     &id,
+				RequestID:      requestID,
+				Metadata:       map[string]any{"eventId": eventID.String(), "shiftId": input.ShiftID.String()},
+			},
+		); err != nil {
 			return Assignment{}, nil, err
 		}
 	}
@@ -795,7 +888,10 @@ func replaceRequirementRoles(
 			continue
 		}
 		seen[roleID] = struct{}{}
-		if err := q.AddEventRequirementRole(ctx, eventsdb.AddEventRequirementRoleParams{RequirementID: id, RoleID: roleID}); err != nil {
+		if err := q.AddEventRequirementRole(
+			ctx,
+			eventsdb.AddEventRequirementRoleParams{RequirementID: id, RoleID: roleID},
+		); err != nil {
 			return databaseError(err)
 		}
 	}

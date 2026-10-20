@@ -157,14 +157,37 @@ func (s *Service) CreateConnector(
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
 	id := uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateConnector(ctx, scimdb.CreateConnectorParams{ID: id, Name: name, OidcProviderID: providerID, Enabled: enabled}); err != nil {
+	if _, err := queries.CreateConnector(
+		ctx,
+		scimdb.CreateConnectorParams{ID: id, Name: name, OidcProviderID: providerID, Enabled: enabled},
+	); err != nil {
 		return TokenIssue{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if _, err := queries.CreateConnectorToken(ctx, scimdb.CreateConnectorTokenParams{ID: uuid.Must(uuid.NewV7()), ConnectorID: id, TokenDigest: digest, ExpiresAt: expiresAt.UTC(), CreatedByAccountID: &actor}); err != nil {
+	if _, err := queries.CreateConnectorToken(
+		ctx,
+		scimdb.CreateConnectorTokenParams{
+			ID:                 uuid.Must(uuid.NewV7()),
+			ConnectorID:        id,
+			TokenDigest:        digest,
+			ExpiresAt:          expiresAt.UTC(),
+			CreatedByAccountID: &actor,
+		},
+	); err != nil {
 		return TokenIssue{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "scim.connector_created", ResourceType: "scim_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "oidcProvider", "enabled", "token"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "scim.connector_created",
+			ResourceType:   "scim_connector",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"name", "oidcProvider", "enabled", "token"},
+		},
+	); err != nil {
 		return TokenIssue{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -237,7 +260,18 @@ func (s *Service) UpdateConnector(
 		return Connector{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "scim.connector_updated", ResourceType: "scim_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "oidcProvider", "enabled"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "scim.connector_updated",
+			ResourceType:   "scim_connector",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"name", "oidcProvider", "enabled"},
+		},
+	); err != nil {
 		return Connector{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -270,7 +304,10 @@ func (s *Service) RotateToken(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+	if _, err := queries.BumpConnectorVersion(
+		ctx,
+		scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -282,10 +319,30 @@ func (s *Service) RotateToken(
 		return TokenIssue{}, err
 	}
 	actor := principal.AccountID
-	if _, err := queries.CreateConnectorToken(ctx, scimdb.CreateConnectorTokenParams{ID: uuid.Must(uuid.NewV7()), ConnectorID: id, TokenDigest: digest, ExpiresAt: expiresAt.UTC(), CreatedByAccountID: &actor}); err != nil {
+	if _, err := queries.CreateConnectorToken(
+		ctx,
+		scimdb.CreateConnectorTokenParams{
+			ID:                 uuid.Must(uuid.NewV7()),
+			ConnectorID:        id,
+			TokenDigest:        digest,
+			ExpiresAt:          expiresAt.UTC(),
+			CreatedByAccountID: &actor,
+		},
+	); err != nil {
 		return TokenIssue{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "scim.token_rotated", ResourceType: "scim_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"token"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "scim.token_rotated",
+			ResourceType:   "scim_connector",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"token"},
+		},
+	); err != nil {
 		return TokenIssue{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -311,7 +368,10 @@ func (s *Service) RevokeToken(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	if _, err := queries.BumpConnectorVersion(ctx, scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
+	if _, err := queries.BumpConnectorVersion(
+		ctx,
+		scimdb.BumpConnectorVersionParams{ID: id, ExpectedVersion: expectedVersion},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -323,7 +383,18 @@ func (s *Service) RevokeToken(
 		return Connector{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "scim.token_revoked", ResourceType: "scim_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"token"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "scim.token_revoked",
+			ResourceType:   "scim_connector",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"token"},
+		},
+	); err != nil {
 		return Connector{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -366,14 +437,26 @@ func (s *Service) CreateUser(
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
 	personID, accountID, userID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateProvisionedPerson(ctx, scimdb.CreateProvisionedPersonParams{ID: personID, FirstName: input.GivenName, LastName: input.FamilyName, Email: email, Phone: phone}); err != nil {
+	if _, err := queries.CreateProvisionedPerson(
+		ctx,
+		scimdb.CreateProvisionedPersonParams{
+			ID:        personID,
+			FirstName: input.GivenName,
+			LastName:  input.FamilyName,
+			Email:     email,
+			Phone:     phone,
+		},
+	); err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
 	status := "disabled"
 	if input.Active {
 		status = "enabled"
 	}
-	if _, err := queries.CreateProvisionedAccount(ctx, scimdb.CreateProvisionedAccountParams{ID: accountID, PersonID: personID, Status: status}); err != nil {
+	if _, err := queries.CreateProvisionedAccount(
+		ctx,
+		scimdb.CreateProvisionedAccountParams{ID: accountID, PersonID: personID, Status: status},
+	); err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
 	if connector.OIDCProviderID != nil {
@@ -384,7 +467,16 @@ func (s *Service) CreateUser(
 				Detail:   "externalId is required for an OIDC-bound connector",
 			}
 		}
-		if _, err := queries.CreateBoundOIDCIdentity(ctx, scimdb.CreateBoundOIDCIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, ProviderID: connector.OIDCProviderID, Issuer: connector.Issuer, Subject: input.ExternalID}); err != nil {
+		if _, err := queries.CreateBoundOIDCIdentity(
+			ctx,
+			scimdb.CreateBoundOIDCIdentityParams{
+				ID:         uuid.Must(uuid.NewV7()),
+				AccountID:  accountID,
+				ProviderID: connector.OIDCProviderID,
+				Issuer:     connector.Issuer,
+				Subject:    input.ExternalID,
+			},
+		); err != nil {
 			return User{}, protocolDatabaseError(err)
 		}
 		if !input.Active {
@@ -415,7 +507,17 @@ func (s *Service) CreateUser(
 	if err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "scim.user_created", ResourceType: "scim_user", ResourceID: &userID, RequestID: requestID, ChangedFields: []string{"person", "account", "provisioningData", "externalIdentity"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "scim.user_created",
+			ResourceType:  "scim_user",
+			ResourceID:    &userID,
+			RequestID:     requestID,
+			ChangedFields: []string{"person", "account", "provisioningData", "externalIdentity"},
+		},
+	); err != nil {
 		return User{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -517,7 +619,16 @@ func (s *Service) ReplaceUser(
 		}
 	}
 	if current.ProvisioningSource == "scim" && !current.FirstAuthenticatedAt.Valid {
-		if err := queries.UpdateProvisionedPerson(ctx, scimdb.UpdateProvisionedPersonParams{FirstName: input.GivenName, LastName: input.FamilyName, Email: email, Phone: phone, ID: current.PersonID}); err != nil {
+		if err := queries.UpdateProvisionedPerson(
+			ctx,
+			scimdb.UpdateProvisionedPersonParams{
+				FirstName: input.GivenName,
+				LastName:  input.FamilyName,
+				Email:     email,
+				Phone:     phone,
+				ID:        current.PersonID,
+			},
+		); err != nil {
 			return User{}, err
 		}
 	}
@@ -537,7 +648,17 @@ func (s *Service) ReplaceUser(
 	if err != nil {
 		return User{}, protocolDatabaseError(err)
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "scim.user_updated", ResourceType: "scim_user", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"provisioningData", "active", "externalIdentity"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "scim.user_updated",
+			ResourceType:  "scim_user",
+			ResourceID:    &id,
+			RequestID:     requestID,
+			ChangedFields: []string{"provisioningData", "active", "externalIdentity"},
+		},
+	); err != nil {
 		return User{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -571,7 +692,17 @@ func (s *Service) DeleteUser(
 	if err := queries.DeleteSCIMUser(ctx, scimdb.DeleteSCIMUserParams{ConnectorID: connector.ID, ID: id}); err != nil {
 		return err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "scim.user_deprovisioned", ResourceType: "scim_user", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"mapping", "externalIdentity", "sessions", "status"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			Action:        "scim.user_deprovisioned",
+			ResourceType:  "scim_user",
+			ResourceID:    &id,
+			RequestID:     requestID,
+			ChangedFields: []string{"mapping", "externalIdentity", "sessions", "status"},
+		},
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -611,7 +742,10 @@ func (s *Service) applyActiveState(
 	queries := scimdb.New(tx)
 	if active {
 		if connector.OIDCProviderID != nil {
-			if err := queries.ReenableConnectorOIDCIdentity(ctx, scimdb.ReenableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID}); err != nil {
+			if err := queries.ReenableConnectorOIDCIdentity(
+				ctx,
+				scimdb.ReenableConnectorOIDCIdentityParams{AccountID: accountID, ProviderID: connector.OIDCProviderID},
+			); err != nil {
 				return err
 			}
 		}
@@ -648,7 +782,10 @@ func (s *Service) applyActiveState(
 			}
 			return err
 		}
-		if err := queries.SetProvisionedAccountStatus(ctx, scimdb.SetProvisionedAccountStatusParams{Status: "disabled", ID: accountID}); err != nil {
+		if err := queries.SetProvisionedAccountStatus(
+			ctx,
+			scimdb.SetProvisionedAccountStatusParams{Status: "disabled", ID: accountID},
+		); err != nil {
 			return err
 		}
 		return queries.RevokeSessionsForAccount(
@@ -702,25 +839,53 @@ func (s *Service) Reconcile(
 	if err != nil {
 		return report, err
 	}
-	if err := queries.DeduplicateOpenDayAssignments(ctx, scimdb.DeduplicateOpenDayAssignmentsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID}); err != nil {
+	if err := queries.DeduplicateOpenDayAssignments(
+		ctx,
+		scimdb.DeduplicateOpenDayAssignmentsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.MoveOpenDayAssignments(ctx, scimdb.MoveOpenDayAssignmentsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID}); err != nil {
+	if err := queries.MoveOpenDayAssignments(
+		ctx,
+		scimdb.MoveOpenDayAssignmentsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.DeduplicatePendingLabRuleRequests(ctx, scimdb.DeduplicatePendingLabRuleRequestsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID}); err != nil {
+	if err := queries.DeduplicatePendingLabRuleRequests(
+		ctx,
+		scimdb.DeduplicatePendingLabRuleRequestsParams{
+			SourcePersonID: source.PersonID,
+			TargetPersonID: target.PersonID,
+		},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.MoveLabRuleRequests(ctx, scimdb.MoveLabRuleRequestsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID}); err != nil {
+	if err := queries.MoveLabRuleRequests(
+		ctx,
+		scimdb.MoveLabRuleRequestsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.TransferProfileImage(ctx, scimdb.TransferProfileImageParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID}); err != nil {
+	if err := queries.TransferProfileImage(
+		ctx,
+		scimdb.TransferProfileImageParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.TransferExternalIdentities(ctx, scimdb.TransferExternalIdentitiesParams{TargetAccountID: targetID, SourceAccountID: provisionalID}); err != nil {
+	if err := queries.TransferExternalIdentities(
+		ctx,
+		scimdb.TransferExternalIdentitiesParams{TargetAccountID: targetID, SourceAccountID: provisionalID},
+	); err != nil {
 		return report, err
 	}
-	if err := queries.TransferPersonRoles(ctx, scimdb.TransferPersonRolesParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID, AssignedByAccountID: &principal.AccountID}); err != nil {
+	if err := queries.TransferPersonRoles(
+		ctx,
+		scimdb.TransferPersonRolesParams{
+			TargetPersonID:      target.PersonID,
+			SourcePersonID:      source.PersonID,
+			AssignedByAccountID: &principal.AccountID,
+		},
+	); err != nil {
 		return report, err
 	}
 	if err := queries.BumpReconciledPersonVersion(ctx, target.PersonID); err != nil {
@@ -740,7 +905,14 @@ func (s *Service) Reconcile(
 	if err := queries.BumpReconciledAccountVersion(ctx, targetID); err != nil {
 		return report, err
 	}
-	if err := queries.TransferSCIMMappings(ctx, scimdb.TransferSCIMMappingsParams{TargetAccountID: targetID, TargetPersonID: target.PersonID, SourceAccountID: provisionalID}); err != nil {
+	if err := queries.TransferSCIMMappings(
+		ctx,
+		scimdb.TransferSCIMMappingsParams{
+			TargetAccountID: targetID,
+			TargetPersonID:  target.PersonID,
+			SourceAccountID: provisionalID,
+		},
+	); err != nil {
 		return report, err
 	}
 	if err := queries.RevokeProvisionalSessions(ctx, provisionalID); err != nil {
@@ -753,7 +925,18 @@ func (s *Service) Reconcile(
 		return report, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "scim.account_reconciled", ResourceType: "account", ResourceID: &targetID, RequestID: requestID, ChangedFields: []string{"externalIdentities", "roles", "scimMapping", "domainRelations"}}); err != nil {
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "scim.account_reconciled",
+			ResourceType:   "account",
+			ResourceID:     &targetID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"externalIdentities", "roles", "scimMapping", "domainRelations"},
+		},
+	); err != nil {
 		return report, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -779,7 +962,10 @@ func analyzeReconciliation(
 	}
 	queries := scimdb.New(tx)
 	// Match Person deletion's person -> master invariant -> account lock order.
-	if err := queries.LockReconciliationPeople(ctx, scimdb.LockReconciliationPeopleParams{SourceAccountID: provisionalID, TargetAccountID: targetID}); err != nil {
+	if err := queries.LockReconciliationPeople(
+		ctx,
+		scimdb.LockReconciliationPeopleParams{SourceAccountID: provisionalID, TargetAccountID: targetID},
+	); err != nil {
 		return report, err
 	}
 	for _, id := range []uuid.UUID{provisionalID, targetID} {
@@ -822,7 +1008,13 @@ func analyzeReconciliation(
 				},
 			)
 		} else if apperror.IsCode(err, "permission_denied") {
-			report.Conflicts = append(report.Conflicts, Conflict{Code: "role_transfer_forbidden", Message: "Role transfer requires people.roles.assign and authority to delegate every source role."})
+			report.Conflicts = append(
+				report.Conflicts,
+				Conflict{
+					Code:    "role_transfer_forbidden",
+					Message: "Role transfer requires people.roles.assign and authority to delegate every source role.",
+				},
+			)
 		} else {
 			return report, err
 		}

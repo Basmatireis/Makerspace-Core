@@ -43,10 +43,20 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	personID, accountID, requestID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	h.suffix = strings.ReplaceAll(personID.String(), "-", "")[:12]
 	h.principal = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	if _, err = pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Print', 'Ingest', $2)`, personID, "prints-"+h.suffix+"@example.test"); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Print', 'Ingest', $2)`,
+		personID,
+		"prints-"+h.suffix+"@example.test",
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+	if _, err = pool.Exec(
+		ctx,
+		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
+		accountID,
+		personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := h.logbook.CreateMachineType(
@@ -170,8 +180,25 @@ type runRow struct {
 func (h *ingestHarness) run(runID uuid.UUID) runRow {
 	h.t.Helper()
 	var r runRow
-	err := h.pool.QueryRow(h.t.Context(), `SELECT display_id, state, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g::text, reported_quantity_basis, reported_spool_id, reported_event_id, version FROM machine_runs WHERE id = $1`, runID).
-		Scan(&r.displayID, &r.state, &r.fileName, &r.started, &r.ended, &r.estimatedEnd, &r.percent, &r.grams, &r.basis, &r.spoolID, &r.reportedEventID, &r.version)
+	err := h.pool.QueryRow(
+		h.t.Context(),
+		`SELECT display_id, state, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g::text, reported_quantity_basis, reported_spool_id, reported_event_id, version FROM machine_runs WHERE id = $1`,
+		runID,
+	).
+		Scan(
+			&r.displayID,
+			&r.state,
+			&r.fileName,
+			&r.started,
+			&r.ended,
+			&r.estimatedEnd,
+			&r.percent,
+			&r.grams,
+			&r.basis,
+			&r.spoolID,
+			&r.reportedEventID,
+			&r.version,
+		)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -181,7 +208,10 @@ func (h *ingestHarness) run(runID uuid.UUID) runRow {
 func (h *ingestHarness) sequenceValue() int64 {
 	h.t.Helper()
 	var value int64
-	if err := h.pool.QueryRow(h.t.Context(), `SELECT last_value FROM machine_run_display_sequence`).Scan(&value); err != nil {
+	if err := h.pool.QueryRow(
+		h.t.Context(),
+		`SELECT last_value FROM machine_run_display_sequence`,
+	).Scan(&value); err != nil {
 		h.t.Fatal(err)
 	}
 	return value
@@ -193,7 +223,11 @@ func (h *ingestHarness) sequenceValue() int64 {
 func (h *ingestHarness) burnedDisplayNumbers(before int64) int64 {
 	h.t.Helper()
 	var created int64
-	if err := h.pool.QueryRow(h.t.Context(), `SELECT count(*) FROM machine_runs WHERE substring(display_id from '[0-9]+$')::bigint BETWEEN $1 + 1 AND (SELECT last_value FROM machine_run_display_sequence)`, before).Scan(&created); err != nil {
+	if err := h.pool.QueryRow(
+		h.t.Context(),
+		`SELECT count(*) FROM machine_runs WHERE substring(display_id from '[0-9]+$')::bigint BETWEEN $1 + 1 AND (SELECT last_value FROM machine_run_display_sequence)`,
+		before,
+	).Scan(&created); err != nil {
 		h.t.Fatal(err)
 	}
 	return h.sequenceValue() - before - created
@@ -259,16 +293,42 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	}
 	unitID, slotID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	var position int
-	if err = h.pool.QueryRow(ctx, `SELECT COALESCE(max(position) + 1, 0) FROM printer_input_units WHERE machine_id = $1`, h.machine.ID).Scan(&position); err != nil {
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT COALESCE(max(position) + 1, 0) FROM printer_input_units WHERE machine_id = $1`,
+		h.machine.ID,
+	).Scan(&position); err != nil {
 		h.t.Fatal(err)
 	}
-	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_input_units (id, machine_id, name, position, external_identifier) VALUES ($1, $2, $3, $4, $5)`, unitID, h.machine.ID, "Unit "+name, position, h.unitExternal(name)); err != nil {
+	if _, err = h.pool.Exec(
+		ctx,
+		`INSERT INTO printer_input_units (id, machine_id, name, position, external_identifier) VALUES ($1, $2, $3, $4, $5)`,
+		unitID,
+		h.machine.ID,
+		"Unit "+name,
+		position,
+		h.unitExternal(name),
+	); err != nil {
 		h.t.Fatal(err)
 	}
-	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier) VALUES ($1, $2, $3, 0, $4)`, slotID, unitID, "Slot "+name, externalSlot); err != nil {
+	if _, err = h.pool.Exec(
+		ctx,
+		`INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier) VALUES ($1, $2, $3, 0, $4)`,
+		slotID,
+		unitID,
+		"Slot "+name,
+		externalSlot,
+	); err != nil {
 		h.t.Fatal(err)
 	}
-	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`, uuid.Must(uuid.NewV7()), slotID, spool.ID, mountedAt); err != nil {
+	if _, err = h.pool.Exec(
+		ctx,
+		`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, $4, 'manual')`,
+		uuid.Must(uuid.NewV7()),
+		slotID,
+		spool.ID,
+		mountedAt,
+	); err != nil {
 		h.t.Fatal(err)
 	}
 	return spool.ID
@@ -484,11 +544,21 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	if _, err := h.logbook.AddFilamentSpoolIdentifier(ctx, h.principal, spoolID, "nfc", tag, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID, at.Add(-30*time.Minute)); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		spoolID,
+		at.Add(-30*time.Minute),
+	); err != nil {
 		t.Fatal(err)
 	}
 	settings := `{"ipAddress":"192.168.1.42","serialNumber":"01P00A123456789","autoDetectSpools":true}`
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_connector_assignments SET adapter_kind='bambu_h2d',settings=$2::jsonb WHERE id=$1`, h.assignment.ID, settings); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`UPDATE printer_connector_assignments SET adapter_kind='bambu_h2d',settings=$2::jsonb WHERE id=$1`,
+		h.assignment.ID,
+		settings,
+	); err != nil {
 		t.Fatal(err)
 	}
 	h.sequence++
@@ -512,7 +582,11 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	}
 	var mounted uuid.UUID
 	var source string
-	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID).Scan(&mounted, &source); err != nil ||
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT spool_id,source FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		spoolID,
+	).Scan(&mounted, &source); err != nil ||
 		mounted != spoolID ||
 		source != "connector_reconciled" {
 		t.Fatalf("auto mount spool=%s source=%q err=%v", mounted, source, err)
@@ -521,7 +595,11 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	// Once staff replace the connector mount manually, an old or conflicting
 	// RFID observation may not take the slot back.
 	var slotID uuid.UUID
-	if err := h.pool.QueryRow(ctx, `SELECT slot_id FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID).Scan(&slotID); err != nil {
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT slot_id FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		spoolID,
+	).Scan(&slotID); err != nil {
 		t.Fatal(err)
 	}
 	h.sequence++
@@ -544,7 +622,11 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 		t.Fatalf("auto unmount receipt = %+v", receipt)
 	}
 	var openCount int
-	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&openCount); err != nil ||
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`,
+		slotID,
+	).Scan(&openCount); err != nil ||
 		openCount != 0 {
 		t.Fatalf("confirmed empty tray kept connector mount: count=%d err=%v", openCount, err)
 	}
@@ -567,14 +649,31 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	if receipt.Status != "accepted" {
 		t.Fatalf("automatic remount receipt = %+v", receipt)
 	}
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID, at.Add(3*time.Minute)); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		spoolID,
+		at.Add(3*time.Minute),
+	); err != nil {
 		t.Fatal(err)
 	}
 	manualSpool := h.mountSpool("ManualConflict", nil, at.Add(-time.Hour))
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, manualSpool, at.Add(-30*time.Minute)); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		manualSpool,
+		at.Add(-30*time.Minute),
+	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source) VALUES ($1,$2,$3,$4,'manual')`, uuid.Must(uuid.NewV7()), slotID, manualSpool, at.Add(4*time.Minute)); err != nil {
+	if _, err := h.pool.Exec(
+		ctx,
+		`INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source) VALUES ($1,$2,$3,$4,'manual')`,
+		uuid.Must(uuid.NewV7()),
+		slotID,
+		manualSpool,
+		at.Add(4*time.Minute),
+	); err != nil {
 		t.Fatal(err)
 	}
 	h.sequence++
@@ -596,7 +695,11 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	if receipt.Status != "accepted" {
 		t.Fatalf("manual empty conflict receipt = %+v", receipt)
 	}
-	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&mounted, &source); err != nil ||
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`,
+		slotID,
+	).Scan(&mounted, &source); err != nil ||
 		mounted != manualSpool ||
 		source != "manual" {
 		t.Fatalf("manual mount was auto-unmounted: spool=%s source=%q err=%v", mounted, source, err)
@@ -620,7 +723,11 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 	if receipt.Status != "accepted" {
 		t.Fatalf("conflict receipt = %+v", receipt)
 	}
-	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&mounted, &source); err != nil ||
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`,
+		slotID,
+	).Scan(&mounted, &source); err != nil ||
 		mounted != manualSpool ||
 		source != "manual" {
 		t.Fatalf("manual mount was replaced: spool=%s source=%q err=%v", mounted, source, err)
@@ -655,7 +762,17 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatal(err)
 	}
 	rate := "10"
-	if _, err = h.logbook.CreatePricingRule(ctx, h.principal, group.ID, "machine_runtime", &h.machine.MachineType.ID, nil, nil, rate, nil); err != nil {
+	if _, err = h.logbook.CreatePricingRule(
+		ctx,
+		h.principal,
+		group.ID,
+		"machine_runtime",
+		&h.machine.MachineType.ID,
+		nil,
+		nil,
+		rate,
+		nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -707,7 +824,11 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatalf("job runtime %d pricing %s", settled.DurationSeconds, settled.PricingStatus)
 	}
 	var actorType string
-	if err = h.pool.QueryRow(ctx, `SELECT actor_type FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1 ORDER BY occurred_at DESC LIMIT 1`, job.ID).Scan(&actorType); err != nil ||
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT actor_type FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1 ORDER BY occurred_at DESC LIMIT 1`,
+		job.ID,
+	).Scan(&actorType); err != nil ||
 		actorType != "system" {
 		t.Fatalf("audit actor = %q err=%v", actorType, err)
 	}
@@ -725,7 +846,11 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatalf("usage after the second report: %+v", again.Runs[0].Usages)
 	}
 	var consumed string
-	if err = h.pool.QueryRow(ctx, `SELECT COALESCE(-sum(quantity_delta), 0)::text FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1`, runID).Scan(&consumed); err != nil ||
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT COALESCE(-sum(quantity_delta), 0)::text FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1`,
+		runID,
+	).Scan(&consumed); err != nil ||
 		consumed != "20.000000" && consumed != "20" {
 		t.Fatalf("net consumption = %s err=%v", consumed, err)
 	}
@@ -792,7 +917,11 @@ func (h *ingestHarness) endedRunWithReport(name string) (runID, spoolID uuid.UUI
 func (h *ingestHarness) materialOfSpool(spoolID uuid.UUID) uuid.UUID {
 	h.t.Helper()
 	var id uuid.UUID
-	if err := h.pool.QueryRow(h.t.Context(), `SELECT material_id FROM filament_spool_fills WHERE spool_id = $1 ORDER BY fill_number DESC LIMIT 1`, spoolID).Scan(&id); err != nil {
+	if err := h.pool.QueryRow(
+		h.t.Context(),
+		`SELECT material_id FROM filament_spool_fills WHERE spool_id = $1 ORDER BY fill_number DESC LIMIT 1`,
+		spoolID,
+	).Scan(&id); err != nil {
 		h.t.Fatal(err)
 	}
 	return id
@@ -873,7 +1002,11 @@ func TestIngestKeepsStaffUsageOverNewerReports(t *testing.T) {
 		)
 	}
 	var quantity string
-	if err := h.pool.QueryRow(ctx, `SELECT quantity::numeric(20,3)::text FROM machine_run_usages WHERE run_id = $1 AND active`, runID).Scan(&quantity); err != nil ||
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT quantity::numeric(20,3)::text FROM machine_run_usages WHERE run_id = $1 AND active`,
+		runID,
+	).Scan(&quantity); err != nil ||
 		quantity != "12.000" {
 		t.Fatalf("active quantity = %s err=%v", quantity, err)
 	}
@@ -923,7 +1056,11 @@ func TestIngestIgnoresEventsOfADeletedRun(t *testing.T) {
 	var deleted bool
 	var state string
 	var reason *string
-	if err := h.pool.QueryRow(ctx, `SELECT r.deleted_at IS NOT NULL, e.application_state, e.application_reason FROM machine_runs r JOIN printer_events e ON e.run_id = r.id WHERE r.id = $1 AND e.kind = 'terminal_outcome'`, runID).Scan(&deleted, &state, &reason); err != nil {
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT r.deleted_at IS NOT NULL, e.application_state, e.application_reason FROM machine_runs r JOIN printer_events e ON e.run_id = r.id WHERE r.id = $1 AND e.kind = 'terminal_outcome'`,
+		runID,
+	).Scan(&deleted, &state, &reason); err != nil {
 		t.Fatal(err)
 	}
 	if !deleted || state != "recorded" || reason == nil || *reason != "run_deleted" {
@@ -973,7 +1110,11 @@ func TestClearEventsHidesThemUntilIncluded(t *testing.T) {
 		t.Fatalf("events after new event: %d %v", len(events), err)
 	}
 	var audits int
-	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'printer_connector.events_cleared' AND resource_id = $1`, h.connector.ID).Scan(&audits); err != nil ||
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'printer_connector.events_cleared' AND resource_id = $1`,
+		h.connector.ID,
+	).Scan(&audits); err != nil ||
 		audits != 1 {
 		t.Fatalf("audits = %d %v", audits, err)
 	}

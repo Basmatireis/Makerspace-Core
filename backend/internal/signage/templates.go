@@ -80,7 +80,13 @@ func fieldsByTemplate(rows []signagedb.SignageAnnouncementTemplateField) map[uui
 			options = []string{}
 		}
 		result[row.TemplateID] = append(result[row.TemplateID], TemplateField{
-			Key: row.Key, Label: row.Label, Type: row.Type, Required: row.Required, DefaultValue: row.DefaultValue, HelperText: row.HelperText, Options: options,
+			Key:          row.Key,
+			Label:        row.Label,
+			Type:         row.Type,
+			Required:     row.Required,
+			DefaultValue: row.DefaultValue,
+			HelperText:   row.HelperText,
+			Options:      options,
 		})
 	}
 	return result
@@ -251,7 +257,12 @@ func insertFields(ctx context.Context, q *signagedb.Queries, templateID uuid.UUI
 	}
 	for position, field := range fields {
 		if err := q.InsertSignageTemplateField(ctx, signagedb.InsertSignageTemplateFieldParams{
-			TemplateID: templateID, Position: int32(position), Key: field.Key, Label: field.Label, Type: field.Type, Required: field.Required,
+			TemplateID:   templateID,
+			Position:     int32(position),
+			Key:          field.Key,
+			Label:        field.Label,
+			Type:         field.Type,
+			Required:     field.Required,
 			DefaultValue: field.DefaultValue, HelperText: field.HelperText, Options: field.Options,
 		}); err != nil {
 			return databaseError(err)
@@ -330,13 +341,31 @@ func (s *Service) CreateTemplate(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
 	id := uuid.Must(uuid.NewV7())
-	if _, err := q.CreateSignageTemplate(ctx, signagedb.CreateSignageTemplateParams{ID: id, Name: checked.Name, Tone: checked.Tone, Title: checked.Title, Body: checked.Body}); err != nil {
+	if _, err := q.CreateSignageTemplate(
+		ctx,
+		signagedb.CreateSignageTemplateParams{
+			ID:    id,
+			Name:  checked.Name,
+			Tone:  checked.Tone,
+			Title: checked.Title,
+			Body:  checked.Body,
+		},
+	); err != nil {
 		return Template{}, databaseError(err)
 	}
 	if err := insertFields(ctx, q, id, checked.Fields); err != nil {
 		return Template{}, err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement_template.created", "signage_announcement_template", id, requestID, []string{"name", "tone", "title", "body", "fields"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement_template.created",
+		"signage_announcement_template",
+		id,
+		requestID,
+		[]string{"name", "tone", "title", "body", "fields"},
+	); err != nil {
 		return Template{}, err
 	}
 	result, err := s.getTemplate(ctx, q, id)
@@ -382,7 +411,17 @@ func (s *Service) UpdateTemplate(
 	if current.Version != expected {
 		return Template{}, apperror.StaleWrite
 	}
-	if _, err := q.UpdateSignageTemplate(ctx, signagedb.UpdateSignageTemplateParams{Name: checked.Name, Tone: checked.Tone, Title: checked.Title, Body: checked.Body, ID: id, ExpectedVersion: expected}); errors.Is(
+	if _, err := q.UpdateSignageTemplate(
+		ctx,
+		signagedb.UpdateSignageTemplateParams{
+			Name:            checked.Name,
+			Tone:            checked.Tone,
+			Title:           checked.Title,
+			Body:            checked.Body,
+			ID:              id,
+			ExpectedVersion: expected,
+		},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -397,10 +436,22 @@ func (s *Service) UpdateTemplate(
 	for _, field := range checked.Fields {
 		keys = append(keys, field.Key)
 	}
-	if err := q.DeleteSignageAnnouncementValuesNotIn(ctx, signagedb.DeleteSignageAnnouncementValuesNotInParams{TemplateID: id, Keys: keys}); err != nil {
+	if err := q.DeleteSignageAnnouncementValuesNotIn(
+		ctx,
+		signagedb.DeleteSignageAnnouncementValuesNotInParams{TemplateID: id, Keys: keys},
+	); err != nil {
 		return Template{}, err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement_template.updated", "signage_announcement_template", id, requestID, []string{"name", "tone", "title", "body", "fields"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement_template.updated",
+		"signage_announcement_template",
+		id,
+		requestID,
+		[]string{"name", "tone", "title", "body", "fields"},
+	); err != nil {
 		return Template{}, err
 	}
 	result, err := s.getTemplate(ctx, q, id)
@@ -470,10 +521,16 @@ func (s *Service) DeleteTemplate(
 	if len(references) > 0 {
 		return inUse("Announcement template", references)
 	}
-	if err := q.DeleteEndedAnnouncementsOfTemplate(ctx, signagedb.DeleteEndedAnnouncementsOfTemplateParams{TemplateID: id, Now: now}); err != nil {
+	if err := q.DeleteEndedAnnouncementsOfTemplate(
+		ctx,
+		signagedb.DeleteEndedAnnouncementsOfTemplateParams{TemplateID: id, Now: now},
+	); err != nil {
 		return err
 	}
-	if _, err := q.DeleteSignageTemplate(ctx, signagedb.DeleteSignageTemplateParams{ID: id, ExpectedVersion: expected}); errors.Is(
+	if _, err := q.DeleteSignageTemplate(
+		ctx,
+		signagedb.DeleteSignageTemplateParams{ID: id, ExpectedVersion: expected},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -481,7 +538,16 @@ func (s *Service) DeleteTemplate(
 	} else if err != nil {
 		return databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement_template.deleted", "signage_announcement_template", id, requestID, nil); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement_template.deleted",
+		"signage_announcement_template",
+		id,
+		requestID,
+		nil,
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

@@ -68,17 +68,26 @@ func viewFromList(row signagedb.ListSignageDisplayViewsRow) viewRow {
 func (s *Service) displayFromView(row viewRow) Display {
 	now := s.now()
 	display := Display{
-		ID: row.ID, ManagedDeviceID: row.ManagedDeviceID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
+		ID:              row.ID,
+		ManagedDeviceID: row.ManagedDeviceID,
+		Name:            row.Name,
+		Location:        row.Location,
+		Orientation:     row.Orientation,
 		Resolution: Resolution{
 			Width:  int(row.ResolutionWidth),
 			Height: int(row.ResolutionHeight),
 		}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
-		DefaultPlaylistID: row.DefaultPlaylistID, LastHeartbeatAt: fromPgTime(row.LastHeartbeatAt), PendingChanges: []PendingChange{},
+		DefaultPlaylistID: row.DefaultPlaylistID,
+		LastHeartbeatAt:   fromPgTime(row.LastHeartbeatAt),
+		PendingChanges:    []PendingChange{},
 		ReportedRevision: intPointer(
 			row.ReportedRevision,
 		), CurrentRule: row.CurrentRule, CurrentSceneID: row.CurrentSceneID,
-		PlayerVersion: row.PlayerVersion, CacheUsedBytes: row.CacheUsedBytes, CacheQuotaBytes: row.CacheQuotaBytes, Errors: []string{},
-		Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: "offline",
+		PlayerVersion:   row.PlayerVersion,
+		CacheUsedBytes:  row.CacheUsedBytes,
+		CacheQuotaBytes: row.CacheQuotaBytes,
+		Errors:          []string{},
+		Version:         row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: "offline",
 	}
 	if revoked := fromPgTime(row.RevokedAt); revoked != nil {
 		display.RevokedAt = revoked
@@ -138,7 +147,9 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 		if _, ok := published[display.ID]; ok {
 			drafts = append(drafts, displayDraft{
 				ID: display.ID, Name: display.Name, Orientation: display.Orientation, Resolution: display.Resolution,
-				VisibleFromOutside: display.VisibleFromOutside, DefaultPlaylistID: display.DefaultPlaylistID, Rules: rules[display.ID],
+				VisibleFromOutside: display.VisibleFromOutside,
+				DefaultPlaylistID:  display.DefaultPlaylistID,
+				Rules:              rules[display.ID],
 			})
 		}
 	}
@@ -218,9 +229,16 @@ func (s *Service) buildManifests(
 			zones[key] = json.RawMessage(widget)
 		}
 		published := ManifestScene{
-			ID: scene.ID, Name: scene.Name, Orientation: scene.Orientation, LayoutID: scene.LayoutID, BackgroundColor: scene.BackgroundColor,
-			BackgroundAssetID: scene.BackgroundAssetID, BackgroundFit: scene.BackgroundFit, BackgroundDim: scene.BackgroundDim, Theme: scene.Theme,
-			Zones: zones, Version: scene.Version,
+			ID:                scene.ID,
+			Name:              scene.Name,
+			Orientation:       scene.Orientation,
+			LayoutID:          scene.LayoutID,
+			BackgroundColor:   scene.BackgroundColor,
+			BackgroundAssetID: scene.BackgroundAssetID,
+			BackgroundFit:     scene.BackgroundFit,
+			BackgroundDim:     scene.BackgroundDim,
+			Theme:             scene.Theme,
+			Zones:             zones, Version: scene.Version,
 		}
 		ids, err := sceneAssetIDs(published)
 		if err != nil {
@@ -252,8 +270,13 @@ func (s *Service) buildManifests(
 				row.Sha256,
 			)
 			content.assets[row.ID] = ManifestAsset{
-				ID: row.ID, Kind: row.Kind, Name: row.Name, ContentType: row.ContentType, SHA256: asset.SHA256, SizeBytes: row.SizeBytes,
-				Width: asset.Width, Height: asset.Height, DurationMs: asset.DurationMs,
+				ID:          row.ID,
+				Kind:        row.Kind,
+				Name:        row.Name,
+				ContentType: row.ContentType,
+				SHA256:      asset.SHA256,
+				SizeBytes:   row.SizeBytes,
+				Width:       asset.Width, Height: asset.Height, DurationMs: asset.DurationMs,
 			}
 		}
 	}
@@ -409,9 +432,15 @@ func (s *Service) UpdateDisplay(
 		allowOutside = *checked.AllowCameraOutside
 	}
 	if _, err := q.UpdateSignageDisplay(ctx, signagedb.UpdateSignageDisplayParams{
-		Name: checked.Name, Location: checked.Location, Orientation: checked.Orientation, ResolutionWidth: int32(checked.Resolution.Width),
-		ResolutionHeight: int32(checked.Resolution.Height), VisibleFromOutside: checked.VisibleFromOutside, AllowCameraOutside: allowOutside, DefaultPlaylistID: checked.DefaultPlaylistID,
-		ID: id, ExpectedVersion: expected,
+		Name:               checked.Name,
+		Location:           checked.Location,
+		Orientation:        checked.Orientation,
+		ResolutionWidth:    int32(checked.Resolution.Width),
+		ResolutionHeight:   int32(checked.Resolution.Height),
+		VisibleFromOutside: checked.VisibleFromOutside,
+		AllowCameraOutside: allowOutside,
+		DefaultPlaylistID:  checked.DefaultPlaylistID,
+		ID:                 id, ExpectedVersion: expected,
 	}); errors.Is(err, pgx.ErrNoRows) {
 		return Display{}, apperror.StaleWrite
 	} else if err != nil {
@@ -448,7 +477,16 @@ func (s *Service) UpdateDisplay(
 			return Display{}, err
 		}
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_display.updated", "signage_display", id, requestID, changed); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_display.updated",
+		"signage_display",
+		id,
+		requestID,
+		changed,
+	); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, id)
@@ -492,16 +530,34 @@ func (s *Service) RevokeDisplay(
 	if current.RevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
-	if _, err := q.RevokeSignageDisplay(ctx, signagedb.RevokeSignageDisplayParams{ID: id, ExpectedVersion: expected}); err != nil {
+	if _, err := q.RevokeSignageDisplay(
+		ctx,
+		signagedb.RevokeSignageDisplayParams{ID: id, ExpectedVersion: expected},
+	); err != nil {
 		return Display{}, err
 	}
-	if err := manageddevices.RevokeSignagePlayerDeviceTx(ctx, tx, principal, current.ManagedDeviceID, requestID); err != nil {
+	if err := manageddevices.RevokeSignagePlayerDeviceTx(
+		ctx,
+		tx,
+		principal,
+		current.ManagedDeviceID,
+		requestID,
+	); err != nil {
 		return Display{}, err
 	}
 	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
 		return Display{}, err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_display.revoked", "signage_display", id, requestID, []string{"revokedAt"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_display.revoked",
+		"signage_display",
+		id,
+		requestID,
+		[]string{"revokedAt"},
+	); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, id)
@@ -542,7 +598,13 @@ func (s *Service) DeleteDisplay(
 		return apperror.StaleWrite
 	}
 	// An active display is disconnected first; deleting its managed device requires a revoked one.
-	if err := manageddevices.RevokeSignagePlayerDeviceTx(ctx, tx, principal, current.ManagedDeviceID, requestID); err != nil {
+	if err := manageddevices.RevokeSignagePlayerDeviceTx(
+		ctx,
+		tx,
+		principal,
+		current.ManagedDeviceID,
+		requestID,
+	); err != nil {
 		return err
 	}
 	deviceID, err := q.DeleteSignageDisplay(
@@ -558,7 +620,16 @@ func (s *Service) DeleteDisplay(
 	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
 		return err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_display.deleted", "signage_display", id, requestID, nil); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_display.deleted",
+		"signage_display",
+		id,
+		requestID,
+		nil,
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

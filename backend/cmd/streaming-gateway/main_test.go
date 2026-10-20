@@ -21,7 +21,14 @@ func TestPlayerOriginOverride(t *testing.T) {
 			t.Fatalf("%q: got %q, %v", input, got, err)
 		}
 	}
-	for _, input := range []string{"localhost:5173", "ftp://localhost", "http://", "http://localhost/player", "http://user@localhost", "http://localhost?x=1"} {
+	for _, input := range []string{
+		"localhost:5173",
+		"ftp://localhost",
+		"http://",
+		"http://localhost/player",
+		"http://user@localhost",
+		"http://localhost?x=1",
+	} {
 		if _, err := playerOrigin(core, input); err == nil {
 			t.Fatalf("%q: expected an error", input)
 		}

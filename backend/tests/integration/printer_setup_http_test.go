@@ -53,7 +53,16 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		adminLogin    = "setup-admin@example.test"
 		adminPassword = "Setup admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Setup", LastName: "Admin", ContactEmail: "setup-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(
+		ctx,
+		admin.BootstrapInput{
+			FirstName:    "Setup",
+			LastName:     "Admin",
+			ContactEmail: "setup-contact@example.test",
+			LoginEmail:   adminLogin,
+			Password:     adminPassword,
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -185,7 +194,11 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	nobodyClient, nobodyCSRF := member("nobody", "machine_jobs.read")
 
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(
+		ctx,
+		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
+		adminLogin,
+	).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -258,7 +271,10 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for method, path := range map[string]string{"setup": "/api/v1/machines/" + embroidery.ID.String() + "/printer/setup", "profile": "/api/v1/machines/" + embroidery.ID.String() + "/printer"} {
+	for method, path := range map[string]string{
+		"setup":   "/api/v1/machines/" + embroidery.ID.String() + "/printer/setup",
+		"profile": "/api/v1/machines/" + embroidery.ID.String() + "/printer",
+	} {
 		body := setupBody(nil)
 		if method == "profile" {
 			body = map[string]any{"enabled": true, "expectedVersion": 0}

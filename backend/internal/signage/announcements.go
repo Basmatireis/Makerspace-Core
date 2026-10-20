@@ -60,7 +60,17 @@ func (s *Service) sweepExpired(ctx context.Context) error {
 		return nil
 	}
 	for index := range ids {
-		if err := audit.Write(ctx, tx, audit.Event{ActorType: "system", Source: "system", Action: "signage_announcement.expired", ResourceType: "signage_announcement", ResourceID: &ids[index]}); err != nil {
+		if err := audit.Write(
+			ctx,
+			tx,
+			audit.Event{
+				ActorType:    "system",
+				Source:       "system",
+				Action:       "signage_announcement.expired",
+				ResourceType: "signage_announcement",
+				ResourceID:   &ids[index],
+			},
+		); err != nil {
 			return err
 		}
 	}
@@ -204,8 +214,12 @@ func (s *Service) hydrateFor(
 			},
 		)
 		result = append(result, Announcement{
-			ID: row.ID, TemplateID: row.TemplateID, Values: announcementValues, AllDisplays: row.AllDisplays, DisplayIDs: displayIDs,
-			StartsAt: row.StartsAt.UTC(), EndsAt: endsAt, Status: s.statusOf(row.StartsAt, now), Rendered: rendered,
+			ID:          row.ID,
+			TemplateID:  row.TemplateID,
+			Values:      announcementValues,
+			AllDisplays: row.AllDisplays,
+			DisplayIDs:  displayIDs,
+			StartsAt:    row.StartsAt.UTC(), EndsAt: endsAt, Status: s.statusOf(row.StartsAt, now), Rendered: rendered,
 			Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 		})
 	}
@@ -357,12 +371,18 @@ func writeValuesAndTargets(
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if err := q.InsertSignageAnnouncementValue(ctx, signagedb.InsertSignageAnnouncementValueParams{AnnouncementID: id, Key: key, Value: values[key]}); err != nil {
+		if err := q.InsertSignageAnnouncementValue(
+			ctx,
+			signagedb.InsertSignageAnnouncementValueParams{AnnouncementID: id, Key: key, Value: values[key]},
+		); err != nil {
 			return databaseError(err)
 		}
 	}
 	for _, displayID := range displayIDs {
-		if err := q.InsertSignageAnnouncementDisplay(ctx, signagedb.InsertSignageAnnouncementDisplayParams{AnnouncementID: id, DisplayID: displayID}); err != nil {
+		if err := q.InsertSignageAnnouncementDisplay(
+			ctx,
+			signagedb.InsertSignageAnnouncementDisplayParams{AnnouncementID: id, DisplayID: displayID},
+		); err != nil {
 			return databaseError(err)
 		}
 	}
@@ -410,7 +430,12 @@ func (s *Service) StartAnnouncement(
 	id := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	row, err := q.CreateSignageAnnouncement(ctx, signagedb.CreateSignageAnnouncementParams{
-		ID: id, TemplateID: template.ID, AllDisplays: input.AllDisplays, StartsAt: startsAt, EndsAt: pgTime(endsAt), CreatedByAccountID: &actor,
+		ID:                 id,
+		TemplateID:         template.ID,
+		AllDisplays:        input.AllDisplays,
+		StartsAt:           startsAt,
+		EndsAt:             pgTime(endsAt),
+		CreatedByAccountID: &actor,
 	})
 	if err != nil {
 		return Announcement{}, databaseError(err)
@@ -418,7 +443,16 @@ func (s *Service) StartAnnouncement(
 	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs); err != nil {
 		return Announcement{}, err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement.started", "signage_announcement", id, requestID, []string{"template", "values", "displays", "startsAt", "endsAt"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement.started",
+		"signage_announcement",
+		id,
+		requestID,
+		[]string{"template", "values", "displays", "startsAt", "endsAt"},
+	); err != nil {
 		return Announcement{}, err
 	}
 	items, err := s.hydrate(ctx, q, []signagedb.SignageAnnouncement{row})
@@ -524,7 +558,16 @@ func (s *Service) UpdateAnnouncement(
 	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs); err != nil {
 		return Announcement{}, err
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement.updated", "signage_announcement", id, requestID, []string{"values", "displays", "startsAt", "endsAt"}); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement.updated",
+		"signage_announcement",
+		id,
+		requestID,
+		[]string{"values", "displays", "startsAt", "endsAt"},
+	); err != nil {
 		return Announcement{}, err
 	}
 	items, err := s.hydrate(ctx, q, []signagedb.SignageAnnouncement{row})
@@ -564,7 +607,10 @@ func (s *Service) StopAnnouncement(
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	if _, err := q.DeleteSignageAnnouncement(ctx, signagedb.DeleteSignageAnnouncementParams{ID: id, ExpectedVersion: expected}); errors.Is(
+	if _, err := q.DeleteSignageAnnouncement(
+		ctx,
+		signagedb.DeleteSignageAnnouncementParams{ID: id, ExpectedVersion: expected},
+	); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -572,7 +618,16 @@ func (s *Service) StopAnnouncement(
 	} else if err != nil {
 		return databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, principal, "signage_announcement.stopped", "signage_announcement", id, requestID, nil); err != nil {
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_announcement.stopped",
+		"signage_announcement",
+		id,
+		requestID,
+		nil,
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

@@ -95,7 +95,16 @@ func (s *Service) insertFillTransferRow(
 	if expected != anyInventoryVersion && material.InventoryVersion != expected {
 		return machinelogbookdb.InventoryTransaction{}, apperror.StaleWrite
 	}
-	if _, err = q.UpdateMaterialBalance(ctx, machinelogbookdb.UpdateMaterialBalanceParams{Quantity: material.Quantity, InventoryValue: material.InventoryValue, AverageUnitCost: material.AverageUnitCost, MaterialID: materialID, ExpectedVersion: material.InventoryVersion}); err != nil {
+	if _, err = q.UpdateMaterialBalance(
+		ctx,
+		machinelogbookdb.UpdateMaterialBalanceParams{
+			Quantity:        material.Quantity,
+			InventoryValue:  material.InventoryValue,
+			AverageUnitCost: material.AverageUnitCost,
+			MaterialID:      materialID,
+			ExpectedVersion: material.InventoryVersion,
+		},
+	); err != nil {
 		return machinelogbookdb.InventoryTransaction{}, err
 	}
 	actor := p.AccountID
@@ -254,7 +263,25 @@ func (s *Service) closeFill(
 		}
 		average := decimalFromNumeric(material.AverageUnitCost)
 		reason := plan.Reason
-		if _, err = s.applyInventoryMutation(ctx, tx, q, p, ref.MaterialID, anyInventoryVersion, inventoryMutation{Kind: "adjustment", QuantityDelta: diff, UnitCost: average, ValueDelta: diff.Mul(average), OccurredAt: occurredAt, Reason: &reason, Fill: &ref, KeepSpoolVersion: true}, requestID); err != nil {
+		if _, err = s.applyInventoryMutation(
+			ctx,
+			tx,
+			q,
+			p,
+			ref.MaterialID,
+			anyInventoryVersion,
+			inventoryMutation{
+				Kind:             "adjustment",
+				QuantityDelta:    diff,
+				UnitCost:         average,
+				ValueDelta:       diff.Mul(average),
+				OccurredAt:       occurredAt,
+				Reason:           &reason,
+				Fill:             &ref,
+				KeepSpoolVersion: true,
+			},
+			requestID,
+		); err != nil {
 			return err
 		}
 	}
@@ -263,7 +290,18 @@ func (s *Service) closeFill(
 		outcome = plan.Disposition
 		switch plan.Disposition {
 		case "returned_to_stock":
-			if err := s.insertFillTransfer(ctx, q, p, ref.MaterialID, anyInventoryVersion, &ref, nil, plan.Leftover, occurredAt, nil); err != nil {
+			if err := s.insertFillTransfer(
+				ctx,
+				q,
+				p,
+				ref.MaterialID,
+				anyInventoryVersion,
+				&ref,
+				nil,
+				plan.Leftover,
+				occurredAt,
+				nil,
+			); err != nil {
 				return databaseError(err)
 			}
 		case "disposed":
@@ -273,12 +311,38 @@ func (s *Service) closeFill(
 			}
 			average := decimalFromNumeric(material.AverageUnitCost)
 			reason := "disposed"
-			if _, err = s.applyInventoryMutation(ctx, tx, q, p, ref.MaterialID, anyInventoryVersion, inventoryMutation{Kind: "disposal", QuantityDelta: plan.Leftover.Neg(), UnitCost: average, ValueDelta: plan.Leftover.Mul(average).Neg(), OccurredAt: occurredAt, Reason: &reason, Fill: &ref, KeepSpoolVersion: true}, requestID); err != nil {
+			if _, err = s.applyInventoryMutation(
+				ctx,
+				tx,
+				q,
+				p,
+				ref.MaterialID,
+				anyInventoryVersion,
+				inventoryMutation{
+					Kind:             "disposal",
+					QuantityDelta:    plan.Leftover.Neg(),
+					UnitCost:         average,
+					ValueDelta:       plan.Leftover.Mul(average).Neg(),
+					OccurredAt:       occurredAt,
+					Reason:           &reason,
+					Fill:             &ref,
+					KeepSpoolVersion: true,
+				},
+				requestID,
+			); err != nil {
 				return err
 			}
 		}
 	}
-	if _, err := q.CloseFilamentSpoolFill(ctx, machinelogbookdb.CloseFilamentSpoolFillParams{ID: ref.FillID, ClosedAt: pgTimestamp(occurredAt), LeftoverG: numericFromDecimal(plan.Leftover), LeftoverOutcome: &outcome}); err != nil {
+	if _, err := q.CloseFilamentSpoolFill(
+		ctx,
+		machinelogbookdb.CloseFilamentSpoolFillParams{
+			ID:              ref.FillID,
+			ClosedAt:        pgTimestamp(occurredAt),
+			LeftoverG:       numericFromDecimal(plan.Leftover),
+			LeftoverOutcome: &outcome,
+		},
+	); err != nil {
 		return databaseError(err)
 	}
 	return q.RetireFillIdentifiers(
@@ -467,7 +531,18 @@ func (s *Service) ChangeFilamentSpoolFill(
 		if loose.LessThan(weight) {
 			return FilamentSpool{}, unprocessable("insufficient_loose_stock", "Not enough loose stock for the new fill")
 		}
-		if err = s.insertFillTransfer(ctx, q, p, in.Fill.MaterialID, anyInventoryVersion, nil, &newRef, weight, in.OccurredAt, nil); err != nil {
+		if err = s.insertFillTransfer(
+			ctx,
+			q,
+			p,
+			in.Fill.MaterialID,
+			anyInventoryVersion,
+			nil,
+			&newRef,
+			weight,
+			in.OccurredAt,
+			nil,
+		); err != nil {
 			return FilamentSpool{}, databaseError(err)
 		}
 	} else if _, err = s.applyInventoryMutation(ctx, tx, q, p, in.Fill.MaterialID, anyInventoryVersion, inventoryMutation{Kind: "purchase", QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price, TotalPrice: &price, OccurredAt: in.OccurredAt, Supplier: supplier, Fill: &newRef, KeepSpoolVersion: true}, requestID); err != nil {
@@ -498,7 +573,16 @@ func (s *Service) ChangeFilamentSpoolFill(
 				return FilamentSpool{}, conflict("identifier_in_use", "An identifier is already assigned to a fill")
 			}
 		}
-		if _, err = q.AddFilamentSpoolIdentifier(ctx, machinelogbookdb.AddFilamentSpoolIdentifierParams{ID: newID(), SpoolID: spoolID, FillID: fill.ID, Kind: identifier.Kind, Value: identifier.Value}); err != nil {
+		if _, err = q.AddFilamentSpoolIdentifier(
+			ctx,
+			machinelogbookdb.AddFilamentSpoolIdentifierParams{
+				ID:      newID(),
+				SpoolID: spoolID,
+				FillID:  fill.ID,
+				Kind:    identifier.Kind,
+				Value:   identifier.Value,
+			},
+		); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				return FilamentSpool{}, conflict("identifier_in_use", "An identifier is already assigned to a fill")
@@ -507,10 +591,22 @@ func (s *Service) ChangeFilamentSpoolFill(
 		}
 	}
 
-	if _, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spoolID, ExpectedVersion: in.ExpectedVersion}); err != nil {
+	if _, err = q.BumpFilamentSpoolVersion(
+		ctx,
+		machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spoolID, ExpectedVersion: in.ExpectedVersion},
+	); err != nil {
 		return FilamentSpool{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "filament_spool.fill_changed", "filament_spool", spoolID, requestID, []string{"fill", "leftover", "identifiers", "inventory"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"filament_spool.fill_changed",
+		"filament_spool",
+		spoolID,
+		requestID,
+		[]string{"fill", "leftover", "identifiers", "inventory"},
+	); err != nil {
 		return FilamentSpool{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -575,7 +671,14 @@ func (s *Service) FinishFilamentSpool(
 		return FilamentSpool{}, err
 	}
 	actor := p.AccountID
-	if _, err = q.UnmountFilamentSpool(ctx, machinelogbookdb.UnmountFilamentSpoolParams{UnmountedAt: in.OccurredAt.UTC(), ActorAccountID: &actor, SpoolID: spoolID}); err != nil {
+	if _, err = q.UnmountFilamentSpool(
+		ctx,
+		machinelogbookdb.UnmountFilamentSpoolParams{
+			UnmountedAt:    in.OccurredAt.UTC(),
+			ActorAccountID: &actor,
+			SpoolID:        spoolID,
+		},
+	); err != nil {
 		return FilamentSpool{}, err
 	}
 	if spool.Kind == "single_use" && spool.Lifecycle == "active" {
@@ -588,12 +691,24 @@ func (s *Service) FinishFilamentSpool(
 			},
 		)
 	} else {
-		_, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spoolID, ExpectedVersion: in.ExpectedVersion})
+		_, err = q.BumpFilamentSpoolVersion(
+			ctx,
+			machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spoolID, ExpectedVersion: in.ExpectedVersion},
+		)
 	}
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "filament_spool.finished", "filament_spool", spoolID, requestID, []string{"leftover", "lifecycle", "mounted", "inventory"}); err != nil {
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"filament_spool.finished",
+		"filament_spool",
+		spoolID,
+		requestID,
+		[]string{"leftover", "lifecycle", "mounted", "inventory"},
+	); err != nil {
 		return FilamentSpool{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -674,7 +789,16 @@ func (s *Service) CleanUpFilamentSpools(
 			}
 			return nil, false, databaseError(err)
 		}
-		if err = writeAudit(ctx, tx, p, "filament_spool.deleted", "filament_spool", row.ID, requestID, nil); err != nil {
+		if err = writeAudit(
+			ctx,
+			tx,
+			p,
+			"filament_spool.deleted",
+			"filament_spool",
+			row.ID,
+			requestID,
+			nil,
+		); err != nil {
 			return nil, false, err
 		}
 		items = append(

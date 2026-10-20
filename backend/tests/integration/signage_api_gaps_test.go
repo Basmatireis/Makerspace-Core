@@ -13,7 +13,11 @@ import (
 func TestSignageAssetCreatedByNameAndEncodedFileNames(t *testing.T) {
 	e := newSignageEnv(t)
 	editor := e.staff("gaps-editor", authorization.SignageRead, authorization.SignageContentManage)
-	if _, err := e.pool.Exec(testContext(t), `UPDATE people SET first_name = 'Ada', last_name = 'Lovelace' WHERE id = $1`, editor.account.personID); err != nil {
+	if _, err := e.pool.Exec(
+		testContext(t),
+		`UPDATE people SET first_name = 'Ada', last_name = 'Lovelace' WHERE id = $1`,
+		editor.account.personID,
+	); err != nil {
 		t.Fatal(err)
 	}
 	image := signageJPEG(t, 32, 32)
@@ -57,7 +61,10 @@ func TestSignageAssetCreatedByNameAndEncodedFileNames(t *testing.T) {
 
 	// createdByName is part of list and detail responses and null once the account link is gone.
 	id := created["id"].(string)
-	if detail := e.expect(e.as(editor, http.MethodGet, "/signage/assets/"+id, nil), http.StatusOK); detail["createdByName"] != "Ada Lovelace" {
+	if detail := e.expect(
+		e.as(editor, http.MethodGet, "/signage/assets/"+id, nil),
+		http.StatusOK,
+	); detail["createdByName"] != "Ada Lovelace" {
 		t.Fatalf("detail = %v", detail)
 	}
 	listed := e.expect(e.as(editor, http.MethodGet, "/signage/assets", nil), http.StatusOK)["items"].([]any)
@@ -77,7 +84,11 @@ func TestSignageMachinesPickerPermissions(t *testing.T) {
 	e := newSignageEnv(t)
 	laser := e.fixture.machine(t, "Laser")
 	e.fixture.machine(t, "Bambu")
-	for _, permission := range []authorization.Permission{authorization.SignageRead, authorization.SignageManage, authorization.SignageContentManage} {
+	for _, permission := range []authorization.Permission{
+		authorization.SignageRead,
+		authorization.SignageManage,
+		authorization.SignageContentManage,
+	} {
 		staff := e.staff("machines-"+string(permission), permission)
 		items := e.expect(e.as(staff, http.MethodGet, "/signage/machines", nil), http.StatusOK)["items"].([]any)
 		if len(items) != 2 {
@@ -91,7 +102,11 @@ func TestSignageMachinesPickerPermissions(t *testing.T) {
 			t.Fatalf("%s: order = %v", permission, items)
 		}
 	}
-	for _, permission := range []authorization.Permission{authorization.SignagePublish, authorization.SignageOverride, authorization.MachinesRead} {
+	for _, permission := range []authorization.Permission{
+		authorization.SignagePublish,
+		authorization.SignageOverride,
+		authorization.MachinesRead,
+	} {
 		staff := e.staff("machines-denied-"+string(permission), permission)
 		e.expect(e.as(staff, http.MethodGet, "/signage/machines", nil), http.StatusForbidden)
 	}
