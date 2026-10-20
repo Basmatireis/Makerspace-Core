@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { SignageOrientation, SignageScene, SignageTone } from '../../../api/generated/models';
 
 // Data contract of the shared scene renderer. The renderer is plain React and plain CSS: no Carbon, no TanStack Query
@@ -39,6 +40,8 @@ export type RenderData = {
   events: readonly RenderEvent[];
   /** Asset id to URL; null when the asset is unknown (it renders as a placeholder). */
   assetUrl: (assetId: string) => string | null;
+  /** The live picture of a machine's camera (the player's camera source); null keeps the neutral frame. */
+  cameraView?: (machine: RenderMachine) => ReactNode;
   /** Overrides the camera widget's own "several machines print" setting when a rule decided it. */
   multiMode?: 'split' | 'alternate' | null;
   alternateSeconds?: number;

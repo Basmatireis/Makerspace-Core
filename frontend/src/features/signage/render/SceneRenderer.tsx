@@ -25,10 +25,10 @@ function QrCode({ url, caption }: { url: string; caption: string }) {
   const modules = useMemo(() => qrModules(url), [url]);
   return (
     <div className="sg-qr">
-      <svg viewBox={`-1 -1 ${modules.length + 2} ${modules.length + 2}`} className="sg-qr__code" role="img" aria-label={`QR code for ${url}`} shapeRendering="crispEdges">
-        <rect x="-1" y="-1" width={modules.length + 2} height={modules.length + 2} fill="#fff" />
+      {modules ? <svg viewBox={`-2 -2 ${modules.length + 4} ${modules.length + 4}`} className="sg-qr__code" role="img" aria-label={`QR code for ${url}`} shapeRendering="crispEdges">
+        <rect x="-2" y="-2" width={modules.length + 4} height={modules.length + 4} fill="#fff" />
         {modules.flatMap((row, y) => row.map((on, x) => on ? <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#161616" /> : null))}
-      </svg>
+      </svg> : <div className="sg-placeholder">Link too long for a QR code</div>}
       <div className="sg-qr__text"><strong>{caption}</strong><span>{url.replace(/^https?:\/\//, '')}</span></div>
     </div>
   );
@@ -43,11 +43,11 @@ function Remaining({ machine, data }: { machine: RenderMachine; data: RenderData
   return <span>ends ~{clockTime(data.now + machine.remainingMinutes * 60_000, data.timeZone)}</span>;
 }
 
-/** A neutral camera frame: the real stream is attached by the player once the streaming gateway exists. */
+/** A camera frame: the player's camera source supplies the picture (`data.cameraView`), otherwise a neutral frame. */
 function CameraTile({ machine, widget, data }: { machine: RenderMachine; widget: SignageCameraWidget; data: RenderData }) {
   return (
     <div className="sg-camera" role="img" aria-label={`Camera of ${machine.name}`}>
-      <svg className="sg-camera__icon" viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M29 7h-4.6l-1.7-2.6A2 2 0 0 0 21 3.5H11a2 2 0 0 0-1.7.9L7.6 7H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h26a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Zm-13 16a6 6 0 1 1 6-6 6 6 0 0 1-6 6Z" /></svg>
+      {data.cameraView?.(machine) ?? <svg className="sg-camera__icon" viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M29 7h-4.6l-1.7-2.6A2 2 0 0 0 21 3.5H11a2 2 0 0 0-1.7.9L7.6 7H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h26a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Zm-13 16a6 6 0 1 1 6-6 6 6 0 0 1-6 6Z" /></svg>}
       <div className="sg-camera__caption">
         <strong>{machine.name}</strong>
         {widget.showProgress && machine.progressPercent !== null && <><Progress value={machine.progressPercent} /><span>{machine.progressPercent} %</span></>}

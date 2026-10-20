@@ -75,6 +75,7 @@ Separate Vite entry `frontend/player.html` → `src/player/main.tsx`; no Carbon,
 
 - Screens: pairing code (big code, expiry countdown, regenerates on expiry), playing, fatal error.
 - Offline (phase 4): a service worker caches the manifest, the player shell and all published assets (Cache Storage, keyed by sha256); a new revision activates only after every asset is cached; old assets are evicted after activation; quota is reported in heartbeats. Live data has TTLs: machine status shows "Status unknown" after 60 s without a successful poll; announcements are kept until their `endsAt` (open-ended ones are kept until the next successful poll).
+- Implemented in `frontend/src/player/`: `api.ts` (five-call fetch wrapper), `pairing.ts` (pairing loop), `runtime.ts` (revision activation after preload, live/heartbeat/manifest loops, backoff, revocation), `view.ts` (shared engine plus the `min_seconds` hold), `camera.ts` (`CameraSource` seam for phase 5: `hasStream` marks cameras without a stream unavailable, `view` supplies the picture through `RenderData.cameraView`). The import graph is enforced by an ESLint override and `src/player/imports.test.ts`; the budget (JS 90 kB, CSS 20 kB gzip) is checked per entry in `scripts/check-bundle-budget.mjs`. A 404 other than `signage_not_published` on a player endpoint is treated like a revoked credential.
 - Kiosk: documented Chromium flags and a systemd unit example in `docs/signage-player.md` (autostart, watchdog restart, screen blanking off).
 
 ## Streaming gateway and cameras (phase 5)

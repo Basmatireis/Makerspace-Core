@@ -1,12 +1,34 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
+// The standalone signage player lives at /player/ (nginx serves player.html there); the dev and preview servers do the same.
+function playerRoute(): Plugin {
+  const rewrite = (request: { url?: string }, _response: unknown, next: () => void) => {
+    const path = request.url?.split('?')[0];
+    if (path === '/player' || path === '/player/') request.url = '/player.html';
+    next();
+  };
+  return {
+    name: 'player-route',
+    configureServer: (server) => { server.middlewares.use(rewrite); },
+    configurePreviewServer: (server) => { server.middlewares.use(rewrite); },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), playerRoute()],
   resolve: {
     alias: {
       '~@ibm/plex': fileURLToPath(new URL('./node_modules/@ibm/plex', import.meta.url)),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        player: fileURLToPath(new URL('./player.html', import.meta.url)),
+      },
     },
   },
   server: {
