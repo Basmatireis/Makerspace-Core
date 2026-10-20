@@ -2,7 +2,7 @@
 
 Centrally managed information and advertising screens for one makerspace. Displays run a small, separate player web app in a Chromium kiosk. Content, rules and devices are managed in Core; printer camera video stays inside the makerspace LAN and flows through a local streaming gateway.
 
-The approved UI prototype lives in `frontend/src/prototype/machines-jobs/signage/` (spec: its `DESIGN.md`). The real admin UI follows that prototype screen by screen. This document is the implementation contract.
+This document is the implementation contract for digital signage.
 
 ## Concepts
 
@@ -51,7 +51,7 @@ Every mutation writes its audit event in the same transaction (`audit.Write`, ch
 
 ## Scene zones (JSONB, validated in Go)
 
-`zones` is an object `{ "<zoneId>": Widget }`; zone ids must belong to the layout. Unknown keys are rejected (strict decoding), text lengths are capped, no HTML (plain text only, rendered as text nodes), URLs for QR codes must be `https://`. Widget types and fields mirror the prototype `types.ts` (`empty`, `image`, `video`, `slideshow`, `text`, `qr`, `clock`, `camera`, `status`, `open_days`, `events`, `announcement`). Layouts are a fixed, versioned list shared by backend validation (zone ids) and frontend rendering (grid CSS), defined once in `api/openapi.yaml` as an enum and in `frontend/src/features/signage/layouts.ts`.
+`zones` is an object `{ "<zoneId>": Widget }`; zone ids must belong to the layout. Unknown keys are rejected (strict decoding), text lengths are capped, no HTML (plain text only, rendered as text nodes), URLs for QR codes must be `https://`. Widget types and fields are defined in `api/openapi.yaml` and `frontend/src/features/signage/` (`empty`, `image`, `video`, `slideshow`, `text`, `qr`, `clock`, `camera`, `status`, `open_days`, `events`, `announcement`). Layouts are a fixed, versioned list shared by backend validation (zone ids) and frontend rendering (grid CSS), defined once in `api/openapi.yaml` as an enum and in `frontend/src/features/signage/layouts.ts`.
 
 ## Publish and drafts
 
@@ -97,13 +97,13 @@ Setup, ports, TLS and the hardware checklist are in [Streaming gateway](streamin
 
 ## Admin UI (real app)
 
-`frontend/src/features/signage/`, routes lazy-loaded, nav group "Signage" (Displays, Announcements, Content, Media) and "Local services" under the existing settings area. Screens and behaviour follow the prototype spec; Carbon components only; React Hook Form for the pair, rule, template and announcement forms; TanStack Query for server state. The scene renderer is shared between admin previews and the player (`src/features/signage/render/`, plain CSS, no Carbon) so previews are pixel-equivalent.
+`frontend/src/features/signage/`, routes lazy-loaded, nav group "Signage" (Displays, Announcements, Content, Media) and "Local services" under the existing settings area. Carbon components only; React Hook Form for the pair, rule, template and announcement forms; TanStack Query for server state. The scene renderer is shared between admin previews and the player (`src/features/signage/render/`, plain CSS, no Carbon) so previews are pixel-equivalent.
 
 ## Testing
 
 - Go unit tests: zone validation, rule validation, announcement rendering (vectors), ticket signing/verification, pairing code generation.
 - PostgreSQL integration tests (`backend/tests/integration/signage_*_test.go`): every permission (allowed and denied), pairing flow end to end incl. expiry and wrong code, device mode isolation (signage device cannot call staff APIs; staff cannot call player APIs without a device), publish manifest contents, reference-blocked deletes, announcement targeting/time windows, asset access limited to published assets, audit rows in the same transaction.
-- Frontend: engine unit tests (ported from the prototype), page tests for permission gating, player tests for rule evaluation and revision activation.
+- Frontend: engine unit tests, page tests for permission gating, player tests for rule evaluation and revision activation.
 
 ## Phase 1b decisions
 

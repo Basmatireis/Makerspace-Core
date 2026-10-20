@@ -134,4 +134,4 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 - [Logging and optional OpenTelemetry export](docs/observability.md)
 - [CI, releases, and container images](docs/ci-cd.md)
 
-Repository-wide AI-agent conventions are in [`AGENTS.md`](AGENTS.md), with path-specific rules under `.github/instructions/`.
+Repository rules for people and coding agents are in [`AGENTS.md`](AGENTS.md); code conventions are in the [style guide](docs/styleguide.md).
