@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-20
+
 ### Fixed
 
 - Open days: the calendar of the period and academic-break date ranges no longer snaps back to the start month or drops a picked date, so ranges spanning months can be picked with the mouse.
