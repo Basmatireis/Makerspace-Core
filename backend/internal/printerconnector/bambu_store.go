@@ -27,13 +27,13 @@ const (
 )
 
 func (s *Store) BambuState(ctx context.Context, assignmentID uuid.UUID) (bambuPersistedState, bool, error) {
-	return s.BambuStateFor(ctx, assignmentID, bambuH2DAdapterKind)
+	return s.BambuStateFor(ctx, assignmentID, AdapterBambuH2D)
 }
 
 func (s *Store) BambuStateFor(
 	ctx context.Context,
 	assignmentID uuid.UUID,
-	adapterKind string,
+	adapterKind AdapterKind,
 ) (bambuPersistedState, bool, error) {
 	if !isBambuAdapterKind(adapterKind) {
 		return bambuPersistedState{}, false, errors.New("unsupported Bambu adapter kind")
@@ -64,13 +64,13 @@ func (s *Store) BambuStateFor(
 }
 
 func (s *Store) SaveBambuState(ctx context.Context, assignmentID uuid.UUID, state bambuPersistedState) error {
-	return s.SaveBambuStateFor(ctx, assignmentID, bambuH2DAdapterKind, state)
+	return s.SaveBambuStateFor(ctx, assignmentID, AdapterBambuH2D, state)
 }
 
 func (s *Store) SaveBambuStateFor(
 	ctx context.Context,
 	assignmentID uuid.UUID,
-	adapterKind string,
+	adapterKind AdapterKind,
 	state bambuPersistedState,
 ) error {
 	if !isBambuAdapterKind(adapterKind) {
@@ -108,13 +108,13 @@ func (s *Store) EnqueueBambuState(
 	observations []Observation,
 	state bambuPersistedState,
 ) error {
-	return s.EnqueueBambuStateFor(ctx, assignmentID, bambuH2DAdapterKind, configurationVersion, observations, state)
+	return s.EnqueueBambuStateFor(ctx, assignmentID, AdapterBambuH2D, configurationVersion, observations, state)
 }
 
 func (s *Store) EnqueueBambuStateFor(
 	ctx context.Context,
 	assignmentID uuid.UUID,
-	adapterKind string,
+	adapterKind AdapterKind,
 	configurationVersion int64,
 	observations []Observation,
 	state bambuPersistedState,
@@ -547,6 +547,6 @@ func (s *Store) CompleteArtifactTransfer(ctx context.Context, id uuid.UUID) erro
 	return nil
 }
 
-func isBambuAdapterKind(kind string) bool {
-	return kind == bambuH2DAdapterKind || kind == bambuX1CAdapterKind
+func isBambuAdapterKind(kind AdapterKind) bool {
+	return kind == AdapterBambuH2D || kind == AdapterBambuX1C
 }

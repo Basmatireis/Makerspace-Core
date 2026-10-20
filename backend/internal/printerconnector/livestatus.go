@@ -26,7 +26,7 @@ type LiveStatusSink interface {
 // The snapshot types mirror PrinterLiveStatusSnapshot in api/openapi.yaml.
 // Every key is always present, with null where the adapter does not know.
 type liveSnapshot struct {
-	State           string           `json:"state"`
+	State           PrinterState     `json:"state"`
 	Job             *liveJob         `json:"job"`
 	Temperatures    liveTemperatures `json:"temperatures"`
 	Nozzles         []liveNozzle     `json:"nozzles"`
@@ -78,7 +78,7 @@ type liveTray struct {
 
 type liveUnit struct {
 	ExternalID      string     `json:"externalId"`
-	Kind            string     `json:"kind"`
+	Kind            UnitKind   `json:"kind"`
 	Label           string     `json:"label"`
 	HumidityPercent *int       `json:"humidityPercent"`
 	TemperatureC    *float64   `json:"temperatureC"`
@@ -96,7 +96,7 @@ type liveError struct {
 	ObservedAt   *time.Time `json:"observedAt"`
 }
 
-func newLiveSnapshot(state string) liveSnapshot {
+func newLiveSnapshot(state PrinterState) liveSnapshot {
 	return liveSnapshot{
 		State:        state,
 		Temperatures: liveTemperatures{Extruders: []liveExtruderTemperature{}},

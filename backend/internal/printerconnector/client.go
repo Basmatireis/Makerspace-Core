@@ -21,7 +21,7 @@ type RuntimeAssignment struct {
 	ID                   string            `json:"id"`
 	MachineID            string            `json:"machineId"`
 	MachineName          string            `json:"machineName"`
-	AdapterKind          string            `json:"adapterKind"`
+	AdapterKind          AdapterKind       `json:"adapterKind"`
 	AdapterSchemaVersion int               `json:"adapterSchemaVersion"`
 	ConfigurationVersion int64             `json:"configurationVersion"`
 	Settings             map[string]any    `json:"settings"`
@@ -35,26 +35,26 @@ type Configuration struct {
 	Assignments     []RuntimeAssignment `json:"assignments"`
 }
 type AssignmentHealth struct {
-	AssignmentID                string  `json:"assignmentId"`
-	AppliedConfigurationVersion int64   `json:"appliedConfigurationVersion"`
-	State                       string  `json:"state"`
-	ErrorCode                   *string `json:"errorCode"`
+	AssignmentID                string      `json:"assignmentId"`
+	AppliedConfigurationVersion int64       `json:"appliedConfigurationVersion"`
+	State                       HealthState `json:"state"`
+	ErrorCode                   *string     `json:"errorCode"`
 }
 type Heartbeat struct {
 	SoftwareVersion              string             `json:"softwareVersion"`
 	ProtocolVersion              int                `json:"protocolVersion"`
 	AppliedConfigurationRevision int64              `json:"appliedConfigurationRevision"`
-	HealthState                  string             `json:"healthState"`
+	HealthState                  HealthState        `json:"healthState"`
 	HealthSummary                *string            `json:"healthSummary"`
 	PendingEventCount            int64              `json:"pendingEventCount"`
 	QuarantinedEventCount        int64              `json:"quarantinedEventCount"`
 	Assignments                  []AssignmentHealth `json:"assignments"`
 }
 type EventReceipt struct {
-	EventID     uuid.UUID  `json:"eventId"`
-	CoreEventID *uuid.UUID `json:"coreEventId"`
-	Status      string     `json:"status"`
-	ReasonCode  *string    `json:"reasonCode"`
+	EventID     uuid.UUID     `json:"eventId"`
+	CoreEventID *uuid.UUID    `json:"coreEventId"`
+	Status      ReceiptStatus `json:"status"`
+	ReasonCode  *string       `json:"reasonCode"`
 }
 
 type ArtifactUploadResult struct {

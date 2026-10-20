@@ -325,13 +325,13 @@ func (r *fixtureRedactor) fileReplacement(value string) string {
 // reducer and writes deterministic normalized observations as NDJSON. It does
 // not open SQLite, contact Core, or connect to a printer.
 func ReplayBambuMQTTFixture(input io.Reader, output io.Writer) error {
-	return ReplayBambuMQTTFixtureFor(input, output, bambuH2DAdapterKind)
+	return ReplayBambuMQTTFixtureFor(input, output, AdapterBambuH2D)
 }
 
 // ReplayBambuMQTTFixtureFor replays the same sanitized transport fixture with
 // the selected model's reducer semantics. Transport fields stay shared while
 // tray routing and live nozzle normalization remain model-specific.
-func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind string) error {
+func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind AdapterKind) error {
 	if input == nil || output == nil {
 		return errors.New("fixture input and output are required")
 	}
@@ -408,7 +408,7 @@ type bambuReplayLine struct {
 }
 
 type bambuReplayObservation struct {
-	Kind            string          `json:"kind"`
+	Kind            ObservationKind `json:"kind"`
 	Payload         json.RawMessage `json:"payload"`
 	HasRunID        bool            `json:"hasRunId"`
 	HistoryComplete bool            `json:"historyComplete"`

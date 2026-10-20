@@ -19,8 +19,6 @@ import (
 const (
 	bambuH2DSchemaVersion = 1
 	bambuX1CSchemaVersion = 1
-	bambuH2DAdapterKind   = "bambu_h2d"
-	bambuX1CAdapterKind   = "bambu_x1c"
 	bambuMQTTPort         = 8883
 	bambuFTPPort          = 990
 	maximumReducerBytes   = 256 << 10
@@ -44,11 +42,11 @@ func parseBambuH2DConfiguration(
 	settings map[string]any,
 	secrets map[string]string,
 ) (BambuH2DSettings, BambuH2DSecrets, error) {
-	return parseBambuConfiguration(bambuH2DAdapterKind, settings, secrets)
+	return parseBambuConfiguration(AdapterBambuH2D, settings, secrets)
 }
 
 func parseBambuConfiguration(
-	kind string,
+	kind AdapterKind,
 	settings map[string]any,
 	secrets map[string]string,
 ) (BambuH2DSettings, BambuH2DSecrets, error) {
@@ -108,7 +106,7 @@ func parseBambuConfiguration(
 }
 
 type bambuH2DAdapter struct {
-	kind                 string
+	kind                 AdapterKind
 	assignmentID         uuid.UUID
 	configurationVersion int64
 	settings             BambuH2DSettings
@@ -126,7 +124,7 @@ func NewBambuH2D(
 	store *Store,
 ) (Adapter, error) {
 	return newBambuLANAdapter(
-		bambuH2DAdapterKind,
+		AdapterBambuH2D,
 		assignmentID,
 		configurationVersion,
 		schemaVersion,
@@ -145,7 +143,7 @@ func NewBambuX1C(
 	store *Store,
 ) (Adapter, error) {
 	return newBambuLANAdapter(
-		bambuX1CAdapterKind,
+		AdapterBambuX1C,
 		assignmentID,
 		configurationVersion,
 		schemaVersion,
@@ -156,7 +154,7 @@ func NewBambuX1C(
 }
 
 func newBambuLANAdapter(
-	kind string,
+	kind AdapterKind,
 	assignmentID uuid.UUID,
 	configurationVersion int64,
 	schemaVersion int,
@@ -205,9 +203,9 @@ func (a *bambuH2DAdapter) Descriptor() AdapterDescriptor {
 	}
 }
 
-func (a *bambuH2DAdapter) adapterKind() string {
+func (a *bambuH2DAdapter) adapterKind() AdapterKind {
 	if a.kind == "" {
-		return bambuH2DAdapterKind
+		return AdapterBambuH2D
 	}
 	return a.kind
 }
@@ -215,7 +213,7 @@ func (a *bambuH2DAdapter) adapterKind() string {
 type bambuMQTTMessage struct {
 	payload []byte
 	err     error
-	state   string
+	state   ConnectivityState
 }
 
 type bambuMQTTClient interface {
@@ -255,8 +253,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			return ctx.Err()
 		case <-snapshotTimer.C:
 			if !ready {
-				payload := mustJSON(map[string]any{"state": "degraded", "errorCode": "snapshot_timeout"})
-				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: payload}); err != nil {
+				payload := mustJSON(map[string]any{"state": ConnectivityDegraded, "errorCode": "snapshot_timeout"})
+				if err = sink.Commit(ctx, Observation{Kind: ObservationConnectivity, Payload: payload}); err != nil {
 					return err
 				}
 			}
@@ -272,7 +270,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				if ready {
 					if err = sink.Commit(
 						ctx,
-						Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})},
+						Observation{Kind: ObservationConnectivity, Payload: mustJSON(map[string]any{"state": ConnectivityOnline})},
 					); err != nil {
 						return err
 					}
@@ -283,8 +281,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			if err = sink.Commit(
 				ctx,
 				Observation{
-					Kind:    "connectivity",
-					Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code}),
+					Kind:    ObservationConnectivity,
+					Payload: mustJSON(map[string]any{"state": ConnectivityDegraded, "errorCode": code}),
 				},
 			); err != nil {
 				return err
@@ -294,8 +292,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				return fmt.Errorf("%s MQTT client stopped", a.kind)
 			}
 			if message.err != nil {
-				payload := mustJSON(map[string]any{"state": "offline", "errorCode": classifyAdapterError(message.err)})
-				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: payload}); err != nil {
+				payload := mustJSON(map[string]any{"state": ConnectivityOffline, "errorCode": classifyAdapterError(message.err)})
+				if err = sink.Commit(ctx, Observation{Kind: ObservationConnectivity, Payload: payload}); err != nil {
 					return err
 				}
 				if processor.noteDisconnected(time.Now().UTC()) {
@@ -306,17 +304,17 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				continue
 			}
 			if message.state != "" {
-				if message.state == "online" {
+				if message.state == ConnectivityOnline {
 					ready = false
 					snapshotTimer.Reset(15 * time.Second)
-				} else if message.state == "offline" && processor.noteDisconnected(time.Now().UTC()) {
+				} else if message.state == ConnectivityOffline && processor.noteDisconnected(time.Now().UTC()) {
 					if err = commitBambuProcessorState(ctx, sink, processor, nil); err != nil {
 						return err
 					}
 				}
 				if err = sink.Commit(
 					ctx,
-					Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": message.state})},
+					Observation{Kind: ObservationConnectivity, Payload: mustJSON(map[string]any{"state": message.state})},
 				); err != nil {
 					return err
 				}
@@ -324,8 +322,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			}
 			observations, complete, processErr := processor.apply(ctx, message.payload, time.Now().UTC())
 			if processErr != nil {
-				payload := mustJSON(map[string]any{"state": "degraded", "errorCode": "invalid_mqtt_payload"})
-				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: payload}); err != nil {
+				payload := mustJSON(map[string]any{"state": ConnectivityDegraded, "errorCode": "invalid_mqtt_payload"})
+				if err = sink.Commit(ctx, Observation{Kind: ObservationConnectivity, Payload: payload}); err != nil {
 					return err
 				}
 				continue
@@ -344,7 +342,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				}
 				if err = sink.Commit(
 					ctx,
-					Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})},
+					Observation{Kind: ObservationConnectivity, Payload: mustJSON(map[string]any{"state": ConnectivityOnline})},
 				); err != nil {
 					return err
 				}
@@ -360,8 +358,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				if err = sink.Commit(
 					ctx,
 					Observation{
-						Kind:    "connectivity",
-						Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code}),
+						Kind:    ObservationConnectivity,
+						Payload: mustJSON(map[string]any{"state": ConnectivityDegraded, "errorCode": code}),
 					},
 				); err != nil {
 					return err
@@ -373,7 +371,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 
 func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observations []Observation) error {
 	for _, observation := range observations {
-		if observation.RunID == nil || (observation.Kind != "operational_state" && observation.Kind != "progress") {
+		if observation.RunID == nil || (observation.Kind != ObservationOperationalState && observation.Kind != ObservationProgress) {
 			continue
 		}
 		var payload struct {
@@ -558,7 +556,7 @@ func (c *pahoBambuClient) connected(client MQTT.Client) {
 		c.offer(bambuMQTTMessage{err: token.Error()})
 		return
 	}
-	c.offer(bambuMQTTMessage{state: "online"})
+	c.offer(bambuMQTTMessage{state: ConnectivityOnline})
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if time.Since(c.lastPush) < 15*time.Second {

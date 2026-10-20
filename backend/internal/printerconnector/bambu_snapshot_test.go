@@ -166,7 +166,7 @@ func TestBuildBambuLiveSnapshotFromX1CDocument(t *testing.T) {
 		t,
 		`{"print":{"gcode_state":"RUNNING","subtask_name":"Two colour part","mc_percent":66,"layer_num":30,"total_layer_num":72,"nozzle_temper":220.5,"nozzle_target_temper":220,"nozzle_diameter":"0.4","nozzle_type":"hardened_steel","chamber_temper":34,"bed_temper":55,"bed_target_temper":55,"ams":{"tray_now":"2","tray_exist_bits":"5","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tray_type":"PLA","tray_color":"FFFFFFFF","tag_uid":"RFID"}]}]}}}`,
 	)
-	snapshot := buildBambuLiveSnapshotFor(bambuX1CAdapterKind, document, map[string]time.Time{}, now)
+	snapshot := buildBambuLiveSnapshotFor(AdapterBambuX1C, document, map[string]time.Time{}, now)
 	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" ||
 		snapshot.ActiveTray.TrayExternalID != "2" {
 		t.Fatalf("active tray = %+v", snapshot.ActiveTray)
@@ -201,7 +201,7 @@ func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 			map[string]time.Time{},
 			now,
 		)
-		if snapshot.State != want {
+		if snapshot.State != PrinterState(want) {
 			t.Errorf("gcode_state %q -> %q, want %q", gcode, snapshot.State, want)
 		}
 	}

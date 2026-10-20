@@ -83,14 +83,14 @@ func TestBambuX1CAdapterUsesSharedLANContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := adapter.Descriptor(); got.Kind != bambuX1CAdapterKind || got.SchemaVersion != 1 {
+	if got := adapter.Descriptor(); got.Kind != AdapterBambuX1C || got.SchemaVersion != 1 {
 		t.Fatalf("descriptor = %+v", got)
 	}
 }
 
 func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
+	processor := &bambuProcessor{adapterKind: AdapterBambuX1C, state: bambuPersistedState{
 		Document:        map[string]any{},
 		Sessions:        map[string]string{},
 		LastSlots:       map[string]string{},
@@ -137,7 +137,7 @@ func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 
 func TestBambuX1CReducerUsesExplicitSlicerFilamentMapping(t *testing.T) {
 	t.Parallel()
-	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
+	processor := &bambuProcessor{adapterKind: AdapterBambuX1C, state: bambuPersistedState{
 		Document:        map[string]any{},
 		Sessions:        map[string]string{},
 		LastSlots:       map[string]string{},
@@ -1035,8 +1035,8 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	}
 
 	layer, progress := 1, 50.0
-	for _, adapterKind := range []string{bambuH2DAdapterKind, bambuX1CAdapterKind} {
-		t.Run(adapterKind, func(t *testing.T) {
+	for _, adapterKind := range []AdapterKind{AdapterBambuH2D, AdapterBambuX1C} {
+		t.Run(string(adapterKind), func(t *testing.T) {
 			failed, buildErr := buildBambuConsumptionPayloadFor(
 				adapterKind,
 				transfer,
@@ -1341,9 +1341,9 @@ func syntheticBambuConsumptionZIP(t *testing.T) []byte {
 	return buffer.Bytes()
 }
 
-func assertKinds(t *testing.T, observations []Observation, expected ...string) {
+func assertKinds(t *testing.T, observations []Observation, expected ...ObservationKind) {
 	t.Helper()
-	counts := map[string]int{}
+	counts := map[ObservationKind]int{}
 	for _, observation := range observations {
 		counts[observation.Kind]++
 	}

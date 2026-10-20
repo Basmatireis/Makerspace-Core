@@ -39,7 +39,7 @@ type QueuedEvent struct {
 	ConfigurationVersion int64           `json:"configurationVersion"`
 	Sequence             int64           `json:"sequence"`
 	OccurredAt           time.Time       `json:"occurredAt"`
-	Kind                 string          `json:"kind"`
+	Kind                 ObservationKind `json:"kind"`
 	ExternalPrintID      *string         `json:"externalPrintId"`
 	ReportRevision       *int64          `json:"reportRevision"`
 	Payload              json.RawMessage `json:"payload"`
@@ -286,7 +286,7 @@ func (s *Store) Enqueue(
 	ctx context.Context,
 	assignmentID uuid.UUID,
 	configurationVersion int64,
-	kind string,
+	kind ObservationKind,
 	payload json.RawMessage,
 	runID *uuid.UUID,
 	historyComplete bool,
@@ -484,16 +484,16 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 	defer func() { _ = tx.Rollback() }()
 	for _, receipt := range receipts {
 		switch receipt.Status {
-		case "accepted", "duplicate":
+		case ReceiptAccepted, ReceiptDuplicate:
 			_, err = tx.ExecContext(ctx, `DELETE FROM outbox WHERE event_id=?`, receipt.EventID.String())
-		case "rejected":
+		case ReceiptRejected:
 			_, err = tx.ExecContext(
 				ctx,
 				`UPDATE outbox SET state='quarantined',reason_code=? WHERE event_id=?`,
 				receipt.ReasonCode,
 				receipt.EventID.String(),
 			)
-		case "retry":
+		case ReceiptRetry:
 			var attempt int
 			if err = tx.QueryRowContext(
 				ctx,

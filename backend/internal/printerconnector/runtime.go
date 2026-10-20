@@ -309,13 +309,13 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		}
 		var adapter Adapter
 		switch raw.AdapterKind {
-		case "simulator":
+		case AdapterSimulator:
 			if raw.AdapterSchemaVersion != 1 {
 				err = fmt.Errorf("unsupported simulator schema version %d", raw.AdapterSchemaVersion)
 			} else {
 				adapter, err = NewSimulator(raw.Settings)
 			}
-		case "bambu_h2d":
+		case AdapterBambuH2D:
 			adapter, err = NewBambuH2D(
 				id,
 				raw.ConfigurationVersion,
@@ -324,7 +324,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				raw.Secrets,
 				r.store,
 			)
-		case "bambu_x1c":
+		case AdapterBambuX1C:
 			adapter, err = NewBambuX1C(
 				id,
 				raw.ConfigurationVersion,
@@ -342,7 +342,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 			r.health[id] = AssignmentHealth{
 				AssignmentID:                raw.ID,
 				AppliedConfigurationVersion: 0,
-				State:                       "degraded",
+				State:                       HealthDegraded,
 				ErrorCode:                   &code,
 			}
 			r.mu.Unlock()
@@ -355,7 +355,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		r.health[id] = AssignmentHealth{
 			AssignmentID:                raw.ID,
 			AppliedConfigurationVersion: raw.ConfigurationVersion,
-			State:                       "connected",
+			State:                       HealthConnected,
 		}
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
@@ -365,7 +365,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				assignmentID:         assignmentID,
 				adapterKind:          adapter.Descriptor().Kind,
 				configurationVersion: configVersion,
-				reportHealth: func(state string, code *string) {
+				reportHealth: func(state HealthState, code *string) {
 					r.mu.Lock()
 					defer r.mu.Unlock()
 					r.health[assignmentID] = AssignmentHealth{
@@ -389,7 +389,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				r.health[assignmentID] = AssignmentHealth{
 					AssignmentID:                assignmentID.String(),
 					AppliedConfigurationVersion: configVersion,
-					State:                       "degraded",
+					State:                       HealthDegraded,
 					ErrorCode:                   &code,
 				}
 				r.mu.Unlock()
@@ -413,23 +413,23 @@ type runtimeSink struct {
 	store                *Store
 	live                 *liveStatusHub
 	assignmentID         uuid.UUID
-	adapterKind          string
+	adapterKind          AdapterKind
 	configurationVersion int64
-	reportHealth         func(string, *string)
+	reportHealth         func(HealthState, *string)
 }
 
 func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error {
-	if observation.Kind == "connectivity" && s.reportHealth != nil {
+	if observation.Kind == ObservationConnectivity && s.reportHealth != nil {
 		var value struct {
-			State     string  `json:"state"`
-			ErrorCode *string `json:"errorCode"`
+			State     ConnectivityState `json:"state"`
+			ErrorCode *string           `json:"errorCode"`
 		}
 		if json.Unmarshal(observation.Payload, &value) == nil {
 			switch value.State {
-			case "online":
-				s.reportHealth("connected", nil)
-			case "offline", "degraded":
-				s.reportHealth("degraded", value.ErrorCode)
+			case ConnectivityOnline:
+				s.reportHealth(HealthConnected, nil)
+			case ConnectivityOffline, ConnectivityDegraded:
+				s.reportHealth(HealthDegraded, value.ErrorCode)
 			}
 		}
 	}
@@ -460,17 +460,17 @@ func (s *runtimeSink) CommitBambuState(
 	state bambuPersistedState,
 ) error {
 	for _, observation := range observations {
-		if observation.Kind == "connectivity" && s.reportHealth != nil {
+		if observation.Kind == ObservationConnectivity && s.reportHealth != nil {
 			var value struct {
-				State     string  `json:"state"`
-				ErrorCode *string `json:"errorCode"`
+				State     ConnectivityState `json:"state"`
+				ErrorCode *string           `json:"errorCode"`
 			}
 			if json.Unmarshal(observation.Payload, &value) == nil {
 				switch value.State {
-				case "online":
-					s.reportHealth("connected", nil)
-				case "offline", "degraded":
-					s.reportHealth("degraded", value.ErrorCode)
+				case ConnectivityOnline:
+					s.reportHealth(HealthConnected, nil)
+				case ConnectivityOffline, ConnectivityDegraded:
+					s.reportHealth(HealthDegraded, value.ErrorCode)
 				}
 			}
 		}
@@ -555,7 +555,7 @@ func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
 	due := r.live.Due(func(id uuid.UUID) bool {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		return r.health[id].State == "connected"
+		return r.health[id].State == HealthConnected
 	})
 	for _, item := range due {
 		err := r.client.PutLiveStatus(
@@ -626,11 +626,11 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 	}
 	r.mu.Lock()
 	health := make([]AssignmentHealth, 0, len(r.health))
-	state := "connected"
+	state := HealthConnected
 	for _, value := range r.health {
 		health = append(health, value)
-		if value.State == "degraded" {
-			state = "degraded"
+		if value.State == HealthDegraded {
+			state = HealthDegraded
 		}
 	}
 	revision := r.revision

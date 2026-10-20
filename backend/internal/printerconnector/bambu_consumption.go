@@ -240,11 +240,11 @@ func (a *bambuH2DAdapter) processArtifactConsumptions(ctx context.Context) error
 }
 
 func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts) (json.RawMessage, error) {
-	return buildBambuConsumptionPayloadFor(bambuH2DAdapterKind, transfer, facts)
+	return buildBambuConsumptionPayloadFor(AdapterBambuH2D, transfer, facts)
 }
 
 func buildBambuConsumptionPayloadFor(
-	adapterKind string,
+	adapterKind AdapterKind,
 	transfer ArtifactTransfer,
 	facts bambuRunFacts,
 ) (json.RawMessage, error) {
@@ -257,7 +257,7 @@ func buildBambuConsumptionPayloadFor(
 	if err != nil {
 		return nil, fmt.Errorf("parse staged artifact for consumption: %w", err)
 	}
-	if facts.Outcome == "completed" {
+	if facts.Outcome == OutcomeCompleted {
 		return marshalSlicerConsumption(parsed, facts)
 	}
 	if facts.LastLayer == nil && facts.LastProgress == nil {
@@ -281,7 +281,7 @@ func buildBambuConsumptionPayloadFor(
 		)
 	}
 	options := parser.GCodeOptions{Filaments: filaments}
-	if adapterKind == bambuX1CAdapterKind {
+	if adapterKind == AdapterBambuX1C {
 		physicalExtruder := 1
 		options.PhysicalExtruder = &physicalExtruder
 	}

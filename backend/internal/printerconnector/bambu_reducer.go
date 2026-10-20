@@ -40,7 +40,7 @@ type bambuPersistedState struct {
 }
 
 type bambuRunFacts struct {
-	Outcome             string               `json:"outcome,omitempty"`
+	Outcome             PrintOutcome         `json:"outcome,omitempty"`
 	LastLayer           *int                 `json:"lastLayer,omitempty"`
 	LastProgress        *float64             `json:"lastProgress,omitempty"`
 	HistoryComplete     bool                 `json:"historyComplete"`
@@ -61,7 +61,7 @@ type bambuSpoolEvidence struct {
 
 type bambuProcessor struct {
 	assignmentID  uuid.UUID
-	adapterKind   string
+	adapterKind   AdapterKind
 	store         *Store
 	state         bambuPersistedState
 	loaded        bool
@@ -71,13 +71,13 @@ type bambuProcessor struct {
 }
 
 func newBambuProcessor(ctx context.Context, assignmentID uuid.UUID, store *Store) (*bambuProcessor, error) {
-	return newBambuProcessorFor(ctx, assignmentID, bambuH2DAdapterKind, store)
+	return newBambuProcessorFor(ctx, assignmentID, AdapterBambuH2D, store)
 }
 
 func newBambuProcessorFor(
 	ctx context.Context,
 	assignmentID uuid.UUID,
-	adapterKind string,
+	adapterKind AdapterKind,
 	store *Store,
 ) (*bambuProcessor, error) {
 	state, found, err := store.BambuStateFor(ctx, assignmentID, adapterKind)
@@ -164,15 +164,15 @@ func (p *bambuProcessor) expireDisconnectedRun(observedAt time.Time) []Observati
 		return nil
 	}
 	facts := p.state.RunFacts[runID.String()]
-	facts.Outcome = "unknown"
+	facts.Outcome = OutcomeUnknown
 	p.state.RunFacts[runID.String()] = facts
 	p.state.DisconnectedAt = nil
 	p.state.RunTimedOut = true
 	p.state.Lifecycle = "UNKNOWN"
 	return []Observation{{
-		Kind: "terminal_outcome",
+		Kind: ObservationTerminalOutcome,
 		Payload: mustJSON(
-			map[string]any{"outcome": "unknown", "reason": "connection_timeout", "observedAt": deadline},
+			map[string]any{"outcome": OutcomeUnknown, "reason": "connection_timeout", "observedAt": deadline},
 		),
 		RunID:           runID,
 		HistoryComplete: facts.HistoryComplete,
@@ -291,15 +291,15 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			}
 		}
 		p.state.RunFacts[runID.String()] = facts
-		state := "printing"
+		state := PrinterPrinting
 		if lifecycle == "PAUSE" {
-			state = "paused"
+			state = PrinterPaused
 		}
 		if !previousActive || lifecycle != previousLifecycle {
 			observations = append(
 				observations,
 				Observation{
-					Kind:            "operational_state",
+					Kind:            ObservationOperationalState,
 					Payload:         bambuOperationalState(printState, state, observedAt),
 					RunID:           runID,
 					HistoryComplete: historyComplete,
@@ -314,7 +314,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			observations = append(
 				observations,
 				Observation{
-					Kind:            "progress",
+					Kind:            ObservationProgress,
 					Payload:         progressPayload,
 					RunID:           runID,
 					HistoryComplete: historyComplete,
@@ -326,13 +326,13 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 
 	if previousActive && !active && !terminal && runID != nil {
 		facts := p.state.RunFacts[runID.String()]
-		facts.Outcome = "unknown"
+		facts.Outcome = OutcomeUnknown
 		p.state.RunFacts[runID.String()] = facts
 		observations = append(
 			observations,
 			Observation{
-				Kind:            "terminal_outcome",
-				Payload:         mustJSON(map[string]any{"outcome": "unknown", "observedAt": observedAt}),
+				Kind:            ObservationTerminalOutcome,
+				Payload:         mustJSON(map[string]any{"outcome": OutcomeUnknown, "observedAt": observedAt}),
 				RunID:           runID,
 				HistoryComplete: historyComplete,
 				ExternalPrintID: externalID,
@@ -340,9 +340,9 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		)
 	}
 	if terminal && runID != nil && (previousLifecycle != lifecycle || previousActive) {
-		outcome := "completed"
+		outcome := OutcomeCompleted
 		if lifecycle == "FAILED" {
-			outcome = "failed"
+			outcome = OutcomeFailed
 		}
 		facts := p.state.RunFacts[runID.String()]
 		facts.Outcome = outcome
@@ -356,7 +356,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		observations = append(
 			observations,
 			Observation{
-				Kind:            "terminal_outcome",
+				Kind:            ObservationTerminalOutcome,
 				Payload:         mustJSON(map[string]any{"outcome": outcome, "observedAt": observedAt}),
 				RunID:           runID,
 				HistoryComplete: historyComplete,
@@ -518,7 +518,7 @@ func isBambuArchivePath(value string) bool {
 	return strings.HasSuffix(value, ".3mf")
 }
 
-func bambuOperationalState(state map[string]any, lifecycle string, observedAt time.Time) json.RawMessage {
+func bambuOperationalState(state map[string]any, lifecycle PrinterState, observedAt time.Time) json.RawMessage {
 	result := map[string]any{"state": lifecycle, "observedAt": observedAt}
 	if fileName := bambuFileName(state); fileName != "" {
 		result["fileName"] = fileName
@@ -637,8 +637,8 @@ func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 	return matches[0].unitID, matches[0].trayID, bambuTagUID(matches[0].tray), true
 }
 
-func bambuActiveSlotFor(adapterKind string, state map[string]any) (string, string, string, bool) {
-	if adapterKind == bambuX1CAdapterKind {
+func bambuActiveSlotFor(adapterKind AdapterKind, state map[string]any) (string, string, string, bool) {
+	if adapterKind == AdapterBambuX1C {
 		return bambuX1CActiveSlot(state)
 	}
 	return bambuActiveSlot(state)
@@ -676,8 +676,8 @@ type bambuExtruderRoute struct {
 	ref              bambuTrayRef
 }
 
-func bambuSpoolRoutesFor(adapterKind string, state map[string]any) []bambuExtruderRoute {
-	if adapterKind == bambuX1CAdapterKind {
+func bambuSpoolRoutesFor(adapterKind AdapterKind, state map[string]any) []bambuExtruderRoute {
+	if adapterKind == AdapterBambuX1C {
 		if routes := bambuX1CMaterialRoutes(state); len(routes) > 0 {
 			return routes
 		}
@@ -878,7 +878,7 @@ func containsBambuSpoolEvidence(values []bambuSpoolEvidence, candidate bambuSpoo
 }
 
 func bambuProgress(state map[string]any, observedAt time.Time) json.RawMessage {
-	result := map[string]any{"state": "printing", "observedAt": observedAt}
+	result := map[string]any{"state": PrinterPrinting, "observedAt": observedAt}
 	if fileName := bambuFileName(state); fileName != "" {
 		result["fileName"] = fileName
 	}
@@ -941,14 +941,14 @@ func (p *bambuProcessor) errorTransitions(
 			continue
 		}
 		family, code, _ := strings.Cut(key, ":")
-		transition := "cleared"
+		transition := ErrorCleared
 		if isActive {
-			transition = "appeared"
+			transition = ErrorAppeared
 		}
 		result = append(
 			result,
 			Observation{
-				Kind: "printer_error",
+				Kind: ObservationPrinterError,
 				Payload: mustJSON(
 					map[string]any{"sourceFamily": family, "code": code, "transition": transition, "observedAt": at},
 				),
@@ -1018,7 +1018,7 @@ func (p *bambuProcessor) slotTransitions(
 		// not flood an individual run's lifecycle timeline.
 		result = append(
 			result,
-			Observation{Kind: "slot_observation", Payload: mustJSON(payload), HistoryComplete: historyComplete},
+			Observation{Kind: ObservationSlot, Payload: mustJSON(payload), HistoryComplete: historyComplete},
 		)
 	}
 	for key := range p.state.LastSlots {

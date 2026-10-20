@@ -199,7 +199,7 @@ func replayMQTT(args []string, stdout io.Writer) error {
 		return fmt.Errorf("replay-mqtt input: %w", err)
 	}
 	defer func() { _ = input.Close() }()
-	if err = printerconnector.ReplayBambuMQTTFixtureFor(input, stdout, *adapterKind); err != nil {
+	if err = printerconnector.ReplayBambuMQTTFixtureFor(input, stdout, printerconnector.AdapterKind(*adapterKind)); err != nil {
 		return fmt.Errorf("replay-mqtt: %w", err)
 	}
 	return nil

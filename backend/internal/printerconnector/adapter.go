@@ -15,7 +15,7 @@ import (
 )
 
 type Observation struct {
-	Kind            string
+	Kind            ObservationKind
 	Payload         json.RawMessage
 	RunID           *uuid.UUID
 	HistoryComplete bool
@@ -38,7 +38,7 @@ const (
 )
 
 type AdapterDescriptor struct {
-	Kind          string
+	Kind          AdapterKind
 	SchemaVersion int
 	Capabilities  []Capability
 }
@@ -65,7 +65,7 @@ var simulatedPrintCounter atomic.Uint64
 
 type simulatorAdapter struct {
 	interval time.Duration
-	scenario string
+	scenario SimulatorScenario
 }
 
 func NewSimulator(settings map[string]any) (Adapter, error) {
@@ -73,11 +73,12 @@ func NewSimulator(settings map[string]any) (Adapter, error) {
 	if value, ok := settings["intervalSeconds"].(float64); ok && value >= 1 && value <= 3600 {
 		interval = time.Duration(value) * time.Second
 	}
-	scenario, _ := settings["scenario"].(string)
+	rawScenario, _ := settings["scenario"].(string)
+	scenario := SimulatorScenario(rawScenario)
 	if scenario == "" {
-		scenario = "idle"
+		scenario = ScenarioIdle
 	}
-	if scenario != "idle" && scenario != "successful_print" && scenario != "failed_print" {
+	if scenario != ScenarioIdle && scenario != ScenarioSuccessfulPrint && scenario != ScenarioFailedPrint {
 		return nil, errors.New("unsupported simulator scenario")
 	}
 	return &simulatorAdapter{interval: interval, scenario: scenario}, nil
@@ -85,7 +86,7 @@ func NewSimulator(settings map[string]any) (Adapter, error) {
 
 func (a *simulatorAdapter) Descriptor() AdapterDescriptor {
 	return AdapterDescriptor{
-		Kind:          "simulator",
+		Kind:          AdapterSimulator,
 		SchemaVersion: 1,
 		Capabilities:  []Capability{CapabilityStatus, CapabilityProgress, CapabilityConsumption, CapabilityTerminal},
 	}
@@ -93,13 +94,13 @@ func (a *simulatorAdapter) Descriptor() AdapterDescriptor {
 
 // simulatorSnapshot is a plausible fixed machine: one AMS with two spools, one
 // external holder and a single right-hand nozzle.
-func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
+func simulatorSnapshot(state PrinterState, job *liveJob) json.RawMessage {
 	snapshot := newLiveSnapshot(state)
 	snapshot.Job = job
 	bed, bedTarget, chamber, nozzle, nozzleTarget := 28.0, 0.0, 26.0, 28.0, 0.0
 	diameter, nozzleType, label := 0.4, "HS01", "Simulated PLA"
 	signal := -42
-	if state == "printing" {
+	if state == PrinterPrinting {
 		bed, bedTarget, nozzle, nozzleTarget = 60.0, 60.0, 220.0, 220.0
 	}
 	side := bambuExtruderSide(0)
@@ -113,7 +114,7 @@ func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
 	pla, petg, red, grey, humidity := "PLA", "PETG", "D32F2F", "9E9E9E", 18
 	remainRed, remainGrey := 80, 35
 	snapshot.Units = []liveUnit{
-		{ExternalID: "0", Kind: "ams", Label: "AMS 0", HumidityPercent: &humidity, Trays: []liveTray{
+		{ExternalID: "0", Kind: UnitAMS, Label: "AMS 0", HumidityPercent: &humidity, Trays: []liveTray{
 			{
 				ExternalID:    "0",
 				MaterialType:  &pla,
@@ -128,13 +129,13 @@ func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
 		}},
 		{
 			ExternalID: "254",
-			Kind:       "external",
+			Kind:       UnitExternal,
 			Label:      "External spool 254",
 			Trays:      []liveTray{{ExternalID: "254", Empty: true}},
 		},
 	}
 	snapshot.ActiveTray = nil
-	if state == "printing" {
+	if state == PrinterPrinting {
 		snapshot.ActiveTray = &liveActiveTray{UnitExternalID: "0", TrayExternalID: "0"}
 	}
 	snapshot.WifiSignalDbm = &signal
@@ -144,21 +145,21 @@ func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
 func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 	if err := sink.Commit(
 		ctx,
-		Observation{Kind: "connectivity", Payload: json.RawMessage(`{"state":"online"}`)},
+		Observation{Kind: ObservationConnectivity, Payload: json.RawMessage(`{"state":"online"}`)},
 	); err != nil {
 		return err
 	}
 	live, _ := sink.(LiveStatusSink)
-	report := func(state string, job *liveJob) {
+	report := func(state PrinterState, job *liveJob) {
 		if live != nil {
 			live.ReportLiveStatus(simulatorSnapshot(state, job))
 		}
 	}
-	report("idle", nil)
-	if a.scenario == "idle" {
+	report(PrinterIdle, nil)
+	if a.scenario == ScenarioIdle {
 		if err := sink.Commit(
 			ctx,
-			Observation{Kind: "operational_state", Payload: json.RawMessage(`{"state":"idle"}`)},
+			Observation{Kind: ObservationOperationalState, Payload: json.RawMessage(`{"state":"idle"}`)},
 		); err != nil {
 			return err
 		}
@@ -182,7 +183,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 				remaining := int64(math.Ceil(float64(100-progress) / 20 * a.interval.Seconds()))
 				percent, minutes, layer, layers := progress, int(math.Ceil(float64(remaining)/60)), progress, 100
 				report(
-					"printing",
+					PrinterPrinting,
 					&liveJob{
 						FileName:         &fileName,
 						ProgressPercent:  &percent,
@@ -193,7 +194,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 				)
 				payload, _ := json.Marshal(
 					map[string]any{
-						"state":            "printing",
+						"state":            PrinterPrinting,
 						"percent":          progress,
 						"remainingSeconds": remaining,
 						"fileName":         fileName,
@@ -202,7 +203,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 				if err := sink.Commit(
 					ctx,
 					Observation{
-						Kind:            "progress",
+						Kind:            ObservationProgress,
 						Payload:         payload,
 						RunID:           &runID,
 						HistoryComplete: true,
@@ -213,20 +214,20 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 				}
 				continue
 			}
-			outcome := "completed"
-			if a.scenario == "failed_print" {
-				outcome = "failed"
+			outcome := OutcomeCompleted
+			if a.scenario == ScenarioFailedPrint {
+				outcome = OutcomeFailed
 			}
-			if outcome == "completed" {
-				report("finished", nil)
+			if outcome == OutcomeCompleted {
+				report(PrinterFinished, nil)
 			} else {
-				report("failed", nil)
+				report(PrinterFailed, nil)
 			}
 			payload, _ := json.Marshal(map[string]any{"outcome": outcome})
 			if err := sink.Commit(
 				ctx,
 				Observation{
-					Kind:            "terminal_outcome",
+					Kind:            ObservationTerminalOutcome,
 					Payload:         payload,
 					RunID:           &runID,
 					HistoryComplete: true,
@@ -238,7 +239,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 			if err := sink.Commit(
 				ctx,
 				Observation{
-					Kind:            "consumption_report",
+					Kind:            ObservationConsumptionReport,
 					Payload:         json.RawMessage(`{"quantityGrams":"12.5","quantityBasis":"estimated"}`),
 					RunID:           &runID,
 					HistoryComplete: true,
