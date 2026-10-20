@@ -146,6 +146,13 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
   };
   const difference = view ? reportedDifference(display, view, describeRule, sceneName) : null;
   const activeAnnouncements = preview.data?.live.announcements ?? [];
+  // The server issues no stream tickets to such a display, so its camera widgets only ever show their fallback.
+  const camerasBlocked =
+    !revoked &&
+    display.visibleFromOutside &&
+    !display.allowCameraOutside &&
+    (view?.manifest.scenes.some((scene) => Object.values(scene.zones).some((widget) => widget.type === 'camera')) ??
+      false);
 
   const actions = (
     <>
@@ -232,6 +239,15 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
             hideCloseButton
             title={pluralize(pending.length, 'unpublished change')}
             subtitle={`${pending.map(describePendingChange).join(' · ')}. The display keeps running its last publication until you publish.`}
+          />
+        )}
+        {camerasBlocked && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Live cameras are not shown"
+            subtitle="This display is visible from outside and does not allow live cameras, so its camera widgets show their fallback. To change this, turn on live cameras in the Settings tab."
           />
         )}
         {activeAnnouncements.length > 0 && (

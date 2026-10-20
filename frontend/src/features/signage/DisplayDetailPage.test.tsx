@@ -9,6 +9,26 @@ import { server } from '../../test/server';
 import { announcementFixture, displayFixture, ids, mockSignage, previewFixture, ruleFixture } from './testFixtures';
 
 const route = `/signage/displays/${ids.display}`;
+/** The default publication with a camera widget in the main zone of its scene. */
+function cameraPreview() {
+  const base = previewFixture();
+  const scene = base.manifest!.scenes[0];
+  const camera = {
+    type: 'camera' as const,
+    source: 'auto' as const,
+    machineId: null,
+    machineIds: [],
+    multi: 'split' as const,
+    showProgress: true,
+    showRemaining: true,
+    fallback: 'text' as const,
+    fallbackMediaId: null,
+  };
+  return previewFixture({
+    manifest: { ...base.manifest!, scenes: [{ ...scene, zones: { ...scene.zones, main: camera } }] },
+  });
+}
+
 const pending = [
   { kind: 'scene' as const, name: 'Open days poster', change: 'modified' as const },
   { kind: 'rule' as const, name: '', change: 'added' as const },
@@ -108,6 +128,23 @@ describe('Display detail', () => {
     expect((await screen.findAllByText('Active')).length).toBeGreaterThan(0);
     expect(screen.getByText(/1 announcement active/)).toBeInTheDocument();
     expect(screen.getByText('Otherwise')).toBeInTheDocument();
+  });
+
+  it('warns when the publication has a camera widget but the display does not allow live cameras', async () => {
+    mockSignage([PermissionId.signageread], { displays: [displayFixture()], preview: cameraPreview() });
+    renderRoute(<App />, route);
+    expect(await screen.findByText('Live cameras are not shown')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['the display allows live cameras', displayFixture({ allowCameraOutside: true }), cameraPreview()],
+    ['the display is not visible from outside', displayFixture({ visibleFromOutside: false }), cameraPreview()],
+    ['the publication has no camera widget', displayFixture(), previewFixture()],
+  ])('does not warn about cameras when %s', async (_, display, preview) => {
+    mockSignage([PermissionId.signageread], { displays: [display], preview });
+    renderRoute(<App />, route);
+    expect(await screen.findByText(/Now showing/)).toBeInTheDocument();
+    expect(screen.queryByText('Live cameras are not shown')).not.toBeInTheDocument();
   });
 
   it('says neutrally when the display reports something else', async () => {
