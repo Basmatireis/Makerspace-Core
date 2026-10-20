@@ -198,21 +198,7 @@ func assuranceMappings(values map[string]openapi.AuthenticationAssurance) map[st
 }
 
 func (s *Server) oidcFlowCookie(value string, expires time.Time) *http.Cookie {
-	maxAge := int(time.Until(expires).Seconds())
-	if maxAge < 1 {
-		maxAge = 1
-	}
-	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-	return &http.Cookie{
-		Name:     s.config.OIDCFlowCookieName,
-		Value:    value,
-		Path:     "/",
-		Expires:  expires,
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		Secure:   s.config.SessionCookieSecure,
-		SameSite: http.SameSiteLaxMode,
-	}
+	return applicationCookie(s.config, s.config.OIDCFlowCookieName, value, true, expires, cookieMaxAge(expires))
 }
 
 type oidcCallbackResponse struct {
@@ -226,53 +212,9 @@ type oidcCallbackResponse struct {
 func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Location", response.location)
-	http.SetCookie(
-		w,
-		//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-		&http.Cookie{
-			Name:     response.server.config.OIDCFlowCookieName,
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(1, 0).UTC(),
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   response.server.config.SessionCookieSecure,
-			SameSite: http.SameSiteLaxMode,
-		},
-	)
+	http.SetCookie(w, expiringCookie(response.server.config, response.server.config.OIDCFlowCookieName, true))
 	if response.session != nil {
-		maxAge := int(time.Until(response.session.AbsoluteExpiry).Seconds())
-		if maxAge < 1 {
-			maxAge = 1
-		}
-		http.SetCookie(
-			w,
-			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-			&http.Cookie{
-				Name:     response.server.config.SessionCookieName,
-				Value:    response.session.Token,
-				Path:     "/",
-				Expires:  response.session.AbsoluteExpiry,
-				MaxAge:   maxAge,
-				HttpOnly: true,
-				Secure:   response.server.config.SessionCookieSecure,
-				SameSite: http.SameSiteLaxMode,
-			},
-		)
-		http.SetCookie(
-			w,
-			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-			&http.Cookie{
-				Name:     response.server.config.CSRFCookieName,
-				Value:    response.session.CSRFToken,
-				Path:     "/",
-				Expires:  response.session.AbsoluteExpiry,
-				MaxAge:   maxAge,
-				HttpOnly: false,
-				Secure:   response.server.config.SessionCookieSecure,
-				SameSite: http.SameSiteLaxMode,
-			},
-		)
+		setSessionCookies(w, response.server.config, *response.session)
 	}
 	w.WriteHeader(http.StatusFound)
 	return nil

@@ -44,44 +44,41 @@ func (response cookieNoContentResponse) VisitCompletePasswordResetResponse(w htt
 func (response cookieNoContentResponse) write(w http.ResponseWriter) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if response.clear {
-		response.setCookie(w, response.config.SessionCookieName, "", true, time.Unix(1, 0).UTC(), -1)
-		response.setCookie(w, response.config.CSRFCookieName, "", false, time.Unix(1, 0).UTC(), -1)
+		clearSessionCookies(w, response.config)
 	} else if response.session != nil {
-		maxAge := int(time.Until(response.session.AbsoluteExpiry).Seconds())
-		if maxAge < 1 {
-			maxAge = 1
-		}
-		response.setCookie(
-			w,
-			response.config.SessionCookieName,
-			response.session.Token,
-			true,
-			response.session.AbsoluteExpiry,
-			maxAge,
-		)
-		response.setCookie(
-			w,
-			response.config.CSRFCookieName,
-			response.session.CSRFToken,
-			false,
-			response.session.AbsoluteExpiry,
-			maxAge,
-		)
+		setSessionCookies(w, response.config, *response.session)
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
-func (response cookieNoContentResponse) setCookie(
-	w http.ResponseWriter,
-	name, value string,
-	httpOnly bool,
-	expires time.Time,
-	maxAge int,
-) {
+// applicationCookie builds every first-party cookie the same way: path "/", SameSite=Lax and
+// Secure from configuration. Only the CSRF cookie is readable by scripts (httpOnly false).
+func applicationCookie(cfg config.Config, name, value string, httpOnly bool, expires time.Time, maxAge int) *http.Cookie {
 	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-	http.SetCookie(w, &http.Cookie{
+	return &http.Cookie{
 		Name: name, Value: value, Path: "/", Expires: expires, MaxAge: maxAge,
-		HttpOnly: httpOnly, Secure: response.config.SessionCookieSecure, SameSite: http.SameSiteLaxMode,
-	})
+		HttpOnly: httpOnly, Secure: cfg.SessionCookieSecure, SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// expiringCookie expires the named application cookie in the browser.
+func expiringCookie(cfg config.Config, name string, httpOnly bool) *http.Cookie {
+	return applicationCookie(cfg, name, "", httpOnly, time.Unix(1, 0).UTC(), -1)
+}
+
+// cookieMaxAge is the Max-Age for a cookie that must live until expires, at least one second.
+func cookieMaxAge(expires time.Time) int {
+	return max(1, int(time.Until(expires).Seconds()))
+}
+
+func setSessionCookies(w http.ResponseWriter, cfg config.Config, session auth.Session) {
+	maxAge := cookieMaxAge(session.AbsoluteExpiry)
+	http.SetCookie(w, applicationCookie(cfg, cfg.SessionCookieName, session.Token, true, session.AbsoluteExpiry, maxAge))
+	http.SetCookie(w, applicationCookie(cfg, cfg.CSRFCookieName, session.CSRFToken, false, session.AbsoluteExpiry, maxAge))
+}
+
+func clearSessionCookies(w http.ResponseWriter, cfg config.Config) {
+	http.SetCookie(w, expiringCookie(cfg, cfg.SessionCookieName, true))
+	http.SetCookie(w, expiringCookie(cfg, cfg.CSRFCookieName, false))
 }
