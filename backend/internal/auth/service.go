@@ -126,7 +126,7 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 	}
 	// The credential may have changed between verification and acquiring the lock.
 	if login.AuthIdentityID != candidate.AuthIdentityID || login.PasswordHash != candidate.PasswordHash ||
-		login.Status != "enabled" || login.ResetRequired {
+		authorization.AccountStatus(login.Status) != authorization.AccountEnabled || login.ResetRequired {
 		return Session{}, apperror.InvalidCredentials
 	}
 	if security.PasswordNeedsRehash(login.PasswordHash) {
@@ -306,7 +306,7 @@ func (s *Service) ChangePassword(
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
 	account, err := queries.GetAccountForAuthentication(ctx, principal.AccountID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && account.Status != "enabled") {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && authorization.AccountStatus(account.Status) != authorization.AccountEnabled) {
 		return Session{}, apperror.Unauthenticated
 	}
 	if err != nil {
@@ -388,7 +388,7 @@ func (s *Service) RemovePassword(
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
 	account, err := queries.GetAccountForAuthentication(ctx, principal.AccountID)
-	if err != nil || account.Status != "enabled" {
+	if err != nil || authorization.AccountStatus(account.Status) != authorization.AccountEnabled {
 		return apperror.Unauthenticated
 	}
 	credential, err := queries.GetPasswordCredentialForAccount(ctx, principal.AccountID)
@@ -568,7 +568,7 @@ func (s *Service) CreateOIDCSession(
 	if err != nil {
 		return Session{}, err
 	}
-	if account.Status != "enabled" {
+	if authorization.AccountStatus(account.Status) != authorization.AccountEnabled {
 		return Session{}, apperror.Unauthenticated
 	}
 	usable, err := queries.OIDCIdentityUsable(

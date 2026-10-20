@@ -28,7 +28,7 @@ func (s *Service) SessionForSensitiveOperation(
 ) (authorization.Principal, error) {
 	queries := authdb.New(tx)
 	account, err := queries.GetAccountForAuthentication(ctx, principal.AccountID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && account.Status != "enabled") {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && authorization.AccountStatus(account.Status) != authorization.AccountEnabled) {
 		return principal, apperror.Unauthenticated
 	}
 	if err != nil {

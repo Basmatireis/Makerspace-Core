@@ -40,7 +40,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 		return nil
 	}
 	target, err := authdb.New(s.pool).FindPasswordChallengeTarget(ctx, normalized)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && target.Status != "enabled") {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && authorization.AccountStatus(target.Status) != authorization.AccountEnabled) {
 		return nil
 	}
 	if err != nil {
@@ -73,8 +73,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 		return err
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
-		ID: ids.New(), Kind: "password_reset", AccountID: target.AccountID,
-		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest("password_reset", target.AccountID, code),
+		ID: ids.New(), Kind: string(ChallengePasswordReset), AccountID: target.AccountID,
+		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest(ChallengePasswordReset, target.AccountID, code),
 		DeliveryAddress: target.DeliveryAddress, ExpiresAt: expiresAt,
 	})
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *Service) CompletePasswordResetCode(
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
 		ctx,
-		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "password_reset"},
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: string(ChallengePasswordReset)},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
@@ -265,7 +265,7 @@ func (s *Service) CompleteInvitation(
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
 		ctx,
-		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "invitation"},
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: string(ChallengeInvitation)},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
@@ -397,9 +397,9 @@ func (s *Service) RequestOwnEmailVerification(
 		)
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
-		ID: ids.New(), Kind: "email_verification", AccountID: principal.AccountID,
+		ID: ids.New(), Kind: string(ChallengeEmailVerification), AccountID: principal.AccountID,
 		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest(
-			"email_verification",
+			ChallengeEmailVerification,
 			principal.AccountID,
 			code,
 		),
@@ -479,7 +479,7 @@ func (s *Service) CompleteEmailVerification(
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
 		ctx,
-		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: "email_verification"},
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: target.AccountID, Kind: string(ChallengeEmailVerification)},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()
@@ -562,12 +562,12 @@ func (s *Service) challengeValid(challenge authdb.AuthChallenge, code string) bo
 		return false
 	}
 	normalized := strings.ToUpper(strings.TrimSpace(code))
-	want := s.challengeDigest(challenge.Kind, challenge.AccountID, normalized)
+	want := s.challengeDigest(ChallengeKind(challenge.Kind), challenge.AccountID, normalized)
 	return hmac.Equal(want, challenge.CodeDigest)
 }
 
-func (s *Service) challengeDigest(kind string, accountID uuid.UUID, code string) []byte {
-	return security.ChallengeDigest(s.config.ChallengeHMACKey, kind, accountID, code)
+func (s *Service) challengeDigest(kind ChallengeKind, accountID uuid.UUID, code string) []byte {
+	return security.ChallengeDigest(s.config.ChallengeHMACKey, string(kind), accountID, code)
 }
 
 // challengeRateWindow mirrors the window of ConsumeAuthRateLimit.
@@ -587,17 +587,17 @@ func (s *Service) consumeChallengeLimit(ctx context.Context, action, value strin
 }
 
 func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, deliveryErr error) {
-	status := "sent"
+	status := DeliverySent
 	var failureCode *string
 	if deliveryErr != nil {
-		status = "failed"
+		status = DeliveryFailed
 		code := "provider_error"
 		failureCode = &code
 	}
 	_ = authdb.New(s.pool).
 		SetAuthChallengeDelivery(
 			ctx,
-			authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: status, DeliveryFailureCode: failureCode},
+			authdb.SetAuthChallengeDeliveryParams{ID: id, DeliveryStatus: string(status), DeliveryFailureCode: failureCode},
 		)
 }
 

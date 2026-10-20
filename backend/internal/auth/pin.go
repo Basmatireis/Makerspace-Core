@@ -51,7 +51,7 @@ func (s *Service) LoginWithPIN(
 	if candidateErr != nil && !errors.Is(candidateErr, pgx.ErrNoRows) {
 		return Session{}, candidateErr
 	}
-	if normalizeErr != nil || candidateErr != nil || !valid || candidate.Status != "enabled" {
+	if normalizeErr != nil || candidateErr != nil || !valid || authorization.AccountStatus(candidate.Status) != authorization.AccountEnabled {
 		if err := recordPINFailure(ctx, queries, loginDigest, sourceDigest); err != nil {
 			return Session{}, err
 		}
@@ -91,7 +91,7 @@ func (s *Service) LoginWithPIN(
 	}
 	// The credential may have changed between verification and acquiring the lock.
 	if login.AuthIdentityID != candidate.AuthIdentityID || login.PinHash != candidate.PinHash ||
-		login.Status != "enabled" {
+		authorization.AccountStatus(login.Status) != authorization.AccountEnabled {
 		return Session{}, apperror.InvalidCredentials
 	}
 
@@ -399,7 +399,7 @@ func (s *Service) CompletePINEnrollment(
 	}
 	challenge, err := queries.GetActiveAuthChallengeForUpdate(
 		ctx,
-		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: accountID, Kind: "pin_enrollment"},
+		authdb.GetActiveAuthChallengeForUpdateParams{AccountID: accountID, Kind: string(ChallengePINEnrollment)},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invalidChallenge()

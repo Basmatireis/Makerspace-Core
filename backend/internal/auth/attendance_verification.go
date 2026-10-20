@@ -41,7 +41,8 @@ func (s *Service) VerifyPasswordForAttendance(
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return VerifiedIdentity{}, err
 	}
-	if normalizeErr != nil || errors.Is(err, pgx.ErrNoRows) || !valid || row.Status != "enabled" || row.ResetRequired {
+	if normalizeErr != nil || errors.Is(err, pgx.ErrNoRows) || !valid ||
+		authorization.AccountStatus(row.Status) != authorization.AccountEnabled || row.ResetRequired {
 		return VerifiedIdentity{}, apperror.InvalidCredentials
 	}
 	s.limits.succeeded(key)
@@ -74,7 +75,7 @@ func (s *Service) VerifyPINForAttendance(
 	if queryErr != nil && !errors.Is(queryErr, pgx.ErrNoRows) {
 		return VerifiedIdentity{}, queryErr
 	}
-	if normalizeErr != nil || errors.Is(queryErr, pgx.ErrNoRows) || !valid || row.Status != "enabled" {
+	if normalizeErr != nil || errors.Is(queryErr, pgx.ErrNoRows) || !valid || authorization.AccountStatus(row.Status) != authorization.AccountEnabled {
 		if err := recordPINFailure(ctx, q, loginDigest, sourceDigest); err != nil {
 			return VerifiedIdentity{}, err
 		}
