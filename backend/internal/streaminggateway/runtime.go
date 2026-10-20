@@ -36,8 +36,12 @@ const (
 
 // Options configure the runtime.
 type Options struct {
-	DataDir        string
-	EnrollmentFile string
+	DataDir string
+	// EnrollmentSecret is STREAM_ENROLLMENT_SECRET, the one-time secret from Core. EnrollmentFile is
+	// the legacy STREAM_ENROLLMENT_SECRET_FILE, used only when EnrollmentSecret is empty. Both are
+	// ignored once the gateway is enrolled.
+	EnrollmentSecret string
+	EnrollmentFile   string
 	// ConfigFile is where the go2rtc configuration is written (a volume shared with go2rtc).
 	ConfigFile string
 	Render     RenderOptions
@@ -105,18 +109,14 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 		identity = &value
 	}
 	if identity.Enrolled {
+		if strings.TrimSpace(g.options.EnrollmentSecret) != "" || g.options.EnrollmentFile != "" {
+			g.logger.Info("already enrolled; STREAM_ENROLLMENT_SECRET is ignored and can be removed")
+		}
 		return *identity, nil
 	}
-	if g.options.EnrollmentFile == "" {
-		return Identity{}, errors.New("STREAM_ENROLLMENT_SECRET_FILE is required until enrollment completes")
-	}
-	raw, err := os.ReadFile(g.options.EnrollmentFile)
+	enrollment, err := g.enrollmentSecret()
 	if err != nil {
-		return Identity{}, fmt.Errorf("read enrollment secret: %w", err)
-	}
-	enrollment := strings.TrimSpace(string(raw))
-	if enrollment == "" {
-		return Identity{}, errors.New("enrollment secret file is empty")
+		return Identity{}, err
 	}
 	enrolled, err := g.core.Enroll(ctx, enrollment, *identity, Version)
 	if err != nil {
@@ -126,6 +126,26 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 		return Identity{}, err
 	}
 	return enrolled, nil
+}
+
+// enrollmentSecret returns the trimmed one-time secret: STREAM_ENROLLMENT_SECRET, or the content of the
+// legacy STREAM_ENROLLMENT_SECRET_FILE when the variable is empty. The value is never logged.
+func (g *Gateway) enrollmentSecret() (string, error) {
+	if secret := strings.TrimSpace(g.options.EnrollmentSecret); secret != "" {
+		return secret, nil
+	}
+	if g.options.EnrollmentFile == "" {
+		return "", errors.New("not enrolled and STREAM_ENROLLMENT_SECRET is not set: in Makerspace Core open Settings > Local services, add a gateway, copy its one-time enrollment secret into STREAM_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the gateway again")
+	}
+	raw, err := os.ReadFile(g.options.EnrollmentFile)
+	if err != nil {
+		return "", fmt.Errorf("read STREAM_ENROLLMENT_SECRET_FILE: %w", err)
+	}
+	secret := strings.TrimSpace(string(raw))
+	if secret == "" {
+		return "", errors.New("STREAM_ENROLLMENT_SECRET_FILE is empty")
+	}
+	return secret, nil
 }
 
 func (g *Gateway) rotateCredentialIfNeeded(ctx context.Context, identity Identity) (Identity, error) {

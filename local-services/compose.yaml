@@ -1,6 +1,8 @@
-# Makerspace local services: the printer connector and the camera streaming gateway (with its
-# bundled go2rtc) for one makerspace network. See docs/streaming-gateway.md and
-# docs/printer-connector.md. The standalone ../printer-connector/compose.yaml keeps working.
+# Makerspace local services (stack "makerspace-local-services"): the printer connector and the camera
+# streaming gateway (with its bundled go2rtc) on one host in the makerspace network. Production only;
+# it uses the same variable names as ../printer-connector and ../streaming-gateway, so one .env serves
+# all of them. See docs/hosting.md. Do not run it together with the standalone connector or gateway
+# stacks on the same host (published ports 8443 and 8555).
 name: makerspace-local-services
 
 # Image versions: printer-connector and streaming-gateway use ${MAKERSPACE_VERSION} (a release tag,
@@ -8,8 +10,6 @@ name: makerspace-local-services
 # to the digest of that release's image, including the "@", for example
 #   PRINTER_CONNECTOR_DIGEST=@sha256:<digest>   STREAMING_GATEWAY_DIGEST=@sha256:<digest>
 # (read each with `docker buildx imagetools inspect <image>:<version>`; the two images differ).
-# Compose then pulls name:<version>@sha256:<digest>. Digests of unpublished images cannot be known
-# in advance, so they are filled in per release.
 x-hardened: &hardened
   read_only: true
   cap_drop: [ALL]
@@ -23,12 +23,11 @@ services:
     <<: *hardened
     image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${PRINTER_CONNECTOR_DIGEST:-}
     environment:
+      APP_ENV: production
       CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
-      CONNECTOR_ENROLLMENT_SECRET_FILE: /run/secrets/printer_connector_enrollment
+      CONNECTOR_ENROLLMENT_SECRET: ${CONNECTOR_ENROLLMENT_SECRET:-}
       CONNECTOR_ALLOW_HTTP: "false"
-    secrets:
-      - printer_connector_enrollment
     volumes:
       - printer_connector_data:/var/lib/makerspace-printer-connector
     tmpfs:
@@ -44,26 +43,27 @@ services:
     <<: *hardened
     image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-streaming-gateway:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${STREAMING_GATEWAY_DIGEST:-}
     environment:
+      APP_ENV: production
       CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
       # Only compared with the public host configured in Core; a mismatch is logged as a warning.
       STREAM_PUBLIC_HOST: ${STREAM_PUBLIC_HOST:?Set STREAM_PUBLIC_HOST to the hostname[:port] players use}
       # The LAN address of THIS HOST (not the container) go2rtc advertises as its WebRTC candidate.
       STREAM_WEBRTC_CANDIDATES: ${STREAM_LAN_ADDRESS:?Set STREAM_LAN_ADDRESS to the LAN IP of this host}:8555
+      STREAM_ALLOWED_ORIGIN: ${STREAM_ALLOWED_ORIGIN:-}
       STREAM_DATA_DIR: /var/lib/makerspace-streaming-gateway
-      STREAM_ENROLLMENT_SECRET_FILE: /run/secrets/streaming_gateway_enrollment
-      STREAM_TLS_CERT_FILE: /run/secrets/streaming_gateway_tls_cert
-      STREAM_TLS_KEY_FILE: /run/secrets/streaming_gateway_tls_key
+      STREAM_ENROLLMENT_SECRET: ${STREAM_ENROLLMENT_SECRET:-}
+      STREAM_TLS_CERT_FILE: /certs/fullchain.pem
+      STREAM_TLS_KEY_FILE: /certs/privkey.pem
       STREAM_LISTEN_ADDR: ":8443"
       GO2RTC_API_URL: http://go2rtc:1984
       GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
       STREAM_ALLOW_HTTP: "false"
-    secrets:
-      - streaming_gateway_enrollment
-      - streaming_gateway_tls_cert
-      - streaming_gateway_tls_key
     volumes:
       - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
       - go2rtc_config:/go2rtc-config
+      # fullchain.pem and privkey.pem for STREAM_PUBLIC_HOST, readable for uid 10001. A renewed
+      # certificate is picked up within about a minute without a restart.
+      - ./certs:/certs:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
     ports:
@@ -133,16 +133,6 @@ networks:
   gateway_egress: {}
   # go2rtc only: outbound access to the printers' cameras, and its published WebRTC port.
   go2rtc_egress: {}
-
-secrets:
-  printer_connector_enrollment:
-    file: ${CONNECTOR_ENROLLMENT_SECRET_FILE:-./secrets/printer-connector-enrollment}
-  streaming_gateway_enrollment:
-    file: ${STREAM_ENROLLMENT_SECRET_FILE:-./secrets/streaming-gateway-enrollment}
-  streaming_gateway_tls_cert:
-    file: ${STREAM_TLS_CERT_FILE:-./secrets/streaming-gateway-tls.crt}
-  streaming_gateway_tls_key:
-    file: ${STREAM_TLS_KEY_FILE:-./secrets/streaming-gateway-tls.key}
 
 volumes:
   printer_connector_data:

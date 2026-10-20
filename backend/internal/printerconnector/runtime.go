@@ -20,15 +20,16 @@ import (
 var Version = "dev"
 
 type Runtime struct {
-	store                   *Store
-	client                  *Client
-	dataDir, enrollmentFile string
-	logger                  *slog.Logger
-	mu                      sync.Mutex
-	adapters                map[uuid.UUID]context.CancelFunc
-	health                  map[uuid.UUID]AssignmentHealth
-	revision                int64
-	live                    *liveStatusHub
+	store      *Store
+	client     *Client
+	dataDir    string
+	enrollment Enrollment
+	logger     *slog.Logger
+	mu         sync.Mutex
+	adapters   map[uuid.UUID]context.CancelFunc
+	health     map[uuid.UUID]AssignmentHealth
+	revision   int64
+	live       *liveStatusHub
 }
 
 // Configuration and heartbeat are polled every 10 seconds so a change in Core
@@ -37,8 +38,37 @@ type Runtime struct {
 const configurationInterval = 10 * time.Second
 const heartbeatInterval = 10 * time.Second
 
-func NewRuntime(store *Store, client *Client, dataDir, enrollmentFile string, logger *slog.Logger) *Runtime {
-	return &Runtime{store: store, client: client, dataDir: dataDir, enrollmentFile: enrollmentFile, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}, live: newLiveStatusHub()}
+// Enrollment is where the one-time enrollment secret comes from: Secret is the value of
+// CONNECTOR_ENROLLMENT_SECRET; File is the legacy CONNECTOR_ENROLLMENT_SECRET_FILE, used only when
+// Secret is empty. Both are ignored once the connector is enrolled.
+type Enrollment struct {
+	Secret string
+	File   string
+}
+
+// Resolve returns the trimmed enrollment secret, or "" when none is configured.
+func (e Enrollment) Resolve() (string, error) {
+	if secret := strings.TrimSpace(e.Secret); secret != "" {
+		return secret, nil
+	}
+	if e.File == "" {
+		return "", nil
+	}
+	raw, err := os.ReadFile(e.File)
+	if err != nil {
+		return "", fmt.Errorf("read CONNECTOR_ENROLLMENT_SECRET_FILE: %w", err)
+	}
+	secret := strings.TrimSpace(string(raw))
+	if secret == "" {
+		return "", errors.New("CONNECTOR_ENROLLMENT_SECRET_FILE is empty")
+	}
+	return secret, nil
+}
+
+func (e Enrollment) configured() bool { return strings.TrimSpace(e.Secret) != "" || e.File != "" }
+
+func NewRuntime(store *Store, client *Client, dataDir string, enrollment Enrollment, logger *slog.Logger) *Runtime {
+	return &Runtime{store: store, client: client, dataDir: dataDir, enrollment: enrollment, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}, live: newLiveStatusHub()}
 }
 
 func newSecret() (string, error) {
@@ -147,18 +177,17 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 		identity = &value
 	}
 	if identity.Enrolled {
+		if r.enrollment.configured() {
+			r.logger.Info("already enrolled; CONNECTOR_ENROLLMENT_SECRET is ignored and can be removed")
+		}
 		return *identity, nil
 	}
-	if r.enrollmentFile == "" {
-		return Identity{}, errors.New("CONNECTOR_ENROLLMENT_SECRET_FILE is required until enrollment completes")
-	}
-	raw, err := os.ReadFile(r.enrollmentFile)
+	enrollment, err := r.enrollment.Resolve()
 	if err != nil {
-		return Identity{}, fmt.Errorf("read enrollment secret: %w", err)
+		return Identity{}, err
 	}
-	enrollment := strings.TrimSpace(string(raw))
 	if enrollment == "" {
-		return Identity{}, errors.New("enrollment secret file is empty")
+		return Identity{}, errors.New("not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Machines > Connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again")
 	}
 	value, err := r.client.Enroll(ctx, enrollment, *identity, Version)
 	if err != nil {

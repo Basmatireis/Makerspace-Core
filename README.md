@@ -8,13 +8,34 @@ Makerspace Core is a privacy-conscious management application for one makerspace
 
 The implemented modules cover people, optional user accounts, password/PIN/OIDC authentication, standalone email verification, database-administered transactional SMTP, assurance- and device-scoped permission grants, server-side sessions and reusable session policies, managed-device identities and capabilities, visitor terminals and attendance, configurable post-visit surveys, private Local/S3 files, profile images, versioned Lab Rules evidence, SCIM 2.0 provisioning and reconciliation, controlled visitor-terminal enrollment and admission, user administration, Open Days, supervisor reporting, the machine logbook with inventory/pricing/statistics, internal Orders with cash/card Payments and wiRef invoicing requests, and audit logging. Training, rental, and general-purpose document signing remain outside the current scope.
 
+## Running Makerspace Core
+
+Everything runs with Docker Compose, split into four stacks with fixed project names. **[docs/hosting.md](docs/hosting.md) is the guide** for development and production setup of all of them.
+
+| Stack | Runs | Where | Develop with | Production bundle |
+|---|---|---|---|---|
+| `makerspace-core` | frontend, backend, PostgreSQL | server / cloud | `make dev` | `makerspace-core-VERSION-compose.tar.gz` |
+| `makerspace-connector` | printer connector | makerspace LAN | `make dev-connector` | `makerspace-printer-connector-VERSION-compose.tar.gz` |
+| `makerspace-streaming` | streaming gateway + go2rtc | makerspace LAN | `make dev-streaming` | `makerspace-streaming-VERSION-compose.tar.gz` |
+| `makerspace-local-services` | connector + gateway + go2rtc on one host | makerspace LAN | stacks 2 and 3 | `makerspace-local-services-VERSION-compose.tar.gz` |
+
+```sh
+cp .env.example .env              # set POSTGRES_PASSWORD
+make migrate-up && make dev       # Core at http://localhost:5173
+make bootstrap-master             # first master account (interactive)
+make dev-connector                # optional: printer connector (guides you through enrollment)
+make dev-streaming                # optional: camera streaming gateway (same)
+```
+
+In production, extract a release bundle, copy `.env.example` to `.env`, fill it in and run `docker compose up -d`. Details, variables, TLS and enrollment: [docs/hosting.md](docs/hosting.md).
+
 ## Technology
 
 - Go 1.26 (`golang:1.26.5-alpine3.24`), `net/http`, Chi, pgx, sqlc, and goose
 - PostgreSQL 18 (`postgres:18.6-alpine3.24`)
 - Node 24 LTS (`node:24.21.0-alpine3.24`), pnpm 11.19.0, React 19.3.0, Vite 8.3.0, IBM Carbon 11 (`@carbon/react` 1.116.0), TanStack Query, and React Hook Form
 - OpenAPI 3.0.3 with oapi-codegen 2.5.1 and Orval 7.21-generated bindings
-- Docker Compose for the reproducible development environment and standalone production release bundle
+- Docker Compose for the reproducible development environment and standalone production release bundles
 
 ## Repository map
 
@@ -23,8 +44,11 @@ api/openapi.yaml     canonical HTTP contract
 backend/             modular Go application, migrations, SQL, and generated bindings
 frontend/            React application and generated API client
 docs/                architecture and operating documentation
-compose.yaml         local PostgreSQL/backend/frontend environment
+compose.yaml         local PostgreSQL/backend/frontend environment (stack makerspace-core)
 compose.production.yaml  source template for the production release bundle
+printer-connector/   printer connector image and Compose stack (makerspace-connector)
+streaming-gateway/   streaming gateway image and Compose stack (makerspace-streaming)
+local-services/      connector + gateway in one production stack (makerspace-local-services)
 ```
 
 Generated Go, TypeScript, and sqlc files are committed but never edited by hand. Change their source contract/query and run `make generate`.
@@ -90,10 +114,11 @@ Run `make test-e2e` after the one-time browser setup for the complete smoke/acce
 
 Pull requests to `main` and pushes to `main` run generated-code checks, backend and frontend checks, PostgreSQL integration tests, the full-stack Playwright suite, and production container builds. These validation runs never publish images.
 
-Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same validation, publish versioned backend and frontend images to GHCR, and create a GitHub Release. CI also packages and smoke-tests the standalone production bundle and nginx API relay. See [CI, releases, and container images](docs/ci-cd.md) for the release commands, tag policy, rollback procedure, and recommended branch rules.
+Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same validation, publish versioned backend, frontend, printer-connector and streaming-gateway images to GHCR, and create a GitHub Release with the four Compose bundles. CI also packages and smoke-tests the standalone production bundle and nginx API relay. See [CI, releases, and container images](docs/ci-cd.md) for the release commands, tag policy, rollback procedure, and recommended branch rules.
 
 ## Documentation
 
+- [Hosting: Compose stacks, development and production setup](docs/hosting.md)
 - [Architecture and domain model](docs/architecture.md)
 - [Orders, payments, and external wiRef invoicing](docs/orders.md)
 - [Digital signage](docs/signage.md), [signage player kiosk setup](docs/signage-player.md), and [streaming gateway](docs/streaming-gateway.md)

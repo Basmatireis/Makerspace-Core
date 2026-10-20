@@ -50,14 +50,12 @@ export function GatewayFormModal({ gateway, pending, error, onSubmit, onClose }:
 
 /** The one-time enrollment secret with what the administrator does next. Closing it forgets the secret. */
 export function EnrollmentSecretModal({ gateway, issue, onClose }: { gateway: StreamingGateway; issue: StreamingGatewayEnrollmentIssue; onClose: () => void }) {
-  const env = `MAKERSPACE_VERSION=<release you run>\nCORE_URL=${window.location.origin}\nSTREAM_PUBLIC_HOST=${gateway.publicHost}\nSTREAM_LAN_ADDRESS=<fixed LAN address of the Docker host>`;
+  const env = `MAKERSPACE_VERSION=<release you run>\nCORE_URL=${window.location.origin}\nSTREAM_PUBLIC_HOST=${gateway.publicHost}\nSTREAM_LAN_ADDRESS=<fixed LAN address of the Docker host>\nSTREAM_ENROLLMENT_SECRET=${issue.enrollmentSecret}`;
   const commands = [
-    'cd local-services',
+    'cd streaming-gateway            # or local-services to run the printer connector as well',
     'cp .env.example .env            # then enter the values above',
-    'mkdir -p secrets && chmod 700 secrets',
-    "printf '%s' '<enrollment secret from above>' > secrets/streaming-gateway-enrollment",
-    'cp fullchain.pem secrets/streaming-gateway-tls.crt && cp privkey.pem secrets/streaming-gateway-tls.key',
-    'sudo chown 10001:10001 secrets/streaming-gateway-* && chmod 600 secrets/streaming-gateway-*',
+    'mkdir -p certs && cp fullchain.pem privkey.pem certs/',
+    'sudo chown 10001:10001 certs/*.pem && chmod 600 certs/privkey.pem',
     'docker compose up -d',
   ].join('\n');
   return (
@@ -69,7 +67,7 @@ export function EnrollmentSecretModal({ gateway, issue, onClose }: { gateway: St
           <CodeSnippet type="multi" aria-label="Enrollment secret">{issue.enrollmentSecret}</CodeSnippet>
           <div>
             <h3>Set up the gateway</h3>
-            <p>Use the bundle in <code>local-services/</code> (compose.yaml and .env.example) from the Makerspace Core repository or release, on the Docker host in the makerspace network. Details: docs/streaming-gateway.md.</p>
+            <p>Use the streaming gateway bundle (<code>streaming-gateway/</code>: compose.yaml and .env.example) from the Makerspace Core release, on the Docker host in the makerspace network. Details: docs/hosting.md.</p>
           </div>
           <CodeSnippet type="multi" aria-label=".env values">{env}</CodeSnippet>
           <CodeSnippet type="multi" aria-label="Docker Compose commands">{commands}</CodeSnippet>

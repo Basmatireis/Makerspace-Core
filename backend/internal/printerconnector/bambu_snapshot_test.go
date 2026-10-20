@@ -484,7 +484,7 @@ func TestHeartbeatWithNewerRevisionFetchesTheConfigurationImmediately(t *testing
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	runtime := NewRuntime(store, client, dir, "", discardLogger())
+	runtime := NewRuntime(store, client, dir, Enrollment{}, discardLogger())
 	runtime.revision = 4
 	if err = runtime.sendHeartbeat(context.Background(), Identity{CredentialSecret: "secret"}); err != nil {
 		t.Fatal(err)

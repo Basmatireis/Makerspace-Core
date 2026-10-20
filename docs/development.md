@@ -2,6 +2,8 @@
 
 ## Reproducible environment
 
+The four Compose stacks (Core, printer connector, streaming gateway, local services), the development quick start and all production setup are described in [Hosting](hosting.md). This page covers the Core development environment, generation and tests.
+
 Docker Compose is authoritative for the application, generators, database checks, and image builds. Host installations of Go, Node, PostgreSQL, goose, sqlc, or OpenAPI generators are not required for those workflows. The Playwright suite is the deliberate exception: it runs against a host browser as documented below.
 
 ```sh
@@ -84,7 +86,8 @@ make test-integration   # runs Go tests with a real Compose PostgreSQL URL
 make test-migrations    # fresh Up/Down/Up in its own disposable Compose database
 make test-production-compose # builds and smoke-tests the isolated production topology
 make check              # generation freshness, vet, tests, lint, typecheck, and frontend build
-make build              # build final backend and frontend stages
+make build              # build the final backend, frontend, printer-connector and streaming-gateway images
+make test-printer-connector-compose test-streaming-compose test-local-services-compose # package and validate the local-service bundles
 ```
 
 `make test-integration` first applies the Compose migrations, then supplies `TEST_DATABASE_URL` to the Go suite. Each database integration test creates a uniquely named schema, applies every ordered migration there, and drops that schema during cleanup; it does not depend on a bootstrap account or records in the default schema. Persistence and HTTP integration coverage includes authentication/reset and audit privacy, self/all access and matriculation redaction, role privilege subsets, Open Days lifecycle, atomic schedule saves, assignment locking, public-calendar privacy, machine-logbook pricing/review/inventory concurrency and Person-deletion behavior, last-master concurrency, deletion cascades, session revocation, password administration, Account-security race serialization, and atomic audit rollback.

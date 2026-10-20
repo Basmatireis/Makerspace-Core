@@ -43,7 +43,7 @@ ghcr.io/basmatireis/makerspace-core-frontend:latest
 
 The full version tag, such as `0.4.0`, is immutable and the release workflow refuses to overwrite it. The minor tag, such as `0.4`, moves to the newest release in that minor line. For versions `1.0.0` and later, the major tag (for example `1`) also moves to the newest release in that major line. A broad `0` tag is deliberately not created. `latest` moves only when an explicit stable version tag is released; ordinary `main` commits do not update it. There is no `edge` image.
 
-Each release attaches `makerspace-core-VERSION-compose.tar.gz`. It contains only a `compose.yaml` with the exact immutable application version and a secret-free `.env.example`. Production hosts extract that bundle and do not need a repository checkout. Both GHCR packages must be public before releasing; the unauthenticated image check deliberately blocks the GitHub Release otherwise.
+Each release attaches four bundles: `makerspace-core-VERSION-compose.tar.gz`, `makerspace-printer-connector-VERSION-compose.tar.gz`, `makerspace-streaming-VERSION-compose.tar.gz` and `makerspace-local-services-VERSION-compose.tar.gz` (see [Hosting](hosting.md)); the release also publishes the `-printer-connector` and `-streaming-gateway` images next to backend and frontend. The Core bundle contains only a `compose.yaml` with the exact immutable application version and a secret-free `.env.example`. Production hosts extract that bundle and do not need a repository checkout. Both GHCR packages must be public before releasing; the unauthenticated image check deliberately blocks the GitHub Release otherwise.
 
 Roll back by selecting an older full version tag, such as `0.3.2`, rather than rebuilding or replacing a published version. Application rollback still requires the older binary to be compatible with the deployed database schema; review [Failure and rollback](operations.md#failure-and-rollback).
 
@@ -58,7 +58,7 @@ After the first CI run, create a branch ruleset for `main` that requires pull re
 - `End-to-end`
 - `Container (backend)`
 - `Container (frontend)`
-- `Production Compose`
+- `Production Compose` (Core, printer connector, streaming gateway and local services bundles)
 
 Also block force pushes and branch deletion. No special administrator-approval policy is required by this project.
 

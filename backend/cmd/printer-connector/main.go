@@ -41,7 +41,7 @@ func run() error {
 	defer store.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runtime := printerconnector.NewRuntime(store, client, dataDir, os.Getenv("CONNECTOR_ENROLLMENT_SECRET_FILE"), logger)
+	runtime := printerconnector.NewRuntime(store, client, dataDir, printerconnector.Enrollment{Secret: os.Getenv("CONNECTOR_ENROLLMENT_SECRET"), File: os.Getenv("CONNECTOR_ENROLLMENT_SECRET_FILE")}, logger)
 	return runtime.Run(ctx)
 }
 

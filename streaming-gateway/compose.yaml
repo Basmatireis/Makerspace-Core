@@ -1,0 +1,116 @@
+# Makerspace streaming gateway (stack "makerspace-streaming"): the camera streaming gateway with its
+# bundled go2rtc, for one makerspace network. See docs/hosting.md and docs/streaming-gateway.md.
+#
+# This one file is both the repository's production file and what the release bundle ships: the
+# bundle only sets MAKERSPACE_VERSION in .env.example. For development use compose.development.yaml
+# (`make dev-streaming`).
+name: makerspace-streaming
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  init: true
+
+services:
+  streaming-gateway:
+    <<: *hardened
+    # MAKERSPACE_VERSION is a release (never "latest"). To pin the exact image content as well, set
+    # the optional STREAMING_GATEWAY_DIGEST in .env to "@sha256:<digest>" (see docs/hosting.md).
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-streaming-gateway:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${STREAMING_GATEWAY_DIGEST:-}
+    environment:
+      APP_ENV: production
+      CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
+      # Only compared with the public host configured in Core; a mismatch is logged as a warning.
+      STREAM_PUBLIC_HOST: ${STREAM_PUBLIC_HOST:?Set STREAM_PUBLIC_HOST to the hostname[:port] players use}
+      # The LAN address of THIS HOST (not the container) go2rtc advertises as its WebRTC candidate.
+      STREAM_WEBRTC_CANDIDATES: ${STREAM_LAN_ADDRESS:?Set STREAM_LAN_ADDRESS to the LAN IP of this host}:8555
+      STREAM_ALLOWED_ORIGIN: ${STREAM_ALLOWED_ORIGIN:-}
+      STREAM_DATA_DIR: /var/lib/makerspace-streaming-gateway
+      # One-time secret from Core; only used until the first successful enrollment.
+      STREAM_ENROLLMENT_SECRET: ${STREAM_ENROLLMENT_SECRET:-}
+      STREAM_TLS_CERT_FILE: /certs/fullchain.pem
+      STREAM_TLS_KEY_FILE: /certs/privkey.pem
+      STREAM_LISTEN_ADDR: ":8443"
+      GO2RTC_API_URL: http://go2rtc:1984
+      GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
+      STREAM_ALLOW_HTTP: "false"
+    volumes:
+      - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
+      - go2rtc_config:/go2rtc-config
+      # fullchain.pem and privkey.pem for STREAM_PUBLIC_HOST, readable for uid 10001. A renewed
+      # certificate is picked up within about a minute without a restart.
+      - ./certs:/certs:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    ports:
+      # The only entry point for players: ticket-protected WebRTC signalling and MSE websocket.
+      - "${STREAM_BIND_ADDRESS:-0.0.0.0}:${STREAM_HTTPS_PORT:-8443}:8443"
+    # internal: go2rtc API (with the gateway's credentials); gateway_egress: Core and the players.
+    networks: [internal, gateway_egress]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    stop_grace_period: 20s
+
+  go2rtc:
+    <<: *hardened
+    # Pinned to the tag AND the verified multi-arch digest of alexxit/go2rtc 1.9.14. Re-verify the
+    # digest (docker buildx imagetools inspect alexxit/go2rtc:<tag>) when upgrading.
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
+    # Same numeric user as the gateway so it can read the configuration file the gateway writes
+    # with mode 0600 (it contains the printers' camera credentials).
+    user: "10001:10001"
+    command: ["go2rtc", "-config", "/config/go2rtc.yaml"]
+    volumes:
+      - go2rtc_config:/config:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    ports:
+      # WebRTC media. Players on the LAN send/receive RTP directly to this port; it cannot go
+      # through the HTTPS proxy. The port number must match STREAM_LAN_ADDRESS:8555 above.
+      # Port 1984 (go2rtc's HTTP API, including its web UI) and 8554 (RTSP) are NOT published.
+      - "${STREAM_BIND_ADDRESS:-0.0.0.0}:8555:8555/tcp"
+      - "${STREAM_BIND_ADDRESS:-0.0.0.0}:8555:8555/udp"
+    # internal: the API, only the gateway shares it. go2rtc_egress: the printers on the LAN and the
+    # published WebRTC port; no other service is attached to it. The API (port 1984) is protected by
+    # credentials the gateway generates and writes into the configuration (HTTP Basic, all requests
+    # not coming from inside this container), and restricted to four paths; exec/echo sources are
+    # disabled in the generated configuration. See docs/streaming-gateway.md.
+    networks: [internal, go2rtc_egress]
+    # Stream sources carry the printers' access codes; keep the logs small and local (the generated
+    # configuration also restricts go2rtc to the error log level).
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "3"
+    depends_on:
+      streaming-gateway:
+        condition: service_healthy
+    healthcheck:
+      # Requests from inside the container itself need no API credentials.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:1984/api/streams"]
+      interval: 30s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 2.0
+    stop_grace_period: 10s
+
+networks:
+  # Gateway <-> go2rtc API traffic. No outbound access.
+  internal:
+    internal: true
+  # Streaming gateway: outbound access to Core, and its published HTTPS port.
+  gateway_egress: {}
+  # go2rtc only: outbound access to the printers' cameras, and its published WebRTC port.
+  go2rtc_egress: {}
+
+volumes:
+  streaming_gateway_data:
+  go2rtc_config:

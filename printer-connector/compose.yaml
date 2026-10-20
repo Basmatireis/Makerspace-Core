@@ -1,15 +1,23 @@
-name: makerspace-printer-connector
+# Makerspace printer connector (stack "makerspace-connector"): runs in the makerspace network, next
+# to the printers, and talks outbound to Makerspace Core. See docs/hosting.md.
+#
+# This one file is both the repository's production file and what the release bundle ships: the
+# bundle only sets MAKERSPACE_VERSION in .env.example. For development use compose.development.yaml
+# (`make dev-connector`).
+name: makerspace-connector
 
 services:
   connector:
-    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}
+    # MAKERSPACE_VERSION is a release (never "latest"). To pin the exact image content as well, set
+    # the optional PRINTER_CONNECTOR_DIGEST in .env to "@sha256:<digest>" (see docs/hosting.md).
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${PRINTER_CONNECTOR_DIGEST:-}
     environment:
+      APP_ENV: production
       CORE_URL: ${CORE_URL:?Set CORE_URL to the public HTTPS Makerspace Core URL}
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
-      CONNECTOR_ENROLLMENT_SECRET_FILE: /run/secrets/printer_connector_enrollment
+      # One-time secret from Core; only used until the first successful enrollment.
+      CONNECTOR_ENROLLMENT_SECRET: ${CONNECTOR_ENROLLMENT_SECRET:-}
       CONNECTOR_ALLOW_HTTP: "false"
-    secrets:
-      - printer_connector_enrollment
     volumes:
       - connector_data:/var/lib/makerspace-printer-connector
     read_only: true
@@ -25,10 +33,8 @@ services:
     restart: unless-stopped
     init: true
 
-secrets:
-  printer_connector_enrollment:
-    file: ${CONNECTOR_ENROLLMENT_SECRET_FILE:-./secrets/printer-connector-enrollment}
-
 volumes:
   connector_data:
-
+    # The name from before the stack was renamed to makerspace-connector, so existing connectors keep
+    # their enrolled identity.
+    name: makerspace-printer-connector_connector_data

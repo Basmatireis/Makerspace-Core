@@ -45,10 +45,7 @@ desktop-terminal/src-tauri/gen/
 
 # Generated OpenAPI and sqlc sources are intentionally committed; do not ignore them.
 
-# Local printer connector secrets
-printer-connector/secrets/
-
-# Local services bundle: secrets and local configuration
-local-services/secrets/
-local-services/.env
-streaming-gateway/secrets/
+# Stack configuration and TLS certificates (printer-connector/, streaming-gateway/, local-services/)
+*/certs/
+# Enrollment secrets of installs that predate env-based enrollment
+*/secrets/

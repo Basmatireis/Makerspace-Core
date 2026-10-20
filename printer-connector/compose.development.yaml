@@ -1,4 +1,6 @@
-name: makerspace-printer-connector-dev
+# Development: the printer connector built from this checkout, next to `make dev` (Core on the host,
+# port 8080). Started with `make dev-connector`; see docs/hosting.md.
+name: makerspace-connector
 
 services:
   connector:
@@ -9,15 +11,14 @@ services:
       args:
         VERSION: dev
     environment:
-      CORE_URL: ${CORE_URL:-http://host.docker.internal:8080}
+      APP_ENV: development
+      # Core's API as seen from the container. The production CORE_URL from .env is not used here.
+      CORE_URL: ${DEV_CORE_URL:-http://host.docker.internal:8080}
       CONNECTOR_ALLOW_HTTP: "true"
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
-      CONNECTOR_ENROLLMENT_SECRET_FILE: /run/secrets/printer_connector_enrollment
-      APP_ENV: development
+      CONNECTOR_ENROLLMENT_SECRET: ${CONNECTOR_ENROLLMENT_SECRET:-}
     extra_hosts:
       - host.docker.internal:host-gateway
-    secrets:
-      - printer_connector_enrollment
     volumes:
       - connector_data:/var/lib/makerspace-printer-connector
     cap_drop: [ALL]
@@ -25,10 +26,8 @@ services:
     stop_grace_period: 20s
     init: true
 
-secrets:
-  printer_connector_enrollment:
-    file: ${CONNECTOR_ENROLLMENT_SECRET_FILE:-./secrets/printer-connector-enrollment}
-
 volumes:
   connector_data:
-
+    # The name from before the stack was renamed to makerspace-connector, so existing connectors keep
+    # their enrolled identity.
+    name: makerspace-printer-connector-dev_connector_data

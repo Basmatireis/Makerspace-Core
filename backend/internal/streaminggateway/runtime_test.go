@@ -1,6 +1,7 @@
 package streaminggateway
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -23,9 +24,11 @@ type fakeCore struct {
 	heartbeats    []Heartbeat
 	rotations     []uuid.UUID
 	rotateErr     error
+	enrollSecrets []string
 }
 
-func (c *fakeCore) Enroll(_ context.Context, _ string, identity Identity, _ string) (Identity, error) {
+func (c *fakeCore) Enroll(_ context.Context, secret string, identity Identity, _ string) (Identity, error) {
+	c.enrollSecrets = append(c.enrollSecrets, secret)
 	identity.Enrolled, identity.GatewayID = true, uuid.Must(uuid.NewV7())
 	return identity, nil
 }
@@ -398,5 +401,53 @@ func TestCredentialRotationPersistsTheNextCredentialAndRetriesWithIt(t *testing.
 	}
 	if rotated.CredentialSecret != saved.NextCredentialSecret || rotated.NextCredentialID != nil || g.store.Identity().NextCredentialID != nil {
 		t.Fatalf("rotation not completed: %+v", rotated)
+	}
+}
+
+func TestEnrollmentPrefersTheEnvironmentSecretOverTheLegacyFile(t *testing.T) {
+	g, core, _, _ := newTestGateway(t)
+	secretFile := filepath.Join(t.TempDir(), "enrollment")
+	if err := os.WriteFile(secretFile, []byte("from-file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	g.options.EnrollmentSecret, g.options.EnrollmentFile = "  from-env\n", secretFile
+	if _, err := g.ensureIdentity(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(core.enrollSecrets) != 1 || core.enrollSecrets[0] != "from-env" {
+		t.Fatalf("enrollment must use the trimmed environment secret, got %q", core.enrollSecrets)
+	}
+}
+
+func TestEnrollmentWithoutAnySecretExplainsWhatToDo(t *testing.T) {
+	g, core, _, _ := newTestGateway(t)
+	_, err := g.ensureIdentity(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "STREAM_ENROLLMENT_SECRET") || !strings.Contains(err.Error(), "Local services") {
+		t.Fatalf("expected an actionable error, got %v", err)
+	}
+	if len(core.enrollSecrets) != 0 {
+		t.Fatal("must not call Core without a secret")
+	}
+}
+
+func TestEnrolledGatewayIgnoresTheSecretAndNeverLogsIt(t *testing.T) {
+	g, core, _, _ := newTestGateway(t)
+	var logs bytes.Buffer
+	g.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	g.options.EnrollmentSecret = "very-secret-value"
+	if _, err := g.ensureIdentity(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.ensureIdentity(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(core.enrollSecrets) != 1 {
+		t.Fatalf("an enrolled gateway must not enroll again, got %d calls", len(core.enrollSecrets))
+	}
+	if !strings.Contains(logs.String(), "already enrolled; STREAM_ENROLLMENT_SECRET is ignored and can be removed") {
+		t.Fatalf("missing info message: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), "very-secret-value") {
+		t.Fatal("the enrollment secret must never be logged")
 	}
 }

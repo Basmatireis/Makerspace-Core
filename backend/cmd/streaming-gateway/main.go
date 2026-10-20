@@ -72,6 +72,7 @@ func run() error {
 	}
 	options := streaminggateway.Options{
 		DataDir:            dataDir,
+		EnrollmentSecret:   os.Getenv("STREAM_ENROLLMENT_SECRET"),
 		EnrollmentFile:     os.Getenv("STREAM_ENROLLMENT_SECRET_FILE"),
 		ConfigFile:         env("GO2RTC_CONFIG_FILE", "/go2rtc-config/go2rtc.yaml"),
 		Render:             render,

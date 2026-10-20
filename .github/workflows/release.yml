@@ -59,7 +59,7 @@ jobs:
           VERSION: ${{ needs.tag.outputs.version }}
         run: |
           image_prefix="${IMAGE_PREFIX,,}"
-          for component in backend frontend printer-connector; do
+          for component in backend frontend printer-connector streaming-gateway; do
             image="${image_prefix}-${component}:${VERSION}"
             output_file="${RUNNER_TEMP}/${component}-manifest-check.txt"
             if docker buildx imagetools inspect "$image" >"$output_file" 2>&1; then
@@ -90,6 +90,8 @@ jobs:
             dockerfile: frontend/Dockerfile
           - component: printer-connector
             dockerfile: printer-connector/Dockerfile
+          - component: streaming-gateway
+            dockerfile: streaming-gateway/Dockerfile
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -151,7 +153,7 @@ jobs:
           VERSION: ${{ needs.tag.outputs.version }}
         run: |
           image_prefix="${IMAGE_PREFIX,,}"
-          for component in backend frontend printer-connector; do
+          for component in backend frontend printer-connector streaming-gateway; do
             image="${image_prefix}-${component}:${VERSION}"
             available=false
             for attempt in 1 2 3 4 5 6; do
@@ -186,6 +188,10 @@ jobs:
           echo "archive_path=$archive_path" >> "$GITHUB_OUTPUT"
           connector_archive_path="$(./scripts/package-printer-connector-compose.sh "$VERSION" "$RUNNER_TEMP")"
           echo "connector_archive_path=$connector_archive_path" >> "$GITHUB_OUTPUT"
+          streaming_archive_path="$(./scripts/package-streaming-compose.sh "$VERSION" "$RUNNER_TEMP")"
+          echo "streaming_archive_path=$streaming_archive_path" >> "$GITHUB_OUTPUT"
+          local_services_archive_path="$(./scripts/package-local-services-compose.sh "$VERSION" "$RUNNER_TEMP")"
+          echo "local_services_archive_path=$local_services_archive_path" >> "$GITHUB_OUTPUT"
           release_notes_path="${RUNNER_TEMP}/release-notes.md"
           awk -v version="$VERSION" '
             $0 ~ "^## \\[" version "\\]" { found = 1; next }
@@ -201,5 +207,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           COMPOSE_BUNDLE: ${{ steps.bundle.outputs.archive_path }}
           CONNECTOR_COMPOSE_BUNDLE: ${{ steps.bundle.outputs.connector_archive_path }}
+          STREAMING_COMPOSE_BUNDLE: ${{ steps.bundle.outputs.streaming_archive_path }}
+          LOCAL_SERVICES_COMPOSE_BUNDLE: ${{ steps.bundle.outputs.local_services_archive_path }}
           RELEASE_NOTES: ${{ steps.bundle.outputs.release_notes_path }}
-        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" --verify-tag --notes-file "$RELEASE_NOTES" --title "$RELEASE_TAG"
+        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" "$STREAMING_COMPOSE_BUNDLE#Streaming Gateway Compose bundle" "$LOCAL_SERVICES_COMPOSE_BUNDLE#Local Services Compose bundle" --verify-tag --notes-file "$RELEASE_NOTES" --title "$RELEASE_TAG"

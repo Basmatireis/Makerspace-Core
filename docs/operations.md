@@ -75,6 +75,8 @@ No production deployment is ready until these values and owners are explicit in 
 
 ## Production Compose deployment
 
+This section is the Core stack in detail; [Hosting](hosting.md) gives the overview of all four stacks (Core, printer connector, streaming gateway, local services) and the development commands.
+
 Every GitHub Release includes `makerspace-core-VERSION-compose.tar.gz`. This is a standalone deployment bundle: it contains a conventional `compose.yaml` pinned to that exact immutable frontend/backend release and a secret-free `.env.example`. A production host needs Docker Compose and this bundle, not a repository checkout or build toolchain. The release images are public and require no registry login.
 
 Extract the archive into an otherwise empty deployment directory, then prepare the installation-specific configuration once:
@@ -139,7 +141,7 @@ Digital signage ([signage](signage.md), [player setup](signage-player.md)) needs
 - `SIGNAGE_PAIRING_ALLOWED_CIDRS` (optional, comma-separated CIDRs): restricts `POST /public/signage/pairing` to the makerspace network; other clients get 403 `pairing_network_denied`.
 - `APP_ENCRYPTION_KEYS`: without it no stream tickets are issued and gateway configuration answers 409.
 
-The optional streaming gateway runs on a computer in the makerspace network from `local-services/compose.yaml` with its own `.env` (`MAKERSPACE_VERSION`, `CORE_URL`, `STREAM_PUBLIC_HOST`, `STREAM_LAN_ADDRESS`, optional `STREAM_BIND_ADDRESS`, `STREAM_HTTPS_PORT`, the enrollment secret and TLS file paths, optional image digests). Settings, enrollment, ports and the security model: [streaming gateway](streaming-gateway.md). The gateway's credential expires after 90 days and is rotated by the gateway itself; the expiry is visible under Settings, Local services.
+The optional streaming gateway and the printer connector run on a computer in the makerspace network, as their own Compose stacks (`streaming-gateway/`, `printer-connector/`, or both in `local-services/`) with their own `.env`; variables, enrollment, TLS certificates, ports and upgrades are in [Hosting](hosting.md). The security model: [streaming gateway](streaming-gateway.md). The gateway's credential expires after 90 days and is rotated by the gateway itself; the expiry is visible under Settings, Local services.
 
 ## SCIM connectors
 

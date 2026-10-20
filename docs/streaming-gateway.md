@@ -11,14 +11,14 @@ The streaming gateway restreams Bambu Lab printer cameras to digital-signage pla
 | go2rtc API | 1984/tcp | no | Never published. The gateway reaches it over the internal Docker network with generated credentials (HTTP Basic); every request from another container is refused without them, and only four paths are served at all (see [Security model](#security-model)). No web UI |
 | go2rtc RTSP/SRTP server | - | no | Disabled in the generated configuration |
 
-Docker networks: `internal` (no outbound access) joins the gateway and go2rtc; the gateway also has its own `gateway_egress` network (Core, published HTTPS port), go2rtc its own `go2rtc_egress` network (the printers on the LAN, published WebRTC port) and the printer connector its own `connector_egress`. No outbound network is shared between services.
+Docker networks: `internal` (no outbound access) joins the gateway and go2rtc; the gateway also has its own `gateway_egress` network (Core, published HTTPS port), go2rtc its own `go2rtc_egress` network (the printers on the LAN, published WebRTC port) and, in the combined `local-services` stack, the printer connector its own `connector_egress`. No outbound network is shared between services.
 
 Port 8555 must be reachable from the displays on the LAN because WebRTC media does not use the HTTPS connection. go2rtc advertises `STREAM_LAN_ADDRESS:8555` as its ICE candidate; inside a container it would otherwise only see its container address. Use a fixed LAN address (DHCP reservation) for the Docker host.
 
 ## Requirements
 
 - A DNS name that resolves to the Docker host **on the displays' network** (split-horizon DNS or a local DNS entry), for example `signage-gw.example.org`.
-- A TLS certificate for that name that the display browsers trust (an internal CA installed on the displays, or a public certificate obtained with DNS-01 validation). The player is served over HTTPS from Core, so the gateway must be HTTPS as well (mixed content is blocked). Certificate and key are read from files and reloaded when they change; the container must be able to read them (uid 10001).
+- A TLS certificate for that name that the display browsers trust (an internal CA installed on the displays, or a public certificate obtained with DNS-01 validation). The player is served over HTTPS from Core, so the gateway must be HTTPS as well (mixed content is blocked). Certificate and key (`certs/fullchain.pem` and `certs/privkey.pem`, mounted read-only) are reloaded when they change; the container must be able to read them (uid 10001).
 - The printers must be in LAN mode with the camera enabled, reachable from the Docker host on TCP 322, and have an active Bambu assignment in Core (H2D or X1 Carbon). See [Bambu setup](printer-connector.md#bambu-lab-h2d-and-x1-carbon-setup).
 - Core needs application encryption keys configured (the printer access codes and the ticket signing key are stored encrypted with them).
 
@@ -26,39 +26,25 @@ Port 8555 must be reachable from the displays on the LAN because WebRTC media do
 
 1. In Core create a gateway (`POST /streaming-gateways`, permission `local_services.manage`) with its **public host**, the `hostname[:port]` players use, for example `signage-gw.example.org:8443`. It must equal `STREAM_PUBLIC_HOST` below and match the certificate. In Core, use Settings, Local services, Add gateway (or the API).
 2. Issue an enrollment secret (`POST /streaming-gateways/{id}/enrollments`). It is shown once and valid 15 minutes.
-3. Prepare the bundle (`local-services/`):
-
-```sh
-cp .env.example .env            # set MAKERSPACE_VERSION, CORE_URL, STREAM_PUBLIC_HOST, STREAM_LAN_ADDRESS
-mkdir -p secrets && chmod 700 secrets
-printf '%s' 'the-one-time-enrollment-secret' > secrets/streaming-gateway-enrollment
-cp fullchain.pem secrets/streaming-gateway-tls.crt
-cp privkey.pem secrets/streaming-gateway-tls.key
-sudo chown 10001:10001 secrets/streaming-gateway-*; chmod 600 secrets/streaming-gateway-*
-# the printer connector's enrollment secret goes to secrets/printer-connector-enrollment as before
-docker compose up -d
-```
-
-   From a checkout of this repository, `make local-services-up` builds both images from the source (tag `dev`, override with `LOCAL_SERVICES_VERSION=...`) and starts the bundle; `make local-services-logs` and `make local-services-down` follow and stop it. Use this until the gateway image is published with a release.
+3. Prepare the streaming gateway bundle (`streaming-gateway/`, or `local-services/` to run the printer connector as well) as described in [Hosting](hosting.md#stack-3-streaming-gateway-makerspace-streaming): set `MAKERSPACE_VERSION`, `CORE_URL`, `STREAM_PUBLIC_HOST`, `STREAM_LAN_ADDRESS` and `STREAM_ENROLLMENT_SECRET` in `.env`, put `fullchain.pem` and `privkey.pem` into `certs/` (readable for uid 10001), then `docker compose up -d`.
 
 4. Assign cameras on the gateway's page (Assign camera) or with `POST /streaming-gateways/{id}/cameras {machineId, enabled}`. The machine needs an active Bambu printer assignment; the dialog offers exactly the machines without a camera that have one (`GET /local-services/camera-candidates`). `GET /local-services/cameras` shows health per camera. The gateway list shows when each gateway's credential expires; the gateway rotates it on its own during its last seven days.
 5. Publish a display that has a camera widget for that machine; `GET /signage/player/live` then contains `streams`.
 
-The gateway generates its runtime credential locally, exchanges the enrollment secret, stores its identity and the last configuration encrypted in its data volume and rotates the credential during its last seven days. The enrollment file can be removed after the first successful start. Back up the data volume as sensitive; do not clone it to a second host. The standalone `printer-connector/compose.yaml` keeps working; `local-services/compose.yaml` runs both services.
+The gateway generates its runtime credential locally, exchanges the enrollment secret (`STREAM_ENROLLMENT_SECRET`), stores its identity and the last configuration encrypted in its data volume and rotates the credential during its last seven days. After the first successful start the variable is ignored (the gateway logs that once) and can be removed; without an identity and without a secret the gateway exits with instructions. `STREAM_ENROLLMENT_SECRET_FILE` (a path) is still honoured as a legacy fallback when the variable is empty. Back up the data volume as sensitive; do not clone it to a second host. `streaming-gateway/compose.yaml` runs the gateway and go2rtc; `local-services/compose.yaml` runs the printer connector as well.
 
-Image names: `ghcr.io/basmatireis/makerspace-core-streaming-gateway:<version>` (the Compose file uses release tags, never `latest`; to pin content as well, set `PRINTER_CONNECTOR_DIGEST=@sha256:...` and `STREAMING_GATEWAY_DIGEST=@sha256:...` in `.env` to the digests of that release, read with `docker buildx imagetools inspect <image>:<version>`; digests of an unpublished release cannot be known in advance) (built from `streaming-gateway/Dockerfile`; go2rtc is pinned to `alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae`, a digest verified against Docker Hub on the day of writing; re-verify when upgrading).
+Image names: `ghcr.io/basmatireis/makerspace-core-streaming-gateway:<version>` (the Compose file uses release tags, never `latest`; to pin content as well, set `STREAMING_GATEWAY_DIGEST=@sha256:...` (and `PRINTER_CONNECTOR_DIGEST` in `local-services`) in `.env` to the digests of that release, read with `docker buildx imagetools inspect <image>:<version>`; digests of an unpublished release cannot be known in advance) (built from `streaming-gateway/Dockerfile`; go2rtc is pinned to `alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae`, a digest verified against Docker Hub on the day of writing; re-verify when upgrading).
 
 ## Development
 
-Everything on one machine next to `make dev` (Core API on `localhost:8080`, app and player on `http://localhost:5173`):
+Everything on one machine next to `make dev` (Core API on `localhost:8080`, app and player on `http://localhost:5173`). The commands (`make dev-streaming`, `-logs`, `-down`), the Core steps and the one-time certificate trust are in [Hosting](hosting.md#streaming-gateway-in-development); in short:
 
-1. Start Core (`make dev`, then `make migrate-up`) and, if you want printer status, `make dev-printer-connector`.
-2. In Core open Settings, Local services, Add gateway, with public host `localhost:8443`. Paste the enrollment secret into `local-services/secrets/streaming-gateway-enrollment-dev`.
-3. `make dev-local-services` creates a TLS certificate for `localhost` (with [mkcert](https://github.com/FiloSottile/mkcert) when it is installed, otherwise self-signed), builds the gateway from source and starts it with go2rtc. `make dev-local-services-logs` and `make dev-local-services-down` follow and stop it.
-4. With a self-signed certificate the browser must accept it once: open https://localhost:8443 and continue past the warning (the page itself answers 404), or install mkcert (`brew install mkcert && mkcert -install`), delete `local-services/secrets/dev-tls.*` and run step 3 again.
-5. Assign a camera, put a camera widget into a scene and publish a display; open http://localhost:5173/player/ to pair the player.
+1. Start Core (`make dev`, then `make migrate-up`) and, if you want printer status, `make dev-connector`.
+2. In Core open Settings, Local services, Add gateway, with public host `localhost:8443`, and put the enrollment secret into `streaming-gateway/.env` as `STREAM_ENROLLMENT_SECRET`.
+3. `make dev-streaming` creates a TLS certificate for `localhost` in `streaming-gateway/certs/` (mkcert when installed, otherwise self-signed), builds the gateway from source and starts it with go2rtc. With a self-signed certificate the browser must accept it once at https://localhost:8443.
+4. Assign a camera, put a camera widget into a scene and publish a display; open http://localhost:5173/player/ to pair the player.
 
-The development file differs from production on purpose: `CORE_URL` is `http://host.docker.internal:8080` with `STREAM_ALLOW_HTTP=true`, `STREAM_ALLOWED_ORIGIN` is the Vite origin `http://localhost:5173` (by default the gateway only accepts browsers from `CORE_URL`'s origin), the WebRTC candidate is `127.0.0.1:8555`, and both ports are published on `127.0.0.1` only. A real picture needs a reachable Bambu printer with an active assignment; without one the camera widget shows its fallback.
+The development file (`streaming-gateway/compose.development.yaml`) differs from production on purpose: `CORE_URL` is `http://host.docker.internal:8080` with `STREAM_ALLOW_HTTP=true`, `STREAM_ALLOWED_ORIGIN` is the Vite origin `http://localhost:5173` (by default the gateway only accepts browsers from `CORE_URL`'s origin), the WebRTC candidate is `127.0.0.1:8555`, and both ports are published on `127.0.0.1` only. A real picture needs a reachable Bambu printer with an active assignment; without one the camera widget shows its fallback.
 
 ## Operation
 

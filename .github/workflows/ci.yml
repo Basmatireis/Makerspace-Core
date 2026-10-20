@@ -182,6 +182,8 @@ jobs:
             dockerfile: frontend/Dockerfile
           - component: printer-connector
             dockerfile: printer-connector/Dockerfile
+          - component: streaming-gateway
+            dockerfile: streaming-gateway/Dockerfile
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -207,3 +209,7 @@ jobs:
         run: make test-production-compose
       - name: Test printer connector deployment bundle
         run: make test-printer-connector-compose
+      - name: Test streaming gateway deployment bundle
+        run: make test-streaming-compose
+      - name: Test local services deployment bundle
+        run: make test-local-services-compose

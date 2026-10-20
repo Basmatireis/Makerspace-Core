@@ -19,9 +19,9 @@ Printer slot observations are assignment/topology facts rather than run lifecycl
 Connector identities are separate from people, browser sessions, and Managed Devices. The database stores SHA-256 digests of enrollment and runtime tokens. Printer adapter secrets use the configured Core application encryption key and never appear in administration responses.
 
 1. Give the operator `printer_connectors.read`, `printer_connectors.manage`, and `printer_connectors.credentials.manage` as appropriate. Assigning a printer also requires `machines.manage`; attaching a run to a job requires `machine_jobs.edit`.
-2. In **Settings → Printer connectors**, create a connector and choose **Enroll**.
-3. Copy the one-time 43-character secret into the deployment's secret file. The secret expires after 15 minutes and is displayed once.
-4. Start the connector. It generates its runtime credential locally, exchanges the enrollment secret, encrypts the resulting identity in its data volume, and begins polling configuration.
+2. In **Machines → Connectors**, create a connector and choose **Enroll**.
+3. Copy the one-time 43-character secret into `CONNECTOR_ENROLLMENT_SECRET` in the stack's `.env`. The secret expires after 15 minutes and is displayed once.
+4. Start the connector. It generates its runtime credential locally, exchanges the enrollment secret, encrypts the resulting identity in its data volume, and begins polling configuration. From then on the variable is ignored (the connector logs that once) and can be removed. Without an identity and without a secret it exits with instructions. `CONNECTOR_ENROLLMENT_SECRET_FILE` (a path) is still honoured as a legacy fallback when the variable is empty.
 
 Runtime credentials expire after 90 days. The connector rotates its own credential during the final seven days. Core accepts the prior credential for a 24-hour handover window so a successful server response followed by a local disk failure can recover safely. Revocation immediately rejects all credentials, invalidates open enrollment, ends assignments, and is audited.
 
@@ -51,20 +51,9 @@ Release images use this name:
 ghcr.io/basmatireis/makerspace-core-printer-connector:<version>
 ```
 
-Download the printer connector Compose bundle from the matching Core release, then:
+Setup, the variables (`MAKERSPACE_VERSION`, `CORE_URL`, `CONNECTOR_ENROLLMENT_SECRET`), enrollment, upgrades and backups for the production bundle and for development (`make dev-connector`) are described in [Hosting](hosting.md#stack-2-printer-connector-makerspace-connector). The Compose file runs as a non-root account, drops all Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem, limits processes, memory, and CPU, and persists `/var/lib/makerspace-printer-connector` in a named volume. It needs outbound access to Core and to configured printers. No ports are published.
 
-```sh
-cp .env.example .env
-mkdir -p secrets
-chmod 700 secrets
-printf '%s' 'the-one-time-enrollment-secret' > secrets/printer-connector-enrollment
-chmod 600 secrets/printer-connector-enrollment
-docker compose up -d
-```
-
-Set `CORE_URL` and the release version in `.env`. The default Compose file runs as a non-root account, drops all Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem, limits processes, memory, and CPU, and persists `/var/lib/makerspace-printer-connector` in a named volume. It needs outbound access to Core and to configured printers. No ports are published.
-
-The enrollment file can be removed after the first successful enrollment; persistent identity is stored in the data volume. Back up that volume as sensitive data. Restoring two running containers from the same volume is prevented on one host by the process lock, but operators must also avoid cloning it to another host.
+Back up the data volume as sensitive data. Restoring two running containers from the same volume is prevented on one host by the process lock, but operators must also avoid cloning it to another host.
 
 The healthcheck reads a local health timestamp. A stale check reports unhealthy without deleting the durable queue. Docker health status alone does not restart containers; the `unless-stopped` restart policy handles process exits.
 
@@ -167,22 +156,7 @@ Synthetic fixtures exercise archive limits, parser variations, reducer transitio
 
 ## Local simulator workflow
 
-For local HTTP development, build the connector image and set:
-
-```text
-CORE_URL=http://host.docker.internal:8080
-CONNECTOR_ALLOW_HTTP=true
-```
-
-After creating `printer-connector/secrets/printer-connector-enrollment`, run the isolated development Compose project with:
-
-```sh
-make dev-printer-connector
-```
-
-Use `make dev-printer-connector-detached` for the background equivalent. Both targets wrap `printer-connector/compose.development.yaml`; the normal `make dev` remains the Core database/backend/frontend stack.
-
-Run those commands from the repository root. From another directory, pass the repository explicitly, for example `make -C /Users/basmatireis/git/Makerspace-core dev-printer-connector`.
+For local development next to `make dev`, run `make dev-connector` (stop with `make dev-connector-down`, logs with `make dev-connector-logs`). The target wraps `printer-connector/compose.development.yaml`, which sets `CORE_URL=http://host.docker.internal:8080` and `CONNECTOR_ALLOW_HTTP=true`, and guides you through the first enrollment; see [Hosting](hosting.md#printer-connector-in-development). Run it from the repository root; from another directory pass the repository explicitly, for example `make -C /path/to/Makerspace-core dev-connector`.
 
 Create an enabled printer profile in Core, assign it to the connector, and select one of the simulator scenarios:
 

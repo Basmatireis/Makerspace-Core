@@ -1,5 +1,6 @@
 # Documentation
 
+- [Hosting: the four Compose stacks, development and production setup](hosting.md)
 - [Architecture and domain model](architecture.md)
 - [CI, releases, and container images](ci-cd.md)
 - [Authentication and sessions](authentication.md)
