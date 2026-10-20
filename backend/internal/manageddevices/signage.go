@@ -47,9 +47,7 @@ func CreateSignagePlayerDeviceTx(
 ) (uuid.UUID, error) {
 	q := manageddevicesdb.New(tx)
 	if err := q.EnsureManagedDeviceTypeByName(ctx, manageddevicesdb.EnsureManagedDeviceTypeByNameParams{
-		ID: uuid.Must(uuid.NewV7()), Name: signageDeviceTypeName, Description: stringPointer(
-			"Managed devices that run a digital-signage player.",
-		),
+		ID: uuid.Must(uuid.NewV7()), Name: signageDeviceTypeName, Description: stringPointer("Managed devices that run a digital-signage player."),
 	}); err != nil {
 		return uuid.Nil, err
 	}
@@ -73,18 +71,7 @@ func CreateSignagePlayerDeviceTx(
 		return uuid.Nil, databaseError(err)
 	}
 	accountID := actor.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "managed_device.created",
-			ResourceType:   "managed_device",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "deviceTypeId", "allowedApplicationModes"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "managed_device.created", ResourceType: "managed_device", ResourceID: &row.ID, RequestID: requestID, ChangedFields: []string{"name", "deviceTypeId", "allowedApplicationModes"}}); err != nil {
 		return uuid.Nil, err
 	}
 	return row.ID, nil
@@ -97,10 +84,7 @@ func IssueSignagePlayerTokenTx(ctx context.Context, tx pgx.Tx, deviceID uuid.UUI
 	if err != nil {
 		return "", err
 	}
-	if _, err := manageddevicesdb.New(tx).SetManagedDeviceTokenDigest(
-		ctx,
-		manageddevicesdb.SetManagedDeviceTokenDigestParams{ID: deviceID, TokenDigest: digest},
-	); errors.Is(
+	if _, err := manageddevicesdb.New(tx).SetManagedDeviceTokenDigest(ctx, manageddevicesdb.SetManagedDeviceTokenDigestParams{ID: deviceID, TokenDigest: digest}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -129,10 +113,7 @@ func RevokeSignagePlayerDeviceTx(
 	if current.RevokedAt.Valid {
 		return nil
 	}
-	if _, err := q.RevokeManagedDevice(
-		ctx,
-		manageddevicesdb.RevokeManagedDeviceParams{ID: deviceID, ExpectedVersion: current.Version},
-	); err != nil {
+	if _, err := q.RevokeManagedDevice(ctx, manageddevicesdb.RevokeManagedDeviceParams{ID: deviceID, ExpectedVersion: current.Version}); err != nil {
 		return err
 	}
 	accountID := actor.AccountID
@@ -165,10 +146,7 @@ func DeleteSignagePlayerDeviceTx(
 	} else if err != nil {
 		return err
 	}
-	if _, err := q.DeleteManagedDevice(
-		ctx,
-		manageddevicesdb.DeleteManagedDeviceParams{ID: deviceID, ExpectedVersion: current.Version},
-	); err != nil {
+	if _, err := q.DeleteManagedDevice(ctx, manageddevicesdb.DeleteManagedDeviceParams{ID: deviceID, ExpectedVersion: current.Version}); err != nil {
 		return databaseError(err)
 	}
 	accountID := actor.AccountID

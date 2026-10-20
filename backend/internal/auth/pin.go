@@ -52,16 +52,7 @@ func (s *Service) LoginWithPIN(
 		}
 		if candidateErr == nil {
 			resource := candidate.AccountID
-			if err := audit.Write(
-				ctx,
-				s.pool,
-				audit.Event{
-					Action:       "auth.pin_login_failed",
-					ResourceType: "account",
-					ResourceID:   &resource,
-					RequestID:    requestID,
-				},
-			); err != nil {
+			if err := audit.Write(ctx, s.pool, audit.Event{Action: "auth.pin_login_failed", ResourceType: "account", ResourceID: &resource, RequestID: requestID}); err != nil {
 				return Session{}, err
 			}
 		}
@@ -94,24 +85,11 @@ func (s *Service) LoginWithPIN(
 	if err != nil {
 		return Session{}, err
 	}
-	if err := txQueries.MarkAuthenticationSucceeded(
-		ctx,
-		authdb.MarkAuthenticationSucceededParams{AuthIdentityID: login.AuthIdentityID, AccountID: login.AccountID},
-	); err != nil {
+	if err := txQueries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{AuthIdentityID: login.AuthIdentityID, AccountID: login.AccountID}); err != nil {
 		return Session{}, err
 	}
 	actor := login.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "auth.pin_login_succeeded",
-			ResourceType:   "account",
-			ResourceID:     &actor,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "auth.pin_login_succeeded", ResourceType: "account", ResourceID: &actor, RequestID: requestID}); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -157,10 +135,7 @@ func (s *Service) admitPINAttempt(
 }
 
 func recordPINFailure(ctx context.Context, queries *authdb.Queries, loginDigest, sourceDigest []byte) error {
-	if err := queries.RecordPINFailure(
-		ctx,
-		authdb.RecordPINFailureParams{Dimension: "login_name", KeyDigest: loginDigest},
-	); err != nil {
+	if err := queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "login_name", KeyDigest: loginDigest}); err != nil {
 		return err
 	}
 	return queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "source", KeyDigest: sourceDigest})
@@ -207,14 +182,7 @@ func (s *Service) EnrollOwnPIN(
 			},
 		)
 	} else if err == nil {
-		identity, err = queries.UpdatePINIdentity(
-			ctx,
-			authdb.UpdatePINIdentityParams{
-				AccountID:            principal.AccountID,
-				IdentifierDisplay:    &display,
-				IdentifierNormalized: &normalized,
-			},
-		)
+		identity, err = queries.UpdatePINIdentity(ctx, authdb.UpdatePINIdentityParams{AccountID: principal.AccountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
 	}
 	if err != nil {
 		var postgresError *pgconn.PgError
@@ -223,38 +191,17 @@ func (s *Service) EnrollOwnPIN(
 		}
 		return err
 	}
-	if err := queries.UpsertPINCredential(
-		ctx,
-		authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash},
-	); err != nil {
+	if err := queries.UpsertPINCredential(ctx, authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash}); err != nil {
 		return err
 	}
-	if err := queries.RevokeOtherSessionsForAccount(
-		ctx,
-		authdb.RevokeOtherSessionsForAccountParams{
-			Reason:           ptr("pin_changed"),
-			AccountID:        principal.AccountID,
-			CurrentSessionID: principal.SessionID,
-		},
-	); err != nil {
+	if err := queries.RevokeOtherSessionsForAccount(ctx, authdb.RevokeOtherSessionsForAccountParams{Reason: ptr("pin_changed"), AccountID: principal.AccountID, CurrentSessionID: principal.SessionID}); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.pin_enrolled",
-			ResourceType:   "account",
-			ResourceID:     &actor,
-			RequestID:      requestID,
-			ChangedFields:  []string{"pinMethod"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.pin_enrolled", ResourceType: "account", ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"pinMethod"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -324,19 +271,13 @@ func (s *Service) SetAccountPIN(
 		}
 		return err
 	}
-	if err := queries.UpsertPINCredential(
-		ctx,
-		authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash},
-	); err != nil {
+	if err := queries.UpsertPINCredential(ctx, authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash}); err != nil {
 		return err
 	}
 	if err := queries.DeletePINEnrollmentChallengeForAccount(ctx, accountID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_set_by_admin")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_set_by_admin")}); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, accountID); err != nil {
@@ -432,14 +373,7 @@ func (s *Service) CompletePINEnrollment(
 		if identityErr != nil || identity.ID != *challenge.AuthIdentityID {
 			return invalidChallenge()
 		}
-		identity, err = queries.UpdatePINIdentity(
-			ctx,
-			authdb.UpdatePINIdentityParams{
-				AccountID:            accountID,
-				IdentifierDisplay:    &display,
-				IdentifierNormalized: &normalized,
-			},
-		)
+		identity, err = queries.UpdatePINIdentity(ctx, authdb.UpdatePINIdentityParams{AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized})
 	}
 	if err != nil {
 		var postgresError *pgconn.PgError
@@ -448,35 +382,19 @@ func (s *Service) CompletePINEnrollment(
 		}
 		return err
 	}
-	if err := queries.UpsertPINCredential(
-		ctx,
-		authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash},
-	); err != nil {
+	if err := queries.UpsertPINCredential(ctx, authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash}); err != nil {
 		return err
 	}
 	if err := queries.UseAuthChallenge(ctx, challenge.ID); err != nil {
 		return err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_enrollment_completed")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_enrollment_completed")}); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, accountID); err != nil {
 		return err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			Action:        "account.pin_enrollment_completed",
-			ResourceType:  "account",
-			ResourceID:    &accountID,
-			RequestID:     requestID,
-			ChangedFields: []string{"pinIdentity", "pinCredential"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{Action: "account.pin_enrollment_completed", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{"pinIdentity", "pinCredential"}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -519,32 +437,14 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 	if err := queries.DeletePINIdentity(ctx, identity.ID); err != nil {
 		return err
 	}
-	if err := queries.RevokeOtherSessionsForAccount(
-		ctx,
-		authdb.RevokeOtherSessionsForAccountParams{
-			Reason:           ptr("pin_removed"),
-			AccountID:        principal.AccountID,
-			CurrentSessionID: principal.SessionID,
-		},
-	); err != nil {
+	if err := queries.RevokeOtherSessionsForAccount(ctx, authdb.RevokeOtherSessionsForAccountParams{Reason: ptr("pin_removed"), AccountID: principal.AccountID, CurrentSessionID: principal.SessionID}); err != nil {
 		return err
 	}
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.pin_removed",
-			ResourceType:   "account",
-			ResourceID:     &actor,
-			RequestID:      requestID,
-			ChangedFields:  []string{"pinMethod"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.pin_removed", ResourceType: "account", ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"pinMethod"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -571,12 +471,8 @@ func (s *Service) createPINSession(
 	row, err := queries.CreatePINSession(
 		ctx,
 		authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
-			AuthIdentityID:    identityID,
-			TokenDigest:       tokenDigest,
-			CsrfDigest:        csrfDigest,
-			IdleExpiresAt:     idle,
-			AbsoluteExpiresAt: absolute,
-			ManagedDeviceID:   policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
+			AuthIdentityID: identityID, TokenDigest: tokenDigest, CsrfDigest: csrfDigest, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+			ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
 			IdleTimeoutSeconds: int32(
 				policy.IdleTimeout / time.Second,
 			), PostSessionDestination: policy.PostSessionDestination},

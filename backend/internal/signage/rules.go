@@ -167,9 +167,7 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 
 func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 	rule := Rule{
-		ID: row.ID, DisplayID: row.DisplayID, Position: int(
-			row.Position,
-		), Enabled: row.Enabled, ConditionKind: row.ConditionKind,
+		ID: row.ID, DisplayID: row.DisplayID, Position: int(row.Position), Enabled: row.Enabled, ConditionKind: row.ConditionKind,
 		Weekdays: make([]int, 0, len(row.Weekdays)), MachineMatch: row.MachineMatch, TargetKind: row.TargetKind,
 		MinSeconds: int(row.MinSeconds), MultiMode: row.MultiMode, AlternateSeconds: int(row.AlternateSeconds),
 		MachineIDs: []uuid.UUID{}, AnnouncementTemplateIDs: []uuid.UUID{},
@@ -279,12 +277,8 @@ func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) sign
 		weekdays = append(weekdays, int16(day))
 	}
 	params := signagedb.InsertSignageRuleParams{
-		ID: ruleID, DisplayID: displayID, Position: int32(
-			position,
-		), Enabled: input.Enabled, ConditionKind: input.ConditionKind, Weekdays: weekdays,
-		TimeFrom: input.TimeFrom, TimeTo: input.TimeTo, MachineIds: uuidStrings(
-			input.MachineIDs,
-		), MachineMatch: input.MachineMatch,
+		ID: ruleID, DisplayID: displayID, Position: int32(position), Enabled: input.Enabled, ConditionKind: input.ConditionKind, Weekdays: weekdays,
+		TimeFrom: input.TimeFrom, TimeTo: input.TimeTo, MachineIds: uuidStrings(input.MachineIDs), MachineMatch: input.MachineMatch,
 		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs), TargetKind: input.TargetKind,
 		MinSeconds: int32(
 			input.MinSeconds,
@@ -486,22 +480,10 @@ func (s *Service) UpdateRule(
 			}
 			params := ruleParams(displayID, ruleID, 0, checked)
 			_, err := q.UpdateSignageRule(ctx, signagedb.UpdateSignageRuleParams{
-				Enabled:                 params.Enabled,
-				ConditionKind:           params.ConditionKind,
-				Weekdays:                params.Weekdays,
-				TimeFrom:                params.TimeFrom,
-				TimeTo:                  params.TimeTo,
-				MachineIds:              params.MachineIds,
-				MachineMatch:            params.MachineMatch,
-				AnnouncementTemplateIds: params.AnnouncementTemplateIds,
-				TargetKind:              params.TargetKind,
-				TargetSceneID:           params.TargetSceneID,
-				TargetPlaylistID:        params.TargetPlaylistID,
-				MinSeconds:              params.MinSeconds,
-				MultiMode:               params.MultiMode,
-				AlternateSeconds:        params.AlternateSeconds,
-				ID:                      ruleID,
-				DisplayID:               displayID,
+				Enabled: params.Enabled, ConditionKind: params.ConditionKind, Weekdays: params.Weekdays, TimeFrom: params.TimeFrom, TimeTo: params.TimeTo,
+				MachineIds: params.MachineIds, MachineMatch: params.MachineMatch, AnnouncementTemplateIds: params.AnnouncementTemplateIds,
+				TargetKind: params.TargetKind, TargetSceneID: params.TargetSceneID, TargetPlaylistID: params.TargetPlaylistID,
+				MinSeconds: params.MinSeconds, MultiMode: params.MultiMode, AlternateSeconds: params.AlternateSeconds, ID: ruleID, DisplayID: displayID,
 			})
 			return databaseError(err)
 		},
@@ -562,10 +544,7 @@ func (s *Service) DeleteRule(
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			if _, err := q.DeleteSignageRule(
-				ctx,
-				signagedb.DeleteSignageRuleParams{ID: ruleID, DisplayID: displayID},
-			); err != nil {
+			if _, err := q.DeleteSignageRule(ctx, signagedb.DeleteSignageRuleParams{ID: ruleID, DisplayID: displayID}); err != nil {
 				return err
 			}
 			position := 0
@@ -573,14 +552,7 @@ func (s *Service) DeleteRule(
 				if rule.ID == ruleID {
 					continue
 				}
-				if err := q.SetSignageRulePosition(
-					ctx,
-					signagedb.SetSignageRulePositionParams{
-						Position:  int32(position),
-						ID:        rule.ID,
-						DisplayID: displayID,
-					},
-				); err != nil {
+				if err := q.SetSignageRulePosition(ctx, signagedb.SetSignageRulePositionParams{Position: int32(position), ID: rule.ID, DisplayID: displayID}); err != nil {
 					return err
 				}
 				position++
@@ -620,10 +592,7 @@ func (s *Service) ReorderRules(
 				}
 			}
 			for position, id := range ruleIDs {
-				if err := q.SetSignageRulePosition(
-					ctx,
-					signagedb.SetSignageRulePositionParams{Position: int32(position), ID: id, DisplayID: displayID},
-				); err != nil {
+				if err := q.SetSignageRulePosition(ctx, signagedb.SetSignageRulePositionParams{Position: int32(position), ID: id, DisplayID: displayID}); err != nil {
 					return err
 				}
 			}

@@ -35,11 +35,7 @@ func TestOrdersMigrationRoundTripAndPopulatedDowngradeGuard(t *testing.T) {
 	if _, e = pool.Exec(ctx, up); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = pool.Exec(
-		ctx,
-		"INSERT INTO orders(id,reference,customer_kind,fulfillment_mode) VALUES($1,'O-2026-000001','anonymous','immediate')",
-		uuid.Must(uuid.NewV7()),
-	); e != nil {
+	if _, e = pool.Exec(ctx, "INSERT INTO orders(id,reference,customer_kind,fulfillment_mode) VALUES($1,'O-2026-000001','anonymous','immediate')", uuid.Must(uuid.NewV7())); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = pool.Exec(ctx, down); e == nil ||

@@ -221,37 +221,16 @@ func (s *Service) create(
 		return Account{}, apperror.StaleWrite
 	}
 	accountID := uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateAccount(
-		ctx,
-		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"},
-	); err != nil {
+	if _, err := queries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"}); err != nil {
 		return Account{}, databaseError(err)
 	}
 	if loginEmail != nil {
-		if _, err := queries.CreateAuthIdentity(
-			ctx,
-			accountsdb.CreateAuthIdentityParams{
-				ID:                   uuid.Must(uuid.NewV7()),
-				AccountID:            accountID,
-				IdentifierDisplay:    display,
-				IdentifierNormalized: normalized,
-			},
-		); err != nil {
+		if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: display, IdentifierNormalized: normalized}); err != nil {
 			return Account{}, databaseError(err)
 		}
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.created",
-			ResourceType:   "account",
-			ResourceID:     &accountID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.created", ResourceType: "account", ResourceID: &accountID, RequestID: requestID}); err != nil {
 		return Account{}, err
 	}
 	account, err := loadAccount(ctx, queries, accountID)
@@ -321,27 +300,13 @@ func (s *Service) SetStatus(
 		return Account{}, err
 	}
 	if status == "disabled" {
-		if err := queries.RevokeSessionsForAccount(
-			ctx,
-			accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("account_disabled")},
-		); err != nil {
+		if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("account_disabled")}); err != nil {
 			return Account{}, err
 		}
 	}
 	actor := principal.AccountID
 	action := "account." + status
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         action,
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"status"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"status"}}); err != nil {
 		return Account{}, err
 	}
 	result, err := loadAccount(ctx, queries, row.ID)
@@ -395,23 +360,10 @@ func (s *Service) Delete(
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.deleted",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.deleted", ResourceType: "account", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
 	}
-	if _, err := queries.DeleteAccount(
-		ctx,
-		accountsdb.DeleteAccountParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.DeleteAccount(ctx, accountsdb.DeleteAccountParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -483,10 +435,7 @@ func (s *Service) UpdateLoginEmail(
 	if err := queries.DeletePasswordChallengesForAccount(ctx, id); err != nil {
 		return Account{}, err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -494,25 +443,11 @@ func (s *Service) UpdateLoginEmail(
 	} else if err != nil {
 		return Account{}, err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("login_email_changed")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("login_email_changed")}); err != nil {
 		return Account{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.login_email_updated",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"loginEmail"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.login_email_updated", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"loginEmail"}}); err != nil {
 		return Account{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -560,10 +495,7 @@ func (s *Service) SetPassword(
 	if err != nil {
 		return Account{}, err
 	}
-	if err := queries.UpsertPasswordCredential(
-		ctx,
-		accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash},
-	); err != nil {
+	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
 		return Account{}, err
 	}
 	if err := queries.VerifyPasswordIdentity(ctx, identity.ID); err != nil {
@@ -575,16 +507,10 @@ func (s *Service) SetPassword(
 	if err := queries.DeletePasswordChallengesForAccount(ctx, id); err != nil {
 		return Account{}, err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_set_by_admin")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_set_by_admin")}); err != nil {
 		return Account{}, err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -593,18 +519,7 @@ func (s *Service) SetPassword(
 		return Account{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.password_set",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"passwordStatus"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_set", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"passwordStatus"}}); err != nil {
 		return Account{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -684,16 +599,10 @@ func (s *Service) RemoveAuthIdentity(
 	if deleted != 1 {
 		return apperror.NotFound
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr(policy.revocationReason)},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr(policy.revocationReason)}); err != nil {
 		return err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -794,10 +703,7 @@ func (s *Service) IssuePasswordReset(
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -805,18 +711,7 @@ func (s *Service) IssuePasswordReset(
 	} else if err != nil {
 		return ResetIssue{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.password_reset_issued",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"passwordChallenge"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_reset_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"passwordChallenge"}}); err != nil {
 		return ResetIssue{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -840,14 +735,7 @@ func (s *Service) IssuePasswordReset(
 		failureCode = &code
 	}
 	_ = accountsdb.New(s.pool).
-		SetAuthChallengeDelivery(
-			ctx,
-			accountsdb.SetAuthChallengeDeliveryParams{
-				ID:                  challenge.ID,
-				DeliveryStatus:      status,
-				DeliveryFailureCode: failureCode,
-			},
-		)
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
 		manual := "/reset-password#email=" + url.QueryEscape(
 			*identity.IdentifierDisplay,
@@ -915,21 +803,13 @@ func (s *Service) IssuePINEnrollment(
 	actor := principal.AccountID
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "pin_enrollment", AccountID: id,
-		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(
-			s.config.ChallengeHMACKey,
-			"pin_enrollment",
-			id,
-			code,
-		),
+		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "pin_enrollment", id, code),
 		DeliveryAddress: deliveryAddress, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -937,18 +817,7 @@ func (s *Service) IssuePINEnrollment(
 	} else if err != nil {
 		return ResetIssue{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.pin_enrollment_issued",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"pinEnrollmentChallenge"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.pin_enrollment_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"pinEnrollmentChallenge"}}); err != nil {
 		return ResetIssue{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -972,14 +841,7 @@ func (s *Service) IssuePINEnrollment(
 		failureCode = &value
 	}
 	_ = accountsdb.New(s.pool).
-		SetAuthChallengeDelivery(
-			ctx,
-			accountsdb.SetAuthChallengeDeliveryParams{
-				ID:                  challenge.ID,
-				DeliveryStatus:      status,
-				DeliveryFailureCode: failureCode,
-			},
-		)
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
 		manual := "/complete-pin-setup#account=" + id.String() + "&code=" + url.QueryEscape(code)
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
@@ -1048,10 +910,7 @@ func (s *Service) IssueInvitation(
 	if err := queries.MarkInvitationProvisioning(ctx, id); err != nil {
 		return ResetIssue{}, err
 	}
-	if _, err := queries.BumpAccountVersion(
-		ctx,
-		accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -1059,18 +918,7 @@ func (s *Service) IssueInvitation(
 	} else if err != nil {
 		return ResetIssue{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "account.invitation_issued",
-			ResourceType:   "account",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"invitation"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.invitation_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"invitation"}}); err != nil {
 		return ResetIssue{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -1094,14 +942,7 @@ func (s *Service) IssueInvitation(
 		failureCode = &code
 	}
 	_ = accountsdb.New(s.pool).
-		SetAuthChallengeDelivery(
-			ctx,
-			accountsdb.SetAuthChallengeDeliveryParams{
-				ID:                  challenge.ID,
-				DeliveryStatus:      status,
-				DeliveryFailureCode: failureCode,
-			},
-		)
+		SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
 	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
 		manual := "/complete-invitation#email=" + url.QueryEscape(
 			*identity.IdentifierDisplay,
@@ -1132,10 +973,7 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	for _, identity := range identityRows {
 		displayIdentifier := identity.DisplayIdentifier
 		identities = append(identities, AuthIdentity{
-			ID:                identity.ID,
-			Kind:              identity.Kind,
-			DisplayIdentifier: &displayIdentifier,
-			ProviderSlug:      identity.ProviderSlug,
+			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: identity.ProviderSlug,
 			VerifiedAt: timeFromPG(
 				identity.VerifiedAt,
 			), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable, CreatedAt: identity.CreatedAt,

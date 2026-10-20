@@ -21,13 +21,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	actor := seedAccount(t, pool, "semantic-upgrade", true)
 	provider := insertSCIMOIDCProvider(t, pool, "https://migration.example.test")
 	identity := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,'https://migration.example.test','preserved-subject')`,
-		identity,
-		actor.accountID,
-		provider,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities(id,account_id,kind,provider_id,issuer,subject) VALUES($1,$2,'oidc',$3,'https://migration.example.test','preserved-subject')`, identity, actor.accountID, provider); err != nil {
 		t.Fatal(err)
 	}
 	service, err := auth.NewService(pool, integrationConfig(t))
@@ -59,24 +53,10 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 		uuid.NewV7(),
 	)
 	digest := security.DigestToken("disposable migration fixture")
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO device_types(id,name) VALUES($1,'Migration terminal'); INSERT INTO managed_devices(id,name,device_type_id,token_digest) VALUES($2,'Migration terminal',$1,$3); INSERT INTO visitor_enrollment_contexts(id,managed_device_id,token_digest,csrf_digest,expires_at) VALUES($4,$2,$3,$3,now()+interval '15 minutes')`,
-		deviceType,
-		device,
-		digest,
-		contextID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO device_types(id,name) VALUES($1,'Migration terminal'); INSERT INTO managed_devices(id,name,device_type_id,token_digest) VALUES($2,'Migration terminal',$1,$3); INSERT INTO visitor_enrollment_contexts(id,managed_device_id,token_digest,csrf_digest,expires_at) VALUES($4,$2,$3,$3,now()+interval '15 minutes')`, deviceType, device, digest, contextID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO oidc_flows(id,provider_id,kind,account_id,state_digest,browser_token_digest,encrypted_nonce,encrypted_pkce_verifier,expires_at) VALUES($1,$2,'link',$3,$4,$4,$4,$4,now()+interval '10 minutes')`,
-		flowID,
-		provider,
-		actor.accountID,
-		digest,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO oidc_flows(id,provider_id,kind,account_id,state_digest,browser_token_digest,encrypted_nonce,encrypted_pkce_verifier,expires_at) VALUES($1,$2,'link',$3,$4,$4,$4,$4,now()+interval '10 minutes')`, flowID, provider, actor.accountID, digest); err != nil {
 		t.Fatal(err)
 	}
 	applyMigrationFiles(t, pool, paths[15:17])

@@ -170,16 +170,7 @@ func (s *Service) SaveSetup(
 	if err = s.applySetup(ctx, tx, machineID, input); err != nil {
 		return Profile{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"printer_profile.setup_saved",
-		"machine",
-		machineID,
-		requestID,
-		[]string{"printerProfile", "model", "enabled", "inputUnits", "slots"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "printer_profile.setup_saved", "machine", machineID, requestID, []string{"printerProfile", "model", "enabled", "inputUnits", "slots"}); err != nil {
 		return Profile{}, err
 	}
 	profile, err := loadProfile(ctx, db.New(tx), machineID)
@@ -204,10 +195,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		if input.ExpectedVersion != 0 {
 			return apperror.StaleWrite
 		}
-		if _, err = q.CreatePrinterProfile(
-			ctx,
-			db.CreatePrinterProfileParams{MachineID: machineID, Enabled: input.Enabled, Model: input.Model},
-		); err != nil {
+		if _, err = q.CreatePrinterProfile(ctx, db.CreatePrinterProfileParams{MachineID: machineID, Enabled: input.Enabled, Model: input.Model}); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				return apperror.StaleWrite // another request created the profile first
@@ -221,10 +209,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			return apperror.StaleWrite
 		}
 		enabledChanged = profile.Enabled != input.Enabled
-		if _, err = q.UpdatePrinterProfileSetup(
-			ctx,
-			db.UpdatePrinterProfileSetupParams{MachineID: machineID, Enabled: input.Enabled, Model: input.Model},
-		); err != nil {
+		if _, err = q.UpdatePrinterProfileSetup(ctx, db.UpdatePrinterProfileSetupParams{MachineID: machineID, Enabled: input.Enabled, Model: input.Model}); err != nil {
 			return setupDatabaseError(err)
 		}
 	}
@@ -295,33 +280,17 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		return conflict("position_overflow", "Printer positions are too large to renumber")
 	}
 	offset := maxPosition + 1
-	if err = q.ShiftPrinterInputUnitsForSetup(
-		ctx,
-		db.ShiftPrinterInputUnitsForSetupParams{MachineID: machineID, PositionOffset: offset},
-	); err != nil {
+	if err = q.ShiftPrinterInputUnitsForSetup(ctx, db.ShiftPrinterInputUnitsForSetupParams{MachineID: machineID, PositionOffset: offset}); err != nil {
 		return err
 	}
-	if err = q.ShiftPrinterSlotsForSetup(
-		ctx,
-		db.ShiftPrinterSlotsForSetupParams{MachineID: machineID, PositionOffset: offset},
-	); err != nil {
+	if err = q.ShiftPrinterSlotsForSetup(ctx, db.ShiftPrinterSlotsForSetupParams{MachineID: machineID, PositionOffset: offset}); err != nil {
 		return err
 	}
 
 	applySlots := func(unitID uuid.UUID, desired []SetupSlotInput) error {
 		for position, slot := range desired {
 			if slot.ID == nil {
-				if _, err := q.CreatePrinterSlot(
-					ctx,
-					db.CreatePrinterSlotParams{
-						ID:                 newID(),
-						InputUnitID:        unitID,
-						Name:               slot.Name,
-						Position:           int32(position),
-						ExternalIdentifier: slot.ExternalIdentifier,
-						Status:             slot.Status,
-					},
-				); err != nil {
+				if _, err := q.CreatePrinterSlot(ctx, db.CreatePrinterSlotParams{ID: newID(), InputUnitID: unitID, Name: slot.Name, Position: int32(position), ExternalIdentifier: slot.ExternalIdentifier, Status: slot.Status}); err != nil {
 					return setupDatabaseError(err)
 				}
 				continue
@@ -329,17 +298,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			old := slotByID[*slot.ID]
 			changed := old.Name != slot.Name || int(old.Position) != position || old.Status != slot.Status ||
 				!samePointer(old.ExternalIdentifier, slot.ExternalIdentifier)
-			if err := q.ApplyPrinterSlotSetup(
-				ctx,
-				db.ApplyPrinterSlotSetupParams{
-					ID:                 old.ID,
-					Name:               slot.Name,
-					Position:           int32(position),
-					ExternalIdentifier: slot.ExternalIdentifier,
-					Status:             slot.Status,
-					Bump:               changed,
-				},
-			); err != nil {
+			if err := q.ApplyPrinterSlotSetup(ctx, db.ApplyPrinterSlotSetupParams{ID: old.ID, Name: slot.Name, Position: int32(position), ExternalIdentifier: slot.ExternalIdentifier, Status: slot.Status, Bump: changed}); err != nil {
 				return setupDatabaseError(err)
 			}
 		}
@@ -349,16 +308,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 				continue
 			}
 			changed := old.Status != "retired" || old.ExternalIdentifier != nil || old.Position != next
-			if err := q.ApplyPrinterSlotSetup(
-				ctx,
-				db.ApplyPrinterSlotSetupParams{
-					ID:       old.ID,
-					Name:     old.Name,
-					Position: next,
-					Status:   "retired",
-					Bump:     changed,
-				},
-			); err != nil {
+			if err := q.ApplyPrinterSlotSetup(ctx, db.ApplyPrinterSlotSetupParams{ID: old.ID, Name: old.Name, Position: next, Status: "retired", Bump: changed}); err != nil {
 				return setupDatabaseError(err)
 			}
 			next++
@@ -370,41 +320,14 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		unitID := uuid.Nil
 		if unit.ID == nil {
 			unitID = newID()
-			if _, err = q.CreatePrinterInputUnit(
-				ctx,
-				db.CreatePrinterInputUnitParams{
-					ID:                 unitID,
-					MachineID:          machineID,
-					Name:               unit.Name,
-					Position:           int32(position),
-					Nozzle:             unit.Nozzle,
-					ExternalIdentifier: unit.ExternalIdentifier,
-				},
-			); err != nil {
+			if _, err = q.CreatePrinterInputUnit(ctx, db.CreatePrinterInputUnitParams{ID: unitID, MachineID: machineID, Name: unit.Name, Position: int32(position), Nozzle: unit.Nozzle, ExternalIdentifier: unit.ExternalIdentifier}); err != nil {
 				return setupDatabaseError(err)
 			}
 		} else {
 			unitID = *unit.ID
 			old := unitByID[unitID]
-			changed := old.Name != unit.Name || int(old.Position) != position || !old.Enabled || !samePointer(
-				old.Nozzle,
-				unit.Nozzle,
-			) || !samePointer(
-				old.ExternalIdentifier,
-				unit.ExternalIdentifier,
-			)
-			if err = q.ApplyPrinterInputUnitSetup(
-				ctx,
-				db.ApplyPrinterInputUnitSetupParams{
-					ID:                 unitID,
-					Name:               unit.Name,
-					Position:           int32(position),
-					Nozzle:             unit.Nozzle,
-					ExternalIdentifier: unit.ExternalIdentifier,
-					Enabled:            true,
-					Bump:               changed,
-				},
-			); err != nil {
+			changed := old.Name != unit.Name || int(old.Position) != position || !old.Enabled || !samePointer(old.Nozzle, unit.Nozzle) || !samePointer(old.ExternalIdentifier, unit.ExternalIdentifier)
+			if err = q.ApplyPrinterInputUnitSetup(ctx, db.ApplyPrinterInputUnitSetupParams{ID: unitID, Name: unit.Name, Position: int32(position), Nozzle: unit.Nozzle, ExternalIdentifier: unit.ExternalIdentifier, Enabled: true, Bump: changed}); err != nil {
 				return setupDatabaseError(err)
 			}
 		}
@@ -418,17 +341,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			continue
 		}
 		changed := old.Enabled || old.ExternalIdentifier != nil || old.Position != nextUnit
-		if err = q.ApplyPrinterInputUnitSetup(
-			ctx,
-			db.ApplyPrinterInputUnitSetupParams{
-				ID:       old.ID,
-				Name:     old.Name,
-				Position: nextUnit,
-				Nozzle:   old.Nozzle,
-				Enabled:  false,
-				Bump:     changed,
-			},
-		); err != nil {
+		if err = q.ApplyPrinterInputUnitSetup(ctx, db.ApplyPrinterInputUnitSetupParams{ID: old.ID, Name: old.Name, Position: nextUnit, Nozzle: old.Nozzle, Enabled: false, Bump: changed}); err != nil {
 			return setupDatabaseError(err)
 		}
 		nextUnit++

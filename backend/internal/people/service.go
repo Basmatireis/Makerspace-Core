@@ -126,17 +126,7 @@ func (s *Service) Create(
 		return Person{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.created",
-			ResourceType:   "person",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.created", ResourceType: "person", ResourceID: &id, RequestID: requestID}); err != nil {
 		return Person{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -248,9 +238,7 @@ func (s *Service) List(
 	}
 	total, err := queries.CountPeople(ctx, peopledb.CountPeopleParams{
 		Search: params.Search, IncludeMatriculation: params.IncludeMatriculation,
-		RoleIds:              params.RoleIds,
-		AccountStatuses:      params.AccountStatuses,
-		LaborordnungStatuses: params.LaborordnungStatuses,
+		RoleIds: params.RoleIds, AccountStatuses: params.AccountStatuses, LaborordnungStatuses: params.LaborordnungStatuses,
 	})
 	if err != nil {
 		return Page{}, err
@@ -351,18 +339,7 @@ func (s *Service) Update(
 		return Person{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.updated",
-			ResourceType:   "person",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  changed,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.updated", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: changed}); err != nil {
 		return Person{}, err
 	}
 	result, err := loadPerson(
@@ -444,23 +421,10 @@ func (s *Service) Delete(
 	if err := events.ScrubAssignmentsForDeletedPerson(ctx, tx, actor, id, requestID); err != nil {
 		return err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.deleted",
-			ResourceType:   "person",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.deleted", ResourceType: "person", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
 	}
-	if _, err := peopleQueries.DeletePerson(
-		ctx,
-		peopledb.DeletePersonParams{ID: id, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := peopleQueries.DeletePerson(ctx, peopledb.DeletePersonParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -562,18 +526,7 @@ func (s *Service) PutProfileImage(
 		return Person{}, err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.profile_image.updated",
-			ResourceType:   "person",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"profileImage"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.profile_image.updated", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"profileImage"}}); err != nil {
 		return Person{}, err
 	}
 	result, err := loadPerson(
@@ -628,25 +581,11 @@ func (s *Service) DeleteProfileImage(
 	if current.ProfileImageFileID == nil {
 		return apperror.NotFound
 	}
-	if _, err := queries.SetProfileImage(
-		ctx,
-		peopledb.SetProfileImageParams{ID: id, ExpectedVersion: expectedVersion},
-	); err != nil {
+	if _, err := queries.SetProfileImage(ctx, peopledb.SetProfileImageParams{ID: id, ExpectedVersion: expectedVersion}); err != nil {
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.profile_image.removed",
-			ResourceType:   "person",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"profileImage"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.profile_image.removed", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"profileImage"}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -774,18 +713,7 @@ func (s *Service) ChangeRole(
 		action = "person.role_assigned"
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         action,
-			ResourceType:   "person",
-			ResourceID:     &personID,
-			RequestID:      requestID,
-			Metadata:       map[string]any{"roleId": roleID.String()},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: "person", ResourceID: &personID, RequestID: requestID, Metadata: map[string]any{"roleId": roleID.String()}}); err != nil {
 		return Person{}, err
 	}
 	result, err := loadPerson(
@@ -1001,11 +929,7 @@ func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Per
 	}
 	return Person{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Email: email, Phone: phone,
 		MatriculationNumber: matriculation, PhotoReference: photoReference, ProfileImageFileID: row.ProfileImageFileID,
-		ProfileImageSource: row.ProfileImageSource,
-		Roles:              []RoleSummary{},
-		Version:            row.Version,
-		CreatedAt:          row.CreatedAt,
-		UpdatedAt:          row.UpdatedAt}
+		ProfileImageSource: row.ProfileImageSource, Roles: []RoleSummary{}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func loadPerson(

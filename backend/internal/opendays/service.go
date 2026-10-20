@@ -215,16 +215,7 @@ func (s *Service) CreatePeriod(
 	if err != nil {
 		return Period{}, databaseError(err)
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"open_day_period.created",
-		"open_day_period",
-		id,
-		requestID,
-		[]string{"name", "startsOn", "endsOn"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "open_day_period.created", "open_day_period", id, requestID, []string{"name", "startsOn", "endsOn"}); err != nil {
 		return Period{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -297,16 +288,7 @@ func (s *Service) UpdatePeriod(
 	if err != nil {
 		return Period{}, databaseError(err)
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"open_day_period.updated",
-		"open_day_period",
-		id,
-		requestID,
-		[]string{"name", "startsOn", "endsOn"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "open_day_period.updated", "open_day_period", id, requestID, []string{"name", "startsOn", "endsOn"}); err != nil {
 		return Period{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -352,16 +334,7 @@ func (s *Service) DeletePeriod(
 	} else if err != nil {
 		return databaseError(err)
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"open_day_period.deleted",
-		"open_day_period",
-		id,
-		requestID,
-		nil,
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "open_day_period.deleted", "open_day_period", id, requestID, nil); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -412,16 +385,7 @@ func (s *Service) TransitionPeriod(
 	if err != nil {
 		return Period{}, err
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"open_day_period."+target,
-		"open_day_period",
-		id,
-		requestID,
-		[]string{"status"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "open_day_period."+target, "open_day_period", id, requestID, []string{"status"}); err != nil {
 		return Period{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -669,17 +633,11 @@ func (s *Service) SaveSchedule(
 	for _, rm := range delta.Removals {
 		day := byID[rm.ID]
 		if period.Status == "draft" {
-			if _, err := q.DeleteOpenDay(
-				ctx,
-				opendaysdb.DeleteOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion},
-			); err != nil {
+			if _, err := q.DeleteOpenDay(ctx, opendaysdb.DeleteOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion}); err != nil {
 				return Schedule{}, databaseError(err)
 			}
 		} else {
-			if _, err := q.CancelOpenDay(
-				ctx,
-				opendaysdb.CancelOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion},
-			); err != nil {
+			if _, err := q.CancelOpenDay(ctx, opendaysdb.CancelOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion}); err != nil {
 				return Schedule{}, databaseError(err)
 			}
 		}
@@ -708,16 +666,7 @@ func (s *Service) SaveSchedule(
 		if err := replaceRequirements(ctx, q, row.ID, input.Requirements); err != nil {
 			return Schedule{}, err
 		}
-		if err := writeAudit(
-			ctx,
-			tx,
-			principal,
-			"open_day.updated",
-			"open_day",
-			row.ID,
-			requestID,
-			[]string{"startsAt", "endsAt", "internalNote", "requirements"},
-		); err != nil {
+		if err := writeAudit(ctx, tx, principal, "open_day.updated", "open_day", row.ID, requestID, []string{"startsAt", "endsAt", "internalNote", "requirements"}); err != nil {
 			return Schedule{}, err
 		}
 	}
@@ -739,24 +688,12 @@ func (s *Service) SaveSchedule(
 		if err := createRequirements(ctx, q, row.ID, input.Requirements); err != nil {
 			return Schedule{}, err
 		}
-		if err := writeAudit(
-			ctx,
-			tx,
-			principal,
-			"open_day.created",
-			"open_day",
-			row.ID,
-			requestID,
-			[]string{"startsAt", "endsAt", "internalNote", "requirements"},
-		); err != nil {
+		if err := writeAudit(ctx, tx, principal, "open_day.created", "open_day", row.ID, requestID, []string{"startsAt", "endsAt", "internalNote", "requirements"}); err != nil {
 			return Schedule{}, err
 		}
 	}
 	if len(delta.Creates)+len(delta.Updates)+len(delta.Removals) > 0 {
-		if _, err := q.BumpPeriodVersion(
-			ctx,
-			opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version},
-		); errors.Is(
+		if _, err := q.BumpPeriodVersion(ctx, opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version}); errors.Is(
 			err,
 			pgx.ErrNoRows,
 		) {
@@ -810,10 +747,7 @@ func (s *Service) periodFromRow(
 		} else {
 			result.NeedsStaffCount++
 		}
-		if _, err := q.GetPersonOpenDayAssignment(
-			ctx,
-			opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: day.ID, PersonID: principal.PersonID},
-		); err == nil {
+		if _, err := q.GetPersonOpenDayAssignment(ctx, opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: day.ID, PersonID: principal.PersonID}); err == nil {
 			result.MyAssignmentCount++
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return Period{}, err
@@ -908,22 +842,11 @@ func createRequirements(
 ) error {
 	for _, input := range inputs {
 		id := uuid.Must(uuid.NewV7())
-		if _, err := q.CreateRequirement(
-			ctx,
-			opendaysdb.CreateRequirementParams{
-				ID:            id,
-				OpenDayID:     openDayID,
-				Kind:          input.Kind,
-				RequiredCount: int32(input.RequiredCount),
-			},
-		); err != nil {
+		if _, err := q.CreateRequirement(ctx, opendaysdb.CreateRequirementParams{ID: id, OpenDayID: openDayID, Kind: input.Kind, RequiredCount: int32(input.RequiredCount)}); err != nil {
 			return databaseError(err)
 		}
 		for _, roleID := range uniqueIDs(input.EligibleRoleIDs) {
-			if err := q.AddRequirementRole(
-				ctx,
-				opendaysdb.AddRequirementRoleParams{RequirementID: id, RoleID: roleID},
-			); err != nil {
+			if err := q.AddRequirementRole(ctx, opendaysdb.AddRequirementRoleParams{RequirementID: id, RoleID: roleID}); err != nil {
 				return databaseError(err)
 			}
 		}
@@ -957,20 +880,14 @@ func replaceRequirements(
 		if int64(input.RequiredCount) < count {
 			return conflict("requirement_below_assignments", "Required staff count cannot be below current assignments")
 		}
-		if _, err := q.UpdateRequirement(
-			ctx,
-			opendaysdb.UpdateRequirementParams{RequiredCount: int32(input.RequiredCount), ID: r.ID},
-		); err != nil {
+		if _, err := q.UpdateRequirement(ctx, opendaysdb.UpdateRequirementParams{RequiredCount: int32(input.RequiredCount), ID: r.ID}); err != nil {
 			return err
 		}
 		if err := q.DeleteRequirementRoles(ctx, r.ID); err != nil {
 			return err
 		}
 		for _, roleID := range uniqueIDs(input.EligibleRoleIDs) {
-			if err := q.AddRequirementRole(
-				ctx,
-				opendaysdb.AddRequirementRoleParams{RequirementID: r.ID, RoleID: roleID},
-			); err != nil {
+			if err := q.AddRequirementRole(ctx, opendaysdb.AddRequirementRoleParams{RequirementID: r.ID, RoleID: roleID}); err != nil {
 				return databaseError(err)
 			}
 		}

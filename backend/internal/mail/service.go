@@ -159,27 +159,7 @@ func (s *Service) UpdateConfiguration(
 	if err != nil {
 		return Configuration{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "mail.configuration_updated",
-			ResourceType:   "mail_configuration",
-			RequestID:      requestID,
-			ChangedFields: []string{
-				"enabled",
-				"host",
-				"port",
-				"tlsMode",
-				"username",
-				"password",
-				"fromAddress",
-				"fromName",
-				"baseUrl",
-			},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "mail.configuration_updated", ResourceType: "mail_configuration", RequestID: requestID, ChangedFields: []string{"enabled", "host", "port", "tlsMode", "username", "password", "fromAddress", "fromName", "baseUrl"}}); err != nil {
 		return Configuration{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

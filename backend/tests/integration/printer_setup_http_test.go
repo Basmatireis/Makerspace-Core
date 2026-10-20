@@ -27,33 +27,10 @@ import (
 const liveStatusBody = `{"protocolVersion":1,"configurationVersion":%d,"observedAt":"%s","status":{
 "state":"printing",
 "job":{"fileName":"Benchy","progressPercent":42,"layer":80,"totalLayers":191,"remainingMinutes":37},
-"temperatures":{
-	"extruders":[{
-		"extruderId":0,
-		"side":"right",
-		"currentC":219.0,
-		"targetC":220.0,
-	},{"extruderId":1,"side":"left","currentC":31.0,"targetC":null}],
-	"bedC":59.6,
-	"bedTargetC":60.0,
-	"chamberC":null,
-},
-"nozzles":[{
-	"extruderId":0,
-	"side":"right",
-	"diameterMm":0.4,
-	"type":"HS01",
-},{"extruderId":1,"side":null,"diameterMm":null,"type":null}],
+"temperatures":{"extruders":[{"extruderId":0,"side":"right","currentC":219.0,"targetC":220.0},{"extruderId":1,"side":"left","currentC":31.0,"targetC":null}],"bedC":59.6,"bedTargetC":60.0,"chamberC":null},
+"nozzles":[{"extruderId":0,"side":"right","diameterMm":0.4,"type":"HS01"},{"extruderId":1,"side":null,"diameterMm":null,"type":null}],
 "units":[{"externalId":"0","kind":"ams","label":"AMS 0","humidityPercent":32,"temperatureC":32.4,"trays":[
-  {
-	"externalId":"0",
-	"materialType":"PETG",
-	"subBrand":null,
-	"colorHex":"FFF144",
-	"remainPercent":55,
-	"rfid":true,
-	"empty":false,
-},
+  {"externalId":"0","materialType":"PETG","subBrand":null,"colorHex":"FFF144","remainPercent":55,"rfid":true,"empty":false},
   {"externalId":"1","materialType":null,"subBrand":null,"colorHex":null,"remainPercent":null,"rfid":false,"empty":true}]},
  {"externalId":"254","kind":"external","label":"External spool 254","humidityPercent":null,"temperatureC":null,"trays":[
   {"externalId":"254","materialType":"PLA","subBrand":null,"colorHex":"FFFFFF","remainPercent":null,"rfid":false,"empty":false}]}],
@@ -76,16 +53,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		adminLogin    = "setup-admin@example.test"
 		adminPassword = "Setup admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(
-		ctx,
-		admin.BootstrapInput{
-			FirstName:    "Setup",
-			LastName:     "Admin",
-			ContactEmail: "setup-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
-		},
-	); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Setup", LastName: "Admin", ContactEmail: "setup-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -217,11 +185,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	nobodyClient, nobodyCSRF := member("nobody", "machine_jobs.read")
 
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
-		adminLogin,
-	).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -294,10 +258,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for method, path := range map[string]string{
-		"setup":   "/api/v1/machines/" + embroidery.ID.String() + "/printer/setup",
-		"profile": "/api/v1/machines/" + embroidery.ID.String() + "/printer",
-	} {
+	for method, path := range map[string]string{"setup": "/api/v1/machines/" + embroidery.ID.String() + "/printer/setup", "profile": "/api/v1/machines/" + embroidery.ID.String() + "/printer"} {
 		body := setupBody(nil)
 		if method == "profile" {
 			body = map[string]any{"enabled": true, "expectedVersion": 0}
@@ -432,9 +393,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 	var live openapi.PrinterLiveStatus
 	decodeResponse(t, response, &live)
-	if live.AssignmentId != assignment.Id || live.Status.State != openapi.PrinterLiveStatusStatePrinting || len(live.Status.Units) != 2 || len(
-		live.Status.Units[0].Trays,
-	) != 2 ||
+	if live.AssignmentId != assignment.Id || live.Status.State != openapi.PrinterLiveStatusStatePrinting || len(live.Status.Units) != 2 || len(live.Status.Units[0].Trays) != 2 ||
 		live.Status.Units[0].Trays[0].ColorHex.MustGet() != "FFF144" ||
 		live.Status.ActiveTray.MustGet().TrayExternalId != "0" ||
 		live.Status.WifiSignalDbm.MustGet() != -39 ||

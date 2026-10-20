@@ -67,13 +67,7 @@ func (s *Service) activeKey(ctx context.Context) (*signingKey, error) {
 	}
 	key, err := s.loadActiveKey(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if err = s.createKey(
-			ctx,
-			db.InsertTicketKeyParams{State: "active"},
-			"signage_ticket_key.created",
-			nil,
-			nil,
-		); err != nil {
+		if err = s.createKey(ctx, db.InsertTicketKeyParams{State: "active"}, "signage_ticket_key.created", nil, nil); err != nil {
 			return nil, err
 		}
 		key, err = s.loadActiveKey(ctx)
@@ -159,18 +153,7 @@ func (s *Service) promote(ctx context.Context, q *db.Queries, force bool) (bool,
 		return false, err
 	}
 	id := pending.ID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "signage_ticket_key.activated",
-			ResourceType:  "signage_ticket_key",
-			ResourceID:    &id,
-			ChangedFields: []string{"signingKey"},
-			Source:        "system",
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "signage_ticket_key.activated", ResourceType: "signage_ticket_key", ResourceID: &id, ChangedFields: []string{"signingKey"}, Source: "system"}); err != nil {
 		return false, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -275,13 +258,7 @@ func (s *Service) RotateTicketKey(
 	defer s.keyMu.Unlock()
 	s.cachedKey = nil
 	if _, err := db.New(s.pool).GetActiveTicketKey(ctx); errors.Is(err, pgx.ErrNoRows) {
-		if err = s.createKey(
-			ctx,
-			db.InsertTicketKeyParams{State: "active"},
-			"signage_ticket_key.created",
-			nil,
-			nil,
-		); err != nil {
+		if err = s.createKey(ctx, db.InsertTicketKeyParams{State: "active"}, "signage_ticket_key.created", nil, nil); err != nil {
 			return KeyRotation{}, err
 		}
 	} else if err != nil {
@@ -292,13 +269,7 @@ func (s *Service) RotateTicketKey(
 	}
 	activates := s.now().Add(keyActivationDelay)
 	actor := principal.AccountID
-	if err := s.createKey(
-		ctx,
-		db.InsertTicketKeyParams{State: "pending", ActivatesAt: timestamptz(&activates)},
-		"signage_ticket_key.rotated",
-		&actor,
-		requestID,
-	); err != nil {
+	if err := s.createKey(ctx, db.InsertTicketKeyParams{State: "pending", ActivatesAt: timestamptz(&activates)}, "signage_ticket_key.rotated", &actor, requestID); err != nil {
 		return KeyRotation{}, err
 	}
 	pending, err := db.New(s.pool).GetPendingTicketKey(ctx)

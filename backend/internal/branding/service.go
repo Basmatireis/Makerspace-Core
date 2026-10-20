@@ -197,12 +197,8 @@ func (s *Service) Update(
 		ApplicationName: input.Identity.ApplicationName, Tagline: input.Identity.Tagline,
 		PrimaryColor: input.Colors.Primary, SecondaryColor: input.Colors.Secondary,
 		AccentColor: input.Colors.Accent, BackgroundColor: input.Colors.Background,
-		ImprintMode:        input.Imprint.Mode,
-		ImprintMarkdown:    input.Imprint.Markdown,
-		ImprintExternalUrl: input.Imprint.ExternalURL,
-		PrivacyMode:        input.Privacy.Mode,
-		PrivacyMarkdown:    input.Privacy.Markdown,
-		PrivacyExternalUrl: input.Privacy.ExternalURL,
+		ImprintMode: input.Imprint.Mode, ImprintMarkdown: input.Imprint.Markdown, ImprintExternalUrl: input.Imprint.ExternalURL,
+		PrivacyMode: input.Privacy.Mode, PrivacyMarkdown: input.Privacy.Markdown, PrivacyExternalUrl: input.Privacy.ExternalURL,
 		UpdatedByAccountID: &actor, ExpectedVersion: input.ExpectedVersion,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -211,17 +207,7 @@ func (s *Service) Update(
 	if err != nil {
 		return Configuration{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "branding.configuration_updated",
-			ResourceType:   "branding_configuration",
-			RequestID:      requestID,
-			ChangedFields:  []string{"identity", "colors", "imprint", "privacy"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "branding.configuration_updated", ResourceType: "branding_configuration", RequestID: requestID, ChangedFields: []string{"identity", "colors", "imprint", "privacy"}}); err != nil {
 		return Configuration{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -373,10 +359,7 @@ func (s *Service) mutateAsset(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := queries.BumpConfigurationVersion(
-		ctx,
-		brandingdb.BumpConfigurationVersionParams{UpdatedByAccountID: &actor, ExpectedVersion: expectedVersion},
-	); errors.Is(
+	if _, err := queries.BumpConfigurationVersion(ctx, brandingdb.BumpConfigurationVersionParams{UpdatedByAccountID: &actor, ExpectedVersion: expectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -390,17 +373,7 @@ func (s *Service) mutateAsset(
 	} else if mode == "default" {
 		action = "branding.asset_default_restored"
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         action,
-			ResourceType:   "branding_configuration",
-			RequestID:      requestID,
-			ChangedFields:  []string{string(slot)},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: "branding_configuration", RequestID: requestID, ChangedFields: []string{string(slot)}}); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -661,20 +634,14 @@ func sanitizeSVG(raw []byte) ([]byte, error) {
 			value.Name.Space = ""
 			attributes := make([]xml.Attr, 0, len(value.Attr)+1)
 			if value.Name.Local == "svg" {
-				attributes = append(
-					attributes,
-					xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: "http://www.w3.org/2000/svg"},
-				)
+				attributes = append(attributes, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: "http://www.w3.org/2000/svg"})
 			}
 			for _, attribute := range value.Attr {
 				name := attribute.Name.Local
 				if name == "xmlns" {
 					continue
 				}
-				if strings.HasPrefix(
-					strings.ToLower(name),
-					"on",
-				) || (!allowed[name] && !svgGlobalAttributes[name]) || !safeSVGValue(name, attribute.Value) {
+				if strings.HasPrefix(strings.ToLower(name), "on") || (!allowed[name] && !svgGlobalAttributes[name]) || !safeSVGValue(name, attribute.Value) {
 					return nil, errors.New("unsupported SVG attribute")
 				}
 				attribute.Name.Space = ""

@@ -113,18 +113,7 @@ func (s *Service) CreateWithBehaviors(
 		return Role{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "role.created",
-			ResourceType:   "role",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "description", "permissionGrants", "profileImageRequired"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.created", ResourceType: "role", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "description", "permissionGrants", "profileImageRequired"}}); err != nil {
 		return Role{}, err
 	}
 	result, err := fromRow(ctx, q, row)
@@ -191,18 +180,7 @@ func (s *Service) ReplacePermissions(
 		return Role{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "role.permissions_replaced",
-			ResourceType:   "role",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"permissionGrants"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.permissions_replaced", ResourceType: "role", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"permissionGrants"}}); err != nil {
 		return Role{}, err
 	}
 	result, err := fromRow(ctx, q, row)
@@ -223,23 +201,11 @@ func insertGrants(
 ) error {
 	for _, g := range grants {
 		grantID := uuid.Must(uuid.NewV7())
-		if err := q.AddRolePermission(
-			ctx,
-			rolesdb.AddRolePermissionParams{
-				ID:               grantID,
-				RoleID:           roleID,
-				PermissionID:     string(g.PermissionID),
-				Scope:            string(g.Scope),
-				MinimumAssurance: string(g.MinimumAssurance),
-			},
-		); err != nil {
+		if err := q.AddRolePermission(ctx, rolesdb.AddRolePermissionParams{ID: grantID, RoleID: roleID, PermissionID: string(g.PermissionID), Scope: string(g.Scope), MinimumAssurance: string(g.MinimumAssurance)}); err != nil {
 			return err
 		}
 		for _, typeID := range g.DeviceTypeIDs {
-			if err := q.AddRolePermissionDeviceType(
-				ctx,
-				rolesdb.AddRolePermissionDeviceTypeParams{GrantID: grantID, DeviceTypeID: typeID},
-			); err != nil {
+			if err := q.AddRolePermissionDeviceType(ctx, rolesdb.AddRolePermissionDeviceTypeParams{GrantID: grantID, DeviceTypeID: typeID}); err != nil {
 				return databaseError(err)
 			}
 		}
@@ -516,18 +482,7 @@ func (s *Service) UpdateWithBehaviors(
 		return Role{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "role.updated",
-			ResourceType:   "role",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  changed,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.updated", ResourceType: "role", ResourceID: &id, RequestID: requestID, ChangedFields: changed}); err != nil {
 		return Role{}, err
 	}
 	result, err := fromRow(ctx, queries, row)
@@ -573,17 +528,7 @@ func (s *Service) Delete(
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "role.deleted",
-			ResourceType:   "role",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.deleted", ResourceType: "role", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
 	}
 	if _, err := queries.DeleteRole(ctx, rolesdb.DeleteRoleParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(
@@ -625,12 +570,7 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 			}
 			grant, exists := byID[value.ID]
 			if !exists {
-				grant = authorization.PermissionGrant{
-					ID:               value.ID,
-					PermissionID:     permission,
-					Scope:            authorization.GrantScope(value.Scope),
-					MinimumAssurance: authorization.Assurance(value.MinimumAssurance),
-				}
+				grant = authorization.PermissionGrant{ID: value.ID, PermissionID: permission, Scope: authorization.GrantScope(value.Scope), MinimumAssurance: authorization.Assurance(value.MinimumAssurance)}
 				order = append(order, value.ID)
 			}
 			if value.DeviceTypeID != nil {

@@ -47,12 +47,7 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 	h := &runHarness{jobFixture: f, connectorID: uuid.Must(uuid.NewV7()), assignments: map[uuid.UUID]uuid.UUID{}}
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(h.connectorID.String(), "-", "")[:12]
-	if _, err := f.pool.Exec(
-		ctx,
-		`INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, $2, 'active')`,
-		h.connectorID,
-		"Prints connector "+suffix,
-	); err != nil {
+	if _, err := f.pool.Exec(ctx, `INSERT INTO printer_connectors (id, name, lifecycle) VALUES ($1, $2, 'active')`, h.connectorID, "Prints connector "+suffix); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -88,13 +83,7 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 		if _, err := f.pool.Exec(ctx, `INSERT INTO printer_profiles (machine_id) VALUES ($1)`, machineID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.pool.Exec(
-			ctx,
-			`INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`,
-			assignmentID,
-			h.connectorID,
-			machineID,
-		); err != nil {
+		if _, err := f.pool.Exec(ctx, `INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind) VALUES ($1, $2, $3, 'simulator')`, assignmentID, h.connectorID, machineID); err != nil {
 			t.Fatal(err)
 		}
 		h.assignments[machineID] = assignmentID
@@ -163,16 +152,7 @@ func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 	}
 	if _, err := h.pool.Exec(ctx, `INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, state, first_observed_at, last_observed_at, started_at, ended_at, file_name, progress_percent)
 		VALUES ($1, 'R-2031-' || lpad((('x' || substr(replace($1::uuid::text, '-', ''), 17, 7))::bit(28)::int)::text, 9, '0'), 'recorded', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		id,
-		h.assignments[spec.machine],
-		spec.machine,
-		state,
-		first,
-		last,
-		spec.started,
-		spec.ended,
-		fileName,
-		percent); err != nil {
+		id, h.assignments[spec.machine], spec.machine, state, first, last, spec.started, spec.ended, fileName, percent); err != nil {
 		t.Fatal(err)
 	}
 	if spec.grams != "" {
@@ -184,15 +164,7 @@ func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 			last,
 			`{"quantityGrams":"`+spec.grams+`","quantityBasis":"`+spec.basis+`"}`,
 		)
-		if _, err := h.pool.Exec(
-			ctx,
-			`UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = $3, reported_spool_id = $4, reported_event_id = $5 WHERE id = $1`,
-			id,
-			spec.grams,
-			spec.basis,
-			spec.spool,
-			eventID,
-		); err != nil {
+		if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = $3, reported_spool_id = $4, reported_event_id = $5 WHERE id = $1`, id, spec.grams, spec.basis, spec.spool, eventID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -220,19 +192,7 @@ func (h *runHarness) insertEvent(
 	if _, err := h.pool.Exec(t.Context(), `INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, source_sequence, payload,
 		connector_id, connector_assignment_id, run_id, configuration_version, application_state, report_revision)
 		VALUES ($1, $2, $3, $4, 1, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, 1, 'applied', $13)`,
-		id,
-		"printer-connector:"+assignmentID.String(),
-		id.String(),
-		strings.Repeat("a", 64),
-		machineID,
-		kind,
-		occurredAt,
-		h.sequence,
-		payload,
-		h.connectorID,
-		assignmentID,
-		runID,
-		revision); err != nil {
+		id, "printer-connector:"+assignmentID.String(), id.String(), strings.Repeat("a", 64), machineID, kind, occurredAt, h.sequence, payload, h.connectorID, assignmentID, runID, revision); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -251,14 +211,7 @@ func (h *runHarness) report(t *testing.T, runID, machineID uuid.UUID, grams stri
 		`{"quantityGrams":"`+grams+`","quantityBasis":"actual"}`,
 	)
 	h.revision = 0
-	if _, err := h.pool.Exec(
-		t.Context(),
-		`UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = 'actual', reported_spool_id = $3, reported_event_id = $4 WHERE id = $1`,
-		runID,
-		grams,
-		spool,
-		eventID,
-	); err != nil {
+	if _, err := h.pool.Exec(t.Context(), `UPDATE machine_runs SET reported_quantity_g = $2::numeric, reported_quantity_basis = 'actual', reported_spool_id = $3, reported_event_id = $4 WHERE id = $1`, runID, grams, spool, eventID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -266,13 +219,7 @@ func (h *runHarness) report(t *testing.T, runID, machineID uuid.UUID, grams stri
 // finish ends a running recorded run the way a terminal event does.
 func (h *runHarness) finish(t *testing.T, runID uuid.UUID, state string, ended time.Time) {
 	t.Helper()
-	if _, err := h.pool.Exec(
-		t.Context(),
-		`UPDATE machine_runs SET state = $2, ended_at = $3, version = version + 1 WHERE id = $1`,
-		runID,
-		state,
-		ended,
-	); err != nil {
+	if _, err := h.pool.Exec(t.Context(), `UPDATE machine_runs SET state = $2, ended_at = $3, version = version + 1 WHERE id = $1`, runID, state, ended); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -285,11 +232,7 @@ func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind string) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(t.Context())
-	if err = h.s.ApplyRecordedRunEvent(
-		t.Context(),
-		tx,
-		RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: kind},
-	); err != nil {
+	if err = h.s.ApplyRecordedRunEvent(t.Context(), tx, RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: kind}); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {
@@ -318,12 +261,7 @@ func (h *runHarness) run(t *testing.T, id uuid.UUID) MachineRun {
 func (h *runHarness) auditCount(t *testing.T, action string, resource uuid.UUID) int {
 	t.Helper()
 	var count int
-	if err := h.pool.QueryRow(
-		t.Context(),
-		`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`,
-		action,
-		resource,
-	).Scan(&count); err != nil {
+	if err := h.pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, action, resource).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	return count
@@ -355,15 +293,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 		t.Fatalf("manual calculated = %s", price(job.CalculatedPrice))
 	}
 	first := job.Runs[0]
-	if _, err := h.s.AttachRun(
-		ctx,
-		authorization.Principal{AccountID: h.p.AccountID},
-		runID,
-		job.ID,
-		true,
-		job.Version,
-		&h.request,
-	); !apperror.IsCode(
+	if _, err := h.s.AttachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.ID, true, job.Version, &h.request); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -382,15 +312,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	) {
 		t.Fatalf("machine mismatch: %v", err)
 	}
-	if _, err := h.s.AttachRun(
-		ctx,
-		h.p,
-		uuid.Must(uuid.NewV7()),
-		job.ID,
-		true,
-		job.Version,
-		&h.request,
-	); !apperror.IsCode(
+	if _, err := h.s.AttachRun(ctx, h.p, uuid.Must(uuid.NewV7()), job.ID, true, job.Version, &h.request); !apperror.IsCode(
 		err,
 		"not_found",
 	) {
@@ -427,11 +349,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 		t.Fatalf("manual material quantity = %s", got)
 	}
 	var compensations int
-	if err := h.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 30`,
-		h.jobFixture.material.ID,
-	).Scan(&compensations); err != nil ||
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 30`, h.jobFixture.material.ID).Scan(&compensations); err != nil ||
 		compensations != 1 {
 		t.Fatalf("compensating transactions = %d err=%v", compensations, err)
 	}
@@ -451,12 +369,7 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	ctx := t.Context()
 	started := at(h.now, -2*time.Hour)
 	runID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: started, fileName: "live.gcode"})
-	if _, err := h.pool.Exec(
-		ctx,
-		`UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`,
-		runID,
-		h.now.Add(time.Hour),
-	); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`, runID, h.now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	// A running recorded run can be attached mid-run: the job is running.
@@ -500,11 +413,7 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	}
 	var actorType string
 	var metadata string
-	if err = h.pool.QueryRow(
-		ctx,
-		`SELECT actor_type, metadata::text FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1`,
-		job.ID,
-	).Scan(&actorType, &metadata); err != nil ||
+	if err = h.pool.QueryRow(ctx, `SELECT actor_type, metadata::text FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1`, job.ID).Scan(&actorType, &metadata); err != nil ||
 		actorType != "system" ||
 		!strings.Contains(metadata, h.connectorID.String()) {
 		t.Fatalf("connector audit: %q %q %v", actorType, metadata, err)
@@ -536,14 +445,7 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	if err != nil || patched.Run.OutcomeFromMachine || patched.Job.Outcome != "partial_failure" {
 		t.Fatalf("patched recorded run: %v %+v", err, patched.Run)
 	}
-	if _, err = h.s.UpdateRun(
-		ctx,
-		h.p,
-		runID,
-		patched.Run.Version,
-		RunUpdate{StartsAt: &ended, EndsAt: &ended},
-		&h.request,
-	); !apperror.IsCode(
+	if _, err = h.s.UpdateRun(ctx, h.p, runID, patched.Run.Version, RunUpdate{StartsAt: &ended, EndsAt: &ended}, &h.request); !apperror.IsCode(
 		err,
 		"run_times_read_only",
 	) {
@@ -580,13 +482,7 @@ func TestUnassignedRecordedRunConsumesAndCanBecomeAJob(t *testing.T) {
 		OperatorPersonID: h.person,
 		PricingGroupID:   &h.group.ID,
 	}
-	if _, err := h.s.CreateJobFromRun(
-		ctx,
-		authorization.Principal{AccountID: h.p.AccountID},
-		runID,
-		in,
-		&h.request,
-	); !apperror.IsCode(
+	if _, err := h.s.CreateJobFromRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, in, &h.request); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -656,13 +552,7 @@ func TestDetachRun(t *testing.T) {
 		}
 		return *j.Job
 	}()
-	if _, err := h.s.DetachRun(
-		ctx,
-		authorization.Principal{AccountID: h.p.AccountID},
-		runID,
-		job.Version,
-		&h.request,
-	); !apperror.IsCode(
+	if _, err := h.s.DetachRun(ctx, authorization.Principal{AccountID: h.p.AccountID}, runID, job.Version, &h.request); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -774,21 +664,13 @@ func TestListAndGetRuns(t *testing.T) {
 	if items := list(RunFilters{Search: "%"}); len(items) != 0 {
 		t.Fatalf("wildcard matched %d runs", len(items))
 	}
-	if _, _, err := h.s.ListRuns(
-		ctx,
-		h.p,
-		RunFilters{States: []string{"bogus"}, Page: 1, PageSize: 10},
-	); !apperror.IsCode(
+	if _, _, err := h.s.ListRuns(ctx, h.p, RunFilters{States: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
 		t.Fatalf("bogus state: %v", err)
 	}
-	if _, _, err := h.s.ListRuns(
-		ctx,
-		authorization.Principal{AccountID: h.p.AccountID},
-		RunFilters{Page: 1, PageSize: 10},
-	); !apperror.IsCode(
+	if _, _, err := h.s.ListRuns(ctx, authorization.Principal{AccountID: h.p.AccountID}, RunFilters{Page: 1, PageSize: 10}); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {

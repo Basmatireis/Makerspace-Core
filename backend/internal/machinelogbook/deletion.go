@@ -129,26 +129,7 @@ func (s *Service) reverseRunConsumption(
 					note += "; the spool fill was closed, so the material went back to loose stock"
 				}
 				usageID := u.ID
-				if _, err = s.applyInventoryMutation(
-					ctx,
-					tx,
-					q,
-					p,
-					*u.MaterialID,
-					anyInventoryVersion,
-					inventoryMutation{
-						Kind:          "adjustment",
-						QuantityDelta: quantity,
-						UnitCost:      unitCost,
-						ValueDelta:    value,
-						OccurredAt:    s.now().UTC(),
-						Reason:        stringPointer("job_corrected"),
-						Note:          &note,
-						UsageID:       &usageID,
-						Fill:          fill,
-					},
-					requestID,
-				); err != nil {
+				if _, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, anyInventoryVersion, inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: unitCost, ValueDelta: value, OccurredAt: s.now().UTC(), Reason: stringPointer("job_corrected"), Note: &note, UsageID: &usageID, Fill: fill}, requestID); err != nil {
 					return decimal.Zero, err
 				}
 				total = total.Add(quantity)
@@ -255,10 +236,7 @@ func (s *Service) deleteRunRows(
 		}
 		reversed = quantity.IsPositive()
 	}
-	if err := q.SoftDeleteMachineRun(
-		ctx,
-		machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: deletedAt, DeletedBy: deletedBy(p)},
-	); err != nil {
+	if err := q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: deletedAt, DeletedBy: deletedBy(p)}); err != nil {
 		return databaseError(err)
 	}
 	if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
@@ -268,16 +246,7 @@ func (s *Service) deleteRunRows(
 		if _, err := s.settleJob(ctx, q, *run.JobID); err != nil {
 			return err
 		}
-		if err := writeAudit(
-			ctx,
-			tx,
-			p,
-			"machine_job.repriced",
-			"machine_job",
-			*run.JobID,
-			requestID,
-			[]string{"runs", "calculatedPrice", "effectivePrice"},
-		); err != nil {
+		if err := writeAudit(ctx, tx, p, "machine_job.repriced", "machine_job", *run.JobID, requestID, []string{"runs", "calculatedPrice", "effectivePrice"}); err != nil {
 			return err
 		}
 	}
@@ -324,17 +293,7 @@ func (s *Service) DeleteJob(
 	if err != nil {
 		return err
 	}
-	if err = s.deleteJobRows(
-		ctx,
-		tx,
-		q,
-		p,
-		job,
-		runs,
-		input.DeleteRecordedRuns,
-		input.ReverseConsumption,
-		requestID,
-	); err != nil {
+	if err = s.deleteJobRows(ctx, tx, q, p, job, runs, input.DeleteRecordedRuns, input.ReverseConsumption, requestID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -372,10 +331,7 @@ func (s *Service) deleteJobRows(
 	}
 	at := pgTime(timePtr(s.now()))
 	for _, run := range deleting {
-		if err := q.SoftDeleteMachineRun(
-			ctx,
-			machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: at, DeletedBy: deletedBy(p)},
-		); err != nil {
+		if err := q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
 			return databaseError(err)
 		}
 		if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
@@ -387,15 +343,7 @@ func (s *Service) deleteJobRows(
 			return databaseError(err)
 		}
 	}
-	if _, err := q.SoftDeleteMachineJob(
-		ctx,
-		machinelogbookdb.SoftDeleteMachineJobParams{
-			ID:              job.ID,
-			ExpectedVersion: job.Version,
-			DeletedAt:       at,
-			DeletedBy:       deletedBy(p),
-		},
-	); err != nil {
+	if _, err := q.SoftDeleteMachineJob(ctx, machinelogbookdb.SoftDeleteMachineJobParams{ID: job.ID, ExpectedVersion: job.Version, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
 		if err == pgx.ErrNoRows {
 			return apperror.StaleWrite
 		}

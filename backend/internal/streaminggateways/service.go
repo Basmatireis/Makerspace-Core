@@ -199,10 +199,7 @@ func gatewayFrom(row db.StreamingGateway) Gateway {
 	return Gateway{
 		ID: row.ID, Name: row.Name, PublicHost: row.PublicHost, Lifecycle: row.Lifecycle,
 		ConfigurationRevision: row.ConfigurationRevision, AppliedRevison: row.AppliedConfigurationRevision,
-		SoftwareVersion: row.SoftwareVersion,
-		ProtocolVersion: protocol,
-		HealthState:     row.HealthState,
-		HealthSummary:   row.HealthSummary,
+		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: row.HealthState, HealthSummary: row.HealthSummary,
 		LastHeartbeatAt: nullableTime(row.LastHeartbeatAt), EnrolledAt: nullableTime(row.EnrolledAt),
 		DisabledAt: nullableTime(row.DisabledAt), RevokedAt: nullableTime(row.RevokedAt),
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -320,18 +317,7 @@ func (s *Service) Create(
 		return Gateway{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_gateway.created",
-			ResourceType:   "streaming_gateway",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "publicHost"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_gateway.created", ResourceType: "streaming_gateway", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "publicHost"}}); err != nil {
 		return Gateway{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -449,18 +435,7 @@ func (s *Service) Update(
 		return Gateway{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_gateway.updated",
-			ResourceType:   "streaming_gateway",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "publicHost", "lifecycle"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_gateway.updated", ResourceType: "streaming_gateway", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "publicHost", "lifecycle"}}); err != nil {
 		return Gateway{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -499,18 +474,7 @@ func (s *Service) Delete(
 		return apperror.StaleWrite
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_gateway.deleted",
-			ResourceType:   "streaming_gateway",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"gateway", "credentials", "cameras"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_gateway.deleted", ResourceType: "streaming_gateway", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"gateway", "credentials", "cameras"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -554,30 +518,10 @@ func (s *Service) IssueEnrollment(
 	expires := s.now().Add(enrollmentTTL).Truncate(time.Microsecond)
 	enrollmentID := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
-	if _, err = q.CreateGatewayEnrollment(
-		ctx,
-		db.CreateGatewayEnrollmentParams{
-			ID:                 enrollmentID,
-			GatewayID:          id,
-			TokenDigest:        digest,
-			ExpiresAt:          expires,
-			CreatedByAccountID: &actor,
-		},
-	); err != nil {
+	if _, err = q.CreateGatewayEnrollment(ctx, db.CreateGatewayEnrollmentParams{ID: enrollmentID, GatewayID: id, TokenDigest: digest, ExpiresAt: expires, CreatedByAccountID: &actor}); err != nil {
 		return EnrollmentIssue{}, err
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_gateway.enrollment_issued",
-			ResourceType:   "streaming_gateway",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"enrollment"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_gateway.enrollment_issued", ResourceType: "streaming_gateway", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"enrollment"}}); err != nil {
 		return EnrollmentIssue{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -673,25 +617,10 @@ func (s *Service) Enroll(
 		}
 	}
 	expires := s.now().Add(credentialTTL).Truncate(time.Microsecond)
-	if _, err = q.CreateGatewayCredential(
-		ctx,
-		db.CreateGatewayCredentialParams{
-			ID:          credentialID,
-			GatewayID:   enrollment.GatewayID,
-			TokenDigest: security.DigestToken(credentialSecret),
-			ExpiresAt:   expires,
-		},
-	); err != nil {
+	if _, err = q.CreateGatewayCredential(ctx, db.CreateGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return EnrollmentResult{}, databaseError(err)
 	}
-	if _, err = q.CompleteGatewayEnrollment(
-		ctx,
-		db.CompleteGatewayEnrollmentParams{
-			CredentialFingerprint: &fingerprint,
-			CredentialID:          &credentialID,
-			ID:                    enrollment.ID,
-		},
-	); err != nil {
+	if _, err = q.CompleteGatewayEnrollment(ctx, db.CompleteGatewayEnrollmentParams{CredentialFingerprint: &fingerprint, CredentialID: &credentialID, ID: enrollment.ID}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	action, changed := "streaming_gateway.enrolled", []string{"lifecycle", "credential"}
@@ -711,18 +640,7 @@ func (s *Service) Enroll(
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        action,
-			ResourceType:  "streaming_gateway",
-			ResourceID:    &row.ID,
-			ChangedFields: changed,
-			Source:        "http",
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: action, ResourceType: "streaming_gateway", ResourceID: &row.ID, ChangedFields: changed, Source: "http"}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -791,18 +709,7 @@ func (s *Service) Revoke(
 		return Gateway{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_gateway.revoked",
-			ResourceType:   "streaming_gateway",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"lifecycle", "credentials"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_gateway.revoked", ResourceType: "streaming_gateway", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"lifecycle", "credentials"}}); err != nil {
 		return Gateway{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -853,29 +760,10 @@ func (s *Service) RotateCredential(
 		return time.Time{}, err
 	}
 	expires := s.now().Add(credentialTTL).Truncate(time.Microsecond)
-	if _, err = q.CreateRotatedGatewayCredential(
-		ctx,
-		db.CreateRotatedGatewayCredentialParams{
-			ID:          credentialID,
-			GatewayID:   gateway.ID,
-			TokenDigest: security.DigestToken(credentialSecret),
-			ExpiresAt:   expires,
-		},
-	); err != nil {
+	if _, err = q.CreateRotatedGatewayCredential(ctx, db.CreateRotatedGatewayCredentialParams{ID: credentialID, GatewayID: gateway.ID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return time.Time{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "streaming_gateway.credential_rotated",
-			ResourceType:  "streaming_gateway",
-			ResourceID:    &gateway.ID,
-			ChangedFields: []string{"credential"},
-			Source:        "http",
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "streaming_gateway.credential_rotated", ResourceType: "streaming_gateway", ResourceID: &gateway.ID, ChangedFields: []string{"credential"}, Source: "http"}); err != nil {
 		return time.Time{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1085,10 +973,7 @@ func (s *Service) AssignCamera(
 		return Camera{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
-	if _, err = q.CreateCamera(
-		ctx,
-		db.CreateCameraParams{ID: id, GatewayID: gatewayID, MachineID: machineID, Enabled: enabled},
-	); err != nil {
+	if _, err = q.CreateCamera(ctx, db.CreateCameraParams{ID: id, GatewayID: gatewayID, MachineID: machineID, Enabled: enabled}); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return Camera{}, conflict("streaming_camera_exists", "This machine already has a streaming camera")
@@ -1099,18 +984,7 @@ func (s *Service) AssignCamera(
 		return Camera{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_camera.assigned",
-			ResourceType:   "streaming_camera",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"gatewayId", "machineId", "enabled"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_camera.assigned", ResourceType: "streaming_camera", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"gatewayId", "machineId", "enabled"}}); err != nil {
 		return Camera{}, err
 	}
 	view, err := q.GetCameraView(ctx, id)
@@ -1149,10 +1023,7 @@ func (s *Service) UpdateCamera(
 	} else if err != nil {
 		return Camera{}, err
 	}
-	if _, err = q.UpdateCameraEnabled(
-		ctx,
-		db.UpdateCameraEnabledParams{Enabled: enabled, ID: cameraID, GatewayID: gatewayID, ExpectedVersion: expected},
-	); errors.Is(
+	if _, err = q.UpdateCameraEnabled(ctx, db.UpdateCameraEnabledParams{Enabled: enabled, ID: cameraID, GatewayID: gatewayID, ExpectedVersion: expected}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -1164,18 +1035,7 @@ func (s *Service) UpdateCamera(
 		return Camera{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_camera.updated",
-			ResourceType:   "streaming_camera",
-			ResourceID:     &cameraID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"enabled"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_camera.updated", ResourceType: "streaming_camera", ResourceID: &cameraID, RequestID: requestID, ChangedFields: []string{"enabled"}}); err != nil {
 		return Camera{}, err
 	}
 	view, err := q.GetCameraView(ctx, cameraID)
@@ -1215,18 +1075,7 @@ func (s *Service) DeleteCamera(
 		return err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "streaming_camera.unassigned",
-			ResourceType:   "streaming_camera",
-			ResourceID:     &cameraID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"gatewayId", "machineId"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "streaming_camera.unassigned", ResourceType: "streaming_camera", ResourceID: &cameraID, RequestID: requestID, ChangedFields: []string{"gatewayId", "machineId"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -1414,18 +1263,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 			v := int32(*camera.Height)
 			height = &v
 		}
-		if err = q.UpsertCameraState(
-			ctx,
-			db.UpsertCameraStateParams{
-				CameraID: cameraID,
-				Health:   camera.Health,
-				Viewers:  int32(camera.Viewers),
-				Codec:    camera.Codec,
-				Width:    width,
-				Height:   height,
-				Fps:      camera.FPS,
-			},
-		); err != nil {
+		if err = q.UpsertCameraState(ctx, db.UpsertCameraStateParams{CameraID: cameraID, Health: camera.Health, Viewers: int32(camera.Viewers), Codec: camera.Codec, Width: width, Height: height, Fps: camera.FPS}); err != nil {
 			return Gateway{}, err
 		}
 	}

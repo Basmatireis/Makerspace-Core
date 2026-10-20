@@ -38,33 +38,15 @@ func TestPasswordChallengeCompletionUsesAccountSecurityLock(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer gate.Rollback(context.Background())
-			if _, err := gate.Exec(
-				ctx,
-				`SELECT id FROM accounts WHERE id=$1 FOR UPDATE`,
-				account.accountID,
-			); err != nil {
+			if _, err := gate.Exec(ctx, `SELECT id FROM accounts WHERE id=$1 FOR UPDATE`, account.accountID); err != nil {
 				t.Fatal(err)
 			}
 			done := make(chan error, 1)
 			go func() {
 				if kind == "password_reset" {
-					done <- service.CompletePasswordResetCode(
-						ctx,
-						"locked-challenge@example.test",
-						code,
-						resetPassword,
-						"review-lock",
-						nil,
-					)
+					done <- service.CompletePasswordResetCode(ctx, "locked-challenge@example.test", code, resetPassword, "review-lock", nil)
 				} else {
-					done <- service.CompleteInvitation(
-						ctx,
-						"locked-challenge@example.test",
-						code,
-						resetPassword,
-						"review-lock",
-						nil,
-					)
+					done <- service.CompleteInvitation(ctx, "locked-challenge@example.test", code, resetPassword, "review-lock", nil)
 				}
 			}()
 			// Wait for the actual blocked SQL, not a scheduler-dependent sleep.
@@ -82,11 +64,7 @@ func TestPasswordChallengeCompletionUsesAccountSecurityLock(t *testing.T) {
 			if waitingQuery == "" {
 				t.Fatal("challenge completion did not acquire the account lock before mutating credentials")
 			}
-			if _, err := gate.Exec(
-				ctx,
-				`DELETE FROM auth_challenges WHERE account_id=$1`,
-				account.accountID,
-			); err != nil {
+			if _, err := gate.Exec(ctx, `DELETE FROM auth_challenges WHERE account_id=$1`, account.accountID); err != nil {
 				t.Fatal(err)
 			}
 			if err := gate.Commit(ctx); err != nil {
@@ -173,22 +151,11 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 			service := accounts.NewService(pool, cfg)
 			switch operation {
 			case "set_password":
-				if _, err := service.SetPassword(
-					ctx,
-					principal,
-					account.accountID,
-					changedPassword,
-					1,
-					nil,
-				); err != nil {
+				if _, err := service.SetPassword(ctx, principal, account.accountID, changedPassword, 1, nil); err != nil {
 					t.Fatal(err)
 				}
 			case "change_email":
-				if _, err := pool.Exec(
-					ctx,
-					`UPDATE auth_identities SET verified_at=now() WHERE id=$1`,
-					account.identity,
-				); err != nil {
+				if _, err := pool.Exec(ctx, `UPDATE auth_identities SET verified_at=now() WHERE id=$1`, account.identity); err != nil {
 					t.Fatal(err)
 				}
 				email = "replacement@example.test"
@@ -211,39 +178,19 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := authService.CompletePasswordResetCode(
-				ctx,
-				email,
-				code,
-				resetPassword,
-				"review-reset",
-				nil,
-			); !apperror.IsCode(
+			if err := authService.CompletePasswordResetCode(ctx, email, code, resetPassword, "review-reset", nil); !apperror.IsCode(
 				err,
 				"challenge_invalid",
 			) {
 				t.Fatalf("obsolete reset code accepted: %v", err)
 			}
-			if err := authService.CompleteInvitation(
-				ctx,
-				email,
-				code,
-				resetPassword,
-				"review-invitation",
-				nil,
-			); !apperror.IsCode(
+			if err := authService.CompleteInvitation(ctx, email, code, resetPassword, "review-invitation", nil); !apperror.IsCode(
 				err,
 				"challenge_invalid",
 			) {
 				t.Fatalf("obsolete invitation accepted: %v", err)
 			}
-			if err := authService.CompleteEmailVerification(
-				ctx,
-				email,
-				code,
-				"review-verification",
-				nil,
-			); !apperror.IsCode(
+			if err := authService.CompleteEmailVerification(ctx, email, code, "review-verification", nil); !apperror.IsCode(
 				err,
 				"challenge_invalid",
 			) {

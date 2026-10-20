@@ -118,9 +118,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value BLOB NOT NULL) STRICT`,
 		`CREATE TABLE IF NOT EXISTS assignment_sequences (assignment_id TEXT PRIMARY KEY, next_sequence INTEGER NOT NULL CHECK(next_sequence > 0)) STRICT`,
 		`CREATE TABLE IF NOT EXISTS outbox (
-			event_id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(
-				configuration_version > 0,
-			),
+			event_id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(configuration_version > 0),
 			sequence INTEGER NOT NULL CHECK(sequence > 0), occurred_at TEXT NOT NULL, kind TEXT NOT NULL,
 			run_id TEXT, history_complete INTEGER NOT NULL DEFAULT 1 CHECK(history_complete IN (0,1)),
 			external_print_id TEXT, report_revision INTEGER, payload BLOB NOT NULL,
@@ -129,18 +127,10 @@ func (s *Store) migrate(ctx context.Context) error {
 			created_at TEXT NOT NULL, UNIQUE(assignment_id, sequence)) STRICT`,
 		`CREATE INDEX IF NOT EXISTS outbox_pending_idx ON outbox(state, next_attempt_at, created_at)`,
 		`CREATE TABLE IF NOT EXISTS adapter_state (
-			assignment_id TEXT PRIMARY KEY,
-			adapter_kind TEXT NOT NULL,
-			encrypted_value BLOB NOT NULL,
-			updated_at TEXT NOT NULL
+			assignment_id TEXT PRIMARY KEY, adapter_kind TEXT NOT NULL, encrypted_value BLOB NOT NULL, updated_at TEXT NOT NULL
 		) STRICT`,
 		`CREATE TABLE IF NOT EXISTS artifact_transfers (
-			id TEXT PRIMARY KEY,
-			assignment_id TEXT NOT NULL,
-			run_id TEXT NOT NULL,
-			configuration_version INTEGER NOT NULL CHECK(
-				configuration_version > 0,
-			),
+			id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(configuration_version > 0),
 			remote_path TEXT NOT NULL, file_name TEXT NOT NULL, staged_path TEXT NOT NULL UNIQUE,
 			size_bytes INTEGER NOT NULL CHECK(size_bytes > 0), sha256 TEXT NOT NULL CHECK(length(sha256)=64),
 			state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','quarantined')),
@@ -150,9 +140,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS artifact_transfers_pending_idx ON artifact_transfers(state,next_attempt_at,created_at)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS artifact_transfers_run_hash_idx ON artifact_transfers(assignment_id,run_id,sha256)`,
 		`CREATE TABLE IF NOT EXISTS artifact_retrievals (
-			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(
-				configuration_version > 0,
-			),
+			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(configuration_version > 0),
 			reported_path TEXT NOT NULL, candidate_path TEXT, candidate_size INTEGER,
 			state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','staged','quarantined')),
 			attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, expires_at TEXT NOT NULL,
@@ -161,9 +149,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		) STRICT`,
 		`CREATE INDEX IF NOT EXISTS artifact_retrievals_pending_idx ON artifact_retrievals(state,next_attempt_at,created_at)`,
 		`CREATE TABLE IF NOT EXISTS artifact_consumption_reports (
-			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, artifact_sha256 TEXT NOT NULL CHECK(
-				length(artifact_sha256)=64,
-			),
+			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, artifact_sha256 TEXT NOT NULL CHECK(length(artifact_sha256)=64),
 			report_revision INTEGER NOT NULL CHECK(report_revision > 0), created_at TEXT NOT NULL,
 			PRIMARY KEY(assignment_id,run_id,artifact_sha256)
 		) STRICT`,
@@ -314,11 +300,7 @@ func (s *Store) Enqueue(
 		)
 	}
 	var sequence int64
-	err = tx.QueryRowContext(
-		ctx,
-		`SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`,
-		assignmentID.String(),
-	).
+	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, assignmentID.String()).
 		Scan(&sequence)
 	if errors.Is(err, sql.ErrNoRows) {
 		sequence = 1
@@ -328,12 +310,7 @@ func (s *Store) Enqueue(
 			assignmentID.String(),
 		)
 	} else if err == nil {
-		_, err = tx.ExecContext(
-			ctx,
-			`UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`,
-			sequence+1,
-			assignmentID.String(),
-		)
+		_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+1, assignmentID.String())
 	}
 	if err != nil {
 		return QueuedEvent{}, err
@@ -393,11 +370,7 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 	defer tx.Rollback()
 	for _, event := range events {
 		var attempt int
-		if err = tx.QueryRowContext(
-			ctx,
-			`SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`,
-			event.EventID.String(),
-		).Scan(&attempt); errors.Is(
+		if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, event.EventID.String()).Scan(&attempt); errors.Is(
 			err,
 			sql.ErrNoRows,
 		) {
@@ -439,19 +412,7 @@ func (s *Store) Pending(ctx context.Context, limit int) ([]QueuedEvent, error) {
 		var event QueuedEvent
 		var runID, external sql.NullString
 		var revision sql.NullInt64
-		if err = rows.Scan(
-			&eventID,
-			&assignmentID,
-			&event.ConfigurationVersion,
-			&event.Sequence,
-			&occurred,
-			&event.Kind,
-			&runID,
-			&event.HistoryComplete,
-			&external,
-			&revision,
-			&event.Payload,
-		); err != nil {
+		if err = rows.Scan(&eventID, &assignmentID, &event.ConfigurationVersion, &event.Sequence, &occurred, &event.Kind, &runID, &event.HistoryComplete, &external, &revision, &event.Payload); err != nil {
 			return nil, err
 		}
 		event.EventID, err = uuid.Parse(eventID)
@@ -503,11 +464,7 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 			)
 		case "retry":
 			var attempt int
-			if err = tx.QueryRowContext(
-				ctx,
-				`SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`,
-				receipt.EventID.String(),
-			).Scan(&attempt); errors.Is(
+			if err = tx.QueryRowContext(ctx, `SELECT attempt_count FROM outbox WHERE event_id=? AND state='pending'`, receipt.EventID.String()).Scan(&attempt); errors.Is(
 				err,
 				sql.ErrNoRows,
 			) {
@@ -536,10 +493,7 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 }
 
 func (s *Store) QueueCounts(ctx context.Context) (pending, quarantined int64, err error) {
-	err = s.db.QueryRowContext(
-		ctx,
-		`SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`,
-	).
+	err = s.db.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE state='pending'), count(*) FILTER (WHERE state='quarantined') FROM outbox`).
 		Scan(&pending, &quarantined)
 	return
 }

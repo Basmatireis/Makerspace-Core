@@ -33,16 +33,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		adminLogin    = "orgs-admin@example.test"
 		adminPassword = "Orgs admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(
-		ctx,
-		admin.BootstrapInput{
-			FirstName:    "Runs",
-			LastName:     "Admin",
-			ContactEmail: "orgs-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
-		},
-	); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Runs", LastName: "Admin", ContactEmail: "orgs-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -171,11 +162,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	}
 
 	var personID uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
-		adminLogin,
-	).Scan(&personID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
 	readerClient, readerCSRF := member("reader", "organizations.read")
@@ -226,11 +213,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	orgPath := "/api/v1/organizations/" + organization.Id.String()
 
 	// Invalid details are rejected before anything is stored.
-	for _, bad := range []map[string]any{
-		{"countryCode": "A1"},
-		{"contactEmail": "Erika <erika@atelier.example.test>"},
-		{"contactEmail": "not-an-email"},
-	} {
+	for _, bad := range []map[string]any{{"countryCode": "A1"}, {"contactEmail": "Erika <erika@atelier.example.test>"}, {"contactEmail": "not-an-email"}} {
 		payload := map[string]any{
 			"expectedVersion": organization.Version,
 			"name":            "Atelier GmbH",
@@ -435,12 +418,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	// Every mutation wrote exactly one audit event in its transaction, and no
 	// event carries personal values.
-	for action, want := range map[string]int{
-		"organization.created":        1,
-		"organization.updated":        1,
-		"organization.member_added":   1,
-		"organization.member_removed": 1,
-	} {
+	for action, want := range map[string]int{"organization.created": 1, "organization.updated": 1, "organization.member_added": 1, "organization.member_removed": 1} {
 		assertCount(
 			t,
 			pool,
@@ -460,11 +438,7 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	// Deleting a person removes memberships; deleting an organization too.
 	var otherID uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Member', 'Cascade', 'cascade@example.test') RETURNING id`,
-		uuid.Must(uuid.NewV7()),
-	).Scan(&otherID); err != nil {
+	if err = pool.QueryRow(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Member', 'Cascade', 'cascade@example.test') RETURNING id`, uuid.Must(uuid.NewV7())).Scan(&otherID); err != nil {
 		t.Fatal(err)
 	}
 	response = doJSON(
@@ -532,28 +506,13 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	// A referenced organization (here by a machine job) is refused with
 	// organization_in_use, and the reference is untouched.
 	machineTypeID, machineID, jobID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO machine_types (id, name) VALUES ($1, 'Delete test type')`,
-		machineTypeID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_types (id, name) VALUES ($1, 'Delete test type')`, machineTypeID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Delete test machine')`,
-		machineID,
-		machineTypeID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Delete test machine')`, machineID, machineTypeID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO machine_jobs (id, display_id, machine_id, customer_organization_id) VALUES ($1, 'J-2026-900001', $2, $3)`,
-		jobID,
-		machineID,
-		organization.Id,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, customer_organization_id) VALUES ($1, 'J-2026-900001', $2, $3)`, jobID, machineID, organization.Id); err != nil {
 		t.Fatal(err)
 	}
 	response = doJSON(
@@ -593,19 +552,10 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	response.Body.Close()
 	pricingGroupID := uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO pricing_groups (id, name) VALUES ($1, 'Delete test group')`,
-		pricingGroupID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO pricing_groups (id, name) VALUES ($1, 'Delete test group')`, pricingGroupID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO organization_pricing_group_assignments (organization_id, pricing_group_id) VALUES ($1, $2)`,
-		organization.Id,
-		pricingGroupID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO organization_pricing_group_assignments (organization_id, pricing_group_id) VALUES ($1, $2)`, organization.Id, pricingGroupID); err != nil {
 		t.Fatal(err)
 	}
 	response = doJSON(t, managerClient, http.MethodGet, server.URL+orgPath, "", "", nil)

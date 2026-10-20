@@ -72,20 +72,10 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Print', 'Operator', $2)`,
-		personID,
-		"printing-"+suffix+"@example.test",
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Print', 'Operator', $2)`, personID, "printing-"+suffix+"@example.test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
-		accountID,
-		personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, "fdm_printing", &requestID)
@@ -183,19 +173,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if consumed.Material.Quantity != "990" || consumed.Material.AssignedQuantity != "490" {
 		t.Fatalf("spool consumption did not preserve derived balances: %+v", consumed.Material)
 	}
-	if _, err = jobs.ConsumeFilamentSpool(
-		ctx,
-		p,
-		spool.ID,
-		allocatedMaterial.InventoryVersion,
-		spool.Version,
-		"1",
-		time.Now().UTC(),
-		false,
-		nil,
-		nil,
-		&requestID,
-	); !apperror.IsCode(
+	if _, err = jobs.ConsumeFilamentSpool(ctx, p, spool.ID, allocatedMaterial.InventoryVersion, spool.Version, "1", time.Now().UTC(), false, nil, nil, &requestID); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
@@ -233,17 +211,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil || unit.ExternalIdentifier == nil || *unit.ExternalIdentifier != "0" || unit.Name != "AMS 2 Pro" {
 		t.Fatalf("update input unit: unit=%+v err=%v", unit, err)
 	}
-	if _, err = service.UpdateInputUnit(
-		ctx,
-		p,
-		unit.ID,
-		unit.Name,
-		unit.Position,
-		&unitExternalID,
-		true,
-		unit.Version-1,
-		&requestID,
-	); !apperror.IsCode(
+	if _, err = service.UpdateInputUnit(ctx, p, unit.ID, unit.Name, unit.Position, &unitExternalID, true, unit.Version-1, &requestID); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
@@ -292,17 +260,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finishedSpool, err = jobs.FinishFilamentSpool(
-		ctx,
-		p,
-		finishedSpool.ID,
-		machinelogbook.FinishSpoolInput{
-			Leftover:        machinelogbook.LeftoverInput{Basis: "none"},
-			OccurredAt:      time.Now().UTC(),
-			ExpectedVersion: finishedSpool.Version,
-		},
-		&requestID,
-	); err != nil {
+	if finishedSpool, err = jobs.FinishFilamentSpool(ctx, p, finishedSpool.ID, machinelogbook.FinishSpoolInput{Leftover: machinelogbook.LeftoverInput{Basis: "none"}, OccurredAt: time.Now().UTC(), ExpectedVersion: finishedSpool.Version}, &requestID); err != nil {
 		t.Fatal(err)
 	}
 	spareSlot, err := service.CreateSlot(ctx, p, unit.ID, "Slot 2", 1, "available", nil, &requestID)

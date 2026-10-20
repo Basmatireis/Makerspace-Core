@@ -94,13 +94,7 @@ func (s *Server) GetVisitorEnrollmentState(
 	if state.CurrentLabRules == nil {
 		result.CurrentLabRules = nullable.NewNullNullable[openapi.VisitorLabRulesVersion]()
 	} else {
-		result.CurrentLabRules = nullable.NewNullableWithValue(
-			openapi.VisitorLabRulesVersion{
-				Id:            state.CurrentLabRules.ID,
-				HumanRevision: state.CurrentLabRules.HumanRevision,
-				EffectiveAt:   state.CurrentLabRules.EffectiveAt,
-			},
-		)
+		result.CurrentLabRules = nullable.NewNullableWithValue(openapi.VisitorLabRulesVersion{Id: state.CurrentLabRules.ID, HumanRevision: state.CurrentLabRules.HumanRevision, EffectiveAt: state.CurrentLabRules.EffectiveAt})
 	}
 	return openapi.GetVisitorEnrollmentState200JSONResponse(result), nil
 }
@@ -138,9 +132,7 @@ func (s *Server) SubmitVisitorEnrollment(
 	result, err := s.visitor.Submit(ctx, enrollment, visitor.SubmissionInput{
 		FirstName: request.Body.FirstName, LastName: request.Body.LastName,
 		Email: nullableStringPointer(request.Body.Email), Phone: nullableStringPointer(request.Body.Phone),
-		AuthMethods: methods, PINLoginName: nullableStringPointer(
-			request.Body.PinLoginName,
-		), PIN: nullableStringPointer(request.Body.Pin),
+		AuthMethods: methods, PINLoginName: nullableStringPointer(request.Body.PinLoginName), PIN: nullableStringPointer(request.Body.Pin),
 		ProfileImage: *request.Body.ProfileImageBase64, ProfileImageFilename: request.Body.ProfileImageFilename,
 		RequestConfirmation: request.Body.RequestConfirmation,
 	}, requestIDPointer(ctx))
@@ -189,10 +181,7 @@ func visitorConfigurationDTO(value visitor.Configuration) openapi.VisitorEnrollm
 		methods[index] = openapi.VisitorAuthenticationMethod(method)
 	}
 	return openapi.VisitorEnrollmentConfiguration{
-		Enabled: value.Enabled, InitialRoleId: nullablePointer(
-			value.InitialRoleID,
-			func(id uuid.UUID) openapi.UUIDv7 { return id },
-		),
+		Enabled: value.Enabled, InitialRoleId: nullablePointer(value.InitialRoleID, func(id uuid.UUID) openapi.UUIDv7 { return id }),
 		DeviceTypeIds: value.DeviceTypeIDs, AllowedMethods: methods, Version: value.Version, UpdatedAt: value.UpdatedAt,
 	}
 }

@@ -15,19 +15,11 @@ func printerConnectorDTO(value printerconnectors.Connector) openapi.PrinterConne
 		health = nullable.NewNullableWithValue(openapi.PrinterConnectorHealthState(*value.HealthState))
 	}
 	return openapi.PrinterConnector{
-		Id: value.ID, Name: value.Name, LocationLabel: nullableString(
-			value.LocationLabel,
-		), Lifecycle: openapi.PrinterConnectorLifecycle(value.Lifecycle),
+		Id: value.ID, Name: value.Name, LocationLabel: nullableString(value.LocationLabel), Lifecycle: openapi.PrinterConnectorLifecycle(value.Lifecycle),
 		ConfigurationRevision: value.ConfigurationRevision, AppliedConfigurationRevision: value.AppliedRevision,
 		SoftwareVersion: nullableString(value.SoftwareVersion), ProtocolVersion: nullableValue(value.ProtocolVersion),
-		HealthState: health, HealthSummary: nullableString(
-			value.HealthSummary,
-		), PendingEventCount: value.PendingEventCount,
-		QuarantinedEventCount: value.QuarantinedEventCount,
-		EventsClearedAt:       nullableValue(value.EventsClearedAt),
-		EventsClearedByName: nullableString(
-			value.EventsClearedByName,
-		), LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
+		HealthState: health, HealthSummary: nullableString(value.HealthSummary), PendingEventCount: value.PendingEventCount,
+		QuarantinedEventCount: value.QuarantinedEventCount, EventsClearedAt: nullableValue(value.EventsClearedAt), EventsClearedByName: nullableString(value.EventsClearedByName), LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
 		EnrolledAt: nullableValue(
 			value.EnrolledAt,
 		), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt),
@@ -45,14 +37,9 @@ func printerConnectorAssignmentDTO(value printerconnectors.Assignment) openapi.P
 		)
 	}
 	return openapi.PrinterConnectorAssignment{Id: value.ID, ConnectorId: value.ConnectorID, MachineId: value.MachineID,
-		MachineName:          value.MachineName,
-		AdapterKind:          value.AdapterKind,
-		AdapterSchemaVersion: value.AdapterSchemaVersion,
-		Settings:             settings,
+		MachineName: value.MachineName, AdapterKind: value.AdapterKind, AdapterSchemaVersion: value.AdapterSchemaVersion, Settings: settings,
 		ConfigurationVersion: value.ConfigurationVersion, AppliedConfigurationVersion: value.AppliedVersion,
-		Enabled: value.Enabled, RuntimeState: runtimeState, RuntimeErrorCode: nullableString(
-			value.RuntimeErrorCode,
-		), EndedAt: nullableValue(value.EndedAt),
+		Enabled: value.Enabled, RuntimeState: runtimeState, RuntimeErrorCode: nullableString(value.RuntimeErrorCode), EndedAt: nullableValue(value.EndedAt),
 		Version: value.Version, ActivatedAt: value.ActivatedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
 }
 
@@ -178,13 +165,7 @@ func (s *Server) DeletePrinterConnector(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err = s.printerConnectors.Delete(
-		ctx,
-		principal,
-		request.PrinterConnectorId,
-		request.Body.ExpectedVersion,
-		requestIDPointer(ctx),
-	); err != nil {
+	if err = s.printerConnectors.Delete(ctx, principal, request.PrinterConnectorId, request.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
 	return openapi.DeletePrinterConnector204Response{}, nil
@@ -598,17 +579,7 @@ func (s *Server) ReportPrinterConnectorLiveStatus(
 	if err != nil {
 		return nil, invalidRequest("live status snapshot is invalid")
 	}
-	if err = s.printerConnectors.ReportLiveStatus(
-		ctx,
-		connector,
-		printerconnectors.LiveStatusReport{
-			AssignmentID:         request.AssignmentId,
-			ProtocolVersion:      request.Body.ProtocolVersion,
-			ConfigurationVersion: request.Body.ConfigurationVersion,
-			ObservedAt:           request.Body.ObservedAt,
-			Snapshot:             snapshot,
-		},
-	); err != nil {
+	if err = s.printerConnectors.ReportLiveStatus(ctx, connector, printerconnectors.LiveStatusReport{AssignmentID: request.AssignmentId, ProtocolVersion: request.Body.ProtocolVersion, ConfigurationVersion: request.Body.ConfigurationVersion, ObservedAt: request.Body.ObservedAt, Snapshot: snapshot}); err != nil {
 		return nil, err
 	}
 	return openapi.ReportPrinterConnectorLiveStatus204Response{}, nil

@@ -27,11 +27,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 	)
 	expectPostgresCode(t, err, "23505")
 	deviceTypeID := uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO device_types(id,name) VALUES($1,'Constraint terminal')`,
-		deviceTypeID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO device_types(id,name) VALUES($1,'Constraint terminal')`, deviceTypeID); err != nil {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO managed_devices(id,name,device_type_id,token_digest,terminal_enabled)
@@ -58,17 +54,10 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		firstVisit,
 	)
 	expectPostgresCode(t, err, "23514")
-	if _, err = pool.Exec(
-		ctx,
-		`UPDATE visits SET status='checked_out', checked_out_at=checked_in_at+interval '1 minute', check_out_method='supervisor' WHERE id=$1`,
-		firstVisit,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `UPDATE visits SET status='checked_out', checked_out_at=checked_in_at+interval '1 minute', check_out_method='supervisor' WHERE id=$1`, firstVisit); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = attendancedb.New(pool).ArchiveExpiredVisitDetail(
-		ctx,
-		pgtype.Timestamptz{Time: time.Now().UTC().Add(2 * time.Hour), Valid: true},
-	); err != nil {
+	if _, err = attendancedb.New(pool).ArchiveExpiredVisitDetail(ctx, pgtype.Timestamptz{Time: time.Now().UTC().Add(2 * time.Hour), Valid: true}); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, "SELECT count(*) FROM visits WHERE id='"+firstVisit.String()+"'", 0)
@@ -86,45 +75,23 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 	}
 	_, err = pool.Exec(ctx, `UPDATE visits SET status='voided' WHERE id=$1`, voidVisit)
 	expectPostgresCode(t, err, "23514")
-	if _, err = pool.Exec(
-		ctx,
-		`UPDATE visits SET status='voided', correction_reason='duplicate entry' WHERE id=$1`,
-		voidVisit,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `UPDATE visits SET status='voided', correction_reason='duplicate entry' WHERE id=$1`, voidVisit); err != nil {
 		t.Fatal(err)
 	}
 
 	surveyID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO surveys(id,name,anonymous) VALUES($1,'Anonymous survey',true)`,
-		surveyID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO surveys(id,name,anonymous) VALUES($1,'Anonymous survey',true)`, surveyID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO survey_versions(id,survey_id,revision,title) VALUES($1,$2,1,'Feedback')`,
-		versionID,
-		surveyID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO survey_versions(id,survey_id,revision,title) VALUES($1,$2,1,'Feedback')`, versionID, surveyID); err != nil {
 		t.Fatal(err)
 	}
 	responseID := uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO survey_responses(id,survey_version_id,submitted_on) VALUES($1,$2,current_date)`,
-		responseID,
-		versionID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO survey_responses(id,survey_version_id,submitted_on) VALUES($1,$2,current_date)`, responseID, versionID); err != nil {
 		t.Fatal(err)
 	}
 	var directPersonID *uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT identified_person_id FROM survey_responses WHERE id=$1`,
-		responseID,
-	).Scan(&directPersonID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT identified_person_id FROM survey_responses WHERE id=$1`, responseID).Scan(&directPersonID); err != nil {
 		t.Fatal(err)
 	}
 	if directPersonID != nil {
@@ -139,12 +106,7 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		($1,$3,'single_choice','First',1),($2,$3,'single_choice','Second',2)`, questionA, questionB, versionID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO survey_question_options(id,question_id,label,position) VALUES($1,$2,'Choice',1)`,
-		optionA,
-		questionA,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO survey_question_options(id,question_id,label,position) VALUES($1,$2,'Choice',1)`, optionA, questionA); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE survey_versions SET published_at=now() WHERE id=$1`, versionID); err != nil {
@@ -174,19 +136,12 @@ func TestTerminalAttendanceSurveyMigrationConstraints(t *testing.T) {
 		VALUES($1,$2,$3,$4,'visitor@example.test',now()-interval '3 days',now()-interval '2 days')`, invitationID, versionID, person.personID, bytes.Repeat([]byte{7}, 32)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = surveysdb.New(pool).DeleteExpiredSurveyInvitationPII(
-		ctx,
-		time.Now().UTC().Add(-24*time.Hour),
-	); err != nil {
+	if _, err = surveysdb.New(pool).DeleteExpiredSurveyInvitationPII(ctx, time.Now().UTC().Add(-24*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	var invitationStatus string
 	var retainedPersonID *uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT status,person_id FROM survey_invitations WHERE id=$1`,
-		invitationID,
-	).Scan(&invitationStatus, &retainedPersonID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT status,person_id FROM survey_invitations WHERE id=$1`, invitationID).Scan(&invitationStatus, &retainedPersonID); err != nil {
 		t.Fatal(err)
 	}
 	if invitationStatus != "expired" || retainedPersonID != nil {

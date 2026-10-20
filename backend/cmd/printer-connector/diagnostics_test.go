@@ -33,11 +33,7 @@ func TestCalculateConsumptionCommand(t *testing.T) {
 	artifactPath := filepath.Join(directory, "fixture.3mf")
 	writeDiagnosticArchive(t, artifactPath)
 	gcodePath := filepath.Join(directory, "interrupted.gcode")
-	if err := os.WriteFile(
-		gcodePath,
-		[]byte("M83\nM620 S3A\n;TYPE:External perimeter\nG1 E100\nM73 P50\nG1 E100\nM73 P75\n"),
-		0o600,
-	); err != nil {
+	if err := os.WriteFile(gcodePath, []byte("M83\nM620 S3A\n;TYPE:External perimeter\nG1 E100\nM73 P50\nG1 E100\nM73 P75\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
@@ -64,10 +60,7 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 	if err := os.WriteFile(rawPath, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if handled, err := runOfflineCommand(
-		[]string{"sanitize-mqtt", "--input", rawPath, "--output", sanitizedPath},
-		&bytes.Buffer{},
-	); err != nil ||
+	if handled, err := runOfflineCommand([]string{"sanitize-mqtt", "--input", rawPath, "--output", sanitizedPath}, &bytes.Buffer{}); err != nil ||
 		!handled {
 		t.Fatalf("sanitize-mqtt handled=%v err=%v", handled, err)
 	}
@@ -86,10 +79,7 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 		t.Fatalf("sanitized = %s", sanitized)
 	}
 	var replay bytes.Buffer
-	if handled, err := runOfflineCommand(
-		[]string{"replay-mqtt", "--input", sanitizedPath, "--adapter", "bambu_x1c"},
-		&replay,
-	); err != nil ||
+	if handled, err := runOfflineCommand([]string{"replay-mqtt", "--input", sanitizedPath, "--adapter", "bambu_x1c"}, &replay); err != nil ||
 		!handled {
 		t.Fatalf("replay-mqtt handled=%v err=%v", handled, err)
 	}

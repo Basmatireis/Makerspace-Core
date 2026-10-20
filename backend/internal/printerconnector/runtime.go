@@ -313,23 +313,9 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 				adapter, err = NewSimulator(raw.Settings)
 			}
 		} else if raw.AdapterKind == "bambu_h2d" {
-			adapter, err = NewBambuH2D(
-				id,
-				raw.ConfigurationVersion,
-				raw.AdapterSchemaVersion,
-				raw.Settings,
-				raw.Secrets,
-				r.store,
-			)
+			adapter, err = NewBambuH2D(id, raw.ConfigurationVersion, raw.AdapterSchemaVersion, raw.Settings, raw.Secrets, r.store)
 		} else if raw.AdapterKind == "bambu_x1c" {
-			adapter, err = NewBambuX1C(
-				id,
-				raw.ConfigurationVersion,
-				raw.AdapterSchemaVersion,
-				raw.Settings,
-				raw.Secrets,
-				r.store,
-			)
+			adapter, err = NewBambuX1C(id, raw.ConfigurationVersion, raw.AdapterSchemaVersion, raw.Settings, raw.Secrets, r.store)
 		} else {
 			err = errors.New("unsupported adapter")
 		}
@@ -481,15 +467,9 @@ func classifyAdapterError(err error) string {
 		return "tls_certificate_expired"
 	case strings.Contains(message, "unknown authority"):
 		return "tls_unknown_ca"
-	case strings.Contains(message, "ftps") && (strings.Contains(message, "auth") || strings.Contains(
-		message,
-		"password",
-	) || strings.Contains(message, "login")):
+	case strings.Contains(message, "ftps") && (strings.Contains(message, "auth") || strings.Contains(message, "password") || strings.Contains(message, "login")):
 		return "ftps_authentication_failed"
-	case strings.Contains(message, "not authorized") || strings.Contains(
-		message,
-		"bad user name or password",
-	) || strings.Contains(message, "bad username or password"):
+	case strings.Contains(message, "not authorized") || strings.Contains(message, "bad user name or password") || strings.Contains(message, "bad username or password"):
 		return "mqtt_authentication_failed"
 	case strings.Contains(message, "mqtt"):
 		return "mqtt_unavailable"
@@ -592,11 +572,7 @@ func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error
 				}
 				continue
 			}
-			if queueErr := r.store.MarkArtifactTransferFailure(
-				ctx,
-				transfer.ID,
-				classifyAdapterError(uploadErr),
-			); queueErr != nil {
+			if queueErr := r.store.MarkArtifactTransferFailure(ctx, transfer.ID, classifyAdapterError(uploadErr)); queueErr != nil {
 				return fmt.Errorf("record artifact delivery failure: %w", queueErr)
 			}
 			return uploadErr

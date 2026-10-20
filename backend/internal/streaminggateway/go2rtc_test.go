@@ -31,15 +31,7 @@ func TestRenderGo2RTCContents(t *testing.T) {
 			t.Errorf("rendered config misses %q:\n%s", want, rendered)
 		}
 	}
-	for _, forbidden := range []string{
-		"static_dir",
-		"ui:",
-		"origin:",
-		"ngrok",
-		"local_auth",
-		"/api/config",
-		"/api/stream.mp4",
-	} {
+	for _, forbidden := range []string{"static_dir", "ui:", "origin:", "ngrok", "local_auth", "/api/config", "/api/stream.mp4"} {
 		if strings.Contains(rendered, forbidden) {
 			t.Errorf("rendered config must not contain %q", forbidden)
 		}
@@ -83,13 +75,7 @@ func TestRenderQuotesHostileValues(t *testing.T) {
 
 func TestParseStreamsNeverReadsProducerURLs(t *testing.T) {
 	body := []byte(`{
-		"cam-a": {
-			"producers":[{
-				"url":"rtspx://bblp:secret@10.0.0.1:322/x",
-				"receivers":[{"codec":{"codec_name":"h264","width":1920,"height":1080,"fps":30}}],
-			}],
-			"consumers":[{},{}],
-		},
+		"cam-a": {"producers":[{"url":"rtspx://bblp:secret@10.0.0.1:322/x","receivers":[{"codec":{"codec_name":"h264","width":1920,"height":1080,"fps":30}}]}],"consumers":[{},{}]},
 		"cam-b": {"producers":[{"url":"rtspx://bblp:secret@10.0.0.2:322/x"}],"consumers":null},
 		"cam-c": {"producers":null,"consumers":[{}]}
 	}`)

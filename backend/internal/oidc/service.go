@@ -192,27 +192,7 @@ func (s *Service) CreateProvider(
 		return Provider{}, translateWriteError(err)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "oidc.provider_created",
-			ResourceType:   "oidc_provider",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields: []string{
-				"slug",
-				"displayName",
-				"issuer",
-				"clientId",
-				"clientSecret",
-				"enabled",
-				"jitEnabled",
-				"acrAssuranceMappings",
-			},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "oidc.provider_created", ResourceType: "oidc_provider", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"slug", "displayName", "issuer", "clientId", "clientSecret", "enabled", "jitEnabled", "acrAssuranceMappings"}}); err != nil {
 		return Provider{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -274,18 +254,7 @@ func (s *Service) UpdateProvider(
 		changed = append(changed, "clientSecret")
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "oidc.provider_updated",
-			ResourceType:   "oidc_provider",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  changed,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "oidc.provider_updated", ResourceType: "oidc_provider", ResourceID: &id, RequestID: requestID, ChangedFields: changed}); err != nil {
 		return Provider{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -332,17 +301,7 @@ func (s *Service) ReencryptProviderSecrets(ctx context.Context) (int64, error) {
 		}
 		changed += rows
 		id := provider.ID
-		if err := audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				Action:        "oidc.provider_secret_reencrypted",
-				ResourceType:  "oidc_provider",
-				ResourceID:    &id,
-				ChangedFields: []string{"clientSecret"},
-				Source:        "admin_cli",
-			},
-		); err != nil {
+		if err := audit.Write(ctx, tx, audit.Event{Action: "oidc.provider_secret_reencrypted", ResourceType: "oidc_provider", ResourceID: &id, ChangedFields: []string{"clientSecret"}, Source: "admin_cli"}); err != nil {
 			return 0, err
 		}
 	}
@@ -606,44 +565,21 @@ func (s *Service) Complete(
 		if flow.AccountID == nil {
 			return Completion{}, invalidRequest("OIDC linking context is invalid")
 		}
-		if _, findErr := queries.FindOIDCIdentity(
-			ctx,
-			oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject},
-		); findErr == nil {
+		if _, findErr := queries.FindOIDCIdentity(ctx, oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject}); findErr == nil {
 			return Completion{}, apperror.Conflict
 		} else if !errors.Is(findErr, pgx.ErrNoRows) {
 			return Completion{}, findErr
 		}
 		identityID = uuid.Must(uuid.NewV7())
 		accountID = *flow.AccountID
-		if _, err := queries.CreateOIDCIdentity(
-			ctx,
-			oidcdb.CreateOIDCIdentityParams{
-				ID:         identityID,
-				AccountID:  accountID,
-				ProviderID: &provider.ID,
-				Issuer:     &issuer,
-				Subject:    &subject,
-			},
-		); err != nil {
+		if _, err := queries.CreateOIDCIdentity(ctx, oidcdb.CreateOIDCIdentityParams{ID: identityID, AccountID: accountID, ProviderID: &provider.ID, Issuer: &issuer, Subject: &subject}); err != nil {
 			return Completion{}, translateWriteError(err)
 		}
 		if err := queries.BumpAccountVersion(ctx, accountID); err != nil {
 			return Completion{}, err
 		}
 		actor = &accountID
-		if err := audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorAccountID: actor,
-				Action:         "auth.oidc_linked",
-				ResourceType:   "auth_identity",
-				ResourceID:     &identityID,
-				RequestID:      requestID,
-				ChangedFields:  []string{"kind", "providerId", "issuer", "subject"},
-			},
-		); err != nil {
+		if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: "auth.oidc_linked", ResourceType: "auth_identity", ResourceID: &identityID, RequestID: requestID, ChangedFields: []string{"kind", "providerId", "issuer", "subject"}}); err != nil {
 			return Completion{}, err
 		}
 	} else if flow.Kind == "reauthenticate" {
@@ -655,21 +591,11 @@ func (s *Service) Complete(
 		if claims.AuthTime == 0 || authenticatedAt.Before(flow.CreatedAt.Truncate(time.Second)) || authenticatedAt.After(s.now()) {
 			return Completion{}, invalidRequest("OIDC reauthentication did not prove recent authentication")
 		}
-		if err := s.auth.GrantRecentAuthentication(
-			ctx,
-			tx,
-			principal,
-			assurance,
-			authenticatedAt,
-			requestID,
-		); err != nil {
+		if err := s.auth.GrantRecentAuthentication(ctx, tx, principal, assurance, authenticatedAt, requestID); err != nil {
 			return Completion{}, err
 		}
 	} else if flow.Kind == "login" {
-		found, findErr := queries.FindOIDCIdentity(
-			ctx,
-			oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject},
-		)
+		found, findErr := queries.FindOIDCIdentity(ctx, oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject})
 		if findErr == nil {
 			if found.Status != "enabled" {
 				return Completion{}, apperror.New(403, "account_disabled", "Account is disabled")
@@ -683,47 +609,16 @@ func (s *Service) Complete(
 			if claimErr != nil {
 				return Completion{}, claimErr
 			}
-			if _, err := queries.CreateJITPerson(
-				ctx,
-				oidcdb.CreateJITPersonParams{
-					ID:        personID,
-					FirstName: firstName,
-					LastName:  lastName,
-					Email:     email,
-					Phone:     phone,
-				},
-			); err != nil {
+			if _, err := queries.CreateJITPerson(ctx, oidcdb.CreateJITPersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: email, Phone: phone}); err != nil {
 				return Completion{}, translateWriteError(err)
 			}
-			if _, err := queries.CreateJITAccount(
-				ctx,
-				oidcdb.CreateJITAccountParams{ID: accountID, PersonID: personID},
-			); err != nil {
+			if _, err := queries.CreateJITAccount(ctx, oidcdb.CreateJITAccountParams{ID: accountID, PersonID: personID}); err != nil {
 				return Completion{}, err
 			}
-			if _, err := queries.CreateOIDCIdentity(
-				ctx,
-				oidcdb.CreateOIDCIdentityParams{
-					ID:         identityID,
-					AccountID:  accountID,
-					ProviderID: &provider.ID,
-					Issuer:     &issuer,
-					Subject:    &subject,
-				},
-			); err != nil {
+			if _, err := queries.CreateOIDCIdentity(ctx, oidcdb.CreateOIDCIdentityParams{ID: identityID, AccountID: accountID, ProviderID: &provider.ID, Issuer: &issuer, Subject: &subject}); err != nil {
 				return Completion{}, translateWriteError(err)
 			}
-			if err := audit.Write(
-				ctx,
-				tx,
-				audit.Event{
-					Action:        "auth.oidc_jit_provisioned",
-					ResourceType:  "account",
-					ResourceID:    &accountID,
-					RequestID:     requestID,
-					ChangedFields: []string{"person", "account", "identity"},
-				},
-			); err != nil {
+			if err := audit.Write(ctx, tx, audit.Event{Action: "auth.oidc_jit_provisioned", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{"person", "account", "identity"}}); err != nil {
 				return Completion{}, err
 			}
 		} else if errors.Is(findErr, pgx.ErrNoRows) {
@@ -756,18 +651,7 @@ func (s *Service) Complete(
 			return Completion{}, err
 		}
 		result.Session = &session
-		if err := audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorAccountID: actor,
-				Action:         "auth.oidc_login_succeeded",
-				ResourceType:   "account",
-				ResourceID:     &accountID,
-				RequestID:      requestID,
-				ChangedFields:  []string{},
-			},
-		); err != nil {
+		if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: "auth.oidc_login_succeeded", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{}}); err != nil {
 			return Completion{}, err
 		}
 	}
@@ -817,18 +701,7 @@ func (s *Service) Unlink(
 		return err
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "auth.oidc_unlinked",
-			ResourceType:   "auth_identity",
-			ResourceID:     &identityID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"identity"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "auth.oidc_unlinked", ResourceType: "auth_identity", ResourceID: &identityID, RequestID: requestID, ChangedFields: []string{"identity"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

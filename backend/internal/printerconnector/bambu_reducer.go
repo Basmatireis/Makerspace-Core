@@ -279,10 +279,8 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		}
 		for _, route := range bambuSpoolRoutesFor(p.adapterKind, printState) {
 			evidence := bambuSpoolEvidence{
-				SlicerFilamentID:    route.slicerFilamentID,
-				Extruder:            route.extruderID,
-				InputUnitExternalID: route.ref.unitID,
-				SlotExternalID:      route.ref.trayID, TagUID: bambuTagUID(route.ref.tray),
+				SlicerFilamentID: route.slicerFilamentID, Extruder: route.extruderID, InputUnitExternalID: route.ref.unitID,
+				SlotExternalID: route.ref.trayID, TagUID: bambuTagUID(route.ref.tray),
 			}
 			if !containsBambuSpoolEvidence(facts.SpoolEvidence, evidence) {
 				facts.SpoolEvidence = append(facts.SpoolEvidence, evidence)

@@ -22,30 +22,13 @@ func setValidEnvironment(t *testing.T) {
 	t.Setenv("OPEN_DAYS_HOLIDAY_SUBDIVISION", "")
 	t.Setenv("OPEN_DAYS_HOLIDAY_LANGUAGE", "")
 	t.Setenv("HTTP_TRUSTED_PROXIES", "")
-	for _, name := range []string{
-		"AUTH_CHALLENGE_HMAC_KEY",
-		"PIN_PEPPER",
-		"APP_ENCRYPTION_KEYS",
-		"STORAGE_BACKEND",
-		"LOCAL_STORAGE_ROOT",
-		"S3_ENDPOINT",
-		"S3_REGION",
-		"S3_BUCKET",
-		"S3_ACCESS_KEY_ID",
-		"S3_SECRET_ACCESS_KEY",
-		"S3_USE_PATH_STYLE",
-		"S3_DISABLE_TLS",
-	} {
+	for _, name := range []string{"AUTH_CHALLENGE_HMAC_KEY", "PIN_PEPPER", "APP_ENCRYPTION_KEYS", "STORAGE_BACKEND", "LOCAL_STORAGE_ROOT", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_USE_PATH_STYLE", "S3_DISABLE_TLS"} {
 		t.Setenv(name, "")
 	}
 }
 
 func TestProductionS3EndpointCannotBypassTLSRequirement(t *testing.T) {
-	for _, endpoint := range []string{
-		"http://storage.example.test",
-		"https://storage.example.test",
-		"storage.example.test:9000",
-	} {
+	for _, endpoint := range []string{"http://storage.example.test", "https://storage.example.test", "storage.example.test:9000"} {
 		t.Run(endpoint, func(t *testing.T) {
 			setValidEnvironment(t)
 			t.Setenv("APP_ENV", "production")

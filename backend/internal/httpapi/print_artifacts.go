@@ -107,9 +107,7 @@ func (s *Server) CreateMachineJobFromArtifact(
 		return nil, invalidRequest("request body is required")
 	}
 	job, err := s.printArtifacts.CreatePlannedJob(ctx, principal, request.ArtifactId, printartifacts.PlannedJobInput{
-		MachineID: request.Body.MachineId, Customer: partyInput(
-			request.Body.Customer,
-		), OperatorPersonID: request.Body.OperatorPersonId,
+		MachineID: request.Body.MachineId, Customer: partyInput(request.Body.Customer), OperatorPersonID: request.Body.OperatorPersonId,
 		Title: nullableStringPointer(
 			request.Body.Title,
 		), Notes: nullableStringPointer(request.Body.Notes), PricingGroupID: uuidNullable(request.Body.PricingGroupId),
@@ -159,11 +157,7 @@ func printArtifactDTO(item printartifacts.Artifact) openapi.PrintArtifact {
 	filaments := make([]openapi.PrintArtifactFilament, 0, len(item.Filaments))
 	for _, filament := range item.Filaments {
 		filaments = append(filaments, openapi.PrintArtifactFilament{
-			FilamentKey:  filament.Key,
-			FilamentType: nullableString(optionalNonEmpty(filament.Type)),
-			Color: nullableString(
-				optionalNonEmpty(filament.Color),
-			), Extruder: nullableValue(filament.Extruder),
+			FilamentKey: filament.Key, FilamentType: nullableString(optionalNonEmpty(filament.Type)), Color: nullableString(optionalNonEmpty(filament.Color)), Extruder: nullableValue(filament.Extruder),
 			PlannedWeightGrams: nullableDecimalValue(
 				filament.WeightGrams,
 			), PlannedLengthMillimeters: nullableDecimalValue(filament.LengthMM), DensityGramsPerCubicCentimeter: nullableDecimalValue(filament.DensityGCM3), DiameterMillimeters: nullableDecimalValue(filament.DiameterMM),

@@ -60,11 +60,7 @@ func TestLiveStatusReportAndRead(t *testing.T) {
 		t.Fatalf("snapshot=%s err=%v", status.Snapshot, err)
 	}
 	// The principal needs machines.read to see the snapshot.
-	if _, err = h.service.LiveStatus(
-		ctx,
-		authorization.Principal{AccountID: h.principal.AccountID},
-		h.machine.ID,
-	); !apperror.IsCode(
+	if _, err = h.service.LiveStatus(ctx, authorization.Principal{AccountID: h.principal.AccountID}, h.machine.ID); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -72,11 +68,7 @@ func TestLiveStatusReportAndRead(t *testing.T) {
 	}
 
 	// A newer snapshot replaces it, an older one is ignored, and only one row exists.
-	if err = h.service.ReportLiveStatus(
-		ctx,
-		h.connector,
-		h.liveReport(now.Add(10*time.Second), "printing"),
-	); err != nil {
+	if err = h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now.Add(10*time.Second), "printing")); err != nil {
 		t.Fatal(err)
 	}
 	if err = h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now.Add(5*time.Second), "paused")); err != nil {
@@ -88,20 +80,12 @@ func TestLiveStatusReportAndRead(t *testing.T) {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	var rows int
-	if err = h.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`,
-		h.assignment.ID,
-	).Scan(&rows); err != nil ||
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil ||
 		rows != 1 {
 		t.Fatalf("rows=%d err=%v", rows, err)
 	}
 	var audits int
-	if err = h.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action LIKE '%live%'`,
-		h.assignment.ID,
-	).Scan(&audits); err != nil ||
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action LIKE '%live%'`, h.assignment.ID).Scan(&audits); err != nil ||
 		audits != 0 {
 		t.Fatalf("live status must not be audited: %d err=%v", audits, err)
 	}
@@ -153,11 +137,7 @@ func TestLiveStatusReportRejections(t *testing.T) {
 		t.Fatalf("a non-object snapshot must be invalid, got %v", err)
 	}
 	var rows int
-	if err := h.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`,
-		h.assignment.ID,
-	).Scan(&rows); err != nil ||
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_live_statuses WHERE assignment_id = $1`, h.assignment.ID).Scan(&rows); err != nil ||
 		rows != 0 {
 		t.Fatalf("rejected reports must not store anything: rows=%d err=%v", rows, err)
 	}
@@ -166,31 +146,13 @@ func TestLiveStatusReportRejections(t *testing.T) {
 	if err := h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now, "idle")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.service.UpdateAssignment(
-		ctx,
-		h.principal,
-		h.connector.ID,
-		h.assignment.ID,
-		AssignmentUpdate{
-			AdapterKind:          h.assignment.AdapterKind,
-			AdapterSchemaVersion: h.assignment.AdapterSchemaVersion,
-			Settings:             h.assignment.Settings,
-			Enabled:              false,
-			End:                  true,
-			ExpectedVersion:      h.assignment.Version,
-		},
-		nil,
-	); err != nil {
+	if _, err := h.service.UpdateAssignment(ctx, h.principal, h.connector.ID, h.assignment.ID, AssignmentUpdate{AdapterKind: h.assignment.AdapterKind, AdapterSchemaVersion: h.assignment.AdapterSchemaVersion, Settings: h.assignment.Settings, Enabled: false, End: true, ExpectedVersion: h.assignment.Version}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.service.LiveStatus(ctx, h.principal, h.machine.ID); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("an ended assignment has no live status, got %v", err)
 	}
-	if err := h.service.ReportLiveStatus(
-		ctx,
-		h.connector,
-		h.liveReport(now.Add(time.Second), "idle"),
-	); !apperror.IsCode(
+	if err := h.service.ReportLiveStatus(ctx, h.connector, h.liveReport(now.Add(time.Second), "idle")); !apperror.IsCode(
 		err,
 		"not_found",
 	) {

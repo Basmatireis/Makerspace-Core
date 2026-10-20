@@ -409,10 +409,7 @@ func TestInvoiceForPartiallyPaidOrderFreezesPayments(t *testing.T) {
 		t.Fatalf("%+v", o)
 	}
 	var external string
-	if e = f.pool.QueryRow(
-		ctx,
-		"SELECT amount::text FROM payments WHERE method='external'",
-	).Scan(&external); e != nil ||
+	if e = f.pool.QueryRow(ctx, "SELECT amount::text FROM payments WHERE method='external'").Scan(&external); e != nil ||
 		external != "3.00" {
 		t.Fatalf("settled only the rest: %s %v", external, e)
 	}
@@ -678,11 +675,7 @@ func TestCashMovementRules(t *testing.T) {
 		t.Fatalf("movements %d", n)
 	}
 	// Immutable: no edit, not even by SQL.
-	for _, sql := range []string{
-		"UPDATE cash_movements SET amount=1",
-		"UPDATE cash_movements SET note='x'",
-		"UPDATE cash_movements SET recorded_by_person_id='" + newID().String() + "'",
-	} {
+	for _, sql := range []string{"UPDATE cash_movements SET amount=1", "UPDATE cash_movements SET note='x'", "UPDATE cash_movements SET recorded_by_person_id='" + newID().String() + "'"} {
 		if _, e = f.pool.Exec(ctx, sql); e == nil {
 			t.Fatalf("allowed %s", sql)
 		}
@@ -730,11 +723,7 @@ func TestCashMovementPermissions(t *testing.T) {
 	denied(t, e)
 	_, e = f.s.CashRegister(t.Context(), f.principal(t, authorization.PaymentsRead), nil)
 	denied(t, e)
-	if _, e = f.s.CashRegister(
-		t.Context(),
-		f.principal(t, authorization.PaymentsRead, authorization.CashMovementsRead),
-		nil,
-	); e != nil {
+	if _, e = f.s.CashRegister(t.Context(), f.principal(t, authorization.PaymentsRead, authorization.CashMovementsRead), nil); e != nil {
 		t.Fatal(e)
 	}
 }
@@ -760,12 +749,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 	staffR, studentR, unmappedR := role("staff"), role("student"), role("member")
 	person := func(roles ...uuid.UUID) uuid.UUID {
 		id := newID()
-		if _, e := f.pool.Exec(
-			ctx,
-			"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'P','Q',$2)",
-			id,
-			id.String()+"@example.test",
-		); e != nil {
+		if _, e := f.pool.Exec(ctx, "INSERT INTO people(id,first_name,last_name,email) VALUES($1,'P','Q',$2)", id, id.String()+"@example.test"); e != nil {
 			t.Fatal(e)
 		}
 		for _, r := range roles {
@@ -779,20 +763,10 @@ func TestRolePricingGroupResolution(t *testing.T) {
 		_, e := f.jobs.SetRolePricingGroups(ctx, f.p, items, nil)
 		return e
 	}
-	if e := setMap(
-		machinelogbook.RolePricingGroupInput{RoleID: staffR, PricingGroupID: staffG, Priority: 20},
-		machinelogbook.RolePricingGroupInput{RoleID: studentR, PricingGroupID: studentG, Priority: 10},
-	); e != nil {
+	if e := setMap(machinelogbook.RolePricingGroupInput{RoleID: staffR, PricingGroupID: staffG, Priority: 20}, machinelogbook.RolePricingGroupInput{RoleID: studentR, PricingGroupID: studentG, Priority: 10}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := f.jobs.SetPartyPricingGroup(
-		ctx,
-		f.p,
-		machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
-		&orgG,
-		0,
-		nil,
-	); e != nil {
+	if _, e := f.jobs.SetPartyPricingGroup(ctx, f.p, machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, &orgG, 0, nil); e != nil {
 		t.Fatal(e)
 	}
 	resolve := func(personID, orgID, explicit *uuid.UUID) (uuid.UUID, string, error) {
@@ -924,14 +898,7 @@ func TestRolePricingGroupMappingRules(t *testing.T) {
 		t.Fatal(e)
 	}
 	// People no longer have a group of their own.
-	if _, e = f.jobs.SetPartyPricingGroup(
-		ctx,
-		f.p,
-		machinelogbook.PartyReference{Kind: "person", ID: f.person},
-		&g.ID,
-		0,
-		nil,
-	); !apperror.IsCode(
+	if _, e = f.jobs.SetPartyPricingGroup(ctx, f.p, machinelogbook.PartyReference{Kind: "person", ID: f.person}, &g.ID, 0, nil); !apperror.IsCode(
 		e,
 		"validation_failed",
 	) {

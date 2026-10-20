@@ -35,9 +35,7 @@ func (s *Server) GetSupervisorDashboard(
 		counts := make([]openapi.SupervisorAssignmentCount, 0, len(supervisor.AssignmentCounts))
 		for _, count := range supervisor.AssignmentCounts {
 			counts = append(counts, openapi.SupervisorAssignmentCount{
-				PeriodId: count.PeriodID, SupervisorCount: int(
-					count.SupervisorCount,
-				), TraineeCount: int(count.TraineeCount),
+				PeriodId: count.PeriodID, SupervisorCount: int(count.SupervisorCount), TraineeCount: int(count.TraineeCount),
 			})
 		}
 		rows = append(

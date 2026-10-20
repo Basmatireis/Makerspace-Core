@@ -17,25 +17,12 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
 	accountID, err := admin.NewService(pool).
-		BootstrapMaster(
-			ctx,
-			admin.BootstrapInput{
-				FirstName:    "Mail",
-				LastName:     "Administrator",
-				ContactEmail: "mail-admin@example.test",
-				LoginEmail:   "mail-login@example.test",
-				Password:     bootstrapPassword,
-			},
-		)
+		BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Mail", LastName: "Administrator", ContactEmail: "mail-admin@example.test", LoginEmail: "mail-login@example.test", Password: bootstrapPassword})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var personID string
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT person_id::text FROM accounts WHERE id=$1`,
-		accountID,
-	).Scan(&personID); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT person_id::text FROM accounts WHERE id=$1`, accountID).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{AccountID: accountID, Master: true}
@@ -74,10 +61,7 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 		t.Fatalf("updated mail configuration=%#v", configured)
 	}
 	var encrypted []byte
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT encrypted_smtp_password FROM mail_configuration WHERE singleton=true`,
-	).Scan(&encrypted); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT encrypted_smtp_password FROM mail_configuration WHERE singleton=true`).Scan(&encrypted); err != nil {
 		t.Fatal(err)
 	}
 	if len(encrypted) == 0 || bytes.Contains(encrypted, []byte(password)) {
@@ -108,11 +92,7 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	}
 
 	var accountVersion int64
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT version FROM accounts WHERE id=$1`,
-		accountID,
-	).Scan(&accountVersion); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT version FROM accounts WHERE id=$1`, accountID).Scan(&accountVersion); err != nil {
 		t.Fatal(err)
 	}
 	issue, err := accounts.NewService(pool, cfg).IssuePasswordReset(ctx, principal, accountID, accountVersion, nil)
@@ -138,23 +118,10 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePasswordResetCode(
-		ctx,
-		fragment.Get("email"),
-		fragment.Get("code"),
-		"replacement password for mail test",
-		"manual-link",
-		nil,
-	); err != nil {
+	if err := authService.CompletePasswordResetCode(ctx, fragment.Get("email"), fragment.Get("code"), "replacement password for mail test", "manual-link", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := authService.Login(
-		ctx,
-		"mail-login@example.test",
-		"replacement password for mail test",
-		"manual-login",
-		nil,
-	); err != nil {
+	if _, err := authService.Login(ctx, "mail-login@example.test", "replacement password for mail test", "manual-login", nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -38,26 +38,11 @@ func TestParseBambuH2DConfiguration(t *testing.T) {
 		settings map[string]any
 		secrets  map[string]string
 	}{
-		"hostname": {
-			map[string]any{"ipAddress": "printer.local", "serialNumber": "01P09A123456789"},
-			map[string]string{"lanAccessCode": "secret"},
-		},
-		"multicast": {
-			map[string]any{"ipAddress": "224.0.0.1", "serialNumber": "01P09A123456789"},
-			map[string]string{"lanAccessCode": "secret"},
-		},
-		"bad serial": {
-			map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "bad serial"},
-			map[string]string{"lanAccessCode": "secret"},
-		},
-		"missing secret": {
-			map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "01P09A123456789"},
-			map[string]string{},
-		},
-		"unknown field": {
-			map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "01P09A123456789", "port": 1883},
-			map[string]string{"lanAccessCode": "secret"},
-		},
+		"hostname":       {map[string]any{"ipAddress": "printer.local", "serialNumber": "01P09A123456789"}, map[string]string{"lanAccessCode": "secret"}},
+		"multicast":      {map[string]any{"ipAddress": "224.0.0.1", "serialNumber": "01P09A123456789"}, map[string]string{"lanAccessCode": "secret"}},
+		"bad serial":     {map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "bad serial"}, map[string]string{"lanAccessCode": "secret"}},
+		"missing secret": {map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "01P09A123456789"}, map[string]string{}},
+		"unknown field":  {map[string]any{"ipAddress": "192.168.1.42", "serialNumber": "01P09A123456789", "port": 1883}, map[string]string{"lanAccessCode": "secret"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -89,12 +74,7 @@ func TestBambuX1CAdapterUsesSharedLANContract(t *testing.T) {
 func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 	t.Parallel()
 	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
-		Document:        map[string]any{},
-		Sessions:        map[string]string{},
-		LastSlots:       map[string]string{},
-		EmptySlotCounts: map[string]uint8{},
-		ActiveErrors:    map[string]bool{},
-		RunFacts:        map[string]bambuRunFacts{},
+		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
 	at := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
 	initial := []byte(
@@ -136,12 +116,7 @@ func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
 func TestBambuX1CReducerUsesExplicitSlicerFilamentMapping(t *testing.T) {
 	t.Parallel()
 	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
-		Document:        map[string]any{},
-		Sessions:        map[string]string{},
-		LastSlots:       map[string]string{},
-		EmptySlotCounts: map[string]uint8{},
-		ActiveErrors:    map[string]bool{},
-		RunFacts:        map[string]bambuRunFacts{},
+		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
 	}, firstSnapshot: true}
 	payload := []byte(
 		`{"print":{"gcode_state":"RUNNING","task_id":"6380","ams_mapping":[0,-1,2,-1,-1],"ams_mapping2":[{"ams_id":0,"slot_id":0},{"ams_id":255,"slot_id":255},{"ams_id":0,"slot_id":2},{"ams_id":255,"slot_id":255},{"ams_id":255,"slot_id":255}],"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA","tray_color":"FFFFFFFF"}]}]}}}`,
@@ -295,13 +270,7 @@ func TestNoTraySentinelDoesNotEraseRunSpoolEvidence(t *testing.T) {
 
 	// H2D reports an empty hotend route and ambiguous tray_now 255 while
 	// unloading after cancellation, so the last trustworthy evidence remains.
-	if _, _, err := processor.apply(
-		context.Background(),
-		[]byte(
-			`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":65535,"info":0}]}},"ams":{"tray_now":"255"}}}`,
-		),
-		at.Add(10*time.Minute),
-	); err != nil {
+	if _, _, err := processor.apply(context.Background(), []byte(`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":65535,"info":0}]}},"ams":{"tray_now":"255"}}}`), at.Add(10*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	after := processor.state.RunFacts[runID]
@@ -578,9 +547,7 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 	if runID == nil || !processor.noteDisconnected(startedAt.Add(time.Minute)) {
 		t.Fatal("active run did not record its first disconnect")
 	}
-	if got := processor.expireDisconnectedRun(
-		startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod - time.Second),
-	); len(
+	if got := processor.expireDisconnectedRun(startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod - time.Second)); len(
 		got,
 	) != 0 {
 		t.Fatalf("run ended before the disconnect grace period: %#v", got)
@@ -704,53 +671,29 @@ func TestInternalGCodePathIsNotScheduledAsAnArtifact(t *testing.T) {
 		t.Fatalf("internal G-code path was scheduled as an archive: %#v %v", retrieval, pendingErr)
 	}
 
-	if got := bambuArtifactPath(
-		map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "FlipOff_Ghostie.stl"},
-	); got != "FlipOff_Ghostie.stl.gcode.3mf" {
+	if got := bambuArtifactPath(map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "FlipOff_Ghostie.stl"}); got != "FlipOff_Ghostie.stl.gcode.3mf" {
 		t.Fatalf("print name did not become the exact archive candidate: %q", got)
 	}
-	if got := bambuArtifactPath(
-		map[string]any{"file": "/cache/source.gcode.3mf", "gcode_file": "/data/Metadata/plate_1.gcode"},
-	); got != "/cache/source.gcode.3mf" {
+	if got := bambuArtifactPath(map[string]any{"file": "/cache/source.gcode.3mf", "gcode_file": "/data/Metadata/plate_1.gcode"}); got != "/cache/source.gcode.3mf" {
 		t.Fatalf("reported archive candidate = %q", got)
 	}
-	if got := bambuArtifactPath(
-		map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "unsafe/name"},
-	); got != "" {
+	if got := bambuArtifactPath(map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "unsafe/name"}); got != "" {
 		t.Fatalf("unsafe print name became an archive candidate: %q", got)
 	}
 
 	// A persisted retry from an older connector build is quarantined locally
 	// before any network connection is attempted.
-	if err = store.ScheduleArtifactRetrieval(
-		ctx,
-		assignmentID,
-		runID,
-		1,
-		"/data/Metadata/plate_1.gcode",
-		time.Now().UTC().Add(time.Hour),
-	); err != nil {
+	if err = store.ScheduleArtifactRetrieval(ctx, assignmentID, runID, 1, "/data/Metadata/plate_1.gcode", time.Now().UTC().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.db.ExecContext(
-		ctx,
-		`UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`,
-		time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano),
-		assignmentID.String(),
-		runID.String(),
-	); err != nil {
+	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
 		t.Fatal(err)
 	}
 	if completed, cleanupErr := adapter.retrieveOneArtifact(ctx); cleanupErr != nil || !completed {
 		t.Fatalf("legacy invalid retrieval was not completed locally: %v %v", completed, cleanupErr)
 	}
 	var state, reason string
-	if err = store.db.QueryRowContext(
-		ctx,
-		`SELECT state,reason_code FROM artifact_retrievals WHERE assignment_id=? AND run_id=?`,
-		assignmentID.String(),
-		runID.String(),
-	).Scan(&state, &reason); err != nil {
+	if err = store.db.QueryRowContext(ctx, `SELECT state,reason_code FROM artifact_retrievals WHERE assignment_id=? AND run_id=?`, assignmentID.String(), runID.String()).Scan(&state, &reason); err != nil {
 		t.Fatal(err)
 	}
 	if state != "quarantined" || reason != "artifact_candidate_not_archive" {
@@ -792,11 +735,7 @@ func TestBambuReducerDoesNotClaimCompleteHistoryForPrintStartedWhileOffline(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = processor.apply(
-		ctx,
-		[]byte(`{"print":{"gcode_state":"FINISH","task_id":"old"}}`),
-		time.Now().UTC(),
-	); err != nil {
+	if _, _, err = processor.apply(ctx, []byte(`{"print":{"gcode_state":"FINISH","task_id":"old"}}`), time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	if err = processor.persist(ctx); err != nil {
@@ -929,16 +868,7 @@ func TestArtifactTransferQueueStagesValidZIPAndDeletesOnlyOnCompletion(t *testin
 		t.Fatalf("acknowledged staged file was not removed: %v", err)
 	}
 	unsafe := syntheticZIP(t, "../escape", "bad")
-	if _, err = store.StageArtifact(
-		ctx,
-		uuid.Must(uuid.NewV7()),
-		uuid.Must(uuid.NewV7()),
-		1,
-		"/bad.3mf",
-		"bad.3mf",
-		bytes.NewReader(unsafe),
-		time.Now().UTC().Add(time.Hour),
-	); err == nil ||
+	if _, err = store.StageArtifact(ctx, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 1, "/bad.3mf", "bad.3mf", bytes.NewReader(unsafe), time.Now().UTC().Add(time.Hour)); err == nil ||
 		!strings.Contains(err.Error(), "unsafe") {
 		t.Fatalf("unsafe ZIP was accepted: %v", err)
 	}
@@ -1113,10 +1043,7 @@ func TestInterruptedX1CConsumptionUsesExplicitMaterialMapping(t *testing.T) {
 		{ID: "3", WeightGrams: &whiteGrams, Extruders: []int{1}},
 	}}
 	estimate := parser.GCodeEstimate{
-		Method:             "gcode_checkpoint",
-		CalculationVersion: parser.CalculationVersion,
-		Quality:            parser.QualityHigh,
-		Resolved:           true,
+		Method: "gcode_checkpoint", CalculationVersion: parser.CalculationVersion, Quality: parser.QualityHigh, Resolved: true,
 		// M620 uses zero-based filament 2; marshalGCodeConsumption maps it to
 		// the positive-quantity slice_info filament 3 before resolving the spool.
 		Filaments: []parser.FilamentEstimate{{FilamentID: "2", Extruders: []int{1}, WeightGrams: &consumedWhite}},
@@ -1413,10 +1340,7 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 		}
 		// The rejected transfer no longer occupies queue capacity.
 		var queued int64
-		if err = store.db.QueryRowContext(
-			ctx,
-			`SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer,
-		).Scan(&queued); err != nil ||
+		if err = store.db.QueryRowContext(ctx, `SELECT count(*) FROM artifact_transfers WHERE `+queuedArtifactTransfer).Scan(&queued); err != nil ||
 			queued != 0 {
 			t.Fatalf("status %d: rejected transfer still counts as queued: %d %v", status, queued, err)
 		}
@@ -1470,11 +1394,7 @@ func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
 		t.Fatalf("transient failure removed the staged file: %v", err)
 	}
 	var state string
-	if err = store.db.QueryRowContext(
-		ctx,
-		`SELECT state FROM artifact_transfers WHERE id=?`,
-		transfer.ID.String(),
-	).Scan(&state); err != nil ||
+	if err = store.db.QueryRowContext(ctx, `SELECT state FROM artifact_transfers WHERE id=?`, transfer.ID.String()).Scan(&state); err != nil ||
 		state != "pending" {
 		t.Fatalf("transient failure changed the transfer state: %q %v", state, err)
 	}

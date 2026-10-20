@@ -87,9 +87,7 @@ func replaceItems(ctx context.Context, q *signagedb.Queries, playlistID uuid.UUI
 	}
 	for position, item := range items {
 		if err := q.InsertSignagePlaylistItem(ctx, signagedb.InsertSignagePlaylistItemParams{
-			PlaylistID: playlistID, Position: int32(position), SceneID: item.SceneID, Seconds: int32(
-				item.Seconds,
-			), Transition: item.Transition,
+			PlaylistID: playlistID, Position: int32(position), SceneID: item.SceneID, Seconds: int32(item.Seconds), Transition: item.Transition,
 		}); err != nil {
 			return databaseError(err)
 		}
@@ -184,16 +182,7 @@ func (s *Service) CreatePlaylist(
 	if err := replaceItems(ctx, q, id, input.Items); err != nil {
 		return Playlist{}, err
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_playlist.created",
-		"signage_playlist",
-		id,
-		requestID,
-		[]string{"name", "items"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "signage_playlist.created", "signage_playlist", id, requestID, []string{"name", "items"}); err != nil {
 		return Playlist{}, err
 	}
 	result, err := s.getPlaylist(ctx, q, id)
@@ -238,10 +227,7 @@ func (s *Service) UpdatePlaylist(
 	if current.Version != expected {
 		return Playlist{}, apperror.StaleWrite
 	}
-	if _, err := q.UpdateSignagePlaylist(
-		ctx,
-		signagedb.UpdateSignagePlaylistParams{Name: name, ID: id, ExpectedVersion: expected},
-	); errors.Is(
+	if _, err := q.UpdateSignagePlaylist(ctx, signagedb.UpdateSignagePlaylistParams{Name: name, ID: id, ExpectedVersion: expected}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -252,16 +238,7 @@ func (s *Service) UpdatePlaylist(
 	if err := replaceItems(ctx, q, id, input.Items); err != nil {
 		return Playlist{}, err
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_playlist.updated",
-		"signage_playlist",
-		id,
-		requestID,
-		[]string{"name", "items"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "signage_playlist.updated", "signage_playlist", id, requestID, []string{"name", "items"}); err != nil {
 		return Playlist{}, err
 	}
 	result, err := s.getPlaylist(ctx, q, id)
@@ -319,10 +296,7 @@ func (s *Service) DeletePlaylist(
 	if len(references) > 0 {
 		return inUse("Playlist", references)
 	}
-	if _, err := q.DeleteSignagePlaylist(
-		ctx,
-		signagedb.DeleteSignagePlaylistParams{ID: id, ExpectedVersion: expected},
-	); errors.Is(
+	if _, err := q.DeleteSignagePlaylist(ctx, signagedb.DeleteSignagePlaylistParams{ID: id, ExpectedVersion: expected}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -330,16 +304,7 @@ func (s *Service) DeletePlaylist(
 	} else if err != nil {
 		return databaseError(err)
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_playlist.deleted",
-		"signage_playlist",
-		id,
-		requestID,
-		nil,
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "signage_playlist.deleted", "signage_playlist", id, requestID, nil); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

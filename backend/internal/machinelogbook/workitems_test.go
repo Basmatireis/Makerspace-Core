@@ -26,10 +26,7 @@ func restrictedPrincipal(
 		sql  string
 		args []any
 	}{
-		{
-			"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Restricted','Reader',$2)",
-			[]any{person, "restricted-" + person.String() + "@example.test"},
-		},
+		{"INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Restricted','Reader',$2)", []any{person, "restricted-" + person.String() + "@example.test"}},
 		{"INSERT INTO accounts(id,person_id,status) VALUES($1,$2,'enabled')", []any{account, person}},
 		{"INSERT INTO roles(id,name) VALUES($1,$2)", []any{role, "restricted-" + role.String()}},
 		{"INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)", []any{person, role}},
@@ -48,13 +45,7 @@ func restrictedPrincipal(
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
 	for _, permission := range permissions {
-		if _, err := pool.Exec(
-			ctx,
-			`INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES($1,$2,$3)`,
-			uuid.Must(uuid.NewV7()),
-			role,
-			string(permission),
-		); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES($1,$2,$3)`, uuid.Must(uuid.NewV7()), role, string(permission)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -103,14 +94,7 @@ func newWorkItemFixture(t *testing.T) *workItemFixture {
 	h.finish(t, w.linkedRun, "finished", *at(h.now, -19*time.Hour))
 	manual := h.input(-30*time.Hour, time.Hour, "unknown")
 	w.linked = h.attach(t, w.linkedRun, h.create(t, manual), true)
-	if _, err := h.s.UpdateRun(
-		t.Context(),
-		h.p,
-		w.linkedRun,
-		h.run(t, w.linkedRun).Version,
-		RunUpdate{Outcome: outcomePtr("successful")},
-		&h.request,
-	); err != nil {
+	if _, err := h.s.UpdateRun(t.Context(), h.p, w.linkedRun, h.run(t, w.linkedRun).Version, RunUpdate{Outcome: outcomePtr("successful")}, &h.request); err != nil {
 		t.Fatal(err)
 	}
 	w.linked, _ = h.s.GetJob(t.Context(), h.p, w.linked.ID)
@@ -206,16 +190,8 @@ func TestWorkItemsUnifyJobsAndUnassignedRuns(t *testing.T) {
 	}
 	type expectation struct{ kind, status, source string }
 	for id, want := range map[uuid.UUID]expectation{
-		w.running.ID: {"job", "running", "manual"}, w.needsOutcome.ID: {
-			"job",
-			"needs_outcome",
-			"manual",
-		}, w.recorded.ID: {"job", "successful", "manual"},
-		w.linked.ID: {"job", "successful", "recorded"}, w.noPrice.ID: {"job", "successful", "manual"}, w.printing: {
-			"run",
-			"running_unassigned",
-			"recorded",
-		}, w.ended: {"run", "unassigned", "recorded"},
+		w.running.ID: {"job", "running", "manual"}, w.needsOutcome.ID: {"job", "needs_outcome", "manual"}, w.recorded.ID: {"job", "successful", "manual"},
+		w.linked.ID: {"job", "successful", "recorded"}, w.noPrice.ID: {"job", "successful", "manual"}, w.printing: {"run", "running_unassigned", "recorded"}, w.ended: {"run", "unassigned", "recorded"},
 	} {
 		got := byID[id]
 		if got.Kind != want.kind || got.Status != want.status || got.Source != want.source {
@@ -325,11 +301,7 @@ func ptr[T any](v T) *T { return &v }
 func (w *workItemFixture) printingDisplayID(t *testing.T) string {
 	t.Helper()
 	var display string
-	if err := w.pool.QueryRow(
-		t.Context(),
-		`SELECT display_id FROM machine_runs WHERE id = $1`,
-		w.printing,
-	).Scan(&display); err != nil {
+	if err := w.pool.QueryRow(t.Context(), `SELECT display_id FROM machine_runs WHERE id = $1`, w.printing).Scan(&display); err != nil {
 		t.Fatal(err)
 	}
 	return display
@@ -432,11 +404,7 @@ func TestWorkItemSortingAndPagination(t *testing.T) {
 	if len(items) != 0 || total != 7 {
 		t.Fatalf("page past the end: %d items, total %d", len(items), total)
 	}
-	if _, _, err := w.s.ListWorkItems(
-		t.Context(),
-		w.p,
-		WorkItemFilters{Sort: "bogus", Page: 1, PageSize: 10},
-	); !apperror.IsCode(
+	if _, _, err := w.s.ListWorkItems(t.Context(), w.p, WorkItemFilters{Sort: "bogus", Page: 1, PageSize: 10}); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -447,11 +415,7 @@ func TestWorkItemSortingAndPagination(t *testing.T) {
 func TestWorkItemsAndActivityRequireTheirPermissions(t *testing.T) {
 	w := newWorkItemFixture(t)
 	machinesOnly := restrictedPrincipal(t, w.pool, authorization.MachinesRead)
-	if _, _, err := w.s.ListWorkItems(
-		t.Context(),
-		machinesOnly,
-		WorkItemFilters{Page: 1, PageSize: 10},
-	); !apperror.IsCode(
+	if _, _, err := w.s.ListWorkItems(t.Context(), machinesOnly, WorkItemFilters{Page: 1, PageSize: 10}); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -512,12 +476,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -time.Hour), fileName: "live.gcode"},
 	)
 	estimated := h.now.Truncate(time.Second).Add(2 * time.Hour)
-	if _, err := h.pool.Exec(
-		ctx,
-		`UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`,
-		printID,
-		estimated,
-	); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`, printID, estimated); err != nil {
 		t.Fatal(err)
 	}
 	title := "Running now"
@@ -534,20 +493,11 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	if _, err := h.pool.Exec(ctx, `UPDATE machines SET status = 'retired' WHERE id = $1`, retired.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(
-		ctx,
-		`UPDATE printer_connector_assignments SET runtime_state = 'degraded', runtime_error_code = 'auth_failed' WHERE id = $1`,
-		h.assignments[h.machine.ID],
-	); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_connector_assignments SET runtime_state = 'degraded', runtime_error_code = 'auth_failed' WHERE id = $1`, h.assignments[h.machine.ID]); err != nil {
 		t.Fatal(err)
 	}
 	heartbeat := h.now.Truncate(time.Second).Add(-time.Minute)
-	if _, err := h.pool.Exec(
-		ctx,
-		`UPDATE printer_connectors SET last_heartbeat_at = $2 WHERE id = $1`,
-		h.connectorID,
-		heartbeat,
-	); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_connectors SET last_heartbeat_at = $2 WHERE id = $1`, h.connectorID, heartbeat); err != nil {
 		t.Fatal(err)
 	}
 
@@ -565,14 +515,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	}
 	all := fetch(h.p)
 	// A run is running until its planned end, as the job aggregates see it.
-	for id, want := range map[uuid.UUID]string{
-		h.machine.ID:     "in_use",
-		h.bareMachine.ID: "in_use",
-		retired.ID:       "retired",
-		maintenance.ID:   "maintenance",
-		future.ID:        "in_use",
-		free.ID:          "available",
-	} {
+	for id, want := range map[uuid.UUID]string{h.machine.ID: "in_use", h.bareMachine.ID: "in_use", retired.ID: "retired", maintenance.ID: "maintenance", future.ID: "in_use", free.ID: "available"} {
 		if got := all[id].Availability; got != want {
 			t.Fatalf("machine %s availability = %q, want %q", id, got, want)
 		}

@@ -171,16 +171,7 @@ func (s *Service) SetJobPriceAdjustment(
 	if err != nil {
 		return MachineJob{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.price_adjusted",
-		"machine_job",
-		id,
-		requestID,
-		[]string{"priceAdjustment", "effectivePrice"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.price_adjusted", "machine_job", id, requestID, []string{"priceAdjustment", "effectivePrice"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -215,22 +206,10 @@ func (s *Service) ClearJobPriceAdjustment(
 	if current.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
 	}
-	if _, err = q.ClearMachineJobPriceAdjustment(
-		ctx,
-		machinelogbookdb.ClearMachineJobPriceAdjustmentParams{ID: id, ExpectedVersion: expected},
-	); err != nil {
+	if _, err = q.ClearMachineJobPriceAdjustment(ctx, machinelogbookdb.ClearMachineJobPriceAdjustmentParams{ID: id, ExpectedVersion: expected}); err != nil {
 		return MachineJob{}, noRows(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.price_adjustment_cleared",
-		"machine_job",
-		id,
-		requestID,
-		[]string{"priceAdjustment", "effectivePrice"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.price_adjustment_cleared", "machine_job", id, requestID, []string{"priceAdjustment", "effectivePrice"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

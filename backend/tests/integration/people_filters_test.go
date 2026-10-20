@@ -20,11 +20,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	withoutAccountID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO people(id,first_name,last_name,email) VALUES($1,'No','Account','directory-filter-no-account@example.test')`,
-		withoutAccountID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO people(id,first_name,last_name,email) VALUES($1,'No','Account','directory-filter-no-account@example.test')`, withoutAccountID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -39,11 +35,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 	creator := seedAccount(t, pool, "directory-filter-version-creator", false)
 	currentVersionID := insertPublishedLabRulesVersion(t, pool, creator.accountID, "directory-filter-v1")
 	warningRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Directory filter warning','warning')`,
-		warningRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Directory filter warning','warning')`, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
 	current := seedAccount(t, pool, "directory-filter-lab-current", false)
@@ -51,12 +43,7 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 	outdated := seedAccount(t, pool, "directory-filter-lab-outdated", false)
 	notRequired := seedAccount(t, pool, "directory-filter-lab-not-required", false)
 	for _, personID := range []uuid.UUID{current.personID, pending.personID, outdated.personID} {
-		if _, err := pool.Exec(
-			ctx,
-			`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`,
-			personID,
-			warningRoleID,
-		); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, personID, warningRoleID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -102,19 +89,10 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 	ctx := testContext(t)
 	roleID := uuid.Must(uuid.NewV7())
 	subject := seedAccount(t, pool, "directory-filter-no-published-version", false)
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'No published version warning','warning')`,
-		roleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'No published version warning','warning')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`,
-		subject.personID,
-		roleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, subject.personID, roleID); err != nil {
 		t.Fatal(err)
 	}
 

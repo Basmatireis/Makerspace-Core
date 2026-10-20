@@ -35,16 +35,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 		adminLogin    = "runs-admin@example.test"
 		adminPassword = "Runs admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(
-		ctx,
-		admin.BootstrapInput{
-			FirstName:    "Runs",
-			LastName:     "Admin",
-			ContactEmail: "runs-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
-		},
-	); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Runs", LastName: "Admin", ContactEmail: "runs-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -173,11 +164,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	}
 
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
-		adminLogin,
-	).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -194,17 +181,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(
-		ctx,
-		master,
-		group.ID,
-		"machine_runtime",
-		&machineType.ID,
-		nil,
-		nil,
-		"10",
-		nil,
-	); err != nil {
+	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "10", nil); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)
@@ -310,11 +287,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 		"customer":         map[string]any{"kind": "person", "id": personID.String()},
 		"operatorPersonId": personID.String(),
 	}
-	for name, client := range map[string]*http.Client{
-		"reader": readerClient,
-		"editor": editorClient,
-		"nobody": nobodyClient,
-	} {
+	for name, client := range map[string]*http.Client{"reader": readerClient, "editor": editorClient, "nobody": nobodyClient} {
 		csrf := map[string]string{"reader": readerCSRF, "editor": editorCSRF, "nobody": nobodyCSRF}[name]
 		response := doJSON(t, client, http.MethodPost, server.URL+runPath+"/job", origin, csrf, fromRun)
 		if response.StatusCode != http.StatusForbidden {

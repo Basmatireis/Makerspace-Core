@@ -105,28 +105,13 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	// A diagnostic event no run rests on.
 	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, source_sequence, payload, connector_id, connector_assignment_id, configuration_version)
 		VALUES ($1, $2, $3, repeat('a', 64), 1, $4, 'connectivity', now(), 9999, '{}', $5, $6, 1)`,
-		uuid.Must(uuid.NewV7()),
-		"diag-"+h.suffix,
-		"diag-"+h.suffix,
-		h.machine.ID,
-		h.connector.ID,
-		h.assignment.ID); err != nil {
+		uuid.Must(uuid.NewV7()), "diag-"+h.suffix, "diag-"+h.suffix, h.machine.ID, h.connector.ID, h.assignment.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(
-		ctx,
-		`INSERT INTO printer_live_statuses (assignment_id, machine_id, observed_at, configuration_version, snapshot) VALUES ($1, $2, now(), 1, '{}')`,
-		h.assignment.ID,
-		h.machine.ID,
-	); err != nil {
+	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_live_statuses (assignment_id, machine_id, observed_at, configuration_version, snapshot) VALUES ($1, $2, now(), 1, '{}')`, h.assignment.ID, h.machine.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM printer_error_occurrences WHERE assignment_id = $1 AND resolved_at IS NULL`,
-		h.assignment.ID,
-	); n != 1 {
+	if n := count(t, h, `SELECT count(*) FROM printer_error_occurrences WHERE assignment_id = $1 AND resolved_at IS NULL`, h.assignment.ID); n != 1 {
 		t.Fatalf("expected an open error, got %d", n)
 	}
 	eventsOfRuns := count(
@@ -170,21 +155,11 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 			t.Fatalf("%s survived: %d", table, n)
 		}
 	}
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM printer_connector_credentials WHERE connector_id = $1`,
-		h.connector.ID,
-	); n != 0 {
+	if n := count(t, h, `SELECT count(*) FROM printer_connector_credentials WHERE connector_id = $1`, h.connector.ID); n != 0 {
 		t.Fatalf("credentials survived: %d", n)
 	}
 	// Business records survive without the connector reference.
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM machine_runs WHERE id = ANY($1) AND assignment_id IS NULL AND source = 'recorded'`,
-		[]uuid.UUID{runID, runningID},
-	); n != 2 {
+	if n := count(t, h, `SELECT count(*) FROM machine_runs WHERE id = ANY($1) AND assignment_id IS NULL AND source = 'recorded'`, []uuid.UUID{runID, runningID}); n != 2 {
 		t.Fatalf("recorded runs after delete: %d", n)
 	}
 	if finished := h.run(runID); finished.state != "finished" {
@@ -193,32 +168,16 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	if running := h.run(runningID); running.state != "unknown" {
 		t.Fatalf("running run must be settled, got %+v", running)
 	}
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM printer_error_occurrences WHERE machine_id = $1 AND assignment_id IS NULL AND resolved_at IS NOT NULL`,
-		h.machine.ID,
-	); n != 1 {
+	if n := count(t, h, `SELECT count(*) FROM printer_error_occurrences WHERE machine_id = $1 AND assignment_id IS NULL AND resolved_at IS NOT NULL`, h.machine.ID); n != 1 {
 		t.Fatalf("error history after delete: %d", n)
 	}
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM printer_events WHERE machine_id = $1 AND connector_id IS NULL AND connector_assignment_id IS NULL AND run_id IS NOT NULL`,
-		h.machine.ID,
-	); n != eventsOfRuns {
+	if n := count(t, h, `SELECT count(*) FROM printer_events WHERE machine_id = $1 AND connector_id IS NULL AND connector_assignment_id IS NULL AND run_id IS NOT NULL`, h.machine.ID); n != eventsOfRuns {
 		t.Fatalf("run events after delete = %d, want %d", n, eventsOfRuns)
 	}
 	if n := count(t, h, `SELECT count(*) FROM printer_events WHERE source_id = $1`, "diag-"+h.suffix); n != 0 {
 		t.Fatalf("diagnostic event survived: %d", n)
 	}
-	if n := count(
-		t,
-		h,
-		`SELECT count(*) FROM audit_events WHERE action = 'printer_connector.deleted' AND resource_id = $1 AND actor_account_id = $2`,
-		h.connector.ID,
-		h.principal.AccountID,
-	); n != 1 {
+	if n := count(t, h, `SELECT count(*) FROM audit_events WHERE action = 'printer_connector.deleted' AND resource_id = $1 AND actor_account_id = $2`, h.connector.ID, h.principal.AccountID); n != 1 {
 		t.Fatalf("audit rows: %d", n)
 	}
 	// The machine can be given to another connector.
@@ -226,19 +185,7 @@ func TestDeleteConnectorKeepsBusinessRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.service.CreateAssignment(
-		ctx,
-		h.principal,
-		other.ID,
-		AssignmentInput{
-			MachineID:            h.machine.ID,
-			AdapterKind:          "simulator",
-			AdapterSchemaVersion: 1,
-			Settings:             []byte(`{"scenario":"idle"}`),
-			Enabled:              true,
-		},
-		nil,
-	); err != nil {
+	if _, err = h.service.CreateAssignment(ctx, h.principal, other.ID, AssignmentInput{MachineID: h.machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: []byte(`{"scenario":"idle"}`), Enabled: true}, nil); err != nil {
 		t.Fatalf("reassign machine: %v", err)
 	}
 }

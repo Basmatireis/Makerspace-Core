@@ -356,10 +356,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	for _, announcement := range announcements {
 		live.Announcements = append(live.Announcements, LiveAnnouncement{
 			ID: announcement.ID, TemplateID: announcement.TemplateID, Tone: announcement.Rendered.Tone,
-			Title:    announcement.Rendered.Title,
-			Body:     announcement.Rendered.Body,
-			StartsAt: announcement.StartsAt,
-			EndsAt:   announcement.EndsAt,
+			Title: announcement.Rendered.Title, Body: announcement.Rendered.Body, StartsAt: announcement.StartsAt, EndsAt: announcement.EndsAt,
 		})
 	}
 	if s.calendar != nil {
@@ -481,13 +478,8 @@ func (s *Service) RecordHeartbeat(ctx context.Context, display PlayerDisplay, he
 		revision = &value
 	}
 	return signagedb.New(s.pool).UpsertSignageDisplayState(ctx, signagedb.UpsertSignageDisplayStateParams{
-		DisplayID:           display.ID,
-		LastHeartbeatAt:     s.now(),
-		PublicationRevision: revision,
-		CurrentRule:         checked.CurrentRule,
-		CurrentSceneID:      checked.CurrentSceneID,
-		PlayerVersion:       checked.PlayerVersion,
-		CacheUsedBytes:      checked.CacheUsedBytes,
-		CacheQuotaBytes:     checked.CacheQuotaBytes, Errors: string(encoded),
+		DisplayID: display.ID, LastHeartbeatAt: s.now(), PublicationRevision: revision, CurrentRule: checked.CurrentRule,
+		CurrentSceneID: checked.CurrentSceneID, PlayerVersion: checked.PlayerVersion, CacheUsedBytes: checked.CacheUsedBytes,
+		CacheQuotaBytes: checked.CacheQuotaBytes, Errors: string(encoded),
 	})
 }

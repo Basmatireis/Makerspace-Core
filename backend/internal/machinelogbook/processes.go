@@ -123,10 +123,7 @@ func storeRunMeasures(ctx context.Context, q *machinelogbookdb.Queries, runID uu
 		return err
 	}
 	for _, key := range sortedMeasureKeys(measures) {
-		if err := q.UpsertRunMeasure(
-			ctx,
-			machinelogbookdb.UpsertRunMeasureParams{RunID: runID, Measure: key, Value: measures[key]},
-		); err != nil {
+		if err := q.UpsertRunMeasure(ctx, machinelogbookdb.UpsertRunMeasureParams{RunID: runID, Measure: key, Value: measures[key]}); err != nil {
 			return databaseError(err)
 		}
 	}

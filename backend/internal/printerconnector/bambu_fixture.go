@@ -176,13 +176,7 @@ func (r *fixtureRedactor) value(key string, value any, depth int) (any, error) {
 			if typed.String() == "0" {
 				return typed, nil
 			}
-			return json.Number(
-				r.replacement(
-					"identifier",
-					typed.String(),
-					func(index int) string { return strconv.Itoa(1000 + index) },
-				),
-			), nil
+			return json.Number(r.replacement("identifier", typed.String(), func(index int) string { return strconv.Itoa(1000 + index) })), nil
 		}
 		return value, nil
 	default:
@@ -346,10 +340,7 @@ func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind st
 	encoder := json.NewEncoder(&boundedFixtureWriter{writer: output, remaining: MaximumBambuFixtureBytes})
 	encoder.SetEscapeHTML(false)
 	processor := &bambuProcessor{adapterKind: adapterKind, state: bambuPersistedState{
-		Document:     map[string]any{},
-		Sessions:     map[string]string{},
-		LastSlots:    map[string]string{},
-		ActiveErrors: map[string]bool{},
+		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, ActiveErrors: map[string]bool{},
 	}}
 	lineNumber := 0
 	messageCount := 0
@@ -381,14 +372,7 @@ func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind st
 				HistoryComplete: observation.HistoryComplete, ExternalPrintID: observation.ExternalPrintID,
 			})
 		}
-		if err = encoder.Encode(
-			bambuReplayLine{
-				Line:         lineNumber,
-				ObservedAt:   message.ObservedAt.UTC(),
-				Ready:        ready,
-				Observations: normalized,
-			},
-		); err != nil {
+		if err = encoder.Encode(bambuReplayLine{Line: lineNumber, ObservedAt: message.ObservedAt.UTC(), Ready: ready, Observations: normalized}); err != nil {
 			return fmt.Errorf("write replay output: %w", err)
 		}
 	}

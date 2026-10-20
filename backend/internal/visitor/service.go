@@ -194,17 +194,7 @@ func (s *Service) UpdateConfiguration(
 			return Configuration{}, err
 		}
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "visitor_enrollment.configuration_updated",
-			ResourceType:   "visitor_enrollment_configuration",
-			RequestID:      requestID,
-			ChangedFields:  []string{"enabled", "initialRoleId", "deviceTypeIds", "allowedMethods"},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "visitor_enrollment.configuration_updated", ResourceType: "visitor_enrollment_configuration", RequestID: requestID, ChangedFields: []string{"enabled", "initialRoleId", "deviceTypeIds", "allowedMethods"}}); err != nil {
 		return Configuration{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -244,27 +234,10 @@ func (s *Service) Begin(ctx context.Context, device manageddevices.DeviceContext
 	}
 	expiresAt := time.Now().UTC().Add(enrollmentTTL)
 	id := uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateEnrollmentContext(
-		ctx,
-		visitordb.CreateEnrollmentContextParams{
-			ID:              id,
-			ManagedDeviceID: device.ID,
-			TokenDigest:     digest,
-			CsrfDigest:      csrfDigest,
-			ExpiresAt:       expiresAt,
-		},
-	); err != nil {
+	if _, err := queries.CreateEnrollmentContext(ctx, visitordb.CreateEnrollmentContextParams{ID: id, ManagedDeviceID: device.ID, TokenDigest: digest, CsrfDigest: csrfDigest, ExpiresAt: expiresAt}); err != nil {
 		return ContextIssue{}, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			Action:       "visitor_enrollment.context_created",
-			ResourceType: "visitor_enrollment_context",
-			ResourceID:   &id,
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{Action: "visitor_enrollment.context_created", ResourceType: "visitor_enrollment_context", ResourceID: &id}); err != nil {
 		return ContextIssue{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -392,24 +365,11 @@ func (s *Service) Submit(
 		return SubmissionResult{}, err
 	}
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateVisitorPerson(
-		ctx,
-		visitordb.CreateVisitorPersonParams{
-			ID:                 personID,
-			FirstName:          clean.FirstName,
-			LastName:           clean.LastName,
-			Email:              clean.Email,
-			Phone:              clean.Phone,
-			ProfileImageFileID: &stored.ID,
-		},
-	); err != nil {
+	if _, err := queries.CreateVisitorPerson(ctx, visitordb.CreateVisitorPersonParams{ID: personID, FirstName: clean.FirstName, LastName: clean.LastName, Email: clean.Email, Phone: clean.Phone, ProfileImageFileID: &stored.ID}); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
 	status := "enabled"
-	if _, err := queries.CreateVisitorAccount(
-		ctx,
-		visitordb.CreateVisitorAccountParams{ID: accountID, PersonID: personID, Status: status},
-	); err != nil {
+	if _, err := queries.CreateVisitorAccount(ctx, visitordb.CreateVisitorAccountParams{ID: accountID, PersonID: personID, Status: status}); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
 	var challengeID *uuid.UUID
@@ -428,22 +388,7 @@ func (s *Service) Submit(
 			return SubmissionResult{}, databaseError(err)
 		}
 		id := uuid.Must(uuid.NewV7())
-		if _, err := queries.CreateVisitorInvitation(
-			ctx,
-			visitordb.CreateVisitorInvitationParams{
-				ID:             id,
-				AccountID:      accountID,
-				AuthIdentityID: &identity.ID,
-				CodeDigest: security.ChallengeDigest(
-					s.config.ChallengeHMACKey,
-					"invitation",
-					accountID,
-					invitationCode,
-				),
-				DeliveryAddress: &display,
-				ExpiresAt:       invitationExpiresAt,
-			},
-		); err != nil {
+		if _, err := queries.CreateVisitorInvitation(ctx, visitordb.CreateVisitorInvitationParams{ID: id, AccountID: accountID, AuthIdentityID: &identity.ID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", accountID, invitationCode), DeliveryAddress: &display, ExpiresAt: invitationExpiresAt}); err != nil {
 			return SubmissionResult{}, err
 		}
 		challengeID = &id
@@ -461,17 +406,11 @@ func (s *Service) Submit(
 		if err != nil {
 			return SubmissionResult{}, databaseError(err)
 		}
-		if err := queries.CreateVisitorPINCredential(
-			ctx,
-			visitordb.CreateVisitorPINCredentialParams{AuthIdentityID: identity.ID, PinHash: pinHash},
-		); err != nil {
+		if err := queries.CreateVisitorPINCredential(ctx, visitordb.CreateVisitorPINCredentialParams{AuthIdentityID: identity.ID, PinHash: pinHash}); err != nil {
 			return SubmissionResult{}, err
 		}
 	}
-	if err := queries.AssignVisitorRole(
-		ctx,
-		visitordb.AssignVisitorRoleParams{PersonID: personID, RoleID: role.ID},
-	); err != nil {
+	if err := queries.AssignVisitorRole(ctx, visitordb.AssignVisitorRoleParams{PersonID: personID, RoleID: role.ID}); err != nil {
 		return SubmissionResult{}, err
 	}
 	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: "admitted"}
@@ -509,20 +448,8 @@ func (s *Service) Submit(
 		return SubmissionResult{}, apperror.Conflict
 	}
 	for _, event := range []audit.Event{
-		{
-			Action:        "visitor_enrollment.person_created",
-			ResourceType:  "person",
-			ResourceID:    &personID,
-			RequestID:     requestID,
-			ChangedFields: []string{"role", "profileImage"},
-		},
-		{
-			Action:        "visitor_enrollment.account_created",
-			ResourceType:  "account",
-			ResourceID:    &accountID,
-			RequestID:     requestID,
-			ChangedFields: []string{"authMethods"},
-		},
+		{Action: "visitor_enrollment.person_created", ResourceType: "person", ResourceID: &personID, RequestID: requestID, ChangedFields: []string{"role", "profileImage"}},
+		{Action: "visitor_enrollment.account_created", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{"authMethods"}},
 	} {
 		if err := audit.Write(ctx, tx, event); err != nil {
 			return SubmissionResult{}, err
@@ -543,14 +470,7 @@ func (s *Service) Submit(
 			deliveryFailure = &value
 		}
 		_ = visitordb.New(s.pool).
-			SetChallengeDelivery(
-				ctx,
-				visitordb.SetChallengeDeliveryParams{
-					ID:                  *challengeID,
-					DeliveryStatus:      delivery,
-					DeliveryFailureCode: deliveryFailure,
-				},
-			)
+			SetChallengeDelivery(ctx, visitordb.SetChallengeDeliveryParams{ID: *challengeID, DeliveryStatus: delivery, DeliveryFailureCode: deliveryFailure})
 		result.InvitationDelivery = &delivery
 	}
 	return result, nil

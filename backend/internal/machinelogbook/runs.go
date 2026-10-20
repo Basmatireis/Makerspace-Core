@@ -479,25 +479,7 @@ func (s *Service) replaceRunUsages(
 				return err
 			}
 			usageID := u.ID
-			if _, err = s.applyInventoryMutation(
-				ctx,
-				tx,
-				q,
-				p,
-				*u.MaterialID,
-				versions[*u.MaterialID],
-				inventoryMutation{
-					Kind:          "adjustment",
-					QuantityDelta: quantity,
-					UnitCost:      average,
-					ValueDelta:    quantity.Mul(average),
-					OccurredAt:    time.Now().UTC(),
-					Reason:        stringPointer("job_corrected"),
-					UsageID:       &usageID,
-					Fill:          reversal,
-				},
-				requestID,
-			); err != nil {
+			if _, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &usageID, Fill: reversal}, requestID); err != nil {
 				return err
 			}
 			versions[*u.MaterialID]++
@@ -522,24 +504,7 @@ func (s *Service) replaceRunUsages(
 		}
 		average := decimalFromNumeric(row.AverageUnitCost)
 		usageID := u.UsageID
-		if _, err = s.applyInventoryMutation(
-			ctx,
-			tx,
-			q,
-			p,
-			*u.MaterialID,
-			versions[*u.MaterialID],
-			inventoryMutation{
-				Kind:          "machine_run_consumption",
-				QuantityDelta: u.Quantity.Neg(),
-				UnitCost:      average,
-				ValueDelta:    u.Quantity.Mul(average).Neg(),
-				OccurredAt:    occurredAt,
-				UsageID:       &usageID,
-				Fill:          u.Fill,
-			},
-			requestID,
-		); err != nil {
+		if _, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "machine_run_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &usageID, Fill: u.Fill}, requestID); err != nil {
 			return err
 		}
 		versions[*u.MaterialID]++
@@ -765,30 +730,15 @@ func (s *Service) UpdateRun(
 		)
 	} else {
 		if input.StartsAt != nil || input.EndsAt != nil {
-			return RunUpdateResult{}, apperror.New(
-				422,
-				"run_times_read_only",
-				"The times of a recorded run come from the machine",
-			)
+			return RunUpdateResult{}, apperror.New(422, "run_times_read_only", "The times of a recorded run come from the machine")
 		}
 		if input.Measures != nil {
-			return RunUpdateResult{}, apperror.New(
-				422,
-				"run_measures_read_only",
-				"The measures of a recorded run come from the machine",
-			)
+			return RunUpdateResult{}, apperror.New(422, "run_measures_read_only", "The measures of a recorded run come from the machine")
 		}
 		if run.State != nil && *run.State == "running" && outcome != nil {
-			return RunUpdateResult{}, apperror.New(
-				422,
-				"outcome_before_run_end",
-				"An outcome cannot be recorded before the run has ended",
-			)
+			return RunUpdateResult{}, apperror.New(422, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
 		}
-		updated, err = q.UpdateRecordedRunOutcome(
-			ctx,
-			machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: outcome, ID: id, ExpectedVersion: expected},
-		)
+		updated, err = q.UpdateRecordedRunOutcome(ctx, machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: outcome, ID: id, ExpectedVersion: expected})
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RunUpdateResult{}, apperror.StaleWrite
@@ -874,16 +824,7 @@ func (s *Service) ReplaceRunUsages(
 	if err != nil {
 		return RunUpdateResult{}, err
 	}
-	if err = s.finishRunChange(
-		ctx,
-		tx,
-		q,
-		p,
-		updated,
-		"machine_run.usages_replaced",
-		[]string{"usages", "inventory"},
-		requestID,
-	); err != nil {
+	if err = s.finishRunChange(ctx, tx, q, p, updated, "machine_run.usages_replaced", []string{"usages", "inventory"}, requestID); err != nil {
 		return RunUpdateResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -937,16 +878,7 @@ func (s *Service) CancelRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if err = s.finishRunChange(
-		ctx,
-		tx,
-		q,
-		p,
-		updated,
-		"machine_run.cancelled",
-		[]string{"endedAt", "state", "outcome"},
-		requestID,
-	); err != nil {
+	if err = s.finishRunChange(ctx, tx, q, p, updated, "machine_run.cancelled", []string{"endedAt", "state", "outcome"}, requestID); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1000,16 +932,7 @@ func (s *Service) AddManualRun(
 	if _, err = s.settleJob(ctx, q, jobID); err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.run_added",
-		"machine_job",
-		jobID,
-		requestID,
-		[]string{"runs", "usages", "calculatedPrice", "effectivePrice"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.run_added", "machine_job", jobID, requestID, []string{"runs", "usages", "calculatedPrice", "effectivePrice"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1076,10 +999,7 @@ func (s *Service) CreateJobFromRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if _, err = q.AssignRunToJob(
-		ctx,
-		machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: runID, MachineID: run.MachineID},
-	); err != nil {
+	if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: runID, MachineID: run.MachineID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
 		}
@@ -1089,16 +1009,7 @@ func (s *Service) CreateJobFromRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.created",
-		"machine_job",
-		job.ID,
-		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", job.ID, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1159,10 +1070,7 @@ func (s *Service) AttachRun(
 		}
 		fields = append(fields, replaced...)
 	}
-	if _, err = q.AssignRunToJob(
-		ctx,
-		machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID},
-	); err != nil {
+	if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return MachineJob{}, conflict("run_already_assigned", "The run already belongs to a job")
 		}
@@ -1171,16 +1079,7 @@ func (s *Service) AttachRun(
 	if _, err = s.settleJob(ctx, q, jobID); err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.run_attached",
-		"machine_job",
-		jobID,
-		requestID,
-		dedupe(fields),
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.run_attached", "machine_job", jobID, requestID, dedupe(fields)); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1259,10 +1158,7 @@ func (s *Service) AttachPlannedRunSystem(
 	if len(active) != 0 {
 		return false, nil
 	}
-	if _, err = q.AssignRunToJob(
-		ctx,
-		machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID},
-	); err != nil {
+	if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
 		}
@@ -1271,26 +1167,7 @@ func (s *Service) AttachPlannedRunSystem(
 	if _, err = s.settleJob(ctx, q, jobID); err != nil {
 		return false, err
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "machine_run.artifact_auto_attached",
-			ResourceType:  "machine_run",
-			ResourceID:    &runID,
-			RequestID:     requestID,
-			Source:        "system",
-			ChangedFields: []string{"jobId"},
-			Metadata: map[string]any{
-				"connectorId":  connectorID.String(),
-				"assignmentId": assignmentID.String(),
-				"runId":        runID.String(),
-				"jobId":        jobID.String(),
-				"artifactId":   artifactID.String(),
-			},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "machine_run.artifact_auto_attached", ResourceType: "machine_run", ResourceID: &runID, RequestID: requestID, Source: "system", ChangedFields: []string{"jobId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "runId": runID.String(), "jobId": jobID.String(), "artifactId": artifactID.String()}}); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -1373,16 +1250,7 @@ func (s *Service) DetachRun(
 	if _, err = s.settleJob(ctx, q, job.ID); err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.run_detached",
-		"machine_job",
-		job.ID,
-		requestID,
-		[]string{"runs", "calculatedPrice", "effectivePrice"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.run_detached", "machine_job", job.ID, requestID, []string{"runs", "calculatedPrice", "effectivePrice"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

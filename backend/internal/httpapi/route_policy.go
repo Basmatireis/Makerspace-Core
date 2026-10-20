@@ -25,38 +25,14 @@ const (
 // bodies. Binary uploads get one byte above the feature limit so the service can tell an
 // oversized upload from one that is exactly at the limit.
 var requestBodyLimits = map[string]int64{
-	routeKey(
-		http.MethodPost,
-		"/printer-connector/self/events",
-	): maxPrinterConnectorEventsBodyBytes,
-	routeKey(
-		http.MethodPut,
-		"/printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact",
-	): printartifacts.MaxCompressedSize + 1,
-	routeKey(
-		http.MethodPut,
-		"/people/{personId}/profile-image",
-	): people.MaxProfileImageBytes + 1,
-	routeKey(
-		http.MethodPut,
-		"/branding/assets/{slot}",
-	): branding.MaxAssetBytes + 1,
-	routeKey(
-		http.MethodPost,
-		"/signage/assets",
-	): signage.MaxVideoBytes + 1,
-	routeKey(
-		http.MethodPost,
-		"/laborordnung/versions",
-	): laborordnung.MaxPDFBytes + 1,
-	routeKey(
-		http.MethodPost,
-		"/visitor-enrollment/submissions",
-	): maxVisitorEnrollmentSubmissionBytes,
-	routeKey(
-		http.MethodPost,
-		"/events/{eventId}/files",
-	): events.MaxFileBytes + 1,
+	routeKey(http.MethodPost, "/printer-connector/self/events"):                                          maxPrinterConnectorEventsBodyBytes,
+	routeKey(http.MethodPut, "/printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact"): printartifacts.MaxCompressedSize + 1,
+	routeKey(http.MethodPut, "/people/{personId}/profile-image"):                                         people.MaxProfileImageBytes + 1,
+	routeKey(http.MethodPut, "/branding/assets/{slot}"):                                                  branding.MaxAssetBytes + 1,
+	routeKey(http.MethodPost, "/signage/assets"):                                                         signage.MaxVideoBytes + 1,
+	routeKey(http.MethodPost, "/laborordnung/versions"):                                                  laborordnung.MaxPDFBytes + 1,
+	routeKey(http.MethodPost, "/visitor-enrollment/submissions"):                                         maxVisitorEnrollmentSubmissionBytes,
+	routeKey(http.MethodPost, "/events/{eventId}/files"):                                                 events.MaxFileBytes + 1,
 }
 
 // revalidatedRoutes may be cached by the browser but must be revalidated on every use. Every

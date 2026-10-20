@@ -71,11 +71,7 @@ func reconcileBambuSlotObservation(
 		var mountID uuid.UUID
 		var source string
 		var mountedAt time.Time
-		err := tx.QueryRow(
-			ctx,
-			`SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
-			slotID,
-		).
+		err := tx.QueryRow(ctx, `SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID).
 			Scan(&mountID, &source, &mountedAt)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && source != "connector_reconciled") {
 			return nil
@@ -90,12 +86,7 @@ func reconcileBambuSlotObservation(
 		if !unmountedAt.After(mountedAt) {
 			unmountedAt = mountedAt.Add(time.Microsecond)
 		}
-		if _, err = tx.Exec(
-			ctx,
-			`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`,
-			mountID,
-			unmountedAt,
-		); err != nil {
+		if _, err = tx.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`, mountID, unmountedAt); err != nil {
 			return err
 		}
 		return audit.Write(
@@ -211,15 +202,7 @@ func reconcileBambuSlotObservation(
 			return err
 		}
 	}
-	if _, err = tx.Exec(
-		ctx,
-		`INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id) VALUES ($1,$2,$3,$4,'connector_reconciled',$5)`,
-		uuid.Must(uuid.NewV7()),
-		slotID,
-		spoolID,
-		mountedAt,
-		eventID,
-	); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id) VALUES ($1,$2,$3,$4,'connector_reconciled',$5)`, uuid.Must(uuid.NewV7()), slotID, spoolID, mountedAt, eventID); err != nil {
 		return err
 	}
 	return audit.Write(
@@ -461,21 +444,7 @@ func applyReportedUsage(
 	if err != nil {
 		return err
 	}
-	if err = q.InsertReportedUsageItem(
-		ctx,
-		db.InsertReportedUsageItemParams{
-			ID:                   uuid.Must(uuid.NewV7()),
-			RunID:                run.ID,
-			SourcePrinterEventID: eventID,
-			ReportRevision:       *reportRevision,
-			LineNumber:           0,
-			EstimatedQuantityG:   pgNumeric(quantity),
-			SpoolID:              spoolID,
-			Method:               "legacy_report",
-			CalculationVersion:   "legacy-v1",
-			Quality:              "low",
-		},
-	); err != nil {
+	if err = q.InsertReportedUsageItem(ctx, db.InsertReportedUsageItemParams{ID: uuid.Must(uuid.NewV7()), RunID: run.ID, SourcePrinterEventID: eventID, ReportRevision: *reportRevision, LineNumber: 0, EstimatedQuantityG: pgNumeric(quantity), SpoolID: spoolID, Method: "legacy_report", CalculationVersion: "legacy-v1", Quality: "low"}); err != nil {
 		return err
 	}
 	_, err = q.SetObservedRunReport(
@@ -541,28 +510,7 @@ func applyReportedUsageItems(
 		slicerID := boundedPayloadString(item, "slicerFilamentId", 120)
 		inputUnit := boundedPayloadString(item, "inputUnitExternalId", 200)
 		slot := boundedPayloadString(item, "slotExternalId", 200)
-		if err = q.InsertReportedUsageItem(
-			ctx,
-			db.InsertReportedUsageItemParams{
-				ID:                   uuid.Must(uuid.NewV7()),
-				RunID:                run.ID,
-				SourcePrinterEventID: eventID,
-				ReportRevision:       revision,
-				LineNumber:           int32(index),
-				SlicerFilamentID:     slicerID,
-				Extruder:             extruder,
-				InputUnitExternalID:  inputUnit,
-				SlotExternalID:       slot,
-				PlannedQuantityG:     pgNumericOptional(planned),
-				PlannedLengthMm:      pgNumericOptional(length),
-				EstimatedQuantityG:   pgNumericOptional(estimated),
-				MaterialID:           materialID,
-				SpoolID:              spoolID,
-				Method:               method,
-				CalculationVersion:   calculationVersion,
-				Quality:              quality,
-			},
-		); err != nil {
+		if err = q.InsertReportedUsageItem(ctx, db.InsertReportedUsageItemParams{ID: uuid.Must(uuid.NewV7()), RunID: run.ID, SourcePrinterEventID: eventID, ReportRevision: revision, LineNumber: int32(index), SlicerFilamentID: slicerID, Extruder: extruder, InputUnitExternalID: inputUnit, SlotExternalID: slot, PlannedQuantityG: pgNumericOptional(planned), PlannedLengthMm: pgNumericOptional(length), EstimatedQuantityG: pgNumericOptional(estimated), MaterialID: materialID, SpoolID: spoolID, Method: method, CalculationVersion: calculationVersion, Quality: quality}); err != nil {
 			return err
 		}
 		valid++

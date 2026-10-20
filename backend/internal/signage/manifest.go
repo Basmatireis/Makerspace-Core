@@ -148,11 +148,8 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 			VisibleFromOutside: draft.VisibleFromOutside,
 		},
 		DefaultPlaylistID: draft.DefaultPlaylistID,
-		Rules:             []ManifestRule{},
-		Scenes:            []ManifestScene{},
-		Playlists:         []ManifestPlaylist{},
-		Assets:            []ManifestAsset{},
-		LayoutsVersion:    LayoutsVersion,
+		Rules:             []ManifestRule{}, Scenes: []ManifestScene{}, Playlists: []ManifestPlaylist{}, Assets: []ManifestAsset{},
+		LayoutsVersion: LayoutsVersion,
 	}
 	playlistIDs := map[uuid.UUID]struct{}{draft.DefaultPlaylistID: {}}
 	sceneIDs := map[uuid.UUID]struct{}{}
@@ -204,17 +201,10 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 
 func manifestRuleFrom(rule Rule) ManifestRule {
 	return ManifestRule{
-		ID: rule.ID, Kind: rule.ConditionKind, Weekdays: append(
-			[]int{},
-			rule.Weekdays...,
-		), TimeFrom: rule.TimeFrom, TimeTo: rule.TimeTo,
+		ID: rule.ID, Kind: rule.ConditionKind, Weekdays: append([]int{}, rule.Weekdays...), TimeFrom: rule.TimeFrom, TimeTo: rule.TimeTo,
 		MachineIDs: append([]uuid.UUID{}, rule.MachineIDs...), MachineMatch: rule.MachineMatch,
 		AnnouncementTemplateIDs: append([]uuid.UUID{}, rule.AnnouncementTemplateIDs...),
-		TargetKind:              rule.TargetKind,
-		TargetID:                rule.TargetID,
-		MinSeconds:              rule.MinSeconds,
-		MultiMode:               rule.MultiMode,
-		AlternateSeconds:        rule.AlternateSeconds,
+		TargetKind:              rule.TargetKind, TargetID: rule.TargetID, MinSeconds: rule.MinSeconds, MultiMode: rule.MultiMode, AlternateSeconds: rule.AlternateSeconds,
 	}
 }
 

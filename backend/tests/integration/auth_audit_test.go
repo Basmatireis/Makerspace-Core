@@ -203,11 +203,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("authenticated principal = %#v, want bootstrapped master", authenticated.Principal)
 	}
 
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE sessions SET idle_expires_at = now() - interval '1 second' WHERE id = $1`,
-		session.ID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE sessions SET idle_expires_at = now() - interval '1 second' WHERE id = $1`, session.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := authService.Authenticate(ctx, session.Token); !apperror.IsCode(err, "unauthenticated") {
@@ -292,11 +288,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("session was not revoked by reset completion: %v", err)
 	}
 	var redeemedVersion int64
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT version FROM accounts WHERE id = $1`,
-		accountID,
-	).Scan(&redeemedVersion); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT version FROM accounts WHERE id = $1`, accountID).Scan(&redeemedVersion); err != nil {
 		t.Fatal(err)
 	}
 	if redeemedVersion != issue.Account.Version+1 {
@@ -337,11 +329,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("fresh session after own password change is invalid: %v", err)
 	}
 	var changedVersion int64
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT version FROM accounts WHERE id = $1`,
-		accountID,
-	).Scan(&changedVersion); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT version FROM accounts WHERE id = $1`, accountID).Scan(&changedVersion); err != nil {
 		t.Fatal(err)
 	}
 	if changedVersion != redeemedVersion+1 {
@@ -434,14 +422,7 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 		WHERE account_id = $1 AND kind = 'password_reset'`, account.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePasswordResetCode(
-		ctx,
-		loginEmail,
-		expiredCode,
-		"Expired token password 46",
-		"127.0.0.1",
-		nil,
-	); !apperror.IsCode(
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, expiredCode, "Expired token password 46", "127.0.0.1", nil); !apperror.IsCode(
 		err,
 		"challenge_invalid",
 	) {
@@ -467,24 +448,10 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 	}
 	activeCode := notifier.code(loginEmail)
 	provisionedPassword := "Provisioned disabled account 84"
-	if err := authService.CompletePasswordResetCode(
-		ctx,
-		loginEmail,
-		activeCode,
-		provisionedPassword,
-		"127.0.0.2",
-		nil,
-	); err != nil {
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, provisionedPassword, "127.0.0.2", nil); err != nil {
 		t.Fatalf("redeem active setup code: %v", err)
 	}
-	if err := authService.CompletePasswordResetCode(
-		ctx,
-		loginEmail,
-		activeCode,
-		"Second redemption password 25",
-		"127.0.0.3",
-		nil,
-	); !apperror.IsCode(
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, "Second redemption password 25", "127.0.0.3", nil); !apperror.IsCode(
 		err,
 		"challenge_invalid",
 	) {
@@ -552,11 +519,7 @@ func TestAdministrativeResetIssuanceDoesNotRevokeConcurrentLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 	var personID uuid.UUID
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT person_id FROM accounts WHERE id = $1`,
-		accountID,
-	).Scan(&personID); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id = $1`, accountID).Scan(&personID); err != nil {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -740,14 +703,7 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	if resetCode == "" {
 		t.Fatal("reset challenge was not delivered")
 	}
-	if err := authService.CompletePasswordResetCode(
-		ctx,
-		loginEmail,
-		resetCode,
-		resetPassword,
-		"192.0.2.33",
-		nil,
-	); err != nil {
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, resetCode, resetPassword, "192.0.2.33", nil); err != nil {
 		t.Fatalf("complete reset challenge: %v", err)
 	}
 	if _, err := authService.Authenticate(ctx, change.session.Token); !apperror.IsCode(err, "unauthenticated") {
@@ -777,12 +733,7 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`DELETE FROM person_roles WHERE person_id = (SELECT person_id FROM accounts WHERE id=$1) AND role_id = $2`,
-		accountID,
-		masterRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM person_roles WHERE person_id = (SELECT person_id FROM accounts WHERE id=$1) AND role_id = $2`, accountID, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -979,12 +930,7 @@ func assertChallengeStoredAsDigest(
 ) {
 	t.Helper()
 	var digest []byte
-	if err := pool.QueryRow(
-		testContext(t),
-		`SELECT code_digest FROM auth_challenges WHERE account_id = $1 AND kind = $2`,
-		accountID,
-		kind,
-	).Scan(&digest); err != nil {
+	if err := pool.QueryRow(testContext(t), `SELECT code_digest FROM auth_challenges WHERE account_id = $1 AND kind = $2`, accountID, kind).Scan(&digest); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(digest, security.ChallengeDigest(cfg.ChallengeHMACKey, kind, accountID, code)) ||
@@ -1045,10 +991,7 @@ func assertAuditContainsNoPII(t *testing.T, pool *pgxpool.Pool, forbidden ...str
 	t.Helper()
 	ctx := testContext(t)
 	var serialized string
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT COALESCE(jsonb_agg(to_jsonb(ae))::text, '[]') FROM audit_events ae`,
-	).Scan(&serialized); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT COALESCE(jsonb_agg(to_jsonb(ae))::text, '[]') FROM audit_events ae`).Scan(&serialized); err != nil {
 		t.Fatal(err)
 	}
 	for _, value := range forbidden {

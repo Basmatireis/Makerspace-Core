@@ -850,16 +850,7 @@ func (s *Service) CreateManualJobInTransaction(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.created",
-		"machine_job",
-		job.ID,
-		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "usages", "pricingSnapshot"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", job.ID, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "usages", "pricingSnapshot"}); err != nil {
 		return MachineJob{}, err
 	}
 	return s.jobFromRow(ctx, q, job)
@@ -1319,16 +1310,7 @@ func (s *Service) UpdateJobFacts(
 			return MachineJob{}, err
 		}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_job.updated",
-		"machine_job",
-		id,
-		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "outcomeOverride", "notes", "pricing"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.updated", "machine_job", id, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "outcomeOverride", "notes", "pricing"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

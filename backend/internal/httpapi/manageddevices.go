@@ -108,13 +108,7 @@ func (s *Server) DeleteManagedDeviceType(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if e = s.managedDevices.DeleteType(
-		ctx,
-		p,
-		r.DeviceTypeId,
-		r.Body.ExpectedVersion,
-		requestIDPointer(ctx),
-	); e != nil {
+	if e = s.managedDevices.DeleteType(ctx, p, r.DeviceTypeId, r.Body.ExpectedVersion, requestIDPointer(ctx)); e != nil {
 		return nil, e
 	}
 	return openapi.DeleteManagedDeviceType204Response{}, nil
@@ -359,16 +353,7 @@ func (s *Server) managedDeviceProvisioning(
 			expires = v.Device.ExpiresAt.UTC()
 			maxAge = max(1, int(time.Until(expires).Seconds()))
 		}
-		cookie := (&http.Cookie{
-			Name:     s.config.ManagedDeviceCookieName,
-			Value:    v.Token,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   s.config.SessionCookieSecure,
-			SameSite: http.SameSiteStrictMode,
-			Expires:  expires,
-			MaxAge:   maxAge,
-		}).String()
+		cookie := (&http.Cookie{Name: s.config.ManagedDeviceCookieName, Value: v.Token, Path: "/", HttpOnly: true, Secure: s.config.SessionCookieSecure, SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: maxAge}).String()
 		return result, cookie
 	}
 	result.Token = &v.Token
@@ -530,9 +515,7 @@ func (s *Server) UpdateSessionPolicy(
 		p,
 		request.SessionPolicyId,
 		manageddevices.SessionPolicyInput{
-			Name:                    request.Body.Name,
-			IdleTimeoutSeconds:      int32(request.Body.IdleTimeoutSeconds),
-			AbsoluteLifetimeSeconds: int32(request.Body.AbsoluteLifetimeSeconds),
+			Name: request.Body.Name, IdleTimeoutSeconds: int32(request.Body.IdleTimeoutSeconds), AbsoluteLifetimeSeconds: int32(request.Body.AbsoluteLifetimeSeconds),
 			PostSessionDestination: string(
 				request.Body.PostSessionDestination,
 			), IsDefault: request.Body.IsDefault, ExpectedVersion: request.Body.ExpectedVersion,

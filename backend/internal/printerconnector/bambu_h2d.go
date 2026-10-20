@@ -270,23 +270,14 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 		case retrievalErr := <-retrievalResults:
 			if retrievalErr == nil {
 				if ready {
-					if err = sink.Commit(
-						ctx,
-						Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})},
-					); err != nil {
+					if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})}); err != nil {
 						return err
 					}
 				}
 				continue
 			}
 			code := classifyAdapterError(retrievalErr)
-			if err = sink.Commit(
-				ctx,
-				Observation{
-					Kind:    "connectivity",
-					Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code}),
-				},
-			); err != nil {
+			if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code})}); err != nil {
 				return err
 			}
 		case message, ok := <-client.Messages():
@@ -314,10 +305,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 						return err
 					}
 				}
-				if err = sink.Commit(
-					ctx,
-					Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": message.state})},
-				); err != nil {
+				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": message.state})}); err != nil {
 					return err
 				}
 				continue
@@ -342,10 +330,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 					default:
 					}
 				}
-				if err = sink.Commit(
-					ctx,
-					Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})},
-				); err != nil {
+				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})}); err != nil {
 					return err
 				}
 			}
@@ -357,13 +342,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			}
 			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr != nil {
 				code := classifyAdapterError(scheduleErr)
-				if err = sink.Commit(
-					ctx,
-					Observation{
-						Kind:    "connectivity",
-						Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code}),
-					},
-				); err != nil {
+				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code})}); err != nil {
 					return err
 				}
 			}
@@ -387,14 +366,7 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observ
 			continue
 		}
 		expiresAt := time.Now().UTC().Add(24 * time.Hour)
-		if err := a.store.ScheduleArtifactRetrieval(
-			ctx,
-			a.assignmentID,
-			*observation.RunID,
-			a.configurationVersion,
-			reportedPath,
-			expiresAt,
-		); err != nil {
+		if err := a.store.ScheduleArtifactRetrieval(ctx, a.assignmentID, *observation.RunID, a.configurationVersion, reportedPath, expiresAt); err != nil {
 			return err
 		}
 		if err := a.store.ExtendArtifactTransferExpiry(ctx, a.assignmentID, *observation.RunID, expiresAt); err != nil {

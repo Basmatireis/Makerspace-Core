@@ -62,19 +62,7 @@ func scanArtifactTransfers(rows *sql.Rows) ([]ArtifactTransfer, error) {
 	for rows.Next() {
 		var item ArtifactTransfer
 		var id, assignmentID, runID, expires string
-		if err := rows.Scan(
-			&id,
-			&assignmentID,
-			&runID,
-			&item.ConfigurationVersion,
-			&item.RemotePath,
-			&item.FileName,
-			&item.StagedPath,
-			&item.SizeBytes,
-			&item.SHA256,
-			&item.AttemptCount,
-			&expires,
-		); err != nil {
+		if err := rows.Scan(&id, &assignmentID, &runID, &item.ConfigurationVersion, &item.RemotePath, &item.FileName, &item.StagedPath, &item.SizeBytes, &item.SHA256, &item.AttemptCount, &expires); err != nil {
 			return nil, err
 		}
 		var err error
@@ -110,13 +98,7 @@ func (s *Store) EnqueueArtifactConsumption(
 	}
 	defer tx.Rollback()
 	var exists int
-	err = tx.QueryRowContext(
-		ctx,
-		`SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`,
-		transfer.AssignmentID.String(),
-		transfer.RunID.String(),
-		transfer.SHA256,
-	).
+	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`, transfer.AssignmentID.String(), transfer.RunID.String(), transfer.SHA256).
 		Scan(&exists)
 	if err == nil {
 		return nil
@@ -132,11 +114,7 @@ func (s *Store) EnqueueArtifactConsumption(
 		return errors.New("connector event queue is full; consumption report remains pending")
 	}
 	sequence := int64(1)
-	err = tx.QueryRowContext(
-		ctx,
-		`SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`,
-		transfer.AssignmentID.String(),
-	).
+	err = tx.QueryRowContext(ctx, `SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`, transfer.AssignmentID.String()).
 		Scan(&sequence)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = tx.ExecContext(
@@ -145,12 +123,7 @@ func (s *Store) EnqueueArtifactConsumption(
 			transfer.AssignmentID.String(),
 		)
 	} else if err == nil {
-		_, err = tx.ExecContext(
-			ctx,
-			`UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`,
-			sequence+1,
-			transfer.AssignmentID.String(),
-		)
+		_, err = tx.ExecContext(ctx, `UPDATE assignment_sequences SET next_sequence=? WHERE assignment_id=?`, sequence+1, transfer.AssignmentID.String())
 	}
 	if err != nil {
 		return err
@@ -160,33 +133,10 @@ func (s *Store) EnqueueArtifactConsumption(
 	if facts.ExternalPrintID != "" {
 		external = facts.ExternalPrintID
 	}
-	if _, err = tx.ExecContext(
-		ctx,
-		`INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,'consumption_report',?,?,?,?,?,?,?)`,
-		uuid.Must(uuid.NewV7()).String(),
-		transfer.AssignmentID.String(),
-		transfer.ConfigurationVersion,
-		sequence,
-		now,
-		transfer.RunID.String(),
-		facts.HistoryComplete,
-		external,
-		bambuConsumptionRevision,
-		[]byte(payload),
-		now,
-		now,
-	); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO outbox(event_id,assignment_id,configuration_version,sequence,occurred_at,kind,run_id,history_complete,external_print_id,report_revision,payload,next_attempt_at,created_at) VALUES(?,?,?,?,?,'consumption_report',?,?,?,?,?,?,?)`, uuid.Must(uuid.NewV7()).String(), transfer.AssignmentID.String(), transfer.ConfigurationVersion, sequence, now, transfer.RunID.String(), facts.HistoryComplete, external, bambuConsumptionRevision, []byte(payload), now, now); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(
-		ctx,
-		`INSERT INTO artifact_consumption_reports(assignment_id,run_id,artifact_sha256,report_revision,created_at) VALUES(?,?,?,?,?)`,
-		transfer.AssignmentID.String(),
-		transfer.RunID.String(),
-		transfer.SHA256,
-		bambuConsumptionRevision,
-		now,
-	); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO artifact_consumption_reports(assignment_id,run_id,artifact_sha256,report_revision,created_at) VALUES(?,?,?,?,?)`, transfer.AssignmentID.String(), transfer.RunID.String(), transfer.SHA256, bambuConsumptionRevision, now); err != nil {
 		return err
 	}
 	removeStaged := false

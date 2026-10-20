@@ -118,10 +118,7 @@ func (s *Service) ListWorkItems(
 	if filters.Direction == "" {
 		filters.Direction = "desc"
 	}
-	if !containsAll(
-		workItemSorts,
-		[]string{filters.Sort},
-	) || (filters.Direction != "asc" && filters.Direction != "desc") ||
+	if !containsAll(workItemSorts, []string{filters.Sort}) || (filters.Direction != "asc" && filters.Direction != "desc") ||
 		!containsAll(workItemStatuses, filters.Statuses) ||
 		!containsAll(workItemSources, filters.Sources) ||
 		!containsAll(billingStates, filters.Billing) {

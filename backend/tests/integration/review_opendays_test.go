@@ -58,20 +58,11 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	manager := seedAccount(t, pool, "assignment-name", true)
 	p := authorization.Principal{AccountID: manager.accountID, PersonID: manager.personID, Master: true}
 	// Sort the assignee after more than a full eligibility page.
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE people SET first_name='Zelda',last_name='ZZZ' WHERE id=$1`,
-		manager.personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE people SET first_name='Zelda',last_name='ZZZ' WHERE id=$1`, manager.personID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `WITH people_insert AS (
-		INSERT INTO people(
-			id,
-			first_name,
-			last_name,
-			phone,
-		) SELECT uuidv7(),'Earlier','AAA','+43123456789' FROM generate_series(1,201) RETURNING id
+		INSERT INTO people(id,first_name,last_name,phone) SELECT uuidv7(),'Earlier','AAA','+43123456789' FROM generate_series(1,201) RETURNING id
 	), accounts_insert AS (
 		INSERT INTO accounts(id,person_id,status) SELECT uuidv7(),id,'enabled' FROM people_insert RETURNING person_id
 	) INSERT INTO person_roles(person_id,role_id) SELECT person_id,$1 FROM accounts_insert`, masterRoleID); err != nil {

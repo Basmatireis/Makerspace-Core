@@ -104,10 +104,7 @@ func replaceMaterialTypeProcesses(
 		return err
 	}
 	for _, process := range processes {
-		if err := q.InsertMaterialTypeProcess(
-			ctx,
-			machinelogbookdb.InsertMaterialTypeProcessParams{MaterialTypeID: id, Process: process},
-		); err != nil {
+		if err := q.InsertMaterialTypeProcess(ctx, machinelogbookdb.InsertMaterialTypeProcessParams{MaterialTypeID: id, Process: process}); err != nil {
 			return databaseError(err)
 		}
 	}
@@ -191,25 +188,13 @@ func (s *Service) CreateMaterialType(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	id := newID()
-	if _, err = q.CreateMaterialType(
-		ctx,
-		machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit},
-	); err != nil {
+	if _, err = q.CreateMaterialType(ctx, machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit}); err != nil {
 		return MaterialType{}, materialTypeConflict(err)
 	}
 	if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
 		return MaterialType{}, err
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"material_type.created",
-		"material_type",
-		id,
-		requestID,
-		[]string{"name", "unit", "processes"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "material_type.created", "material_type", id, requestID, []string{"name", "unit", "processes"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)
@@ -280,16 +265,7 @@ func (s *Service) UpdateMaterialType(
 			)
 		}
 	}
-	if _, err = q.UpdateMaterialType(
-		ctx,
-		machinelogbookdb.UpdateMaterialTypeParams{
-			Name:            name,
-			Unit:            unit,
-			Active:          active,
-			ID:              id,
-			ExpectedVersion: expected,
-		},
-	); err != nil {
+	if _, err = q.UpdateMaterialType(ctx, machinelogbookdb.UpdateMaterialTypeParams{Name: name, Unit: unit, Active: active, ID: id, ExpectedVersion: expected}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return MaterialType{}, apperror.StaleWrite
 		}
@@ -300,16 +276,7 @@ func (s *Service) UpdateMaterialType(
 			return MaterialType{}, err
 		}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"material_type.updated",
-		"material_type",
-		id,
-		requestID,
-		[]string{"name", "unit", "processes", "active"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "material_type.updated", "material_type", id, requestID, []string{"name", "unit", "processes", "active"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)

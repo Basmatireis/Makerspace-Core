@@ -299,9 +299,7 @@ func connectorFrom(row db.PrinterConnector) Connector {
 	return Connector{ID: row.ID, Name: row.Name, LocationLabel: row.LocationLabel, Lifecycle: row.Lifecycle,
 		ConfigurationRevision: row.ConfigurationRevision, AppliedRevision: row.AppliedConfigurationRevision,
 		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: row.HealthState,
-		HealthSummary:         row.HealthSummary,
-		PendingEventCount:     row.PendingEventCount,
-		QuarantinedEventCount: row.QuarantinedEventCount,
+		HealthSummary: row.HealthSummary, PendingEventCount: row.PendingEventCount, QuarantinedEventCount: row.QuarantinedEventCount,
 		LastHeartbeatAt: nullableTime(
 			row.LastHeartbeatAt,
 		), EnrolledAt: nullableTime(row.EnrolledAt), DisabledAt: nullableTime(row.DisabledAt),
@@ -358,18 +356,7 @@ func (s *Service) Create(
 		return Connector{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.created",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "locationLabel"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.created", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "locationLabel"}}); err != nil {
 		return Connector{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -461,18 +448,7 @@ func (s *Service) ClearEvents(
 	if err != nil {
 		return Connector{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.events_cleared",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"eventsClearedAt"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.events_cleared", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"eventsClearedAt"}}); err != nil {
 		return Connector{}, err
 	}
 	connector, err := connectorWithClearedBy(ctx, q, row)
@@ -553,18 +529,7 @@ func (s *Service) Update(
 		return Connector{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.updated",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "locationLabel", "lifecycle"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.updated", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "locationLabel", "lifecycle"}}); err != nil {
 		return Connector{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -610,30 +575,10 @@ func (s *Service) IssueEnrollment(
 	expires := time.Now().UTC().Add(enrollmentTTL).Truncate(time.Microsecond)
 	enrollmentID := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
-	if _, err = q.CreateEnrollment(
-		ctx,
-		db.CreateEnrollmentParams{
-			ID:                 enrollmentID,
-			ConnectorID:        id,
-			TokenDigest:        digest,
-			ExpiresAt:          expires,
-			CreatedByAccountID: &actor,
-		},
-	); err != nil {
+	if _, err = q.CreateEnrollment(ctx, db.CreateEnrollmentParams{ID: enrollmentID, ConnectorID: id, TokenDigest: digest, ExpiresAt: expires, CreatedByAccountID: &actor}); err != nil {
 		return EnrollmentIssue{}, err
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.enrollment_issued",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"enrollment"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.enrollment_issued", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"enrollment"}}); err != nil {
 		return EnrollmentIssue{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -729,25 +674,10 @@ func (s *Service) Enroll(
 		}
 	}
 	expires := time.Now().UTC().Add(credentialTTL).Truncate(time.Microsecond)
-	if _, err = q.CreateCredential(
-		ctx,
-		db.CreateCredentialParams{
-			ID:          credentialID,
-			ConnectorID: enrollment.ConnectorID,
-			TokenDigest: security.DigestToken(credentialSecret),
-			ExpiresAt:   expires,
-		},
-	); err != nil {
+	if _, err = q.CreateCredential(ctx, db.CreateCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return EnrollmentResult{}, databaseError(err)
 	}
-	if _, err = q.CompleteEnrollment(
-		ctx,
-		db.CompleteEnrollmentParams{
-			CredentialFingerprint: &fingerprint,
-			CredentialID:          &credentialID,
-			ID:                    enrollment.ID,
-		},
-	); err != nil {
+	if _, err = q.CompleteEnrollment(ctx, db.CompleteEnrollmentParams{CredentialFingerprint: &fingerprint, CredentialID: &credentialID, ID: enrollment.ID}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	action, changed := "printer_connector.enrolled", []string{"lifecycle", "credential"}
@@ -767,18 +697,7 @@ func (s *Service) Enroll(
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        action,
-			ResourceType:  "printer_connector",
-			ResourceID:    &row.ID,
-			ChangedFields: changed,
-			Source:        "http",
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: action, ResourceType: "printer_connector", ResourceID: &row.ID, ChangedFields: changed, Source: "http"}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -836,18 +755,7 @@ func (s *Service) Revoke(
 		return Connector{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.revoked",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"lifecycle", "credentials", "assignments"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.revoked", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"lifecycle", "credentials", "assignments"}}); err != nil {
 		return Connector{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -910,18 +818,7 @@ func (s *Service) Delete(
 		return apperror.StaleWrite
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.deleted",
-			ResourceType:   "printer_connector",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"connector", "credentials", "assignments", "events"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.deleted", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"connector", "credentials", "assignments", "events"}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -1115,18 +1012,7 @@ func (s *Service) UpdateAssignment(
 		return Assignment{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.assignment_updated",
-			ResourceType:   "printer_connector_assignment",
-			ResourceID:     &assignmentID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"adapterKind", "configuration", "enabled", "endedAt"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.assignment_updated", ResourceType: "printer_connector_assignment", ResourceID: &assignmentID, RequestID: requestID, ChangedFields: []string{"adapterKind", "configuration", "enabled", "endedAt"}}); err != nil {
 		return Assignment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1280,29 +1166,10 @@ func (s *Service) RotateCredential(
 		return time.Time{}, err
 	}
 	expires := time.Now().UTC().Add(credentialTTL).Truncate(time.Microsecond)
-	if _, err = q.CreateRotatedCredential(
-		ctx,
-		db.CreateRotatedCredentialParams{
-			ID:          credentialID,
-			ConnectorID: connector.ID,
-			TokenDigest: security.DigestToken(credentialSecret),
-			ExpiresAt:   expires,
-		},
-	); err != nil {
+	if _, err = q.CreateRotatedCredential(ctx, db.CreateRotatedCredentialParams{ID: credentialID, ConnectorID: connector.ID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return time.Time{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "printer_connector.credential_rotated",
-			ResourceType:  "printer_connector",
-			ResourceID:    &connector.ID,
-			ChangedFields: []string{"credential"},
-			Source:        "http",
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "printer_connector.credential_rotated", ResourceType: "printer_connector", ResourceID: &connector.ID, ChangedFields: []string{"credential"}, Source: "http"}); err != nil {
 		return time.Time{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1355,18 +1222,7 @@ func (s *Service) createAssignment(
 		return Assignment{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "printer_connector.assignment_created",
-			ResourceType:   "printer_connector_assignment",
-			ResourceID:     &assignmentID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"connectorId", "machineId", "adapterKind", "configuration"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.assignment_created", ResourceType: "printer_connector_assignment", ResourceID: &assignmentID, RequestID: requestID, ChangedFields: []string{"connectorId", "machineId", "adapterKind", "configuration"}}); err != nil {
 		return Assignment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1470,16 +1326,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 			(h.State != "connecting" && h.State != "connected" && h.State != "disconnected" && h.State != "degraded" && h.State != "disabled") {
 			return Connector{}, validation("invalid assignment health")
 		}
-		if err = q.UpdateAssignmentRuntime(
-			ctx,
-			db.UpdateAssignmentRuntimeParams{
-				AppliedConfigurationVersion: h.AppliedConfigurationVersion,
-				RuntimeState:                &h.State,
-				RuntimeErrorCode:            h.ErrorCode,
-				ID:                          h.AssignmentID,
-				ConnectorID:                 connector.ID,
-			},
-		); err != nil {
+		if err = q.UpdateAssignmentRuntime(ctx, db.UpdateAssignmentRuntimeParams{AppliedConfigurationVersion: h.AppliedConfigurationVersion, RuntimeState: &h.State, RuntimeErrorCode: h.ErrorCode, ID: h.AssignmentID, ConnectorID: connector.ID}); err != nil {
 			return Connector{}, err
 		}
 	}
@@ -1550,10 +1397,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	a, err := db.New(tx).
-		GetAssignmentForIngress(
-			ctx,
-			db.GetAssignmentForIngressParams{ID: input.AssignmentID, ConnectorID: connector.ID},
-		)
+		GetAssignmentForIngress(ctx, db.GetAssignmentForIngressParams{ID: input.AssignmentID, ConnectorID: connector.ID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return rejected("assignment_not_found")
 	}
@@ -1648,40 +1492,19 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 	}
 	if inserted && input.RunID != nil && !runDeleted {
-		if err = applyPrintFacts(
-			ctx,
-			db.New(tx),
-			run,
-			event.ID,
-			input.Kind,
-			input.Payload,
-			input.OccurredAt,
-			input.ReportRevision,
-		); err != nil {
+		if err = applyPrintFacts(ctx, db.New(tx), run, event.ID, input.Kind, input.Payload, input.OccurredAt, input.ReportRevision); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 		// The recorded run's outcome, material usage and job price follow the
 		// event in the same transaction.
-		if err = s.logbook.ApplyRecordedRunEvent(
-			ctx,
-			tx,
-			machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: input.Kind},
-		); err != nil {
+		if err = s.logbook.ApplyRecordedRunEvent(ctx, tx, machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: input.Kind}); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 	}
 	if inserted && input.Kind == "printer_error" {
-		if err = applyPrinterError(
-			ctx,
-			db.New(tx),
-			a.MachineID,
-			a.ID,
-			input.RunID,
-			input.Payload,
-			input.OccurredAt,
-		); err != nil {
+		if err = applyPrinterError(ctx, db.New(tx), a.MachineID, a.ID, input.RunID, input.Payload, input.OccurredAt); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
@@ -1689,16 +1512,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	if inserted && input.Kind == "slot_observation" && applicationState == "applied" &&
 		isBambuLANAdapter(a.AdapterKind) &&
 		bambuAutoDetectSpools(a.Settings) {
-		if err = reconcileBambuSlotObservation(
-			ctx,
-			tx,
-			connector.ID,
-			a.ID,
-			a.MachineID,
-			event.ID,
-			input.Payload,
-			input.OccurredAt,
-		); err != nil {
+		if err = reconcileBambuSlotObservation(ctx, tx, connector.ID, a.ID, a.MachineID, event.ID, input.Payload, input.OccurredAt); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}

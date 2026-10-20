@@ -35,16 +35,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		adminLogin    = "mdel-admin@example.test"
 		adminPassword = "Mdel admin workshop password 61"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(
-		ctx,
-		admin.BootstrapInput{
-			FirstName:    "Mdel",
-			LastName:     "Admin",
-			ContactEmail: "mdel-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
-		},
-	); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Mdel", LastName: "Admin", ContactEmail: "mdel-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)
@@ -174,11 +165,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	connectorManager := member("connectors", "machines.read", "machines.manage", "printer_connectors.manage")
 
 	var accountID, personID uuid.UUID
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`,
-		adminLogin,
-	).Scan(&accountID, &personID); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
@@ -244,11 +231,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	api(manager, http.MethodDelete, "/machines/"+plain.Id.String(), http.StatusNoContent, version(plain), nil)
 	gone(plain)
 	var audits int
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM audit_events WHERE action = 'machine.deleted' AND resource_id = $1`,
-		plain.Id,
-	).Scan(&audits); err != nil ||
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine.deleted' AND resource_id = $1`, plain.Id).Scan(&audits); err != nil ||
 		audits != 1 {
 		t.Fatalf("machine.deleted audit events = %d, %v", audits, err)
 	}
@@ -280,13 +263,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	if problem["code"] != "machine_in_use" {
 		t.Fatalf("in-use problem: %+v", problem)
 	}
-	if err = logbook.DeleteJob(
-		ctx,
-		master,
-		job.ID,
-		machinelogbook.DeleteJobInput{ExpectedVersion: job.Version},
-		nil,
-	); err != nil {
+	if err = logbook.DeleteJob(ctx, master, job.ID, machinelogbook.DeleteJobInput{ExpectedVersion: job.Version}, nil); err != nil {
 		t.Fatal(err)
 	}
 	api(manager, http.MethodDelete, "/machines/"+worked.Id.String(), http.StatusNoContent, version(worked), nil)
@@ -316,11 +293,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	}
 	var connectorID uuid.UUID
 	var revision int64
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT c.id, c.configuration_revision FROM printer_connectors c JOIN printer_connector_assignments a ON a.connector_id = c.id WHERE a.machine_id = $1`,
-		connected.Id,
-	).Scan(&connectorID, &revision); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT c.id, c.configuration_revision FROM printer_connectors c JOIN printer_connector_assignments a ON a.connector_id = c.id WHERE a.machine_id = $1`, connected.Id).Scan(&connectorID, &revision); err != nil {
 		t.Fatal(err)
 	}
 	api(manager, http.MethodDelete, "/machines/"+connected.Id.String(), http.StatusForbidden, version(connected), nil)
@@ -335,11 +308,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	gone(connected)
 	var after int64
 	var assignments int
-	if err = pool.QueryRow(
-		ctx,
-		`SELECT configuration_revision, (SELECT count(*) FROM printer_connector_assignments WHERE connector_id = $1) FROM printer_connectors WHERE id = $1`,
-		connectorID,
-	).Scan(&after, &assignments); err != nil {
+	if err = pool.QueryRow(ctx, `SELECT configuration_revision, (SELECT count(*) FROM printer_connector_assignments WHERE connector_id = $1) FROM printer_connectors WHERE id = $1`, connectorID).Scan(&after, &assignments); err != nil {
 		t.Fatal(err)
 	}
 	if after != revision+1 || assignments != 0 {
@@ -391,13 +360,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	)
 	slotPath := "/printer-slots/" + profile.Slots[0].Id.String()
 	// Stored the way a mount leaves it; mounting over the API needs a spool with an open fill.
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, now() - interval '1 hour', 'manual')`,
-		uuid.Must(uuid.NewV7()),
-		profile.Slots[0].Id,
-		spool.Id,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, source) VALUES ($1, $2, $3, now() - interval '1 hour', 'manual')`, uuid.Must(uuid.NewV7()), profile.Slots[0].Id, spool.Id); err != nil {
 		t.Fatal(err)
 	}
 	api(manager, http.MethodDelete, "/machines/"+loaded.Id.String(), http.StatusConflict, version(loaded), &problem)

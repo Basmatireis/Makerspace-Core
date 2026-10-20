@@ -125,32 +125,19 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 
 	process := func(typeID uuid.UUID) string {
 		var value string
-		if err := pool.QueryRow(
-			ctx,
-			`SELECT process FROM machine_types WHERE id = $1`,
-			typeID,
-		).Scan(&value); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT process FROM machine_types WHERE id = $1`, typeID).Scan(&value); err != nil {
 			t.Fatal(err)
 		}
 		return value
 	}
-	for typeID, want := range map[uuid.UUID]string{
-		flagged:   "fdm_printing",
-		profiled:  "fdm_printing",
-		plain:     "other",
-		laserType: "other",
-	} {
+	for typeID, want := range map[uuid.UUID]string{flagged: "fdm_printing", profiled: "fdm_printing", plain: "other", laserType: "other"} {
 		if got := process(typeID); got != want {
 			t.Fatalf("process of %s = %s, want %s", typeID, got, want)
 		}
 	}
 	processes := func(typeID uuid.UUID) string {
 		var value string
-		if err := pool.QueryRow(
-			ctx,
-			`SELECT COALESCE(string_agg(process, ',' ORDER BY process), '') FROM material_type_processes WHERE material_type_id = $1`,
-			typeID,
-		).Scan(&value); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT COALESCE(string_agg(process, ',' ORDER BY process), '') FROM material_type_processes WHERE material_type_id = $1`, typeID).Scan(&value); err != nil {
 			t.Fatal(err)
 		}
 		return value
@@ -184,18 +171,10 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 		job,
 	)
 	exec(`INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'stitches', 12400)`, runID)
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'stitches', -1)`,
-		runID,
-	); err == nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'stitches', -1)`, runID); err == nil {
 		t.Fatal("negative measure accepted")
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'colour_changes', 1)`,
-		runID,
-	); err == nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, 'colour_changes', 1)`, runID); err == nil {
 		t.Fatal("unknown measure accepted")
 	}
 	group := id()
@@ -206,22 +185,10 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 		group,
 		laserType,
 	)
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, measure, block_size, rate) VALUES ($1, $2, 'machine_measure', $3, 'stitches', 1000, 0.7)`,
-		id(),
-		group,
-		laserType,
-	); err == nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, measure, block_size, rate) VALUES ($1, $2, 'machine_measure', $3, 'stitches', 1000, 0.7)`, id(), group, laserType); err == nil {
 		t.Fatal("second active rule for the same measure accepted")
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, rate) VALUES ($1, $2, 'machine_measure', $3, 1)`,
-		id(),
-		group,
-		laserType,
-	); err == nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, rate) VALUES ($1, $2, 'machine_measure', $3, 1)`, id(), group, laserType); err == nil {
 		t.Fatal("measure rule without measure accepted")
 	}
 

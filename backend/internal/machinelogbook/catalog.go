@@ -56,16 +56,7 @@ func (s *Service) CreateMachineType(
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_type.created",
-		"machine_type",
-		id,
-		requestID,
-		[]string{"name", "process"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.created", "machine_type", id, requestID, []string{"name", "process"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -134,16 +125,7 @@ func (s *Service) UpdateMachineType(
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine_type.updated",
-		"machine_type",
-		id,
-		requestID,
-		[]string{"name", "active", "process"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.updated", "machine_type", id, requestID, []string{"name", "active", "process"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -319,16 +301,7 @@ func (s *Service) CreateMachine(
 	if err != nil {
 		return Machine{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine.created",
-		"machine",
-		id,
-		requestID,
-		[]string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine.created", "machine", id, requestID, []string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"}); err != nil {
 		return Machine{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -401,16 +374,7 @@ func (s *Service) UpdateMachine(
 	if err != nil {
 		return Machine{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"machine.updated",
-		"machine",
-		id,
-		requestID,
-		[]string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine.updated", "machine", id, requestID, []string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"}); err != nil {
 		return Machine{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -473,10 +437,7 @@ func (s *Service) DeleteMachine(
 	}
 	// Order matters: runs go before printer events and assignments they reference.
 	for _, step := range []func(context.Context, uuid.UUID) error{
-		q.BumpConnectorsOfDeletedMachine,
-		q.DeleteMachineErrorOccurrences,
-		q.DeleteMachineRunsOfMachine,
-		q.DeleteMachineJobsOfMachine,
+		q.BumpConnectorsOfDeletedMachine, q.DeleteMachineErrorOccurrences, q.DeleteMachineRunsOfMachine, q.DeleteMachineJobsOfMachine,
 		q.DeleteMachinePrinterEvents, q.DeleteMachineSpoolMountHistory, q.DeleteMachineConnectorAssignments,
 	} {
 		if err = step(ctx, id); err != nil {
@@ -708,33 +669,11 @@ func (s *Service) CreateOrganization(
 	defer func() { _ = tx.Rollback(ctx) }()
 	id := newID()
 	row, err := machinelogbookdb.New(tx).
-		CreateOrganization(
-			ctx,
-			machinelogbookdb.CreateOrganizationParams{
-				ID:           id,
-				Name:         name,
-				Kind:         kind,
-				AddressLine:  merged.AddressLine,
-				PostalCode:   merged.PostalCode,
-				Locality:     merged.Locality,
-				CountryCode:  merged.CountryCode,
-				ContactName:  merged.ContactName,
-				ContactEmail: merged.ContactEmail,
-			},
-		)
+		CreateOrganization(ctx, machinelogbookdb.CreateOrganizationParams{ID: id, Name: name, Kind: kind, AddressLine: merged.AddressLine, PostalCode: merged.PostalCode, Locality: merged.Locality, CountryCode: merged.CountryCode, ContactName: merged.ContactName, ContactEmail: merged.ContactEmail})
 	if err != nil {
 		return Organization{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"organization.created",
-		"organization",
-		id,
-		requestID,
-		append([]string{"name", "kind"}, changedOrganizationDetailFields(details)...),
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "organization.created", "organization", id, requestID, append([]string{"name", "kind"}, changedOrganizationDetailFields(details)...)); err != nil {
 		return Organization{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -859,16 +798,7 @@ func (s *Service) UpdateOrganization(
 	if err != nil {
 		return Organization{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"organization.updated",
-		"organization",
-		id,
-		requestID,
-		append([]string{"name", "kind", "active"}, changedOrganizationDetailFields(details)...),
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "organization.updated", "organization", id, requestID, append([]string{"name", "kind", "active"}, changedOrganizationDetailFields(details)...)); err != nil {
 		return Organization{}, err
 	}
 	result, err := s.loadOrganization(ctx, q, id)
@@ -941,16 +871,7 @@ func (s *Service) AddOrganizationMember(
 	if err != nil {
 		return OrganizationMember{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"organization.member_added",
-		"organization",
-		organizationID,
-		requestID,
-		[]string{"members"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "organization.member_added", "organization", organizationID, requestID, []string{"members"}); err != nil {
 		return OrganizationMember{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -974,22 +895,10 @@ func (s *Service) RemoveOrganizationMember(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
-	if _, err = q.RemoveOrganizationMember(
-		ctx,
-		machinelogbookdb.RemoveOrganizationMemberParams{OrganizationID: organizationID, PersonID: personID},
-	); err != nil {
+	if _, err = q.RemoveOrganizationMember(ctx, machinelogbookdb.RemoveOrganizationMemberParams{OrganizationID: organizationID, PersonID: personID}); err != nil {
 		return noRows(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"organization.member_removed",
-		"organization",
-		organizationID,
-		requestID,
-		[]string{"members"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "organization.member_removed", "organization", organizationID, requestID, []string{"members"}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -1013,10 +922,7 @@ func (s *Service) SearchBillingParties(
 		return nil, validation("limit must be between 1 and 50")
 	}
 	rows, err := machinelogbookdb.New(s.pool).
-		SearchBillingParties(
-			ctx,
-			machinelogbookdb.SearchBillingPartiesParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)},
-		)
+		SearchBillingParties(ctx, machinelogbookdb.SearchBillingPartiesParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
@@ -1081,13 +987,7 @@ func (s *Service) SearchOperators(
 		return nil, validation("limit must be between 1 and 50")
 	}
 	rows, err := machinelogbookdb.New(s.pool).
-		SearchMachineJobOperators(
-			ctx,
-			machinelogbookdb.SearchMachineJobOperatorsParams{
-				Search:    strings.TrimSpace(search),
-				PageLimit: int32(limit),
-			},
-		)
+		SearchMachineJobOperators(ctx, machinelogbookdb.SearchMachineJobOperatorsParams{Search: strings.TrimSpace(search), PageLimit: int32(limit)})
 	if err != nil {
 		return nil, err
 	}
@@ -1217,16 +1117,7 @@ func (s *Service) CreatePricingGroup(
 	if err != nil {
 		return PricingGroup{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"pricing_group.created",
-		"pricing_group",
-		id,
-		requestID,
-		[]string{"name", "description", "isDefault"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_group.created", "pricing_group", id, requestID, []string{"name", "description", "isDefault"}); err != nil {
 		return PricingGroup{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1295,16 +1186,7 @@ func (s *Service) UpdatePricingGroup(
 	if err != nil {
 		return PricingGroup{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"pricing_group.updated",
-		"pricing_group",
-		id,
-		requestID,
-		[]string{"name", "description", "active", "isDefault"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_group.updated", "pricing_group", id, requestID, []string{"name", "description", "active", "isDefault"}); err != nil {
 		return PricingGroup{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1428,16 +1310,7 @@ func (s *Service) CreatePricingRule(
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"pricing_rule.created",
-		"pricing_rule",
-		id,
-		requestID,
-		[]string{"kind", "selector", "measure", "rate"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_rule.created", "pricing_rule", id, requestID, []string{"kind", "selector", "measure", "rate"}); err != nil {
 		return PricingRule{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1515,16 +1388,7 @@ func (s *Service) UpdatePricingRule(
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"pricing_rule.updated",
-		"pricing_rule",
-		id,
-		requestID,
-		[]string{"kind", "selector", "measure", "rate", "active"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_rule.updated", "pricing_rule", id, requestID, []string{"kind", "selector", "measure", "rate", "active"}); err != nil {
 		return PricingRule{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1582,13 +1446,7 @@ func (s *Service) SetPartyPricingGroup(
 			return BillingParty{}, databaseError(err)
 		}
 	} else {
-		_, err = q.DeleteOrganizationPricingAssignment(
-			ctx,
-			machinelogbookdb.DeleteOrganizationPricingAssignmentParams{
-				OrganizationID:  party.ID,
-				ExpectedVersion: expected,
-			},
-		)
+		_, err = q.DeleteOrganizationPricingAssignment(ctx, machinelogbookdb.DeleteOrganizationPricingAssignmentParams{OrganizationID: party.ID, ExpectedVersion: expected})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return BillingParty{}, apperror.StaleWrite
 		}
@@ -1610,16 +1468,7 @@ func (s *Service) SetPartyPricingGroup(
 	if row.PricingGroupID != nil && row.PricingGroupName != nil {
 		item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"billing_party.pricing_group_updated",
-		"billing_party",
-		party.ID,
-		requestID,
-		[]string{"pricingGroupId"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "billing_party.pricing_group_updated", "billing_party", party.ID, requestID, []string{"pricingGroupId"}); err != nil {
 		return BillingParty{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1731,29 +1580,11 @@ func (s *Service) SetRolePricingGroups(
 	}
 	actor := p.AccountID
 	for _, item := range input {
-		if err = q.InsertRolePricingGroup(
-			ctx,
-			machinelogbookdb.InsertRolePricingGroupParams{
-				RoleID:             item.RoleID,
-				PricingGroupID:     item.PricingGroupID,
-				Priority:           item.Priority,
-				UpdatedByAccountID: &actor,
-			},
-		); err != nil {
+		if err = q.InsertRolePricingGroup(ctx, machinelogbookdb.InsertRolePricingGroupParams{RoleID: item.RoleID, PricingGroupID: item.PricingGroupID, Priority: item.Priority, UpdatedByAccountID: &actor}); err != nil {
 			return nil, databaseError(err)
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: accountPointer(p),
-			Action:         "pricing.role_groups_updated",
-			ResourceType:   "pricing_role_groups",
-			RequestID:      requestID,
-			ChangedFields:  []string{"roleMapping"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: accountPointer(p), Action: "pricing.role_groups_updated", ResourceType: "pricing_role_groups", RequestID: requestID, ChangedFields: []string{"roleMapping"}}); err != nil {
 		return nil, err
 	}
 	items, err := listRolePricingGroups(ctx, q)

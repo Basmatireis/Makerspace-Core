@@ -117,10 +117,7 @@ func (s *Service) ListCashMovements(
 		return CashMovementPage{}, err
 	}
 	result := CashMovementPage{Items: []CashMovement{}, Page: int64(page), PageSize: int64(size)}
-	if result.Total, err = q.CountCashMovements(
-		ctx,
-		db.CountCashMovementsParams{Kind: kind, FromTime: nullableTime(from), ToTime: nullableTime(to)},
-	); err != nil {
+	if result.Total, err = q.CountCashMovements(ctx, db.CountCashMovementsParams{Kind: kind, FromTime: nullableTime(from), ToTime: nullableTime(to)}); err != nil {
 		return result, err
 	}
 	for _, row := range rows {
@@ -239,18 +236,7 @@ func (s *Service) CreateCashMovement(
 	if err != nil {
 		return CashMovement{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"cash_movement.recorded",
-		"cash_movement",
-		row.ID,
-		requestID,
-		"kind",
-		"amount",
-		"reason",
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "cash_movement.recorded", "cash_movement", row.ID, requestID, "kind", "amount", "reason"); err != nil {
 		return CashMovement{}, err
 	}
 	result, err := s.cashMovement(ctx, q, row)

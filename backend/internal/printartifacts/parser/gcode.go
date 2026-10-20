@@ -211,22 +211,7 @@ func (s *gcodeState) handleMarker(line string) bool {
 		switch {
 		case containsAny(lower, "wipe tower", "purge", "flush", "filament load", "filament unload", "nozzle cleaning"):
 			s.category = CategoryPurgeLoading
-		case containsAny(
-			lower,
-			"external perimeter",
-			"perimeter",
-			"infill",
-			"solid infill",
-			"top surface",
-			"bottom surface",
-			"support",
-			"bridge",
-			"skirt",
-			"brim",
-			"wall",
-			"sparse infill",
-			"internal solid",
-		):
+		case containsAny(lower, "external perimeter", "perimeter", "infill", "solid infill", "top surface", "bottom surface", "support", "bridge", "skirt", "brim", "wall", "sparse infill", "internal solid"):
 			s.category = CategoryModel
 		case strings.Contains(lower, "custom") || strings.Contains(lower, "unknown"):
 			s.category = CategoryUnclassified

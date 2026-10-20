@@ -219,14 +219,7 @@ func (c *Client) RotateCredential(ctx context.Context, token string, identity Id
 		CredentialExpiresAt time.Time `json:"credentialExpiresAt"`
 	}
 	input := map[string]any{"credentialId": identity.CredentialID, "credentialSecret": identity.CredentialSecret}
-	if err := c.do(
-		ctx,
-		http.MethodPost,
-		"/printer-connector/self/credential-rotation",
-		token,
-		input,
-		&output,
-	); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/printer-connector/self/credential-rotation", token, input, &output); err != nil {
 		return identity, err
 	}
 	identity.ConnectorID = output.ConnectorID

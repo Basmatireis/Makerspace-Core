@@ -138,11 +138,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 				row.ActorDisplayName,
 			), ResourceDisplayName: nonEmptyPointer(row.ResourceDisplayName),
 			Action: row.Action, ResourceType: row.ResourceType, ResourceID: row.ResourceID, OccurredAt: row.OccurredAt,
-			RequestID:        requestID,
-			ChangedFields:    row.ChangedFields,
-			Metadata:         metadata,
-			ResolvedMetadata: resolvedMetadata,
-			Source:           row.Source})
+			RequestID: requestID, ChangedFields: row.ChangedFields, Metadata: metadata, ResolvedMetadata: resolvedMetadata, Source: row.Source})
 	}
 	var next *string
 	if hasMore && len(items) > 0 {

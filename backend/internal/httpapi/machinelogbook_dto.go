@@ -291,47 +291,15 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	} else {
 		rules := make([]openapi.PricingSnapshotRule, 0, len(item.PricingSnapshot.Rules))
 		for _, r := range item.PricingSnapshot.Rules {
-			rules = append(
-				rules,
-				openapi.PricingSnapshotRule{
-					SourceRuleId: nullableUUIDValue(r.SourceRuleID),
-					Kind:         openapi.PricingRuleKind(r.Kind),
-					Label:        r.Label,
-					Selector:     r.Selector,
-					Unit:         r.Unit,
-					Measure:      runMeasureKeyValue(r.Measure),
-					BlockSize:    nullableInt32Value(r.BlockSize),
-					Rate:         nullableDecimalValue(r.Rate),
-					Missing:      r.Missing,
-				},
-			)
+			rules = append(rules, openapi.PricingSnapshotRule{SourceRuleId: nullableUUIDValue(r.SourceRuleID), Kind: openapi.PricingRuleKind(r.Kind), Label: r.Label, Selector: r.Selector, Unit: r.Unit, Measure: runMeasureKeyValue(r.Measure), BlockSize: nullableInt32Value(r.BlockSize), Rate: nullableDecimalValue(r.Rate), Missing: r.Missing})
 		}
-		snapshot = nullable.NewNullableWithValue(
-			openapi.MachineJobPricingSnapshot{
-				Id:               item.PricingSnapshot.ID,
-				Revision:         item.PricingSnapshot.Revision,
-				PricingGroupName: item.PricingSnapshot.PricingGroupName,
-				Currency:         openapi.MachineJobPricingSnapshotCurrency(item.PricingSnapshot.Currency),
-				Reason:           openapi.MachineJobPricingSnapshotReason(item.PricingSnapshot.Reason),
-				Complete:         item.PricingSnapshot.Complete,
-				CalculatedAmount: nullableMoney(item.PricingSnapshot.CalculatedAmount),
-				Rules:            rules,
-				CapturedAt:       item.PricingSnapshot.CapturedAt,
-			},
-		)
+		snapshot = nullable.NewNullableWithValue(openapi.MachineJobPricingSnapshot{Id: item.PricingSnapshot.ID, Revision: item.PricingSnapshot.Revision, PricingGroupName: item.PricingSnapshot.PricingGroupName, Currency: openapi.MachineJobPricingSnapshotCurrency(item.PricingSnapshot.Currency), Reason: openapi.MachineJobPricingSnapshotReason(item.PricingSnapshot.Reason), Complete: item.PricingSnapshot.Complete, CalculatedAmount: nullableMoney(item.PricingSnapshot.CalculatedAmount), Rules: rules, CapturedAt: item.PricingSnapshot.CapturedAt})
 	}
 	var adjustment nullable.Nullable[openapi.MachineJobPriceAdjustment]
 	if item.PriceAdjustment == nil {
 		adjustment = nullable.NewNullNullable[openapi.MachineJobPriceAdjustment]()
 	} else {
-		adjustment = nullable.NewNullableWithValue(
-			openapi.MachineJobPriceAdjustment{
-				Kind:       openapi.PriceAdjustmentKind(item.PriceAdjustment.Kind),
-				Value:      openapi.Decimal(item.PriceAdjustment.Value),
-				Reason:     item.PriceAdjustment.Reason,
-				AdjustedAt: item.PriceAdjustment.AdjustedAt,
-			},
-		)
+		adjustment = nullable.NewNullableWithValue(openapi.MachineJobPriceAdjustment{Kind: openapi.PriceAdjustmentKind(item.PriceAdjustment.Kind), Value: openapi.Decimal(item.PriceAdjustment.Value), Reason: item.PriceAdjustment.Reason, AdjustedAt: item.PriceAdjustment.AdjustedAt})
 	}
 	artifact := nullable.NewNullNullable[openapi.PrintArtifactReference]()
 	if item.Artifact != nil {
@@ -577,13 +545,7 @@ func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
 	if item.Billing == nil {
 		billing = nullable.NewNullNullable[openapi.WorkItemBilling]()
 	} else {
-		billing = nullable.NewNullableWithValue(
-			openapi.WorkItemBilling{
-				State:          openapi.JobBillingState(item.Billing.State),
-				OrderId:        nullableUUIDValue(item.Billing.OrderID),
-				OrderReference: nullableString(item.Billing.OrderReference),
-			},
-		)
+		billing = nullable.NewNullableWithValue(openapi.WorkItemBilling{State: openapi.JobBillingState(item.Billing.State), OrderId: nullableUUIDValue(item.Billing.OrderID), OrderReference: nullableString(item.Billing.OrderReference)})
 	}
 	var progress nullable.Nullable[int]
 	if item.ProgressPercent == nil {

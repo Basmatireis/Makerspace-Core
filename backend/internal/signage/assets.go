@@ -85,12 +85,8 @@ func assetFromRow(
 		uploader = &createdByName
 	}
 	return Asset{
-		ID: id, Kind: kind, Name: name, Width: intPointer(width), Height: intPointer(height), DurationMs: intPointer(
-			duration,
-		),
-		ContentType: contentType, SizeBytes: size, SHA256: hex.EncodeToString(
-			digest,
-		), CreatedByAccountID: createdBy, CreatedByName: uploader, CreatedAt: createdAt.UTC(),
+		ID: id, Kind: kind, Name: name, Width: intPointer(width), Height: intPointer(height), DurationMs: intPointer(duration),
+		ContentType: contentType, SizeBytes: size, SHA256: hex.EncodeToString(digest), CreatedByAccountID: createdBy, CreatedByName: uploader, CreatedAt: createdAt.UTC(),
 	}
 }
 
@@ -326,28 +322,11 @@ func (s *Service) UploadAsset(
 	id := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	if _, err := signagedb.New(tx).CreateSignageAsset(ctx, signagedb.CreateSignageAssetParams{
-		ID:     id,
-		FileID: stored.ID,
-		Kind:   kind,
-		Name:   name,
-		Width:  int32Pointer(width),
-		Height: int32Pointer(height),
-		DurationMs: int32Pointer(
-			duration,
-		), CreatedByAccountID: &actor,
+		ID: id, FileID: stored.ID, Kind: kind, Name: name, Width: int32Pointer(width), Height: int32Pointer(height), DurationMs: int32Pointer(duration), CreatedByAccountID: &actor,
 	}); err != nil {
 		return Asset{}, databaseError(err)
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_asset.created",
-		"signage_asset",
-		id,
-		requestID,
-		[]string{"kind", "name", "file"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "signage_asset.created", "signage_asset", id, requestID, []string{"kind", "name", "file"}); err != nil {
 		return Asset{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -390,16 +369,7 @@ func (s *Service) RenameAsset(
 	} else if affected == 0 {
 		return Asset{}, apperror.NotFound
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_asset.renamed",
-		"signage_asset",
-		id,
-		requestID,
-		[]string{"name"},
-	); err != nil {
+	if err := writeAudit(ctx, tx, principal, "signage_asset.renamed", "signage_asset", id, requestID, []string{"name"}); err != nil {
 		return Asset{}, err
 	}
 	asset, err := s.getAsset(ctx, q, id)

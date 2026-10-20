@@ -86,10 +86,7 @@ func (g *gatewayEnv) assign(machineID, connectorID uuid.UUID, kind, ip, code str
 	var secrets []byte
 	if code != "" {
 		var err error
-		if secrets, err = g.keyring.Encrypt(
-			[]byte(`{"lanAccessCode":"`+code+`"}`),
-			"printer-connector-assignment:"+id.String(),
-		); err != nil {
+		if secrets, err = g.keyring.Encrypt([]byte(`{"lanAccessCode":"`+code+`"}`), "printer-connector-assignment:"+id.String()); err != nil {
 			g.t.Fatal(err)
 		}
 	}
@@ -195,13 +192,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 	ctx := testContext(t)
 
 	// Creation validates the public host and the unique name.
-	for _, host := range []string{
-		"https://gw.example.org",
-		"gw.example.org/x",
-		"user@gw.example.org",
-		"gw.example.org:99999",
-		"[::1]:8443",
-	} {
+	for _, host := range []string{"https://gw.example.org", "gw.example.org/x", "user@gw.example.org", "gw.example.org:99999", "[::1]:8443"} {
 		g.expectCode(
 			g.as(
 				g.admin,
@@ -309,11 +300,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 		t.Fatalf("enrollment valid for %v", d)
 	}
 	var stored []byte
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT token_digest FROM streaming_gateway_enrollments WHERE gateway_id = $1`,
-		id,
-	).Scan(&stored); err != nil ||
+	if err := g.pool.QueryRow(ctx, `SELECT token_digest FROM streaming_gateway_enrollments WHERE gateway_id = $1`, id).Scan(&stored); err != nil ||
 		string(stored) == secret ||
 		len(stored) != 32 {
 		t.Fatalf("stored enrollment token: %v", err)
@@ -380,11 +367,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 		g.as(g.admin, http.MethodPost, "/streaming-gateways/"+expiredGateway["id"].(string)+"/enrollments", nil),
 		http.StatusCreated,
 	)
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE streaming_gateway_enrollments SET expires_at = now() - interval '1 second' WHERE gateway_id = $1`,
-		expiredGateway["id"],
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE streaming_gateway_enrollments SET expires_at = now() - interval '1 second' WHERE gateway_id = $1`, expiredGateway["id"]); err != nil {
 		t.Fatal(err)
 	}
 	g.expectCode(
@@ -505,16 +488,10 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 		t.Fatalf("camera status = %v", first)
 	}
 	// Stale reports count as unknown.
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE streaming_camera_states SET reported_at = now() - interval '5 minutes'`,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE streaming_camera_states SET reported_at = now() - interval '5 minutes'`); err != nil {
 		t.Fatal(err)
 	}
-	if stale := g.expect(
-		g.as(g.admin, http.MethodGet, "/local-services/cameras", nil),
-		http.StatusOK,
-	)["items"].([]any)[0].(map[string]any); stale["health"] != "unknown" {
+	if stale := g.expect(g.as(g.admin, http.MethodGet, "/local-services/cameras", nil), http.StatusOK)["items"].([]any)[0].(map[string]any); stale["health"] != "unknown" {
 		t.Fatalf("stale camera = %v", stale)
 	}
 	// A heartbeat without the camera clears its state.
@@ -669,11 +646,7 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 	)
 	g.expectCode(g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id, nil), http.StatusNotFound, "not_found")
 	var cameras, credentials int
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT (SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1), (SELECT count(*) FROM streaming_gateway_credentials WHERE gateway_id = $1)`,
-		id,
-	).Scan(&cameras, &credentials); err != nil ||
+	if err := g.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1), (SELECT count(*) FROM streaming_gateway_credentials WHERE gateway_id = $1)`, id).Scan(&cameras, &credentials); err != nil ||
 		cameras != 0 ||
 		credentials != 0 {
 		t.Fatalf("leftovers: cameras %d credentials %d %v", cameras, credentials, err)
@@ -681,14 +654,8 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 
 	// Every administrative mutation and the enrollments are audited, never with secrets.
 	for action, minimum := range map[string]int{
-		"streaming_gateway.created":            2,
-		"streaming_gateway.updated":            3,
-		"streaming_gateway.enrollment_issued":  2,
-		"streaming_gateway.enrolled":           1,
-		"streaming_gateway.credential_rotated": 1,
-		"streaming_camera.assigned":            1,
-		"streaming_gateway.revoked":            1,
-		"streaming_gateway.deleted":            1,
+		"streaming_gateway.created": 2, "streaming_gateway.updated": 3, "streaming_gateway.enrollment_issued": 2, "streaming_gateway.enrolled": 1,
+		"streaming_gateway.credential_rotated": 1, "streaming_camera.assigned": 1, "streaming_gateway.revoked": 1, "streaming_gateway.deleted": 1,
 	} {
 		if got := g.countAudit(action); got < minimum {
 			t.Errorf("audit %s = %d, want at least %d", action, got, minimum)
@@ -696,20 +663,13 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 	}
 	for _, leaked := range []string{secret, credSecret, newSecret, "11112222"} {
 		var count int
-		if err := g.pool.QueryRow(
-			ctx,
-			`SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`,
-			leaked,
-		).Scan(&count); err != nil ||
+		if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE audit_events::text LIKE '%' || $1 || '%'`, leaked).Scan(&count); err != nil ||
 			count != 0 {
 			t.Errorf("secret material found in %d audit rows (%v)", count, err)
 		}
 	}
 	var systemEnrolled int
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM audit_events WHERE action = 'streaming_gateway.enrolled' AND actor_type = 'system' AND actor_account_id IS NULL`,
-	).Scan(&systemEnrolled); err != nil ||
+	if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'streaming_gateway.enrolled' AND actor_type = 'system' AND actor_account_id IS NULL`).Scan(&systemEnrolled); err != nil ||
 		systemEnrolled != 1 {
 		t.Fatalf("enrollment audit: %d %v", systemEnrolled, err)
 	}
@@ -805,26 +765,7 @@ func TestStreamingGatewayPermissions(t *testing.T) {
 		"unauthenticated",
 	)
 	// A staff session, even an administrator's, cannot act as a gateway; the credential is the only way in.
-	for _, c := range []call{
-		{http.MethodGet, "/streaming-gateway/configuration", nil},
-		{
-			http.MethodPost,
-			"/streaming-gateway/heartbeat",
-			map[string]any{
-				"softwareVersion":              "1",
-				"protocolVersion":              1,
-				"appliedConfigurationRevision": 1,
-				"healthState":                  "connected",
-				"healthSummary":                nil,
-				"cameras":                      []any{},
-			},
-		},
-		{
-			http.MethodPost,
-			"/streaming-gateway/credential-rotation",
-			map[string]any{"credentialId": missing, "credentialSecret": strings.Repeat("a", 43)},
-		},
-	} {
+	for _, c := range []call{{http.MethodGet, "/streaming-gateway/configuration", nil}, {http.MethodPost, "/streaming-gateway/heartbeat", map[string]any{"softwareVersion": "1", "protocolVersion": 1, "appliedConfigurationRevision": 1, "healthState": "connected", "healthSummary": nil, "cameras": []any{}}}, {http.MethodPost, "/streaming-gateway/credential-rotation", map[string]any{"credentialId": missing, "credentialSecret": strings.Repeat("a", 43)}}} {
 		g.expectCode(g.as(g.admin, c.method, c.path, c.body), http.StatusUnauthorized, "unauthenticated")
 	}
 	// A player (managed device) credential is no gateway credential either.
@@ -871,11 +812,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	simulator := g.bambu("Simulated printer", "simulator", "192.168.1.60", "")
 	g.expectCode(assign(id, simulator, true), http.StatusUnprocessableEntity, "validation_failed")
 	ended := g.bambu("Ended printer", "bambu_x1c", "192.168.1.61", "55556666")
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE printer_connector_assignments SET ended_at = now(), enabled = false WHERE machine_id = $1`,
-		ended,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE printer_connector_assignments SET ended_at = now(), enabled = false WHERE machine_id = $1`, ended); err != nil {
 		t.Fatal(err)
 	}
 	g.expectCode(assign(id, ended, true), http.StatusUnprocessableEntity, "validation_failed")
@@ -898,16 +835,10 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	if camera["machineName"] != "Camera H2D" || camera["enabled"] != true || camera["gatewayId"] != id {
 		t.Fatalf("camera = %v", camera)
 	}
-	if got := len(g.expect(
-		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id+"/cameras", nil),
-		http.StatusOK,
-	)["items"].([]any)); got != 2 {
+	if got := len(g.expect(g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id+"/cameras", nil), http.StatusOK)["items"].([]any)); got != 2 {
 		t.Fatalf("cameras = %d", got)
 	}
-	if got := len(g.expect(
-		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+other["id"].(string)+"/cameras", nil),
-		http.StatusOK,
-	)["items"].([]any)); got != 0 {
+	if got := len(g.expect(g.as(g.admin, http.MethodGet, "/streaming-gateways/"+other["id"].(string)+"/cameras", nil), http.StatusOK)["items"].([]any)); got != 0 {
 		t.Fatalf("other gateway cameras = %d", got)
 	}
 
@@ -915,10 +846,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	picker := func() map[string]bool {
 		viewer := g.staff("picker-"+uuid.NewString()[:6], authorization.SignageRead)
 		result := map[string]bool{}
-		for _, item := range g.expect(
-			g.as(viewer, http.MethodGet, "/signage/machines", nil),
-			http.StatusOK,
-		)["items"].([]any) {
+		for _, item := range g.expect(g.as(viewer, http.MethodGet, "/signage/machines", nil), http.StatusOK)["items"].([]any) {
 			machine := item.(map[string]any)
 			result[machine["id"].(string)] = machine["hasCamera"].(bool)
 		}
@@ -929,10 +857,7 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 		t.Fatalf("hasCamera = %v (enabled camera yes, disabled camera no, no camera no)", hasCamera)
 	}
 	// Enable the second camera, disable the first (versioned).
-	cameras := g.expect(
-		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id+"/cameras", nil),
-		http.StatusOK,
-	)["items"].([]any)
+	cameras := g.expect(g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id+"/cameras", nil), http.StatusOK)["items"].([]any)
 	var x1cCamera map[string]any
 	for _, item := range cameras {
 		if item.(map[string]any)["machineId"] == x1c.String() {
@@ -1005,21 +930,14 @@ func TestStreamingCameraAssignmentValidationAndHasCamera(t *testing.T) {
 	if hasCamera = picker(); !hasCamera[x1c.String()] {
 		t.Fatalf("reassigned camera should count: %v", hasCamera)
 	}
-	for action, want := range map[string]int{
-		"streaming_camera.assigned":   3,
-		"streaming_camera.updated":    2,
-		"streaming_camera.unassigned": 1,
-	} {
+	for action, want := range map[string]int{"streaming_camera.assigned": 3, "streaming_camera.updated": 2, "streaming_camera.unassigned": 1} {
 		if got := g.countAudit(action); got != want {
 			t.Errorf("audit %s = %d, want %d", action, got, want)
 		}
 	}
 	// Machine deletion cannot leave a camera behind: the foreign key cascades.
 	var references int
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM pg_constraint WHERE conrelid = 'streaming_cameras'::regclass AND confrelid = 'machines'::regclass AND confdeltype = 'c'`,
-	).Scan(&references); err != nil ||
+	if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM pg_constraint WHERE conrelid = 'streaming_cameras'::regclass AND confrelid = 'machines'::regclass AND confdeltype = 'c'`).Scan(&references); err != nil ||
 		references != 1 {
 		t.Fatalf("camera -> machine foreign key: %d %v", references, err)
 	}
@@ -1079,10 +997,7 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 	}
 	// The private key is stored encrypted and never leaves Core.
 	var encrypted []byte
-	if err = g.pool.QueryRow(
-		ctx,
-		`SELECT encrypted_private_key FROM signage_ticket_keys WHERE state = 'active'`,
-	).Scan(&encrypted); err != nil ||
+	if err = g.pool.QueryRow(ctx, `SELECT encrypted_private_key FROM signage_ticket_keys WHERE state = 'active'`).Scan(&encrypted); err != nil ||
 		len(encrypted) < 48 {
 		t.Fatalf("stored key: %v", err)
 	}
@@ -1093,12 +1008,7 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 	}
 
 	// The source URL (access code) is visible to the authenticated gateway only.
-	for _, path := range []string{
-		"/streaming-gateways",
-		"/streaming-gateways/" + id,
-		"/streaming-gateways/" + id + "/cameras",
-		"/local-services/cameras",
-	} {
+	for _, path := range []string{"/streaming-gateways", "/streaming-gateways/" + id, "/streaming-gateways/" + id + "/cameras", "/local-services/cameras"} {
 		body := rawBody(t, g.as(g.admin, http.MethodGet, path, nil), http.StatusOK)
 		for _, secret := range []string{"ACC12345", "rtspx", "bblp", "192.168.1.50", string(gatewayTestKey)} {
 			if strings.Contains(body, secret) {
@@ -1144,22 +1054,14 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 		),
 		http.StatusOK,
 	)
-	if _, err = g.pool.Exec(
-		ctx,
-		`UPDATE printer_connector_assignments SET settings = jsonb_set(settings, '{ipAddress}', '"192.168.1.77"') WHERE machine_id = $1`,
-		machine,
-	); err != nil {
+	if _, err = g.pool.Exec(ctx, `UPDATE printer_connector_assignments SET settings = jsonb_set(settings, '{ipAddress}', '"192.168.1.77"') WHERE machine_id = $1`, machine); err != nil {
 		t.Fatal(err)
 	}
 	if source := g.configuration(identity)["cameras"].([]any)[0].(map[string]any)["sourceUrl"]; source != "rtspx://bblp:ACC12345@192.168.1.77:322/streaming/live/1" {
 		t.Fatalf("source after address change = %v", source)
 	}
 	// An ended printer assignment drops the camera from the configuration.
-	if _, err = g.pool.Exec(
-		ctx,
-		`UPDATE printer_connector_assignments SET ended_at = now() WHERE machine_id = $1`,
-		machine,
-	); err != nil {
+	if _, err = g.pool.Exec(ctx, `UPDATE printer_connector_assignments SET ended_at = now() WHERE machine_id = $1`, machine); err != nil {
 		t.Fatal(err)
 	}
 	if cams := g.configuration(identity)["cameras"].([]any); len(cams) != 0 {
@@ -1177,10 +1079,7 @@ func TestStreamingGatewayConfigurationContents(t *testing.T) {
 func mustSingleKeyID(t *testing.T, g *gatewayEnv, ctx context.Context) string {
 	t.Helper()
 	var id string
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT id::text FROM signage_ticket_keys WHERE state = 'active'`,
-	).Scan(&id); err != nil {
+	if err := g.pool.QueryRow(ctx, `SELECT id::text FROM signage_ticket_keys WHERE state = 'active'`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -1282,20 +1181,10 @@ func TestPlayerLiveStreams(t *testing.T) {
 		time.Until(expiresAt) > 5*time.Minute+time.Second {
 		t.Fatalf("expiresAt = %v", expiresAt)
 	}
-	if _, err = streamticket.VerifyForStream(
-		stream["ticket"].(string),
-		keys,
-		name,
-		time.Now().Add(6*time.Minute),
-	); err == nil {
+	if _, err = streamticket.VerifyForStream(stream["ticket"].(string), keys, name, time.Now().Add(6*time.Minute)); err == nil {
 		t.Fatal("ticket must expire")
 	}
-	if _, err = streamticket.VerifyForStream(
-		stream["ticket"].(string),
-		keys,
-		"cam-"+strings.ReplaceAll(statusOnly.String(), "-", ""),
-		time.Now(),
-	); err == nil {
+	if _, err = streamticket.VerifyForStream(stream["ticket"].(string), keys, "cam-"+strings.ReplaceAll(statusOnly.String(), "-", ""), time.Now()); err == nil {
 		t.Fatal("ticket must be bound to its stream")
 	}
 
@@ -1492,10 +1381,7 @@ func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
 	const path = "/local-services/ticket-key/rotation"
 
 	// Only local_services.manage may rotate; nothing changes behind the 403.
-	for _, staff := range []staffSession{
-		g.staff("nobody-" + uuid.NewString()[:6]),
-		g.staff("sm-"+uuid.NewString()[:6], authorization.SignageManage, authorization.SignagePublish),
-	} {
+	for _, staff := range []staffSession{g.staff("nobody-" + uuid.NewString()[:6]), g.staff("sm-"+uuid.NewString()[:6], authorization.SignageManage, authorization.SignagePublish)} {
 		g.expectCode(g.as(staff, http.MethodPost, path, nil), http.StatusForbidden, "permission_denied")
 	}
 	g.expectCode(g.do(g.plain, "", http.MethodPost, path, nil), http.StatusUnauthorized, "unauthenticated")
@@ -1547,10 +1433,7 @@ func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
 	}
 
 	// After the activation time the next signing promotes it lazily and retires the old key for ten minutes.
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE signage_ticket_keys SET activates_at = now() - interval '1 second' WHERE state = 'pending'`,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_ticket_keys SET activates_at = now() - interval '1 second' WHERE state = 'pending'`); err != nil {
 		t.Fatal(err)
 	}
 	if got := issue(); got != pendingKid {
@@ -1588,10 +1471,7 @@ func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
 	}
 
 	// Retired keys disappear from the configuration after ten minutes.
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE signage_ticket_keys SET retired_at = now() - interval '11 minutes' WHERE state = 'retired'`,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_ticket_keys SET retired_at = now() - interval '11 minutes' WHERE state = 'retired'`); err != nil {
 		t.Fatal(err)
 	}
 	if keys := g.configuration(identity)["ticketPublicKeys"].([]any); len(keys) != 2 {
@@ -1607,10 +1487,7 @@ func TestTicketKeyRotationIsStagedAndAudited(t *testing.T) {
 		)
 	}
 	var actors int
-	if err := g.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM audit_events WHERE action = 'signage_ticket_key.rotated' AND actor_account_id IS NOT NULL`,
-	).Scan(&actors); err != nil ||
+	if err := g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'signage_ticket_key.rotated' AND actor_account_id IS NOT NULL`).Scan(&actors); err != nil ||
 		actors != 3 {
 		t.Fatalf("rotation audit rows with an actor: %d (%v)", actors, err)
 	}
@@ -1668,17 +1545,7 @@ func TestSessionEpochAndRevokedDisplaysInTheConfiguration(t *testing.T) {
 	if epoch() != start {
 		t.Fatal("publishing that keeps the camera must not bump the epoch")
 	}
-	if _, err := svc.UpdatePlaylist(
-		ctx,
-		admin,
-		playlist.ID,
-		playlist.Version,
-		signage.PlaylistInput{
-			Name:  playlist.Name,
-			Items: []signage.PlaylistItem{{SceneID: plainScene, Seconds: 10, Transition: "cut"}},
-		},
-		nil,
-	); err != nil {
+	if _, err := svc.UpdatePlaylist(ctx, admin, playlist.ID, playlist.Version, signage.PlaylistInput{Name: playlist.Name, Items: []signage.PlaylistItem{{SceneID: plainScene, Seconds: 10, Transition: "cut"}}}, nil); err != nil {
 		t.Fatalf("playlist update: %v", err)
 	}
 	publish(displayID)
@@ -1715,10 +1582,7 @@ func TestSessionEpochAndRevokedDisplaysInTheConfiguration(t *testing.T) {
 	if epoch() != start+3 || len(revoked()) != 1 || revoked()[0] != displayID {
 		t.Fatalf("after delete: epoch %v revoked %v", epoch(), revoked())
 	}
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE signage_revoked_displays SET revoked_at = now() - interval '25 hours'`,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_revoked_displays SET revoked_at = now() - interval '25 hours'`); err != nil {
 		t.Fatal(err)
 	}
 	if len(revoked()) != 0 {
@@ -1828,10 +1692,7 @@ func TestCameraAccessOutsideNeedsTheExplicitSetting(t *testing.T) {
 		t.Fatal("changes must be audited")
 	}
 	var changed int
-	if err = g.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM audit_events WHERE action = 'signage_display.updated' AND changed_fields @> ARRAY['allowCameraOutside']`,
-	).Scan(&changed); err != nil ||
+	if err = g.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'signage_display.updated' AND changed_fields @> ARRAY['allowCameraOutside']`).Scan(&changed); err != nil ||
 		changed == 0 {
 		t.Fatalf("allowCameraOutside is not audited as a changed field (%d, %v)", changed, err)
 	}
@@ -1956,11 +1817,7 @@ func TestPlayerLiveStreamsFollowTheAutoCameraMachineList(t *testing.T) {
 	if _, err := svc.UpdateScene(ctx, admin, scene.ID, 3, bad, nil); err == nil {
 		t.Fatal("duplicate camera machines accepted")
 	}
-	if _, err := g.pool.Exec(
-		ctx,
-		`UPDATE signage_scenes SET zones = jsonb_set(zones, '{main}', (zones->'main') - 'machineIds') WHERE id = $1`,
-		scene.ID,
-	); err != nil {
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_scenes SET zones = jsonb_set(zones, '{main}', (zones->'main') - 'machineIds') WHERE id = $1`, scene.ID); err != nil {
 		t.Fatal(err)
 	}
 	publish()

@@ -27,19 +27,7 @@ func ScrubAssignmentsForDeletedPerson(
 	}
 	for _, row := range rows {
 		id := row.ID
-		if err := audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorAccountID: &actor,
-				Action:         "event_assignment.personal_data_erased",
-				ResourceType:   "event_assignment",
-				ResourceID:     &id,
-				RequestID:      requestID,
-				ChangedFields:  []string{"personId", "personalData"},
-				Metadata:       map[string]any{"eventId": row.EventID.String()},
-			},
-		); err != nil {
+		if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "event_assignment.personal_data_erased", ResourceType: "event_assignment", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"personId", "personalData"}, Metadata: map[string]any{"eventId": row.EventID.String()}}); err != nil {
 			return err
 		}
 	}
@@ -67,19 +55,7 @@ func EraseExpiredSignupData(ctx context.Context, pool *pgxpool.Pool, cutoff time
 			return count, err
 		}
 		id := row.ID
-		if err = audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorType:     "system",
-				Action:        "event_assignment.personal_data_erased",
-				ResourceType:  "event_assignment",
-				ResourceID:    &id,
-				ChangedFields: []string{"personalData"},
-				Metadata:      map[string]any{"eventId": candidate.EventID.String()},
-				Source:        "admin_cli",
-			},
-		); err != nil {
+		if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "event_assignment.personal_data_erased", ResourceType: "event_assignment", ResourceID: &id, ChangedFields: []string{"personalData"}, Metadata: map[string]any{"eventId": candidate.EventID.String()}, Source: "admin_cli"}); err != nil {
 			return count, err
 		}
 		count++

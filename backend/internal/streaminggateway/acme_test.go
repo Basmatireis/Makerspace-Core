@@ -95,13 +95,7 @@ func TestACMEDomain(t *testing.T) {
 		}
 	}
 	for _, input := range []string{"", "192.168.1.20", "192.168.1.20:8443", "[::1]:8443", "::1", "localhost", "localhost:8443",
-		"*.example.org",
-		"https://gw.example.org",
-		"gw.example.org/path",
-		"a b.example.org",
-		"-x.example.org",
-		"gw..example.org",
-		"gw_x.example.org"} {
+		"*.example.org", "https://gw.example.org", "gw.example.org/path", "a b.example.org", "-x.example.org", "gw..example.org", "gw_x.example.org"} {
 		if got, err := ACMEDomain(input); err == nil {
 			t.Errorf("ACMEDomain(%q) = %q, want error", input, got)
 		}

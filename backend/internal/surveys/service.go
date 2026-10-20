@@ -169,44 +169,17 @@ func (s *Service) Create(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	id, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err = q.CreateSurvey(
-		ctx,
-		surveysdb.CreateSurveyParams{
-			ID:          id,
-			Name:        input.Name,
-			Description: input.Description,
-			Anonymous:   input.Anonymous,
-		},
-	); err != nil {
+	if _, err = q.CreateSurvey(ctx, surveysdb.CreateSurveyParams{ID: id, Name: input.Name, Description: input.Description, Anonymous: input.Anonymous}); err != nil {
 		return Survey{}, err
 	}
-	if _, err = q.CreateSurveyVersion(
-		ctx,
-		surveysdb.CreateSurveyVersionParams{
-			ID:           versionID,
-			SurveyID:     id,
-			Revision:     1,
-			Title:        input.Title,
-			Introduction: input.Introduction,
-		},
-	); err != nil {
+	if _, err = q.CreateSurveyVersion(ctx, surveysdb.CreateSurveyVersionParams{ID: versionID, SurveyID: id, Revision: 1, Title: input.Title, Introduction: input.Introduction}); err != nil {
 		return Survey{}, err
 	}
 	if err = insertQuestions(ctx, q, versionID, input.Questions); err != nil {
 		return Survey{}, err
 	}
 	actor := p.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "survey.created",
-			ResourceType:   "survey",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "survey.created", ResourceType: "survey", ResourceID: &id, RequestID: requestID}); err != nil {
 		return Survey{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -218,31 +191,11 @@ func (s *Service) Create(
 func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.UUID, inputs []QuestionInput) error {
 	for index, input := range inputs {
 		id := uuid.Must(uuid.NewV7())
-		if _, err := q.CreateSurveyQuestion(
-			ctx,
-			surveysdb.CreateSurveyQuestionParams{
-				ID:              id,
-				SurveyVersionID: versionID,
-				Kind:            input.Kind,
-				Prompt:          input.Prompt,
-				Required:        input.Required,
-				Position:        int32(index + 1),
-				RatingMin:       input.RatingMin,
-				RatingMax:       input.RatingMax,
-			},
-		); err != nil {
+		if _, err := q.CreateSurveyQuestion(ctx, surveysdb.CreateSurveyQuestionParams{ID: id, SurveyVersionID: versionID, Kind: input.Kind, Prompt: input.Prompt, Required: input.Required, Position: int32(index + 1), RatingMin: input.RatingMin, RatingMax: input.RatingMax}); err != nil {
 			return err
 		}
 		for optionIndex, option := range input.Options {
-			if _, err := q.CreateSurveyOption(
-				ctx,
-				surveysdb.CreateSurveyOptionParams{
-					ID:         uuid.Must(uuid.NewV7()),
-					QuestionID: id,
-					Label:      option.Label,
-					Position:   int32(optionIndex + 1),
-				},
-			); err != nil {
+			if _, err := q.CreateSurveyOption(ctx, surveysdb.CreateSurveyOptionParams{ID: uuid.Must(uuid.NewV7()), QuestionID: id, Label: option.Label, Position: int32(optionIndex + 1)}); err != nil {
 				return err
 			}
 		}
@@ -287,16 +240,7 @@ func (s *Service) Update(
 	if err != nil {
 		return Survey{}, err
 	}
-	if _, err = q.UpdateSurveyDraft(
-		ctx,
-		surveysdb.UpdateSurveyDraftParams{
-			ID:              id,
-			Name:            input.Name,
-			Description:     input.Description,
-			Anonymous:       input.Anonymous,
-			ExpectedVersion: input.ExpectedVersion,
-		},
-	); errors.Is(
+	if _, err = q.UpdateSurveyDraft(ctx, surveysdb.UpdateSurveyDraftParams{ID: id, Name: input.Name, Description: input.Description, Anonymous: input.Anonymous, ExpectedVersion: input.ExpectedVersion}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -304,10 +248,7 @@ func (s *Service) Update(
 	} else if err != nil {
 		return Survey{}, err
 	}
-	if err = q.UpdateSurveyVersionDraft(
-		ctx,
-		surveysdb.UpdateSurveyVersionDraftParams{ID: version.ID, Title: input.Title, Introduction: input.Introduction},
-	); err != nil {
+	if err = q.UpdateSurveyVersionDraft(ctx, surveysdb.UpdateSurveyVersionDraftParams{ID: version.ID, Title: input.Title, Introduction: input.Introduction}); err != nil {
 		return Survey{}, err
 	}
 	if err = q.DeleteSurveyQuestions(ctx, version.ID); err != nil {
@@ -317,18 +258,7 @@ func (s *Service) Update(
 		return Survey{}, err
 	}
 	actor := p.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "survey.updated",
-			ResourceType:   "survey",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"name", "description", "anonymous", "title", "introduction", "questions"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "survey.updated", ResourceType: "survey", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "description", "anonymous", "title", "introduction", "questions"}}); err != nil {
 		return Survey{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -386,17 +316,7 @@ func (s *Service) Publish(
 		return Survey{}, err
 	}
 	actor := p.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "survey.published",
-			ResourceType:   "survey",
-			ResourceID:     &id,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "survey.published", ResourceType: "survey", ResourceID: &id, RequestID: requestID}); err != nil {
 		return Survey{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -448,18 +368,7 @@ func (s *Service) Close(
 		return Survey{}, err
 	}
 	actor := p.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "survey.closed",
-			ResourceType:   "survey",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"status", "trigger"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "survey.closed", ResourceType: "survey", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"status", "trigger"}}); err != nil {
 		return Survey{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -515,16 +424,7 @@ func (s *Service) UpdateTrigger(
 			},
 		)
 	} else {
-		row, err = q.UpdateSurveyTrigger(
-			ctx,
-			surveysdb.UpdateSurveyTriggerParams{
-				SurveyID:        surveyID,
-				Enabled:         enabled,
-				DelaySeconds:    delay,
-				CooldownDays:    cooldown,
-				ExpectedVersion: expected,
-			},
-		)
+		row, err = q.UpdateSurveyTrigger(ctx, surveysdb.UpdateSurveyTriggerParams{SurveyID: surveyID, Enabled: enabled, DelaySeconds: delay, CooldownDays: cooldown, ExpectedVersion: expected})
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Trigger{}, apperror.StaleWrite
@@ -533,17 +433,7 @@ func (s *Service) UpdateTrigger(
 		return Trigger{}, err
 	}
 	actor := p.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "survey.trigger_updated",
-			ResourceType:   "survey",
-			ResourceID:     &surveyID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "survey.trigger_updated", ResourceType: "survey", ResourceID: &surveyID, RequestID: requestID}); err != nil {
 		return Trigger{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -704,19 +594,7 @@ func (s *Service) CreatePostVisitInvitations(ctx context.Context, tx pgx.Tx, per
 		id := uuid.Must(uuid.NewV7())
 		token := s.tokenForID(id)
 		due := now.Add(time.Duration(trigger.DelaySeconds) * time.Second)
-		if _, err = q.CreateSurveyInvitation(
-			ctx,
-			surveysdb.CreateSurveyInvitationParams{
-				ID:              id,
-				SurveyVersionID: trigger.SurveyVersionID,
-				PersonID:        &personID,
-				VisitID:         &visitID,
-				TokenDigest:     security.DigestToken(token),
-				RecipientEmail:  trigger.Email,
-				DueAt:           due,
-				ExpiresAt:       due.Add(14 * 24 * time.Hour),
-			},
-		); err != nil {
+		if _, err = q.CreateSurveyInvitation(ctx, surveysdb.CreateSurveyInvitationParams{ID: id, SurveyVersionID: trigger.SurveyVersionID, PersonID: &personID, VisitID: &visitID, TokenDigest: security.DigestToken(token), RecipientEmail: trigger.Email, DueAt: due, ExpiresAt: due.Add(14 * 24 * time.Hour)}); err != nil {
 			return err
 		}
 	}
@@ -746,10 +624,7 @@ func (s *Service) DeliverDue(ctx context.Context, limit int32) (int, error) {
 			s.notifier.SendSurveyInvitation(ctx, *row.RecipientEmail, row.Title, token, row.ExpiresAt) != nil {
 			code := "provider_error"
 			_ = surveysdb.New(s.pool).
-				MarkSurveyInvitationFailed(
-					ctx,
-					surveysdb.MarkSurveyInvitationFailedParams{ID: row.ID, DeliveryFailureCode: &code},
-				)
+				MarkSurveyInvitationFailed(ctx, surveysdb.MarkSurveyInvitationFailedParams{ID: row.ID, DeliveryFailureCode: &code})
 			continue
 		}
 		if err = surveysdb.New(s.pool).MarkSurveyInvitationSent(ctx, row.ID); err != nil {
@@ -832,15 +707,7 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	}
 	vienna, _ := time.LoadLocation("Europe/Vienna")
 	today := time.Now().In(vienna)
-	if _, err = q.CreateSurveyResponse(
-		ctx,
-		surveysdb.CreateSurveyResponseParams{
-			ID:                 responseID,
-			SurveyVersionID:    invitation.SurveyVersionID,
-			SubmittedOn:        pgtype.Date{Time: today, Valid: true},
-			IdentifiedPersonID: personID,
-		},
-	); err != nil {
+	if _, err = q.CreateSurveyResponse(ctx, surveysdb.CreateSurveyResponseParams{ID: responseID, SurveyVersionID: invitation.SurveyVersionID, SubmittedOn: pgtype.Date{Time: today, Valid: true}, IdentifiedPersonID: personID}); err != nil {
 		return err
 	}
 	for _, question := range questions {
@@ -969,16 +836,7 @@ func storeOptions(
 			return validation("choice answer contains an invalid option")
 		}
 		seen[id] = true
-		if err = q.CreateSurveyAnswer(
-			ctx,
-			surveysdb.CreateSurveyAnswerParams{
-				ID:         uuid.Must(uuid.NewV7()),
-				ResponseID: responseID,
-				QuestionID: questionID,
-				OptionID:   &id,
-				Position:   int32(index + 1),
-			},
-		); err != nil {
+		if err = q.CreateSurveyAnswer(ctx, surveysdb.CreateSurveyAnswerParams{ID: uuid.Must(uuid.NewV7()), ResponseID: responseID, QuestionID: questionID, OptionID: &id, Position: int32(index + 1)}); err != nil {
 			return err
 		}
 	}

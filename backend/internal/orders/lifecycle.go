@@ -95,34 +95,17 @@ func (s *Service) finalize(
 		if e != nil {
 			return o, e
 		}
-		if e = q.CaptureCustomer(
-			ctx,
-			db.CaptureCustomerParams{OrderID: o.ID, DisplayName: name, OrganizationKind: kind},
-		); e != nil {
+		if e = q.CaptureCustomer(ctx, db.CaptureCustomerParams{OrderID: o.ID, DisplayName: name, OrganizationKind: kind}); e != nil {
 			return o, e
 		}
 	}
 	if o.CustomerKind == "anonymous" && o.FulfillmentMode != "immediate" {
 		return o, conflict("anonymous_requires_full_settlement", "Deferred fulfillment requires a named customer")
 	}
-	if err = q.TransitionOrder(
-		ctx,
-		db.TransitionOrderParams{ID: o.ID, Status: "finalized", TotalAmount: numeric(total)},
-	); err != nil {
+	if err = q.TransitionOrder(ctx, db.TransitionOrderParams{ID: o.ID, Status: "finalized", TotalAmount: numeric(total)}); err != nil {
 		return o, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"order.finalized",
-		"order",
-		o.ID,
-		requestID,
-		"status",
-		"totalAmount",
-		"customerSnapshot",
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "order.finalized", "order", o.ID, requestID, "status", "totalAmount", "customerSnapshot"); err != nil {
 		return o, err
 	}
 	return q.GetOrder(ctx, o.ID)
@@ -172,18 +155,7 @@ func (s *Service) reverse(
 		return err
 	}
 	adj := newID()
-	if err = q.InsertAdjustment(
-		ctx,
-		db.InsertAdjustmentParams{
-			ID:             adj,
-			Reference:      reference("A", n),
-			OrderID:        &o.ID,
-			OrderReference: o.Reference,
-			Amount:         o.TotalAmount,
-			Reason:         reason,
-			ActorAccountID: &p.AccountID,
-		},
-	); err != nil {
+	if err = q.InsertAdjustment(ctx, db.InsertAdjustmentParams{ID: adj, Reference: reference("A", n), OrderID: &o.ID, OrderReference: o.Reference, Amount: o.TotalAmount, Reason: reason, ActorAccountID: &p.AccountID}); err != nil {
 		return err
 	}
 	items, err := q.ListItems(ctx, o.ID)
@@ -192,16 +164,7 @@ func (s *Service) reverse(
 	}
 	for _, i := range items {
 		if !i.RemovedAt.Valid {
-			if err = q.InsertAdjustmentItems(
-				ctx,
-				db.InsertAdjustmentItemsParams{
-					ID:                   newID(),
-					AdjustmentID:         adj,
-					OriginalOrderItemID:  &i.ID,
-					OriginalItemPosition: i.Position,
-					Amount:               i.Amount,
-				},
-			); err != nil {
+			if err = q.InsertAdjustmentItems(ctx, db.InsertAdjustmentItemsParams{ID: newID(), AdjustmentID: adj, OriginalOrderItemID: &i.ID, OriginalItemPosition: i.Position, Amount: i.Amount}); err != nil {
 				return err
 			}
 		}
@@ -209,10 +172,7 @@ func (s *Service) reverse(
 	if err = q.ReleaseOrderClaims(ctx, o.ID); err != nil {
 		return err
 	}
-	if err = q.TransitionOrder(
-		ctx,
-		db.TransitionOrderParams{ID: o.ID, Status: "reversed", TotalAmount: o.TotalAmount},
-	); err != nil {
+	if err = q.TransitionOrder(ctx, db.TransitionOrderParams{ID: o.ID, Status: "reversed", TotalAmount: o.TotalAmount}); err != nil {
 		return err
 	}
 	return writeAudit(ctx, tx, p, "order.reversed", "order", o.ID, requestID, "status", "adjustments")
@@ -379,10 +339,7 @@ func (s *Service) Command(
 					v.MachineJobID = job.ID
 					v.ExpectedJobVersion = job.Version
 				} else if i.Kind == "machine_job" {
-					err = conflict(
-						"source_unavailable",
-						"The original job is unavailable; add a manual replacement item explicitly",
-					)
+					err = conflict("source_unavailable", "The original job is unavailable; add a manual replacement item explicitly")
 					break
 				}
 				_, err = s.insertItem(ctx, tx, p, next, v, requestID)
@@ -390,12 +347,7 @@ func (s *Service) Command(
 			resultID = next.ID
 		}
 	case "replace":
-		if err = require(
-			p,
-			authorization.OrdersFinalize,
-			authorization.PaymentsRead,
-			authorization.PaymentsRecord,
-		); err != nil {
+		if err = require(p, authorization.OrdersFinalize, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
 			return Order{}, err
 		}
 		if err = checkVersion(replacement, input.ExpectedReplacementVersion); err != nil {
@@ -472,16 +424,7 @@ func (s *Service) Command(
 			if err = s.allocate(ctx, q, p, payment, replacement, d(payment.Amount), input.OperationKey); err != nil {
 				return Order{}, err
 			}
-			if err = writeAudit(
-				ctx,
-				tx,
-				p,
-				"payment.reallocated",
-				"payment",
-				payment.ID,
-				requestID,
-				"allocations",
-			); err != nil {
+			if err = writeAudit(ctx, tx, p, "payment.reallocated", "payment", payment.ID, requestID, "allocations"); err != nil {
 				return Order{}, err
 			}
 		}

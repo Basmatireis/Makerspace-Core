@@ -301,10 +301,7 @@ func (s *Service) LookupFilamentSpool(
 		return FilamentSpool{}, validation("invalid identifier kind")
 	}
 	id, err := machinelogbookdb.New(s.pool).
-		FindFilamentSpoolByIdentifier(
-			ctx,
-			machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: kind, Value: strings.TrimSpace(value)},
-		)
+		FindFilamentSpoolByIdentifier(ctx, machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: kind, Value: strings.TrimSpace(value)})
 	if err != nil {
 		return FilamentSpool{}, noRows(err)
 	}
@@ -464,16 +461,7 @@ func (s *Service) CreateFilamentSpool(
 			return FilamentSpool{}, err
 		}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"filament_spool.created",
-		"filament_spool",
-		id,
-		requestID,
-		[]string{"materialId", "kind", "label", "productId", "stockMode", "inventory", "metadata"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "filament_spool.created", "filament_spool", id, requestID, []string{"materialId", "kind", "label", "productId", "stockMode", "inventory", "metadata"}); err != nil {
 		return FilamentSpool{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -554,23 +542,9 @@ func (s *Service) fillNewSpool(
 		if unassigned.LessThan(weight) {
 			return conflict("insufficient_unassigned_stock", "Not enough unassigned material stock")
 		}
-		err = s.insertFillTransfer(
-			ctx,
-			q,
-			p,
-			input.MaterialID,
-			input.ExpectedInventoryVersion,
-			nil,
-			&ref,
-			weight,
-			input.OccurredAt,
-			input.Notes,
-		)
+		err = s.insertFillTransfer(ctx, q, p, input.MaterialID, input.ExpectedInventoryVersion, nil, &ref, weight, input.OccurredAt, input.Notes)
 		if err == nil {
-			_, err = q.BumpFilamentSpoolVersion(
-				ctx,
-				machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spool.ID, ExpectedVersion: 1},
-			)
+			_, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spool.ID, ExpectedVersion: 1})
 		}
 	}
 	return databaseError(err)
@@ -636,14 +610,7 @@ func (s *Service) UpdateFilamentSpool(
 		}
 		archivedAt = pgTimestamp(s.now())
 		actor := p.AccountID
-		if _, err = q.UnmountFilamentSpool(
-			ctx,
-			machinelogbookdb.UnmountFilamentSpoolParams{
-				UnmountedAt:    s.now().UTC(),
-				ActorAccountID: &actor,
-				SpoolID:        id,
-			},
-		); err != nil {
+		if _, err = q.UnmountFilamentSpool(ctx, machinelogbookdb.UnmountFilamentSpoolParams{UnmountedAt: s.now().UTC(), ActorAccountID: &actor, SpoolID: id}); err != nil {
 			return FilamentSpool{}, err
 		}
 	case in.Lifecycle == "active" && current.Lifecycle == "archived":
@@ -677,27 +644,11 @@ func (s *Service) UpdateFilamentSpool(
 		return FilamentSpool{}, databaseError(err)
 	}
 	if hasOpen {
-		if _, err = q.UpdateOpenFilamentSpoolFillSnapshot(
-			ctx,
-			machinelogbookdb.UpdateOpenFilamentSpoolFillSnapshotParams{
-				Manufacturer: manufacturer,
-				ProductName:  productName,
-				SpoolID:      id,
-			},
-		); err != nil {
+		if _, err = q.UpdateOpenFilamentSpoolFillSnapshot(ctx, machinelogbookdb.UpdateOpenFilamentSpoolFillSnapshotParams{Manufacturer: manufacturer, ProductName: productName, SpoolID: id}); err != nil {
 			return FilamentSpool{}, databaseError(err)
 		}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"filament_spool.updated",
-		"filament_spool",
-		id,
-		requestID,
-		[]string{"kind", "label", "manufacturer", "productName", "tareWeightG", "storageLocation", "lifecycle"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "filament_spool.updated", "filament_spool", id, requestID, []string{"kind", "label", "manufacturer", "productName", "tareWeightG", "storageLocation", "lifecycle"}); err != nil {
 		return FilamentSpool{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -749,16 +700,7 @@ func (s *Service) AddFilamentSpoolIdentifier(
 	if err != nil {
 		return FilamentSpoolIdentifier{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"filament_spool.identifier_added",
-		"filament_spool",
-		spoolID,
-		requestID,
-		[]string{"identifiers"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "filament_spool.identifier_added", "filament_spool", spoolID, requestID, []string{"identifiers"}); err != nil {
 		return FilamentSpoolIdentifier{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -792,16 +734,7 @@ func (s *Service) DeleteFilamentSpoolIdentifier(
 	if rows == 0 {
 		return apperror.NotFound
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"filament_spool.identifier_removed",
-		"filament_spool",
-		spoolID,
-		requestID,
-		[]string{"identifiers"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "filament_spool.identifier_removed", "filament_spool", spoolID, requestID, []string{"identifiers"}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -892,23 +825,11 @@ func (s *Service) TransferSpoolStock(
 		return InventoryTransaction{}, databaseError(err)
 	}
 	for id, version := range versions {
-		if _, err = q.BumpFilamentSpoolVersion(
-			ctx,
-			machinelogbookdb.BumpFilamentSpoolVersionParams{ID: id, ExpectedVersion: version},
-		); err != nil {
+		if _, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: id, ExpectedVersion: version}); err != nil {
 			return InventoryTransaction{}, err
 		}
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"inventory.spool_transfer",
-		"material",
-		materialID,
-		requestID,
-		[]string{"attribution", "inventoryVersion"},
-	); err != nil {
+	if err = writeAudit(ctx, tx, p, "inventory.spool_transfer", "material", materialID, requestID, []string{"attribution", "inventoryVersion"}); err != nil {
 		return InventoryTransaction{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

@@ -20,19 +20,10 @@ func TestSupervisorDashboardSeparatesAssignmentKindsByPeriod(t *testing.T) {
 
 	member := seedAccount(t, pool, "supervisor-dashboard-counts", false)
 	designatedRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles(id,name,supervisor_dashboard) VALUES($1,'Dashboard members',true)`,
-		designatedRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,supervisor_dashboard) VALUES($1,'Dashboard members',true)`, designatedRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`,
-		member.personID,
-		designatedRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, member.personID, designatedRoleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM accounts WHERE id=$1`, member.accountID); err != nil {

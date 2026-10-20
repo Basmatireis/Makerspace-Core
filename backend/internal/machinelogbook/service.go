@@ -494,20 +494,13 @@ type Overview struct {
 }
 
 type Statistics struct {
-	MaterialUsageByType,
-	MachineRuntimeHours,
-	MachineJobCounts,
-	AcquisitionCost,
-	CustomerCharges,
-	AdjustmentLoss,
-	MachineFailureRates []StatisticPoint
-	Totals,
-	PreviousTotals StatisticTotals
-	Months             []StatisticMonth
-	RuntimeGranularity string
-	Runtime            []StatisticRuntimePoint
-	MaterialCostByType []StatisticPoint
-	Machines           []StatisticMachine
+	MaterialUsageByType, MachineRuntimeHours, MachineJobCounts, AcquisitionCost, CustomerCharges, AdjustmentLoss, MachineFailureRates []StatisticPoint
+	Totals, PreviousTotals                                                                                                            StatisticTotals
+	Months                                                                                                                            []StatisticMonth
+	RuntimeGranularity                                                                                                                string
+	Runtime                                                                                                                           []StatisticRuntimePoint
+	MaterialCostByType                                                                                                                []StatisticPoint
+	Machines                                                                                                                          []StatisticMachine
 }
 
 type StatisticTotals struct {

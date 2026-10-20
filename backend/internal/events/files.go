@@ -26,9 +26,7 @@ var allowedEventFileTypes = map[string]struct{}{
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   {},
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         {},
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation": {},
-	"application/vnd.oasis.opendocument.text":                                   {},
-	"application/vnd.oasis.opendocument.spreadsheet":                            {},
-	"application/vnd.oasis.opendocument.presentation":                           {},
+	"application/vnd.oasis.opendocument.text":                                   {}, "application/vnd.oasis.opendocument.spreadsheet": {}, "application/vnd.oasis.opendocument.presentation": {},
 }
 
 func (s *Service) ListFiles(
@@ -123,10 +121,7 @@ func (s *Service) AttachFile(
 	}
 	id := uuid.Must(uuid.NewV7())
 	if isBanner {
-		if err = q.ClearOtherEventBanners(
-			ctx,
-			eventsdb.ClearOtherEventBannersParams{EventID: eventID, ExcludedID: id},
-		); err != nil {
+		if err = q.ClearOtherEventBanners(ctx, eventsdb.ClearOtherEventBannersParams{EventID: eventID, ExcludedID: id}); err != nil {
 			return EventFile{}, err
 		}
 	}
@@ -145,17 +140,7 @@ func (s *Service) AttachFile(
 		return EventFile{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_file.attached",
-		"event_file",
-		id,
-		requestID,
-		[]string{"description", "visibility", "isBanner"},
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
+	if err = eventAudit(ctx, tx, &actor, "event_file.attached", "event_file", id, requestID, []string{"description", "visibility", "isBanner"}, map[string]any{"eventId": eventID.String()}); err != nil {
 		return EventFile{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -280,10 +265,7 @@ func (s *Service) UpdateFile(
 		return EventFile{}, validation("a banner must be a public JPEG, PNG, GIF, or WebP image")
 	}
 	if nextBanner {
-		if err = q.ClearOtherEventBanners(
-			ctx,
-			eventsdb.ClearOtherEventBannersParams{EventID: eventID, ExcludedID: id},
-		); err != nil {
+		if err = q.ClearOtherEventBanners(ctx, eventsdb.ClearOtherEventBannersParams{EventID: eventID, ExcludedID: id}); err != nil {
 			return EventFile{}, err
 		}
 	}
@@ -302,17 +284,7 @@ func (s *Service) UpdateFile(
 		return EventFile{}, databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_file.updated",
-		"event_file",
-		id,
-		requestID,
-		[]string{"description", "visibility", "isBanner"},
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
+	if err = eventAudit(ctx, tx, &actor, "event_file.updated", "event_file", id, requestID, []string{"description", "visibility", "isBanner"}, map[string]any{"eventId": eventID.String()}); err != nil {
 		return EventFile{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -377,17 +349,7 @@ func (s *Service) RemoveFile(
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_file.removed",
-		"event_file",
-		id,
-		requestID,
-		nil,
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
+	if err = eventAudit(ctx, tx, &actor, "event_file.removed", "event_file", id, requestID, nil, map[string]any{"eventId": eventID.String()}); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {

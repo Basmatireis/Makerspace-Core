@@ -115,10 +115,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	decodeResponse(t, response, &evaluations)
 	var masterRoleID uuid.UUID
 	var masterRoleVersion int64
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT id, version FROM roles WHERE system_key = 'master'`,
-	).Scan(&masterRoleID, &masterRoleVersion); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT id, version FROM roles WHERE system_key = 'master'`).Scan(&masterRoleID, &masterRoleVersion); err != nil {
 		t.Fatal(err)
 	}
 	foundMasterEvaluation := false
@@ -150,9 +147,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t,
 		adminClient,
 		http.MethodGet,
-		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(
-			uuid.NewV7(),
-		).
+		server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(uuid.NewV7()).
 			String(),
 		"",
 		"",
@@ -162,10 +157,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	response.Body.Close()
 
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{
-		"firstName":           "Grace",
-		"lastName":            "Hopper",
-		"email":               "grace-contact@example.test",
-		"matriculationNumber": "M-0042",
+		"firstName": "Grace", "lastName": "Hopper", "email": "grace-contact@example.test", "matriculationNumber": "M-0042",
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var person openapi.Person
@@ -232,9 +224,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 				origin,
 				adminCSRF,
 				map[string]any{
-					"firstName": "No",
-					"lastName":  "Identity",
-					"email":     "independent-contact-" + uuid.NewString() + "@example.test",
+					"firstName": "No", "lastName": "Identity", "email": "independent-contact-" + uuid.NewString() + "@example.test",
 				},
 			)
 			assertStatus(t, response, http.StatusCreated)
@@ -681,11 +671,7 @@ func TestAnonymousRecoveryResponsesRemainUniform(t *testing.T) {
 	defer server.Close()
 	// Repeated requests also exercise both identifier and source rate limits.
 	for attempt := 0; attempt < 12; attempt++ {
-		for _, email := range []string{
-			"recovery-enabled@example.test",
-			"recovery-disabled@example.test",
-			"unknown@example.test",
-		} {
+		for _, email := range []string{"recovery-enabled@example.test", "recovery-disabled@example.test", "unknown@example.test"} {
 			response := doJSON(
 				t,
 				server.Client(),

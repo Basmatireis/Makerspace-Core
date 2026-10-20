@@ -33,19 +33,10 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	warningRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Lab warning','warning')`,
-		warningRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Lab warning','warning')`, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`,
-		personID,
-		warningRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, personID, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
 	versionID := insertPublishedLabRulesVersion(t, pool, accountID, "2026.1")
@@ -54,13 +45,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := authService.Login(
-		ctx,
-		"warning-login@example.test",
-		bootstrapPassword,
-		"lab-rules-login",
-		nil,
-	); err != nil {
+	if _, err := authService.Login(ctx, "warning-login@example.test", bootstrapPassword, "lab-rules-login", nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1`, 0, personID)
@@ -117,19 +102,10 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	}
 
 	blockingRoleID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Admission block','blocking')`,
-		blockingRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Admission block','blocking')`, blockingRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`,
-		personID,
-		blockingRoleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, personID, blockingRoleID); err != nil {
 		t.Fatal(err)
 	}
 	status, err = service.Evaluate(ctx, personID)
@@ -174,15 +150,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePINEnrollment(
-		ctx,
-		accountID,
-		code,
-		"Noel.Workshop",
-		"654321",
-		"pin-enrollment",
-		nil,
-	); err != nil {
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "Noel.Workshop", "654321", "pin-enrollment", nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(
@@ -193,11 +161,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 		accountID,
 	)
 	var pinHash string
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`,
-		accountID,
-	).Scan(&pinHash); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`, accountID).Scan(&pinHash); err != nil {
 		t.Fatal(err)
 	}
 	if pinHash == "654321" || !bytes.HasPrefix([]byte(pinHash), []byte("$argon2id$")) {
@@ -211,15 +175,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err != nil || authenticated.Principal.Assurance != authorization.AssuranceLow {
 		t.Fatalf("PIN assurance=%q err=%v", authenticated.Principal.Assurance, err)
 	}
-	if err := authService.CompletePINEnrollment(
-		ctx,
-		accountID,
-		code,
-		"other-name",
-		"123456",
-		"replay",
-		nil,
-	); !apperror.IsCode(
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "other-name", "123456", "replay", nil); !apperror.IsCode(
 		err,
 		"challenge_invalid",
 	) {
@@ -242,11 +198,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatal(err)
 	}
 	var masterPersonID uuid.UUID
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT person_id FROM accounts WHERE id=$1`,
-		masterAccountID,
-	).Scan(&masterPersonID); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, masterAccountID).Scan(&masterPersonID); err != nil {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{
@@ -258,34 +210,17 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	}
 
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Phone','Only','+43 660 123456')`,
-		personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Phone','Only','+43 660 123456')`, personID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`,
-		accountID,
-		personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
 	authService, err := auth.NewService(pool, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.SetAccountPIN(
-		ctx,
-		authorization.Principal{},
-		accountID,
-		"phone.only",
-		"123456",
-		1,
-		nil,
-	); !apperror.IsCode(
+	if err := authService.SetAccountPIN(ctx, authorization.Principal{}, accountID, "phone.only", "123456", 1, nil); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
@@ -313,15 +248,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		accountID,
 	)
 
-	if err := authService.SetAccountPIN(
-		ctx,
-		principal,
-		accountID,
-		"Phone.Only",
-		"123456",
-		issue.Account.Version,
-		nil,
-	); err != nil {
+	if err := authService.SetAccountPIN(ctx, principal, accountID, "Phone.Only", "123456", issue.Account.Version, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(
@@ -333,11 +260,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, accountID)
 	var pinHash string
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1 AND i.kind='pin'`,
-		accountID,
-	).Scan(&pinHash); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT pc.pin_hash FROM pin_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1 AND i.kind='pin'`, accountID).Scan(&pinHash); err != nil {
 		t.Fatal(err)
 	}
 	if pinHash == "123456" || !security.VerifyPIN(cfg.PINPepper, pinHash, "123456") {
@@ -350,13 +273,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		1,
 		accountID,
 	)
-	if _, err := authService.LoginWithPIN(
-		ctx,
-		"phone.only",
-		"123456",
-		"disabled-phone-only-login",
-		nil,
-	); !apperror.IsCode(
+	if _, err := authService.LoginWithPIN(ctx, "phone.only", "123456", "disabled-phone-only-login", nil); !apperror.IsCode(
 		err,
 		"invalid_credentials",
 	) {
@@ -378,15 +295,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.SetAccountPIN(
-		ctx,
-		principal,
-		accountID,
-		"phone.only",
-		"654321",
-		account.Version,
-		nil,
-	); err != nil {
+	if err := authService.SetAccountPIN(ctx, principal, accountID, "phone.only", "654321", account.Version, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := authService.Authenticate(ctx, session.Token); !apperror.IsCode(err, "unauthenticated") {
@@ -398,30 +307,13 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	}
 
 	conflictPersonID, conflictAccountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'PIN','Conflict','+43 660 654321')`,
-		conflictPersonID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'PIN','Conflict','+43 660 654321')`, conflictPersonID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`,
-		conflictAccountID,
-		conflictPersonID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`, conflictAccountID, conflictPersonID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.SetAccountPIN(
-		ctx,
-		principal,
-		conflictAccountID,
-		"PHONE.ONLY",
-		"789012",
-		1,
-		nil,
-	); !apperror.IsCode(
+	if err := authService.SetAccountPIN(ctx, principal, conflictAccountID, "PHONE.ONLY", "789012", 1, nil); !apperror.IsCode(
 		err,
 		"login_name_unavailable",
 	) {
@@ -437,40 +329,19 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatalf("account before PIN removal=%#v", currentAccount)
 	}
 	pinIdentityID := currentAccount.AuthIdentities[0].ID
-	if err := accountService.RemoveAuthIdentity(
-		ctx,
-		authorization.Principal{},
-		accountID,
-		pinIdentityID,
-		currentAccount.Version,
-		nil,
-	); !apperror.IsCode(
+	if err := accountService.RemoveAuthIdentity(ctx, authorization.Principal{}, accountID, pinIdentityID, currentAccount.Version, nil); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {
 		t.Fatalf("PIN removal without permission error=%v", err)
 	}
-	if err := accountService.RemoveAuthIdentity(
-		ctx,
-		principal,
-		accountID,
-		pinIdentityID,
-		currentAccount.Version+1,
-		nil,
-	); !apperror.IsCode(
+	if err := accountService.RemoveAuthIdentity(ctx, principal, accountID, pinIdentityID, currentAccount.Version+1, nil); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
 		t.Fatalf("stale PIN removal error=%v", err)
 	}
-	if err := accountService.RemoveAuthIdentity(
-		ctx,
-		principal,
-		accountID,
-		pinIdentityID,
-		currentAccount.Version,
-		nil,
-	); err != nil {
+	if err := accountService.RemoveAuthIdentity(ctx, principal, accountID, pinIdentityID, currentAccount.Version, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin'`, 0, accountID)
@@ -499,11 +370,7 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	var masterPersonID uuid.UUID
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT person_id FROM accounts WHERE id=$1`,
-		masterAccountID,
-	).Scan(&masterPersonID); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id=$1`, masterAccountID).Scan(&masterPersonID); err != nil {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{
@@ -514,19 +381,10 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 		AuthenticatedAt: time.Now().UTC(),
 	}
 	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Manual','PIN','+43 660 999999')`,
-		personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO people (id,first_name,last_name,phone) VALUES ($1,'Manual','PIN','+43 660 999999')`, personID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`,
-		accountID,
-		personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id,person_id,status) VALUES ($1,$2,'disabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
 	issue, err := accounts.NewService(pool, cfg).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
@@ -550,26 +408,10 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePINEnrollment(
-		ctx,
-		accountID,
-		code,
-		"manual.pin",
-		"112233",
-		"manual-pin",
-		nil,
-	); err != nil {
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "manual.pin", "112233", "manual-pin", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.CompletePINEnrollment(
-		ctx,
-		accountID,
-		code,
-		"manual.pin",
-		"112233",
-		"manual-pin-replay",
-		nil,
-	); !apperror.IsCode(
+	if err := authService.CompletePINEnrollment(ctx, accountID, code, "manual.pin", "112233", "manual-pin-replay", nil); !apperror.IsCode(
 		err,
 		"challenge_invalid",
 	) {
@@ -608,21 +450,13 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 		t.Fatalf("%s identity missing from projection", kind)
 		return false
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE auth_identities SET verified_at=NULL WHERE account_id=$1 AND kind='password'`,
-		accountID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE auth_identities SET verified_at=NULL WHERE account_id=$1 AND kind='password'`, accountID); err != nil {
 		t.Fatal(err)
 	}
 	if !identityUsable("password") {
 		t.Fatal("unverified password identity with a usable credential was projected unusable")
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE password_credentials SET reset_required=true WHERE auth_identity_id=(SELECT id FROM auth_identities WHERE account_id=$1 AND kind='password')`,
-		accountID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE password_credentials SET reset_required=true WHERE auth_identity_id=(SELECT id FROM auth_identities WHERE account_id=$1 AND kind='password')`, accountID); err != nil {
 		t.Fatal(err)
 	}
 	if identityUsable("password") {
@@ -630,12 +464,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	}
 
 	pinIdentityID := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO auth_identities (id,account_id,kind,identifier_display,identifier_normalized,verified_at) VALUES ($1,$2,'pin','usability.pin','usability.pin',now())`,
-		pinIdentityID,
-		accountID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id,account_id,kind,identifier_display,identifier_normalized,verified_at) VALUES ($1,$2,'pin','usability.pin','usability.pin',now())`, pinIdentityID, accountID); err != nil {
 		t.Fatal(err)
 	}
 	if identityUsable("pin") {
@@ -645,12 +474,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO pin_credentials (auth_identity_id,pin_hash) VALUES ($1,$2)`,
-		pinIdentityID,
-		pinHash,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO pin_credentials (auth_identity_id,pin_hash) VALUES ($1,$2)`, pinIdentityID, pinHash); err != nil {
 		t.Fatal(err)
 	}
 	if !identityUsable("pin") {
@@ -658,21 +482,10 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	}
 
 	providerID, oidcIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,'usability','Usability SSO','https://usability.example.test','client',$2,false)`,
-		providerID,
-		[]byte{1},
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO oidc_providers (id,slug,display_name,issuer,client_id,encrypted_client_secret,enabled) VALUES ($1,'usability','Usability SSO','https://usability.example.test','client',$2,false)`, providerID, []byte{1}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO auth_identities (id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES ($1,$2,'oidc',$3,'https://usability.example.test','subject',now())`,
-		oidcIdentityID,
-		accountID,
-		providerID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO auth_identities (id,account_id,kind,provider_id,issuer,subject,verified_at) VALUES ($1,$2,'oidc',$3,'https://usability.example.test','subject',now())`, oidcIdentityID, accountID, providerID); err != nil {
 		t.Fatal(err)
 	}
 	if identityUsable("oidc") {
@@ -684,11 +497,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	if !identityUsable("oidc") {
 		t.Fatal("OIDC identity for an enabled provider was projected unusable")
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE auth_identities SET disabled_at=now() WHERE id=$1`,
-		oidcIdentityID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE auth_identities SET disabled_at=now() WHERE id=$1`, oidcIdentityID); err != nil {
 		t.Fatal(err)
 	}
 	if identityUsable("oidc") {
@@ -709,11 +518,7 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE auth_identities SET verified_at=NULL WHERE account_id=$1 AND kind='password'`,
-		accountID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE auth_identities SET verified_at=NULL WHERE account_id=$1 AND kind='password'`, accountID); err != nil {
 		t.Fatal(err)
 	}
 	service, err := auth.NewService(pool, cfg, notifier)
@@ -729,31 +534,17 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 		t.Fatal("verification code was not delivered")
 	}
 	var storedDigest []byte
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT code_digest FROM auth_challenges WHERE account_id=$1 AND kind='email_verification'`,
-		accountID,
-	).Scan(&storedDigest); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT code_digest FROM auth_challenges WHERE account_id=$1 AND kind='email_verification'`, accountID).Scan(&storedDigest); err != nil {
 		t.Fatal(err)
 	}
 	if string(storedDigest) == code {
 		t.Fatal("verification code was stored in plaintext")
 	}
-	if err := service.CompleteEmailVerification(
-		ctx,
-		strings.ToUpper(loginEmail),
-		strings.ToLower(code),
-		"verification-source",
-		nil,
-	); err != nil {
+	if err := service.CompleteEmailVerification(ctx, strings.ToUpper(loginEmail), strings.ToLower(code), "verification-source", nil); err != nil {
 		t.Fatal(err)
 	}
 	var verified bool
-	if err := pool.QueryRow(
-		ctx,
-		`SELECT verified_at IS NOT NULL FROM auth_identities WHERE account_id=$1 AND kind='password'`,
-		accountID,
-	).Scan(&verified); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT verified_at IS NOT NULL FROM auth_identities WHERE account_id=$1 AND kind='password'`, accountID).Scan(&verified); err != nil {
 		t.Fatal(err)
 	}
 	if !verified {
@@ -778,16 +569,7 @@ func insertPublishedLabRulesVersion(t *testing.T, pool *pgxpool.Pool, accountID 
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO laborordnung_versions (
-			id,
-			status,
-			human_revision,
-			pdf_file_id,
-			pdf_sha256,
-			effective_at,
-			published_at,
-			created_by_account_id,
-		)
+		INSERT INTO laborordnung_versions (id,status,human_revision,pdf_file_id,pdf_sha256,effective_at,published_at,created_by_account_id)
 		VALUES ($1,'published',$2,$3,$4,now()-interval '1 minute',now(),$5)`, versionID, revision, fileID, digest, accountID); err != nil {
 		t.Fatal(err)
 	}

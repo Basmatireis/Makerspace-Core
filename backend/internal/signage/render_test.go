@@ -70,11 +70,7 @@ func TestRenderAnnouncementVectors(t *testing.T) {
 				vector.Values,
 				RenderTiming{StartsAt: vector.StartsAt, EndsAt: vector.EndsAt},
 				RenderContext{
-					Now:          vector.Now,
-					TimeZone:     zone,
-					DisplayName:  vector.DisplayName,
-					Location:     vector.Location,
-					MachineNames: vector.Machines,
+					Now: vector.Now, TimeZone: zone, DisplayName: vector.DisplayName, Location: vector.Location, MachineNames: vector.Machines,
 				},
 			)
 			want := Rendered{Title: vector.Expected.Title, Body: vector.Expected.Body, Tone: vector.Expected.Tone}

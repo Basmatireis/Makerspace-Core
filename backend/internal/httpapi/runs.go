@@ -98,14 +98,7 @@ func (s *Server) DeleteMachineRun(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.machineLogbook.DeleteRun(
-		ctx,
-		p,
-		r.RunId,
-		r.Body.ExpectedVersion,
-		r.Body.ReverseConsumption,
-		requestIDPointer(ctx),
-	); err != nil {
+	if err := s.machineLogbook.DeleteRun(ctx, p, r.RunId, r.Body.ExpectedVersion, r.Body.ReverseConsumption, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
 	return openapi.DeleteMachineRun204Response{}, nil

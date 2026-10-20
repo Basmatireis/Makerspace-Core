@@ -32,22 +32,11 @@ func TestPersonHardDeletionRemovesPrivateProfileImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(
-		ctx,
-		`UPDATE people SET profile_image_file_id=$1, profile_image_source='self_upload' WHERE id=$2`,
-		image.ID,
-		account.personID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE people SET profile_image_file_id=$1, profile_image_source='self_upload' WHERE id=$2`, image.ID, account.personID); err != nil {
 		t.Fatal(err)
 	}
 	service := people.NewService(pool, fileService)
-	if err := service.Delete(
-		ctx,
-		authorization.Principal{AccountID: account.accountID, PersonID: account.personID},
-		account.personID,
-		1,
-		nil,
-	); !apperror.IsCode(
+	if err := service.Delete(ctx, authorization.Principal{AccountID: account.accountID, PersonID: account.personID}, account.personID, 1, nil); !apperror.IsCode(
 		err,
 		"permission_denied",
 	) {

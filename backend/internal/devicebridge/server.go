@@ -153,10 +153,7 @@ func (s *Server) info(w http.ResponseWriter, _ *http.Request) {
 		w,
 		http.StatusOK,
 		DeviceInfo{ProtocolVersion: ProtocolVersion, BridgeVersion: BridgeVersion, Platform: "desktop",
-			Capabilities:   s.config.Capabilities(),
-			LatestSequence: s.broker.LatestSequence(),
-			CoreConnected:  core.connected,
-			DeviceName:     core.name},
+			Capabilities: s.config.Capabilities(), LatestSequence: s.broker.LatestSequence(), CoreConnected: core.connected, DeviceName: core.name},
 	)
 }
 

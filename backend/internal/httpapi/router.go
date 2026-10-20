@@ -131,13 +131,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 					return nil
 				},
 			},
-			ErrorHandlerWithOpts: func(
-				_ context.Context,
-				_ error,
-				w http.ResponseWriter,
-				r *http.Request,
-				opts nethttpmiddleware.ErrorHandlerOpts,
-			) {
+			ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
 				if opts.StatusCode == http.StatusNotFound {
 					writeAPIError(w, r, apperror.NotFound, logger)
 					return
@@ -216,12 +210,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				if !s.allowPrinterConnectorRequest(connector.ID, time.Now().UTC()) {
-					writeAPIError(
-						w,
-						r,
-						apperror.RateLimited("rate_limited", "Connector request rate exceeded", deviceRequestWindow),
-						logger,
-					)
+					writeAPIError(w, r, apperror.RateLimited("rate_limited", "Connector request rate exceeded", deviceRequestWindow), logger)
 					return
 				}
 				ctx = context.WithValue(ctx, printerConnectorContextKey, *connector)
@@ -265,12 +254,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				if !s.allowPrinterConnectorRequest(gateway.ID, time.Now().UTC()) {
-					writeAPIError(
-						w,
-						r,
-						apperror.RateLimited("rate_limited", "Gateway request rate exceeded", deviceRequestWindow),
-						logger,
-					)
+					writeAPIError(w, r, apperror.RateLimited("rate_limited", "Gateway request rate exceeded", deviceRequestWindow), logger)
 					return
 				}
 				ctx = context.WithValue(ctx, streamingGatewayContextKey, *gateway)

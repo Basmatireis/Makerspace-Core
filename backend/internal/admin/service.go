@@ -68,17 +68,11 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 		return uuid.Nil, errors.New("a master account already exists; bootstrap made no changes")
 	}
 	personID := uuid.Must(uuid.NewV7())
-	if _, err := peopleQueries.CreatePerson(
-		ctx,
-		peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay},
-	); err != nil {
+	if _, err := peopleQueries.CreatePerson(ctx, peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay}); err != nil {
 		return uuid.Nil, err
 	}
 	accountID := uuid.Must(uuid.NewV7())
-	if _, err := accountQueries.CreateAccount(
-		ctx,
-		accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"},
-	); err != nil {
+	if _, err := accountQueries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"}); err != nil {
 		return uuid.Nil, err
 	}
 	identity, err := accountQueries.CreateAuthIdentity(
@@ -93,32 +87,17 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if err := accountQueries.UpsertPasswordCredential(
-		ctx,
-		accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash},
-	); err != nil {
+	if err := accountQueries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
 	master, err := peopleQueries.GetMasterRole(ctx)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("master role migration missing: %w", err)
 	}
-	if _, err := peopleQueries.AssignPersonRole(
-		ctx,
-		peopledb.AssignPersonRoleParams{PersonID: personID, RoleID: master.ID},
-	); err != nil {
+	if _, err := peopleQueries.AssignPersonRole(ctx, peopledb.AssignPersonRoleParams{PersonID: personID, RoleID: master.ID}); err != nil {
 		return uuid.Nil, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			Action:       "system.master_bootstrapped",
-			ResourceType: "account",
-			ResourceID:   &accountID,
-			Source:       "admin_cli",
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{Action: "system.master_bootstrapped", ResourceType: "account", ResourceID: &accountID, Source: "admin_cli"}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -181,10 +160,7 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if err := queries.UpsertPasswordCredential(
-		ctx,
-		accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: account.AuthIdentityID, PasswordHash: hash},
-	); err != nil {
+	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: account.AuthIdentityID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
 	present, err := peopleQueries.IsPersonRoleAssigned(
@@ -195,16 +171,10 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 		return uuid.Nil, err
 	}
 	if !present {
-		if _, err := peopleQueries.AssignPersonRole(
-			ctx,
-			peopledb.AssignPersonRoleParams{PersonID: account.PersonID, RoleID: master.ID},
-		); err != nil {
+		if _, err := peopleQueries.AssignPersonRole(ctx, peopledb.AssignPersonRoleParams{PersonID: account.PersonID, RoleID: master.ID}); err != nil {
 			return uuid.Nil, err
 		}
-		if _, err := peopleQueries.BumpPersonVersion(
-			ctx,
-			peopledb.BumpPersonVersionParams{ID: account.PersonID, ExpectedVersion: person.Version},
-		); err != nil {
+		if _, err := peopleQueries.BumpPersonVersion(ctx, peopledb.BumpPersonVersionParams{ID: account.PersonID, ExpectedVersion: person.Version}); err != nil {
 			return uuid.Nil, err
 		}
 	}
@@ -217,22 +187,10 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	if err := queries.DeletePasswordChallengesForAccount(ctx, account.ID); err != nil {
 		return uuid.Nil, err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: account.ID, Reason: ptr("master_recovery")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: account.ID, Reason: ptr("master_recovery")}); err != nil {
 		return uuid.Nil, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			Action:       "system.master_recovered",
-			ResourceType: "account",
-			ResourceID:   &account.ID,
-			Source:       "admin_cli",
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{Action: "system.master_recovered", ResourceType: "account", ResourceID: &account.ID, Source: "admin_cli"}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -283,16 +241,10 @@ func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string
 	if err := queries.RestorePasswordIdentity(ctx, target.AuthIdentityID); err != nil {
 		return uuid.Nil, err
 	}
-	if err := queries.UpsertPasswordCredential(
-		ctx,
-		accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: hash},
-	); err != nil {
+	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
-	if err := queries.RevokeSessionsForAccount(
-		ctx,
-		accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("admin_password_reset")},
-	); err != nil {
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("admin_password_reset")}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := queries.DeletePasswordResetForAccount(ctx, accountID); err != nil {
@@ -304,17 +256,7 @@ func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string
 	if err := queries.BumpAccountVersionForAdministrativeReset(ctx, accountID); err != nil {
 		return uuid.Nil, err
 	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			Action:        "account.password_reset_by_admin_cli",
-			ResourceType:  "account",
-			ResourceID:    &accountID,
-			ChangedFields: []string{"passwordCredential"},
-			Source:        "admin_cli",
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{Action: "account.password_reset_by_admin_cli", ResourceType: "account", ResourceID: &accountID, ChangedFields: []string{"passwordCredential"}, Source: "admin_cli"}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -339,16 +281,10 @@ func (s *Service) Cleanup(
 	if _, err = authQueries.DeleteExpiredAuthSecurityState(ctx, sessionBefore); err != nil {
 		return sessions, resets, 0, 0, err
 	}
-	if _, err = surveysdb.New(s.pool).DeleteExpiredSurveyInvitationPII(
-		ctx,
-		sessionBefore.Add(-7*24*time.Hour),
-	); err != nil {
+	if _, err = surveysdb.New(s.pool).DeleteExpiredSurveyInvitationPII(ctx, sessionBefore.Add(-7*24*time.Hour)); err != nil {
 		return sessions, resets, 0, 0, err
 	}
-	if _, err = attendancedb.New(s.pool).ArchiveExpiredVisitDetail(
-		ctx,
-		pgtype.Timestamptz{Time: sessionBefore.Add(-90 * 24 * time.Hour), Valid: true},
-	); err != nil {
+	if _, err = attendancedb.New(s.pool).ArchiveExpiredVisitDetail(ctx, pgtype.Timestamptz{Time: sessionBefore.Add(-90 * 24 * time.Hour), Valid: true}); err != nil {
 		return sessions, resets, 0, 0, err
 	}
 	if !auditBefore.IsZero() {

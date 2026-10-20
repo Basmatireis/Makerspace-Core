@@ -231,10 +231,7 @@ func (s *Service) checkIn(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
-	if _, err = q.LockEnabledAttendanceAccount(
-		ctx,
-		attendancedb.LockEnabledAttendanceAccountParams{AccountID: verified.AccountID, PersonID: verified.PersonID},
-	); errors.Is(
+	if _, err = q.LockEnabledAttendanceAccount(ctx, attendancedb.LockEnabledAttendanceAccountParams{AccountID: verified.AccountID, PersonID: verified.PersonID}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
@@ -262,17 +259,7 @@ func (s *Service) checkIn(
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.checked_in",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "visit.checked_in", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -344,17 +331,7 @@ func (s *Service) verifiedCheckOut(
 			return Visit{}, err
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.checked_out",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "visit.checked_out", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -400,11 +377,7 @@ func (s *Service) PublicCheckOut(
 			return Visit{}, err
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{Action: "visit.public_checkout", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{Action: "visit.public_checkout", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -483,17 +456,7 @@ func (s *Service) SupervisedCheckIn(
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.supervised_check_in",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "visit.supervised_check_in", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -540,17 +503,7 @@ func (s *Service) SupervisedCheckOut(
 			return Visit{}, err
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.supervised_check_out",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &accountID, Action: "visit.supervised_check_out", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -609,18 +562,7 @@ func (s *Service) Void(
 		}
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "visit.voided",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"status", "correctionReason"},
-		},
-	); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "visit.voided", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID, ChangedFields: []string{"status", "correctionReason"}}); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -639,14 +581,7 @@ func (s *Service) List(
 		return nil, apperror.PermissionDenied
 	}
 	rows, err := attendancedb.New(s.pool).
-		ListVisits(
-			ctx,
-			attendancedb.ListVisitsParams{
-				CurrentlyHere: currentlyHere,
-				FromTime:      nullableTime(from),
-				ToTime:        nullableTime(to),
-			},
-		)
+		ListVisits(ctx, attendancedb.ListVisitsParams{CurrentlyHere: currentlyHere, FromTime: nullableTime(from), ToTime: nullableTime(to)})
 	if err != nil {
 		return nil, err
 	}

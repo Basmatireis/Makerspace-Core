@@ -58,12 +58,7 @@ func TestLoginLimitsStopOneSourceMintingIdentifiersWithoutLockingOthersOut(t *te
 	now := time.Now().UTC()
 	blocked := false
 	for index := 0; index < 5000; index++ {
-		if _, allowed := limits.take(
-			"password",
-			"198.51.100.7",
-			fmt.Sprintf("user-%d@example.org", index),
-			now,
-		); !allowed {
+		if _, allowed := limits.take("password", "198.51.100.7", fmt.Sprintf("user-%d@example.org", index), now); !allowed {
 			blocked = true
 			if index != loginAttemptsPerSource {
 				t.Fatalf("source was blocked after %d identifiers, want %d", index, loginAttemptsPerSource)

@@ -91,20 +91,10 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	requestID := uuid.Must(uuid.NewV7())
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]
 	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Connector', 'Operator', $2)`,
-		personID,
-		"connector-"+suffix+"@example.test",
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Connector', 'Operator', $2)`, personID, "connector-"+suffix+"@example.test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(
-		ctx,
-		`INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`,
-		accountID,
-		personID,
-	); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
 	machineType, err := logbook.CreateMachineType(
