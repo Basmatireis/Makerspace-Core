@@ -35,15 +35,21 @@ until curl --fail --silent --show-error "$e2e_origin" >/dev/null; do
 	sleep 1
 done
 
+# PLAYWRIGHT_SHARD ("current/total", set by CI) runs one slice of the specs against this stack.
+shard_args=""
+if [ -n "${PLAYWRIGHT_SHARD:-}" ]; then
+	shard_args="--shard=${PLAYWRIGHT_SHARD}"
+fi
+
 cd frontend
 if [ -n "${PLAYWRIGHT_NODE_BINARY:-}" ]; then
 	PLAYWRIGHT_BASE_URL="$e2e_origin" \
 		PLAYWRIGHT_EXTERNAL_SERVER=true \
 		PLAYWRIGHT_FULL_STACK=true \
-		"$PLAYWRIGHT_NODE_BINARY" node_modules/@playwright/test/cli.js test
+		"$PLAYWRIGHT_NODE_BINARY" node_modules/@playwright/test/cli.js test $shard_args
 else
 	PLAYWRIGHT_BASE_URL="$e2e_origin" \
 		PLAYWRIGHT_EXTERNAL_SERVER=true \
 		PLAYWRIGHT_FULL_STACK=true \
-		pnpm exec playwright test
+		pnpm exec playwright test $shard_args
 fi

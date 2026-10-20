@@ -1,10 +1,16 @@
-FROM node:24.21.0-alpine3.24 AS base
+# syntax=docker/dockerfile:1
+
+# The dependency install and the Vite build run once on the build platform: the static output does
+# not depend on the target architecture, so only the final nginx stage is per platform (and it only
+# copies files).
+FROM --platform=$BUILDPLATFORM node:24.21.0-alpine3.24 AS base
 
 WORKDIR /workspace/frontend
 RUN corepack enable
 
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=makerspace-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 
 FROM base AS development
 

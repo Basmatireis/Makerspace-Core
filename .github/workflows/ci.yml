@@ -29,6 +29,26 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Warm development backend image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: development
+          push: false
+          cache-from: type=gha,scope=backend-dev
+          cache-to: type=gha,mode=max,scope=backend-dev
+      - name: Warm development frontend image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: development
+          push: false
+          cache-from: type=gha,scope=frontend-dev
+          cache-to: type=gha,mode=max,scope=frontend-dev
       - name: Verify generated code is current
         run: make check-generated
 
@@ -71,6 +91,17 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Warm development backend image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: development
+          push: false
+          cache-from: type=gha,scope=backend-dev
+          cache-to: type=gha,mode=max,scope=backend-dev
       - name: Run PostgreSQL integration tests
         run: make test-integration
       - name: Verify goose migration round trip
@@ -109,8 +140,42 @@ jobs:
       - name: Build
         run: pnpm build
 
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      # The macOS desktop job is the slowest and most expensive one, so a pull request skips it when
+      # no file it can depend on changed (the Tauri app, the Go bridge it bundles from backend/, the
+      # API contract, or this workflow). Pushes to main and release validation always run it, and
+      # any failure to list the changed files runs it as well.
+      - name: Decide whether the desktop terminal must be built
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: |
+          desktop=true
+          if [ "$EVENT" = pull_request ]; then
+            if files="$(gh api --paginate "repos/${REPOSITORY}/pulls/${PULL_REQUEST}/files" --jq '.[] | .filename, (.previous_filename // empty)')" && [ -n "$files" ]; then
+              if ! printf '%s\n' "$files" | grep -Eq '^(desktop-terminal/|backend/|api/|\.github/workflows/ci\.yml$|go\.work)'; then
+                desktop=false
+              fi
+            fi
+          fi
+          echo "desktop=${desktop}" >> "$GITHUB_OUTPUT"
+          echo "Desktop terminal job needed: ${desktop}"
+
   desktop:
     name: Desktop terminal
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     runs-on: macos-latest
     defaults:
       run:
@@ -137,6 +202,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-terminal/src-tauri
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check native shell and bundled bridge
@@ -144,12 +213,45 @@ jobs:
       - name: Build application
         run: pnpm exec tauri build --no-bundle
 
-  end-to-end:
-    name: End-to-end
+  end-to-end-shard:
+    name: End-to-end shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      # Every shard runs its own complete, isolated stack and a disjoint third of the specs.
+      PLAYWRIGHT_SHARD: ${{ matrix.shard }}/3
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Warm backend development image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: development
+          push: false
+          cache-from: type=gha,scope=backend-dev
+      - name: Warm backend production image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: final
+          push: false
+          cache-from: type=gha,scope=backend
+      - name: Warm frontend development image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: development
+          push: false
+          cache-from: type=gha,scope=frontend-dev
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -163,11 +265,30 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
       - name: Install Chromium
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
       - name: Run isolated full-stack browser tests
         run: make test-e2e
+
+  # Single stable check name for the branch ruleset, independent of the shard count.
+  end-to-end:
+    name: End-to-end
+    needs: end-to-end-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every shard to pass
+        env:
+          RESULT: ${{ needs.end-to-end-shard.result }}
+        run: |
+          echo "End-to-end shards: ${RESULT}"
+          test "$RESULT" = success
 
   containers:
     name: Container (${{ matrix.component }})
@@ -205,6 +326,24 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Warm backend image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: final
+          push: false
+          cache-from: type=gha,scope=backend
+      - name: Warm frontend image build cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: final
+          push: false
+          cache-from: type=gha,scope=frontend
       - name: Test standalone production deployment
         run: make test-production-compose
       - name: Test printer connector deployment bundle

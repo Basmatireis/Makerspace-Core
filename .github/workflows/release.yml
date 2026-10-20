@@ -30,11 +30,43 @@ jobs:
           fi
           echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
-  validate:
-    name: Validate
+  # Reuse a green CI run instead of validating the same commit twice. The shortcut is deliberately
+  # narrow: it needs a successful push run of ci.yml on main for exactly this commit. Anything else
+  # (no run yet, still running, failed, cancelled, API error, a docs-only commit that CI ignores)
+  # means "not proven", and the complete validation below runs.
+  ci-status:
+    name: Existing CI result
     needs: tag
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
+    outputs:
+      passed: ${{ steps.lookup.outputs.passed }}
+    steps:
+      - name: Look for a successful CI run of this commit
+        id: lookup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          passed=false
+          if runs="$(gh api "repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${COMMIT}&event=push&branch=main&status=success&per_page=5" --jq '[.workflow_runs[] | select(.head_sha == env.COMMIT and .conclusion == "success" and .event == "push" and .head_branch == "main")] | length')"; then
+            if [ "${runs:-0}" -ge 1 ]; then
+              passed=true
+            fi
+          fi
+          echo "passed=${passed}" >> "$GITHUB_OUTPUT"
+          echo "Successful CI run on main for ${COMMIT}: ${passed}"
+
+  validate:
+    name: Validate
+    needs: [tag, ci-status]
+    if: needs.ci-status.outputs.passed != 'true'
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/ci.yml
 
   immutable:
@@ -75,7 +107,13 @@ jobs:
 
   publish:
     name: Publish (${{ matrix.component }})
-    needs: [tag, validate, immutable]
+    needs: [tag, ci-status, validate, immutable]
+    # `validate` is skipped when CI already passed for this commit. Publishing needs either a
+    # successful validation or that proof, and never continues after a failed or cancelled job.
+    if: >-
+      ${{ !cancelled() && needs.tag.result == 'success' && needs.immutable.result == 'success' &&
+      (needs.validate.result == 'success' ||
+      (needs.validate.result == 'skipped' && needs.ci-status.outputs.passed == 'true')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -95,8 +133,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      # Go is cross-compiled and the frontend is built once on the runner. QEMU is only needed for
+      # the arm64 `RUN apk add` of the Alpine-based final stages; the frontend final stage has no RUN.
       - name: Set up QEMU
+        if: matrix.component != 'frontend'
         uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Log in to GHCR

@@ -23,6 +23,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - New development commands: `make dev-connector` and `make dev-streaming` (each creates its `.env`, for the gateway generates a localhost certificate with mkcert or openssl, checks enrollment or prints what to do, builds and starts detached) with `-logs` and `-down` variants. `make test-streaming-compose` and `make test-local-services-compose` validate the new bundles, next to `make test-printer-connector-compose`.
 - Releases now also build and publish the `streaming-gateway` image and attach Compose bundles for the printer connector, the streaming gateway and the local services next to the Core bundle.
 - Removed Make targets: `dev-printer-connector`, `dev-printer-connector-detached`, `dev-local-services`, `dev-local-services-down`, `dev-local-services-logs`, `build-local-services`, `local-services-up`, `local-services-down`, `local-services-logs` (use `dev-connector`, `dev-streaming` and the release bundles).
+- CI and release builds are much faster with the same checks: Go binaries are cross-compiled on the build platform and the frontend is built once instead of both running under QEMU for arm64, `go test` no longer repeats inside image builds (CI validates the commit before images are published), CI reuses cached Docker layers for its Compose-based jobs, the end-to-end suite runs in three parallel shards, and a release reuses a successful CI run of the same commit instead of validating again (`docs/ci-cd.md`).
 
 ### Fixed
 

@@ -1,4 +1,8 @@
-FROM golang:1.26.5-alpine3.24 AS dependencies
+# syntax=docker/dockerfile:1
+
+# Compiled on the build platform and cross-compiled for the target platform; tests run in CI before
+# publishing, not in the image build.
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.24 AS dependencies
 
 ENV CGO_ENABLED=0
 WORKDIR /workspace/backend
@@ -8,9 +12,11 @@ RUN go mod download
 FROM dependencies AS build
 
 ARG VERSION=dev
+ARG TARGETOS
+ARG TARGETARCH
 COPY backend/ ./
-RUN go test ./internal/printartifacts/parser ./internal/printerconnector ./cmd/printer-connector \
-    && go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector.Version=${VERSION}" -o /out/printer-connector ./cmd/printer-connector
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector.Version=${VERSION}" -o /out/printer-connector ./cmd/printer-connector
 
 FROM alpine:3.24.1 AS final
 
