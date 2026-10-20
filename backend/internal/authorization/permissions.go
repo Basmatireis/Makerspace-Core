@@ -418,7 +418,7 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 	byID := make(map[uuid.UUID]PermissionGrant)
 	order := make([]uuid.UUID, 0)
 	for _, row := range rows {
-		if row.SystemKey != nil && *row.SystemKey == "master" {
+		if row.SystemKey != nil && SystemKey(*row.SystemKey) == SystemKeyMaster {
 			principal.Master = true
 		}
 		if row.PermissionID == nil || row.GrantID == nil {

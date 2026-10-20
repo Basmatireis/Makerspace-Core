@@ -43,7 +43,7 @@ type Person struct {
 	MatriculationNumber *string
 	PhotoReference      *string
 	ProfileImageFileID  *uuid.UUID
-	ProfileImageSource  *string
+	ProfileImageSource  *ProfileImageSource
 	Roles               []RoleSummary
 	Version             int64
 	CreatedAt           time.Time
@@ -53,7 +53,7 @@ type Person struct {
 type RoleSummary struct {
 	ID        uuid.UUID
 	Name      string
-	SystemKey *string
+	SystemKey *authorization.SystemKey
 }
 
 type CreateInput struct {
@@ -495,7 +495,8 @@ func (s *Service) PutProfileImage(
 	principal authorization.Principal,
 	id uuid.UUID,
 	expectedVersion int64,
-	filename, source string,
+	filename string,
+	source ProfileImageSource,
 	reader io.Reader,
 	requestID *uuid.UUID,
 ) (Person, error) {
@@ -511,16 +512,16 @@ func (s *Service) PutProfileImage(
 	}
 	if source == "" {
 		if principal.PersonID == id {
-			source = "self_upload"
+			source = ImageSelfUpload
 		} else {
-			source = "admin_upload"
+			source = ImageAdminUpload
 		}
 	}
-	if source != "terminal_capture" && source != "self_upload" && source != "admin_upload" {
+	if source != ImageTerminalCapture && source != ImageSelfUpload && source != ImageAdminUpload {
 		return Person{}, apperror.InvalidField("profile image source is invalid")
 	}
-	if source == "self_upload" && principal.PersonID != id {
-		source = "admin_upload"
+	if source == ImageSelfUpload && principal.PersonID != id {
+		source = ImageAdminUpload
 	}
 	normalized, err := NormalizeProfileImage(reader)
 	if err != nil {
@@ -558,7 +559,7 @@ func (s *Service) PutProfileImage(
 			ID:                 id,
 			ExpectedVersion:    expectedVersion,
 			ProfileImageFileID: &stored.ID,
-			ProfileImageSource: &source,
+			ProfileImageSource: optional.Of(string(source)),
 		},
 	)
 	if err != nil {
@@ -739,7 +740,7 @@ func (s *Service) ChangeRole(
 		}
 		return result, tx.Commit(ctx)
 	}
-	if !assign && role.SystemKey != nil && *role.SystemKey == "master" {
+	if !assign && role.SystemKey != nil && authorization.SystemKey(*role.SystemKey) == authorization.SystemKeyMaster {
 		if err := protectLastEnabledMaster(ctx, queries, personID); err != nil {
 			return Person{}, err
 		}
@@ -823,7 +824,7 @@ func ValidateProvisionedRoleTransfer(
 		return err
 	}
 	for _, role := range roles {
-		if role.SystemKey != nil && *role.SystemKey == "master" {
+		if role.SystemKey != nil && authorization.SystemKey(*role.SystemKey) == authorization.SystemKeyMaster {
 			return apperror.New(
 				http.StatusConflict,
 				"master_role_transfer",
@@ -848,7 +849,7 @@ func protectLastEnabledMaster(ctx context.Context, queries *peopledb.Queries, pe
 	if err != nil {
 		return err
 	}
-	if account.Status != "enabled" {
+	if authorization.AccountStatus(account.Status) != authorization.AccountEnabled {
 		return nil
 	}
 	count, err := queries.CountEnabledMasters(ctx)
@@ -885,7 +886,7 @@ func authorizeRoleAssignment(
 	if err != nil {
 		return peopledb.Role{}, err
 	}
-	if role.SystemKey != nil && *role.SystemKey == "master" {
+	if role.SystemKey != nil && authorization.SystemKey(*role.SystemKey) == authorization.SystemKeyMaster {
 		if !principal.Master {
 			return peopledb.Role{}, apperror.PermissionDenied
 		}
@@ -1006,7 +1007,7 @@ func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Per
 	}
 	return Person{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Email: email, Phone: phone,
 		MatriculationNumber: matriculation, PhotoReference: photoReference, ProfileImageFileID: row.ProfileImageFileID,
-		ProfileImageSource: row.ProfileImageSource,
+		ProfileImageSource: optional.Convert[ProfileImageSource](row.ProfileImageSource),
 		Roles:              []RoleSummary{},
 		Version:            row.Version,
 		CreatedAt:          row.CreatedAt,
@@ -1025,7 +1026,7 @@ func loadPerson(
 		return Person{}, err
 	}
 	for _, role := range roles {
-		person.Roles = append(person.Roles, RoleSummary{ID: role.ID, Name: role.Name, SystemKey: role.SystemKey})
+		person.Roles = append(person.Roles, RoleSummary{ID: role.ID, Name: role.Name, SystemKey: optional.Convert[authorization.SystemKey](role.SystemKey)})
 	}
 	return person, nil
 }
@@ -1046,7 +1047,7 @@ func hydratePeopleRoles(ctx context.Context, queries *peopledb.Queries, people [
 		index := indexByID[row.PersonID]
 		people[index].Roles = append(
 			people[index].Roles,
-			RoleSummary{ID: row.ID, Name: row.Name, SystemKey: row.SystemKey},
+			RoleSummary{ID: row.ID, Name: row.Name, SystemKey: optional.Convert[authorization.SystemKey](row.SystemKey)},
 		)
 	}
 	return nil

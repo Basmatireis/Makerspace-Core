@@ -7,3 +7,8 @@ const (
 	AccountEnabled  AccountStatus = "enabled"
 	AccountDisabled AccountStatus = "disabled"
 )
+
+// SystemKey identifies a built-in system role. Master is the only one.
+type SystemKey string
+
+const SystemKeyMaster SystemKey = "master"

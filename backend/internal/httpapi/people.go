@@ -291,11 +291,11 @@ func (s *Server) PutPersonProfileImage(
 	if request.Body == nil {
 		return nil, invalidRequest("profile image body is required")
 	}
-	source := ""
+	var source people.ProfileImageSource
 	if request.Params.XProfileImageSource != nil {
-		source = string(*request.Params.XProfileImageSource)
+		source = people.ProfileImageSource(*request.Params.XProfileImageSource)
 	}
-	if source == "terminal_capture" {
+	if source == people.ImageTerminalCapture {
 		return nil, invalidRequest("terminal_capture is reserved for visitor enrollment")
 	}
 	person, err := s.people.PutProfileImage(
