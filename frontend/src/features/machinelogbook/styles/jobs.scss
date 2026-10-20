@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 .mj-runtime {
   margin: 0;
@@ -39,7 +40,7 @@
   @include type-style('body-compact-01');
 }
 .mj-price-details dt {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .mj-price-details dd {
   margin: 0;
@@ -78,7 +79,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: $spacing-05;
-  border-inline-start: 3px solid var(--cds-support-warning);
+  border-inline-start: 3px solid theme.$support-warning;
 }
 .mj-outcome-prompt .mj-section-title {
   margin-block-end: $spacing-03;
@@ -105,7 +106,7 @@
 
 // Replaced runs stay on the job as history; they read muted.
 .mj-run-row--replaced td {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 // Process specific run fields: ink volumes per colour and the area helper of cutting machines.

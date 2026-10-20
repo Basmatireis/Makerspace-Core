@@ -3,12 +3,13 @@
 // Loaded with the Events route so the shared entry stylesheet stays small.
 @use '@carbon/styles/scss/components/progress-bar';
 @use '@carbon/styles/scss/components/data-table/expandable';
+@use '@carbon/styles/scss/theme' as theme;
 
 .events-page,
 .event-detail-page {
   min-block-size: 100%;
   overflow-x: clip;
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .event-detail-page .cds--tab-content {
@@ -59,20 +60,20 @@ progress {
   block-size: 0.5rem;
   border: 0;
   border-radius: 999px;
-  background: var(--cds-layer-02);
-  color: var(--cds-support-success);
+  background: theme.$layer-02;
+  color: theme.$support-success;
 }
 
 progress::-webkit-progress-bar {
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
 }
 
 progress::-webkit-progress-value {
-  background: var(--cds-support-success);
+  background: theme.$support-success;
 }
 
 progress::-moz-progress-bar {
-  background: var(--cds-support-success);
+  background: theme.$support-success;
 }
 
 .events-table-container {
@@ -126,7 +127,7 @@ progress::-moz-progress-bar {
 }
 
 .events-table__date > :last-child {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .events-table-container .cds--data-table th.events-table__actions-column,
@@ -161,7 +162,7 @@ progress::-moz-progress-bar {
 
 .event-mobile-card__heading p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-mobile-card dl {
@@ -172,7 +173,7 @@ progress::-moz-progress-bar {
 }
 
 .event-mobile-card dt {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   font-size: 0.75rem;
 }
 
@@ -184,7 +185,7 @@ progress::-moz-progress-bar {
   justify-content: flex-start;
   flex-wrap: wrap;
   padding: 0 0 $spacing-06;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-detail-summary span {
@@ -208,7 +209,7 @@ progress::-moz-progress-bar {
 .event-settings-card p,
 .event-task-workspace__heading p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-overview-grid {
@@ -250,7 +251,7 @@ progress::-moz-progress-bar {
 
 .event-overview-card dd {
   margin: $spacing-02 0 0;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-progress-block + .event-progress-block,
@@ -283,7 +284,7 @@ progress::-moz-progress-bar {
   margin-block: $spacing-05;
   padding: $spacing-03;
   border: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
 }
 
 .event-public-link code {
@@ -295,7 +296,7 @@ progress::-moz-progress-bar {
 .event-day h3 {
   margin-block: $spacing-06 $spacing-04;
   padding: $spacing-04;
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
   @include type-style('heading-03');
 }
 
@@ -323,7 +324,7 @@ progress::-moz-progress-bar {
 
 .event-schedule-time span,
 .event-muted-line {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-schedule-marker {
@@ -363,7 +364,7 @@ progress::-moz-progress-bar {
 
 .event-task-navigation {
   border-inline-end: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .event-task-navigation__heading,
@@ -431,7 +432,7 @@ progress::-moz-progress-bar {
 }
 
 .event-shift-card__heading > span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-staffing-actions,
@@ -461,8 +462,8 @@ progress::-moz-progress-bar {
 }
 
 .event-requirement-table__header {
-  background: var(--cds-layer-02);
-  color: var(--cds-text-secondary);
+  background: theme.$layer-02;
+  color: theme.$text-secondary;
   font-weight: 600;
 }
 
@@ -473,7 +474,7 @@ progress::-moz-progress-bar {
 .event-requirement-row p,
 .event-assignment-row p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-assignments h4 {
@@ -483,7 +484,7 @@ progress::-moz-progress-bar {
 .event-assignment-row {
   justify-content: flex-start;
   padding: $spacing-04;
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .event-assignment-row > :nth-child(2) {
@@ -508,7 +509,7 @@ progress::-moz-progress-bar {
 
 .event-files-table td:first-child p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-settings-grid {
@@ -535,13 +536,13 @@ progress::-moz-progress-bar {
 
 .event-create-form p,
 .event-create-guide span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-create-guide {
   padding: $spacing-06;
   border-inline-start: 0.25rem solid var(--app-brand-primary);
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .event-create-guide ol {
@@ -567,8 +568,8 @@ progress::-moz-progress-bar {
 
 .event-signup-setting {
   padding: $spacing-04;
-  border-inline-start: 0.25rem solid var(--cds-support-info);
-  background: var(--cds-notification-background-info);
+  border-inline-start: 0.25rem solid theme.$support-info;
+  background: var(--cds-notification-background-info, #edf5ff);
 }
 
 .event-banner-editor {
@@ -584,7 +585,7 @@ progress::-moz-progress-bar {
 
 .event-banner-editor p,
 .event-banner-actions > span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-banner-preview {
@@ -593,7 +594,7 @@ progress::-moz-progress-bar {
   inline-size: 100%;
   aspect-ratio: 16 / 5;
   border: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
 }
 
 .event-banner-preview img {
@@ -613,7 +614,7 @@ progress::-moz-progress-bar {
   min-block-size: 8rem;
   place-items: center;
   border-style: dashed;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .event-banner-actions {
@@ -641,7 +642,7 @@ progress::-moz-progress-bar {
 .public-event-page {
   min-block-size: 100vh;
   overflow-x: clip;
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .public-event-nav {
@@ -651,7 +652,7 @@ progress::-moz-progress-bar {
   min-block-size: 4rem;
   padding-inline: max($spacing-05, calc((100vw - 80rem) / 2));
   border-block-end: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .public-event-brand img {
@@ -673,7 +674,7 @@ progress::-moz-progress-bar {
   overflow: hidden;
   inline-size: 100%;
   max-block-size: 28rem;
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
 }
 
 .public-event-banner img {
@@ -703,7 +704,7 @@ progress::-moz-progress-bar {
   justify-content: flex-start;
   flex-wrap: wrap;
   margin-block-start: $spacing-05;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .public-event-meta span {
@@ -722,7 +723,7 @@ progress::-moz-progress-bar {
 
 .public-event-section > div:first-child > p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .public-shift-list {
@@ -746,7 +747,7 @@ progress::-moz-progress-bar {
 
 .public-shift-card__details > p {
   margin-block-start: $spacing-03;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .public-shift-requirements__header,
@@ -759,7 +760,7 @@ progress::-moz-progress-bar {
 }
 
 .public-shift-requirements__header {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .public-shift-requirement {
@@ -769,7 +770,7 @@ progress::-moz-progress-bar {
 .public-shift-requirement small {
   display: block;
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .public-programme-list {
@@ -918,7 +919,7 @@ progress::-moz-progress-bar {
     grid-template-columns: minmax(0, 1fr) auto;
     padding: $spacing-05;
     border: 1px solid var(--cds-border-subtle);
-    background: var(--cds-layer-01);
+    background: theme.$layer-01;
   }
 
   .event-requirement-row > :first-child,
@@ -930,7 +931,7 @@ progress::-moz-progress-bar {
   .event-requirement-row > :nth-child(3)::before,
   .event-requirement-row > :nth-child(4)::before {
     display: block;
-    color: var(--cds-text-secondary);
+    color: theme.$text-secondary;
     font-size: 0.75rem;
   }
 
@@ -966,7 +967,7 @@ progress::-moz-progress-bar {
   .event-files-table tr {
     margin-block-end: 1px;
     padding: $spacing-03;
-    background: var(--cds-layer-01);
+    background: theme.$layer-01;
   }
 
   .event-task-workspace td,
@@ -1009,13 +1010,13 @@ progress::-moz-progress-bar {
 }
 .event-staffing__summary .cds--tile span {
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .event-staffing__summary .cds--tile strong {
   @include type-style('heading-04');
 }
 .event-staffing__short {
-  color: var(--cds-text-error);
+  color: theme.$text-error;
 }
 .event-staffing__workspace {
   display: grid;
@@ -1026,7 +1027,7 @@ progress::-moz-progress-bar {
 .event-staffing__meta {
   display: block;
   @include type-style('helper-text-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .event-staffing .cds--progress-bar {
   min-inline-size: 6rem;

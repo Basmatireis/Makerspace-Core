@@ -54,6 +54,8 @@
 @use '@carbon/styles/scss/components/toggle';
 @use '@carbon/styles/scss/components/tooltip';
 @use '@carbon/styles/scss/components/ui-shell';
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/spacing' as spacing;
 
 :root {
   color-scheme: light;
@@ -80,8 +82,8 @@ body,
 }
 
 body {
-  background: var(--cds-background);
-  color: var(--cds-text-primary);
+  background: theme.$background;
+  color: theme.$text-primary;
 }
 
 h1,
@@ -135,7 +137,7 @@ h2 {
 }
 
 .app-header__wordmark > span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   font-size: 0.625rem;
   font-weight: 400;
   letter-spacing: 0.08em;
@@ -144,7 +146,7 @@ h2 {
 
 .app-header__wordmark > strong {
   margin-block-start: 0.1875rem;
-  color: var(--cds-text-primary);
+  color: theme.$text-primary;
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -243,7 +245,7 @@ body.cds--body--with-modal-open .app-main > * {
 
 .app-side-nav__heading {
   padding: $spacing-05 $spacing-05 $spacing-03;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   list-style: none;
   text-transform: uppercase;
   @include type-style('label-01');
@@ -276,14 +278,14 @@ body.cds--body--with-modal-open .app-main > * {
 .auth-card__subtitle,
 .auth-card__help {
   @include type-style('body-compact-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .header-account__name {
   display: flex;
   align-items: center;
   padding-inline: $spacing-05 $spacing-03;
-  color: var(--cds-text-on-color);
+  color: theme.$text-on-color;
   white-space: nowrap;
   @include type-style('body-compact-01');
 }
@@ -314,8 +316,8 @@ body.cds--body--with-modal-open .app-main > * {
 .person-avatar--fallback {
   display: grid;
   place-items: center;
-  color: var(--cds-icon-secondary);
-  background: var(--cds-layer-02);
+  color: theme.$icon-secondary;
+  background: theme.$layer-02;
   border: 1px solid var(--cds-border-subtle);
 }
 
@@ -335,7 +337,7 @@ body.cds--body--with-modal-open .app-main > * {
 .cds--header__action .person-avatar--sm {
   inline-size: 1.75rem;
   block-size: 1.75rem;
-  border: 1px solid var(--cds-border-inverse);
+  border: 1px solid theme.$border-inverse;
 }
 
 .page-shell {
@@ -489,7 +491,7 @@ body.cds--body--with-modal-open .app-main > * {
   display: block;
   width: min(100%, 32rem);
   min-height: 12rem;
-  background: var(--cds-layer-02);
+  background: theme.$layer-02;
 }
 
 .public-page {
@@ -535,12 +537,12 @@ body.cds--body--with-modal-open .app-main > * {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--cds-spacing-04);
+  gap: spacing.$spacing-04;
 }
 
 .stats-grid .cds--tile {
   display: grid;
-  gap: var(--cds-spacing-02);
+  gap: spacing.$spacing-02;
 }
 
 .stats-grid strong {
@@ -553,7 +555,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .survey-question legend {
-  margin-block-end: var(--cds-spacing-04);
+  margin-block-end: spacing.$spacing-04;
   font-weight: 600;
 }
 
@@ -574,7 +576,7 @@ body.cds--body--with-modal-open .app-main > * {
 
 .empty-state p {
   margin-top: $spacing-03;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .person-detail-page {
@@ -731,7 +733,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .person-detail-card .cds--structured-list-td:first-child {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .person-detail-card .cds--structured-list-td:last-child {
@@ -785,7 +787,7 @@ body.cds--body--with-modal-open .app-main > * {
 .authentication-method__header span,
 .authentication-method__identity code,
 .person-open-days__time {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
@@ -922,7 +924,7 @@ body.cds--body--with-modal-open .app-main > * {
   display: block;
   margin-bottom: $spacing-02;
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .app-main:has(> .roles-page) {
@@ -978,7 +980,7 @@ body.cds--body--with-modal-open .app-main > * {
   min-block-size: 0;
   overflow: hidden;
   border-inline-end: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .roles-toolbar {
@@ -993,7 +995,7 @@ body.cds--body--with-modal-open .app-main > * {
   grid-column: 1 / 3;
   align-items: center;
   border-block-end: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .roles-toolbar__search-slot {
@@ -1083,7 +1085,7 @@ body.cds--body--with-modal-open .app-main > * {
   border: 0;
   border-block-end: 1px solid var(--cds-border-subtle);
   background: transparent;
-  color: var(--cds-text-primary);
+  color: theme.$text-primary;
   text-align: start;
 }
 
@@ -1122,7 +1124,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-list__icon {
-  color: var(--cds-icon-primary);
+  color: theme.$icon-primary;
 }
 
 .roles-list__item--selected .roles-list__icon {
@@ -1147,13 +1149,13 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-list__copy > span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('label-01');
 }
 
 .roles-list__empty {
   padding: $spacing-05;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
@@ -1186,7 +1188,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-draft-bar__summary span:last-child {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
@@ -1200,7 +1202,7 @@ body.cds--body--with-modal-open .app-main > * {
   align-items: center;
   gap: $spacing-04;
   padding: $spacing-03 $spacing-05;
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .roles-draft-error .cds--inline-notification {
@@ -1247,18 +1249,18 @@ body.cds--body--with-modal-open .app-main > * {
   z-index: 3;
   padding-inline: $spacing-05;
   border-right: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .roles-matrix__group-row td {
   block-size: 3rem;
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .roles-matrix__group-row .roles-matrix__group-heading {
   z-index: 3;
   padding: 0;
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .roles-matrix__group-toggle {
@@ -1270,7 +1272,7 @@ body.cds--body--with-modal-open .app-main > * {
   padding-inline: $spacing-05;
   border: 0;
   background: transparent;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   cursor: pointer;
   text-align: left;
   text-transform: uppercase;
@@ -1284,7 +1286,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-matrix__group-count {
-  color: var(--cds-text-helper);
+  color: theme.$text-helper;
   font-weight: 400;
 }
 
@@ -1335,7 +1337,7 @@ body.cds--body--with-modal-open .app-main > * {
 .roles-matrix__permission-id {
   display: block;
   overflow: hidden;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   text-overflow: ellipsis;
   white-space: nowrap;
   @include type-style('code-01');
@@ -1350,7 +1352,7 @@ body.cds--body--with-modal-open .app-main > * {
   border: 0;
   place-items: center;
   background: transparent;
-  color: var(--cds-icon-disabled);
+  color: theme.$icon-disabled;
 }
 
 .roles-matrix__cell {
@@ -1375,7 +1377,7 @@ body.cds--body--with-modal-open .app-main > * {
   border: 1px solid var(--cds-border-subtle);
   border-inline-end: 0;
   background: var(--cds-layer);
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   cursor: pointer;
   white-space: nowrap;
   @include type-style('label-01');
@@ -1398,8 +1400,8 @@ body.cds--body--with-modal-open .app-main > * {
 .roles-access-control__option--active {
   border-color: var(--cds-button-primary);
   background: var(--cds-button-primary);
-  color: var(--cds-text-on-color);
-  -webkit-text-fill-color: var(--cds-text-on-color);
+  color: theme.$text-on-color;
+  -webkit-text-fill-color: theme.$text-on-color;
 }
 
 .roles-access-control__option--active:last-child {
@@ -1410,8 +1412,8 @@ body.cds--body--with-modal-open .app-main > * {
 .roles-access-control__option--active:hover {
   border-color: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
   background: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
-  color: var(--cds-text-on-color) !important;
-  -webkit-text-fill-color: var(--cds-text-on-color) !important;
+  color: theme.$text-on-color !important;
+  -webkit-text-fill-color: theme.$text-on-color !important;
 }
 
 .roles-access-control__option:disabled {
@@ -1420,8 +1422,8 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-access-control__option--active:disabled {
-  color: var(--cds-text-on-color) !important;
-  -webkit-text-fill-color: var(--cds-text-on-color) !important;
+  color: theme.$text-on-color !important;
+  -webkit-text-fill-color: theme.$text-on-color !important;
 }
 
 .roles-matrix__cell-button:not([aria-disabled='true']) {
@@ -1433,7 +1435,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .roles-matrix__cell--granted .roles-matrix__cell-button {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
 }
 
 .roles-matrix__cell--conditional .roles-matrix__cell-button {
@@ -1485,7 +1487,7 @@ body.cds--body--with-modal-open .app-main > * {
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border-left: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
+  background: theme.$background;
 }
 
 .permission-editor__header,
@@ -1506,11 +1508,11 @@ body.cds--body--with-modal-open .app-main > * {
   justify-items: center;
   gap: $spacing-03;
   padding: $spacing-06;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .permission-editor--empty h2 {
-  color: var(--cds-text-primary);
+  color: theme.$text-primary;
 }
 
 .permission-editor__header {
@@ -1525,19 +1527,19 @@ body.cds--body--with-modal-open .app-main > * {
   margin-bottom: $spacing-02;
   text-transform: uppercase;
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .permission-editor__identifier {
   display: block;
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('code-01');
 }
 
 .permission-editor__description {
   margin-block-start: $spacing-04;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
@@ -1558,7 +1560,7 @@ body.cds--body--with-modal-open .app-main > * {
 .permission-editor__rule {
   padding: $spacing-05;
   border: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
 }
 
 .permission-editor__rule-heading {
@@ -1739,7 +1741,7 @@ body.cds--body--with-modal-open .app-main > * {
   width: min(100%, 28rem);
   padding: $spacing-08;
   overflow: hidden;
-  background: var(--cds-background);
+  background: theme.$background;
   box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
 }
 
@@ -1774,7 +1776,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .auth-card__wordmark > span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: 0.08em;
@@ -1842,7 +1844,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .public-brand-heading span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('label-01');
 }
 
@@ -1902,7 +1904,7 @@ body.cds--body--with-modal-open .app-main > * {
 .branding-color-field__picker {
   display: grid;
   gap: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('label-01');
 }
 
@@ -1966,7 +1968,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .branding-save-bar span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
@@ -1975,14 +1977,14 @@ body.cds--body--with-modal-open .app-main > * {
   block-size: 10rem;
   padding: $spacing-03;
   object-fit: contain;
-  background: repeating-conic-gradient(var(--cds-layer-02) 0 25%, var(--cds-layer-01) 0 50%) 50% / 1rem 1rem;
+  background: repeating-conic-gradient(theme.$layer-02 0 25%, theme.$layer-01 0 50%) 50% / 1rem 1rem;
   border: 1px solid var(--cds-border-subtle);
 }
 
 .branding-asset-preview--empty {
   display: grid;
   place-items: center;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .branding-markdown-preview {
@@ -1990,7 +1992,7 @@ body.cds--body--with-modal-open .app-main > * {
   max-block-size: 24rem;
   padding: $spacing-05;
   overflow: auto;
-  background: var(--cds-layer-01);
+  background: theme.$layer-01;
   border: 1px solid var(--cds-border-subtle);
   line-height: 1.5;
 }
@@ -2033,8 +2035,8 @@ body.cds--body--with-modal-open .app-main > * {
   gap: $spacing-03;
   margin-block-end: $spacing-06;
   padding: $spacing-05;
-  border-inline-start: 4px solid var(--cds-support-warning);
-  background: var(--cds-notification-background-warning);
+  border-inline-start: 4px solid theme.$support-warning;
+  background: var(--cds-notification-background-warning, #fcf4d6);
 }
 
 .table-page .cds--data-table-container {
@@ -2070,7 +2072,7 @@ body.cds--body--with-modal-open .app-main > * {
   text-align: end;
 }
 .form-error {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 
 .activity-empty {
@@ -2078,7 +2080,7 @@ body.cds--body--with-modal-open .app-main > * {
   gap: $spacing-03;
 }
 .activity-empty p {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 @media (max-width: 65.98rem) {
@@ -2225,7 +2227,7 @@ body.cds--body--with-modal-open .app-main > * {
 .app-date-time-input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr);
-  gap: var(--cds-spacing-05);
+  gap: spacing.$spacing-05;
 }
 
 @media (max-width: 42rem) {

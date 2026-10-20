@@ -9,10 +9,11 @@
 @use '@carbon/styles/scss/components/skeleton-styles';
 @use '@carbon/styles/scss/components/toggletip';
 @use '@carbon/styles/scss/components/progress-bar';
+@use '@carbon/styles/scss/theme' as theme;
 
 // Lists (timelines, attention lists, history) sit on the page surface instead of the layer colour.
 .cds--contained-list {
-  background-color: var(--cds-background);
+  background-color: theme.$background;
 }
 
 // Toasts -----------------------------------------------------------------------
@@ -48,7 +49,7 @@
 }
 .mj-facts dt {
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .mj-facts dd {
   margin: 0;
@@ -70,7 +71,7 @@
   align-content: start;
 }
 .mj-secondary {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('helper-text-01');
 }
 .mj-cell-stack {

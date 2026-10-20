@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 // Layout glue for the Overview screen: key figures on top, two solid panels below,
 // sized so the whole page fits a laptop viewport without scrolling.
@@ -27,7 +28,7 @@
   @include type-style('productive-heading-05');
 }
 .mj-metric__value--zero {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .mj-overview__panels {

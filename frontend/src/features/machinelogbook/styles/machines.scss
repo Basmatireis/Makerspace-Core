@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 // Layout glue for the Machines pages. Controls and surfaces are Carbon components.
 
@@ -10,7 +11,7 @@
 }
 .mj-metric__label {
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .mj-metric__value {
   @include type-style('productive-heading-05');
@@ -163,10 +164,10 @@
   align-items: center;
   gap: 0.25rem;
   margin-block-start: 0.25rem;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   font-size: var(--cds-label-01-font-size, 0.75rem);
 }
 .mj-color-hint svg {
-  fill: var(--cds-support-warning);
+  fill: theme.$support-warning;
   flex: none;
 }

@@ -1,6 +1,7 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/breakpoint' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 // Digital signage admin. Carbon components carry the controls; this file holds layout glue only.
 // The scene renderer has its own plain CSS in render/render.css (shared with the player).
@@ -21,7 +22,7 @@
   gap: $spacing-02;
 }
 .sg-secondary {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('helper-text-01');
 }
 .sg-section-title {
@@ -147,7 +148,7 @@
   align-items: center;
   justify-content: center;
   block-size: 10rem;
-  background: var(--cds-layer-accent-01);
+  background: theme.$layer-accent-01;
   overflow: hidden;
 }
 .sg-scene-tile__thumb--portrait .sg-frame {
@@ -166,12 +167,12 @@
   inline-size: 100%;
   aspect-ratio: 16 / 10;
   object-fit: cover;
-  background: var(--cds-layer-accent-01);
+  background: theme.$layer-accent-01;
 }
 .sg-media-tile__image--video {
   display: grid;
   place-items: center;
-  color: var(--cds-icon-secondary);
+  color: theme.$icon-secondary;
 }
 .sg-media-tile__name {
   overflow-wrap: anywhere;
@@ -197,7 +198,7 @@
   max-block-size: 16rem;
   justify-self: center;
   object-fit: contain;
-  background: var(--cds-layer-accent-01);
+  background: theme.$layer-accent-01;
 }
 .sg-media-detail__rename {
   display: flex;
@@ -307,7 +308,7 @@
   gap: $spacing-01;
   inline-size: 100%;
   padding: $spacing-01;
-  background: var(--cds-layer-accent-01);
+  background: theme.$layer-accent-01;
 }
 .sg-sketch--portrait {
   max-inline-size: 3.5rem;
@@ -343,7 +344,7 @@
   block-size: 1.5rem;
   inline-size: 1.5rem;
   border-radius: 50%;
-  background: var(--cds-layer-accent-01);
+  background: theme.$layer-accent-01;
   @include type-style('label-01');
 }
 .sg-rule__body {
@@ -397,7 +398,7 @@
   }
 }
 .sg-error-text {
-  color: var(--cds-text-error);
+  color: theme.$text-error;
   @include type-style('helper-text-01');
 }
 .sg-show-narrow {

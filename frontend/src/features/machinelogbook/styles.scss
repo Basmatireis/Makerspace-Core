@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 .machine-logbook-grid {
   inline-size: 100%;
@@ -25,19 +26,19 @@
   @include type-style('productive-heading-05');
 }
 .metric-grid small {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .review-callout {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-05;
-  border-inline-start: 4px solid var(--cds-support-warning);
-  background: var(--cds-notification-background-warning);
+  border-inline-start: 4px solid theme.$support-warning;
+  background: var(--cds-notification-background-warning, #fcf4d6);
 }
 .review-callout p {
   margin-block-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .summary-list,
 .transaction-list {
@@ -66,7 +67,7 @@
 }
 .summary-list small,
 .transaction-list small {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .chart-tile {
   min-inline-size: 0;
@@ -119,10 +120,10 @@
   gap: $spacing-04;
 }
 .negative {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 .positive {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
 }
 .machine-logbook-page .form-grid {
   display: grid;
@@ -161,7 +162,7 @@
   cursor: pointer;
 }
 .review-list__item span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .review-list__item--active {
   box-shadow: inset 4px 0 var(--cds-link-primary);
@@ -191,7 +192,7 @@
 }
 .review-machine-data dt {
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .review-machine-data dd {
   margin: 0;

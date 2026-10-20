@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 .open-days-section-title {
   margin-block-end: $spacing-05;
@@ -15,15 +16,15 @@
 }
 
 .position-available {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 
 .status-good {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
 }
 .status-bad {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 
 .periods-table-section {
@@ -54,7 +55,7 @@
   @include type-style('heading-compact-02');
 }
 .period-table__period span {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 .period-table__metric {
@@ -224,10 +225,10 @@
   flex: none;
 }
 .calendar-legend__staffed svg {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
 }
 .calendar-legend__needs-supervisor svg {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 .calendar-legend__mine svg {
   color: var(--cds-link-primary);
@@ -237,7 +238,7 @@
   border-inline-start: 1px solid var(--cds-border-strong);
 }
 .calendar-legend__cancelled svg {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 .semester-calendar {
@@ -270,7 +271,7 @@
 .calendar-weekdays span {
   padding: $spacing-03;
   text-align: center;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('label-01');
 }
 .calendar-cell {
@@ -285,13 +286,13 @@
   z-index: 2;
 }
 .calendar-days > .calendar-cell:nth-child(odd) {
-  background: color-mix(in srgb, var(--cds-layer) 96%, var(--cds-text-primary));
+  background: color-mix(in srgb, var(--cds-layer) 96%, theme.$text-primary);
 }
 .calendar-cell--empty {
   border: 0;
 }
 .semester-calendar .calendar-days > .calendar-cell--outside-period {
-  color: var(--cds-text-disabled);
+  color: theme.$text-disabled;
   background: var(--cds-layer-accent);
 }
 .calendar-cell__header {
@@ -322,7 +323,7 @@
 }
 .calendar-cell__tooltip-requirement {
   padding-block-start: $spacing-02;
-  border-block-start: 1px solid var(--cds-border-inverse);
+  border-block-start: 1px solid theme.$border-inverse;
 }
 .calendar-cell__tooltip-requirement-header {
   display: flex;
@@ -338,7 +339,7 @@
   display: block;
 }
 .calendar-cell__tooltip-overflow {
-  color: var(--cds-text-inverse);
+  color: theme.$text-inverse;
   opacity: 0.75;
 }
 .calendar-cell__date {
@@ -372,9 +373,9 @@
   gap: $spacing-01;
   padding: 1px $spacing-01;
   overflow: hidden;
-  color: var(--cds-text-primary);
-  border-block-end: 2px solid var(--cds-support-warning);
-  background: var(--cds-notification-background-warning);
+  color: theme.$text-primary;
+  border-block-end: 2px solid theme.$support-warning;
+  background: var(--cds-notification-background-warning, #fcf4d6);
   @include type-style('helper-text-01');
 }
 .calendar-marker svg {
@@ -390,9 +391,9 @@
   background: transparent;
 }
 .calendar-marker--academicBreak {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   border-block-end-color: var(--cds-border-strong);
-  background: var(--cds-background-hover);
+  background: theme.$background-hover;
 }
 .calendar-marker--label {
   margin-block-end: $spacing-01;
@@ -428,42 +429,42 @@
 }
 .calendar-slot__other-assignments,
 .calendar-slot__other-count {
-  color: var(--cds-text-primary);
+  color: theme.$text-primary;
 }
 .calendar-slot__other-count {
   font-weight: 600;
 }
 .calendar-slot--staffed {
   border-inline-start-width: 5px;
-  border-color: var(--cds-support-success);
-  background: var(--cds-notification-background-success);
+  border-color: theme.$support-success;
+  background: var(--cds-notification-background-success, #defbe6);
 }
 .calendar-slot--staffed .calendar-slot__status {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
 }
 .calendar-slot--needs-supervisor {
   border-inline-start-width: 5px;
-  border-color: var(--cds-support-error);
-  background: var(--cds-notification-background-error);
+  border-color: theme.$support-error;
+  background: var(--cds-notification-background-error, #fff1f1);
 }
 .calendar-slot--needs-supervisor .calendar-slot__status {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 .calendar-slot--needs-trainee {
-  border-color: var(--cds-support-error);
-  background: var(--cds-notification-background-error);
+  border-color: theme.$support-error;
+  background: var(--cds-notification-background-error, #fff1f1);
 }
 .calendar-slot--needs-trainee .calendar-slot__status {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
 }
 .calendar-slot--cancelled {
   border-inline-start-width: 5px;
-  border-color: var(--cds-text-disabled);
-  color: var(--cds-text-secondary);
+  border-color: theme.$text-disabled;
+  color: theme.$text-secondary;
   background: var(--cds-layer-accent);
 }
 .calendar-slot--cancelled .calendar-slot__status {
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .calendar-slot--mine {
   box-shadow: inset 0 -2px var(--cds-link-primary);
@@ -523,8 +524,8 @@
 }
 .assignment-banner {
   padding: $spacing-05;
-  border-inline-start: 3px solid var(--cds-support-success);
-  background: var(--cds-notification-background-success);
+  border-inline-start: 3px solid theme.$support-success;
+  background: var(--cds-notification-background-success, #defbe6);
 }
 .requirements-grid {
   display: grid;
@@ -545,7 +546,7 @@
 }
 .requirement-card__heading small {
   margin-inline-start: $spacing-02;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   font-weight: normal;
 }
 .requirement-card__people {
@@ -568,7 +569,7 @@
   block-size: 2rem;
   place-items: center;
   border-radius: 50%;
-  color: var(--cds-text-on-color);
+  color: theme.$text-on-color;
   background: var(--cds-link-primary);
   @include type-style('label-01');
 }
@@ -606,7 +607,7 @@
   display: grid;
   gap: $spacing-06;
   padding: $spacing-05;
-  background: var(--cds-background);
+  background: theme.$background;
 }
 .open-day-agenda__day {
   display: grid;
@@ -644,12 +645,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-03 $spacing-05;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
 .open-day-agenda__empty {
   padding: $spacing-07 $spacing-05;
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .open-day-agenda-selection {
   display: grid;
@@ -843,7 +844,7 @@
     inset-block-end: $spacing-01;
     min-inline-size: 1rem;
     text-align: center;
-    color: var(--cds-text-on-color);
+    color: theme.$text-on-color;
     border-radius: 1rem;
     background: var(--cds-link-primary);
     @include type-style('label-01');

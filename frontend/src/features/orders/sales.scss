@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 // Layout glue for the Sales & payments screens. Controls, tables, tiles and lists are Carbon components.
 
@@ -8,14 +9,14 @@
   font-variant-numeric: tabular-nums;
 }
 .sales-num--due {
-  color: var(--cds-text-error);
+  color: theme.$text-error;
 }
 .sales-top-gap {
   margin-block-start: $spacing-03;
 }
 .sales-field-error {
   @include type-style('helper-text-01');
-  color: var(--cds-text-error);
+  color: theme.$text-error;
 }
 
 // Tiles ----------------------------------------------------------------------------------------------------------------
@@ -83,11 +84,11 @@
   gap: $spacing-03;
 }
 .sales-checklist__ok {
-  color: var(--cds-support-success);
+  color: theme.$support-success;
   flex: none;
 }
 .sales-checklist__bad {
-  color: var(--cds-support-error);
+  color: theme.$support-error;
   flex: none;
 }
 .sales-form-grid {
@@ -349,7 +350,7 @@
 }
 .sales-receipt__facts dt {
   @include type-style('label-01');
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 .sales-receipt__facts dd {
   margin: 0;
@@ -362,7 +363,7 @@
   @include type-style('helper-text-01');
   padding-block-start: $spacing-04;
   border-block-start: 1px solid var(--cds-border-subtle);
-  color: var(--cds-text-secondary);
+  color: theme.$text-secondary;
 }
 
 // Print layout: paper is always white on black text, whatever the screen theme or branding is.
