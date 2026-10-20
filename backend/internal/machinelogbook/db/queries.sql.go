@@ -238,6 +238,17 @@ func (q *Queries) BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, 
 	return exists, err
 }
 
+const bumpConnectorsOfDeletedMachine = `-- name: BumpConnectorsOfDeletedMachine :exec
+UPDATE printer_connectors SET configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
+WHERE id IN (SELECT connector_id FROM printer_connector_assignments WHERE machine_id = $1 AND ended_at IS NULL)
+`
+
+// The connectors drop the machine's assignment on their next configuration pull.
+func (q *Queries) BumpConnectorsOfDeletedMachine(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpConnectorsOfDeletedMachine, machineID)
+	return err
+}
+
 const bumpFilamentSpoolVersion = `-- name: BumpFilamentSpoolVersion :one
 UPDATE filament_spools SET version=version+1, updated_at=now()
 WHERE id=$1 AND version=$2 RETURNING id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at
@@ -1313,6 +1324,81 @@ func (q *Queries) DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteF
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteMachine = `-- name: DeleteMachine :execrows
+DELETE FROM machines WHERE id = $1 AND version = $2
+`
+
+type DeleteMachineParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+// The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
+func (q *Queries) DeleteMachine(ctx context.Context, arg DeleteMachineParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMachine, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMachineConnectorAssignments = `-- name: DeleteMachineConnectorAssignments :exec
+DELETE FROM printer_connector_assignments WHERE machine_id = $1
+`
+
+func (q *Queries) DeleteMachineConnectorAssignments(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachineConnectorAssignments, machineID)
+	return err
+}
+
+const deleteMachineErrorOccurrences = `-- name: DeleteMachineErrorOccurrences :exec
+DELETE FROM printer_error_occurrences WHERE machine_id = $1
+`
+
+func (q *Queries) DeleteMachineErrorOccurrences(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachineErrorOccurrences, machineID)
+	return err
+}
+
+const deleteMachineJobsOfMachine = `-- name: DeleteMachineJobsOfMachine :exec
+DELETE FROM machine_jobs WHERE machine_id = $1
+`
+
+func (q *Queries) DeleteMachineJobsOfMachine(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachineJobsOfMachine, machineID)
+	return err
+}
+
+const deleteMachinePrinterEvents = `-- name: DeleteMachinePrinterEvents :exec
+DELETE FROM printer_events WHERE machine_id = $1::uuid
+`
+
+func (q *Queries) DeleteMachinePrinterEvents(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachinePrinterEvents, machineID)
+	return err
+}
+
+const deleteMachineRunsOfMachine = `-- name: DeleteMachineRunsOfMachine :exec
+DELETE FROM machine_runs WHERE machine_id = $1
+`
+
+// Only tombstoned runs are left at this point; usages, measures and reported items cascade.
+func (q *Queries) DeleteMachineRunsOfMachine(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachineRunsOfMachine, machineID)
+	return err
+}
+
+const deleteMachineSpoolMountHistory = `-- name: DeleteMachineSpoolMountHistory :exec
+DELETE FROM printer_spool_assignments WHERE slot_id IN (
+    SELECT s.id FROM printer_slots s JOIN printer_input_units u ON u.id = s.input_unit_id WHERE u.machine_id = $1
+)
+`
+
+func (q *Queries) DeleteMachineSpoolMountHistory(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMachineSpoolMountHistory, machineID)
+	return err
 }
 
 const deleteManualRun = `-- name: DeleteManualRun :execrows
@@ -5663,6 +5749,48 @@ SELECT pg_advisory_xact_lock(hashtextextended('role_pricing_groups', 0))
 func (q *Queries) LockRolePricingGroups(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockRolePricingGroups)
 	return err
+}
+
+const machineHasActiveWork = `-- name: MachineHasActiveWork :one
+SELECT EXISTS (
+    SELECT 1 FROM machine_jobs j WHERE j.machine_id = $1 AND j.deleted_at IS NULL
+    UNION ALL
+    SELECT 1 FROM machine_runs r WHERE r.machine_id = $1 AND r.deleted_at IS NULL
+)
+`
+
+func (q *Queries) MachineHasActiveWork(ctx context.Context, machineID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, machineHasActiveWork, machineID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const machineHasConnectorAssignments = `-- name: MachineHasConnectorAssignments :one
+SELECT EXISTS (SELECT 1 FROM printer_connector_assignments WHERE machine_id = $1)
+`
+
+func (q *Queries) MachineHasConnectorAssignments(ctx context.Context, machineID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, machineHasConnectorAssignments, machineID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const machineHasMountedSpool = `-- name: MachineHasMountedSpool :one
+SELECT EXISTS (
+    SELECT 1 FROM printer_spool_assignments a
+    JOIN printer_slots s ON s.id = a.slot_id
+    JOIN printer_input_units u ON u.id = s.input_unit_id
+    WHERE u.machine_id = $1 AND a.unmounted_at IS NULL
+)
+`
+
+func (q *Queries) MachineHasMountedSpool(ctx context.Context, machineID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, machineHasMountedSpool, machineID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const markManualRunReplaced = `-- name: MarkManualRunReplaced :exec

@@ -21,6 +21,8 @@ type Querier interface {
 	ArchiveFilamentSpool(ctx context.Context, arg ArchiveFilamentSpoolParams) (FilamentSpool, error)
 	AssignRunToJob(ctx context.Context, arg AssignRunToJobParams) (MachineRun, error)
 	BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// The connectors drop the machine's assignment on their next configuration pull.
+	BumpConnectorsOfDeletedMachine(ctx context.Context, machineID uuid.UUID) error
 	BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilamentSpoolVersionParams) (FilamentSpool, error)
 	BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobVersionParams) (MachineJob, error)
 	BumpRunVersion(ctx context.Context, arg BumpRunVersionParams) (MachineRun, error)
@@ -56,6 +58,15 @@ type Querier interface {
 	DeactivateRunUsage(ctx context.Context, id uuid.UUID) error
 	DeleteFilamentSpool(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
+	// The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
+	DeleteMachine(ctx context.Context, arg DeleteMachineParams) (int64, error)
+	DeleteMachineConnectorAssignments(ctx context.Context, machineID uuid.UUID) error
+	DeleteMachineErrorOccurrences(ctx context.Context, machineID uuid.UUID) error
+	DeleteMachineJobsOfMachine(ctx context.Context, machineID uuid.UUID) error
+	DeleteMachinePrinterEvents(ctx context.Context, machineID uuid.UUID) error
+	// Only tombstoned runs are left at this point; usages, measures and reported items cascade.
+	DeleteMachineRunsOfMachine(ctx context.Context, machineID uuid.UUID) error
+	DeleteMachineSpoolMountHistory(ctx context.Context, machineID uuid.UUID) error
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
 	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
@@ -166,6 +177,9 @@ type Querier interface {
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)
 	LockRolePricingGroups(ctx context.Context) error
+	MachineHasActiveWork(ctx context.Context, machineID uuid.UUID) (bool, error)
+	MachineHasConnectorAssignments(ctx context.Context, machineID uuid.UUID) (bool, error)
+	MachineHasMountedSpool(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.

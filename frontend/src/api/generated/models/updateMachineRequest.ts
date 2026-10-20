@@ -18,7 +18,23 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateMachineRequest } from './createMachineRequest';
-import type { UpdateMachineRequestAllOf } from './updateMachineRequestAllOf';
+import type { UUIDv7 } from './uUIDv7';
+import type { MachineStatus } from './machineStatus';
+import type { Version } from './version';
 
-export type UpdateMachineRequest = CreateMachineRequest & UpdateMachineRequestAllOf;
+export interface UpdateMachineRequest {
+  /**
+   * @minLength 1
+   * @maxLength 150
+   */
+  name: string;
+  machineTypeId: UUIDv7;
+  status: MachineStatus;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  externalIdentifier?: string | null;
+  automaticCollectionEnabled: boolean;
+  expectedVersion: Version;
+}

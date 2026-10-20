@@ -3856,6 +3856,25 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Machines]
+      operationId: deleteMachine
+      summary: Delete a machine
+      description: >-
+        Requires `machines.manage`, and `printer_connectors.manage` as well when the machine has connector assignments. Permanently deletes the machine
+        together with its printer setup, connector assignments, live status, diagnostics and its already deleted jobs and runs.
+        A machine with jobs or runs cannot be deleted (409 machine_in_use); retire it instead. A machine with a mounted spool answers
+        409 machine_has_mounted_spools until the spool is unmounted.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Machine deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /organizations:
     get:
@@ -10429,12 +10448,17 @@ components:
         automaticCollectionEnabled: {type: boolean}
 
     UpdateMachineRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreateMachineRequest"
-        - type: object
-          required: [expectedVersion]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
+      # Not an allOf over CreateMachineRequest: its additionalProperties: false would reject expectedVersion during request validation.
+      type: object
+      additionalProperties: false
+      required: [name, machineTypeId, status, automaticCollectionEnabled, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        machineTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        status: {$ref: "#/components/schemas/MachineStatus"}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        automaticCollectionEnabled: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     OrganizationKind:
       type: string
