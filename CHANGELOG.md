@@ -14,6 +14,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Connecting a printer after it was set up offered only the simulator: the connection step now uses the live adapter of the printer's model (Bambu Lab H2D/X1C) with IP address, serial number and LAN access code.
 - The printer's serial number is taken from the machine's external identifier until it is edited, so the same value is not typed twice.
 - A failed or timed-out connection test can be repeated with Test again, and changing a connection field asks for a new test instead of keeping the old result.
+- The section switcher in table toolbars no longer jitters while hovered: it keeps the width of its tabs and only scrolls when it is wider than the toolbar.
 
 ## [0.6.0] - 2026-10-19
 
