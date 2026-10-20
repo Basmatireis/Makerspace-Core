@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"unicode"
 	"unicode/utf8"
@@ -249,7 +250,7 @@ func (s *Server) DownloadSignageAsset(
 		}, nil
 	default:
 		_ = opened.Reader.Close()
-		return nil, apperror.New(500, "internal_error", "Stored asset content type is invalid")
+		return nil, apperror.New(http.StatusInternalServerError, "internal_error", "Stored asset content type is invalid")
 	}
 }
 

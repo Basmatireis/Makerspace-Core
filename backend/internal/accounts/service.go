@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -857,7 +858,7 @@ func (s *Service) IssuePasswordReset(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "Password recovery could not be delivered")
+		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Password recovery could not be delivered")
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -985,7 +986,7 @@ func (s *Service) IssuePINEnrollment(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "PIN setup could not be delivered")
+		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "PIN setup could not be delivered")
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -1018,7 +1019,7 @@ func (s *Service) IssueInvitation(
 	}
 	if current.PasswordStatus == "active" {
 		return ResetIssue{}, apperror.New(
-			409,
+			http.StatusConflict,
 			"password_already_enrolled",
 			"Use password reset for an account that already has a password",
 		)
@@ -1111,7 +1112,7 @@ func (s *Service) IssueInvitation(
 		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
 	}
 	if deliveryErr != nil {
-		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "Invitation could not be delivered")
+		return ResetIssue{}, apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Invitation could not be delivered")
 	}
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
@@ -1180,7 +1181,7 @@ func protectLastMaster(ctx context.Context, queries *accountsdb.Queries, account
 		return err
 	}
 	if count <= 1 {
-		return apperror.New(409, "last_master_required", "At least one enabled master account must remain")
+		return apperror.New(http.StatusConflict, "last_master_required", "At least one enabled master account must remain")
 	}
 	return nil
 }
@@ -1194,7 +1195,7 @@ func databaseError(err error) error {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }

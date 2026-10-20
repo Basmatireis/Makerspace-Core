@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -560,7 +561,7 @@ func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid
 		return err
 	}
 	if row.Status == "archived" || (!postEventWork && (row.Status == "completed" || row.Status == "cancelled")) {
-		return apperror.New(409, "event_read_only", "Event is read-only")
+		return apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	return nil
 }

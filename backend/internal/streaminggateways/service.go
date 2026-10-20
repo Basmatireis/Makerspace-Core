@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"regexp"
@@ -165,8 +166,10 @@ type Heartbeat struct {
 	Cameras                      []CameraHealth
 }
 
-func validation(message string) error     { return apperror.New(422, "validation_failed", message) }
-func conflict(code, message string) error { return apperror.New(409, code, message) }
+func validation(message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
+func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 
 func requireManage(principal authorization.Principal) error {
 	if !principal.Has(authorization.LocalServicesManage) {
@@ -1250,7 +1253,7 @@ func BuildSourceURL(ip, accessCode string) string {
 // Configuration returns the complete configuration of an authenticated gateway.
 func (s *Service) Configuration(ctx context.Context, gateway Context) (Configuration, error) {
 	if gateway.Lifecycle != "active" && gateway.Lifecycle != "disabled" {
-		return Configuration{}, apperror.New(403, "streaming_gateway_inactive", "Gateway is not active")
+		return Configuration{}, apperror.New(http.StatusForbidden, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	q := db.New(s.pool)
 	row, err := q.GetGateway(ctx, gateway.ID)
@@ -1341,7 +1344,7 @@ func plainText(value string, maxRunes int) bool {
 // Heartbeat records gateway and camera health. Camera health is ephemeral and not audited.
 func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbeat) (Gateway, error) {
 	if gateway.Lifecycle != "active" {
-		return Gateway{}, apperror.New(403, "streaming_gateway_inactive", "Gateway is not active")
+		return Gateway{}, apperror.New(http.StatusForbidden, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
 	if input.SoftwareVersion == "" || !plainText(input.SoftwareVersion, 80) ||
@@ -1384,7 +1387,7 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Gateway{}, apperror.New(403, "streaming_gateway_inactive", "Gateway is not active")
+		return Gateway{}, apperror.New(http.StatusForbidden, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	if err != nil {
 		return Gateway{}, err

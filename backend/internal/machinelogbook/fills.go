@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -27,7 +28,9 @@ type fillRef struct {
 	MaterialID      uuid.UUID
 }
 
-func unprocessable(code, message string) error { return apperror.New(422, code, message) }
+func unprocessable(code, message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, code, message)
+}
 
 func refFromFill(spool machinelogbookdb.FilamentSpool, fill machinelogbookdb.FilamentSpoolFill) fillRef {
 	return fillRef{

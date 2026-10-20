@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -448,7 +449,7 @@ func (s *Service) UpdateConfigured(
 		(expiresAt != nil && current.ExpiresAt.Valid && current.ExpiresAt.Time.Equal(*expiresAt))
 	if current.ExpiresAt.Valid && !current.ExpiresAt.Time.After(now) && !expirationUnchanged {
 		return Device{}, apperror.New(
-			409,
+			http.StatusConflict,
 			"managed_device_rotation_required",
 			"Rotate the token to reactivate an expired managed device",
 		)
@@ -568,7 +569,7 @@ func (s *Service) Delete(
 		return apperror.StaleWrite
 	}
 	if !current.RevokedAt.Valid {
-		return apperror.New(409, "managed_device_not_revoked", "A managed device must be revoked before deletion")
+		return apperror.New(http.StatusConflict, "managed_device_not_revoked", "A managed device must be revoked before deletion")
 	}
 	if _, err = q.DeleteManagedDevice(
 		ctx,
@@ -894,7 +895,7 @@ func (s *Service) Revoke(
 		return Device{}, apperror.StaleWrite
 	}
 	if current.RevokedAt.Valid {
-		return Device{}, apperror.New(409, "managed_device_revoked", "The managed device is already revoked")
+		return Device{}, apperror.New(http.StatusConflict, "managed_device_revoked", "The managed device is already revoked")
 	}
 	_, err = q.RevokeManagedDevice(ctx, manageddevicesdb.RevokeManagedDeviceParams{ID: id, ExpectedVersion: version})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -971,7 +972,7 @@ func (s *Service) Rotate(
 	}
 	if current.RevokedAt.Valid {
 		return ProvisionedDevice{}, apperror.New(
-			409,
+			http.StatusConflict,
 			"managed_device_revoked",
 			"A revoked managed device cannot rotate its token",
 		)
@@ -1384,12 +1385,12 @@ func clean(value *string) *string {
 	return &v
 }
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }
 func invalidRequest(reason string) *apperror.Error {
-	err := apperror.New(400, "invalid_request", "Request is invalid")
+	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
 }

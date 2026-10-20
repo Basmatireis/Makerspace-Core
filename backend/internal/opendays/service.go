@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -1079,8 +1080,10 @@ func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
 	}
 	return out
 }
-func validation(message string) error     { return apperror.New(422, "validation_failed", message) }
-func conflict(code, message string) error { return apperror.New(409, code, message) }
+func validation(message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
+func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514") {

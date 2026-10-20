@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -590,7 +591,8 @@ func asPostgresError(err error, target **pgconn.PgError) bool {
 	if err == nil {
 		return false
 	}
-	pgErr, ok := err.(*pgconn.PgError)
+	var pgErr *pgconn.PgError
+	ok := errors.As(err, &pgErr)
 	if ok {
 		*target = pgErr
 	}

@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -211,7 +212,7 @@ func (s *Service) unauthenticatedWithDestination(
 	if err != nil {
 		return err
 	}
-	unauthenticated := apperror.New(401, "unauthenticated", "Authentication is required")
+	unauthenticated := apperror.New(http.StatusUnauthorized, "unauthenticated", "Authentication is required")
 	unauthenticated.Details["postSessionDestination"] = destination
 	return unauthenticated
 }
@@ -246,11 +247,11 @@ func (s *Service) WithDevice(
 func ValidateCSRF(authenticated Authenticated, cookieToken, headerToken string) error {
 	if cookieToken == "" || headerToken == "" ||
 		subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
-		return apperror.New(403, "csrf_invalid", "CSRF validation failed")
+		return apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed")
 	}
 	digest := security.DigestToken(headerToken)
 	if subtle.ConstantTimeCompare(digest, authenticated.CSRFDigest) != 1 {
-		return apperror.New(403, "csrf_invalid", "CSRF validation failed")
+		return apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed")
 	}
 	return nil
 }
@@ -312,7 +313,7 @@ func (s *Service) ChangePassword(
 	}
 	credential, err := queries.GetPasswordCredentialForAccount(ctx, principal.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Session{}, apperror.New(422, "current_password_invalid", "Current password is invalid")
+		return Session{}, apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
 	if err != nil {
 		return Session{}, err
@@ -321,7 +322,7 @@ func (s *Service) ChangePassword(
 		return Session{}, apperror.Unauthenticated
 	}
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
-		return Session{}, apperror.New(422, "current_password_invalid", "Current password is invalid")
+		return Session{}, apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
 	if err := queries.UpsertPasswordCredential(
 		ctx,
@@ -383,13 +384,13 @@ func (s *Service) RemovePassword(
 	}
 	credential, err := queries.GetPasswordCredentialForAccount(ctx, principal.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(422, "current_password_invalid", "Current password is invalid")
+		return apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
 	if err != nil {
 		return err
 	}
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
-		return apperror.New(422, "current_password_invalid", "Current password is invalid")
+		return apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
 	if err := queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID); err != nil {
 		return err
@@ -438,19 +439,19 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword
 	tokenDigest := security.DigestToken(rawToken)
 	accountID, err := queries.FindPasswordResetAccountByDigest(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(422, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
 	}
 	if err != nil {
 		return err
 	}
 	if _, err := queries.GetAccountForAuthentication(ctx, accountID); errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(422, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
 	} else if err != nil {
 		return err
 	}
 	reset, err := queries.GetPasswordResetByDigest(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.New(422, "password_reset_invalid", "Password reset token is invalid or expired")
+		return apperror.New(http.StatusUnprocessableEntity, "password_reset_invalid", "Password reset token is invalid or expired")
 	}
 	if err != nil {
 		return err
@@ -603,7 +604,7 @@ func (s *Service) CreateOIDCSession(
 }
 
 func validationError(message string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = message
 	return err
 }

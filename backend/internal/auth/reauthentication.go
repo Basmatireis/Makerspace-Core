@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -127,7 +128,7 @@ func (s *Service) ReauthenticatePassword(
 		return principal, err
 	}
 	if err != nil || credential.ResetRequired || !valid {
-		return principal, apperror.New(422, "current_password_invalid", "Current password is invalid")
+		return principal, apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
 	if err := s.GrantRecentAuthentication(
 		ctx,
@@ -152,7 +153,7 @@ func (s *Service) ReauthenticatePassword(
 
 func reauthenticationRequired() error {
 	return apperror.New(
-		403,
+		http.StatusForbidden,
 		"reauthentication_required",
 		"Authenticate again with a password or linked OIDC provider before linking an identity",
 	)

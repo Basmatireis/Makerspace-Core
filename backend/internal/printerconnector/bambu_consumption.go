@@ -53,7 +53,7 @@ func (s *Store) PendingArtifactConsumptions(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanArtifactTransfers(rows)
 }
 
@@ -108,7 +108,7 @@ func (s *Store) EnqueueArtifactConsumption(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var exists int
 	err = tx.QueryRowContext(
 		ctx,
@@ -250,7 +250,7 @@ func buildBambuConsumptionPayloadFor(
 	if err != nil {
 		return nil, fmt.Errorf("open staged artifact for consumption: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	parsed, err := parser.Parse(file, transfer.SizeBytes, parser.DefaultLimits())
 	if err != nil {
 		return nil, fmt.Errorf("parse staged artifact for consumption: %w", err)

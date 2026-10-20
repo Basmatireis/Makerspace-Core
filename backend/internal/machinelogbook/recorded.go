@@ -179,7 +179,7 @@ func (s *Service) consumeReportedUsage(
 	if err != nil {
 		return false, err
 	}
-	defer savepoint.Rollback(ctx)
+	defer func() { _ = savepoint.Rollback(ctx) }()
 	if err = s.replaceRunUsages(
 		ctx,
 		savepoint,
@@ -278,7 +278,7 @@ func (s *Service) consumeItemizedReportedUsage(
 	if err != nil {
 		return false, err
 	}
-	defer savepoint.Rollback(ctx)
+	defer func() { _ = savepoint.Rollback(ctx) }()
 	if err = s.replaceRunUsages(
 		ctx,
 		savepoint,

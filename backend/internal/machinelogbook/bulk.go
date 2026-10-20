@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http"
 	"sort"
 	"time"
 
@@ -36,7 +37,7 @@ type BulkBlocker struct {
 }
 
 func bulkBlockedError(blockers []BulkBlocker) error {
-	err := apperror.New(409, "bulk_blocked", "Some items cannot be processed; nothing was changed")
+	err := apperror.New(http.StatusConflict, "bulk_blocked", "Some items cannot be processed; nothing was changed")
 	items := make([]map[string]any, 0, len(blockers))
 	for _, b := range blockers {
 		items = append(
@@ -583,7 +584,7 @@ func (s *Service) BulkCombineRuns(
 	for _, run := range runs[1:] {
 		if run.MachineID != runs[0].MachineID {
 			return MachineJob{}, apperror.New(
-				422,
+				http.StatusUnprocessableEntity,
 				"runs_on_different_machines",
 				"A job has one machine; the runs were recorded on different machines",
 			)

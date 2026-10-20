@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"time"
 
@@ -39,8 +40,10 @@ func require(p authorization.Principal, perms ...authorization.Permission) error
 	}
 	return nil
 }
-func validation(m string) error     { return apperror.New(422, "validation_failed", m) }
-func conflict(code, m string) error { return apperror.New(409, code, m) }
+func validation(m string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", m)
+}
+func conflict(code, m string) error { return apperror.New(http.StatusConflict, code, m) }
 func databaseError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound

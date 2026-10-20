@@ -11,6 +11,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -554,7 +555,7 @@ func validateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
 		return nil, "", err
 	}
 	if len(raw) == 0 || int64(len(raw)) > limit {
-		return nil, "", apperror.New(413, "branding_asset_too_large", "Branding asset exceeds the slot size limit")
+		return nil, "", apperror.New(http.StatusRequestEntityTooLarge, "branding_asset_too_large", "Branding asset exceeds the slot size limit")
 	}
 	trimmed := bytes.TrimSpace(raw)
 	if bytes.HasPrefix(trimmed, []byte("<")) {
@@ -734,7 +735,7 @@ func safeSVGValue(name, value string) bool {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "branding_configuration_invalid", "Branding configuration is invalid")
+	err := apperror.New(http.StatusUnprocessableEntity, "branding_configuration_invalid", "Branding configuration is invalid")
 	err.Details["reason"] = reason
 	return err
 }

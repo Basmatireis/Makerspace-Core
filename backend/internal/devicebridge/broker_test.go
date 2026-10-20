@@ -2,6 +2,7 @@ package devicebridge
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -35,7 +36,7 @@ func TestBrokerNormalizesUIDAndMarksDuplicatesUntilRemoval(t *testing.T) {
 
 func TestBrokerRejectsInvalidUIDAndResumesAfterCursor(t *testing.T) {
 	broker := NewBroker()
-	if _, err := broker.Publish(RawEvent{Kind: "nfc_scan", UID: "not-a-uid"}); err != ErrInvalidUID {
+	if _, err := broker.Publish(RawEvent{Kind: "nfc_scan", UID: "not-a-uid"}); !errors.Is(err, ErrInvalidUID) {
 		t.Fatalf("error = %v, want ErrInvalidUID", err)
 	}
 	first, _ := broker.Publish(RawEvent{Kind: "reader_state", State: "disconnected"})

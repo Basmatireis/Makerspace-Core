@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -128,7 +129,7 @@ type announcementW struct {
 }
 
 func zoneError(zone, format string, args ...any) error {
-	return apperror.New(422, "validation_failed", fmt.Sprintf("zone %q: %s", zone, fmt.Sprintf(format, args...)))
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf("zone %q: %s", zone, fmt.Sprintf(format, args...)))
 }
 
 func inSet(value string, allowed ...string) bool {
@@ -391,7 +392,7 @@ func ParseZones(layout Layout, raw map[string]json.RawMessage) (map[string]RawWi
 	for _, key := range keys {
 		if _, ok := known[key]; !ok {
 			return nil, WidgetRefs{}, apperror.New(
-				422,
+				http.StatusUnprocessableEntity,
 				"validation_failed",
 				fmt.Sprintf("zone %q does not belong to layout %q", key, layout.ID),
 			)
@@ -415,7 +416,7 @@ func ParseZones(layout Layout, raw map[string]json.RawMessage) (map[string]RawWi
 		refs.merge(widgetRefs)
 	}
 	if total > maxZonesJSONBytes {
-		return nil, WidgetRefs{}, apperror.New(422, "validation_failed", "scene zones are too large")
+		return nil, WidgetRefs{}, apperror.New(http.StatusUnprocessableEntity, "validation_failed", "scene zones are too large")
 	}
 	refs.ImageAssets, refs.VideoAssets = distinct(refs.ImageAssets), distinct(refs.VideoAssets)
 	refs.Machines, refs.Templates = distinct(refs.Machines), distinct(refs.Templates)

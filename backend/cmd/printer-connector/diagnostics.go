@@ -46,7 +46,7 @@ func inspect3MF(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("inspect-3mf: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	result, err := parser.Parse(file, size, parser.DefaultLimits())
 	if err != nil {
 		return fmt.Errorf("inspect-3mf: %w", err)
@@ -140,7 +140,7 @@ func calculateConsumption(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("calculate-consumption G-code: %w", err)
 	}
-	defer gcode.Close()
+	defer func() { _ = gcode.Close() }()
 	estimate, err := parser.EstimateGCode(gcode, options)
 	if err != nil {
 		return fmt.Errorf("calculate-consumption: %w", err)
@@ -163,7 +163,7 @@ func sanitizeMQTT(args []string) (returnErr error) {
 	if err != nil {
 		return fmt.Errorf("sanitize-mqtt input: %w", err)
 	}
-	defer input.Close()
+	defer func() { _ = input.Close() }()
 	output, err := os.OpenFile(*outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return fmt.Errorf("sanitize-mqtt output: %w", err)
@@ -198,7 +198,7 @@ func replayMQTT(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("replay-mqtt input: %w", err)
 	}
-	defer input.Close()
+	defer func() { _ = input.Close() }()
 	if err = printerconnector.ReplayBambuMQTTFixtureFor(input, stdout, *adapterKind); err != nil {
 		return fmt.Errorf("replay-mqtt: %w", err)
 	}

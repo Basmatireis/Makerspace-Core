@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -99,7 +100,7 @@ func assuranceRank(value string) int {
 func requireAssurance(actual authorization.Assurance, required string) error {
 	if assuranceRank(string(actual)) < assuranceRank(required) {
 		return apperror.New(
-			403,
+			http.StatusForbidden,
 			"attendance_assurance_required",
 			"This attendance action requires a stronger authentication method",
 		)
@@ -198,7 +199,7 @@ func (s *Service) checkIn(
 		return Visit{}, err
 	}
 	if status.Mode != "not_required" && status.State == "no_published_version" {
-		return Visit{}, apperror.New(409, "lab_rules_unavailable", "Required Lab Rules are not currently available")
+		return Visit{}, apperror.New(http.StatusConflict, "lab_rules_unavailable", "Required Lab Rules are not currently available")
 	}
 	if status.ActionRequired {
 		principal := authorization.Principal{
@@ -211,7 +212,7 @@ func (s *Service) checkIn(
 		}
 		if status.Mode == "blocking" {
 			return Visit{}, apperror.New(
-				409,
+				http.StatusConflict,
 				"attendance_admission_required",
 				"Lab Rules confirmation is required before check-in",
 			)
@@ -248,7 +249,7 @@ func (s *Service) checkIn(
 		return Visit{}, err
 	}
 	if _, err = q.GetOpenVisitForPerson(ctx, verified.PersonID); err == nil {
-		return Visit{}, apperror.New(409, "already_checked_in", "This person is already checked in")
+		return Visit{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, err
 	}
@@ -328,7 +329,7 @@ func (s *Service) verifiedCheckOut(
 	q := attendancedb.New(tx)
 	current, err := q.GetOpenVisitForPerson(ctx, verified.PersonID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Visit{}, apperror.New(409, "not_checked_in", "This person is not checked in")
+		return Visit{}, apperror.New(http.StatusConflict, "not_checked_in", "This person is not checked in")
 	}
 	if err != nil {
 		return Visit{}, err
@@ -427,7 +428,7 @@ func (s *Service) SupervisedCheckIn(
 		return Visit{}, err
 	}
 	if status.Mode != "not_required" && status.State == "no_published_version" {
-		return Visit{}, apperror.New(409, "lab_rules_unavailable", "Required Lab Rules are not currently available")
+		return Visit{}, apperror.New(http.StatusConflict, "lab_rules_unavailable", "Required Lab Rules are not currently available")
 	}
 	if status.ActionRequired {
 		requestPrincipal := principal
@@ -437,7 +438,7 @@ func (s *Service) SupervisedCheckIn(
 		}
 		if status.Mode == "blocking" {
 			return Visit{}, apperror.New(
-				409,
+				http.StatusConflict,
 				"attendance_admission_required",
 				"Lab Rules confirmation is required before check-in",
 			)
@@ -463,7 +464,7 @@ func (s *Service) SupervisedCheckIn(
 		return Visit{}, err
 	}
 	if _, err = q.GetOpenVisitForPerson(ctx, personID); err == nil {
-		return Visit{}, apperror.New(409, "already_checked_in", "This person is already checked in")
+		return Visit{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, err
 	}
@@ -592,7 +593,7 @@ func (s *Service) Void(
 		return Visit{}, apperror.StaleWrite
 	}
 	if current.Status == "voided" {
-		return Visit{}, apperror.New(409, "visit_already_voided", "The attendance record is already voided")
+		return Visit{}, apperror.New(http.StatusConflict, "visit_already_voided", "The attendance record is already voided")
 	}
 	row, err := q.VoidVisit(
 		ctx,
@@ -771,7 +772,7 @@ func numericString(value pgtype.Numeric) string {
 	return d.Shift(value.Exp).String()
 }
 func validation(message string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = message
 	return err
 }

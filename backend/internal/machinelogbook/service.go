@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -616,8 +617,10 @@ func pgNullableNumeric(value *string, positive bool) (pgtype.Numeric, error) {
 	return numericFromString(*value, positive)
 }
 
-func validation(message string) error     { return apperror.New(422, "validation_failed", message) }
-func conflict(code, message string) error { return apperror.New(409, code, message) }
+func validation(message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
+func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError

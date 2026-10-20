@@ -2,6 +2,7 @@ package machinelogbook
 
 import (
 	"context"
+	"net/http"
 	"sort"
 
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
@@ -79,7 +80,7 @@ func validateMeasures(process string, input RunMeasures) error {
 			return validation("a measure cannot be negative")
 		}
 		if !processSupportsMeasure(process, key) {
-			return apperror.New(422, "run_measure_unsupported", "The machine's process does not record this measure")
+			return apperror.New(http.StatusUnprocessableEntity, "run_measure_unsupported", "The machine's process does not record this measure")
 		}
 	}
 	return nil
@@ -161,7 +162,7 @@ func requireMaterialsForProcess(
 	}
 	if len(rows) > 0 {
 		return apperror.New(
-			422,
+			http.StatusUnprocessableEntity,
 			"material_process_mismatch",
 			"The material \""+rows[0].Name+"\" cannot be used on a machine with this process",
 		)

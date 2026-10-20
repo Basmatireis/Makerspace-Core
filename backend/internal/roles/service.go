@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -169,7 +170,7 @@ func (s *Service) ReplacePermissions(
 		return Role{}, err
 	}
 	if current.SystemKey != nil {
-		return Role{}, apperror.New(409, "system_role_protected", "The master role permissions cannot be edited")
+		return Role{}, apperror.New(http.StatusConflict, "system_role_protected", "The master role permissions cannot be edited")
 	}
 	if err = ensureExistingSubset(ctx, q, principal, id); err != nil {
 		return Role{}, err
@@ -458,7 +459,7 @@ func (s *Service) UpdateWithBehaviors(
 		return Role{}, err
 	}
 	if current.SystemKey != nil {
-		return Role{}, apperror.New(409, "system_role_protected", "The master role cannot be edited")
+		return Role{}, apperror.New(http.StatusConflict, "system_role_protected", "The master role cannot be edited")
 	}
 	if err := ensureExistingSubset(ctx, queries, principal, current.ID); err != nil {
 		return Role{}, err
@@ -567,7 +568,7 @@ func (s *Service) Delete(
 		return err
 	}
 	if current.SystemKey != nil {
-		return apperror.New(409, "system_role_protected", "The master role cannot be deleted")
+		return apperror.New(http.StatusConflict, "system_role_protected", "The master role cannot be deleted")
 	}
 	if err := ensureExistingSubset(ctx, queries, principal, current.ID); err != nil {
 		return err
@@ -728,13 +729,13 @@ func databaseError(err error) error {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }
 
 func invalidRequest(reason string) *apperror.Error {
-	err := apperror.New(400, "invalid_request", "Request is invalid")
+	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
 }

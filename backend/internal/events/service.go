@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -272,7 +273,7 @@ func (s *Service) Update(
 		return Event{}, apperror.StaleWrite
 	}
 	if current.Status == "completed" || current.Status == "cancelled" || current.Status == "archived" {
-		return Event{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	if input.PublicSignupEnabled {
 		facts, err := q.EventPublicationFacts(ctx, id)
@@ -373,7 +374,7 @@ func (s *Service) Transition(
 		return Event{}, apperror.StaleWrite
 	}
 	if !lifecycleTransitions[current.Status][target] {
-		return Event{}, apperror.New(409, "invalid_event_transition", "Event lifecycle transition is not allowed")
+		return Event{}, apperror.New(http.StatusConflict, "invalid_event_transition", "Event lifecycle transition is not allowed")
 	}
 	if target == "confirmed" {
 		facts, err := q.EventPublicationFacts(ctx, id)
@@ -457,7 +458,7 @@ func (s *Service) SetPublished(
 		return Event{}, apperror.StaleWrite
 	}
 	if current.Status == "archived" {
-		return Event{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	if published {
 		if current.Status != "planning" && current.Status != "confirmed" {
@@ -533,7 +534,7 @@ func (s *Service) RotatePublicID(
 		return Event{}, apperror.StaleWrite
 	}
 	if current.Status == "completed" || current.Status == "cancelled" || current.Status == "archived" {
-		return Event{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	row, err := q.RotateEventPublicID(
 		ctx,
@@ -595,14 +596,14 @@ func (s *Service) Delete(
 		return nil, apperror.StaleWrite
 	}
 	if current.Status != "draft" {
-		return nil, apperror.New(409, "event_not_deletable", "Only draft events can be deleted")
+		return nil, apperror.New(http.StatusConflict, "event_not_deletable", "Only draft events can be deleted")
 	}
 	count, err := q.CountEventAssignmentHistory(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if count != 0 {
-		return nil, apperror.New(409, "event_has_assignment_history", "Event assignment history prevents deletion")
+		return nil, apperror.New(http.StatusConflict, "event_has_assignment_history", "Event assignment history prevents deletion")
 	}
 	fileIDs, err := q.ListEventFileIDsForDelete(ctx, id)
 	if err != nil {

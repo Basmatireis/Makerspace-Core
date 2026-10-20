@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -174,7 +175,7 @@ func (s *Service) DeleteBefore(ctx context.Context, before time.Time) (int64, er
 }
 
 func invalidRequest(reason string) *apperror.Error {
-	err := apperror.New(400, "invalid_request", "Request is invalid")
+	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
 }

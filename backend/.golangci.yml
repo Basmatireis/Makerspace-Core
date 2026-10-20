@@ -1,0 +1,40 @@
+version: "2"
+
+run:
+  timeout: 10m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - lll
+    - misspell
+    - nilerr
+    - unconvert
+    - usestdlibvars
+  settings:
+    lll:
+      line-length: 160
+      tab-width: 4
+    gosec:
+      excludes:
+        # Integer narrowing is guarded by request validation and database constraints; the
+        # generated sqlc parameters are int32 by schema.
+        - G115
+  exclusions:
+    generated: lax
+    rules:
+      # Long SQL and message literals read better unbroken.
+      - linters: [lll]
+        source: '[`"]'
+      - path: _test\.go
+        linters: [bodyclose, errcheck, gosec, lll]
+      # Development-only seed data generator.
+      - path: cmd/devseed/
+        linters: [gosec, lll]
+
+formatters:
+  enable:
+    - gofmt

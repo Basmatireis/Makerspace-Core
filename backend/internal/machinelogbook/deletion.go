@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"bytes"
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -396,7 +397,7 @@ func (s *Service) deleteJobRows(
 			DeletedBy:       deletedBy(p),
 		},
 	); err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return apperror.StaleWrite
 		}
 		return databaseError(err)

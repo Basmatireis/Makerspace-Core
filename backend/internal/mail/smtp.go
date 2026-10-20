@@ -54,7 +54,7 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return fmt.Errorf("connect SMTP: %w", err)
 	}
-	defer connection.Close()
+	defer func() { _ = connection.Close() }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = connection.SetDeadline(deadline)
 	} else {
@@ -64,7 +64,7 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return fmt.Errorf("start SMTP: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	if p.config.TLSMode == "starttls" {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			return fmt.Errorf("SMTP server does not offer STARTTLS")

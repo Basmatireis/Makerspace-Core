@@ -3,7 +3,9 @@ package machinelogbook
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +23,9 @@ func bulkBlockers(t *testing.T, err error) []string {
 	if !apperror.IsCode(err, "bulk_blocked") {
 		t.Fatalf("want bulk_blocked, got %v", err)
 	}
-	appErr = err.(*apperror.Error)
+	if !errors.As(err, &appErr) {
+		t.Fatalf("want apperror, got %v", err)
+	}
 	items, ok := appErr.Details["items"].([]map[string]any)
 	if !ok {
 		t.Fatalf("details.items = %#v", appErr.Details["items"])
@@ -211,7 +215,10 @@ func TestBulkDeleteRefusesEverythingWhenAnItemIsBlocked(t *testing.T) {
 	if len(blockers) != 4 {
 		t.Fatalf("blockers = %v", blockers)
 	}
-	var appErr = err.(*apperror.Error)
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) {
+		t.Fatalf("want apperror, got %v", err)
+	}
 	if appErr.HTTPStatus != 409 {
 		t.Fatalf("status = %d", appErr.HTTPStatus)
 	}
@@ -518,8 +525,8 @@ func TestBulkCombineRuns(t *testing.T) {
 	mixed.Runs = []BulkItem{a, elsewhere}
 	if _, err := h.s.BulkCombineRuns(ctx, h.p, mixed, &h.request); !apperror.IsCode(err, "runs_on_different_machines") {
 		t.Fatalf("different machines: %v", err)
-	} else if err.(*apperror.Error).HTTPStatus != 422 {
-		t.Fatalf("status = %d", err.(*apperror.Error).HTTPStatus)
+	} else if mismatch := new(*apperror.Error); !errors.As(err, mismatch) || (*mismatch).HTTPStatus != http.StatusUnprocessableEntity {
+		t.Fatalf("status of %v, want %d", err, http.StatusUnprocessableEntity)
 	}
 	stale := input
 	stale.Runs = []BulkItem{a, {ID: b.ID, ExpectedVersion: b.ExpectedVersion + 1}}

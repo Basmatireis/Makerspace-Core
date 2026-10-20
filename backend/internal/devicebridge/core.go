@@ -75,7 +75,7 @@ func (c *CoreClient) Report(ctx context.Context, capabilities []Capability) (Cor
 		}
 		return CoreIdentity{}, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 		return CoreIdentity{}, fmt.Errorf(

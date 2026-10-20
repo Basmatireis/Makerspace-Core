@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -292,7 +293,7 @@ func (s *Server) CreateOpenDay(
 			return openapi.CreateOpenDay201JSONResponse(openDayDTO(schedule.Items[i])), nil
 		}
 	}
-	return nil, apperror.New(500, "internal_error", "Created Open Day could not be loaded")
+	return nil, apperror.New(http.StatusInternalServerError, "internal_error", "Created Open Day could not be loaded")
 }
 
 func (s *Server) UpdateOpenDay(

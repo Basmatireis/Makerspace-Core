@@ -135,7 +135,7 @@ func (s *Store) EnqueueBambuStateFor(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var queued int64
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM outbox`).Scan(&queued); err != nil {
 		return err
@@ -334,7 +334,7 @@ func validateStagedZIP(path string, size int64) error {
 	if err != nil {
 		return fmt.Errorf("validate staged 3MF: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	if len(reader.File) == 0 || len(reader.File) > 4096 {
 		return errors.New("staged 3MF has an invalid entry count")
 	}
@@ -385,7 +385,7 @@ func (s *Store) PendingArtifactTransfers(ctx context.Context, limit int) ([]Arti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []ArtifactTransfer
 	for rows.Next() {
 		var item ArtifactTransfer
@@ -488,7 +488,7 @@ func (s *Store) CompleteArtifactTransfer(ctx context.Context, id uuid.UUID) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var path, assignmentID, runID, hash string
 	if err = tx.QueryRowContext(
 		ctx,

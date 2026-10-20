@@ -83,7 +83,7 @@ func (s *Service) AttachFile(
 		return EventFile{}, errors.New("file storage is unavailable")
 	}
 	if len(data) > MaxFileBytes {
-		return EventFile{}, apperror.New(413, "event_file_too_large", "Event files are limited to 25 MiB")
+		return EventFile{}, apperror.New(http.StatusRequestEntityTooLarge, "event_file_too_large", "Event files are limited to 25 MiB")
 	}
 	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 	if _, ok := allowedEventFileTypes[contentType]; !ok {

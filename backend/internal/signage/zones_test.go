@@ -2,6 +2,7 @@ package signage
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -277,11 +278,7 @@ func TestValidateTemplateInput(t *testing.T) {
 }
 
 func asApp(err error, target **apperror.Error) bool {
-	if typed, ok := err.(*apperror.Error); ok {
-		*target = typed
-		return true
-	}
-	return false
+	return errors.As(err, target)
 }
 
 func TestValidateFieldValueByType(t *testing.T) {

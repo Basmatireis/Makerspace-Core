@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -114,7 +115,7 @@ func requireOverride(principal authorization.Principal) error {
 }
 
 func validation(format string, args ...any) error {
-	return apperror.New(422, "validation_failed", fmt.Sprintf(format, args...))
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf(format, args...))
 }
 
 // inUse reports the references that block a deletion as 409 signage_in_use.
@@ -126,7 +127,7 @@ func inUse(what string, references []Reference) error {
 			map[string]any{"kind": reference.Kind, "id": reference.ID.String(), "name": reference.Name},
 		)
 	}
-	result := apperror.New(409, "signage_in_use", what+" is still in use")
+	result := apperror.New(http.StatusConflict, "signage_in_use", what+" is still in use")
 	result.Details["references"] = listed
 	return result
 }

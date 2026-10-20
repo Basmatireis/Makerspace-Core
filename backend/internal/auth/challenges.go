@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -341,7 +342,7 @@ func (s *Service) RequestOwnEmailVerification(
 	requestID *uuid.UUID,
 ) error {
 	if s.notifier == nil {
-		return apperror.New(503, "mail_unavailable", "Email verification delivery is unavailable")
+		return apperror.New(http.StatusServiceUnavailable, "mail_unavailable", "Email verification delivery is unavailable")
 	}
 	allowed, err := s.consumeChallengeLimit(ctx, "email_verification_request_account", principal.AccountID.String(), 5)
 	if err != nil {
@@ -378,10 +379,10 @@ func (s *Service) RequestOwnEmailVerification(
 		return err
 	}
 	if target.VerifiedAt.Valid {
-		return apperror.New(409, "email_already_verified", "The local login email is already verified")
+		return apperror.New(http.StatusConflict, "email_already_verified", "The local login email is already verified")
 	}
 	if target.DeliveryAddress == nil {
-		return apperror.New(503, "mail_unavailable", "Email verification delivery is unavailable")
+		return apperror.New(http.StatusServiceUnavailable, "mail_unavailable", "Email verification delivery is unavailable")
 	}
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "email_verification", AccountID: principal.AccountID,
@@ -416,7 +417,7 @@ func (s *Service) RequestOwnEmailVerification(
 	deliveryErr := s.notifier.SendEmailVerification(ctx, *target.DeliveryAddress, code, expiresAt)
 	s.recordChallengeDelivery(ctx, challenge.ID, deliveryErr)
 	if deliveryErr != nil {
-		return apperror.New(503, "mail_delivery_failed", "Email verification could not be delivered")
+		return apperror.New(http.StatusServiceUnavailable, "mail_delivery_failed", "Email verification could not be delivered")
 	}
 	return nil
 }
@@ -585,5 +586,5 @@ func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, del
 }
 
 func invalidChallenge() error {
-	return apperror.New(422, "challenge_invalid", "The code is invalid or expired")
+	return apperror.New(http.StatusUnprocessableEntity, "challenge_invalid", "The code is invalid or expired")
 }

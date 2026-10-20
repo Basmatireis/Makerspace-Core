@@ -597,7 +597,7 @@ func tryLockRunChain(
 	if err != nil {
 		return machinelogbookdb.MachineRun{}, nil, false, err
 	}
-	defer attempt.Rollback(ctx)
+	defer func() { _ = attempt.Rollback(ctx) }()
 	q := machinelogbookdb.New(attempt)
 	base, err := q.GetRunBase(ctx, id)
 	if err != nil {

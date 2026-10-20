@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 	"unicode"
@@ -68,7 +69,7 @@ func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (Pla
 		return PlayerDisplay{}, err
 	}
 	if row.RevokedAt.Valid || row.DeviceRevokedAt.Valid {
-		return PlayerDisplay{}, apperror.New(403, "signage_display_revoked", "The display is revoked")
+		return PlayerDisplay{}, apperror.New(http.StatusForbidden, "signage_display_revoked", "The display is revoked")
 	}
 	return PlayerDisplay{
 		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: row.Orientation,
@@ -111,7 +112,7 @@ func (s *Service) PlayerManifest(
 	}
 	if !ok {
 		return Manifest{}, false, apperror.New(
-			404,
+			http.StatusNotFound,
 			"signage_not_published",
 			"No content has been published for this display yet",
 		)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/mail"
 	"net/url"
 	"strings"
@@ -97,14 +98,14 @@ func (s *Service) UpdateConfiguration(
 	}
 	if input.Enabled && s.keyring == nil {
 		return Configuration{}, apperror.New(
-			503,
+			http.StatusServiceUnavailable,
 			"encryption_unavailable",
 			"Application encryption keys are required before enabling mail",
 		)
 	}
 	if input.Password != "" && s.keyring == nil {
 		return Configuration{}, apperror.New(
-			503,
+			http.StatusServiceUnavailable,
 			"encryption_unavailable",
 			"Application encryption keys are required before storing an SMTP password",
 		)
@@ -131,7 +132,7 @@ func (s *Service) UpdateConfiguration(
 	}
 	if input.Enabled && len(ciphertext) == 0 && input.Username != "" {
 		return Configuration{}, apperror.New(
-			422,
+			http.StatusUnprocessableEntity,
 			"smtp_password_required",
 			"An SMTP password is required when a username is configured",
 		)
@@ -246,5 +247,5 @@ func configurationFromRow(row maildb.MailConfiguration) Configuration {
 	}
 }
 func invalidConfiguration() error {
-	return apperror.New(422, "mail_configuration_invalid", "Mail configuration is invalid")
+	return apperror.New(http.StatusUnprocessableEntity, "mail_configuration_invalid", "Mail configuration is invalid")
 }

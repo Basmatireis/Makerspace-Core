@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -193,8 +194,10 @@ type EventReceipt struct {
 	ReasonCode  *string
 }
 
-func validation(message string) error     { return apperror.New(422, "validation_failed", message) }
-func conflict(code, message string) error { return apperror.New(409, code, message) }
+func validation(message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
+func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 
 func nullableTime(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
@@ -1391,7 +1394,7 @@ func (s *Service) createAssignment(
 
 func (s *Service) Configuration(ctx context.Context, connector Context) (Configuration, error) {
 	if connector.Lifecycle != "active" && connector.Lifecycle != "disabled" {
-		return Configuration{}, apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return Configuration{}, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	q := db.New(s.pool)
 	row, err := q.GetConnector(ctx, connector.ID)
@@ -1448,7 +1451,7 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 
 func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartbeat) (Connector, error) {
 	if connector.Lifecycle != "active" {
-		return Connector{}, apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return Connector{}, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	input.SoftwareVersion = strings.TrimSpace(input.SoftwareVersion)
 	input.HealthState = strings.TrimSpace(input.HealthState)
@@ -1497,7 +1500,7 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Connector{}, apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return Connector{}, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if err != nil {
 		return Connector{}, err
@@ -1512,7 +1515,7 @@ func int32Pointer(value int) *int32 { v := int32(value); return &v }
 
 func (s *Service) IngestEvents(ctx context.Context, connector Context, inputs []EventInput) ([]EventReceipt, error) {
 	if connector.Lifecycle != "active" {
-		return nil, apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return nil, apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if len(inputs) == 0 || len(inputs) > 20 {
 		return nil, validation("events must contain between 1 and 20 items")

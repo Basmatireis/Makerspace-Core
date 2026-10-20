@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -92,10 +93,12 @@ func validateVersion(version int64) error {
 	return nil
 }
 
-func validation(message string) error { return apperror.New(422, "validation_failed", message) }
+func validation(message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", message)
+}
 
 func signupUnavailable() error {
-	return apperror.New(409, "signup_unavailable", "Signup is unavailable")
+	return apperror.New(http.StatusConflict, "signup_unavailable", "Signup is unavailable")
 }
 
 func lockKeys(values ...*string) []int64 {

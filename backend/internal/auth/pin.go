@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -176,7 +177,7 @@ func (s *Service) EnrollOwnPIN(
 		return apperror.PermissionDenied
 	}
 	if !principal.HasFreshAssurance(authorization.AssuranceNormal, freshMethodAuthentication, time.Now()) {
-		return apperror.New(403, "fresh_authentication_required", "Fresh normal authentication is required")
+		return apperror.New(http.StatusForbidden, "fresh_authentication_required", "Fresh normal authentication is required")
 	}
 	display, normalized, err := normalizeLoginName(loginName)
 	if err != nil {
@@ -219,7 +220,7 @@ func (s *Service) EnrollOwnPIN(
 	if err != nil {
 		var postgresError *pgconn.PgError
 		if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-			return apperror.New(409, "login_name_unavailable", "Login name is unavailable")
+			return apperror.New(http.StatusConflict, "login_name_unavailable", "Login name is unavailable")
 		}
 		return err
 	}
@@ -320,7 +321,7 @@ func (s *Service) SetAccountPIN(
 	if err != nil {
 		var postgresError *pgconn.PgError
 		if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-			return apperror.New(409, "login_name_unavailable", "Login name is unavailable")
+			return apperror.New(http.StatusConflict, "login_name_unavailable", "Login name is unavailable")
 		}
 		return err
 	}
@@ -444,7 +445,7 @@ func (s *Service) CompletePINEnrollment(
 	if err != nil {
 		var postgresError *pgconn.PgError
 		if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-			return apperror.New(409, "login_name_unavailable", "Login name is unavailable")
+			return apperror.New(http.StatusConflict, "login_name_unavailable", "Login name is unavailable")
 		}
 		return err
 	}
@@ -498,7 +499,7 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 		return apperror.PermissionDenied
 	}
 	if !principal.HasFreshAssurance(authorization.AssuranceNormal, freshMethodAuthentication, time.Now()) {
-		return apperror.New(403, "fresh_authentication_required", "Fresh normal authentication is required")
+		return apperror.New(http.StatusForbidden, "fresh_authentication_required", "Fresh normal authentication is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

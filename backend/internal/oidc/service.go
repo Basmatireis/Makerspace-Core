@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -554,7 +555,7 @@ func (s *Service) Complete(
 	}
 	provider, err := queries.GetProviderForFlow(ctx, flow.ProviderID)
 	if err != nil || !provider.Enabled {
-		return Completion{}, apperror.New(403, "oidc_provider_unavailable", "OIDC provider is unavailable")
+		return Completion{}, apperror.New(http.StatusForbidden, "oidc_provider_unavailable", "OIDC provider is unavailable")
 	}
 	nonce, err := s.keyring.Decrypt(flow.EncryptedNonce, flowNoncePurpose(flow.ID))
 	if err != nil {
@@ -672,7 +673,7 @@ func (s *Service) Complete(
 		)
 		if findErr == nil {
 			if found.Status != "enabled" {
-				return Completion{}, apperror.New(403, "account_disabled", "Account is disabled")
+				return Completion{}, apperror.New(http.StatusForbidden, "account_disabled", "Account is disabled")
 			}
 			accountID, identityID = found.AccountID, found.IdentityID
 		} else if errors.Is(findErr, pgx.ErrNoRows) && provider.JitEnabled {
@@ -727,7 +728,7 @@ func (s *Service) Complete(
 				return Completion{}, err
 			}
 		} else if errors.Is(findErr, pgx.ErrNoRows) {
-			return Completion{}, apperror.New(403, "oidc_identity_unknown", "This external identity is not linked")
+			return Completion{}, apperror.New(http.StatusForbidden, "oidc_identity_unknown", "This external identity is not linked")
 		} else {
 			return Completion{}, findErr
 		}
@@ -921,7 +922,7 @@ func jitPersonFields(claims tokenClaims) (string, string, *string, *string, erro
 	}
 	if email == nil && phone == nil {
 		return "", "", nil, nil, apperror.New(
-			403,
+			http.StatusForbidden,
 			"oidc_contact_required",
 			"OIDC provisioning requires a verified email or usable phone claim",
 		)
@@ -990,19 +991,19 @@ func flowNoncePurpose(id uuid.UUID) string      { return "oidc-flow-nonce:" + id
 func flowVerifierPurpose(id uuid.UUID) string   { return "oidc-flow-pkce:" + id.String() }
 
 func validationError(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }
 
 func invalidRequest(reason string) *apperror.Error {
-	err := apperror.New(400, "invalid_request", "Request is invalid")
+	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
 }
 
 func oidcNotConfigured() *apperror.Error {
-	return apperror.New(503, "oidc_not_configured", "OIDC encryption is not configured")
+	return apperror.New(http.StatusServiceUnavailable, "oidc_not_configured", "OIDC encryption is not configured")
 }
 
 func translateWriteError(err error) error {

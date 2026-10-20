@@ -324,7 +324,7 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 		return false, a.recordRetrievalFailure(ctx, *retrieval, err)
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 	if err = temporary.Chmod(0o600); err == nil {
 		client, clientErr := NewBambuFTPSClient(a.settings, a.secrets)
 		if clientErr == nil {
@@ -383,7 +383,7 @@ func (a *bambuH2DAdapter) listArtifactDirectory(ctx context.Context, directory s
 	if err = client.Connect(ctx); err != nil {
 		return nil, err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	return client.List(ctx, directory)
 }
 

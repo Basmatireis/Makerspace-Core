@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -452,7 +453,7 @@ func (s *Service) updateAssignmentContact(
 		return Assignment{}, err
 	}
 	if event.Status == "archived" {
-		return Assignment{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	firstName, lastName := "", ""
 	if current.FirstNameSnapshot != nil {
@@ -598,7 +599,7 @@ func (s *Service) moveAssignment(
 		return Assignment{}, err
 	}
 	if event.Status == "archived" || event.Status == "completed" || event.Status == "cancelled" {
-		return Assignment{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	requirementIDs := []uuid.UUID{current.RequirementID}
 	if destinationRequirementID != current.RequirementID {
@@ -623,7 +624,7 @@ func (s *Service) moveAssignment(
 		if publicFlow {
 			return Assignment{}, signupUnavailable()
 		}
-		return Assignment{}, apperror.New(409, "shift_cancelled", "Cancelled shifts cannot receive assignments")
+		return Assignment{}, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot receive assignments")
 	}
 	req, err := q.GetEventRequirement(
 		ctx,
@@ -801,7 +802,7 @@ func (s *Service) cancelAssignment(
 		return Assignment{}, err
 	}
 	if event.Status == "archived" {
-		return Assignment{}, apperror.New(409, "event_read_only", "Event is read-only")
+		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	var actor *uuid.UUID
 	actorType := "unknown"

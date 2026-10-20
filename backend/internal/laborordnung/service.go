@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -86,7 +87,7 @@ func (s *Service) CreateVersion(
 		return Version{}, err
 	}
 	if len(data) == 0 || len(data) > MaxPDFBytes {
-		return Version{}, apperror.New(413, "laborordnung_pdf_too_large", "Lab Rules PDF exceeds 25 MiB")
+		return Version{}, apperror.New(http.StatusRequestEntityTooLarge, "laborordnung_pdf_too_large", "Lab Rules PDF exceeds 25 MiB")
 	}
 	parsed, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil || parsed.NumPage() < 1 {
@@ -178,7 +179,7 @@ func (s *Service) Publish(
 			},
 		)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Version{}, apperror.New(409, "laborordnung_not_draft", "Only an existing draft can be published")
+		return Version{}, apperror.New(http.StatusConflict, "laborordnung_not_draft", "Only an existing draft can be published")
 	}
 	if err != nil {
 		return Version{}, err
@@ -312,12 +313,12 @@ func (s *Service) RequestOwnConfirmation(
 		return Request{}, false, err
 	}
 	if mode == "not_required" {
-		return Request{}, false, apperror.New(409, "lab_rules_not_required", "Lab Rules confirmation is not required")
+		return Request{}, false, apperror.New(http.StatusConflict, "lab_rules_not_required", "Lab Rules confirmation is not required")
 	}
 	current, err := queries.GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Request{}, false, apperror.New(
-			409,
+			http.StatusConflict,
 			"lab_rules_unavailable",
 			"No effective Lab Rules version is available",
 		)
@@ -327,7 +328,7 @@ func (s *Service) RequestOwnConfirmation(
 	}
 	completed, completedErr := queries.GetLatestCompletedRequest(ctx, principal.PersonID)
 	if completedErr == nil && completed.RequiredVersionID == current.ID {
-		return Request{}, false, apperror.New(409, "lab_rules_current", "The current Lab Rules are already confirmed")
+		return Request{}, false, apperror.New(http.StatusConflict, "lab_rules_current", "The current Lab Rules are already confirmed")
 	}
 	if completedErr != nil && !errors.Is(completedErr, pgx.ErrNoRows) {
 		return Request{}, false, completedErr
@@ -440,7 +441,7 @@ func (s *Service) Confirm(
 	}
 	if current.Status != "pending" {
 		return Request{}, apperror.New(
-			409,
+			http.StatusConflict,
 			"laborordnung_request_not_pending",
 			"Only a pending request can be confirmed",
 		)
@@ -557,7 +558,7 @@ func cleanOptional(value *string) *string {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }

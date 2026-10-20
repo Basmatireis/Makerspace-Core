@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,8 +86,10 @@ type PlannedJobInput struct {
 	PricingGroupID   *uuid.UUID
 }
 
-func validation(code, message string) error { return apperror.New(422, code, message) }
-func conflict(code, message string) error   { return apperror.New(409, code, message) }
+func validation(code, message string) error {
+	return apperror.New(http.StatusUnprocessableEntity, code, message)
+}
+func conflict(code, message string) error { return apperror.New(http.StatusConflict, code, message) }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Artifact, error) {
 	if !principal.Has(authorization.PrintArtifactsRead) {
@@ -296,8 +299,8 @@ func (s *Service) Upload(
 		return UploadResult{}, err
 	}
 	path := temp.Name()
-	defer os.Remove(path)
-	defer temp.Close()
+	defer func() { _ = os.Remove(path) }()
+	defer func() { _ = temp.Close() }()
 	if err = temp.Chmod(0o600); err != nil {
 		return UploadResult{}, err
 	}

@@ -97,7 +97,7 @@ func (s *S3) Metadata(ctx context.Context, key string) (Metadata, error) {
 	if err != nil {
 		return Metadata{}, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	hash := sha256.New()
 	size, err := io.Copy(hash, &contextReader{ctx: ctx, reader: reader})
 	if err != nil {

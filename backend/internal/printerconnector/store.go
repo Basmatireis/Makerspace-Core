@@ -289,7 +289,7 @@ func (s *Store) Enqueue(
 	if err != nil {
 		return QueuedEvent{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var queued int64
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM outbox`).Scan(&queued); err != nil {
 		return QueuedEvent{}, err
@@ -376,7 +376,7 @@ func (s *Store) MarkDeliveryFailure(ctx context.Context, events []QueuedEvent) e
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, event := range events {
 		var attempt int
 		if err = tx.QueryRowContext(
@@ -418,7 +418,7 @@ func (s *Store) Pending(ctx context.Context, limit int) ([]QueuedEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []QueuedEvent{}
 	for rows.Next() {
 		var eventID, assignmentID, occurred string
@@ -475,7 +475,7 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, receipt := range receipts {
 		switch receipt.Status {
 		case "accepted", "duplicate":

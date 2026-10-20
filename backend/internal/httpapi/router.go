@@ -672,7 +672,7 @@ func recoveryMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 			if recovered == nil {
 				return
 			}
-			if recovered == http.ErrAbortHandler {
+			if recoveredErr, isError := recovered.(error); isError && errors.Is(recoveredErr, http.ErrAbortHandler) {
 				panic(recovered)
 			}
 			// The stack identifies the failing code; the panic value is left out because it may

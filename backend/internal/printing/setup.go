@@ -3,6 +3,7 @@ package printing
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -48,7 +49,7 @@ type SetupInput struct {
 }
 
 func duplicateIdentifier(message string) error {
-	return apperror.New(422, "duplicate_external_identifier", message)
+	return apperror.New(http.StatusUnprocessableEntity, "duplicate_external_identifier", message)
 }
 
 func validModel(model string) bool {

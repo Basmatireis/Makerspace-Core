@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -36,7 +37,7 @@ type LiveStatus struct {
 // an older snapshot never overwrites a newer one.
 func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input LiveStatusReport) error {
 	if connector.Lifecycle != "active" {
-		return apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	now := time.Now().UTC()
 	if input.AssignmentID == uuid.Nil || input.ProtocolVersion != 1 || input.ConfigurationVersion < 1 ||
@@ -66,7 +67,7 @@ func (s *Service) ReportLiveStatus(ctx context.Context, connector Context, input
 		return apperror.NotFound
 	}
 	if assignment.ConnectorLifecycle != "active" {
-		return apperror.New(403, "printer_connector_inactive", "Connector is not active")
+		return apperror.New(http.StatusForbidden, "printer_connector_inactive", "Connector is not active")
 	}
 	if !assignment.Enabled || assignment.ConfigurationVersion != input.ConfigurationVersion {
 		return conflict("configuration_version_mismatch", "The assignment configuration changed; discard this snapshot")

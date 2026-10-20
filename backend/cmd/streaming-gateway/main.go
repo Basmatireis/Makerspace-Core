@@ -53,7 +53,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	render := streaminggateway.DefaultRenderOptions()
 	render.APIListen = env("GO2RTC_API_LISTEN", render.APIListen)

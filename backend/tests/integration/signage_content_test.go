@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/jpeg"
 	"io"
@@ -240,7 +241,9 @@ func expectInUse(t *testing.T, err error, kinds ...string) {
 	if !apperror.IsCode(err, "signage_in_use") {
 		t.Fatalf("error = %v, want signage_in_use", err)
 	}
-	appErr = err.(*apperror.Error)
+	if !errors.As(err, &appErr) {
+		t.Fatalf("error = %v, want apperror", err)
+	}
 	references, ok := appErr.Details["references"].([]map[string]any)
 	if !ok || len(references) != len(kinds) {
 		t.Fatalf("references = %#v, want kinds %v", appErr.Details["references"], kinds)

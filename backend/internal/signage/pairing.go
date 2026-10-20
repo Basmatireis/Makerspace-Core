@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ const (
 
 // ErrPairingCodeInvalid is the single answer for unknown, expired, claimed and malformed codes.
 func errPairingCodeInvalid() error {
-	return apperror.New(422, "pairing_code_invalid", "The pairing code is invalid or has expired")
+	return apperror.New(http.StatusUnprocessableEntity, "pairing_code_invalid", "The pairing code is invalid or has expired")
 }
 
 func rateLimited(message string, retryAfter time.Duration) error {
@@ -140,7 +141,7 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 		); err == nil &&
 			previous.ClaimedDisplayID != nil {
 			return PairingStart{}, apperror.New(
-				409,
+				http.StatusConflict,
 				"pairing_claimed",
 				"This display was already claimed; collect its credential instead of restarting",
 			)

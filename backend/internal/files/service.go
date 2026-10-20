@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -105,7 +106,7 @@ func (s *Service) storeReaderInTransaction(
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 0 {
-		return File{}, func() {}, apperror.New(422, "file_metadata_invalid", "File name or content type is invalid")
+		return File{}, func() {}, apperror.New(http.StatusUnprocessableEntity, "file_metadata_invalid", "File name or content type is invalid")
 	}
 	id := uuid.Must(uuid.NewV7())
 	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
@@ -121,7 +122,7 @@ func (s *Service) storeReaderInTransaction(
 	if read != expected.Size || actual != expected.SHA256 {
 		cleanup()
 		return File{}, func() {}, apperror.New(
-			422,
+			http.StatusUnprocessableEntity,
 			"file_integrity_mismatch",
 			"File size or SHA-256 does not match the declared content",
 		)
@@ -203,7 +204,7 @@ func (s *Service) storeReader(
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || metadata.Size < 0 {
-		return File{}, apperror.New(422, "file_metadata_invalid", "File name or content type is invalid")
+		return File{}, apperror.New(http.StatusUnprocessableEntity, "file_metadata_invalid", "File name or content type is invalid")
 	}
 	id := uuid.Must(uuid.NewV7())
 	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
@@ -262,7 +263,7 @@ func (s *Service) Open(ctx context.Context, id uuid.UUID) (File, io.ReadCloser, 
 	}
 	reader, err := s.store.Open(ctx, row.StorageKey)
 	if errors.Is(err, storage.ErrNotFound) {
-		return File{}, nil, apperror.New(500, "file_blob_missing", "Stored file is unavailable")
+		return File{}, nil, apperror.New(http.StatusInternalServerError, "file_blob_missing", "Stored file is unavailable")
 	}
 	return fromRow(row), reader, err
 }

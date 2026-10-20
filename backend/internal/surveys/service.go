@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -497,7 +498,7 @@ func (s *Service) UpdateTrigger(
 	}
 	if enabled && survey.Status != "published" {
 		return Trigger{}, apperror.New(
-			409,
+			http.StatusConflict,
 			"survey_not_published",
 			"Only a published survey can have an enabled trigger",
 		)
@@ -769,11 +770,11 @@ func (s *Service) Public(ctx context.Context, token string) (PublicSurvey, error
 		return PublicSurvey{}, err
 	}
 	if time.Now().UTC().After(row.ExpiresAt) {
-		return PublicSurvey{}, apperror.New(410, "survey_invitation_expired", "Survey invitation has expired")
+		return PublicSurvey{}, apperror.New(http.StatusGone, "survey_invitation_expired", "Survey invitation has expired")
 	}
 	if row.Status == "redeemed" || row.Status == "cancelled" || row.Status == "expired" {
 		return PublicSurvey{}, apperror.New(
-			410,
+			http.StatusGone,
 			"survey_invitation_unavailable",
 			"Survey invitation is no longer available",
 		)
@@ -806,13 +807,13 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 		return err
 	}
 	if time.Now().UTC().After(invitation.ExpiresAt) {
-		return apperror.New(410, "survey_invitation_expired", "Survey invitation has expired")
+		return apperror.New(http.StatusGone, "survey_invitation_expired", "Survey invitation has expired")
 	}
 	if invitation.Status == "redeemed" {
-		return apperror.New(409, "survey_already_submitted", "Survey response was already submitted")
+		return apperror.New(http.StatusConflict, "survey_already_submitted", "Survey response was already submitted")
 	}
 	if invitation.Status == "cancelled" || invitation.Status == "expired" {
-		return apperror.New(410, "survey_invitation_unavailable", "Survey invitation is no longer available")
+		return apperror.New(http.StatusGone, "survey_invitation_unavailable", "Survey invitation is no longer available")
 	}
 	questions, err := q.ListSurveyQuestions(ctx, invitation.SurveyVersionID)
 	if err != nil {
@@ -1005,7 +1006,7 @@ func cleanOptional(value *string) *string {
 	return &clean
 }
 func validation(message string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = message
 	return err
 }

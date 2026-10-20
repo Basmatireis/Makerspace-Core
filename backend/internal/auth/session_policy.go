@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
@@ -38,7 +39,7 @@ func (s *Service) effectiveSessionPolicy(ctx context.Context, queries *authdb.Qu
 		return effectiveSessionPolicy{}, err
 	}
 	if row.IdleTimeoutSeconds < 60 || row.AbsoluteLifetimeSeconds < row.IdleTimeoutSeconds {
-		return effectiveSessionPolicy{}, apperror.New(500, "session_policy_invalid", "Session policy is invalid")
+		return effectiveSessionPolicy{}, apperror.New(http.StatusInternalServerError, "session_policy_invalid", "Session policy is invalid")
 	}
 	id := row.ID
 	return effectiveSessionPolicy{ID: &id, Version: row.Version,

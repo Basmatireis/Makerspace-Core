@@ -263,7 +263,7 @@ func (s *Service) UploadAsset(
 		if errors.As(err, &tooLarge) {
 			return Asset{}, assetTooLarge(kind)
 		}
-		return Asset{}, apperror.New(400, "invalid_request", "Could not read the upload")
+		return Asset{}, apperror.New(http.StatusBadRequest, "invalid_request", "Could not read the upload")
 	}
 	if size > limit {
 		return Asset{}, assetTooLarge(kind)
@@ -364,9 +364,9 @@ func (s *Service) UploadAsset(
 
 func assetTooLarge(kind string) error {
 	if kind == "video" {
-		return apperror.New(413, "signage_asset_too_large", "Videos are limited to 200 MiB")
+		return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Videos are limited to 200 MiB")
 	}
-	return apperror.New(413, "signage_asset_too_large", "Images are limited to 20 MiB")
+	return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Images are limited to 20 MiB")
 }
 
 // RenameAsset changes the display name of an asset.

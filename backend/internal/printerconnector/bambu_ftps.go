@@ -127,11 +127,11 @@ func (c *BambuFTPSClient) Connect(ctx context.Context) error {
 	c.conn = tlsConn
 	c.text = textproto.NewConn(tlsConn)
 	if _, _, err = c.text.ReadResponse(220); err != nil {
-		c.Close()
+		_ = c.Close()
 		return fmt.Errorf("read Bambu FTPS greeting: %w", err)
 	}
 	if err = c.login(); err != nil {
-		c.Close()
+		_ = c.Close()
 		return err
 	}
 	return nil
@@ -233,7 +233,7 @@ func (c *BambuFTPSClient) transfer(ctx context.Context, command string, consume 
 	if err != nil {
 		return fmt.Errorf("connect Bambu FTPS data channel: %w", err)
 	}
-	defer raw.Close()
+	defer func() { _ = raw.Close() }()
 	id, err := c.text.Cmd("%s", command)
 	if err != nil {
 		return err

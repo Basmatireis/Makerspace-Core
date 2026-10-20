@@ -3,6 +3,7 @@ package signage
 import (
 	"context"
 	"errors"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -404,7 +405,7 @@ func (s *Service) ruleMutation(
 }
 
 func displayRevoked() error {
-	return apperror.New(409, "signage_display_revoked", "The display is revoked")
+	return apperror.New(http.StatusConflict, "signage_display_revoked", "The display is revoked")
 }
 
 var ruleFields = []string{"enabled", "condition", "target", "minSeconds", "multiMode", "alternateSeconds"}

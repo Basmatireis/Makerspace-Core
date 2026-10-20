@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -251,7 +252,7 @@ func (s *Service) DeleteRequirement(
 		return err
 	}
 	if count != 0 {
-		return apperror.New(409, "requirement_has_assignments", "Requirement has active assignments")
+		return apperror.New(http.StatusConflict, "requirement_has_assignments", "Requirement has active assignments")
 	}
 	if _, err = q.DeleteEventRequirement(
 		ctx,
@@ -391,7 +392,7 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, err
 	}
 	if shift.Status == "cancelled" {
-		return Assignment{}, apperror.New(409, "shift_cancelled", "Cancelled shifts cannot be linked")
+		return Assignment{}, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot be linked")
 	}
 	eligible, err := q.PersonEligibleForEventRequirement(
 		ctx,
@@ -401,7 +402,7 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, err
 	}
 	if eligible == nil || !*eligible {
-		return Assignment{}, apperror.New(409, "person_not_eligible", "Person is not eligible for this requirement")
+		return Assignment{}, apperror.New(http.StatusConflict, "person_not_eligible", "Person is not eligible for this requirement")
 	}
 	if _, err = q.LockPersonForEventAssignment(ctx, personID); err != nil {
 		return Assignment{}, databaseError(err)
@@ -419,7 +420,7 @@ func (s *Service) LinkAssignmentPerson(
 		return Assignment{}, err
 	}
 	if len(conflicts) != 0 {
-		return Assignment{}, apperror.New(409, "assignment_conflict", "Person has an overlapping Event assignment")
+		return Assignment{}, apperror.New(http.StatusConflict, "assignment_conflict", "Person has an overlapping Event assignment")
 	}
 	row, err := q.LinkEventAssignmentPerson(
 		ctx,
@@ -615,7 +616,7 @@ func (s *Service) createAssignment(
 		return Assignment{}, nil, err
 	}
 	if !publicFlow && (event.Status == "archived" || event.Status == "completed" || event.Status == "cancelled") {
-		return Assignment{}, nil, apperror.New(409, "event_read_only", "Event is read-only")
+		return Assignment{}, nil, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
 	}
 	shift, req, err := lockAssignmentTarget(ctx, q, eventID, input.ShiftID, input.RequirementID)
 	if err != nil {
@@ -625,7 +626,7 @@ func (s *Service) createAssignment(
 		if publicFlow {
 			return Assignment{}, nil, signupUnavailable()
 		}
-		return Assignment{}, nil, apperror.New(409, "shift_cancelled", "Cancelled shifts cannot receive assignments")
+		return Assignment{}, nil, apperror.New(http.StatusConflict, "shift_cancelled", "Cancelled shifts cannot receive assignments")
 	}
 	if publicFlow && !isEffectivePublicSignup(event, shift) {
 		return Assignment{}, nil, signupUnavailable()
@@ -646,7 +647,7 @@ func (s *Service) createAssignment(
 				return Assignment{}, nil, signupUnavailable()
 			}
 			return Assignment{}, nil, apperror.New(
-				409,
+				http.StatusConflict,
 				"person_not_eligible",
 				"Person is not eligible for this requirement",
 			)
@@ -660,7 +661,7 @@ func (s *Service) createAssignment(
 		if publicFlow {
 			return Assignment{}, nil, signupUnavailable()
 		}
-		return Assignment{}, nil, apperror.New(409, "requirement_full", "Requirement is full")
+		return Assignment{}, nil, apperror.New(http.StatusConflict, "requirement_full", "Requirement is full")
 	}
 	conflict := false
 	if input.PersonID != nil {
@@ -708,7 +709,7 @@ func (s *Service) createAssignment(
 				return Assignment{}, nil, signupUnavailable()
 			}
 			return Assignment{}, nil, apperror.New(
-				409,
+				http.StatusConflict,
 				"assignment_conflict",
 				"Helper has an overlapping Event assignment",
 			)

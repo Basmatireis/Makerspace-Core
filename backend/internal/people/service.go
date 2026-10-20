@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -428,7 +429,7 @@ func (s *Service) Delete(
 		blockers = append(
 			blockers,
 			apperror.New(
-				409,
+				http.StatusConflict,
 				"person_scim_managed",
 				"This person is provisioned through SCIM. Remove them in the identity provider instead.",
 			),
@@ -820,7 +821,7 @@ func ValidateProvisionedRoleTransfer(
 	}
 	for _, role := range roles {
 		if role.SystemKey != nil && *role.SystemKey == "master" {
-			return apperror.New(409, "master_role_transfer", "SCIM reconciliation cannot transfer the master role")
+			return apperror.New(http.StatusConflict, "master_role_transfer", "SCIM reconciliation cannot transfer the master role")
 		}
 		if _, err := authorizeRoleAssignment(ctx, queries, principal, role.ID); err != nil {
 			return err
@@ -848,7 +849,7 @@ func protectLastEnabledMaster(ctx context.Context, queries *peopledb.Queries, pe
 		return err
 	}
 	if count <= 1 {
-		return apperror.New(409, "last_master_required", "At least one enabled master account must remain")
+		return apperror.New(http.StatusConflict, "last_master_required", "At least one enabled master account must remain")
 	}
 	return nil
 }
@@ -924,7 +925,7 @@ func NormalizeProfileImage(reader io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if len(raw) == 0 || len(raw) > MaxProfileImageBytes {
-		return nil, apperror.New(413, "profile_image_too_large", "Profile image exceeds 8 MiB")
+		return nil, apperror.New(http.StatusRequestEntityTooLarge, "profile_image_too_large", "Profile image exceeds 8 MiB")
 	}
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil || (format != "jpeg" && format != "png" && format != "webp") {
@@ -1091,13 +1092,13 @@ func databaseError(err error) error {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }
 
 func invalidRequest(reason string) *apperror.Error {
-	err := apperror.New(400, "invalid_request", "Request is invalid")
+	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
 }

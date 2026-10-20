@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -25,7 +26,7 @@ var maxAdjustmentValue = decimal.NewFromInt(1_000_000_000_000)
 // validateOutcomeTiming rejects outcomes recorded before the run has ended.
 func validateOutcomeTiming(endsAt time.Time, outcome *string, now time.Time) error {
 	if outcome != nil && endsAt.After(now) {
-		return apperror.New(422, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
+		return apperror.New(http.StatusUnprocessableEntity, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
 	}
 	return nil
 }

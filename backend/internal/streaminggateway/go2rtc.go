@@ -244,7 +244,7 @@ func (c *Go2RTCClient) Streams(ctx context.Context) (map[string]StreamStatus, er
 	if err != nil {
 		return nil, fmt.Errorf("%w", ErrGo2RTCDown)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("go2rtc streams answered %d", response.StatusCode)
 	}
@@ -273,7 +273,7 @@ func (c *Go2RTCClient) Restart(ctx context.Context) error {
 		}
 		return nil
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("go2rtc restart answered %d", response.StatusCode)
 	}

@@ -134,7 +134,7 @@ func (c *Client) do(ctx context.Context, method, path, token string, input, outp
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	limited := io.LimitReader(response.Body, 4<<20)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		var apiError struct{ Code, Message string }

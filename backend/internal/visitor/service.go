@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"errors"
 	"io"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -295,7 +296,7 @@ func (s *Service) AuthenticateContext(ctx context.Context, raw string) (Context,
 func ValidateCSRF(context Context, cookie, header string) error {
 	if cookie == "" || header == "" || cookie != header ||
 		!hmac.Equal(context.CSRFTokenDigest, security.DigestToken(cookie)) {
-		return apperror.New(403, "csrf_invalid", "CSRF validation failed")
+		return apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed")
 	}
 	return nil
 }
@@ -385,7 +386,7 @@ func (s *Service) Submit(
 		}
 	}
 	if configuration.InitialRoleID == nil {
-		return SubmissionResult{}, apperror.New(409, "visitor_enrollment_disabled", "Visitor enrollment is unavailable")
+		return SubmissionResult{}, apperror.New(http.StatusConflict, "visitor_enrollment_disabled", "Visitor enrollment is unavailable")
 	}
 	role, err := queries.GetAssignableRole(ctx, *configuration.InitialRoleID)
 	if err != nil {
@@ -479,7 +480,7 @@ func (s *Service) Submit(
 		current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SubmissionResult{}, apperror.New(
-				409,
+				http.StatusConflict,
 				"lab_rules_unavailable",
 				"No Lab Rules version was presented; restart visitor enrollment",
 			)
@@ -796,7 +797,7 @@ func databaseError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
 		return apperror.New(
-			409,
+			http.StatusConflict,
 			"authentication_identifier_exists",
 			"This login identifier already belongs to an Account; use returning-user login",
 		)
@@ -805,7 +806,7 @@ func databaseError(err error) error {
 }
 
 func validation(reason string) *apperror.Error {
-	err := apperror.New(422, "validation_failed", "Request validation failed")
+	err := apperror.New(http.StatusUnprocessableEntity, "validation_failed", "Request validation failed")
 	err.Details["reason"] = reason
 	return err
 }
