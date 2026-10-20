@@ -34,6 +34,7 @@ import type {
   SignageAnnouncementTemplateList,
   SignageAsset,
   SignageAssetList,
+  SignageCalendar,
   SignageDisplay,
   SignageDisplayList,
   SignageDisplayPreview,
@@ -96,6 +97,30 @@ export const getListSignageMachinesUrl = () => {
 export const listSignageMachines = async ( options?: RequestInit): Promise<SignageMachineList> => {
 
   return apiFetch<SignageMachineList>(getListSignageMachinesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews.
+ * @summary Upcoming public open days and events (the lists players show)
+ */
+export const getGetSignageCalendarUrl = () => {
+
+
+
+
+  return `/api/v1/signage/calendar`
+}
+
+export const getSignageCalendar = async ( options?: RequestInit): Promise<SignageCalendar> => {
+
+  return apiFetch<SignageCalendar>(getGetSignageCalendarUrl(),
   {
     ...options,
     method: 'GET'

@@ -16,7 +16,7 @@ export function defaultWidget(type: WidgetType): SignageWidget {
     case 'text': return { type, text: 'Your text', size: 'm', align: 'start' };
     case 'qr': return { type, url: 'https://', caption: 'Scan for details' };
     case 'clock': return { type, mode: 'time' };
-    case 'camera': return { type, source: 'auto', machineId: null, multi: 'split', showProgress: true, showRemaining: true, fallback: 'text', fallbackMediaId: null };
+    case 'camera': return { type, source: 'auto', machineId: null, multi: 'split', showProgress: true, showRemaining: true, fallback: 'text', fallbackMediaId: null, machineIds: [] };
     case 'status': return { type, machineIds: [], showProgress: true, showRemaining: true };
     case 'open_days': case 'events': return { type, count: 3 };
     case 'announcement': return { type, templateIds: [], style: 'banner', size: 'm', whenNone: 'empty', fallbackText: '', whenMany: 'rotate', rotateSeconds: 10 };
@@ -40,7 +40,7 @@ export const sceneAssetIds = (scene: { backgroundAssetId: string | null; zones: 
 
 /** Machines a scene's widgets point at, so previews can show them even without access to the machine list. */
 export const sceneMachineIds = (zones: SignageZones): string[] => [...new Set(Object.values(zones).flatMap((widget) => {
-  if (widget.type === 'camera') return widget.machineId ? [widget.machineId] : [];
+  if (widget.type === 'camera') return [...(widget.machineId ? [widget.machineId] : []), ...(widget.machineIds ?? [])];
   return widget.type === 'status' ? widget.machineIds : [];
 }))];
 
@@ -59,7 +59,9 @@ export function widgetError(widget: SignageWidget): string | null {
       } catch {
         return 'Enter an https:// URL without credentials.';
       }
-    case 'camera': return widget.source === 'machine' && !widget.machineId ? 'Choose a machine.' : null;
+    case 'camera':
+      if (widget.source === 'machine' && !widget.machineId) return 'Choose a machine.';
+      return (widget.machineIds?.length ?? 0) > 20 ? 'A camera widget lists at most 20 machines.' : null;
     case 'slideshow': return widget.seconds < 3 || widget.seconds > 3600 ? 'Seconds per slide must be between 3 and 3600.' : widget.mediaIds.length > 50 ? 'A slideshow holds at most 50 images.' : null;
     case 'open_days': case 'events': return widget.count < 1 || widget.count > 10 ? 'Choose between 1 and 10.' : null;
     case 'announcement':

@@ -57,8 +57,12 @@ describe('Scene editor', () => {
     expect(puts).toBe(0);
   });
 
+  const prusa = { id: '0192f6f8-743e-7c77-a349-cd07c3e8a201', name: 'Prusa MK4', kind: 'FDM printer', hasCamera: false };
+  const bambu = { id: '0192f6f8-743e-7c77-a349-cd07c3e8a202', name: 'Bambu H2D', kind: 'FDM printer', hasCamera: true };
+  const x1c = { id: '0192f6f8-743e-7c77-a349-cd07c3e8a203', name: 'Bambu X1C', kind: 'FDM printer', hasCamera: true };
+
   it('lists picker machines from the signage endpoint without the machines permission', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a201', name: 'Prusa MK4', kind: 'FDM printer', hasCamera: false }] });
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [bambu] });
     let machinesApiCalled = false;
     server.use(http.get('*/api/v1/machines', () => { machinesApiCalled = true; return HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 }); }));
     renderRoute(<App />, editor);
@@ -66,23 +70,89 @@ describe('Scene editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
     await user.selectOptions(await screen.findByLabelText('Source'), 'machine');
-    expect(await screen.findByRole('option', { name: 'Prusa MK4 (No camera configured)' })).toBeDisabled();
+    expect(await screen.findByRole('option', { name: 'Bambu H2D' })).toBeEnabled();
     expect(machinesApiCalled).toBe(false);
   });
 
-  it('enables only machines with a camera in the camera widget picker', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [
-      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a201', name: 'Prusa MK4', kind: 'FDM printer', hasCamera: false },
-      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a202', name: 'Bambu H2D', kind: 'FDM printer', hasCamera: true },
-    ] });
+  it('never offers machines without a camera in the camera widget', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [prusa, bambu] });
     renderRoute(<App />, editor);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
     expect(await screen.findByRole('option', { name: 'Active machine (auto)' })).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: /Machines/ }));
+    expect(await screen.findByRole('option', { name: 'Bambu H2D' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Prusa MK4/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
     await user.selectOptions(screen.getByLabelText('Source'), 'machine');
     expect(await screen.findByRole('option', { name: 'Bambu H2D' })).toBeEnabled();
-    expect(screen.getByRole('option', { name: 'Prusa MK4 (No camera configured)' })).toBeDisabled();
+    expect(screen.queryByRole('option', { name: /Prusa MK4/ })).not.toBeInTheDocument();
+  });
+
+  it('explains that no machine has a camera and links to Local services only with the permission', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage, PermissionId.local_servicesmanage], { machines: [prusa] });
+    const first = renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    expect(await screen.findByText('No machine has a camera yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings, Local services' })).toHaveAttribute('href', '/settings/local-services');
+    first.unmount();
+
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [prusa] });
+    renderRoute(<App />, editor);
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    expect(await screen.findByText('No machine has a camera yet')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings, Local services' })).not.toBeInTheDocument();
+  });
+
+  it('saves the machines an automatic camera may show', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [prusa, bambu, x1c] });
+    let zones: Record<string, Record<string, unknown>> | undefined;
+    server.use(http.put('*/api/v1/signage/scenes/:id', async ({ request }) => { zones = ((await request.json()) as { zones: typeof zones }).zones; return HttpResponse.json(sceneFixture()); }));
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'camera', source: 'auto', machineIds: [] }));
+    await user.click(await screen.findByRole('combobox', { name: /Machines/ }));
+    await user.click(await screen.findByRole('option', { name: 'Bambu X1C' }));
+    await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'camera', source: 'auto', machineId: null, machineIds: [x1c.id] }));
+  });
+
+  it('saves the machines of a status widget', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [prusa, bambu] });
+    let zones: Record<string, Record<string, unknown>> | undefined;
+    server.use(http.put('*/api/v1/signage/scenes/:id', async ({ request }) => { zones = ((await request.json()) as { zones: typeof zones }).zones; return HttpResponse.json(sceneFixture()); }));
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'status');
+    await user.click(await screen.findByRole('combobox', { name: /Machines/ }));
+    await user.click(await screen.findByRole('option', { name: 'Prusa MK4' }));
+    await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'status', machineIds: [prusa.id] }));
+  });
+
+  it('previews the real open days and events, and the empty text when there are none', async () => {
+    const open = { ...sceneFixture(), zones: { header: { type: 'open_days', count: 3 }, main: { type: 'events', count: 3 }, footer: { type: 'empty' } } } as ReturnType<typeof sceneFixture>;
+    const soon = new Date(Date.now() + 2 * 86_400_000);
+    soon.setHours(14, 0, 0, 0);
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], {
+      scenes: [open],
+      calendar: { openDays: [{ startsAt: soon.toISOString(), endsAt: new Date(soon.getTime() + 3_600_000).toISOString(), status: 'scheduled' }], events: [{ title: 'Real repair cafe', startsAt: soon.toISOString(), location: null }] },
+    });
+    const first = renderRoute(<App />, editor);
+    expect(await screen.findByText('Real repair cafe')).toBeInTheDocument();
+    expect(screen.queryByText('No open days planned')).not.toBeInTheDocument();
+    expect(screen.queryByText('Soldering workshop')).not.toBeInTheDocument();
+    first.unmount();
+
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { scenes: [open] });
+    renderRoute(<App />, editor);
+    expect(await screen.findByText('No open days planned')).toBeInTheDocument();
+    expect(screen.getByText('No events planned')).toBeInTheDocument();
   });
 
   it('names the outside-visible displays that show the fallback because live cameras are not allowed', async () => {

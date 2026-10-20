@@ -785,6 +785,7 @@ export * from './signageAsset';
 export * from './signageAssetCreatedByAccountId';
 export * from './signageAssetKind';
 export * from './signageAssetList';
+export * from './signageCalendar';
 export * from './signageCameraWidget';
 export * from './signageCameraWidgetFallback';
 export * from './signageCameraWidgetFallbackMediaId';

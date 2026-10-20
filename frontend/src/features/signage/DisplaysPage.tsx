@@ -9,7 +9,7 @@ import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { QueryBoundary } from './components';
+import { PlayerAddress, QueryBoundary } from './components';
 import { useRuleNames } from './displayHooks';
 import { PublicationTag, StatusTag } from './displayParts';
 import { DEFAULT_RULE_ID, describeCondition } from './engine/playback';
@@ -58,7 +58,7 @@ export function DisplaysPage() {
     <PageShell title="Displays" description={description} width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={pairButton}>
       <QueryBoundary query={query} label="displays">
         {displays.length === 0 ? (
-          <EmptyState title="No displays yet" description="Start the player on a screen, then enter the code it shows." action={pairButton} />
+          <EmptyState title="No displays yet" description="On the screen, open this address in the kiosk browser. It shows a 6-character code that you enter here." action={<div className="sg-stack"><PlayerAddress />{pairButton}</div>} />
         ) : (
           <TableContainer>
             <Table aria-label="Displays">

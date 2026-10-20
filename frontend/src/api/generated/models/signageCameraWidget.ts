@@ -24,6 +24,7 @@ import type { SignageCameraWidgetMachineId } from './signageCameraWidgetMachineI
 import type { SignageCameraWidgetMulti } from './signageCameraWidgetMulti';
 import type { SignageCameraWidgetFallback } from './signageCameraWidgetFallback';
 import type { SignageCameraWidgetFallbackMediaId } from './signageCameraWidgetFallbackMediaId';
+import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageCameraWidget {
   type: SignageCameraWidgetType;
@@ -42,4 +43,9 @@ export interface SignageCameraWidget {
    * @nullable
    */
   fallbackMediaId: SignageCameraWidgetFallbackMediaId;
+  /**
+   * Only for `auto`: the machines the camera may show (empty or missing means every machine with a camera). Distinct, existing machines; cleared for `machine`.
+   * @maxItems 20
+   */
+  machineIds?: UUIDv7[];
 }

@@ -1,6 +1,9 @@
-import { ComboBox, ContainedList, ContainedListItem, IconButton, InlineNotification, MultiSelect, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, TextArea, TextInput, Toggle } from '@carbon/react';
+import { ComboBox, ContainedList, ContainedListItem, IconButton, InlineNotification, Link as CarbonLink, MultiSelect, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, TextArea, TextInput, Toggle } from '@carbon/react';
 import { ArrowDown, ArrowUp, TrashCan } from '@carbon/icons-react';
+import { Link } from 'react-router-dom';
 import type { SignageAnnouncementTemplate, SignageAsset, SignageWidget } from '../../api/generated/models';
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
 import { AssetPicker, FitField } from './components';
 import type { MachineOption } from './preview';
 import { widgetError } from './widgets';
@@ -22,19 +25,33 @@ function SizeField({ id, value, onChange }: { id: string; value: TextSize; onCha
   );
 }
 
+/** Shown instead of the camera machine pickers while no machine has a camera; points to Local services when the person may open it. */
+function NoCameraNote() {
+  const canSetUp = hasPermission(useCurrentUser(), PermissionId.local_servicesmanage);
+  return (
+    <>
+      <InlineNotification kind="info" lowContrast hideCloseButton title="No machine has a camera yet"
+        subtitle={canSetUp ? 'Cameras are assigned to machines in Local services.' : 'Cameras are set up under Settings, Local services, which needs the local services permission.'} />
+      {canSetUp && <p><CarbonLink as={Link} to="/settings/local-services">Settings, Local services</CarbonLink></p>}
+    </>
+  );
+}
+
 type Props = {
   widget: SignageWidget;
   assets: readonly SignageAsset[];
   templates: readonly SignageAnnouncementTemplate[];
   /** Machines from the signage picker endpoint. */
   machines: readonly MachineOption[];
+  /** False while the machine list is still loading (the "no camera" note waits for it). Defaults to true. */
+  machinesKnown?: boolean;
   /** Names of displays that show this scene and are visible from outside (camera warning). Empty until displays exist (2b). */
   outsideDisplays: readonly string[];
   onChange: (widget: SignageWidget) => void;
 };
 
 /** Widget-specific properties of the selected zone. Every change is applied (and autosaved) immediately. */
-export function WidgetFields({ widget, assets, templates, machines, outsideDisplays, onChange }: Props) {
+export function WidgetFields({ widget, assets, templates, machines, machinesKnown = true, outsideDisplays, onChange }: Props) {
   const error = widgetError(widget);
   const fieldError = error ? <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} /> : null;
   const machineOptions: Option[] = machines.map((machine) => ({ id: machine.id, label: machine.name }));
@@ -104,33 +121,46 @@ export function WidgetFields({ widget, assets, templates, machines, outsideDispl
         <RadioButton id="wf-clock-time" value="time" labelText="Time" /><RadioButton id="wf-clock-datetime" value="datetime" labelText="Date and time" />
       </RadioButtonGroup>
     );
-    case 'camera': return (
-      <>
-        <Select id="wf-source" labelText="Source" value={widget.source} onChange={(event) => { const source = event.target.value as 'machine' | 'auto'; onChange({ ...widget, source, machineId: source === 'auto' ? null : widget.machineId }); }}>
-          <SelectItem value="auto" text="Active machine (auto)" /><SelectItem value="machine" text="Specific machine" />
-        </Select>
-        {widget.source === 'machine' && (
-          <Select id="wf-machine" labelText="Machine" helperText={machinesHint} invalid={!widget.machineId} invalidText="Choose a machine" value={widget.machineId ?? ''} onChange={(event) => onChange({ ...widget, machineId: event.target.value || null })}>
-            <SelectItem value="" text="Choose a machine" />
-            {widget.machineId && !machines.some((machine) => machine.id === widget.machineId) && <SelectItem value={widget.machineId} text={machineName(widget.machineId)} />}
-            {machines.map((machine) => <SelectItem key={machine.id} value={machine.id} disabled={!machine.hasCamera} text={machine.hasCamera ? machine.name : `${machine.name} (No camera configured)`} />)}
+    case 'camera': {
+      const cameraOptions: Option[] = machines.filter((machine) => machine.hasCamera).map((machine) => ({ id: machine.id, label: machine.name }));
+      const selected = widget.machineId;
+      return (
+        <>
+          {machinesKnown && cameraOptions.length === 0 && <NoCameraNote />}
+          <Select id="wf-source" labelText="Source" value={widget.source} onChange={(event) => { const source = event.target.value as 'machine' | 'auto'; onChange({ ...widget, source, machineId: source === 'auto' ? null : widget.machineId, machineIds: source === 'auto' ? widget.machineIds : [] }); }}>
+            <SelectItem value="auto" text="Active machine (auto)" /><SelectItem value="machine" text="Specific machine" />
           </Select>
-        )}
-        {widget.source === 'auto' && (
-          <RadioButtonGroup legendText="When several machines print" name="wf-multi" valueSelected={widget.multi} onChange={(value) => onChange({ ...widget, multi: value as 'split' | 'alternate' })}>
-            <RadioButton id="wf-multi-split" value="split" labelText="Split screen" /><RadioButton id="wf-multi-alt" value="alternate" labelText="Alternate" />
-          </RadioButtonGroup>
-        )}
-        <Toggle id="wf-progress" size="sm" labelText="Overlay progress" labelA="Off" labelB="On" toggled={widget.showProgress} onToggle={(showProgress) => onChange({ ...widget, showProgress })} />
-        <Toggle id="wf-remaining" size="sm" labelText="Overlay remaining time" labelA="Off" labelB="On" toggled={widget.showRemaining} onToggle={(showRemaining) => onChange({ ...widget, showRemaining })} />
-        <Select id="wf-fallback" labelText="When the camera is unavailable" value={widget.fallback} onChange={(event) => { const fallback = event.target.value as 'image' | 'text' | 'hide'; onChange({ ...widget, fallback, fallbackMediaId: fallback === 'image' ? widget.fallbackMediaId : null }); }}>
-          <SelectItem value="image" text="Show image" /><SelectItem value="text" text="Show status text" /><SelectItem value="hide" text="Hide zone" />
-        </Select>
-        {widget.fallback === 'image' && <AssetPicker id="wf-fallback-image" label="Fallback image" kind="image" assets={assets} value={widget.fallbackMediaId} onChange={(fallbackMediaId) => onChange({ ...widget, fallbackMediaId })} />}
-        <p className="sg-secondary">The live camera appears on the display while the machine prints. Previews show a neutral frame. Cameras are set up under Settings, Local services.</p>
-        {outsideDisplays.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Camera not shown on outside displays" subtitle={`On ${outsideDisplays.join(', ')} this camera shows its fallback, because live cameras are not allowed there.`} />}
-      </>
-    );
+          {widget.source === 'machine' && (
+            <Select id="wf-machine" labelText="Machine" invalid={!selected} invalidText="Choose a machine" value={selected ?? ''} onChange={(event) => onChange({ ...widget, machineId: event.target.value || null })}>
+              <SelectItem value="" text="Choose a machine" />
+              {selected && !cameraOptions.some((option) => option.id === selected) && <SelectItem value={selected} text={machineName(selected)} />}
+              {cameraOptions.map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
+            </Select>
+          )}
+          {widget.source === 'auto' && (
+            <>
+              <MultiSelect<Option>
+                id="wf-camera-machines" key={cameraOptions.map((option) => option.id).join(',')} titleText="Machines" label="All machines with a camera" items={cameraOptions} itemToString={(item) => item?.label ?? ''}
+                helperText="The camera shows the first of these machines that prints. Leave empty to use every machine with a camera."
+                initialSelectedItems={(widget.machineIds ?? []).map((id) => ({ id, label: machineName(id) }))}
+                onChange={({ selectedItems }) => onChange({ ...widget, machineIds: (selectedItems ?? []).map((item) => item.id) })}
+              />
+              <RadioButtonGroup legendText="When several machines print" name="wf-multi" valueSelected={widget.multi} onChange={(value) => onChange({ ...widget, multi: value as 'split' | 'alternate' })}>
+                <RadioButton id="wf-multi-split" value="split" labelText="Split screen" /><RadioButton id="wf-multi-alt" value="alternate" labelText="Alternate" />
+              </RadioButtonGroup>
+            </>
+          )}
+          <Toggle id="wf-progress" size="sm" labelText="Overlay progress" labelA="Off" labelB="On" toggled={widget.showProgress} onToggle={(showProgress) => onChange({ ...widget, showProgress })} />
+          <Toggle id="wf-remaining" size="sm" labelText="Overlay remaining time" labelA="Off" labelB="On" toggled={widget.showRemaining} onToggle={(showRemaining) => onChange({ ...widget, showRemaining })} />
+          <Select id="wf-fallback" labelText="When the camera is unavailable" value={widget.fallback} onChange={(event) => { const fallback = event.target.value as 'image' | 'text' | 'hide'; onChange({ ...widget, fallback, fallbackMediaId: fallback === 'image' ? widget.fallbackMediaId : null }); }}>
+            <SelectItem value="image" text="Show image" /><SelectItem value="text" text="Show status text" /><SelectItem value="hide" text="Hide zone" />
+          </Select>
+          {widget.fallback === 'image' && <AssetPicker id="wf-fallback-image" label="Fallback image" kind="image" assets={assets} value={widget.fallbackMediaId} onChange={(fallbackMediaId) => onChange({ ...widget, fallbackMediaId })} />}
+          <p className="sg-secondary">The live camera appears on the display while the machine prints. Previews show a neutral frame. Cameras are set up under Settings, Local services.</p>
+          {outsideDisplays.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Camera not shown on outside displays" subtitle={`On ${outsideDisplays.join(', ')} this camera shows its fallback, because live cameras are not allowed there.`} />}
+        </>
+      );
+    }
     case 'status': return (
       <>
         <MultiSelect<Option>

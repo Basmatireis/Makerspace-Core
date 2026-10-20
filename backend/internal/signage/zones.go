@@ -96,14 +96,15 @@ type clockW struct {
 	Mode string `json:"mode"`
 }
 type cameraW struct {
-	Type            string     `json:"type"`
-	Source          string     `json:"source"`
-	MachineID       *uuid.UUID `json:"machineId"`
-	Multi           string     `json:"multi"`
-	ShowProgress    bool       `json:"showProgress"`
-	ShowRemaining   bool       `json:"showRemaining"`
-	Fallback        string     `json:"fallback"`
-	FallbackMediaID *uuid.UUID `json:"fallbackMediaId"`
+	Type            string      `json:"type"`
+	Source          string      `json:"source"`
+	MachineID       *uuid.UUID  `json:"machineId"`
+	Multi           string      `json:"multi"`
+	ShowProgress    bool        `json:"showProgress"`
+	ShowRemaining   bool        `json:"showRemaining"`
+	Fallback        string      `json:"fallback"`
+	FallbackMediaID *uuid.UUID  `json:"fallbackMediaId"`
+	MachineIDs      []uuid.UUID `json:"machineIds"`
 }
 type statusW struct {
 	Type          string      `json:"type"`
@@ -265,8 +266,20 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if w.Source == "machine" && w.MachineID == nil {
 			return nil, refs, zoneError(zone, "a camera bound to a machine needs machineId")
 		}
+		if w.MachineIDs == nil {
+			w.MachineIDs = []uuid.UUID{}
+		}
+		if len(w.MachineIDs) > maxStatusMachines {
+			return nil, refs, zoneError(zone, "a camera widget lists at most %d machines", maxStatusMachines)
+		}
+		if len(distinct(w.MachineIDs)) != len(w.MachineIDs) {
+			return nil, refs, zoneError(zone, "camera machines must be distinct")
+		}
 		if w.Source == "auto" {
 			w.MachineID = nil
+			refs.Machines = append(refs.Machines, w.MachineIDs...)
+		} else {
+			w.MachineIDs = []uuid.UUID{}
 		}
 		if w.MachineID != nil {
 			refs.Machines = append(refs.Machines, *w.MachineID)

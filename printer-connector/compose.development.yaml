@@ -28,6 +28,3 @@ services:
 
 volumes:
   connector_data:
-    # The name from before the stack was renamed to makerspace-connector, so existing connectors keep
-    # their enrolled identity.
-    name: makerspace-printer-connector-dev_connector_data

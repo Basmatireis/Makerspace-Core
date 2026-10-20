@@ -54,7 +54,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const now = useNow(1000);
   const assets = useQuery(assetsQuery()).data?.items ?? [];
   const templates = useQuery(templatesQuery()).data?.items ?? [];
-  const { machines } = useMachineOptions();
+  const { machines, known: machinesKnown } = useMachineOptions();
   const blockedDisplays = useCameraBlockedDisplays(scene.id);
 
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
@@ -228,7 +228,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
               <SceneRenderer scene={{ ...draft, orientation: scene.orientation }} data={data} selectedZone={selectedId} onSelectZone={setZoneId} />
             </ScreenFrame>
           </div>
-          <p className="sg-secondary">Select a zone on the canvas or in the list. Zone labels are only shown here. The preview uses sample data.</p>
+          <p className="sg-secondary">Select a zone on the canvas or in the list. Zone labels are only shown here. Machine states in the preview are simulated; open days and events are the real upcoming ones.</p>
         </div>
 
         <Tile className="sg-editor__properties">
@@ -238,7 +238,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
               <Select id="widget-type" labelText="Widget type" value={widget.type} onChange={(event) => setWidget(defaultWidget(event.target.value as WidgetType))}>
                 {WIDGET_TYPES.map((type) => <SelectItem key={type} value={type} text={WIDGET_LABELS[type]} />)}
               </Select>
-              <WidgetFields widget={widget} assets={assets} templates={templates} machines={machines} outsideDisplays={blockedDisplays} onChange={setWidget} />
+              <WidgetFields widget={widget} assets={assets} templates={templates} machines={machines} machinesKnown={machinesKnown} outsideDisplays={blockedDisplays} onChange={setWidget} />
             </div>
           ) : (
             <div className="sg-stack">

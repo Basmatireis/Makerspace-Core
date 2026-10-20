@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { SignageOrientation } from '../../api/generated/models';
 import { pairSignageDisplay } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
+import { PlayerAddress } from './components';
 import { errorMessage, resolutionLabel, resolutionOptions } from './helpers';
 import { signagePaths } from './paths';
 import { playlistsQuery, signageKeys } from './queries';
@@ -55,6 +56,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
     >
       <form noValidate onSubmit={submit}>
       <Stack gap={5}>
+        <p>On the screen, open <PlayerAddress /> in the kiosk browser; it shows a 6-character code.</p>
         <Controller control={form.control} name="code" rules={{ validate: (value) => CODE_PATTERN.test(normalizeCode(value)) || 'Enter the 6 characters shown on the screen' }} render={({ field }) => (
           <TextInput
             id="pair-code" labelText="Pairing code" placeholder="e.g. K7F2QX" autoComplete="off" autoCapitalize="characters" spellCheck={false}

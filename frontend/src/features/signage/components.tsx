@@ -1,15 +1,20 @@
 import { useState, type ReactNode } from 'react';
-import { ComboBox, Link as CarbonLink, ListItem, Modal, RadioTile, Select, SelectItem, Stack, TileGroup, UnorderedList } from '@carbon/react';
+import { CodeSnippet, ComboBox, Link as CarbonLink, ListItem, Modal, RadioTile, Select, SelectItem, Stack, TileGroup, UnorderedList } from '@carbon/react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { SignageAsset, SignageLayoutId, SignageOrientation, SignageScene } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
-import { errorMessage, inUseReferences, referenceHref, referenceLabel, type SignageReference } from './helpers';
+import { errorMessage, inUseReferences, playerAddress, referenceHref, referenceLabel, type SignageReference } from './helpers';
 import { LAYOUTS, layoutById } from './layouts';
 import { usePreviewData } from './preview';
 import { signageKeys } from './queries';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
+
+/** The player address as a copyable inline snippet. */
+export function PlayerAddress() {
+  return <CodeSnippet type="inline" feedback="Copied">{playerAddress()}</CodeSnippet>;
+}
 
 /** Loading and error states of one query; renders its children once data exists. */
 export function QueryBoundary({ query, label, children }: { query: Pick<UseQueryResult, 'isPending' | 'isError' | 'error' | 'refetch'>; label: string; children: ReactNode }) {

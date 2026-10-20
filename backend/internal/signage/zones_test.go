@@ -303,3 +303,80 @@ func TestNormalizeValuesAppliesDefaultsAndRequired(t *testing.T) {
 		t.Fatal("unknown key accepted")
 	}
 }
+
+func TestParseZonesCameraMachineList(t *testing.T) {
+	a, b := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	camera := func(source, machineID, machineIDs string) string {
+		return `{"main":{"type":"camera","source":"` + source + `","machineId":` + machineID + `,"multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":null` + machineIDs + `}}`
+	}
+	list := func(ids ...uuid.UUID) string {
+		parts := make([]string, 0, len(ids))
+		for _, id := range ids {
+			parts = append(parts, `"`+id.String()+`"`)
+		}
+		return `,"machineIds":[` + strings.Join(parts, ",") + `]`
+	}
+
+	zones, refs, err := ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("auto", "null", list(a, b))))
+	if err != nil || len(refs.Machines) != 2 || !strings.Contains(string(zones["main"]), a.String()) {
+		t.Fatalf("auto with machines: %s %#v %v", zones["main"], refs, err)
+	}
+	// A scene saved before machineIds existed still validates and normalizes to an empty list.
+	zones, refs, err = ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("auto", "null", "")))
+	if err != nil || len(refs.Machines) != 0 || !strings.Contains(string(zones["main"]), `"machineIds":[]`) {
+		t.Fatalf("auto without machineIds: %s %#v %v", zones["main"], refs, err)
+	}
+	// A fixed machine drops the list.
+	zones, refs, err = ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("machine", `"`+a.String()+`"`, list(b))))
+	if err != nil || strings.Contains(string(zones["main"]), b.String()) || len(refs.Machines) != 1 || refs.Machines[0] != a {
+		t.Fatalf("machine source: %s %#v %v", zones["main"], refs, err)
+	}
+	for name, raw := range map[string]string{
+		"duplicates": camera("auto", "null", list(a, a)),
+		"too many":   camera("auto", "null", list(manyIDs(21)...)),
+		"not a uuid": camera("auto", "null", `,"machineIds":["x"]`),
+	} {
+		if _, _, err := ParseZones(mustLayout(t, "full"), zonesFrom(t, raw)); err == nil {
+			t.Fatalf("%s accepted", name)
+		}
+	}
+	if _, _, err := ParseZones(mustLayout(t, "full"), zonesFrom(t, camera("auto", "null", list(manyIDs(20)...)))); err != nil {
+		t.Fatalf("20 machines rejected: %v", err)
+	}
+}
+
+func manyIDs(n int) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, n)
+	for len(ids) < n {
+		ids = append(ids, uuid.Must(uuid.NewV7()))
+	}
+	return ids
+}
+
+func TestManifestCameraMachineIDs(t *testing.T) {
+	a, b := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	manifestWith := func(widgets ...string) Manifest {
+		zones := map[string]json.RawMessage{}
+		for index, widget := range widgets {
+			zones[string(rune('a'+index))] = json.RawMessage(widget)
+		}
+		return Manifest{Scenes: []ManifestScene{{Zones: zones}}}
+	}
+	auto := func(ids string) string {
+		return `{"type":"camera","source":"auto","machineId":null,"machineIds":[` + ids + `]}`
+	}
+	fixed := `{"type":"camera","source":"machine","machineId":"` + b.String() + `","machineIds":[]}`
+	ids, all := ManifestCameraMachineIDs(manifestWith(auto(`"`+a.String()+`"`), fixed))
+	if all || len(ids) != 2 {
+		t.Fatalf("restricted auto + fixed = %v all=%v", ids, all)
+	}
+	if ids, all = ManifestCameraMachineIDs(manifestWith(auto(""))); !all || len(ids) != 0 {
+		t.Fatalf("unrestricted auto = %v all=%v", ids, all)
+	}
+	if ids, all = ManifestCameraMachineIDs(manifestWith(`{"type":"status","machineIds":["` + a.String() + `"]}`)); all || len(ids) != 0 {
+		t.Fatalf("status widget gives cameras: %v %v", ids, all)
+	}
+	if !camerasRemoved(cameraSet{all: true}, cameraSet{ids: []uuid.UUID{a}}) || camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{all: true}) || camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{ids: []uuid.UUID{a, b}}) || !camerasRemoved(cameraSet{ids: []uuid.UUID{a, b}}, cameraSet{ids: []uuid.UUID{a}}) {
+		t.Fatal("camerasRemoved semantics wrong")
+	}
+}

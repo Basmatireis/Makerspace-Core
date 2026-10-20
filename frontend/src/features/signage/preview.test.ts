@@ -18,4 +18,22 @@ describe('signage preview helpers', () => {
     expect(data.assetUrl('abc')).toContain(`?v=${'f'.repeat(64)}`);
     expect(data.assetUrl('other')).not.toContain('?v=');
   });
+
+  it('previews the real open days and events and shows no invented ones', () => {
+    const base = { preset: 'idle' as const, now: now.getTime(), machines: [], templates: [], timeZone: 'Europe/Vienna' };
+    const empty = buildPreviewData(base);
+    expect(empty.openDays).toEqual([]);
+    expect(empty.events).toEqual([]);
+    const openDays = [{ startsAt: '2026-10-24T14:00:00Z', endsAt: '2026-10-24T17:00:00Z', status: 'scheduled' }];
+    const events = [{ title: 'Repair cafe', startsAt: '2026-10-25T16:00:00Z', location: 'Workshop floor' }];
+    const real = buildPreviewData({ ...base, openDays, events });
+    expect(real.openDays).toEqual(openDays);
+    expect(real.events).toEqual(events);
+  });
+
+  it('never lets a machine without a camera show one', () => {
+    const machines = [{ id: 'a', name: 'Plain', hasCamera: false }, { id: 'b', name: 'Camera', hasCamera: true }];
+    const data = buildPreviewData({ preset: 'all', now: now.getTime(), machines, templates: [], timeZone: 'Europe/Vienna' });
+    expect([...(data.unavailableCameras ?? [])]).toEqual(['a']);
+  });
 });

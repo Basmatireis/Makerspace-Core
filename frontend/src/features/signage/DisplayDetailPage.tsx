@@ -1,6 +1,6 @@
 import './styles.scss';
 import { useState } from 'react';
-import { ActionableNotification, Button, CodeSnippet, InlineNotification, OverflowMenu, OverflowMenuItem, Tab, TabList, TabPanel, TabPanels, Tabs, Tag, Tile } from '@carbon/react';
+import { ActionableNotification, Button, InlineNotification, OverflowMenu, OverflowMenuItem, Tab, TabList, TabPanel, TabPanels, Tabs, Tag, Tile } from '@carbon/react';
 import { Bullhorn, Upload } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -21,6 +21,7 @@ import { PublishedScreen, StatusTag } from './displayParts';
 import { describePendingChange, errorMessage, isStaleWrite, orientationLabel, pluralize, resolutionLabel } from './helpers';
 import { HealthTab } from './HealthTab';
 import { PlaybackTab } from './PlaybackTab';
+import { PlayerAddress } from './components';
 import { signagePaths } from './paths';
 import { displayQuery, rulesQuery, signageKeys } from './queries';
 import { toPlaybackRule, type PublishedView } from './publishedView';
@@ -166,8 +167,8 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
             )}
             {!revoked && (
               <div className="sg-now sg-top-gap">
-                <span className="sg-secondary">Player address. Open it on the screen to pair it.</span>
-                <CodeSnippet type="inline" feedback="Copied">{`${window.location.origin}${signagePaths.player}`}</CodeSnippet>
+                <span className="sg-secondary">Player address. Open it in the kiosk browser on the screen.</span>
+                <PlayerAddress />
               </div>
             )}
           </Tile>

@@ -1049,3 +1049,116 @@ func TestCameraAccessOutsideNeedsTheExplicitSetting(t *testing.T) {
 		t.Fatalf("allowCameraOutside is not audited as a changed field (%d, %v)", changed, err)
 	}
 }
+
+func autoCameraWidget(machines ...uuid.UUID) json.RawMessage {
+	ids := make([]string, 0, len(machines))
+	for _, id := range machines {
+		ids = append(ids, `"`+id.String()+`"`)
+	}
+	return json.RawMessage(`{"type":"camera","source":"auto","machineId":null,"machineIds":[` + strings.Join(ids, ",") + `],"multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`)
+}
+
+func TestPlayerLiveStreamsFollowTheAutoCameraMachineList(t *testing.T) {
+	g := newGatewayEnv(t)
+	ctx := testContext(t)
+	staff := g.allStaff()
+	svc, admin := g.fixture.service, g.fixture.admin
+
+	gateway, _ := g.enrolledGateway("Auto gateway", "auto-gw.example.org")
+	gatewayID := gateway["id"].(string)
+	cameras := map[string]uuid.UUID{
+		"first":  g.bambu("Auto first", "bambu_h2d", "192.168.1.80", "20000001"),
+		"second": g.bambu("Auto second", "bambu_h2d", "192.168.1.81", "20000002"),
+		"third":  g.bambu("Auto third", "bambu_x1c", "192.168.1.82", "20000003"),
+	}
+	for _, machine := range cameras {
+		g.expect(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+gatewayID+"/cameras", map[string]any{"machineId": machine.String(), "enabled": true}), http.StatusCreated)
+	}
+	noCamera := g.bambu("Auto without camera", "bambu_h2d", "192.168.1.83", "20000004")
+
+	input := sceneInput("Auto camera", "full")
+	input.Zones = map[string]json.RawMessage{"main": autoCameraWidget(cameras["first"], cameras["second"])}
+	scene, err := svc.CreateScene(ctx, admin, input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	display, player := g.pair(staff, "Auto display", g.fixture.playlist(t, "Auto", scene.ID).ID)
+	displayID := display["id"].(string)
+	live := func() map[string]any {
+		return g.expect(g.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
+	}
+	streamMachines := func() map[string]bool {
+		result := map[string]bool{}
+		for _, raw := range live()["streams"].([]any) {
+			result[raw.(map[string]any)["machineId"].(string)] = true
+		}
+		return result
+	}
+	liveMachines := func() map[string]bool {
+		result := map[string]bool{}
+		for _, raw := range live()["machines"].([]any) {
+			result[raw.(map[string]any)["machineId"].(string)] = true
+		}
+		return result
+	}
+	publish := func() {
+		g.expect(g.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
+	}
+	update := func(version int64, widget json.RawMessage) {
+		t.Helper()
+		next := sceneInput("Auto camera", "full")
+		next.Zones = map[string]json.RawMessage{"main": widget}
+		if _, err := svc.UpdateScene(ctx, admin, scene.ID, version, next, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publish()
+
+	// Restricted list: tickets and live status only for the allowed machines.
+	streams := streamMachines()
+	if len(streams) != 2 || !streams[cameras["first"].String()] || !streams[cameras["second"].String()] || streams[cameras["third"].String()] {
+		t.Fatalf("restricted streams = %v", streams)
+	}
+	if machines := liveMachines(); len(machines) != 2 || !machines[cameras["first"].String()] || !machines[cameras["second"].String()] {
+		t.Fatalf("restricted live machines = %v", machines)
+	}
+
+	// A draft change is not served until published; then the new list applies.
+	update(1, autoCameraWidget(cameras["third"]))
+	if streams = streamMachines(); len(streams) != 2 || streams[cameras["third"].String()] {
+		t.Fatalf("draft leaked: %v", streams)
+	}
+	publish()
+	if streams = streamMachines(); len(streams) != 1 || !streams[cameras["third"].String()] {
+		t.Fatalf("after changing the list: %v", streams)
+	}
+
+	// An empty list means every machine with a camera, and only those.
+	update(2, autoCameraWidget())
+	publish()
+	streams = streamMachines()
+	if len(streams) != 3 || streams[noCamera.String()] {
+		t.Fatalf("unrestricted streams = %v", streams)
+	}
+	if machines := liveMachines(); len(machines) != 3 {
+		t.Fatalf("unrestricted live machines = %v", machines)
+	}
+
+	// Validation: unknown machines and duplicates are refused; a stored scene without the field works.
+	bad := sceneInput("Auto camera", "full")
+	bad.Zones = map[string]json.RawMessage{"main": autoCameraWidget(uuid.Must(uuid.NewV7()))}
+	if _, err := svc.UpdateScene(ctx, admin, scene.ID, 3, bad, nil); err == nil {
+		t.Fatal("unknown camera machine accepted")
+	}
+	bad.Zones = map[string]json.RawMessage{"main": autoCameraWidget(cameras["first"], cameras["first"])}
+	if _, err := svc.UpdateScene(ctx, admin, scene.ID, 3, bad, nil); err == nil {
+		t.Fatal("duplicate camera machines accepted")
+	}
+	if _, err := g.pool.Exec(ctx, `UPDATE signage_scenes SET zones = jsonb_set(zones, '{main}', (zones->'main') - 'machineIds') WHERE id = $1`, scene.ID); err != nil {
+		t.Fatal(err)
+	}
+	publish()
+	if streams = streamMachines(); len(streams) != 3 {
+		t.Fatalf("scene stored without machineIds: %v", streams)
+	}
+}

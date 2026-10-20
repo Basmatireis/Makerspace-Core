@@ -1,4 +1,8 @@
 import { ApiError } from '../../api/http-client';
+import { signagePaths } from './paths';
+
+/** The address staff open on a screen to start the player: this app's origin plus the player path. */
+export const playerAddress = () => `${window.location.origin}${signagePaths.player}`;
 
 export function formatBytes(bytes: number): string {
   if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;

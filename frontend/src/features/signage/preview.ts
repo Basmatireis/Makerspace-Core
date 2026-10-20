@@ -7,10 +7,11 @@ import type { SignageAnnouncementTemplate } from '../../api/generated/models';
 import { renderAnnouncement } from './engine/announcements';
 import type { RenderAnnouncement, RenderData, RenderMachine } from './render/types';
 import { publicConfigurationOptions } from '../branding/branding';
-import { assetsQuery, machinesQuery, templatesQuery } from './queries';
+import { assetsQuery, calendarQuery, machinesQuery, templatesQuery } from './queries';
 
-// Sample data for the admin previews (editor canvas, thumbnails, playlist preview). Real live data only exists on the
-// player; the editor lets people check fallbacks by picking a "Preview as" situation.
+// Data for the admin previews (editor canvas, thumbnails, playlist preview). Machine states and announcements are
+// simulated (the editor lets people check fallbacks by picking a "Preview as" situation); open days and events are the
+// real upcoming public ones, so an empty calendar shows the widgets' normal empty text.
 
 export type PreviewPresetId = 'idle' | 'first' | 'all' | 'camera' | 'stale' | 'announcement';
 export const PREVIEW_PRESETS: { id: PreviewPresetId; label: string }[] = [
@@ -82,17 +83,6 @@ export function renderSample(template: TemplateLike, machines: Record<string, st
   return renderAnnouncement(template, sampleValues(template.fields, now), { startsAt: now, endsAt: new Date(now.getTime() + 2 * 3_600_000) }, { now, timeZone, displayName: 'Entrance window', location: 'Ground floor', machines });
 }
 
-const sampleOpenDays = (now: number): RenderData['openDays'] => [1, 3, 5].map((days) => {
-  const start = new Date(now + days * 86_400_000);
-  start.setHours(14, 0, 0, 0);
-  return { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + 3 * 3_600_000).toISOString(), status: 'scheduled' };
-});
-const sampleEvents = (now: number): RenderData['events'] => ['Soldering workshop', 'Laser cutter introduction', 'Repair café'].map((title, index) => {
-  const start = new Date(now + (index + 2) * 86_400_000);
-  start.setHours(18, 0, 0, 0);
-  return { title, startsAt: start.toISOString(), location: null };
-});
-
 export type PreviewInput = {
   preset: PreviewPresetId;
   now: number;
@@ -104,10 +94,13 @@ export type PreviewInput = {
   timeZone: string;
   /** Known digests turn asset URLs into cacheable, content-addressed ones. */
   assets?: readonly { id: string; sha256: string }[];
+  /** The real upcoming public open days and events. */
+  openDays?: RenderData['openDays'];
+  events?: RenderData['events'];
   still?: boolean;
 };
 
-export function buildPreviewData({ preset, now, machines, referencedMachineIds = [], templates, timeZone, assets = [], still }: PreviewInput): RenderData {
+export function buildPreviewData({ preset, now, machines, referencedMachineIds = [], templates, timeZone, assets = [], openDays = [], events = [], still }: PreviewInput): RenderData {
   const ids = [...new Set([...machines.map((machine) => machine.id), ...referencedMachineIds])];
   const names = Object.fromEntries(machines.map((machine) => [machine.id, machine.name]));
   const printing = preset === 'all' ? ids : preset === 'idle' || preset === 'announcement' ? [] : ids.slice(0, 1);
@@ -126,10 +119,11 @@ export function buildPreviewData({ preset, now, machines, referencedMachineIds =
     now,
     liveAvailable: preset !== 'stale',
     machines: states,
-    unavailableCameras: new Set(preset === 'camera' ? ids.slice(0, 1) : []),
+    // A machine without a camera never shows one; the "camera unavailable" situation drops the first machine's.
+    unavailableCameras: new Set([...machines.filter((machine) => !machine.hasCamera).map((machine) => machine.id), ...(preset === 'camera' ? ids.slice(0, 1) : [])]),
     announcements,
-    openDays: sampleOpenDays(now),
-    events: sampleEvents(now),
+    openDays,
+    events,
     assetUrl: (assetId) => assetContentUrl(assetId, digests.get(assetId)),
     still,
   };
@@ -141,10 +135,13 @@ export function usePreviewData(preset: PreviewPresetId, options: { now: number; 
   const templates = useQuery(templatesQuery()).data?.items;
   const assets = useQuery(assetsQuery()).data?.items;
   const timeZone = useMakerspaceTimeZone();
+  const user = useCurrentUser();
+  const canRead = [PermissionId.signageread, PermissionId.signagemanage, PermissionId.signagecontentmanage].some((permission) => hasPermission(user, permission));
+  const calendar = useQuery(calendarQuery(canRead)).data;
   const { now, referencedMachineIds, still } = options;
   const referenced = referencedMachineIds?.join(',') ?? '';
   return useMemo(
-    () => buildPreviewData({ preset, now, machines, referencedMachineIds: referenced ? referenced.split(',') : [], templates: templates ?? [], timeZone, assets, still }),
-    [preset, now, machines, referenced, templates, timeZone, assets, still],
+    () => buildPreviewData({ preset, now, machines, referencedMachineIds: referenced ? referenced.split(',') : [], templates: templates ?? [], timeZone, assets, openDays: calendar?.openDays, events: calendar?.events, still }),
+    [preset, now, machines, referenced, templates, timeZone, assets, calendar, still],
   );
 }

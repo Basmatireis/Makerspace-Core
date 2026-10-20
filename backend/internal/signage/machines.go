@@ -42,3 +42,30 @@ func (s *Service) ListMachines(ctx context.Context, principal authorization.Prin
 	}
 	return machines, nil
 }
+
+// Calendar is the upcoming public open days and events a display shows.
+type Calendar struct {
+	OpenDays []PublicOpenDay
+	Events   []PublicEvent
+}
+
+// UpcomingCalendar returns the same public-safe lists the player live endpoint carries, for admin
+// previews. Any signage permission that reads or edits content is enough.
+func (s *Service) UpcomingCalendar(ctx context.Context, principal authorization.Principal) (Calendar, error) {
+	if !principal.Has(authorization.SignageRead) && !principal.Has(authorization.SignageManage) && !principal.Has(authorization.SignageContentManage) {
+		return Calendar{}, apperror.PermissionDenied
+	}
+	calendar := Calendar{OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}}
+	if s.calendar == nil {
+		return calendar, nil
+	}
+	now := s.now()
+	var err error
+	if calendar.OpenDays, err = s.calendar.UpcomingOpenDays(ctx, now, liveListLimit); err != nil {
+		return Calendar{}, err
+	}
+	if calendar.Events, err = s.calendar.UpcomingEvents(ctx, now, liveListLimit); err != nil {
+		return Calendar{}, err
+	}
+	return calendar, nil
+}

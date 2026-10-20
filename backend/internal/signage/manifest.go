@@ -226,6 +226,7 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 		for _, raw := range scene.Zones {
 			var widget struct {
 				Type       string      `json:"type"`
+				Source     string      `json:"source"`
 				MachineID  *uuid.UUID  `json:"machineId"`
 				MachineIDs []uuid.UUID `json:"machineIds"`
 			}
@@ -236,6 +237,11 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 			case "camera":
 				if widget.MachineID != nil {
 					ids[*widget.MachineID] = struct{}{}
+				}
+				if widget.Source == "auto" {
+					for _, id := range widget.MachineIDs {
+						ids[id] = struct{}{}
+					}
 				}
 			case "status":
 				for _, id := range widget.MachineIDs {
@@ -248,34 +254,37 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 }
 
 // ManifestCameraMachineIDs lists the machines whose camera stream the published manifest can show:
-// the machines of camera widgets bound to a machine, and, when a camera widget follows the active
-// print (source auto), every machine the manifest watches through rules or status widgets.
-func ManifestCameraMachineIDs(manifest Manifest) []uuid.UUID {
-	ids := map[uuid.UUID]struct{}{}
-	auto := false
+// the machines of camera widgets bound to a machine and the machines an automatic camera widget is
+// restricted to. allCameras reports an automatic widget without a restriction; it may show every
+// machine that has a camera, which the caller resolves.
+func ManifestCameraMachineIDs(manifest Manifest) (ids []uuid.UUID, allCameras bool) {
+	set := map[uuid.UUID]struct{}{}
 	for _, scene := range manifest.Scenes {
 		for _, raw := range scene.Zones {
 			var widget struct {
-				Type      string     `json:"type"`
-				Source    string     `json:"source"`
-				MachineID *uuid.UUID `json:"machineId"`
+				Type       string      `json:"type"`
+				Source     string      `json:"source"`
+				MachineID  *uuid.UUID  `json:"machineId"`
+				MachineIDs []uuid.UUID `json:"machineIds"`
 			}
 			if json.Unmarshal(raw, &widget) != nil || widget.Type != "camera" {
 				continue
 			}
-			if widget.Source == "auto" {
-				auto = true
-			} else if widget.MachineID != nil {
-				ids[*widget.MachineID] = struct{}{}
+			switch {
+			case widget.Source != "auto":
+				if widget.MachineID != nil {
+					set[*widget.MachineID] = struct{}{}
+				}
+			case len(widget.MachineIDs) == 0:
+				allCameras = true
+			default:
+				for _, id := range widget.MachineIDs {
+					set[id] = struct{}{}
+				}
 			}
 		}
 	}
-	if auto {
-		for _, id := range ManifestMachineIDs(manifest) {
-			ids[id] = struct{}{}
-		}
-	}
-	return sortedIDs(ids)
+	return sortedIDs(set), allCameras
 }
 
 // PendingChange is one difference between a display's drafts and its latest publication.

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { PermissionId, SignageAnnouncement, SignageAnnouncementTemplate, SignageAsset, SignageDisplay, SignageDisplayPreview, SignageMachine, SignagePlaylist, SignageRule, SignageScene } from '../../api/generated/models';
+import type { PermissionId, SignageAnnouncement, SignageAnnouncementTemplate, SignageAsset, SignageCalendar, SignageDisplay, SignageDisplayPreview, SignageMachine, SignagePlaylist, SignageRule, SignageScene } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
 import { server } from '../../test/server';
 
@@ -67,11 +67,12 @@ export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): 
 
 type Content = {
   displays?: SignageDisplay[]; rules?: SignageRule[]; preview?: SignageDisplayPreview; scenes?: SignageScene[]; playlists?: SignagePlaylist[]; templates?: SignageAnnouncementTemplate[]; assets?: SignageAsset[]; announcements?: SignageAnnouncement[]; machines?: SignageMachine[];
+  calendar?: SignageCalendar;
 };
 
 /** Signed-in user plus read endpoints for the content screens. Individual tests add writes with `server.use`. */
 export function mockSignage(permissions: PermissionId[], content: Content = {}) {
-  const { scenes = [sceneFixture()], playlists = [playlistFixture()], templates = [templateFixture()], assets = [assetFixture()], announcements = [], machines = [], displays = [], rules = [], preview = previewFixture() } = content;
+  const { scenes = [sceneFixture()], playlists = [playlistFixture()], templates = [templateFixture()], assets = [assetFixture()], announcements = [], machines = [], displays = [], rules = [], preview = previewFixture(), calendar = { openDays: [], events: [] } } = content;
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/signage/scenes', () => HttpResponse.json({ items: scenes })),
@@ -87,6 +88,7 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),
     http.get('*/api/v1/signage/announcements', () => HttpResponse.json({ items: announcements })),
     http.get('*/api/v1/signage/machines', () => HttpResponse.json({ items: machines })),
+    http.get('*/api/v1/signage/calendar', () => HttpResponse.json(calendar)),
     http.get('*/api/v1/signage/displays', () => HttpResponse.json({ items: displays })),
     http.get('*/api/v1/signage/displays/:id', ({ params }) => {
       const display = displays.find((item) => item.id === params.id);

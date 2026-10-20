@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import {
   getSignageAsset,
+  getSignageCalendar,
   getSignageDisplay,
   getSignageDisplayPreview,
   getSignagePlaylist,
@@ -26,6 +27,7 @@ export const signageKeys = {
   assets: () => [...signageKeys.all, 'assets'] as const,
   asset: (id: string) => [...signageKeys.all, 'asset', id] as const,
   machines: () => [...signageKeys.all, 'machines'] as const,
+  calendar: () => [...signageKeys.all, 'calendar'] as const,
   displays: () => [...signageKeys.all, 'displays'] as const,
   display: (id: string) => [...signageKeys.all, 'display', id] as const,
   rules: (id: string) => [...signageKeys.all, 'rules', id] as const,
@@ -46,6 +48,14 @@ export const machinesQuery = (enabled: boolean) => queryOptions({
   queryKey: signageKeys.machines(),
   queryFn: ({ signal }) => listSignageMachines({ signal }),
   enabled,
+});
+
+/** The upcoming public open days and events players show (the same lists as the live endpoint). Previews use them instead of samples. */
+export const calendarQuery = (enabled: boolean) => queryOptions({
+  queryKey: signageKeys.calendar(),
+  queryFn: ({ signal }) => getSignageCalendar({ signal }),
+  enabled,
+  staleTime: 60_000,
 });
 
 // Heartbeats arrive every 30 s and live data every 10 s on the player, so the admin views poll at a similar pace.

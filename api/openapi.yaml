@@ -3142,6 +3142,19 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/calendar:
+    get:
+      tags: [Signage]
+      operationId: getSignageCalendar
+      summary: Upcoming public open days and events (the lists players show)
+      description: Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Upcoming open days and events., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignageCalendar"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/assets:
     get:
       tags: [Signage]
@@ -14994,6 +15007,7 @@ components:
         showRemaining: {type: boolean}
         fallback: {type: string, enum: [image, text, hide], x-enum-varnames: [SignageCameraWidgetFallbackImage, SignageCameraWidgetFallbackText, SignageCameraWidgetFallbackHide]}
         fallbackMediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; only kept when `fallback` is `image`.}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Only for `auto`: the machines the camera may show (empty or missing means every machine with a camera). Distinct, existing machines; cleared for `machine`."}
     SignageStatusWidget:
       type: object
       additionalProperties: false
@@ -15626,6 +15640,13 @@ components:
         openDays: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
         events: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
         streams: {type: array, maxItems: 20, description: "Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.", items: {$ref: "#/components/schemas/SignagePlayerStream"}}
+    SignageCalendar:
+      type: object
+      additionalProperties: false
+      required: [openDays, events]
+      properties:
+        openDays: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
+        events: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
     SignageDisplayPreview:
       type: object
       additionalProperties: false

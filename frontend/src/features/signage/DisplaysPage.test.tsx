@@ -31,6 +31,19 @@ describe('Displays page', () => {
     expect(screen.queryByRole('button', { name: 'Pair display' })).not.toBeInTheDocument();
   });
 
+  it('shows the player address in the empty state and above the code field of the pair dialog', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [] });
+    renderRoute(<App />, '/signage');
+    const address = `${window.location.origin}/player/`;
+    expect(await screen.findByText('No displays yet')).toBeInTheDocument();
+    expect(screen.getByText(address)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'Pair display' })[0]);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(address)).toBeInTheDocument();
+    expect(within(dialog).getByText(/in the kiosk browser; it shows a 6-character code\./)).toBeInTheDocument();
+  });
+
   it('pairs a display by code and opens it', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     let body: unknown;

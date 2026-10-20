@@ -90,7 +90,7 @@ func (s *Service) publishDisplay(ctx context.Context, principal authorization.Pr
 	if err := q.PruneSignagePublications(ctx, signagedb.PruneSignagePublicationsParams{DisplayID: id, MaxRevision: revision - retainedPublications}); err != nil {
 		return Display{}, err
 	}
-	if hadPrevious && camerasRemoved(ManifestCameraMachineIDs(previous), ManifestCameraMachineIDs(manifest)) {
+	if hadPrevious && camerasRemoved(cameraSetOf(previous), cameraSetOf(manifest)) {
 		// The display no longer shows a camera it used before: drop its running sessions.
 		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
 			return Display{}, err
@@ -106,13 +106,30 @@ func (s *Service) publishDisplay(ctx context.Context, principal authorization.Pr
 	return result, tx.Commit(ctx)
 }
 
-// camerasRemoved reports whether the old camera set contains a machine the new one lacks.
-func camerasRemoved(before, after []uuid.UUID) bool {
-	remaining := make(map[uuid.UUID]struct{}, len(after))
-	for _, id := range after {
+// cameraSet is the set of cameras a manifest can show; all means every camera.
+type cameraSet struct {
+	ids []uuid.UUID
+	all bool
+}
+
+func cameraSetOf(manifest Manifest) cameraSet {
+	ids, all := ManifestCameraMachineIDs(manifest)
+	return cameraSet{ids: ids, all: all}
+}
+
+// camerasRemoved reports whether the old camera set can show a machine the new one cannot.
+func camerasRemoved(before, after cameraSet) bool {
+	if after.all {
+		return false
+	}
+	if before.all {
+		return true
+	}
+	remaining := make(map[uuid.UUID]struct{}, len(after.ids))
+	for _, id := range after.ids {
 		remaining[id] = struct{}{}
 	}
-	for _, id := range before {
+	for _, id := range before.ids {
 		if _, ok := remaining[id]; !ok {
 			return true
 		}

@@ -251,14 +251,23 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	if published {
 		revision := manifest.Revision
 		live.Revision = &revision
-		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) {
-			if ids := ManifestCameraMachineIDs(manifest); len(ids) > 0 {
-				if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, ids); err != nil {
-					return LiveData{}, err
-				}
+		machineIDs := ManifestMachineIDs(manifest)
+		cameraIDs, allCameras := ManifestCameraMachineIDs(manifest)
+		if allCameras {
+			// An automatic camera widget without a restriction may show every camera.
+			every, err := q.ListSignageCameraMachineIDs(ctx)
+			if err != nil {
+				return LiveData{}, err
+			}
+			cameraIDs = distinct(append(cameraIDs, every...))
+			machineIDs = distinct(append(machineIDs, every...))
+		}
+		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) && len(cameraIDs) > 0 {
+			if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, cameraIDs); err != nil {
+				return LiveData{}, err
 			}
 		}
-		if ids := ManifestMachineIDs(manifest); len(ids) > 0 {
+		if ids := machineIDs; len(ids) > 0 {
 			names, err := q.ListSignageMachineNames(ctx, uuidStrings(ids))
 			if err != nil {
 				return LiveData{}, err

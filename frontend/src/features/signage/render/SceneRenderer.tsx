@@ -60,7 +60,7 @@ function CameraTile({ machine, widget, data }: { machine: RenderMachine; widget:
 function CameraWidget({ widget, data, orientation }: { widget: SignageCameraWidget; data: RenderData; orientation: SignageOrientation }) {
   const candidates = widget.source === 'machine'
     ? data.machines.filter((machine) => machine.machineId === widget.machineId)
-    : data.machines.filter(isPrinting);
+    : data.machines.filter((machine) => isPrinting(machine) && ((widget.machineIds?.length ?? 0) === 0 || widget.machineIds?.includes(machine.machineId)));
   // A camera shows only while the machine prints, its camera works and live data is available.
   const feeds = data.liveAvailable ? candidates.filter((machine) => isPrinting(machine) && !data.unavailableCameras?.has(machine.machineId)) : [];
   if (feeds.length === 0) {

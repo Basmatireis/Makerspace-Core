@@ -482,6 +482,23 @@ func (s *Server) GetSignagePlayerAsset(ctx context.Context, r openapi.GetSignage
 	return signagePlayerAssetResponse{file: file, request: httpRequest(ctx)}, nil
 }
 
+func signageCalendarDTO(days []signage.PublicOpenDay, upcoming []signage.PublicEvent) ([]openapi.SignagePlayerOpenDay, []openapi.SignagePlayerEvent) {
+	openDays := make([]openapi.SignagePlayerOpenDay, 0, len(days))
+	for _, day := range days {
+		openDays = append(openDays, openapi.SignagePlayerOpenDay{StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status})
+	}
+	events := make([]openapi.SignagePlayerEvent, 0, len(upcoming))
+	for _, event := range upcoming {
+		var location *string
+		if event.Location != "" {
+			value := event.Location
+			location = &value
+		}
+		events = append(events, openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)})
+	}
+	return openDays, events
+}
+
 func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	machines := make([]openapi.SignagePlayerLiveMachine, 0, len(live.Machines))
 	for _, machine := range live.Machines {
@@ -497,19 +514,7 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 			Body: announcement.Body, StartsAt: announcement.StartsAt, EndsAt: nullableTimeValue(announcement.EndsAt),
 		})
 	}
-	openDays := make([]openapi.SignagePlayerOpenDay, 0, len(live.OpenDays))
-	for _, day := range live.OpenDays {
-		openDays = append(openDays, openapi.SignagePlayerOpenDay{StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status})
-	}
-	events := make([]openapi.SignagePlayerEvent, 0, len(live.Events))
-	for _, event := range live.Events {
-		var location *string
-		if event.Location != "" {
-			value := event.Location
-			location = &value
-		}
-		events = append(events, openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)})
-	}
+	openDays, events := signageCalendarDTO(live.OpenDays, live.Events)
 	streams := make([]openapi.SignagePlayerStream, 0, len(live.Streams))
 	for _, stream := range live.Streams {
 		streams = append(streams, openapi.SignagePlayerStream{MachineId: stream.MachineID, WebrtcUrl: stream.WebRTCURL, MseUrl: stream.MSEURL, Ticket: stream.Ticket, ExpiresAt: stream.ExpiresAt})
@@ -568,4 +573,17 @@ func (s *Server) PostSignagePlayerHeartbeat(ctx context.Context, r openapi.PostS
 		return nil, err
 	}
 	return openapi.PostSignagePlayerHeartbeat204Response{Headers: openapi.PostSignagePlayerHeartbeat204ResponseHeaders{CacheControl: "no-store"}}, nil
+}
+
+func (s *Server) GetSignageCalendar(ctx context.Context, _ openapi.GetSignageCalendarRequestObject) (openapi.GetSignageCalendarResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	calendar, err := s.signage.UpcomingCalendar(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	openDays, events := signageCalendarDTO(calendar.OpenDays, calendar.Events)
+	return openapi.GetSignageCalendar200JSONResponse{Body: openapi.SignageCalendar{OpenDays: openDays, Events: events}, Headers: openapi.GetSignageCalendar200ResponseHeaders{CacheControl: "no-store"}}, nil
 }
