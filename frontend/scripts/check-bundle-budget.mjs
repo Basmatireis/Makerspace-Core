@@ -11,7 +11,9 @@ const budgets = {
   'index.html': { label: 'Application', javascript: 225_000, css: 80_000 },
   'player.html': { label: 'Player', javascript: 90_000, css: 20_000 },
 };
-const entries = Object.keys(manifest).filter((key) => manifest[key].isEntry);
+// The player's service worker is a third entry (a stable file, /player/sw.js, no HTML): it only has a size budget.
+const SERVICE_WORKER = { entry: 'src/player/sw.ts', file: 'player/sw.js', gzip: 4_000 };
+const entries = Object.keys(manifest).filter((key) => manifest[key].isEntry && key !== SERVICE_WORKER.entry);
 if (entries.length === 0) throw new Error('Build manifest contains no entry points.');
 for (const required of Object.keys(budgets)) {
   if (!entries.includes(required)) throw new Error(`Build manifest has no ${required} entry.`);
@@ -27,6 +29,11 @@ function graphOf(entry) {
   };
   visit(entry);
   return visited;
+}
+
+/** Every JS and CSS file the entry loads statically. */
+function graphOfFiles(entry) {
+  return [...graphOf(entry)].flatMap((key) => [manifest[key].file, ...(manifest[key].css ?? [])]);
 }
 
 const compressedSize = (files) => [...files].reduce(
@@ -50,6 +57,19 @@ for (const entry of entries) {
   }
   if (javascriptBytes > budget.javascript || cssBytes > budget.css) failures.push(budget.label);
 }
+
+const worker = manifest[SERVICE_WORKER.entry];
+if (!worker || worker.file !== SERVICE_WORKER.file) throw new Error(`Build manifest has no ${SERVICE_WORKER.entry} entry at ${SERVICE_WORKER.file}.`);
+const workerSource = readFileSync(resolve(directory, worker.file), 'utf8');
+if (/__PLAYER_SHELL_(FILES|VERSION)__/.test(workerSource)) throw new Error('The player service worker still has its placeholders; the build step that fills in the shell files did not run.');
+if (/^\s*(import|export)\b/m.test(workerSource) || (worker.imports ?? []).length > 0) throw new Error('The player service worker must be self-contained (no imports).');
+for (const file of graphOfFiles('player.html')) {
+  if (!workerSource.includes(`"/${file}"`)) throw new Error(`The player service worker does not precache /${file}.`);
+}
+const workerBytes = gzipSync(workerSource).length;
+process.stdout.write(`Player service worker: ${workerBytes} / ${SERVICE_WORKER.gzip} gzip bytes\n`);
+if (workerBytes > SERVICE_WORKER.gzip) failures.push('Player service worker');
+
 if (failures.length > 0) {
   throw new Error(`Production loading budget exceeded for: ${failures.join(', ')}. Inspect static dependencies and styles before accepting this build.`);
 }

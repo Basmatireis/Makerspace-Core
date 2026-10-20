@@ -1,6 +1,7 @@
 import type { SignagePlayerHeartbeat, SignagePlayerLive, SignagePlayerManifest, SignageResolution } from '../api/generated/models';
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
+import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
 import { noCameraSource, type CameraSource } from './camera';
 import { backoffMs } from './timing';
 import { resolveView, type Hold, type LiveSnapshot, type PlayerView } from './view';
@@ -17,6 +18,10 @@ const MAX_BACKOFF_MS = 120_000;
 const ERROR_MEMORY_MS = 5 * 60_000;
 const FIRST_LIVE_GRACE_MS = 3_000;
 const PRELOAD_CONCURRENCY = 4;
+/** Persisted announcements, open days and events older than this are not shown after a restart. */
+export const PERSISTED_LIVE_MAX_AGE_MS = 24 * 3_600_000;
+/** An unchanged live payload is written to storage at most this often (kind to SD cards). */
+const LIVE_SAVE_INTERVAL_MS = 5 * 60_000;
 
 export type RuntimeStatus = 'starting' | 'unpublished' | 'playing' | 'revoked';
 
@@ -33,6 +38,8 @@ export type RuntimeSnapshot = {
 export type RuntimeDeps = {
   api: PlayerApi;
   loadAsset?: AssetLoader;
+  /** The offline cache; `null` (no Cache Storage) falls back to in-memory preloading. Defaults to the browser's. */
+  store?: PlayerStore | null;
   camera?: CameraSource;
   now?: () => number;
   playerVersion?: string;
@@ -43,6 +50,7 @@ type Active = { manifest: SignagePlayerManifest; urls: Map<string, string> };
 export class PlayerRuntime {
   private readonly api: PlayerApi;
   private readonly loadAsset: AssetLoader;
+  private readonly store: PlayerStore | null;
   private readonly camera: CameraSource;
   private readonly now: () => number;
   private readonly playerVersion: string;
@@ -63,6 +71,11 @@ export class PlayerRuntime {
   private manifestRetryAt = 0;
   private manifestFailures = 0;
   private revoked = false;
+  /** The playing loops (live, heartbeat) start once the manifest call proved the device has a credential. */
+  private loopsStarted = false;
+  private cacheUsedBytes = 0;
+  private cacheQuotaBytes = 0;
+  private savedLive: { key: string; at: number } | null = null;
   private liveFailures = 0;
   private heartbeatFailures = 0;
   private snapshot: RuntimeSnapshot = { status: 'starting', view: null, display: null, online: true, revision: null };
@@ -70,6 +83,7 @@ export class PlayerRuntime {
   constructor(deps: RuntimeDeps) {
     this.api = deps.api;
     this.loadAsset = deps.loadAsset ?? defaultLoadAsset;
+    this.store = deps.store === undefined ? createPlayerStore() : deps.store;
     this.camera = deps.camera ?? noCameraSource;
     this.now = deps.now ?? Date.now;
     this.playerVersion = deps.playerVersion ?? PLAYER_VERSION;
@@ -81,11 +95,43 @@ export class PlayerRuntime {
   start() {
     if (!this.stopped) return;
     this.stopped = false;
+    this.loopsStarted = false;
     this.startedAt = this.now();
     this.every(() => { this.publish(); return 1_000; });
+    void this.begin();
+  }
+
+  /** Restores the last revision from the cache (so a cold start offline plays), then asks the server. */
+  private async begin() {
+    void this.store?.requestPersistence();
+    await this.restore();
+    if (this.stopped) return;
     this.every(async () => { await this.refreshManifest(); return this.unpublished || this.manifestFailures > 0 ? Math.min(UNPUBLISHED_INTERVAL_MS * 2 ** this.manifestFailures, MAX_BACKOFF_MS) : MANIFEST_INTERVAL_MS; }, true);
+    // A restored revision proves the device was paired. Without one the loops wait for the first answer of the manifest call:
+    // before that the device may have no credential and live/heartbeat would only produce 401s.
+    if (this.active) this.startPlayingLoops();
+  }
+
+  private startPlayingLoops() {
+    if (this.loopsStarted || this.stopped || this.revoked) return;
+    this.loopsStarted = true;
     this.every(async () => { await this.pollLive(); return this.online ? LIVE_INTERVAL_MS : backoffMs(this.liveFailures, LIVE_INTERVAL_MS, MAX_BACKOFF_MS); }, true);
     this.every(async () => { await this.sendHeartbeat(); return this.heartbeatFailures > 0 ? backoffMs(this.heartbeatFailures, HEARTBEAT_INTERVAL_MS, MAX_BACKOFF_MS) : HEARTBEAT_INTERVAL_MS; }, true);
+  }
+
+  private async restore() {
+    if (!this.store) return;
+    try {
+      const manifest = await this.store.loadManifest();
+      if (!manifest || !(await this.store.hasAll(manifest.assets))) return;
+      this.active = { manifest, urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])) };
+      const saved = await this.store.loadLive();
+      if (saved && this.now() - saved.savedAt <= PERSISTED_LIVE_MAX_AGE_MS) {
+        // Machines are never restored: their status is only fresh when polled, so the view treats live data as unavailable.
+        this.live = { machines: [], announcements: saved.announcements, openDays: saved.openDays, events: saved.events, streams: [], skewMs: saved.skewMs };
+      }
+    } catch { /* An unreadable cache just means a normal start. */ }
+    this.publish();
   }
 
   stop() {
@@ -126,9 +172,8 @@ export class PlayerRuntime {
       currentRule: this.snapshot.view?.ruleId ?? null,
       currentSceneId: this.snapshot.view?.sceneId ?? null,
       playerVersion: this.playerVersion,
-      // The offline cache arrives with the service worker (phase 4).
-      cacheUsedBytes: 0,
-      cacheQuotaBytes: 0,
+      cacheUsedBytes: this.cacheUsedBytes,
+      cacheQuotaBytes: this.cacheQuotaBytes,
       errors: this.errors.map((error) => error.message),
     };
   }
@@ -136,11 +181,15 @@ export class PlayerRuntime {
   private markRevoked() {
     this.revoked = true;
     this.stop();
+    // A display that is no longer paired must not keep its content.
+    void this.store?.clear().catch(() => undefined);
     this.publish();
   }
 
   private async sendHeartbeat() {
     try {
+      const use = await this.store?.usage();
+      if (use) { this.cacheUsedBytes = use.usedBytes; this.cacheQuotaBytes = use.quotaBytes; }
       await this.api.heartbeat(this.heartbeatPayload());
       this.heartbeatFailures = 0;
     } catch (error) {
@@ -170,6 +219,18 @@ export class PlayerRuntime {
   private applyLive(live: SignagePlayerLive) {
     this.lastLiveAt = this.now();
     this.live = { machines: live.machines, announcements: live.announcements, openDays: live.openDays, events: live.events, streams: live.streams, skewMs: Date.parse(live.serverTime) - this.now() || 0 };
+    this.persistLive(this.live);
+  }
+
+  /** Keeps the parts of live data that may outlive a restart (never machines). */
+  private persistLive(live: LiveSnapshot) {
+    if (!this.store) return;
+    const key = JSON.stringify([live.announcements, live.openDays, live.events]);
+    const now = this.now();
+    if (this.savedLive && this.savedLive.key === key && now - this.savedLive.at < LIVE_SAVE_INTERVAL_MS) return;
+    this.savedLive = { key, at: now };
+    const payload: PersistedLive = { savedAt: now, skewMs: live.skewMs, announcements: live.announcements, openDays: live.openDays, events: live.events };
+    void this.store.saveLive(payload).catch(() => undefined);
   }
 
   /** Fetches the manifest and switches to it once every asset is loaded. Concurrent calls share one run. */
@@ -182,9 +243,34 @@ export class PlayerRuntime {
     try {
       const response = await this.api.manifest(this.active?.manifest.revision ?? null);
       this.unpublished = false;
+      this.startPlayingLoops();
       if (response.unchanged || !response.manifest) { this.manifestFailures = 0; return; }
       const manifest = response.manifest;
       if (manifest.revision === this.active?.manifest.revision) return;
+      await this.cacheRevision(manifest);
+      this.active = { manifest, urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])) };
+      this.hold = null;
+      this.manifestFailures = 0;
+      this.manifestRetryAt = 0;
+      // The new revision is on screen and persisted: assets only the old one used can go.
+      await this.store?.retain(manifest.assets).catch(() => undefined);
+    } catch (error) {
+      if (isRevoked(error)) { this.markRevoked(); return; }
+      if (error instanceof PlayerApiError && error.status === 404 && error.code === 'signage_not_published') { this.unpublished = true; this.startPlayingLoops(); this.manifestFailures = 0; return; }
+      // Any other 404 means the device has no display any more: it must be paired again.
+      if (error instanceof PlayerApiError && error.status === 404) { this.markRevoked(); return; }
+      this.manifestFailures += 1;
+      this.manifestRetryAt = this.now() + backoffMs(this.manifestFailures, UNPUBLISHED_INTERVAL_MS, MAX_BACKOFF_MS);
+      if (!(error instanceof Error && error.message === 'preload failed')) this.online = false;
+    } finally {
+      this.publish();
+    }
+  }
+
+  /** Makes every asset of the manifest available (cached on disk, or preloaded in memory without Cache Storage); throws when it cannot. */
+  private async cacheRevision(manifest: SignagePlayerManifest) {
+    const store = this.store;
+    if (!store) {
       const results = await settleLimited(manifest.assets, PRELOAD_CONCURRENCY, (asset) => this.loadAsset(asset));
       const failed = results.flatMap((result, index) => (result.status === 'rejected' ? [manifest.assets[index].id] : []));
       results.forEach((result, index) => { if (result.status === 'fulfilled' && result.value === 'slow') this.note(`Video ${manifest.assets[index].id} was slow to buffer`); });
@@ -193,20 +279,28 @@ export class PlayerRuntime {
         this.note(`Revision ${manifest.revision}: ${failed.length} asset(s) failed to load`);
         throw new Error('preload failed');
       }
-      this.active = { manifest, urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])) };
-      this.hold = null;
-      this.manifestFailures = 0;
-      this.manifestRetryAt = 0;
+      return;
+    }
+    try {
+      await store.assertFits(manifest.assets);
+      const results = await settleLimited(manifest.assets, PRELOAD_CONCURRENCY, (asset) => store.ensureAsset(asset));
+      const quota = results.find((result) => result.status === 'rejected' && result.reason instanceof CacheQuotaError);
+      if (quota?.status === 'rejected') throw quota.reason;
+      const failed = results.filter((result) => result.status === 'rejected').length;
+      if (failed > 0) {
+        this.note(`Revision ${manifest.revision}: ${failed} asset(s) failed to download`);
+        throw new Error('preload failed');
+      }
+      // Persisted before it goes on screen, so a restart without network plays this revision and not the one before.
+      await store.saveManifest(manifest);
     } catch (error) {
-      if (isRevoked(error)) { this.markRevoked(); return; }
-      if (error instanceof PlayerApiError && error.status === 404 && error.code === 'signage_not_published') { this.unpublished = true; this.manifestFailures = 0; return; }
-      // Any other 404 means the device has no display any more: it must be paired again.
-      if (error instanceof PlayerApiError && error.status === 404) { this.markRevoked(); return; }
-      this.manifestFailures += 1;
-      this.manifestRetryAt = this.now() + backoffMs(this.manifestFailures, UNPUBLISHED_INTERVAL_MS, MAX_BACKOFF_MS);
-      if (!(error instanceof Error && error.message === 'preload failed')) this.online = false;
-    } finally {
-      this.publish();
+      if (error instanceof CacheQuotaError || (error instanceof DOMException && error.name === 'QuotaExceededError')) {
+        this.note(`Revision ${manifest.revision} not activated: ${error.message}`.slice(0, 200));
+        // Drop what the refused revision already downloaded; the active one keeps playing.
+        await store.retain(this.active?.manifest.assets ?? []).catch(() => undefined);
+        throw new Error('preload failed');
+      }
+      throw error;
     }
   }
 

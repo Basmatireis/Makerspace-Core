@@ -1,5 +1,8 @@
 import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 
 // The standalone signage player lives at /player/ (nginx serves player.html there); the dev and preview servers do the same.
@@ -16,8 +19,43 @@ function playerRoute(): Plugin {
   };
 }
 
+// The player's service worker (src/player/sw.ts) is a third build entry with a stable file name, /player/sw.js. After the
+// build this fills in the hashed files of the player entry (from the build manifest) that the worker precaches, plus a
+// hash of that list: the worker file changes exactly when the player shell changes, which makes browsers update it.
+function playerServiceWorker(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'player-service-worker',
+    apply: 'build',
+    configResolved: (config) => { outDir = resolve(config.root, config.build.outDir); },
+    closeBundle: {
+      order: 'post',
+      handler() {
+        const manifest = JSON.parse(readFileSync(resolve(outDir, '.vite/manifest.json'), 'utf8')) as Record<string, { file: string; imports?: string[]; css?: string[] }>;
+        const files = new Set<string>();
+        const visit = (key: string) => {
+          const chunk = manifest[key];
+          if (!chunk || files.has(`/${chunk.file}`)) return;
+          files.add(`/${chunk.file}`);
+          chunk.css?.forEach((css) => files.add(`/${css}`));
+          chunk.imports?.forEach(visit);
+        };
+        visit('player.html');
+        const list = Array.from(files).sort();
+        const version = createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 12);
+        const path = resolve(outDir, 'player/sw.js');
+        let code = readFileSync(path, 'utf8');
+        const before = code;
+        code = code.replace(/(["'`])__PLAYER_SHELL_FILES__\1/, JSON.stringify(list)).replace(/__PLAYER_SHELL_VERSION__/, version);
+        if (code === before) throw new Error('player service worker: placeholders not found in player/sw.js');
+        writeFileSync(path, code);
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), playerRoute()],
+  plugins: [react(), playerRoute(), playerServiceWorker()],
   resolve: {
     alias: {
       '~@ibm/plex': fileURLToPath(new URL('./node_modules/@ibm/plex', import.meta.url)),
@@ -28,6 +66,10 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         player: fileURLToPath(new URL('./player.html', import.meta.url)),
+        sw: fileURLToPath(new URL('./src/player/sw.ts', import.meta.url)),
+      },
+      output: {
+        entryFileNames: (chunk) => (chunk.name === 'sw' ? 'player/sw.js' : 'assets/[name]-[hash].js'),
       },
     },
   },

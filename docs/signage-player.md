@@ -92,9 +92,30 @@ loginctl enable-linger signage
 
 - Polls live data every 10 s, sends a heartbeat every 30 s (Core shows a display as online while heartbeats are younger than 90 s).
 - Applies a new publication only after all its images and videos are loaded, then switches at once. A video that does not buffer within 30 s is accepted and reported in the next heartbeat.
-- Keeps playing the last revision when Core is unreachable and shows a small yellow dot in the bottom-right corner. Time-window rules keep working offline. After 60 s without live data machine widgets show "Status unknown" and the `live data unavailable` rule applies.
+- Keeps playing the last revision when Core is unreachable and shows a small yellow dot in the bottom-right corner. Time-window rules keep working offline. After 60 s without live data machine widgets show "Status unknown" and the `live data unavailable` rule applies. See "Offline operation" below.
 - Letterboxes to the configured resolution and orientation; it does not rotate the output. Rotate the screen in the operating system (`wlr-randr --output HDMI-A-1 --transform 90`, `xrandr --output HDMI-1 --rotate left`) and set the display to portrait in Core.
 - Camera widgets show their configured fallback until the streaming gateway exists.
+
+## Offline operation
+
+The player installs a service worker the first time it loads over HTTPS (or from `localhost`) and then works without network:
+
+- **Cold start offline.** The player shell is cached by the service worker and the last activated revision, with all its images and videos, is stored in the browser profile. After a power cut with the network still down the display starts and plays that revision (small yellow dot), including time-window rules. It never shows the pairing screen because of a network error; only Core answering "not authorized" does that.
+- **New publications** are downloaded completely first. The display switches only when every file is stored, so a flaky connection never leaves it with half a revision. Files the new revision no longer uses are deleted afterwards.
+- **Storage.** The player asks Chromium for persistent storage and reports used and available bytes in the heartbeat (display detail page in Core). If a revision does not fit, it is not activated, the old content keeps playing and the error shows in the display's health. Free disk space on the device or remove large unused media from the publication.
+- **After a restart while offline** the announcements, open days and events of the last successful poll are shown again (announcements until their end time; ones younger than 24 h). Machine status is never shown from storage: widgets say "Status unknown" until a poll succeeds.
+- Requirements: a secure origin (HTTPS) and a persistent browser profile (`--user-data-dir`, not incognito). Without a service worker the player still works online but cannot start offline.
+- **Updates.** The browser checks `/player/sw.js` every 6 hours; a new player build reloads the page once.
+
+### Clearing the cache on a kiosk
+
+Normally not needed: revoking the display in Core makes the player delete its cache. To reset a kiosk by hand (corrupt profile, moving the display to another Core):
+
+1. Stop the browser: `systemctl --user stop signage-player.service`.
+2. Delete the profile directory used with `--user-data-dir` (for example `rm -rf ~/.config/signage-chromium`). This also removes the device cookie, so the display has to be paired again.
+3. Start it again: `systemctl --user start signage-player.service`.
+
+To keep the pairing and drop only the cached content, open `chrome://serviceworker-internals`, unregister `/player/`, then in DevTools (Application, Storage) clear "Cache storage" for the Core origin, and reload.
 
 ## Troubleshooting
 
@@ -105,7 +126,8 @@ loginctl enable-linger signage
 | "Too many requests, trying again shortly" | Core limits 10 pairing codes per hour per client address. Behind a proxy make sure `HTTP_TRUSTED_PROXIES` is set. Wait; the player retries by itself. |
 | "Cannot reach Makerspace Core" | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors. |
 | "Waiting for content" | The display is paired but was never published. Publish it from the display detail page. |
-| Black screen, yellow dot | The first load failed; the player retries with growing delays (up to 2 minutes). Check the network. |
+| Black screen, yellow dot | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network. |
+| Revision not activated, "Not enough storage" in health | The device's browser storage is too small for the new media. Free space or reduce media; the old revision keeps playing. |
 | Old content after a publication | The new revision is still loading (large videos) or an asset failed. The display detail page shows the revision the display reports; errors appear in the health tab. |
 | Video stutters or stays black | Use H.264 MP4 at the display resolution or lower; on a Raspberry Pi 4 keep to 1080p30. |
 | Display is "offline" in Core but shows content | Heartbeats fail (rate limit, proxy blocking POST). Check the proxy log for `/api/v1/signage/player/heartbeat`. |

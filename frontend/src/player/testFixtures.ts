@@ -27,7 +27,10 @@ export const live = (patch: Partial<SignagePlayerLive> = {}): SignagePlayerLive 
   serverTime: new Date().toISOString(), revision: 1, machines: [], announcements: [], openDays: [], events: [], streams: [], ...patch,
 });
 
-export const asset = (id: string, kind: 'image' | 'video' = 'image') => ({ id, kind, name: id, contentType: kind === 'image' ? 'image/png' : 'video/mp4', sha256: 'a'.repeat(64), sizeBytes: 10, width: null, height: null, durationMs: null, url: `/api/v1/signage/player/assets/${id}/${'a'.repeat(64)}` }) as SignagePlayerManifest['assets'][number];
+/** Distinct ids get distinct hashes (the cache is keyed by hash). */
+const shaOf = (id: string) => Array.from(id, (char) => char.charCodeAt(0).toString(16).padStart(2, '0')).join('').padEnd(64, '0').slice(0, 64);
+
+export const asset = (id: string, kind: 'image' | 'video' = 'image', sizeBytes = 10) => ({ id, kind, name: id, contentType: kind === 'image' ? 'image/png' : 'video/mp4', sha256: shaOf(id), sizeBytes, width: null, height: null, durationMs: null, url: `/api/v1/signage/player/assets/${id}/${shaOf(id)}` }) as SignagePlayerManifest['assets'][number];
 
 /** An API whose calls all resolve; tests override the ones they care about. */
 export function fakeApi(patch: Partial<PlayerApi> = {}): PlayerApi {
