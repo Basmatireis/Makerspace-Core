@@ -252,7 +252,8 @@ WHERE connector_id=sqlc.arg(connector_id)
 ORDER BY received_at DESC, id DESC LIMIT 100;
 
 -- name: ClearConnectorEvents :one
-UPDATE printer_connectors SET events_cleared_at=sqlc.arg(cleared_at), events_cleared_by=sqlc.narg(cleared_by)
+-- The database clock sets events_cleared_at, like received_at of the events it is compared with.
+UPDATE printer_connectors SET events_cleared_at=now(), events_cleared_by=sqlc.narg(cleared_by)
 WHERE id=sqlc.arg(id) RETURNING *;
 
 -- name: GetObservedRunForUpdate :one

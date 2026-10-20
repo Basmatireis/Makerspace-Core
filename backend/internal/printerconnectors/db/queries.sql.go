@@ -165,18 +165,18 @@ func (q *Queries) BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UU
 }
 
 const clearConnectorEvents = `-- name: ClearConnectorEvents :one
-UPDATE printer_connectors SET events_cleared_at=$1, events_cleared_by=$2
-WHERE id=$3 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
+UPDATE printer_connectors SET events_cleared_at=now(), events_cleared_by=$1
+WHERE id=$2 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 type ClearConnectorEventsParams struct {
-	ClearedAt pgtype.Timestamptz
 	ClearedBy *uuid.UUID
 	ID        uuid.UUID
 }
 
+// The database clock sets events_cleared_at, like received_at of the events it is compared with.
 func (q *Queries) ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error) {
-	row := q.db.QueryRow(ctx, clearConnectorEvents, arg.ClearedAt, arg.ClearedBy, arg.ID)
+	row := q.db.QueryRow(ctx, clearConnectorEvents, arg.ClearedBy, arg.ID)
 	var i PrinterConnector
 	err := row.Scan(
 		&i.ID,

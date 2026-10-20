@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -268,11 +269,6 @@ func recordObservedRun(
 			ObservedAt:      observedAt,
 		},
 	)
-}
-
-func timePtr(value time.Time) *time.Time {
-	value = value.UTC()
-	return &value
 }
 
 func timePointer(value pgtype.Timestamptz) *time.Time {

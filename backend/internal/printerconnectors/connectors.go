@@ -142,7 +142,7 @@ func (s *Service) ClearEvents(
 	actor := principal.AccountID
 	row, err := q.ClearConnectorEvents(
 		ctx,
-		db.ClearConnectorEventsParams{ID: id, ClearedAt: pgTimestamp(timePtr(time.Now())), ClearedBy: &actor},
+		db.ClearConnectorEventsParams{ID: id, ClearedBy: &actor},
 	)
 	if err != nil {
 		return Connector{}, databaseError(err)

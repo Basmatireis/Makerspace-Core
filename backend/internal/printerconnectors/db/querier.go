@@ -17,6 +17,7 @@ type Querier interface {
 	BeginCredentialRotation(ctx context.Context, connectorID uuid.UUID) error
 	BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error
+	// The database clock sets events_cleared_at, like received_at of the events it is compared with.
 	ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error)
 	CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
