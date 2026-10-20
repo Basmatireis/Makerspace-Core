@@ -3565,8 +3565,8 @@ paths:
     delete:
       tags: [Signage]
       operationId: deleteSignageDisplay
-      summary: Delete a revoked display and its managed device
-      description: Requires `signage.manage`. Answers 409 `signage_display_not_revoked` unless the display was revoked first.
+      summary: Delete a display and its managed device
+      description: Requires `signage.manage`. Works in any state; an active display is disconnected first. Camera sessions of the display end, and its player returns to the pairing screen.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:

@@ -33,6 +33,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - A failed or timed-out connection test can be repeated with Test again, and changing a connection field asks for a new test instead of keeping the old result.
 - The section switcher in table toolbars no longer jitters while hovered: it keeps the width of its tabs and only scrolls when it is wider than the toolbar.
 - The jobs list and a machine's jobs refresh every 10 seconds, so runs reported by a connector appear without a reload.
+- Signage displays can be deleted in any state: `DELETE /signage/displays/{id}` no longer requires a prior revoke. It disconnects the display, ends its camera sessions and removes it with its rules and publications; the screen shows a new pairing code. The display page and the Displays list offer Delete for every display.
 
 ## [0.6.0] - 2026-10-19
 

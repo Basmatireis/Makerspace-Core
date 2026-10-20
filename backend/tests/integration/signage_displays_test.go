@@ -471,7 +471,6 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 
 	// Revoking the display revokes the credential at once and blocks every further display change.
 	version := e.displayVersion(staff, displayID)
-	e.expectCode(e.as(staff, http.MethodDelete, "/signage/displays/"+displayID, map[string]any{"expectedVersion": version}), http.StatusConflict, "signage_display_not_revoked")
 	revoked := e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/revoke", map[string]any{"expectedVersion": version}), http.StatusOK)
 	if revoked["status"] != "revoked" || revoked["revokedAt"] == nil {
 		t.Fatalf("revoked display = %v", revoked)
@@ -508,6 +507,58 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 		t.Fatalf("display behind a revoked device must read as revoked: %v", view)
 	}
 	e.expectCode(e.as(staff, http.MethodPost, "/signage/displays/"+second["id"].(string)+"/publish", nil), http.StatusConflict, "signage_display_revoked")
+}
+
+func (e *signageEnv) epoch() int64 {
+	e.t.Helper()
+	var epoch int64
+	if err := e.pool.QueryRow(testContext(e.t), `SELECT epoch FROM streaming_session_epoch`).Scan(&epoch); err != nil {
+		e.t.Fatal(err)
+	}
+	return epoch
+}
+
+func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
+	e := newSignageEnv(t)
+	ctx := testContext(t)
+	staff := e.allStaff()
+	_, playlist := e.seedContent("Delete")
+
+	// Denied without signage.manage; stale versions are refused; nothing changes.
+	display, player := e.pair(staff, "Active", playlist.ID)
+	id := display["id"].(string)
+	readOnly := e.staff("reader", authorization.SignageRead)
+	version := e.displayVersion(staff, id)
+	e.expectCode(e.as(readOnly, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusForbidden, "permission_denied")
+	e.expectCode(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version + 100}), http.StatusConflict, "stale_write")
+	e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
+
+	// An active display is deleted without a prior revoke; its player is cut off and camera sessions end.
+	epoch := e.epoch()
+	e.expect(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusNoContent)
+	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+id, nil), http.StatusNotFound, "not_found")
+	e.expectCode(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusUnauthorized, "unauthenticated")
+	if e.epoch() != epoch+1 {
+		t.Fatalf("session epoch = %d, want %d", e.epoch(), epoch+1)
+	}
+	var listed, devices int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`, id).Scan(&listed); err != nil || listed != 1 {
+		t.Fatalf("deleted display must be on the revoked list: %d %v", listed, err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM managed_devices WHERE id = $1`, display["managedDeviceId"]).Scan(&devices); err != nil || devices != 0 {
+		t.Fatalf("managed device should be deleted: %d %v", devices, err)
+	}
+	if e.countAudit("signage_display.deleted") != 1 || e.countAudit("managed_device.revoked") != 1 || e.countAudit("managed_device.deleted") != 1 {
+		t.Fatal("deleting an active display must audit the display deletion and the device revoke and deletion")
+	}
+	e.expectCode(e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}), http.StatusNotFound, "not_found")
+
+	// A revoked display can still be deleted.
+	second, _ := e.pair(staff, "Revoked", playlist.ID)
+	secondID := second["id"].(string)
+	revoked := e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+secondID+"/revoke", map[string]any{"expectedVersion": e.displayVersion(staff, secondID)}), http.StatusOK)
+	e.expect(e.as(staff, http.MethodDelete, "/signage/displays/"+secondID, map[string]any{"expectedVersion": revoked["version"]}), http.StatusNoContent)
+	e.expectCode(e.as(staff, http.MethodGet, "/signage/displays/"+secondID, nil), http.StatusNotFound, "not_found")
 }
 
 func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t *testing.T) {

@@ -5,7 +5,7 @@ import { Bullhorn, Upload } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SignageDisplay } from '../../api/generated/models';
-import { deleteSignageDisplay, publishSignageDisplay, revokeSignageDisplay } from '../../api/generated/signage/signage';
+import { publishSignageDisplay, revokeSignageDisplay } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
@@ -13,7 +13,7 @@ import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { AnnouncementStartModal } from './AnnouncementStartModal';
-import { RenameDisplayModal } from './DisplayDialogs';
+import { DeleteDisplayDialog, RenameDisplayModal } from './DisplayDialogs';
 import { useRefreshDisplay } from './displayMutations';
 import { DisplaySettingsTab } from './DisplaySettingsTab';
 import { usePublishedView, useRuleNames } from './displayHooks';
@@ -85,16 +85,6 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
     mutationFn: () => revokeSignageDisplay(display.id, { expectedVersion: display.version }),
     onSuccess: async (updated) => { queryClient.setQueryData(signageKeys.display(display.id), updated); setConfirm(null); await refresh(signageKeys.rules(display.id)); },
   });
-  const remove = useMutation({
-    mutationFn: () => deleteSignageDisplay(display.id, { expectedVersion: display.version }),
-    onSuccess: async () => {
-      queryClient.removeQueries({ queryKey: signageKeys.display(display.id) });
-      queryClient.removeQueries({ queryKey: signageKeys.rules(display.id) });
-      queryClient.removeQueries({ queryKey: signageKeys.preview(display.id) });
-      await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
-      navigate(signagePaths.displays);
-    },
-  });
 
   const sceneName = (id: string) => view?.manifest.scenes.find((scene) => scene.id === id)?.name;
   const describeRule = (id: string) => {
@@ -117,7 +107,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
           {!revoked && <OverflowMenuItem itemText="Open player" onClick={() => window.open(signagePaths.player, '_blank', 'noopener')} />}
           {canManage && <OverflowMenuItem itemText="Rename" onClick={() => setRenaming(true)} />}
           {canManage && !revoked && <OverflowMenuItem itemText="Revoke" isDelete hasDivider onClick={() => setConfirm('revoke')} />}
-          {canManage && revoked && <OverflowMenuItem itemText="Delete" isDelete hasDivider onClick={() => setConfirm('delete')} />}
+          {canManage && <OverflowMenuItem itemText="Delete" isDelete hasDivider={revoked} onClick={() => setConfirm('delete')} />}
         </OverflowMenu>
       </div>
     </>
@@ -191,9 +181,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       <DestructiveActionDialog open={confirm === 'revoke'} title="Revoke display" confirmLabel="Revoke" pending={revoke.isPending} error={revoke.isError ? errorMessage(revoke.error) : undefined} onConfirm={() => revoke.mutate()} onClose={() => setConfirm(null)}>
         <p>{display.name} stops receiving content immediately and shows the pairing screen again. Pair the screen again to reuse it.</p>
       </DestructiveActionDialog>
-      <DestructiveActionDialog open={confirm === 'delete'} title="Delete display" confirmLabel="Delete" pending={remove.isPending} error={remove.isError ? errorMessage(remove.error) : undefined} onConfirm={() => remove.mutate()} onClose={() => setConfirm(null)}>
-        <p>This removes {display.name} and its publication history. This cannot be undone.</p>
-      </DestructiveActionDialog>
+      {confirm === 'delete' && <DeleteDisplayDialog display={display} onClose={() => setConfirm(null)} />}
     </PageShell>
   );
 }

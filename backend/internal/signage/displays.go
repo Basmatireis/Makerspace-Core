@@ -460,7 +460,7 @@ func (s *Service) RevokeDisplay(ctx context.Context, principal authorization.Pri
 	return result, tx.Commit(ctx)
 }
 
-// DeleteDisplay removes a revoked display, its rules, publications, state and managed device.
+// DeleteDisplay removes a display in any state (revoking its device first), its rules, publications, state and managed device.
 func (s *Service) DeleteDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
 	if err := requireManage(principal); err != nil {
 		return err
@@ -484,8 +484,9 @@ func (s *Service) DeleteDisplay(ctx context.Context, principal authorization.Pri
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	if !current.RevokedAt.Valid && !current.DeviceRevokedAt.Valid {
-		return apperror.New(409, "signage_display_not_revoked", "A display must be revoked before it is deleted")
+	// An active display is disconnected first; deleting its managed device requires a revoked one.
+	if err := manageddevices.RevokeSignagePlayerDeviceTx(ctx, tx, principal, current.ManagedDeviceID, requestID); err != nil {
+		return err
 	}
 	deviceID, err := q.DeleteSignageDisplay(ctx, signagedb.DeleteSignageDisplayParams{ID: id, ExpectedVersion: expected})
 	if err != nil {

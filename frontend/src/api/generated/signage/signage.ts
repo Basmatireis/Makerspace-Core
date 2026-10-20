@@ -830,8 +830,8 @@ export const updateSignageDisplay = async (displayId: string,
 
 
 /**
- * Requires `signage.manage`. Answers 409 `signage_display_not_revoked` unless the display was revoked first.
- * @summary Delete a revoked display and its managed device
+ * Requires `signage.manage`. Works in any state; an active display is disconnected first. Camera sessions of the display end, and its player returns to the pairing screen.
+ * @summary Delete a display and its managed device
  */
 export const getDeleteSignageDisplayUrl = (displayId: string,) => {
 

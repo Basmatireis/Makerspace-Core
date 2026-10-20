@@ -123,4 +123,22 @@ describe('Displays page', () => {
     expect(await within(dialog).findByText('Enter the 6 characters shown on the screen')).toBeInTheDocument();
     expect(posts).toBe(0);
   });
+
+  it('deletes an active display from its row action', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    let deleted: unknown;
+    server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(within(await screen.findByRole('group', { name: 'Actions for Entrance window' })).getByRole('button', { name: 'Delete' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
+  });
+
+  it('hides row actions without signage.manage', async () => {
+    mockSignage([PermissionId.signageread], { displays: [displayFixture()] });
+    renderRoute(<App />, '/signage');
+    await screen.findByRole('table', { name: 'Displays' });
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+  });
 });

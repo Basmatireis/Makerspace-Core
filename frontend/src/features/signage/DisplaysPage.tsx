@@ -1,7 +1,7 @@
 import './styles.scss';
 import { useState } from 'react';
 import { Button, Link as CarbonLink, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@carbon/react';
-import { Add } from '@carbon/icons-react';
+import { Add, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import type { SignageDisplay } from '../../api/generated/models';
@@ -9,7 +9,9 @@ import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { RowActions } from '../../app/RowActions';
 import { PlayerAddress, QueryBoundary } from './components';
+import { DeleteDisplayDialog } from './DisplayDialogs';
 import { useRuleNames } from './displayHooks';
 import { PublicationTag, StatusTag } from './displayParts';
 import { DEFAULT_RULE_ID, describeCondition } from './engine/playback';
@@ -42,7 +44,9 @@ function NowShowing({ display }: { display: SignageDisplay }) {
 export function DisplaysPage() {
   const navigate = useNavigate();
   const canPair = hasPermission(useCurrentUser(), PermissionId.signagemanage);
+  const canManage = canPair;
   const [pairing, setPairing] = useState(false);
+  const [deleting, setDeleting] = useState<SignageDisplay | null>(null);
   const now = useNow(30_000);
   const query = useQuery(displaysQuery());
   const displays = query.data?.items ?? [];
@@ -66,6 +70,7 @@ export function DisplaysPage() {
                 <TableRow>
                   <TableHeader>Name</TableHeader><TableHeader className="sg-hide-narrow">Orientation</TableHeader><TableHeader>Status</TableHeader>
                   <TableHeader>Now showing</TableHeader><TableHeader className="sg-hide-narrow">Publication</TableHeader>
+                  {canManage && <TableHeader><span className="cds--visually-hidden">Actions</span></TableHeader>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -81,6 +86,13 @@ export function DisplaysPage() {
                     <TableCell><StatusTag display={display} now={now} /></TableCell>
                     <TableCell><NowShowing display={display} /></TableCell>
                     <TableCell className="sg-hide-narrow"><PublicationTag display={display} /></TableCell>
+                    {canManage && (
+                      <TableCell onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+                        <RowActions label={`Actions for ${display.name}`}>
+                          <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => setDeleting(display)}>Delete</Button>
+                        </RowActions>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -88,6 +100,7 @@ export function DisplaysPage() {
           </TableContainer>
         )}
       </QueryBoundary>
+      {deleting && <DeleteDisplayDialog display={deleting} onClose={() => setDeleting(null)} />}
       {pairing && <PairDisplayModal onClose={() => setPairing(false)} />}
     </PageShell>
   );

@@ -115,7 +115,7 @@ describe('Display detail', () => {
     }));
   });
 
-  it('deletes only revoked displays', async () => {
+  it('deletes a revoked display from the overflow menu', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture({ status: 'revoked', revokedAt: '2026-10-19T09:00:00Z' })] });
     let deleted: unknown;
     server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
@@ -127,6 +127,23 @@ describe('Display detail', () => {
     await user.click(await item('Delete'));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
+  });
+
+  it('offers Delete next to Revoke for an active display and returns to the list', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    let deleted: unknown;
+    server.use(http.delete('*/api/v1/signage/displays/:id', async ({ request }) => { deleted = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    renderRoute(<App />, route);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Display actions/ }));
+    const item = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
+    expect(await item('Revoke')).toBeInTheDocument();
+    await user.click(await item('Delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/The display is disconnected and removed with its rules and publications\. The screen shows a new pairing code\./)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleted).toEqual({ expectedVersion: 5 }));
+    expect(await screen.findByRole('heading', { name: 'Displays' })).toBeInTheDocument();
   });
 
   it('lists a started announcement on this display', async () => {
