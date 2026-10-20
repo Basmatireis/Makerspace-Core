@@ -30,6 +30,9 @@ type Runtime struct {
 	health     map[uuid.UUID]AssignmentHealth
 	revision   int64
 	live       *liveStatusHub
+
+	now             func() time.Time
+	lastRejectedLog time.Time
 }
 
 // Configuration and heartbeat are polled every 10 seconds so a change in Core
@@ -107,7 +110,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	defer configuration.Stop()
 	defer heartbeat.Stop()
 	if err = r.syncConfiguration(ctx, identity); err != nil {
-		r.logger.Warn("initial configuration unavailable", "error_type", fmt.Sprintf("%T", err))
+		r.logFailure("initial configuration unavailable", err)
 	}
 	for {
 		select {
@@ -116,23 +119,23 @@ func (r *Runtime) Run(ctx context.Context) error {
 			return nil
 		case <-delivery.C:
 			if err = r.deliver(ctx, identity); err != nil {
-				r.logger.Warn("event delivery failed", "error_type", fmt.Sprintf("%T", err))
+				r.logFailure("event delivery failed", err)
 			}
 			if err = r.deliverArtifacts(ctx, identity); err != nil {
-				r.logger.Warn("artifact delivery failed", "error_type", fmt.Sprintf("%T", err))
+				r.logFailure("artifact delivery failed", err)
 			}
 		case <-liveStatus.C:
 			r.deliverLiveStatus(ctx, identity)
 		case <-configuration.C:
 			if identity, err = r.rotateCredentialIfNeeded(ctx, identity); err != nil {
-				r.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", err))
+				r.logFailure("credential rotation failed", err)
 			}
 			if err = r.syncConfiguration(ctx, identity); err != nil {
-				r.logger.Warn("configuration sync failed", "error_type", fmt.Sprintf("%T", err))
+				r.logFailure("configuration sync failed", err)
 			}
 		case <-heartbeat.C:
 			if err = r.sendHeartbeat(ctx, identity); err != nil {
-				r.logger.Warn("heartbeat failed", "error_type", fmt.Sprintf("%T", err))
+				r.logFailure("heartbeat failed", err)
 			}
 		}
 	}
@@ -177,10 +180,7 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 		identity = &value
 	}
 	if identity.Enrolled {
-		if r.enrollment.configured() {
-			r.logger.Info("already enrolled; CONNECTOR_ENROLLMENT_SECRET is ignored and can be removed")
-		}
-		return *identity, nil
+		return r.reenrollIfNewSecret(ctx, *identity), nil
 	}
 	enrollment, err := r.enrollment.Resolve()
 	if err != nil {
@@ -193,10 +193,60 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
+	value.EnrollmentDigest = enrollmentDigest(enrollment)
 	if err = r.store.SaveIdentity(ctx, value); err != nil {
 		return Identity{}, err
 	}
 	return value, nil
+}
+
+// reenrollIfNewSecret enrolls again when the configured enrollment secret differs from the one the
+// stored identity was enrolled with (or the identity predates that bookkeeping). The stored identity is
+// replaced only after Core accepted the new secret; on any failure the connector keeps running with the
+// current identity.
+func (r *Runtime) reenrollIfNewSecret(ctx context.Context, current Identity) Identity {
+	if !r.enrollment.configured() {
+		return current
+	}
+	secret, err := r.enrollment.Resolve()
+	if err != nil {
+		r.logger.Error("enrollment secret could not be read; keeping the current identity", "error", err.Error())
+		return current
+	}
+	if secret == "" {
+		return current
+	}
+	digest := enrollmentDigest(secret)
+	if current.EnrollmentDigest == digest {
+		r.logger.Info("already enrolled; CONNECTOR_ENROLLMENT_SECRET is ignored and can be removed")
+		return current
+	}
+	credentialSecret, err := newSecret()
+	if err != nil {
+		r.logger.Error("re-enrollment skipped; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		return current
+	}
+	candidate := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: credentialSecret}
+	enrolled, err := r.client.Enroll(ctx, secret, candidate, Version)
+	if err != nil {
+		attrs := []any{"reason", enrollmentFailureReason(err)}
+		var coreErr *CoreError
+		if errors.As(err, &coreErr) {
+			attrs = append(attrs, "status", coreErr.Status, "code", safeCode(coreErr.Code))
+		}
+		r.logger.Error("the new CONNECTOR_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Create a new connector or issue a new enrollment secret in Core, update .env and restart", attrs...)
+		return current
+	}
+	enrolled.EnrollmentDigest = digest
+	if err = r.store.SaveIdentity(ctx, enrolled); err != nil {
+		r.logger.Error("re-enrollment succeeded but the new identity could not be saved; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		return current
+	}
+	if err = r.store.ClearConfiguration(ctx); err != nil {
+		r.logger.Warn("cached configuration of the previous connector could not be cleared", "error_type", fmt.Sprintf("%T", err))
+	}
+	r.logger.Info("enrolled with the new CONNECTOR_ENROLLMENT_SECRET; the previous identity was replaced", "connector_id", enrolled.ConnectorID.String())
+	return enrolled
 }
 
 func (r *Runtime) syncConfiguration(ctx context.Context, identity Identity) error {
@@ -419,7 +469,7 @@ func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
 		case errors.As(err, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409):
 			r.live.Drop(item.AssignmentID)
 		default:
-			r.logger.Warn("live status delivery failed", "error_type", fmt.Sprintf("%T", err))
+			r.logFailure("live status delivery failed", err)
 		}
 	}
 }

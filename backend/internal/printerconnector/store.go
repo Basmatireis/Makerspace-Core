@@ -24,6 +24,9 @@ type Identity struct {
 	CredentialSecret    string    `json:"credentialSecret"`
 	CredentialExpiresAt time.Time `json:"credentialExpiresAt"`
 	Enrolled            bool      `json:"enrolled"`
+	// EnrollmentDigest is the SHA-256 of the enrollment secret this identity was enrolled with (never the
+	// secret itself); a different secret in the environment triggers re-enrollment.
+	EnrollmentDigest string `json:"enrollmentDigest,omitempty"`
 }
 
 type QueuedEvent struct {
@@ -234,6 +237,12 @@ func (s *Store) SaveConfiguration(ctx context.Context, value Configuration) erro
 		return err
 	}
 	_, err = s.db.ExecContext(ctx, `INSERT INTO metadata(key,value) VALUES('configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, encrypted)
+	return err
+}
+
+// ClearConfiguration forgets the cached configuration, for example after re-enrolling as another connector.
+func (s *Store) ClearConfiguration(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM metadata WHERE key='configuration'`)
 	return err
 }
 

@@ -22,6 +22,9 @@ type Identity struct {
 	CredentialSecret    string    `json:"credentialSecret"`
 	CredentialExpiresAt time.Time `json:"credentialExpiresAt"`
 	Enrolled            bool      `json:"enrolled"`
+	// EnrollmentDigest is the SHA-256 of the enrollment secret this identity was enrolled with (never the
+	// secret itself); a different secret in the environment triggers re-enrollment.
+	EnrollmentDigest string `json:"enrollmentDigest,omitempty"`
 	// The next credential is saved before it is sent to Core, so a rotation whose answer was lost is
 	// retried with the same credential instead of a new one.
 	NextCredentialID     *uuid.UUID `json:"nextCredentialId,omitempty"`

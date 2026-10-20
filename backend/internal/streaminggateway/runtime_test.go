@@ -25,10 +25,14 @@ type fakeCore struct {
 	rotations     []uuid.UUID
 	rotateErr     error
 	enrollSecrets []string
+	enrollErr     error
 }
 
 func (c *fakeCore) Enroll(_ context.Context, secret string, identity Identity, _ string) (Identity, error) {
 	c.enrollSecrets = append(c.enrollSecrets, secret)
+	if c.enrollErr != nil {
+		return identity, c.enrollErr
+	}
 	identity.Enrolled, identity.GatewayID = true, uuid.Must(uuid.NewV7())
 	return identity, nil
 }

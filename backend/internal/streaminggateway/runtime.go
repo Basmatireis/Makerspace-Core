@@ -74,6 +74,8 @@ type Gateway struct {
 	authFailures    int
 	lastSyncOK      time.Time
 	lastSyncError   string
+
+	lastRejectedLog time.Time
 }
 
 // New builds the gateway. The proxy serves nothing until a configuration is applied.
@@ -109,10 +111,7 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 		identity = &value
 	}
 	if identity.Enrolled {
-		if strings.TrimSpace(g.options.EnrollmentSecret) != "" || g.options.EnrollmentFile != "" {
-			g.logger.Info("already enrolled; STREAM_ENROLLMENT_SECRET is ignored and can be removed")
-		}
-		return *identity, nil
+		return g.reenrollIfNewSecret(ctx, *identity), nil
 	}
 	enrollment, err := g.enrollmentSecret()
 	if err != nil {
@@ -122,10 +121,54 @@ func (g *Gateway) ensureIdentity(ctx context.Context) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
+	enrolled.EnrollmentDigest = enrollmentDigest(enrollment)
 	if err = g.store.SaveIdentity(enrolled); err != nil {
 		return Identity{}, err
 	}
 	return enrolled, nil
+}
+
+// reenrollIfNewSecret enrolls again when the configured enrollment secret differs from the one the
+// stored identity was enrolled with (or the identity predates that bookkeeping). The stored identity is
+// replaced only after Core accepted the new secret; on any failure the gateway keeps running with the
+// current identity.
+func (g *Gateway) reenrollIfNewSecret(ctx context.Context, current Identity) Identity {
+	if strings.TrimSpace(g.options.EnrollmentSecret) == "" && g.options.EnrollmentFile == "" {
+		return current
+	}
+	secret, err := g.enrollmentSecret()
+	if err != nil {
+		g.logger.Error("enrollment secret could not be read; keeping the current identity", "error", err.Error())
+		return current
+	}
+	digest := enrollmentDigest(secret)
+	if current.EnrollmentDigest == digest {
+		g.logger.Info("already enrolled; STREAM_ENROLLMENT_SECRET is ignored and can be removed")
+		return current
+	}
+	credentialSecret, err := newSecret()
+	if err != nil {
+		g.logger.Error("re-enrollment skipped; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		return current
+	}
+	candidate := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: credentialSecret}
+	enrolled, err := g.core.Enroll(ctx, secret, candidate, Version)
+	if err != nil {
+		attrs := []any{"reason", enrollmentFailureReason(err)}
+		var coreErr *CoreError
+		if errors.As(err, &coreErr) {
+			attrs = append(attrs, "status", coreErr.Status, "code", safeCode(coreErr.Code))
+		}
+		g.logger.Error("the new STREAM_ENROLLMENT_SECRET was not accepted by Core; continuing with the previously enrolled identity. Add a new gateway or issue a new enrollment secret in Core (Settings > Local services), update .env and restart", attrs...)
+		return current
+	}
+	enrolled.EnrollmentDigest = digest
+	if err = g.store.SaveIdentity(enrolled); err != nil {
+		g.logger.Error("re-enrollment succeeded but the new identity could not be saved; keeping the current identity", "error_type", fmt.Sprintf("%T", err))
+		return current
+	}
+	g.logger.Info("enrolled with the new STREAM_ENROLLMENT_SECRET; the previous identity was replaced", "gateway_id", enrolled.GatewayID.String())
+	return enrolled
 }
 
 // enrollmentSecret returns the trimmed one-time secret: STREAM_ENROLLMENT_SECRET, or the content of the
@@ -354,7 +397,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 		return err
 	}
 	if rotated, rotateErr := g.rotateCredentialIfNeeded(ctx, identity); rotateErr != nil {
-		g.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", rotateErr))
+		g.logFailure("credential rotation failed", rotateErr)
 	} else {
 		identity = rotated
 	}
@@ -413,13 +456,13 @@ func (g *Gateway) Run(ctx context.Context) error {
 	tick := func() {
 		var rotateErr error
 		if identity, rotateErr = g.rotateCredentialIfNeeded(ctx, identity); rotateErr != nil {
-			g.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", rotateErr))
+			g.logFailure("credential rotation failed", rotateErr)
 		}
 		if syncErr := g.Sync(ctx, identity); syncErr != nil {
-			g.logger.Warn("configuration sync failed", "error_type", fmt.Sprintf("%T", syncErr))
+			g.logFailure("configuration sync failed", syncErr)
 		}
 		if _, beatErr := g.core.Heartbeat(ctx, identity.CredentialSecret, g.BuildHeartbeat(ctx)); beatErr != nil {
-			g.logger.Warn("heartbeat failed", "error_type", fmt.Sprintf("%T", beatErr))
+			g.logFailure("heartbeat failed", beatErr)
 		}
 		_ = g.writeHealth("healthy")
 	}
