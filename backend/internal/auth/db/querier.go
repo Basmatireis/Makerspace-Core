@@ -49,6 +49,8 @@ type Querier interface {
 	MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error
 	OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error)
 	PINThrottleBlocked(ctx context.Context, arg PINThrottleBlockedParams) (bool, error)
+	// A key that stayed quiet for 15 minutes starts over, so a shared source (a NAT, a
+	// terminal) is not stuck at the maximum back-off after a few old failures.
 	RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error
 	RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) error

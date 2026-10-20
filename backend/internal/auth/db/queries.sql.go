@@ -1011,8 +1011,14 @@ const recordPINFailure = `-- name: RecordPINFailure :exec
 INSERT INTO pin_login_throttles (dimension, key_digest, failure_count, blocked_until)
 VALUES ($1, $2, 1, now() + interval '1 second')
 ON CONFLICT (dimension, key_digest) DO UPDATE SET
-    failure_count = LEAST(pin_login_throttles.failure_count + 1, 20),
-    blocked_until = now() + make_interval(secs => LEAST(300, power(2, LEAST(pin_login_throttles.failure_count, 8))::integer)),
+    failure_count = CASE
+        WHEN pin_login_throttles.updated_at < now() - interval '15 minutes' THEN 1
+        ELSE LEAST(pin_login_throttles.failure_count + 1, 20)
+    END,
+    blocked_until = now() + CASE
+        WHEN pin_login_throttles.updated_at < now() - interval '15 minutes' THEN interval '1 second'
+        ELSE make_interval(secs => LEAST(300, power(2, LEAST(pin_login_throttles.failure_count, 8))::integer))
+    END,
     updated_at = now()
 `
 
@@ -1021,6 +1027,8 @@ type RecordPINFailureParams struct {
 	KeyDigest []byte
 }
 
+// A key that stayed quiet for 15 minutes starts over, so a shared source (a NAT, a
+// terminal) is not stuck at the maximum back-off after a few old failures.
 func (q *Queries) RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error {
 	_, err := q.db.Exec(ctx, recordPINFailure, arg.Dimension, arg.KeyDigest)
 	return err

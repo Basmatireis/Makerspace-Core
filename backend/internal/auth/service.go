@@ -6,7 +6,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"sync"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,7 @@ type Service struct {
 	config       config.Config
 	dummyHash    string
 	dummyPINHash string
-	limiter      *loginLimiter
+	limits       loginLimits
 	notifier     NotificationService
 }
 
@@ -66,15 +67,29 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...Notificat
 	if len(notification) > 0 {
 		notifier = notification[0]
 	}
-	return &Service{pool: pool, config: cfg, dummyHash: dummyHash, dummyPINHash: dummyPINHash, limiter: newLoginLimiter(), notifier: notifier}, nil
+	return &Service{pool: pool, config: cfg, dummyHash: dummyHash, dummyPINHash: dummyPINHash, limits: newLoginLimits(), notifier: notifier}, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password, sourceKey string, requestID *uuid.UUID) (Session, error) {
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
-	limitDigest := sha256.Sum256([]byte(sourceKey + "\x00" + normalized))
-	limitKey := string(limitDigest[:])
-	if !s.limiter.Allow(limitKey, time.Now()) {
-		return Session{}, apperror.New(429, "login_rate_limited", "Too many login attempts; try again later")
+	limitKey, allowed := s.limits.take("password", sourceKey, normalized, time.Now())
+	if !allowed {
+		return Session{}, loginRateLimited()
+	}
+
+	// Verify before opening the transaction: Argon2id is deliberately slow and must not hold a
+	// pooled connection or the Account lock while it runs.
+	candidate, candidateErr := authdb.New(s.pool).GetLoginByEmail(ctx, normalized)
+	hash := s.dummyHash
+	if candidateErr == nil {
+		hash = candidate.PasswordHash
+	}
+	validPassword := security.VerifyPassword(hash, password)
+	if candidateErr != nil && !errors.Is(candidateErr, pgx.ErrNoRows) {
+		return Session{}, candidateErr
+	}
+	if normalizeErr != nil || candidateErr != nil || !validPassword {
+		return Session{}, apperror.InvalidCredentials
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -95,15 +110,15 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 			login, queryErr = queries.GetLoginByEmail(ctx, normalized)
 		}
 	}
-	hash := s.dummyHash
-	if queryErr == nil {
-		hash = login.PasswordHash
+	if errors.Is(queryErr, pgx.ErrNoRows) {
+		return Session{}, apperror.InvalidCredentials
 	}
-	validPassword := security.VerifyPassword(hash, password)
-	if queryErr != nil && !errors.Is(queryErr, pgx.ErrNoRows) {
+	if queryErr != nil {
 		return Session{}, queryErr
 	}
-	if normalizeErr != nil || errors.Is(queryErr, pgx.ErrNoRows) || !validPassword || login.Status != "enabled" || login.ResetRequired {
+	// The credential may have changed between verification and acquiring the lock.
+	if login.AuthIdentityID != candidate.AuthIdentityID || login.PasswordHash != candidate.PasswordHash ||
+		login.Status != "enabled" || login.ResetRequired {
 		return Session{}, apperror.InvalidCredentials
 	}
 	if security.PasswordNeedsRehash(login.PasswordHash) {
@@ -139,7 +154,7 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 	if err := tx.Commit(ctx); err != nil {
 		return Session{}, err
 	}
-	s.limiter.Success(limitKey)
+	s.limits.succeeded(limitKey)
 	return session, nil
 }
 
@@ -474,44 +489,42 @@ func validationError(message string) *apperror.Error {
 
 func ptr(value string) *string { return &value }
 
-type loginAttempt struct {
-	count       int
-	windowStart time.Time
+// loginLimits throttles credential verification in memory (single-instance deployment). The
+// per-attempt limit stops guessing one identifier from one source; the per-source limit stops
+// a client from minting fresh identifiers to escape it. Persistent PIN throttling is separate.
+type loginLimits struct {
+	perAttempt *ratelimit.Limiter
+	perSource  *ratelimit.Limiter
 }
 
-type loginLimiter struct {
-	mu       sync.Mutex
-	attempts map[string]loginAttempt
-}
+const (
+	loginLimitWindow       = 15 * time.Minute
+	loginAttemptsPerKey    = 10
+	loginAttemptsPerSource = 100
+)
 
-func newLoginLimiter() *loginLimiter { return &loginLimiter{attempts: make(map[string]loginAttempt)} }
-
-func (l *loginLimiter) Allow(key string, now time.Time) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if len(l.attempts) >= 4096 {
-		for candidate, attempt := range l.attempts {
-			if now.Sub(attempt.windowStart) >= 15*time.Minute {
-				delete(l.attempts, candidate)
-			}
-		}
-		if len(l.attempts) >= 4096 {
-			return false
-		}
+func newLoginLimits() loginLimits {
+	return loginLimits{
+		perAttempt: ratelimit.New(loginAttemptsPerKey, loginLimitWindow),
+		perSource:  ratelimit.New(loginAttemptsPerSource, loginLimitWindow),
 	}
-	attempt := l.attempts[key]
-	if now.Sub(attempt.windowStart) >= 15*time.Minute {
-		attempt = loginAttempt{windowStart: now}
-	}
-	attempt.count++
-	l.attempts[key] = attempt
-	return attempt.count <= 10
 }
 
-func (l *loginLimiter) Success(key string) {
-	l.mu.Lock()
-	delete(l.attempts, key)
-	l.mu.Unlock()
+// take counts one verification attempt for identifier within scope. An empty sourceKey skips the
+// per-source limit, for attempts that are already bound to an authenticated account.
+func (l loginLimits) take(scope, sourceKey, identifier string, now time.Time) (string, bool) {
+	digest := sha256.Sum256([]byte(scope + "\x00" + sourceKey + "\x00" + identifier))
+	key := string(digest[:])
+	if sourceKey != "" && !l.perSource.Take(scope+"\x00"+ratelimit.KeyForIP(sourceKey), now) {
+		return key, false
+	}
+	return key, l.perAttempt.Take(key, now)
+}
+
+func (l loginLimits) succeeded(key string) { l.perAttempt.Reset(key) }
+
+func loginRateLimited() error {
+	return apperror.New(http.StatusTooManyRequests, "login_rate_limited", "Too many login attempts; try again later")
 }
 
 func (s *Service) Cleanup(ctx context.Context, before time.Time) (sessions int64, resets int64, err error) {

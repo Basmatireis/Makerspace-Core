@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -45,6 +46,16 @@ const (
 	maxPasswordBytes = 1024
 )
 
+// argonSlots bounds concurrent Argon2id derivations. Each one allocates up to its memory
+// parameter (64 MiB by default), so unbounded parallel logins could exhaust the process memory.
+var argonSlots = make(chan struct{}, max(2, runtime.GOMAXPROCS(0)))
+
+func deriveArgon2id(password, salt []byte, iterations, memory uint32, parallelism uint8, keyLength uint32) []byte {
+	argonSlots <- struct{}{}
+	defer func() { <-argonSlots }()
+	return argon2.IDKey(password, salt, iterations, memory, parallelism, keyLength)
+}
+
 func ValidatePassword(password string) error {
 	runes := utf8.RuneCountInString(password)
 	if !utf8.ValidString(password) || runes < minPasswordRunes || runes > maxPasswordRunes || len(password) > maxPasswordBytes {
@@ -64,7 +75,7 @@ func HashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generate password salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(password), salt, argonIterations, argonMemory, argonParallelism, argonKeyLength)
+	hash := deriveArgon2id([]byte(password), salt, argonIterations, argonMemory, argonParallelism, argonKeyLength)
 	return fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s", argonMemory, argonIterations, argonParallelism,
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(hash)), nil
 }
@@ -94,7 +105,7 @@ func VerifyPassword(encoded, password string) bool {
 	if err != nil || len(want) < 16 || len(want) > 64 {
 		return false
 	}
-	got := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, uint32(len(want)))
+	got := deriveArgon2id([]byte(password), salt, iterations, memory, parallelism, uint32(len(want)))
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 

@@ -32,27 +32,39 @@ func TestLimiter(t *testing.T) {
 	}
 }
 
-func TestLimiterManyKeysDoesNotRecurseAndFailsClosed(t *testing.T) {
+func TestLimiterAtCapacityEvictsLeastRecentlyActiveKey(t *testing.T) {
 	limiter := New(10, time.Hour)
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	admitted := 0
 	for index := 0; index < 6000; index++ {
-		if limiter.Take(fmt.Sprintf("key-%d", index), now) {
-			admitted++
+		if !limiter.Take(fmt.Sprintf("key-%d", index), now.Add(time.Duration(index)*time.Millisecond)) {
+			t.Fatalf("key %d was refused; a full table must never lock out new clients", index)
 		}
 	}
-	if admitted != maxLimiterKeys || len(limiter.entries) != maxLimiterKeys {
-		t.Fatalf("admitted %d keys, table has %d, want %d", admitted, len(limiter.entries), maxLimiterKeys)
+	if len(limiter.entries) != maxLimiterKeys {
+		t.Fatalf("table has %d keys, want %d", len(limiter.entries), maxLimiterKeys)
 	}
-	if !limiter.Take("key-0", now) {
-		t.Fatal("an already tracked key must keep working at the cap")
+	if _, tracked := limiter.entries["key-0"]; tracked {
+		t.Fatal("the least recently active key was not evicted")
 	}
-	if !limiter.Blocked("brand-new", now) {
-		t.Fatal("a new key must be refused while the table is full")
+	if _, tracked := limiter.entries["key-5999"]; !tracked {
+		t.Fatal("the most recent key was evicted")
 	}
 	later := now.Add(2 * time.Hour)
 	if !limiter.Take("brand-new", later) || len(limiter.entries) != 1 {
 		t.Fatalf("expired keys were not swept (entries=%d)", len(limiter.entries))
+	}
+}
+
+func TestLimiterReset(t *testing.T) {
+	limiter := New(1, time.Hour)
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	limiter.Take("x", now)
+	if !limiter.Blocked("x", now) {
+		t.Fatal("limit was not reached")
+	}
+	limiter.Reset("x")
+	if limiter.Blocked("x", now) {
+		t.Fatal("reset did not clear the attempts")
 	}
 }
 

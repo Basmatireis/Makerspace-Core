@@ -26,16 +26,33 @@ func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey st
 	loginDigest := s.pinThrottleDigest("login_name", normalized)
 	sourceDigest := s.pinThrottleDigest("source", sourceKey)
 	queries := authdb.New(s.pool)
-	loginBlocked, err := queries.PINThrottleBlocked(ctx, authdb.PINThrottleBlockedParams{Dimension: "login_name", KeyDigest: loginDigest})
+	limitKey, err := s.admitPINAttempt(ctx, queries, "pin", sourceKey, normalized, loginDigest, sourceDigest)
 	if err != nil {
 		return Session{}, err
 	}
-	sourceBlocked, err := queries.PINThrottleBlocked(ctx, authdb.PINThrottleBlockedParams{Dimension: "source", KeyDigest: sourceDigest})
-	if err != nil {
-		return Session{}, err
+
+	// Verify before opening the transaction so the slow hash never holds a pooled
+	// connection or the Account lock.
+	candidate, candidateErr := queries.FindPINLogin(ctx, normalized)
+	hash := s.dummyPINHash
+	if candidateErr == nil {
+		hash = candidate.PinHash
 	}
-	if loginBlocked || sourceBlocked {
-		return Session{}, apperror.New(429, "login_rate_limited", "Too many login attempts; try again later")
+	valid := security.VerifyPIN(s.config.PINPepper, hash, pin)
+	if candidateErr != nil && !errors.Is(candidateErr, pgx.ErrNoRows) {
+		return Session{}, candidateErr
+	}
+	if normalizeErr != nil || candidateErr != nil || !valid || candidate.Status != "enabled" {
+		if err := recordPINFailure(ctx, queries, loginDigest, sourceDigest); err != nil {
+			return Session{}, err
+		}
+		if candidateErr == nil {
+			resource := candidate.AccountID
+			if err := audit.Write(ctx, s.pool, audit.Event{Action: "auth.pin_login_failed", ResourceType: "account", ResourceID: &resource, RequestID: requestID}); err != nil {
+				return Session{}, err
+			}
+		}
+		return Session{}, apperror.InvalidCredentials
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -44,38 +61,18 @@ func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey st
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	txQueries := authdb.New(tx)
-	login, queryErr := txQueries.FindPINLogin(ctx, normalized)
-	if queryErr == nil {
-		if _, lockErr := txQueries.GetAccountForAuthentication(ctx, login.AccountID); lockErr != nil {
-			queryErr = lockErr
-		} else {
-			login, queryErr = txQueries.FindPINLogin(ctx, normalized)
-		}
+	if _, err := txQueries.GetAccountForAuthentication(ctx, candidate.AccountID); err != nil {
+		return Session{}, err
 	}
-	hash := s.dummyPINHash
-	if queryErr == nil {
-		hash = login.PinHash
+	login, err := txQueries.FindPINLogin(ctx, normalized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, apperror.InvalidCredentials
 	}
-	valid := security.VerifyPIN(s.config.PINPepper, hash, pin)
-	if queryErr != nil && !errors.Is(queryErr, pgx.ErrNoRows) {
-		return Session{}, queryErr
+	if err != nil {
+		return Session{}, err
 	}
-	if normalizeErr != nil || errors.Is(queryErr, pgx.ErrNoRows) || !valid || login.Status != "enabled" {
-		if err := queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "login_name", KeyDigest: loginDigest}); err != nil {
-			return Session{}, err
-		}
-		if err := queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "source", KeyDigest: sourceDigest}); err != nil {
-			return Session{}, err
-		}
-		if queryErr == nil {
-			resource := login.AccountID
-			if err := audit.Write(ctx, tx, audit.Event{Action: "auth.pin_login_failed", ResourceType: "account", ResourceID: &resource, RequestID: requestID}); err != nil {
-				return Session{}, err
-			}
-			if err := tx.Commit(ctx); err != nil {
-				return Session{}, err
-			}
-		}
+	// The credential may have changed between verification and acquiring the lock.
+	if login.AuthIdentityID != candidate.AuthIdentityID || login.PinHash != candidate.PinHash || login.Status != "enabled" {
 		return Session{}, apperror.InvalidCredentials
 	}
 
@@ -94,7 +91,38 @@ func (s *Service) LoginWithPIN(ctx context.Context, loginName, pin, sourceKey st
 		return Session{}, err
 	}
 	_ = queries.ClearPINThrottle(ctx, authdb.ClearPINThrottleParams{Dimension: "login_name", KeyDigest: loginDigest})
+	s.limits.succeeded(limitKey)
 	return session, nil
+}
+
+// admitPINAttempt applies the persistent PIN back-off and the in-memory attempt limit. The
+// in-memory limit is atomic, so a burst of parallel guesses cannot all pass the persistent check
+// before the first failure is recorded.
+func (s *Service) admitPINAttempt(ctx context.Context, queries *authdb.Queries, scope, sourceKey, loginName string, loginDigest, sourceDigest []byte) (string, error) {
+	for _, dimension := range []struct {
+		name   string
+		digest []byte
+	}{{"login_name", loginDigest}, {"source", sourceDigest}} {
+		blocked, err := queries.PINThrottleBlocked(ctx, authdb.PINThrottleBlockedParams{Dimension: dimension.name, KeyDigest: dimension.digest})
+		if err != nil {
+			return "", err
+		}
+		if blocked {
+			return "", loginRateLimited()
+		}
+	}
+	key, allowed := s.limits.take(scope, sourceKey, loginName, time.Now())
+	if !allowed {
+		return "", loginRateLimited()
+	}
+	return key, nil
+}
+
+func recordPINFailure(ctx context.Context, queries *authdb.Queries, loginDigest, sourceDigest []byte) error {
+	if err := queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "login_name", KeyDigest: loginDigest}); err != nil {
+		return err
+	}
+	return queries.RecordPINFailure(ctx, authdb.RecordPINFailureParams{Dimension: "source", KeyDigest: sourceDigest})
 }
 
 func (s *Service) EnrollOwnPIN(ctx context.Context, principal authorization.Principal, loginName, pin string, requestID *uuid.UUID) error {

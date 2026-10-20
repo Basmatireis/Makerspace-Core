@@ -10,8 +10,9 @@ import (
 )
 
 // maxLimiterKeys bounds the memory of one Limiter. At the cap, expired keys are swept
-// (at most once per minute); if the table is still full, new keys are refused (fail closed)
-// while keys that are already tracked keep working.
+// (at most once per minute); if the table is still full, the key whose latest attempt is
+// oldest is evicted. Refusing new keys instead would let anyone who can mint 4096 keys lock
+// every other client out.
 const (
 	maxLimiterKeys     = 4096
 	limiterSweepPeriod = time.Minute
@@ -60,40 +61,56 @@ func (l *Limiter) sweepLocked(now time.Time) {
 	}
 }
 
-// admitsNewKeyLocked reports whether there is room to track a key that is not in the table yet,
-// sweeping expired keys first when the table is full.
-func (l *Limiter) admitsNewKeyLocked(key string, now time.Time) bool {
+// makeRoomLocked ensures a key that is not in the table yet can be tracked: it sweeps expired
+// keys first and, if the table is still full, evicts the least recently active key.
+func (l *Limiter) makeRoomLocked(key string, now time.Time) {
 	if _, tracked := l.entries[key]; tracked || len(l.entries) < l.maxKeys {
-		return true
+		return
 	}
 	if now.Sub(l.lastSweep) >= limiterSweepPeriod || now.Before(l.lastSweep) {
 		l.sweepLocked(now)
 	}
-	return len(l.entries) < l.maxKeys
+	if len(l.entries) < l.maxKeys {
+		return
+	}
+	var oldestKey string
+	var oldest time.Time
+	for candidate, attempts := range l.entries {
+		latest := attempts[len(attempts)-1]
+		if oldestKey == "" || latest.Before(oldest) {
+			oldestKey, oldest = candidate, latest
+		}
+	}
+	delete(l.entries, oldestKey)
 }
 
-// blocked reports whether key already used up its attempts (or cannot be tracked at all).
+// Blocked reports whether key already used up its attempts.
 func (l *Limiter) Blocked(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.recentLocked(key, now)) >= l.limit {
-		return true
-	}
-	return !l.admitsNewKeyLocked(key, now)
+	return len(l.recentLocked(key, now)) >= l.limit
 }
 
-// take counts an attempt and reports whether it was within the limit.
+// Take counts an attempt and reports whether it was within the limit.
 func (l *Limiter) Take(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.recentLocked(key, now)) >= l.limit || !l.admitsNewKeyLocked(key, now) {
+	if len(l.recentLocked(key, now)) >= l.limit {
 		return false
 	}
+	l.makeRoomLocked(key, now)
 	l.entries[key] = append(l.entries[key], now)
 	return true
 }
 
-// refund gives back one attempt that take counted at the given time.
+// Reset forgets every attempt of key, for example after a successful login.
+func (l *Limiter) Reset(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.entries, key)
+}
+
+// Refund gives back one attempt that Take counted at the given time.
 func (l *Limiter) Refund(key string, at time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

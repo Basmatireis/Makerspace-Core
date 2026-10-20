@@ -62,9 +62,9 @@ func (s *Service) GrantRecentAuthentication(ctx context.Context, tx pgx.Tx, prin
 }
 
 func (s *Service) ReauthenticatePassword(ctx context.Context, principal authorization.Principal, password string, requestID *uuid.UUID) (authorization.Principal, error) {
-	key := "reauthentication:" + principal.AccountID.String()
-	if !s.limiter.Allow(key, time.Now()) {
-		return principal, apperror.New(429, "login_rate_limited", "Too many authentication attempts; try again later")
+	key, allowed := s.limits.take("reauthentication", "", principal.AccountID.String(), time.Now())
+	if !allowed {
+		return principal, loginRateLimited()
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -96,7 +96,7 @@ func (s *Service) ReauthenticatePassword(ctx context.Context, principal authoriz
 	if err := tx.Commit(ctx); err != nil {
 		return principal, err
 	}
-	s.limiter.Success(key)
+	s.limits.succeeded(key)
 	return fresh, nil
 }
 
