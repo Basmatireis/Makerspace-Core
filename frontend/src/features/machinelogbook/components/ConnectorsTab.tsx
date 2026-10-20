@@ -26,7 +26,9 @@ const headers = [
   { key: 'printers', header: 'Printers' }, { key: 'version', header: 'Software' }, { key: 'queue', header: 'Event queue' },
 ];
 
-type Issued = { secret: string; expiresAt: string };
+type Issued = { secret: string; expiresAt: string; reenroll?: boolean };
+
+const reenrollHint = 'Use this to move the connector to another host or after losing its data. The running connector keeps working until the new secret is used; then it is disconnected.';
 
 function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boolean; onClose: () => void; onCreated: (secret: Issued | null) => void }) {
   const client = useQueryClient();
@@ -64,7 +66,7 @@ function AddConnectorModal({ canEnroll, onClose, onCreated }: { canEnroll: boole
   );
 }
 
-function SecretModal({ secret, expiresAt, onClose }: { secret: string; expiresAt?: string; onClose: () => void }) {
+function SecretModal({ secret, expiresAt, reenroll, onClose }: { secret: string; expiresAt?: string; reenroll?: boolean; onClose: () => void }) {
   const env = `CONNECTOR_ENROLLMENT_SECRET=${secret}`;
   return (
     <ComposedModal open size="sm" preventCloseOnClickOutside onClose={onClose} aria-label="Enrollment secret">
@@ -75,6 +77,7 @@ function SecretModal({ secret, expiresAt, onClose }: { secret: string; expiresAt
             kind="warning" lowContrast hideCloseButton title="Shown once, valid 15 minutes."
             subtitle={`Copy the enrollment secret now; it expires ${expiresAt ? `at ${formatDateTime(expiresAt)}` : 'after 15 minutes'} and cannot be shown again. A secret issued earlier that was not used yet stops working.`}
           />
+          {reenroll && <InlineNotification kind="info" lowContrast hideCloseButton title="Re-enrollment" subtitle={reenrollHint} />}
           <CodeSnippet type="multi" aria-label="Enrollment secret">{secret}</CodeSnippet>
           <p>Put this line into the <code>.env</code> of the printer connector stack (<code>printer-connector/</code> or <code>local-services/</code>):</p>
           <CodeSnippet type="multi" aria-label=".env line">{env}</CodeSnippet>
@@ -106,7 +109,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
 
   const enroll = useMutation({
     mutationFn: (connector: PrinterConnector) => createPrinterConnectorEnrollment(connector.id),
-    onSuccess: async (issue) => { if (issue.enrollmentSecret) setSecret({ secret: issue.enrollmentSecret, expiresAt: issue.expiresAt }); await refresh(); },
+    onSuccess: async (issue, connector) => { if (issue.enrollmentSecret) setSecret({ secret: issue.enrollmentSecret, expiresAt: issue.expiresAt, reenroll: connector.lifecycle !== 'pending' }); await refresh(); },
     onError: failed('Enrollment secret not issued'),
   });
   const setEnabled = useMutation({
@@ -176,8 +179,8 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
                         <TableCell className="cds--table-column-menu">
                           <OverflowMenu aria-label={`Actions for ${connector.name}`} iconDescription={`Actions for ${connector.name}`} flipped size="sm">
                             <OverflowMenuItem itemText="Diagnostics" onClick={() => setDiagnostics(connector.id)} />
-                            {canCredentials && connector.lifecycle === 'pending' && (
-                              <OverflowMenuItem itemText="New enrollment secret" disabled={enroll.isPending} onClick={() => enroll.mutate(connector)} />
+                            {canCredentials && connector.lifecycle !== 'revoked' && (
+                              <OverflowMenuItem itemText="New enrollment secret" title={connector.lifecycle === 'pending' ? undefined : reenrollHint} disabled={enroll.isPending} onClick={() => enroll.mutate(connector)} />
                             )}
                             {canManage && (connector.lifecycle === 'active' || connector.lifecycle === 'disabled') && (
                               <OverflowMenuItem
@@ -201,7 +204,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
       </QueryBoundary>
       <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
       {adding && <AddConnectorModal canEnroll={canCredentials} onClose={() => setAdding(false)} onCreated={(value) => { setAdding(false); setSecret(value); }} />}
-      {secret && <SecretModal secret={secret.secret} expiresAt={secret.expiresAt} onClose={() => setSecret(null)} />}
+      {secret && <SecretModal secret={secret.secret} expiresAt={secret.expiresAt} reenroll={secret.reenroll} onClose={() => setSecret(null)} />}
       {diagnosticConnector && <DiagnosticsModal connector={diagnosticConnector} onClose={() => setDiagnostics(null)} />}
       <DestructiveActionDialog
         open={Boolean(revoking)} title={`Revoke ${revoking?.name ?? 'connector'}?`} confirmLabel="Revoke connector" pending={revoke.isPending}

@@ -216,7 +216,6 @@ func TestStreamingGatewayLifecycleEnrollmentAndAudit(t *testing.T) {
 	g.expect(g.gw(secret, http.MethodPost, "/streaming-gateway/enroll", enroll), http.StatusOK)
 	otherID, otherSecret := g.newCredential()
 	g.expectCode(g.gw(secret, http.MethodPost, "/streaming-gateway/enroll", map[string]any{"credentialId": otherID, "credentialSecret": otherSecret, "softwareVersion": "1.0.0", "protocolVersion": 1}), http.StatusConflict, "enrollment_replay_conflict")
-	g.expectCode(g.as(g.admin, http.MethodPost, "/streaming-gateways/"+id+"/enrollments", nil), http.StatusConflict, "streaming_gateway_not_pending")
 	_ = randomCredID
 	enrolled := g.expect(g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id, nil), http.StatusOK)
 	if enrolled["lifecycle"] != "active" || enrolled["enrolledAt"] == nil {

@@ -55,6 +55,7 @@ type Querier interface {
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
+	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)

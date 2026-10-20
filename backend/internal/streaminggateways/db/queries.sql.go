@@ -1147,6 +1147,36 @@ func (q *Queries) RecordGatewayHeartbeat(ctx context.Context, arg RecordGatewayH
 	return i, err
 }
 
+const reenrollGateway = `-- name: ReenrollGateway :one
+UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
+WHERE id = $1 AND lifecycle IN ('active', 'disabled') RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+`
+
+func (q *Queries) ReenrollGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error) {
+	row := q.db.QueryRow(ctx, reenrollGateway, id)
+	var i StreamingGateway
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PublicHost,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const retireActiveTicketKey = `-- name: RetireActiveTicketKey :exec
 UPDATE signage_ticket_keys SET state = 'retired', retired_at = $1 WHERE state = 'active'
 `

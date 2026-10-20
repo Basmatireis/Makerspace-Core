@@ -1599,6 +1599,40 @@ func (q *Queries) RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams
 	return i, err
 }
 
+const reenrollConnector = `-- name: ReenrollConnector :one
+UPDATE printer_connectors SET configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
+WHERE id=$1 AND lifecycle IN ('active','disabled') RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
+`
+
+func (q *Queries) ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error) {
+	row := q.db.QueryRow(ctx, reenrollConnector, id)
+	var i PrinterConnector
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.LocationLabel,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.PendingEventCount,
+		&i.QuarantinedEventCount,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
+	)
+	return i, err
+}
+
 const resolveErrorOccurrencesOfConnector = `-- name: ResolveErrorOccurrencesOfConnector :exec
 UPDATE printer_error_occurrences SET resolved_at=GREATEST(now(), last_observed_at), updated_at=now()
 WHERE resolved_at IS NULL

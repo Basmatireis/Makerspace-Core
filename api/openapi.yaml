@@ -3959,6 +3959,7 @@ paths:
       tags: [Printer Connectors]
       operationId: createPrinterConnectorEnrollment
       summary: Issue a one-time connector enrollment secret
+      description: The secret is valid for 15 minutes and shown once. Allowed for pending, active and disabled connectors; an enrolled connector keeps working until the secret is used, then its earlier credentials are revoked (re-enrollment). Revoked connectors answer 409.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "201": {description: One-time enrollment secret., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEnrollmentIssue"}}}}
@@ -4270,7 +4271,7 @@ paths:
       tags: [Local Services]
       operationId: createStreamingGatewayEnrollment
       summary: Issue a one-time gateway enrollment secret
-      description: The secret is valid for 15 minutes and shown once.
+      description: The secret is valid for 15 minutes and shown once. Allowed for pending, active and disabled gateways; an enrolled gateway keeps working until the secret is used, then its earlier credentials are revoked (re-enrollment). Revoked gateways answer 409.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "201": {description: One-time enrollment secret., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayEnrollmentIssue"}}}}

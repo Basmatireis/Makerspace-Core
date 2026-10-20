@@ -15,6 +15,8 @@ export function CameraStatusTag({ camera }: { camera: StreamingCamera }) {
   return <Tag type={type[camera.health]} size="md">{camera.health[0].toUpperCase() + camera.health.slice(1)}</Tag>;
 }
 
+export const reenrollHint = 'Use this to move the gateway to another host or after losing its data. The running gateway keeps working until the new secret is used; then it is disconnected.';
+
 export function GatewayFormModal({ gateway, pending, error, onSubmit, onClose }: {
   /** Absent when adding a gateway. */
   gateway?: StreamingGateway;
@@ -64,6 +66,7 @@ export function EnrollmentSecretModal({ gateway, issue, onClose }: { gateway: St
       <ModalBody>
         <Stack gap={5}>
           <InlineNotification kind="warning" lowContrast hideCloseButton title="Shown once, valid 15 minutes." subtitle={`Copy the enrollment secret now; it expires at ${formatDateTime(issue.expiresAt)} and cannot be shown again.`} />
+          {gateway.lifecycle !== 'pending' && <InlineNotification kind="info" lowContrast hideCloseButton title="Re-enrollment" subtitle={reenrollHint} />}
           <CodeSnippet type="multi" aria-label="Enrollment secret">{issue.enrollmentSecret}</CodeSnippet>
           <div>
             <h3>Set up the gateway</h3>

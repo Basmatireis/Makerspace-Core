@@ -11,7 +11,7 @@ import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
-import { CameraStatusTag, EnrollmentSecretModal, GatewayFormModal, GatewayStatusTag } from './components';
+import { CameraStatusTag, EnrollmentSecretModal, GatewayFormModal, GatewayStatusTag, reenrollHint } from './components';
 import { cameraAssignError, dateOrDash, errorText, isStale } from './helpers';
 import { cameraCandidatesQuery, camerasQuery, gatewayQuery, localServiceKeys } from './queries';
 
@@ -104,7 +104,7 @@ function Detail({ gateway }: { gateway: StreamingGateway }) {
         <Stack orientation="horizontal" gap={3}>
           {!revoked && <Button kind="tertiary" onClick={() => { save.reset(); setDialog('edit'); }}>Rename</Button>}
           {!revoked && gateway.lifecycle !== 'pending' && <Button kind="tertiary" disabled={toggle.isPending} onClick={() => toggle.mutate()}>{gateway.lifecycle === 'disabled' ? 'Enable' : 'Disable'}</Button>}
-          {gateway.lifecycle === 'pending' && <Button kind="tertiary" disabled={enroll.isPending} onClick={() => enroll.mutate()}>New enrollment secret</Button>}
+          {!revoked && <Button kind="tertiary" disabled={enroll.isPending} title={gateway.lifecycle === 'pending' ? undefined : reenrollHint} onClick={() => enroll.mutate()}>New enrollment secret</Button>}
           {!revoked && <Button ref={revokeButton} kind="danger--tertiary" onClick={() => { revoke.reset(); setDialog('revoke'); }}>Revoke</Button>}
           <Button ref={deleteButton} kind="danger" onClick={() => { remove.reset(); setDialog('delete'); }}>Delete</Button>
         </Stack>

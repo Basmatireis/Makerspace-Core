@@ -468,8 +468,10 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err != nil {
 		return EnrollmentIssue{}, err
 	}
-	if gateway.Lifecycle != "pending" {
-		return EnrollmentIssue{}, conflict("streaming_gateway_not_pending", "Only a pending gateway can be enrolled")
+	// Pending gateways are enrolled for the first time; active and disabled ones are re-enrolled
+	// (new host, lost data volume). Their current credential stays valid until the secret is used.
+	if gateway.Lifecycle == "revoked" {
+		return EnrollmentIssue{}, conflict("streaming_gateway_revoked", "A revoked gateway cannot be enrolled")
 	}
 	if err = q.RevokeOpenGatewayEnrollments(ctx, id); err != nil {
 		return EnrollmentIssue{}, err
@@ -541,6 +543,22 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		gateway.CredentialExpiresAt = &credential.ExpiresAt
 		return EnrollmentResult{Gateway: gateway, CredentialExpiresAt: credential.ExpiresAt}, nil
 	}
+	current, err := q.GetGatewayForUpdate(ctx, enrollment.GatewayID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EnrollmentResult{}, apperror.Unauthenticated
+	}
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	if current.Lifecycle == "revoked" {
+		return EnrollmentResult{}, conflict("streaming_gateway_revoked", "Gateway cannot be enrolled in its current state")
+	}
+	reenroll := current.Lifecycle != "pending"
+	if reenroll {
+		if err = q.RevokeGatewayCredentials(ctx, enrollment.GatewayID); err != nil {
+			return EnrollmentResult{}, err
+		}
+	}
 	expires := s.now().Add(credentialTTL)
 	if _, err = q.CreateGatewayCredential(ctx, db.CreateGatewayCredentialParams{ID: credentialID, GatewayID: enrollment.GatewayID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
 		return EnrollmentResult{}, databaseError(err)
@@ -548,14 +566,21 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	if _, err = q.CompleteGatewayEnrollment(ctx, db.CompleteGatewayEnrollmentParams{CredentialFingerprint: &fingerprint, CredentialID: &credentialID, ID: enrollment.ID}); err != nil {
 		return EnrollmentResult{}, err
 	}
-	row, err := q.ActivateGateway(ctx, enrollment.GatewayID)
+	action, changed := "streaming_gateway.enrolled", []string{"lifecycle", "credential"}
+	var row db.StreamingGateway
+	if reenroll {
+		action, changed = "streaming_gateway.reenrolled", []string{"credential", "configuration"}
+		row, err = q.ReenrollGateway(ctx, enrollment.GatewayID)
+	} else {
+		row, err = q.ActivateGateway(ctx, enrollment.GatewayID)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EnrollmentResult{}, conflict("streaming_gateway_not_pending", "Gateway cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict("streaming_gateway_revoked", "Gateway cannot be enrolled in its current state")
 	}
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "streaming_gateway.enrolled", ResourceType: "streaming_gateway", ResourceID: &row.ID, ChangedFields: []string{"lifecycle", "credential"}, Source: "http"}); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: action, ResourceType: "streaming_gateway", ResourceID: &row.ID, ChangedFields: changed, Source: "http"}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

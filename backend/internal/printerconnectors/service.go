@@ -510,8 +510,10 @@ func (s *Service) IssueEnrollment(ctx context.Context, principal authorization.P
 	if err != nil {
 		return EnrollmentIssue{}, err
 	}
-	if connector.Lifecycle != "pending" {
-		return EnrollmentIssue{}, conflict("printer_connector_not_pending", "Only a pending connector can be enrolled")
+	// Pending connectors are enrolled for the first time; active and disabled ones are re-enrolled
+	// (new host, lost data volume). Their current credential stays valid until the secret is used.
+	if connector.Lifecycle == "revoked" {
+		return EnrollmentIssue{}, conflict("printer_connector_revoked", "A revoked connector cannot be enrolled")
 	}
 	if err = q.RevokeOpenEnrollments(ctx, id); err != nil {
 		return EnrollmentIssue{}, err
@@ -570,14 +572,30 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 		if getErr != nil {
 			return EnrollmentResult{}, getErr
 		}
-		if err = tx.Commit(ctx); err != nil {
-			return EnrollmentResult{}, err
-		}
 		credential, credentialErr := q.GetConnectorCredential(ctx, db.GetConnectorCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID})
 		if credentialErr != nil {
 			return EnrollmentResult{}, credentialErr
 		}
+		if err = tx.Commit(ctx); err != nil {
+			return EnrollmentResult{}, err
+		}
 		return EnrollmentResult{Connector: connectorFrom(row), CredentialExpiresAt: credential.ExpiresAt}, nil
+	}
+	current, err := q.GetConnectorForUpdate(ctx, enrollment.ConnectorID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EnrollmentResult{}, apperror.Unauthenticated
+	}
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	if current.Lifecycle == "revoked" {
+		return EnrollmentResult{}, conflict("printer_connector_revoked", "Connector cannot be enrolled in its current state")
+	}
+	reenroll := current.Lifecycle != "pending"
+	if reenroll {
+		if err = q.RevokeConnectorCredentials(ctx, enrollment.ConnectorID); err != nil {
+			return EnrollmentResult{}, err
+		}
 	}
 	expires := time.Now().UTC().Add(credentialTTL)
 	if _, err = q.CreateCredential(ctx, db.CreateCredentialParams{ID: credentialID, ConnectorID: enrollment.ConnectorID, TokenDigest: security.DigestToken(credentialSecret), ExpiresAt: expires}); err != nil {
@@ -586,14 +604,21 @@ func (s *Service) Enroll(ctx context.Context, enrollmentSecret string, credentia
 	if _, err = q.CompleteEnrollment(ctx, db.CompleteEnrollmentParams{CredentialFingerprint: &fingerprint, CredentialID: &credentialID, ID: enrollment.ID}); err != nil {
 		return EnrollmentResult{}, err
 	}
-	row, err := q.ActivateConnector(ctx, enrollment.ConnectorID)
+	action, changed := "printer_connector.enrolled", []string{"lifecycle", "credential"}
+	var row db.PrinterConnector
+	if reenroll {
+		action, changed = "printer_connector.reenrolled", []string{"credential", "configuration"}
+		row, err = q.ReenrollConnector(ctx, enrollment.ConnectorID)
+	} else {
+		row, err = q.ActivateConnector(ctx, enrollment.ConnectorID)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EnrollmentResult{}, conflict("printer_connector_not_pending", "Connector cannot be enrolled in its current state")
+		return EnrollmentResult{}, conflict("printer_connector_revoked", "Connector cannot be enrolled in its current state")
 	}
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "printer_connector.enrolled", ResourceType: "printer_connector", ResourceID: &row.ID, ChangedFields: []string{"lifecycle", "credential"}, Source: "http"}); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: action, ResourceType: "printer_connector", ResourceID: &row.ID, ChangedFields: changed, Source: "http"}); err != nil {
 		return EnrollmentResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

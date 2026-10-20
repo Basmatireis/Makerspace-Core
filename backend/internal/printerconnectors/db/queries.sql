@@ -57,6 +57,10 @@ WHERE id=sqlc.arg(id) RETURNING *;
 UPDATE printer_connectors SET lifecycle='active', enrolled_at=COALESCE(enrolled_at, now()), version=version+1, updated_at=now()
 WHERE id=sqlc.arg(id) AND lifecycle='pending' RETURNING *;
 
+-- name: ReenrollConnector :one
+UPDATE printer_connectors SET configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
+WHERE id=sqlc.arg(id) AND lifecycle IN ('active','disabled') RETURNING *;
+
 -- name: AuthenticateConnector :one
 SELECT c.*, cr.id AS credential_id
 FROM printer_connector_credentials cr JOIN printer_connectors c ON c.id=cr.connector_id

@@ -113,11 +113,24 @@ describe('Local services', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/settings/local-services/${gatewayId}`);
     expect(await screen.findByRole('button', { name: 'Delete' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New enrollment secret' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New enrollment secret' })).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'New enrollment secret' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('issues a new enrollment secret for an enrolled gateway and explains the re-enrollment', async () => {
+    setup([PermissionId.local_servicesmanage]);
+    const secret = 'R'.repeat(43);
+    server.use(http.post(`*/api/v1/streaming-gateways/${gatewayId}/enrollments`, () => HttpResponse.json({ gateway: gateway(), enrollmentId: 'e1', enrollmentSecret: secret, expiresAt: '2026-10-19T08:15:00Z' }, { status: 201 })));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/local-services/${gatewayId}`);
+    await user.click(await screen.findByRole('button', { name: 'New enrollment secret' }));
+    expect(await screen.findByText(secret)).toBeInTheDocument();
+    expect(screen.getByText(/Use this to move the gateway to another host or after losing its data. The running gateway keeps working until the new secret is used; then it is disconnected./)).toBeInTheDocument();
+    expect(screen.getByText(/STREAM_ENROLLMENT_SECRET=R+/)).toBeInTheDocument();
   });
 
   it.each(['active', 'revoked'] as const)('deletes a %s gateway from the detail page and returns to the list', async (lifecycle) => {
@@ -148,7 +161,7 @@ describe('Local services', () => {
     await screen.findByRole('table', { name: 'Streaming gateways' });
     const menuItem = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
     await user.click(await screen.findByRole('button', { name: 'Actions for Second gateway' }));
-    expect(screen.queryByText('New enrollment secret', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    expect(await menuItem('New enrollment secret')).toBeInTheDocument();
     await user.click(await menuItem('Delete'));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete gateway' }));

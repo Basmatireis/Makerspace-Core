@@ -86,6 +86,10 @@ UPDATE streaming_gateways SET lifecycle = 'active', enrolled_at = COALESCE(enrol
     configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND lifecycle = 'pending' RETURNING *;
 
+-- name: ReenrollGateway :one
+UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND lifecycle IN ('active', 'disabled') RETURNING *;
+
 -- name: AuthenticateGateway :one
 SELECT g.*, cr.id AS credential_id
 FROM streaming_gateway_credentials cr JOIN streaming_gateways g ON g.id = cr.gateway_id

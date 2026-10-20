@@ -8,7 +8,7 @@ import type { StreamingGateway, StreamingGatewayEnrollmentIssue } from '../../ap
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, InlineLoadingState } from '../../app/PageState';
-import { EnrollmentSecretModal, GatewayFormModal, GatewayStatusTag } from './components';
+import { EnrollmentSecretModal, GatewayFormModal, GatewayStatusTag, reenrollHint } from './components';
 import { dateOrDash, errorText, isStale } from './helpers';
 import { camerasQuery, gatewaysQuery, localServiceKeys } from './queries';
 
@@ -82,7 +82,7 @@ export function LocalServicesPage() {
                     <TableCell className="cds--table-column-menu">
                       <OverflowMenu aria-label={`Actions for ${gateway.name}`} iconDescription={`Actions for ${gateway.name}`} flipped size="sm">
                         <OverflowMenuItem itemText="Open" onClick={() => navigate(`/settings/local-services/${gateway.id}`)} />
-                        {gateway.lifecycle === 'pending' && <OverflowMenuItem itemText="New enrollment secret" disabled={reissue.isPending} onClick={() => reissue.mutate(gateway)} />}
+                        {gateway.lifecycle !== 'revoked' && <OverflowMenuItem itemText="New enrollment secret" title={gateway.lifecycle === 'pending' ? undefined : reenrollHint} disabled={reissue.isPending} onClick={() => reissue.mutate(gateway)} />}
                         <OverflowMenuItem itemText="Delete" isDelete hasDivider onClick={() => { remove.reset(); setDeleting(gateway); }} />
                       </OverflowMenu>
                     </TableCell>

@@ -162,7 +162,7 @@ export const deleteStreamingGateway = async (streamingGatewayId: UUIDv7,
 
 
 /**
- * The secret is valid for 15 minutes and shown once.
+ * The secret is valid for 15 minutes and shown once. Allowed for pending, active and disabled gateways; an enrolled gateway keeps working until the secret is used, then its earlier credentials are revoked (re-enrollment). Revoked gateways answer 409.
  * @summary Issue a one-time gateway enrollment secret
  */
 export const getCreateStreamingGatewayEnrollmentUrl = (streamingGatewayId: UUIDv7,) => {

@@ -135,14 +135,25 @@ describe('Deleting connectors', () => {
     expect(await menuItem('Delete')).toBeInTheDocument();
   });
 
-  it('offers a new enrollment secret only for connectors that are not enrolled yet', async () => {
-    setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage]);
+  it('re-enrolls an active connector with an explanation and offers nothing for a revoked one', async () => {
+    const revokedId = '0192f6f8-743e-7c77-a349-cd07c3e8a923';
+    setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage], { connectors: [connectorOf(), connectorOf({ id: revokedId, name: 'Old agent', lifecycle: 'revoked' })] });
+    server.use(
+      http.get(`*/api/v1/printer-connectors/${revokedId}/assignments`, () => HttpResponse.json({ items: [] })),
+      http.post(`*/api/v1/printer-connectors/${connectorId}/enrollments`, () => HttpResponse.json({ connector: connectorOf(), enrollmentId: 'e1', enrollmentSecret: 'c'.repeat(43), expiresAt: '2026-10-11T12:15:00Z' }, { status: 201 })),
+    );
     const user = userEvent.setup();
     renderPage('/machine-logbook/machines?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
-    await user.click(iconButton('Actions for Print room agent'));
+    await user.click(iconButton('Actions for Old agent'));
     await menuItem('Diagnostics');
     expect(screen.queryByText('New enrollment secret', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(iconButton('Actions for Print room agent'));
+    await user.click(await menuItem('New enrollment secret'));
+    const secret = await screen.findByRole('dialog', { name: 'Enrollment secret' });
+    expect(within(secret).getByText('c'.repeat(43))).toBeInTheDocument();
+    expect(within(secret).getByText(/Use this to move the connector to another host or after losing its data. The running connector keeps working until the new secret is used; then it is disconnected./)).toBeInTheDocument();
   });
 });
 

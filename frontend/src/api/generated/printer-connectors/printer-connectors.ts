@@ -165,6 +165,7 @@ export const deletePrinterConnector = async (printerConnectorId: UUIDv7,
 
 
 /**
+ * The secret is valid for 15 minutes and shown once. Allowed for pending, active and disabled connectors; an enrolled connector keeps working until the secret is used, then its earlier credentials are revoked (re-enrollment). Revoked connectors answer 409.
  * @summary Issue a one-time connector enrollment secret
  */
 export const getCreatePrinterConnectorEnrollmentUrl = (printerConnectorId: UUIDv7,) => {
