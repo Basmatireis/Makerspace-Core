@@ -1,0 +1,75 @@
+# Development: streaming gateway + go2rtc on the same machine as the development stack (make dev).
+# Started with `make dev-local-services`; see docs/streaming-gateway.md#development.
+# The printer connector is not part of this file: run it with `make dev-printer-connector` as before.
+name: makerspace-local-services-dev
+
+services:
+  streaming-gateway:
+    build:
+      context: ..
+      dockerfile: streaming-gateway/Dockerfile
+      target: final
+      args:
+        VERSION: dev
+    environment:
+      APP_ENV: development
+      # Core's API as seen from the container (the development backend on the host).
+      CORE_URL: ${CORE_URL:-http://host.docker.internal:8080}
+      STREAM_ALLOW_HTTP: "true"
+      # Browsers load the player from the Vite dev server, not from CORE_URL.
+      STREAM_ALLOWED_ORIGIN: ${STREAM_ALLOWED_ORIGIN:-http://localhost:5173}
+      # Enter exactly this as the gateway's public host in Core.
+      STREAM_PUBLIC_HOST: ${STREAM_PUBLIC_HOST:-localhost:8443}
+      # The browser runs on this machine, so the WebRTC media port is reached on localhost.
+      STREAM_WEBRTC_CANDIDATES: ${STREAM_WEBRTC_CANDIDATES:-127.0.0.1:8555}
+      STREAM_DATA_DIR: /var/lib/makerspace-streaming-gateway
+      STREAM_ENROLLMENT_SECRET_FILE: /run/secrets/streaming_gateway_enrollment
+      STREAM_TLS_CERT_FILE: /run/secrets/streaming_gateway_tls_cert
+      STREAM_TLS_KEY_FILE: /run/secrets/streaming_gateway_tls_key
+      STREAM_LISTEN_ADDR: ":8443"
+      GO2RTC_API_URL: http://go2rtc:1984
+      GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    secrets:
+      - streaming_gateway_enrollment
+      - streaming_gateway_tls_cert
+      - streaming_gateway_tls_key
+    volumes:
+      - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
+      - go2rtc_config:/go2rtc-config
+    ports:
+      - "127.0.0.1:8443:8443"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    stop_grace_period: 20s
+
+  go2rtc:
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
+    user: "10001:10001"
+    command: ["go2rtc", "-config", "/config/go2rtc.yaml"]
+    volumes:
+      - go2rtc_config:/config:ro
+    ports:
+      # WebRTC media for the browser on this machine. The go2rtc API (1984) stays unpublished.
+      - "127.0.0.1:8555:8555/tcp"
+      - "127.0.0.1:8555:8555/udp"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      streaming-gateway:
+        condition: service_healthy
+    stop_grace_period: 10s
+
+secrets:
+  streaming_gateway_enrollment:
+    file: ${STREAM_ENROLLMENT_SECRET_FILE:-./secrets/streaming-gateway-enrollment-dev}
+  streaming_gateway_tls_cert:
+    file: ./secrets/dev-tls.crt
+  streaming_gateway_tls_key:
+    file: ./secrets/dev-tls.key
+
+volumes:
+  streaming_gateway_data:
+  go2rtc_config:

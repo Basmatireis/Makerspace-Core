@@ -47,3 +47,8 @@ desktop-terminal/src-tauri/gen/
 
 # Local printer connector secrets
 printer-connector/secrets/
+
+# Local services bundle: secrets and local configuration
+local-services/secrets/
+local-services/.env
+streaming-gateway/secrets/

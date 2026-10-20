@@ -7,7 +7,8 @@ SHELL := /bin/sh
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
 	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev \
-	build-local-services local-services-up local-services-down local-services-logs
+	build-local-services local-services-up local-services-down local-services-logs \
+	dev-local-services dev-local-services-down dev-local-services-logs
 
 # Integration tests use their own database next to the development database so
 # test runs never write into development data.
@@ -35,6 +36,24 @@ dev-printer-connector: ## Build and run the standalone printer connector for loc
 
 dev-printer-connector-detached: ## Start the development printer connector in the background.
 	docker compose -f printer-connector/compose.development.yaml up --build -d
+
+dev-local-services: ## Build and start the development streaming gateway and go2rtc next to `make dev` (docs/streaming-gateway.md#development).
+	@mkdir -p local-services/secrets
+	@# A browser-trusted certificate with mkcert when installed, otherwise a self-signed one.
+	@test -f local-services/secrets/dev-tls.crt || { if command -v mkcert >/dev/null 2>&1; then \
+		mkcert -cert-file local-services/secrets/dev-tls.crt -key-file local-services/secrets/dev-tls.key localhost 127.0.0.1; \
+	else openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 825 \
+		-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+		-keyout local-services/secrets/dev-tls.key -out local-services/secrets/dev-tls.crt 2>/dev/null; fi; }
+	@chmod 644 local-services/secrets/dev-tls.crt local-services/secrets/dev-tls.key
+	@test -s local-services/secrets/streaming-gateway-enrollment-dev || { echo "Missing local-services/secrets/streaming-gateway-enrollment-dev: in Core open Settings > Local services, add a gateway with public host localhost:8443 and paste its enrollment secret into that file."; exit 1; }
+	docker compose -f local-services/compose.development.yaml up --build -d
+
+dev-local-services-down: ## Stop the development streaming gateway and go2rtc (keeps their volumes).
+	docker compose -f local-services/compose.development.yaml down
+
+dev-local-services-logs: ## Follow the development streaming gateway and go2rtc logs.
+	docker compose -f local-services/compose.development.yaml logs -f
 
 down: ## Stop the development stack without deleting database data.
 	docker compose down

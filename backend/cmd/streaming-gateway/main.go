@@ -41,6 +41,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	allowedOrigin, err := playerOrigin(parsed, os.Getenv("STREAM_ALLOWED_ORIGIN"))
+	if err != nil {
+		return err
+	}
 	g2r, err := streaminggateway.NewGo2RTCClient(env("GO2RTC_API_URL", "http://go2rtc:1984"))
 	if err != nil {
 		return err
@@ -74,12 +78,28 @@ func run() error {
 		ListenAddr:         env("STREAM_LISTEN_ADDR", ":8443"),
 		CertFile:           os.Getenv("STREAM_TLS_CERT_FILE"),
 		KeyFile:            os.Getenv("STREAM_TLS_KEY_FILE"),
-		AllowedOrigin:      parsed.Scheme + "://" + parsed.Host,
+		AllowedOrigin:      allowedOrigin,
 		ExpectedPublicHost: os.Getenv("STREAM_PUBLIC_HOST"),
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return streaminggateway.New(store, client, g2r, options, logger).Run(ctx)
+}
+
+// playerOrigin is the browser origin the proxy accepts: Core's origin by default. STREAM_ALLOWED_ORIGIN
+// overrides it when the gateway reaches Core under another address than browsers do, for example in
+// development (CORE_URL http://host.docker.internal:8080, player served from http://localhost:5173).
+func playerOrigin(core *url.URL, override string) (string, error) {
+	override = strings.TrimSpace(override)
+	if override == "" {
+		return core.Scheme + "://" + core.Host, nil
+	}
+	parsed, err := url.Parse(override)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("STREAM_ALLOWED_ORIGIN must be an origin such as https://makerspace.example.org")
+	}
+	return parsed.Scheme + "://" + parsed.Host, nil
 }
 
 func env(name, fallback string) string {

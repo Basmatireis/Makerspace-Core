@@ -48,6 +48,18 @@ The gateway generates its runtime credential locally, exchanges the enrollment s
 
 Image names: `ghcr.io/basmatireis/makerspace-core-streaming-gateway:<version>` (the Compose file uses release tags, never `latest`; to pin content as well, set `PRINTER_CONNECTOR_DIGEST=@sha256:...` and `STREAMING_GATEWAY_DIGEST=@sha256:...` in `.env` to the digests of that release, read with `docker buildx imagetools inspect <image>:<version>`; digests of an unpublished release cannot be known in advance) (built from `streaming-gateway/Dockerfile`; go2rtc is pinned to `alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae`, a digest verified against Docker Hub on the day of writing; re-verify when upgrading).
 
+## Development
+
+Everything on one machine next to `make dev` (Core API on `localhost:8080`, app and player on `http://localhost:5173`):
+
+1. Start Core (`make dev`, then `make migrate-up`) and, if you want printer status, `make dev-printer-connector`.
+2. In Core open Settings, Local services, Add gateway, with public host `localhost:8443`. Paste the enrollment secret into `local-services/secrets/streaming-gateway-enrollment-dev`.
+3. `make dev-local-services` creates a TLS certificate for `localhost` (with [mkcert](https://github.com/FiloSottile/mkcert) when it is installed, otherwise self-signed), builds the gateway from source and starts it with go2rtc. `make dev-local-services-logs` and `make dev-local-services-down` follow and stop it.
+4. With a self-signed certificate the browser must accept it once: open https://localhost:8443 and continue past the warning (the page itself answers 404), or install mkcert (`brew install mkcert && mkcert -install`), delete `local-services/secrets/dev-tls.*` and run step 3 again.
+5. Assign a camera, put a camera widget into a scene and publish a display; open http://localhost:5173/player/ to pair the player.
+
+The development file differs from production on purpose: `CORE_URL` is `http://host.docker.internal:8080` with `STREAM_ALLOW_HTTP=true`, `STREAM_ALLOWED_ORIGIN` is the Vite origin `http://localhost:5173` (by default the gateway only accepts browsers from `CORE_URL`'s origin), the WebRTC candidate is `127.0.0.1:8555`, and both ports are published on `127.0.0.1` only. A real picture needs a reachable Bambu printer with an active assignment; without one the camera widget shows its fallback.
+
 ## Operation
 
 - The gateway polls the configuration every 30 s and sends a heartbeat every 30 s. If Core is unreachable it keeps serving the last configuration, including the ticket keys (a retired key still expires on time). If Core answers 401 three times in a row (revoked credential) it switches streaming off and removes the camera credentials from go2rtc's configuration.
