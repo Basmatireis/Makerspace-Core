@@ -827,7 +827,7 @@ func (s *Service) IssuePasswordReset(
 	if err := tx.Commit(ctx); err != nil {
 		return ResetIssue{}, err
 	}
-	deliveryErr := error(mailservice.ErrDisabled)
+	deliveryErr := mailservice.ErrDisabled
 	if s.notifier != nil {
 		deliveryErr = s.notifier.SendPasswordReset(ctx, *identity.IdentifierDisplay, code, expiresAt)
 	}
@@ -959,7 +959,7 @@ func (s *Service) IssuePINEnrollment(
 	if err := tx.Commit(ctx); err != nil {
 		return ResetIssue{}, err
 	}
-	deliveryErr := error(mailservice.ErrDisabled)
+	deliveryErr := mailservice.ErrDisabled
 	if notifierAvailable && deliveryAddress != nil {
 		deliveryErr = notifier.SendPINEnrollment(ctx, *deliveryAddress, id, code, expiresAt)
 	}
@@ -1081,7 +1081,7 @@ func (s *Service) IssueInvitation(
 	if err := tx.Commit(ctx); err != nil {
 		return ResetIssue{}, err
 	}
-	deliveryErr := error(mailservice.ErrDisabled)
+	deliveryErr := mailservice.ErrDisabled
 	if s.notifier != nil {
 		deliveryErr = s.notifier.SendInvitation(ctx, *identity.IdentifierDisplay, code, expiresAt)
 	}

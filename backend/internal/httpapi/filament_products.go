@@ -101,7 +101,7 @@ func (s *Server) CreateFilamentProduct(
 			Manufacturer: body.Manufacturer,
 			Name:         body.Name,
 			MaterialID:   body.MaterialId,
-			NetWeightG:   string(body.NetWeightG),
+			NetWeightG:   body.NetWeightG,
 			DefaultPrice: decimalMoneyNullable(
 				body.DefaultPrice,
 			),
@@ -137,7 +137,7 @@ func (s *Server) UpdateFilamentProduct(
 			Manufacturer: body.Manufacturer,
 			Name:         body.Name,
 			MaterialID:   body.MaterialId,
-			NetWeightG:   string(body.NetWeightG),
+			NetWeightG:   body.NetWeightG,
 			DefaultPrice: decimalMoneyNullable(
 				body.DefaultPrice,
 			),

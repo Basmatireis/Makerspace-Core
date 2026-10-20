@@ -226,7 +226,7 @@ func (s *Service) buildManifests(
 		}
 		zones := make(map[string]json.RawMessage, len(scene.Zones))
 		for key, widget := range scene.Zones {
-			zones[key] = json.RawMessage(widget)
+			zones[key] = widget
 		}
 		published := ManifestScene{
 			ID:                scene.ID,

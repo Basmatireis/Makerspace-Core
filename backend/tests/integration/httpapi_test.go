@@ -123,7 +123,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	}
 	foundMasterEvaluation := false
 	for _, evaluation := range evaluations.Items {
-		if uuid.UUID(evaluation.RoleId) != masterRoleID {
+		if evaluation.RoleId != masterRoleID {
 			continue
 		}
 		foundMasterEvaluation = true

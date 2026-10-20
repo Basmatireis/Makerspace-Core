@@ -598,7 +598,7 @@ func grantDTO(v authorization.PermissionGrant) openapi.PermissionGrant {
 		MinimumAssurance: openapi.AuthenticationAssurance(v.MinimumAssurance),
 	}
 	if v.ID != uuid.Nil {
-		id := openapi.UUIDv7(v.ID)
+		id := v.ID
 		result.Id = &id
 	}
 	return result

@@ -578,7 +578,7 @@ func nullableUUID(value nullable.Nullable[openapi.UUIDv7]) *uuid.UUID {
 	if !value.IsSpecified() || value.IsNull() {
 		return nil
 	}
-	id := uuid.UUID(value.GetOrEmpty())
+	id := value.GetOrEmpty()
 	return &id
 }
 

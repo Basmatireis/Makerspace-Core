@@ -86,14 +86,6 @@ func validateMeasures(process string, input RunMeasures) error {
 	return nil
 }
 
-func (m RunMeasures) clone() RunMeasures {
-	out := RunMeasures{}
-	for key, value := range m {
-		out[key] = value
-	}
-	return out
-}
-
 func (m RunMeasures) add(other RunMeasures) {
 	for key, value := range other {
 		m[key] += value

@@ -804,7 +804,7 @@ func (s *Server) MoveEventAssignment(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	shiftID, reqID := uuid.UUID(r.Body.ShiftId), uuid.UUID(r.Body.RequirementId)
+	shiftID, reqID := uuid.UUID(r.Body.ShiftId), r.Body.RequirementId
 	item, err := s.events.MoveAssignment(
 		ctx,
 		p,
@@ -1097,7 +1097,7 @@ func (s *Server) GetPublicEvent(
 	ctx context.Context,
 	r openapi.GetPublicEventRequestObject,
 ) (openapi.GetPublicEventResponseObject, error) {
-	item, err := s.events.GetPublic(ctx, string(r.PublicId))
+	item, err := s.events.GetPublic(ctx, r.PublicId)
 	if err != nil {
 		return nil, err
 	}
@@ -1113,7 +1113,7 @@ func (s *Server) CreatePublicEventSignup(
 	}
 	result, err := s.events.SignupAnonymous(
 		ctx,
-		string(r.PublicId),
+		r.PublicId,
 		sourceAddress(ctx),
 		eventSignupInput(*r.Body),
 		requestIDPointer(ctx),
@@ -1149,7 +1149,7 @@ func (s *Server) CreateAuthenticatedEventSignup(
 	result, err := s.events.SignupAuthenticated(
 		ctx,
 		p,
-		string(r.PublicId),
+		r.PublicId,
 		sourceAddress(ctx),
 		string(r.Body.SignupFor),
 		input,
@@ -1168,7 +1168,7 @@ func (s *Server) GetCurrentEventSignup(
 	ctx context.Context,
 	r openapi.GetCurrentEventSignupRequestObject,
 ) (openapi.GetCurrentEventSignupResponseObject, error) {
-	item, err := s.events.GetManagedSignup(ctx, string(r.Params.XEventSignupToken))
+	item, err := s.events.GetManagedSignup(ctx, r.Params.XEventSignupToken)
 	if err != nil {
 		return nil, err
 	}
@@ -1187,7 +1187,7 @@ func (s *Server) UpdateCurrentEventSignup(
 	}
 	item, err := s.events.UpdateManagedSignup(
 		ctx,
-		string(r.Params.XEventSignupToken),
+		r.Params.XEventSignupToken,
 		eventSignupUpdateInput(*r.Body),
 		requestIDPointer(ctx),
 	)
@@ -1209,7 +1209,7 @@ func (s *Server) CancelCurrentEventSignup(
 	}
 	item, err := s.events.CancelManagedSignup(
 		ctx,
-		string(r.Params.XEventSignupToken),
+		r.Params.XEventSignupToken,
 		r.Body.ExpectedVersion,
 		requestIDPointer(ctx),
 	)
@@ -1230,7 +1230,7 @@ func (s *Server) ListOwnPublicEventAssignments(
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.events.ListOwnAssignments(ctx, p, string(r.PublicId))
+	items, err := s.events.ListOwnAssignments(ctx, p, r.PublicId)
 	if err != nil {
 		return nil, err
 	}
@@ -1258,7 +1258,7 @@ func (s *Server) UpdateOwnPublicEventAssignment(
 	item, err := s.events.UpdateOwnAssignment(
 		ctx,
 		p,
-		string(r.PublicId),
+		r.PublicId,
 		r.EventAssignmentId,
 		eventSignupUpdateInput(*r.Body),
 		requestIDPointer(ctx),
@@ -1286,7 +1286,7 @@ func (s *Server) CancelOwnPublicEventAssignment(
 	item, err := s.events.CancelOwnAssignment(
 		ctx,
 		p,
-		string(r.PublicId),
+		r.PublicId,
 		r.EventAssignmentId,
 		r.Body.ExpectedVersion,
 		requestIDPointer(ctx),
@@ -1304,7 +1304,7 @@ func (s *Server) DownloadPublicEventFile(
 	ctx context.Context,
 	r openapi.DownloadPublicEventFileRequestObject,
 ) (openapi.DownloadPublicEventFileResponseObject, error) {
-	_, file, reader, err := s.events.OpenPublicFile(ctx, string(r.PublicId), r.EventFileId)
+	_, file, reader, err := s.events.OpenPublicFile(ctx, r.PublicId, r.EventFileId)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,7 +1324,7 @@ func (s *Server) GetPublicEventBanner(
 	ctx context.Context,
 	r openapi.GetPublicEventBannerRequestObject,
 ) (openapi.GetPublicEventBannerResponseObject, error) {
-	file, reader, err := s.events.OpenPublicBanner(ctx, string(r.PublicId))
+	file, reader, err := s.events.OpenPublicBanner(ctx, r.PublicId)
 	if err != nil {
 		return nil, err
 	}

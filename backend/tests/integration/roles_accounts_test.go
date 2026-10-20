@@ -1018,21 +1018,6 @@ func assertCount(t *testing.T, pool *pgxpool.Pool, query string, want int, args 
 	}
 }
 
-func assertAccountVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID, want int64) {
-	t.Helper()
-	var got int64
-	if err := pool.QueryRow(
-		testContext(t),
-		`SELECT version FROM accounts WHERE id = $1`,
-		accountID,
-	).Scan(&got); err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Fatalf("account version = %d, want %d", got, want)
-	}
-}
-
 func assertPersonVersion(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID, want int64) {
 	t.Helper()
 	var got int64

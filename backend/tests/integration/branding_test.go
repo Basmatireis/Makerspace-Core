@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"image"
 	"image/png"
 	"io"
@@ -327,13 +326,4 @@ func encodeBrandingPNG(t *testing.T, width, height int) []byte {
 		t.Fatal(err)
 	}
 	return result.Bytes()
-}
-
-func decodeJSONBody(t *testing.T, body io.Reader) map[string]any {
-	t.Helper()
-	var value map[string]any
-	if err := json.NewDecoder(body).Decode(&value); err != nil {
-		t.Fatal(err)
-	}
-	return value
 }

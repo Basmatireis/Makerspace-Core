@@ -254,7 +254,7 @@ func setupUUID(value nullable.Nullable[openapi.UUIDv7]) *uuid.UUID {
 	if !value.IsSpecified() || value.IsNull() {
 		return nil
 	}
-	result := uuid.UUID(value.GetOrEmpty())
+	result := value.GetOrEmpty()
 	return &result
 }
 

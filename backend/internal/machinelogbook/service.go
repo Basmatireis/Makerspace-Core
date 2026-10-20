@@ -20,8 +20,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const currency = "EUR"
-
 type Service struct {
 	pool *pgxpool.Pool
 	now  func() time.Time

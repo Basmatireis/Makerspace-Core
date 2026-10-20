@@ -84,7 +84,7 @@ func (s *Server) TerminalPasswordCheckIn(
 		ctx,
 		device,
 		string(request.Body.Email),
-		string(*request.Body.Password),
+		*request.Body.Password,
 		sourceAddress(ctx),
 		requestIDPointer(ctx),
 	)
@@ -134,7 +134,7 @@ func (s *Server) TerminalPasswordCheckOut(
 		ctx,
 		device,
 		string(request.Body.Email),
-		string(*request.Body.Password),
+		*request.Body.Password,
 		sourceAddress(ctx),
 		requestIDPointer(ctx),
 	)
@@ -257,7 +257,7 @@ func (s *Server) VoidVisit(
 		ctx,
 		p,
 		request.VisitId,
-		int64(request.Body.ExpectedVersion),
+		request.Body.ExpectedVersion,
 		request.Body.Reason,
 		requestIDPointer(ctx),
 	)

@@ -140,25 +140,6 @@ func stringValue(value *string) string {
 	return *value
 }
 
-func validatePartyAndOperator(
-	ctx context.Context,
-	q *machinelogbookdb.Queries,
-	party PartyReference,
-	operator uuid.UUID,
-) (*uuid.UUID, *uuid.UUID, error) {
-	if operator == uuid.Nil {
-		return nil, nil, validation("operatorPersonId is required")
-	}
-	ok, err := q.OperatorExists(ctx, operator)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !ok {
-		return nil, nil, validation("operator must have an enabled account")
-	}
-	return validateParty(ctx, q, party, false)
-}
-
 func validateParty(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,

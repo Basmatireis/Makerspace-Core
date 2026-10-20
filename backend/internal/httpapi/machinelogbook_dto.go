@@ -324,7 +324,7 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	} else {
 		adjustment = nullable.NewNullableWithValue(openapi.MachineJobPriceAdjustment{
 			Kind:       openapi.PriceAdjustmentKind(item.PriceAdjustment.Kind),
-			Value:      openapi.Decimal(item.PriceAdjustment.Value),
+			Value:      item.PriceAdjustment.Value,
 			Reason:     item.PriceAdjustment.Reason,
 			AdjustedAt: item.PriceAdjustment.AdjustedAt,
 		})
@@ -480,13 +480,13 @@ func nullableDecimalValue(value *string) nullable.Nullable[openapi.Decimal] {
 	if value == nil {
 		return nullable.NewNullNullable[openapi.Decimal]()
 	}
-	return nullable.NewNullableWithValue(openapi.Decimal(*value))
+	return nullable.NewNullableWithValue(*value)
 }
 func nullableMoney(value *string) nullable.Nullable[openapi.Money] {
 	if value == nil {
 		return nullable.NewNullNullable[openapi.Money]()
 	}
-	return nullable.NewNullableWithValue(openapi.Money(*value))
+	return nullable.NewNullableWithValue(*value)
 }
 func uuidNullable(value nullable.Nullable[openapi.UUIDv7]) *uuid.UUID {
 	if !value.IsSpecified() || value.IsNull() {
@@ -499,14 +499,7 @@ func decimalNullable(value nullable.Nullable[openapi.Decimal]) *string {
 	if !value.IsSpecified() || value.IsNull() {
 		return nil
 	}
-	v := string(value.GetOrEmpty())
-	return &v
-}
-func materialUnitNullable(value nullable.Nullable[openapi.MaterialUnit]) *string {
-	if !value.IsSpecified() || value.IsNull() {
-		return nil
-	}
-	v := string(value.GetOrEmpty())
+	v := value.GetOrEmpty()
 	return &v
 }
 func partyInput(value openapi.BillingPartyReference) machinelogbook.PartyReference {
@@ -526,7 +519,7 @@ func usageInputs(values []openapi.MachineJobUsageInput) []machinelogbook.UsageIn
 				SpoolID:              uuidNullable(v.SpoolId),
 				Ownership:            string(v.Ownership),
 				ExternalMaterialName: nullableStringPointer(v.ExternalMaterialName),
-				Quantity:             string(v.Quantity),
+				Quantity:             v.Quantity,
 				QuantityBasis:        string(v.QuantityBasis),
 			},
 		)
@@ -585,7 +578,7 @@ func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
 	} else {
 		progress = nullable.NewNullableWithValue(*item.ProgressPercent)
 	}
-	version := openapi.Version(item.Version)
+	version := item.Version
 	var consumption *openapi.WorkItemConsumption
 	if item.Consumption.Materials != nil {
 		materials := make([]struct {

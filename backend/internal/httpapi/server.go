@@ -1298,7 +1298,7 @@ func (s *Server) EvaluateRolePermissions(
 	}
 	var deviceTypeID *uuid.UUID
 	if request.Params.DeviceTypeId != nil {
-		id := uuid.UUID(*request.Params.DeviceTypeId)
+		id := *request.Params.DeviceTypeId
 		deviceTypeID = &id
 	}
 	evaluations, err := s.roles.EvaluatePermissions(ctx, principal, authorization.EvaluationContext{
@@ -1667,14 +1667,6 @@ func auditPageDTO(page audit.Page) openapi.AuditEventPage {
 		Items:      items,
 		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
 	}
-}
-
-func permissionStrings(values []openapi.PermissionId) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		result = append(result, string(value))
-	}
-	return result
 }
 
 func nullableStringPointer[T ~string](value nullable.Nullable[T]) *string {

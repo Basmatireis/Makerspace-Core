@@ -426,7 +426,7 @@ func (s *Server) TransferSpoolStock(
 		r.Body.ExpectedInventoryVersion,
 		uuidNullable(r.Body.FromSpoolId),
 		uuidNullable(r.Body.ToSpoolId),
-		string(r.Body.Quantity),
+		r.Body.Quantity,
 		r.Body.OccurredAt,
 		nullableStringPointer(r.Body.Note),
 		requestIDPointer(ctx),
@@ -454,7 +454,7 @@ func (s *Server) ConsumeFilamentSpool(
 		r.SpoolId,
 		r.Body.ExpectedInventoryVersion,
 		r.Body.ExpectedSpoolVersion,
-		string(r.Body.Quantity),
+		r.Body.Quantity,
 		r.Body.OccurredAt,
 		valueBool(r.Body.Disposal),
 		nullableStringPointer(r.Body.Reason),
@@ -484,7 +484,7 @@ func (s *Server) CorrectFilamentSpoolStock(
 		r.SpoolId,
 		r.Body.ExpectedInventoryVersion,
 		r.Body.ExpectedSpoolVersion,
-		string(r.Body.PhysicalQuantity),
+		r.Body.PhysicalQuantity,
 		decimalNullable(r.Body.AcquisitionUnitCost),
 		r.Body.OccurredAt,
 		string(r.Body.Reason),
@@ -501,7 +501,7 @@ func decimalMoneyNullable(value nullable.Nullable[openapi.Money]) *string {
 	if !value.IsSpecified() || value.IsNull() {
 		return nil
 	}
-	v := string(value.GetOrEmpty())
+	v := value.GetOrEmpty()
 	return &v
 }
 func valueBool(value *bool) bool { return value != nil && *value }
@@ -524,12 +524,10 @@ func (s *Server) ChangeFilamentSpoolFill(
 			MaterialID:   body.Fill.MaterialId,
 			Manufacturer: nullableStringPointer(body.Fill.Manufacturer),
 			ProductName:  nullableStringPointer(body.Fill.ProductName),
-			NetWeightG: string(
-				body.Fill.NetWeightG,
-			),
-			Source:     string(body.Fill.Source),
-			TotalPrice: decimalMoneyNullable(body.Fill.TotalPrice),
-			Supplier:   nullableStringPointer(body.Fill.Supplier),
+			NetWeightG:   body.Fill.NetWeightG,
+			Source:       string(body.Fill.Source),
+			TotalPrice:   decimalMoneyNullable(body.Fill.TotalPrice),
+			Supplier:     nullableStringPointer(body.Fill.Supplier),
 		}}
 	if l := body.Leftover; l.IsSpecified() && !l.IsNull() {
 		leftover := leftoverInput(l.GetOrEmpty())

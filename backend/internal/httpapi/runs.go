@@ -354,8 +354,6 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 	}
 }
 
-func mlRunDTO(item machinelogbook.MachineRun) openapi.MachineRun { return mlRunBase(item) }
-
 func mlRunDTOs(items []machinelogbook.MachineRun) []openapi.MachineRun {
 	result := make([]openapi.MachineRun, 0, len(items))
 	for _, item := range items {

@@ -118,17 +118,15 @@ type reusable struct {
 }
 
 type mach struct {
-	id      uuid.UUID
-	name    string
-	typ     string
-	fdm     bool
-	bambu   bool
-	slots   []*slot
-	assign  uuid.UUID
-	cfgVer  int64
-	seq     int64
-	busy    [][2]time.Time
-	weights []float64
+	id     uuid.UUID
+	name   string
+	fdm    bool
+	bambu  bool
+	slots  []*slot
+	assign uuid.UUID
+	cfgVer int64
+	seq    int64
+	busy   [][2]time.Time
 }
 
 func (m *mach) free(a, b time.Time) bool {
@@ -204,7 +202,6 @@ type seeder struct {
 	events      []event
 	jobs        []jobRec
 	opWeights   []float64
-	spoolSeq    int
 }
 
 // timelineAnchor is the day the fixed stock and spool timeline (dateOf) was
@@ -595,11 +592,6 @@ func translit(v string) string {
 }
 
 func (s *seeder) createPeople() {
-	type spec struct {
-		cat    string
-		count  int
-		domain string
-	}
 	fi := s.rng.Perm(len(firstNames))
 	li := s.rng.Perm(len(lastNames))
 	idx := 0
