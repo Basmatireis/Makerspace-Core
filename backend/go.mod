@@ -2,6 +2,8 @@ module github.com/Basmatireis/Makerspace-Core/backend
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
@@ -16,7 +18,7 @@ require (
 	github.com/go-acme/lego/v4 v4.35.2
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	github.com/oapi-codegen/nethttp-middleware v1.2.0
 	github.com/oapi-codegen/nullable v1.2.0
@@ -25,11 +27,11 @@ require (
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 	golang.org/x/image v0.46.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.45.0
+	golang.org/x/term v0.46.0
 	modernc.org/sqlite v1.40.1
 )
 
@@ -77,7 +79,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
