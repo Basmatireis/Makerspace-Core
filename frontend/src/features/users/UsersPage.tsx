@@ -1,24 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Accordion,
   AccordionItem,
   Button,
-  ComposedModal,
   DataTable,
-  Dropdown,
-  Form,
   InlineNotification,
   ListItem,
   UnorderedList,
-  Link as CarbonLink,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
   Pagination,
   Stack,
   Table,
-  TableBatchAction,
-  TableBatchActions,
   TableBody,
   TableCell,
   TableContainer,
@@ -30,118 +21,31 @@ import {
   TableToolbar,
   TableToolbarContent,
   TableToolbarSearch,
-  Tag,
 } from '@carbon/react';
-import { Add, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
-import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Add, UserRole } from '@carbon/icons-react';
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  createPersonAccount,
-  deleteAccount,
-} from '../../api/generated/accounts/accounts';
-import type {
-  LaborordnungStatus,
-  PeopleAccountStatusFilter,
-  PeopleLaborordnungStatusFilter,
-  Person,
-  Role,
-} from '../../api/generated/models';
-import {
-  assignPersonRole,
-  deletePerson,
-  getPersonMakerspaceStatus,
-} from '../../api/generated/people/people';
+import type { Person } from '../../api/generated/models';
+import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
-import { useLatestCallback } from '../../app/useLatestCallback';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { canManageRoleMembership, hasPermission, PermissionId } from '../auth/permissions';
 import { fullRoleCatalogOptions } from '../roles/queries';
+import { BatchPeopleDialogs } from './people/BatchPeopleDialogs';
+import { PeopleBatchActions } from './people/PeopleBatchActions';
+import { PeopleCell } from './people/PeopleCell';
+import {
+  ACCOUNT_STATUS_OPTIONS,
+  EMPTY_PEOPLE,
+  formatLabRulesStatus,
+  LAB_RULES_STATUS_OPTIONS,
+  PAGE_SIZES,
+  positiveInteger,
+} from './people/peopleList';
+import { useBatchPeopleActions } from './people/useBatchPeopleActions';
 import { peopleKeys, peopleListOptions } from './queries';
-import { deletionFailureReasons, type DeletionFailure } from './deletionErrors';
-import { PersonAvatar } from './PersonAvatar';
-
-const PAGE_SIZES = [10, 25, 50, 100];
-const EMPTY_PEOPLE: Person[] = [];
-
-type FilterOption<T extends string> = {
-  value: T;
-  label: string;
-};
-
-const ACCOUNT_STATUS_OPTIONS: Array<FilterOption<PeopleAccountStatusFilter>> = [
-  { value: 'enabled', label: 'Active' },
-  { value: 'disabled', label: 'Inactive' },
-  { value: 'no_account', label: 'No account' },
-];
-
-const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<PeopleLaborordnungStatusFilter>> = [
-  { value: 'current', label: 'Current' },
-  { value: 'pending', label: 'Confirmation pending' },
-  { value: 'outdated', label: 'Acknowledgement outdated' },
-  { value: 'no_published_version', label: 'No published version' },
-  { value: 'not_required', label: 'Not required' },
-];
-
-type BatchAction =
-  | 'create-accounts'
-  | 'assign-role'
-  | 'delete-accounts'
-  | 'delete-people'
-  | null;
-type BatchResult = {
-  kind: 'success' | 'warning';
-  title: string;
-  subtitle: string;
-  failures?: DeletionFailure[];
-};
-
-const fullName = (person: Person) => `${person.firstName} ${person.lastName}`.trim();
-
-type LabRulesStatusPresentation = {
-  label: string;
-  type: 'gray' | 'green' | 'purple' | 'warm-gray';
-};
-
-function positiveInteger(value: string | null, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function peopleWithAccounts(people: Person[]): Person[] {
-  return people.filter((person) => person.account && typeof person.account === 'object');
-}
-
-function formatLabRulesStatus(status?: LaborordnungStatus): LabRulesStatusPresentation {
-  if (!status) return { label: 'Unavailable', type: 'gray' };
-  if (status.requestId) return { label: 'Confirmation pending', type: 'purple' };
-  if (status.state === 'current') return { label: 'Current', type: 'green' };
-  if (status.state === 'outdated') {
-    return {
-      label: 'Acknowledgement outdated',
-      type: status.actionRequired ? 'warm-gray' : 'gray',
-    };
-  }
-  if (status.state === 'no_published_version') {
-    return { label: 'No published version', type: 'gray' };
-  }
-  return { label: 'Not required', type: 'gray' };
-}
-
-function LabRulesStatusTag({
-  status,
-  pending,
-  failed,
-}: {
-  status?: LaborordnungStatus;
-  pending: boolean;
-  failed: boolean;
-}) {
-  if (pending) return <span className="section-description">Loading…</span>;
-  const presentation = formatLabRulesStatus(failed ? undefined : status);
-  return <Tag type={presentation.type}>{presentation.label}</Tag>;
-}
 
 export function UsersPage() {
   const currentUser = useCurrentUser();
@@ -159,10 +63,6 @@ export function UsersPage() {
     searchParams.getAll('labRules').includes(option.value),
   );
   const [searchValue, setSearchValue] = useState(search);
-  const [batchAction, setBatchAction] = useState<BatchAction>(null);
-  const [batchMembers, setBatchMembers] = useState<Person[]>([]);
-  const [batchRole, setBatchRole] = useState<Role | null>(null);
-  const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const [tableKey, setTableKey] = useState(0);
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
@@ -224,157 +124,12 @@ export function UsersPage() {
   const assignableRoles = (rolesQuery.data ?? []).filter((role) =>
     canManageRoleMembership(currentUser, role),
   );
-
   const refreshPeople = async () => {
     await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
     setTableKey((value) => value + 1);
   };
-  const batchCreateAccounts = useMutation({
-    mutationFn: async (members: Person[]) => {
-      const eligible = members.filter((member) => member.account === null);
-      const results = await Promise.allSettled(
-        eligible.map((person) =>
-          createPersonAccount(person.id, {
-            expectedVersion: person.version,
-          }),
-        ),
-      );
-      return {
-        created: results.filter((result) => result.status === 'fulfilled').length,
-        failed: results.filter((result) => result.status === 'rejected').length,
-        skipped: members.length - eligible.length,
-      };
-    },
-    onSuccess: async ({ created, failed, skipped }) => {
-      setBatchAction(null);
-      setBatchMembers([]);
-      setBatchResult({
-        kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0 ? 'Accounts created' : 'Some accounts were not created',
-        subtitle: `${created} created${skipped ? `; ${skipped} skipped because an account already exists` : ''}${failed ? `; ${failed} could not be created` : ''}.`,
-      });
-      await refreshPeople();
-    },
-  });
-  const batchAssignRole = useMutation({
-    mutationFn: async ({ members, role }: { members: Person[]; role: Role }) => {
-      const eligible = members.filter(
-        (person) => !person.roles.some((assigned) => assigned.id === role.id),
-      );
-      const results = await Promise.allSettled(
-        eligible.map((person) =>
-          assignPersonRole(person.id, role.id, {
-            expectedVersion: person.version,
-          }),
-        ),
-      );
-      return {
-        assigned: results.filter((result) => result.status === 'fulfilled').length,
-        failed: results.filter((result) => result.status === 'rejected').length,
-        skipped: members.length - eligible.length,
-      };
-    },
-    onSuccess: async ({ assigned, failed, skipped }) => {
-      setBatchAction(null);
-      setBatchMembers([]);
-      setBatchRole(null);
-      setBatchResult({
-        kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0 ? 'Roles assigned' : 'Some roles were not assigned',
-        subtitle: `${assigned} assigned${skipped ? `; ${skipped} skipped because the role is already assigned` : ''}${failed ? `; ${failed} could not be assigned` : ''}.`,
-      });
-      await refreshPeople();
-    },
-  });
-  const batchDeleteAccounts = useMutation({
-    mutationFn: async (members: Person[]) => {
-      const eligible = peopleWithAccounts(members);
-      const results = await Promise.allSettled(
-        eligible.map((person) =>
-          deleteAccount(person.account!.id, {
-            expectedVersion: person.account!.version,
-          }),
-        ),
-      );
-      return {
-        deletedAccountIds: results.flatMap((result, index) =>
-          result.status === 'fulfilled' ? [eligible[index].account!.id] : [],
-        ),
-        deleted: results.filter((result) => result.status === 'fulfilled').length,
-        failed: results.filter((result) => result.status === 'rejected').length,
-        failures: results.flatMap((result, index) =>
-          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'account') }] : [],
-        ),
-        skipped: members.length - eligible.length,
-      };
-    },
-    onSuccess: async ({ deletedAccountIds, deleted, failed, failures, skipped }) => {
-      setBatchAction(null);
-      setBatchMembers([]);
-      for (const accountId of deletedAccountIds) {
-        queryClient.removeQueries({ queryKey: ['accounts', 'detail', accountId] });
-      }
-      setBatchResult({
-        kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0
-          ? 'Accounts deleted'
-          : deleted === 0
-            ? 'Accounts were not deleted'
-            : 'Some accounts were not deleted',
-        subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because no visible account exists` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
-        failures,
-      });
-      await refreshPeople();
-    },
-  });
-  const peopleEligibleForDeletion = (members: Person[]) =>
-    members.filter((member) => hasDeleteAccountsPermission || member.account === null);
-  const batchDeletePeople = useMutation({
-    mutationFn: async (members: Person[]) => {
-      const eligible = peopleEligibleForDeletion(members);
-      const results = await Promise.allSettled(
-        eligible.map((person) =>
-          deletePerson(person.id, {
-            expectedVersion: person.version,
-          }),
-        ),
-      );
-      return {
-        deletedPersonIds: results.flatMap((result, index) =>
-          result.status === 'fulfilled' ? [eligible[index].id] : [],
-        ),
-        deleted: results.filter((result) => result.status === 'fulfilled').length,
-        failed: results.filter((result) => result.status === 'rejected').length,
-        failures: results.flatMap((result, index) =>
-          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'person') }] : [],
-        ),
-        skipped: members.length - eligible.length,
-      };
-    },
-    onSuccess: async ({ deletedPersonIds, deleted, failed, failures, skipped }) => {
-      setBatchAction(null);
-      setBatchMembers([]);
-      for (const personId of deletedPersonIds) {
-        queryClient.removeQueries({ queryKey: peopleKeys.detail(personId) });
-      }
-      setBatchResult({
-        kind: failed === 0 ? 'success' : 'warning',
-        title: failed === 0
-          ? 'People deleted'
-          : deleted === 0
-            ? 'People were not deleted'
-            : 'Some people were not deleted',
-        subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because deleting their account is not permitted` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
-        failures,
-      });
-      await refreshPeople();
-    },
-  });
-
-  const deleteAccountsLauncher = useRef<HTMLButtonElement>(null);
-  const deletePeopleLauncher = useRef<HTMLButtonElement>(null);
-  const closeDeleteAccounts = useLatestCallback(() => { if (!batchDeleteAccounts.isPending) setBatchAction(null); return false; });
-  const closeDeletePeople = useLatestCallback(() => { if (!batchDeletePeople.isPending) setBatchAction(null); return false; });
+  const batch = useBatchPeopleActions({ canDeleteAccounts: hasDeleteAccountsPermission, onChanged: refreshPeople });
+  const { batchResult, setBatchResult } = batch;
 
   const people = peopleQuery.data?.items ?? EMPTY_PEOPLE;
   const makerspaceStatusQueries = useQueries({
@@ -423,14 +178,6 @@ export function UsersPage() {
         }
       : {}),
   }));
-  const membersEligibleForAccountCreation = batchMembers.filter((member) => member.account === null);
-  const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
-  const membersEligibleForPersonDeletion = peopleEligibleForDeletion(batchMembers);
-  const membersEligibleForRoleAssignment = batchRole
-    ? batchMembers.filter(
-        (member) => !member.roles.some((assigned) => assigned.id === batchRole.id),
-      )
-    : batchMembers;
 
   const canFilter = showAccounts || mayReadRoles || mayReadLabRules;
   const hasActiveFilters = (mayReadRoles && selectedRoleIds.length > 0)
@@ -521,74 +268,19 @@ export function UsersPage() {
             const selectedMembers = selectedRows
               .map((row) => peopleById.get(row.id))
               .filter((person): person is Person => Boolean(person));
-            const selectedForAccountCreation = selectedMembers.filter((member) => member.account === null);
-            const selectedForRoleAssignment = selectedMembers;
-            const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
-            const selectedForPersonDeletion = peopleEligibleForDeletion(selectedMembers);
 
             return (
               <TableContainer className="people-table-container">
                 <TableToolbar className="people-table-toolbar" aria-label="People table toolbar">
                   {canBatchManage && (
-                    <TableBatchActions {...getBatchActionProps()}>
-                      {mayCreateAccounts && (
-                        <TableBatchAction
-                          renderIcon={UserFollow}
-                          iconDescription="Create login accounts"
-                          disabled={selectedForAccountCreation.length === 0}
-                          onClick={() => {
-                            setBatchMembers(selectedMembers);
-                            setBatchAction('create-accounts');
-                          }}
-                        >
-                          Create accounts
-                        </TableBatchAction>
-                      )}
-                      {mayAssignRoles && (
-                        <TableBatchAction
-                          renderIcon={UserRole}
-                          iconDescription="Assign role"
-                          disabled={
-                            selectedForRoleAssignment.length === 0 ||
-                            assignableRoles.length === 0
-                          }
-                          onClick={() => {
-                            setBatchMembers(selectedMembers);
-                            setBatchAction('assign-role');
-                          }}
-                        >
-                          Assign role
-                        </TableBatchAction>
-                      )}
-                      {mayDeleteAccounts && (
-                        <TableBatchAction
-                          renderIcon={TrashCan}
-                          iconDescription="Delete login accounts"
-                          disabled={selectedForAccountDeletion.length === 0}
-                          onClick={(event) => {
-                            deleteAccountsLauncher.current = event.currentTarget;
-                            setBatchMembers(selectedMembers);
-                            setBatchAction('delete-accounts');
-                          }}
-                        >
-                          Delete accounts
-                        </TableBatchAction>
-                      )}
-                      {mayDeletePeople && (
-                        <TableBatchAction
-                          renderIcon={TrashCan}
-                          iconDescription="Delete people"
-                          disabled={selectedForPersonDeletion.length === 0}
-                          onClick={(event) => {
-                            deletePeopleLauncher.current = event.currentTarget;
-                            setBatchMembers(selectedMembers);
-                            setBatchAction('delete-people');
-                          }}
-                        >
-                          Delete people
-                        </TableBatchAction>
-                      )}
-                    </TableBatchActions>
+                    <PeopleBatchActions
+                      batchActionProps={getBatchActionProps()}
+                      selectedMembers={selectedMembers}
+                      can={{ createAccounts: mayCreateAccounts, assignRoles: mayAssignRoles, deleteAccounts: mayDeleteAccounts, deletePeople: mayDeletePeople }}
+                      canDeleteAccounts={hasDeleteAccountsPermission}
+                      hasAssignableRoles={assignableRoles.length > 0}
+                      batch={batch}
+                    />
                   )}
                   <TableToolbarContent>
                     <TableToolbarSearch
@@ -652,56 +344,19 @@ export function UsersPage() {
                                 ? 'people-table__status-column'
                                 : undefined}
                           >
-                            {cell.info.header === 'avatar' ? (() => {
-                              const person = peopleById.get(row.id);
-                              return person ? <PersonAvatar firstName={person.firstName} lastName={person.lastName} profileImage={person.profileImage} size="sm" decorative /> : null;
-                            })() : cell.info.header === 'name' ? (
-                              <CarbonLink
-                                href={`/people/${row.id}`}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  navigate(`/people/${row.id}`);
-                                }}
-                              >
-                                {String(cell.value)}
-                              </CarbonLink>
-                            ) : cell.info.header === 'status' &&
-                              cell.value !== 'No account' &&
-                              cell.value !== 'Restricted' ? (
-                              <Tag type={cell.value === 'Active' ? 'green' : 'gray'}>
-                                {String(cell.value)}
-                              </Tag>
-                            ) : cell.info.header === 'roles' ? (() => {
-                              const person = peopleById.get(row.id);
-                              if (!person || person.roles.length === 0) {
-                                return String(cell.value);
-                              }
-                              return (
-                                <div className="people-table__roles" aria-label={`Roles for ${person.firstName} ${person.lastName}`}>
-                                  {person.roles.map((role) => {
-                                    const isSupervisorRole = supervisorRoleIds.has(role.id);
-                                    return (
-                                      <Tag
-                                        key={role.id}
-                                        type={isSupervisorRole ? 'blue' : 'gray'}
-                                        title={isSupervisorRole ? `${role.name} is a supervisor role` : role.name}
-                                        aria-label={isSupervisorRole ? `${role.name}, supervisor role` : role.name}
-                                      >
-                                        {role.name}
-                                      </Tag>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })() : cell.info.header === 'labRules' ? (
-                              <LabRulesStatusTag
-                                status={makerspaceStatusByPersonId.get(row.id)?.data?.laborordnungStatus}
-                                pending={makerspaceStatusByPersonId.get(row.id)?.isPending ?? false}
-                                failed={makerspaceStatusByPersonId.get(row.id)?.isError ?? false}
-                              />
-                            ) : (
-                              String(cell.value)
-                            )}
+                            <PeopleCell
+                              column={cell.info.header}
+                              value={cell.value}
+                              rowId={row.id}
+                              person={peopleById.get(row.id)}
+                              supervisorRoleIds={supervisorRoleIds}
+                              labRules={{
+                                status: makerspaceStatusByPersonId.get(row.id)?.data?.laborordnungStatus,
+                                pending: makerspaceStatusByPersonId.get(row.id)?.isPending ?? false,
+                                failed: makerspaceStatusByPersonId.get(row.id)?.isError ?? false,
+                              }}
+                              onOpenPerson={(personId) => navigate(`/people/${personId}`)}
+                            />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -732,217 +387,12 @@ export function UsersPage() {
         </DataTable>
       )}
 
-      <ComposedModal
-        open={batchAction === 'create-accounts'}
-        onClose={() => setBatchAction(null)}
-      >
-        <ModalHeader title="Create login accounts" />
-        <ModalBody>
-          <Stack gap={5}>
-            <p>
-              This creates active accounts for {membersEligibleForAccountCreation.length}{' '}
-              selected {membersEligibleForAccountCreation.length === 1 ? 'person' : 'people'}.
-              Authentication methods can be configured separately afterwards; without one, the person cannot sign in.
-            </p>
-            {batchMembers.length !== membersEligibleForAccountCreation.length && (
-              <InlineNotification
-                kind="info"
-                lowContrast
-                hideCloseButton
-                title="Some people will be skipped"
-                subtitle="People who already have an account are not changed."
-              />
-            )}
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" onClick={() => setBatchAction(null)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              membersEligibleForAccountCreation.length === 0 || batchCreateAccounts.isPending
-            }
-            onClick={() => batchCreateAccounts.mutate(batchMembers)}
-          >
-            {batchCreateAccounts.isPending ? 'Creating…' : 'Create accounts'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
-
-      <ComposedModal
-        open={batchAction === 'assign-role'}
-        onClose={() => setBatchAction(null)}
-      >
-        <ModalHeader title="Assign role to people" />
-        <ModalBody>
-          <Form>
-            <Stack gap={5}>
-              <Dropdown
-                id="batch-assign-role"
-                titleText="Role"
-                label="Choose a role"
-                items={assignableRoles}
-                itemToString={(role) => role?.name ?? ''}
-                selectedItem={batchRole}
-                onChange={({ selectedItem }) => setBatchRole(selectedItem ?? null)}
-              />
-              <p>
-                The selected role will be assigned to {membersEligibleForRoleAssignment.length}{' '}
-                {membersEligibleForRoleAssignment.length === 1 ? 'person' : 'people'}.
-              </p>
-              {batchMembers.length !== membersEligibleForRoleAssignment.length && (
-                <InlineNotification
-                  kind="info"
-                  lowContrast
-                  hideCloseButton
-                  title="Some people will be skipped"
-                  subtitle="People who already have the role are not changed."
-                />
-              )}
-            </Stack>
-          </Form>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" onClick={() => setBatchAction(null)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              !batchRole ||
-              membersEligibleForRoleAssignment.length === 0 ||
-              batchAssignRole.isPending
-            }
-            onClick={() =>
-              batchRole && batchAssignRole.mutate({ members: batchMembers, role: batchRole })
-            }
-          >
-            {batchAssignRole.isPending ? 'Assigning…' : 'Assign role'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
-
-      <ComposedModal
-        aria-label="Delete accounts permanently?"
-        danger
-        selectorPrimaryFocus=".cds--btn--secondary"
-        preventCloseOnClickOutside
-        open={batchAction === 'delete-accounts'}
-        launcherButtonRef={deleteAccountsLauncher}
-        onClose={closeDeleteAccounts}
-      >
-        <ModalHeader title="Delete accounts permanently?" />
-        <ModalBody>
-          <Stack gap={5}>
-            <p>
-              This permanently deletes {membersEligibleForAccountDeletion.length}{' '}
-              selected {membersEligibleForAccountDeletion.length === 1 ? 'account' : 'accounts'},
-              including their authentication methods and sessions. The people records and their
-              assigned roles remain. This cannot be undone.
-            </p>
-            {batchMembers.some((member) => member.id === currentUser.person.id && member.account) && (
-              <InlineNotification
-                kind="warning"
-                lowContrast
-                hideCloseButton
-                title="Your own account is selected"
-                subtitle="Deleting it will end your access to the application."
-              />
-            )}
-            {batchMembers.length !== membersEligibleForAccountDeletion.length && (
-              <InlineNotification
-                kind="info"
-                lowContrast
-                hideCloseButton
-                title="Some people will be skipped"
-                subtitle="A visible account is required."
-              />
-            )}
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            kind="secondary"
-            disabled={batchDeleteAccounts.isPending}
-            onClick={() => setBatchAction(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            kind="danger"
-            disabled={
-              membersEligibleForAccountDeletion.length === 0 ||
-              batchDeleteAccounts.isPending
-            }
-            onClick={() => batchDeleteAccounts.mutate(batchMembers)}
-          >
-            {batchDeleteAccounts.isPending ? 'Deleting…' : 'Delete accounts'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
-
-      <ComposedModal
-        aria-label="Delete people permanently?"
-        danger
-        selectorPrimaryFocus=".cds--btn--secondary"
-        preventCloseOnClickOutside
-        open={batchAction === 'delete-people'}
-        launcherButtonRef={deletePeopleLauncher}
-        onClose={closeDeletePeople}
-      >
-        <ModalHeader title="Delete people permanently?" />
-        <ModalBody>
-          <Stack gap={5}>
-            <p>
-              This permanently deletes {membersEligibleForPersonDeletion.length}{' '}
-              selected {membersEligibleForPersonDeletion.length === 1 ? 'person' : 'people'},
-              including their accounts, authentication methods, and role assignments. Operational
-              links are detached and assignment identity data is scrubbed. Existing order customer
-              and external-invoice recipient snapshots are retained as financial records. This
-              cannot be undone.
-            </p>
-            {membersEligibleForPersonDeletion.some(
-              (member) => member.id === currentUser.person.id,
-            ) && (
-              <InlineNotification
-                kind="warning"
-                lowContrast
-                hideCloseButton
-                title="Your own person record is selected"
-                subtitle="Deleting it will end your access to the application."
-              />
-            )}
-            {batchMembers.length !== membersEligibleForPersonDeletion.length && (
-              <InlineNotification
-                kind="info"
-                lowContrast
-                hideCloseButton
-                title="Some people will be skipped"
-                subtitle="Deleting a person with an account requires permission to delete accounts."
-              />
-            )}
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            kind="secondary"
-            disabled={batchDeletePeople.isPending}
-            onClick={() => setBatchAction(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            kind="danger"
-            disabled={
-              membersEligibleForPersonDeletion.length === 0 ||
-              batchDeletePeople.isPending
-            }
-            onClick={() => batchDeletePeople.mutate(batchMembers)}
-          >
-            {batchDeletePeople.isPending ? 'Deleting…' : 'Delete people'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
+      <BatchPeopleDialogs
+        batch={batch}
+        assignableRoles={assignableRoles}
+        currentPersonId={currentUser.person.id}
+        canDeleteAccounts={hasDeleteAccountsPermission}
+      />
     </PageShell>
   );
 }
