@@ -15,10 +15,13 @@ export function RenameDisplayModal({ display, onClose }: { display: SignageDispl
   const save = () => { if (!invalid) update.mutate({ ...settingsOf(display), expectedVersion: display.version, name: name.trim() }, { onSuccess: onClose }); };
   return (
     <Modal open size="xs" modalHeading="Rename display" modalLabel={display.name} primaryButtonText={update.isPending ? 'Saving…' : 'Save'} secondaryButtonText="Cancel" primaryButtonDisabled={update.isPending} preventCloseOnClickOutside onRequestClose={onClose} onRequestSubmit={save}>
+      <form noValidate onSubmit={(event) => { event.preventDefault(); save(); }}>
       <Stack gap={5}>
         <TextInput id="display-rename" labelText="Name" maxLength={100} value={name} invalid={invalid} invalidText="Give the display a name" onChange={(event) => setName(event.target.value)} />
         {update.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Not renamed" subtitle={isStaleWrite(update.error) ? staleText : errorMessage(update.error)} />}
       </Stack>
+      <button type="submit" hidden />
+      </form>
     </Modal>
   );
 }

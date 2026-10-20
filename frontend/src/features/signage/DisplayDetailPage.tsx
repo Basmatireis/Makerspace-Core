@@ -133,7 +133,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
           <InlineNotification kind="error" lowContrast hideCloseButton title="Not published"
             subtitle={isStaleWrite(publish.error) ? 'Something changed while publishing. The display was refreshed; review the changes and publish again.' : errorMessage(publish.error)} />
         )}
-        {!revoked && neverPublished && <InlineNotification kind="info" lowContrast hideCloseButton title="Not published yet" subtitle="The display shows its pairing screen until you publish its first revision." />}
+        {!revoked && neverPublished && <InlineNotification kind="info" lowContrast hideCloseButton title="Not published yet" subtitle="The display shows “Waiting for content” until you publish its first revision." />}
         {!revoked && !neverPublished && pending.length > 0 && (
           <InlineNotification kind="info" lowContrast hideCloseButton title={pluralize(pending.length, 'unpublished change')}
             subtitle={`${pending.map(describePendingChange).join(' · ')}. The display keeps running its last publication until you publish.`} />

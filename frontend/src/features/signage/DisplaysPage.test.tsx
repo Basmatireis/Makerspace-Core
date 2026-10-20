@@ -50,6 +50,38 @@ describe('Displays page', () => {
     expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
   });
 
+  it('submits the pair modal on Enter from a single-line field', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    let posts = 0;
+    server.use(http.post('*/api/v1/signage/displays', () => { posts += 1; return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 }); }));
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pair display' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f2qx{Enter}');
+    expect(await within(dialog).findByText('Give the display a name')).toBeInTheDocument();
+    expect(posts).toBe(0);
+    await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
+    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
+    await user.type(within(dialog).getByLabelText('Name'), '{Enter}');
+    await waitFor(() => expect(posts).toBe(1));
+    expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
+  });
+
+  it('uppercases the pairing code, strips spaces and caps it at six characters', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pair display' }));
+    const dialog = await screen.findByRole('dialog');
+    const code = within(dialog).getByLabelText('Pairing code');
+    await user.type(code, 'k7f2qxzz');
+    expect(code).toHaveValue('K7F2QX');
+    await user.clear(code);
+    await user.paste('k7f 2qx');
+    expect(code).toHaveValue('K7F2QX');
+  });
+
   it.each([[422, { code: 'pairing_code_invalid', message: 'The code is not valid' }], [429, { code: 'rate_limited', message: 'Too many attempts' }]])('answers a rejected code (%s) the same way', async (status, error) => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
     server.use(http.post('*/api/v1/signage/displays', () => HttpResponse.json(error, { status })));

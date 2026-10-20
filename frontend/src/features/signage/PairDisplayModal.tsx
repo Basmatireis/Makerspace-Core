@@ -11,7 +11,7 @@ import { playlistsQuery, signageKeys } from './queries';
 
 /** Characters the player's pairing codes are made of (no I, O, 0 or 1). */
 const CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/;
-const normalizeCode = (value: string) => value.replace(/\s+/g, '').toUpperCase();
+const normalizeCode = (value: string) => value.replace(/\s+/g, '').toUpperCase().slice(0, 6);
 const CODE_REJECTED = 'This code was not accepted. Check the code on the screen; codes expire after 15 minutes. After several wrong attempts, wait a few minutes.';
 
 type Values = { code: string; name: string; location: string; orientation: SignageOrientation; resolution: string; visibleFromOutside: boolean; defaultPlaylistId: string };
@@ -45,17 +45,19 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
     },
   });
   const codeRejected = mutation.isError && Boolean(errors.code?.type === 'server');
+  const submit = form.handleSubmit((values) => mutation.mutate(values));
 
   return (
     <Modal
       open size="md" modalHeading="Pair display" modalLabel="Displays" primaryButtonText={mutation.isPending ? 'Pairing…' : 'Pair display'} secondaryButtonText="Cancel"
       primaryButtonDisabled={mutation.isPending || items.length === 0} preventCloseOnClickOutside onRequestClose={() => { if (!mutation.isPending) onClose(); }}
-      onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      onRequestSubmit={submit}
     >
+      <form noValidate onSubmit={submit}>
       <Stack gap={5}>
         <Controller control={form.control} name="code" rules={{ validate: (value) => CODE_PATTERN.test(normalizeCode(value)) || 'Enter the 6 characters shown on the screen' }} render={({ field }) => (
           <TextInput
-            id="pair-code" labelText="Pairing code" placeholder="e.g. K7F2QX" maxLength={10} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+            id="pair-code" labelText="Pairing code" placeholder="e.g. K7F2QX" autoComplete="off" autoCapitalize="characters" spellCheck={false}
             helperText="Shown on the screen once the player is started. Letters A–Z (without I and O) and digits 2–9; case does not matter."
             value={field.value} invalid={Boolean(errors.code)} invalidText={errors.code?.message}
             onChange={(event) => { field.onChange(normalizeCode(event.target.value)); if (errors.code?.type === 'server') form.clearErrors('code'); }} onBlur={field.onBlur}
@@ -84,6 +86,8 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
         {playlists.isSuccess && items.length === 0 && <InlineNotification kind="info" lowContrast hideCloseButton title="No playlists yet" subtitle="A display needs a default playlist. Create one under Content first." />}
         {mutation.isError && !codeRejected && <InlineNotification kind="error" lowContrast hideCloseButton title="Display not paired" subtitle={errorMessage(mutation.error)} />}
       </Stack>
+      <button type="submit" hidden />
+      </form>
     </Modal>
   );
 }

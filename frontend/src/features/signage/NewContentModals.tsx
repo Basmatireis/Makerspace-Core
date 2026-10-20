@@ -24,9 +24,11 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
     }),
     onSuccess: async (scene) => { await queryClient.invalidateQueries({ queryKey: signageKeys.scenes() }); onClose(); navigate(signagePaths.scene(scene.id)); },
   });
+  const submit = form.handleSubmit((values) => mutation.mutate(values));
   return (
     <Modal open size="md" modalHeading="New scene" modalLabel="Content" primaryButtonText={mutation.isPending ? 'Creating…' : 'Create scene'} secondaryButtonText="Cancel" primaryButtonDisabled={mutation.isPending}
-      preventCloseOnClickOutside onRequestClose={() => { if (!mutation.isPending) onClose(); }} onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+      preventCloseOnClickOutside onRequestClose={() => { if (!mutation.isPending) onClose(); }} onRequestSubmit={submit}>
+      <form noValidate onSubmit={submit}>
       <Stack gap={5}>
         <TextInput id="scene-name" labelText="Name" maxLength={100} invalid={Boolean(form.formState.errors.name)} invalidText="Give the scene a name" {...form.register('name', { validate: (value) => value.trim() !== '' })} />
         <Controller control={form.control} name="orientation" render={({ field }) => (
@@ -38,6 +40,8 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
         <Controller control={form.control} name="layoutId" render={({ field }) => <LayoutPicker value={field.value} orientation={orientation} onChange={field.onChange} />} />
         {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Scene not created" subtitle={errorMessage(mutation.error)} />}
       </Stack>
+      <button type="submit" hidden />
+      </form>
     </Modal>
   );
 }
@@ -50,13 +54,17 @@ export function NewPlaylistModal({ onClose }: { onClose: () => void }) {
     mutationFn: (values: { name: string }) => createSignagePlaylist({ name: values.name.trim(), items: [] }),
     onSuccess: async (playlist) => { await queryClient.invalidateQueries({ queryKey: signageKeys.playlists() }); onClose(); navigate(signagePaths.playlist(playlist.id)); },
   });
+  const submit = form.handleSubmit((values) => mutation.mutate(values));
   return (
     <Modal open size="xs" modalHeading="New playlist" modalLabel="Content" primaryButtonText={mutation.isPending ? 'Creating…' : 'Create playlist'} secondaryButtonText="Cancel" primaryButtonDisabled={mutation.isPending}
-      preventCloseOnClickOutside onRequestClose={() => { if (!mutation.isPending) onClose(); }} onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+      preventCloseOnClickOutside onRequestClose={() => { if (!mutation.isPending) onClose(); }} onRequestSubmit={submit}>
+      <form noValidate onSubmit={submit}>
       <Stack gap={5}>
         <TextInput id="playlist-name" labelText="Name" maxLength={100} invalid={Boolean(form.formState.errors.name)} invalidText="Give the playlist a name" {...form.register('name', { validate: (value) => value.trim() !== '' })} />
         {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Playlist not created" subtitle={errorMessage(mutation.error)} />}
       </Stack>
+      <button type="submit" hidden />
+      </form>
     </Modal>
   );
 }
