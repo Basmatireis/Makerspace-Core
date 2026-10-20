@@ -85,7 +85,7 @@ make test               # Go and frontend unit tests
 make test-integration   # runs Go tests with a real Compose PostgreSQL URL
 make test-migrations    # fresh Up/Down/Up in its own disposable Compose database
 make test-production-compose # builds and smoke-tests the isolated production topology
-make check              # generation freshness, vet, tests, lint, typecheck, and frontend build
+make check              # generation freshness, gofmt, vet, golangci-lint, govulncheck, pnpm audit, tests, lint, typecheck, and frontend build
 make build              # build the final backend, frontend, printer-connector and streaming-gateway images
 make test-printer-connector-compose test-streaming-compose test-local-services-compose # package and validate the local-service bundles
 ```

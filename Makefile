@@ -123,12 +123,15 @@ check: check-generated check-backend check-frontend ## Regenerate, verify freshn
 check-generated: ## Regenerate committed bindings and fail when generated files are stale.
 	./scripts/check-generated.sh
 
-check-backend: ## Run Go vet and tests.
+check-backend: ## Run Go formatting, vet, golangci-lint, govulncheck and tests.
 	docker compose run --rm --no-deps backend sh -c 'files="$$(gofmt -l .)"; test -z "$$files" || { echo "$$files"; exit 1; }'
 	docker compose run --rm --no-deps backend go vet ./...
+	docker run --rm -v "$(CURDIR)/backend:/app" -w /app golangci/golangci-lint:v2.12.2 golangci-lint run ./...
+	docker compose run --rm --no-deps backend go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 	docker compose run --rm --no-deps backend go test ./...
 
-check-frontend: ## Run lint, type checking, tests, and a production build.
+check-frontend: ## Run the dependency audit, lint, type checking, tests, and a production build.
+	docker compose run --rm --no-deps -e CI=true frontend pnpm audit --audit-level moderate
 	docker compose run --rm --no-deps -e CI=true frontend pnpm lint
 	docker compose run --rm --no-deps -e CI=true frontend pnpm typecheck
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
