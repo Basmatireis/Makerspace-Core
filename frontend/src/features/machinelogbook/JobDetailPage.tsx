@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { RefLink } from '../../app/RefLink';
 import {
-  Accordion,
-  AccordionItem,
   Button,
-  Select,
-  SelectItem,
   DataTable,
   InlineNotification,
   OverflowMenu,
@@ -24,15 +20,8 @@ import { Edit } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { clearMachineJobPriceAdjustment } from '../../api/generated/machine-jobs/machine-jobs';
-import { cancelMachineRun, detachMachineRun, updateMachineRun } from '../../api/generated/machine-runs/machine-runs';
-import type {
-  JobOrderAssociation,
-  MachineJob,
-  MachineRun,
-  MaterialUnit,
-  MachineRunOutcome,
-  WorkItemBilling,
-} from '../../api/generated/models';
+import { cancelMachineRun, detachMachineRun } from '../../api/generated/machine-runs/machine-runs';
+import type { MachineJob, MachineRun } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
@@ -41,121 +30,29 @@ import { JobRunsTable, type RunAction } from './components/JobRunsTable';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachRunModal } from './dialogs/AttachRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
-import { jobOrderQuery, saveError, unassignedRunsParams } from './dialogs/jobFormHelpers';
+import { jobOrderQuery, unassignedRunsParams } from './dialogs/jobFormHelpers';
 import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
-import { runOutcomeChoices } from './dialogs/runFormHelpers';
 import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { jobQuery, machineLogbookKeys, runsQuery } from './queries';
-import { jobConsumption, unitText } from './processConfig';
+import { jobConsumption } from './processConfig';
 import { formatDateTime, formatDuration, formatMoney, formatQuantity } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import {
   activeRuns,
   adjustmentSummary,
-  BillingTag,
   FromMachineTag,
-  isRunLive,
   JobRowStatusTag,
   machineJobName,
   OutcomeTag,
-  outcomeLabel,
-  type JobRowStatus,
 } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
-import './styles/jobs.scss';
-
-const usageHeaders = [
-  { key: 'material', header: 'Material' },
-  { key: 'run', header: 'Run' },
-  { key: 'source', header: 'Source' },
-  { key: 'quantity', header: 'Quantity' },
-];
-
-/** What the job list shows as billing state; the job itself carries no billing field, only price status and the order association. */
-function jobBilling(job: MachineJob, association: JobOrderAssociation | undefined): WorkItemBilling | undefined {
-  if (association?.orderId)
-    return {
-      state: association.sourceChanged ? 'order_outdated' : 'on_order',
-      orderId: association.orderId,
-      orderReference: association.orderReference,
-    };
-  if (job.pricingStatus === 'pending') return { state: 'pending' };
-  if (job.pricingStatus === 'incomplete') return { state: 'price_incomplete' };
-  return association ? { state: 'not_on_order' } : undefined;
-}
-
-const errorText = (error: unknown, fallback: string) => saveError(error, fallback).message;
-
-/** Status of the job now: a run whose planned end has passed since the last refresh no longer counts as running. */
-function statusNow(job: MachineJob, now: number): JobRowStatus {
-  if (job.status !== 'running') return job.status;
-  if (activeRuns(job).some((run) => isRunLive(run, now))) return 'running';
-  if (job.outcomeOverridden) return job.outcome === 'unknown' ? 'needs_outcome' : job.outcome;
-  return activeRuns(job).some((run) => !run.outcome) || job.outcome === 'unknown' ? 'needs_outcome' : job.outcome;
-}
-
-/** Runs that have ended without a recorded outcome. */
-const runsNeedingOutcome = (job: MachineJob, now: number) =>
-  activeRuns(job).filter((run) => !run.outcome && !isRunLive(run, now));
-
-function RunOutcomeRow({ run }: { run: MachineRun }) {
-  const client = useQueryClient();
-  const notify = useNotify();
-  const [choice, setChoice] = useState<MachineRunOutcome | ''>('');
-  const save = useMutation({
-    mutationFn: (outcome: MachineRunOutcome) => updateMachineRun(run.id, { outcome, expectedVersion: run.version }),
-    onSuccess: async (_saved, outcome) => {
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      notify({
-        kind: 'success',
-        title: 'Outcome recorded',
-        subtitle: `${run.displayId} is marked ${outcomeLabel(outcome).toLowerCase()}.`,
-      });
-    },
-  });
-  return (
-    <div>
-      {save.isError && (
-        <InlineNotification
-          kind="error"
-          lowContrast
-          hideCloseButton
-          title="Outcome not saved"
-          subtitle={errorText(save.error, 'The outcome could not be saved.')}
-        />
-      )}
-      <form
-        className="mj-outcome-prompt__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (choice) save.mutate(choice);
-        }}
-      >
-        <Select
-          id={`run-outcome-${run.id}`}
-          labelText={`Outcome of ${run.displayId}`}
-          helperText={`Ended ${run.endedAt ? formatDateTime(run.endedAt) : 'earlier'}`}
-          value={choice}
-          onChange={(event) => setChoice(event.target.value as MachineRunOutcome)}
-        >
-          <SelectItem value="" text="Select an outcome" hidden />
-          {runOutcomeChoices.map((option) => (
-            <SelectItem key={option.id} value={option.id} text={option.label} />
-          ))}
-        </Select>
-        <Button type="submit" disabled={!choice || save.isPending}>
-          {save.isPending ? 'Saving…' : 'Save outcome'}
-        </Button>
-      </form>
-    </div>
-  );
-}
-
-type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | 'delete' | null;
+import { usageHeaders, errorText, statusNow, runsNeedingOutcome, JobDialog } from './jobDetail/jobDetailShared';
+import { RunOutcomeRow } from './jobDetail/RunOutcomeRow';
+import { PriceBillingTile } from './jobDetail/PriceBillingTile';
 
 function JobDetail({ job }: { job: MachineJob }) {
   const can = useCan();
@@ -499,110 +396,14 @@ function JobDetail({ job }: { job: MachineJob }) {
               <p className="mj-notes">{job.notes ? job.notes : <span className="mj-secondary">No notes.</span>}</p>
             </Tile>
           </div>
-          <Tile>
-            <h3 className="mj-section-title">Price &amp; billing</h3>
-            <div className="mj-price">{formatMoney(price)}</div>
-            <div className="mj-inline">
-              <BillingTag billing={jobBilling(job, association.data)} />
-              {job.pricingStatus === 'pending' && <span className="mj-secondary">Price pending</span>}
-            </div>
-            <dl className="mj-price-details">
-              <div>
-                <dt>Calculated</dt>
-                <dd>{formatMoney(calculated)}</dd>
-              </div>
-              {job.priceAdjustment && (
-                <>
-                  <div>
-                    <dt>{adjustmentSummary(job.priceAdjustment)}</dt>
-                    <dd>
-                      {adjustmentDifference == null
-                        ? '—'
-                        : `${adjustmentDifference > 0 ? '+' : adjustmentDifference < 0 ? '−' : '±'}${formatMoney(Math.abs(adjustmentDifference))}`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Final</dt>
-                    <dd>
-                      <strong>{formatMoney(price)}</strong>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Reason</dt>
-                    <dd>{job.priceAdjustment.reason}</dd>
-                  </div>
-                </>
-              )}
-            </dl>
-            {job.pricingSnapshot && (
-              <Accordion size="md">
-                <AccordionItem title="How this was calculated">
-                  <dl className="mj-price-details">
-                    <div>
-                      <dt>Pricing group</dt>
-                      <dd>{job.pricingSnapshot.pricingGroupName}</dd>
-                    </div>
-                    <div>
-                      <dt>Revision</dt>
-                      <dd>{job.pricingSnapshot.revision}</dd>
-                    </div>
-                    <div>
-                      <dt>Captured</dt>
-                      <dd>{formatDateTime(job.pricingSnapshot.capturedAt)}</dd>
-                    </div>
-                  </dl>
-                  <ul className="mj-rule-list">
-                    {job.pricingSnapshot.rules.map((rule) => (
-                      <li key={`${rule.kind}-${rule.selector}-${rule.label}`}>
-                        <span>{rule.label}</span>
-                        {rule.missing ? (
-                          <Tag type="red" size="sm">
-                            No rate
-                          </Tag>
-                        ) : (
-                          <span>
-                            {formatMoney(rule.rate)} /{' '}
-                            {rule.kind === 'machine_measure'
-                              ? `${rule.blockSize ?? 1000} ${rule.measure ?? rule.unit}`
-                              : unitText(rule.unit as MaterialUnit)}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionItem>
-              </Accordion>
-            )}
-            {canReadOrders && (
-              <div className="mj-stack">
-                <h4 className="mj-section-title">Order</h4>
-                {association.isError ? (
-                  <p className="mj-secondary">The order could not be loaded.</p>
-                ) : association.data?.orderId ? (
-                  <>
-                    <p>
-                      <RefLink
-                        kind="order"
-                        reference={association.data.orderReference ?? ''}
-                        id={association.data.orderId}
-                      />
-                    </p>
-                    {association.data.sourceChanged && (
-                      <InlineNotification
-                        kind="warning"
-                        lowContrast
-                        hideCloseButton
-                        title="Changed after charge"
-                        subtitle="This job changed after it was charged. The order amount has not been updated."
-                      />
-                    )}
-                  </>
-                ) : association.data ? (
-                  <p className="mj-secondary">Not on an order.</p>
-                ) : null}
-              </div>
-            )}
-          </Tile>
+          <PriceBillingTile
+            job={job}
+            price={price}
+            calculated={calculated}
+            adjustmentDifference={adjustmentDifference}
+            association={association}
+            canReadOrders={canReadOrders}
+          />
         </div>
       </div>
       <JobFormModal open={dialog === 'edit'} onClose={close} mode="edit" job={job} />
