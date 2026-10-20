@@ -204,6 +204,20 @@ func (q *Queries) ClearConnectorEvents(ctx context.Context, arg ClearConnectorEv
 	return i, err
 }
 
+const closeOpenMount = `-- name: CloseOpenMount :exec
+UPDATE printer_spool_assignments SET unmounted_at=$1::timestamptz WHERE id=$2 AND unmounted_at IS NULL
+`
+
+type CloseOpenMountParams struct {
+	UnmountedAt time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error {
+	_, err := q.db.Exec(ctx, closeOpenMount, arg.UnmountedAt, arg.ID)
+	return err
+}
+
 const completeEnrollment = `-- name: CompleteEnrollment :one
 UPDATE printer_connector_enrollments
 SET consumed_at=COALESCE(consumed_at, now()), credential_fingerprint=COALESCE(credential_fingerprint, $1),
@@ -394,6 +408,30 @@ func (q *Queries) CreateEnrollment(ctx context.Context, arg CreateEnrollmentPara
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const createReconciledMount = `-- name: CreateReconciledMount :exec
+INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id)
+VALUES ($1, $2, $3, $4, 'connector_reconciled', $5::uuid)
+`
+
+type CreateReconciledMountParams struct {
+	ID            uuid.UUID
+	SlotID        uuid.UUID
+	SpoolID       uuid.UUID
+	MountedAt     time.Time
+	SourceEventID uuid.UUID
+}
+
+func (q *Queries) CreateReconciledMount(ctx context.Context, arg CreateReconciledMountParams) error {
+	_, err := q.db.Exec(ctx, createReconciledMount,
+		arg.ID,
+		arg.SlotID,
+		arg.SpoolID,
+		arg.MountedAt,
+		arg.SourceEventID,
+	)
+	return err
 }
 
 const createRotatedCredential = `-- name: CreateRotatedCredential :one
@@ -931,6 +969,19 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Ma
 		&i.DeletedBy,
 	)
 	return i, err
+}
+
+const getOpenFillRemainingQuantity = `-- name: GetOpenFillRemainingQuantity :one
+SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
+FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+WHERE f.spool_id=$1 AND f.closed_at IS NULL
+`
+
+func (q *Queries) GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getOpenFillRemainingQuantity, spoolID)
+	var remaining pgtype.Numeric
+	err := row.Scan(&remaining)
+	return remaining, err
 }
 
 const insertConnectorEvent = `-- name: InsertConnectorEvent :one
@@ -1529,6 +1580,105 @@ func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockActiveSpoolByNFCTag = `-- name: LockActiveSpoolByNFCTag :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+WHERE i.kind='nfc' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
+  AND f.closed_at IS NULL AND s.lifecycle='active'
+FOR UPDATE OF s
+`
+
+func (q *Queries) LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveSpoolByNFCTag, tagUid)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockAvailableSlotByExternalIDs = `-- name: LockAvailableSlotByExternalIDs :one
+SELECT s.id
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=$1 AND u.enabled AND s.status='available'
+  AND u.external_identifier=$2::text AND s.external_identifier=$3::text
+FOR UPDATE OF s
+`
+
+type LockAvailableSlotByExternalIDsParams struct {
+	MachineID           uuid.UUID
+	InputUnitExternalID string
+	SlotExternalID      string
+}
+
+func (q *Queries) LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockAvailableSlotByExternalIDs, arg.MachineID, arg.InputUnitExternalID, arg.SlotExternalID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockEventSource = `-- name: LockEventSource :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+func (q *Queries) LockEventSource(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, lockEventSource, lockKey)
+	return err
+}
+
+const lockOpenMountForSlot = `-- name: LockOpenMountForSlot :one
+SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments
+WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE
+`
+
+type LockOpenMountForSlotRow struct {
+	ID        uuid.UUID
+	SlotID    uuid.UUID
+	SpoolID   uuid.UUID
+	Source    string
+	MountedAt time.Time
+}
+
+func (q *Queries) LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error) {
+	row := q.db.QueryRow(ctx, lockOpenMountForSlot, slotID)
+	var i LockOpenMountForSlotRow
+	err := row.Scan(
+		&i.ID,
+		&i.SlotID,
+		&i.SpoolID,
+		&i.Source,
+		&i.MountedAt,
+	)
+	return i, err
+}
+
+const lockOpenMountForSpool = `-- name: LockOpenMountForSpool :one
+SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments
+WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE
+`
+
+type LockOpenMountForSpoolRow struct {
+	ID        uuid.UUID
+	SlotID    uuid.UUID
+	SpoolID   uuid.UUID
+	Source    string
+	MountedAt time.Time
+}
+
+func (q *Queries) LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error) {
+	row := q.db.QueryRow(ctx, lockOpenMountForSpool, spoolID)
+	var i LockOpenMountForSpoolRow
+	err := row.Scan(
+		&i.ID,
+		&i.SlotID,
+		&i.SpoolID,
+		&i.Source,
+		&i.MountedAt,
+	)
+	return i, err
 }
 
 const nextPrintSequence = `-- name: NextPrintSequence :one

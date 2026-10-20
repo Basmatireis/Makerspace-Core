@@ -122,3 +122,14 @@ UPDATE printer_slots SET name=sqlc.arg(name), position=sqlc.arg(position), exter
     version=version+CASE WHEN sqlc.arg(bump)::boolean THEN 1 ELSE 0 END,
     updated_at=CASE WHEN sqlc.arg(bump)::boolean THEN now() ELSE updated_at END
 WHERE id=sqlc.arg(id);
+
+-- name: GetMachineProcess :one
+SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = sqlc.arg(machine_id);
+
+-- name: LockSpoolLifecycle :one
+SELECT lifecycle FROM filament_spools WHERE id=sqlc.arg(id) FOR UPDATE;
+
+-- name: GetOpenFillRemainingQuantity :one
+SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
+FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+WHERE f.spool_id=sqlc.arg(spool_id) AND f.closed_at IS NULL;

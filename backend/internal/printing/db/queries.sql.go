@@ -246,6 +246,17 @@ func (q *Queries) CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePr
 	return i, err
 }
 
+const getMachineProcess = `-- name: GetMachineProcess :one
+SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1
+`
+
+func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getMachineProcess, machineID)
+	var process string
+	err := row.Scan(&process)
+	return process, err
+}
+
 const getOpenAssignmentForSlot = `-- name: GetOpenAssignmentForSlot :one
 SELECT id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE
 `
@@ -288,6 +299,19 @@ func (q *Queries) GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UU
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getOpenFillRemainingQuantity = `-- name: GetOpenFillRemainingQuantity :one
+SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
+FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+WHERE f.spool_id=$1 AND f.closed_at IS NULL
+`
+
+func (q *Queries) GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getOpenFillRemainingQuantity, spoolID)
+	var remaining pgtype.Numeric
+	err := row.Scan(&remaining)
+	return remaining, err
 }
 
 const getPrinterInputUnitForUpdate = `-- name: GetPrinterInputUnitForUpdate :one
@@ -733,6 +757,17 @@ func (q *Queries) ListPrinterSpoolAssignmentHistory(ctx context.Context, arg Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSpoolLifecycle = `-- name: LockSpoolLifecycle :one
+SELECT lifecycle FROM filament_spools WHERE id=$1 FOR UPDATE
+`
+
+func (q *Queries) LockSpoolLifecycle(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockSpoolLifecycle, id)
+	var lifecycle string
+	err := row.Scan(&lifecycle)
+	return lifecycle, err
 }
 
 const shiftPrinterInputUnitsForSetup = `-- name: ShiftPrinterInputUnitsForSetup :exec

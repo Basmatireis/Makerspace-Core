@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -18,8 +19,10 @@ type Querier interface {
 	CreatePrinterProfile(ctx context.Context, arg CreatePrinterProfileParams) (PrinterProfile, error)
 	CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotParams) (PrinterSlot, error)
 	CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePrinterSpoolAssignmentParams) (PrinterSpoolAssignment, error)
+	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error)
 	GetOpenAssignmentForSlot(ctx context.Context, slotID uuid.UUID) (PrinterSpoolAssignment, error)
 	GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UUID) (PrinterSpoolAssignment, error)
+	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID) (PrinterInputUnit, error)
 	GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (GetPrinterProfileRow, error)
 	GetPrinterProfileForUpdate(ctx context.Context, machineID uuid.UUID) (PrinterProfile, error)
@@ -32,6 +35,7 @@ type Querier interface {
 	ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]ListPrinterSlotsRow, error)
 	ListPrinterSlotsForUpdate(ctx context.Context, machineID uuid.UUID) ([]PrinterSlot, error)
 	ListPrinterSpoolAssignmentHistory(ctx context.Context, arg ListPrinterSpoolAssignmentHistoryParams) ([]ListPrinterSpoolAssignmentHistoryRow, error)
+	LockSpoolLifecycle(ctx context.Context, id uuid.UUID) (string, error)
 	ShiftPrinterInputUnitsForSetup(ctx context.Context, arg ShiftPrinterInputUnitsForSetupParams) error
 	ShiftPrinterSlotsForSetup(ctx context.Context, arg ShiftPrinterSlotsForSetupParams) error
 	UpdatePrinterInputUnit(ctx context.Context, arg UpdatePrinterInputUnitParams) (PrinterInputUnit, error)

@@ -57,27 +57,21 @@ func reconcileBambuSlotObservation(
 		return nil
 	}
 
-	var slotID uuid.UUID
-	if err := tx.QueryRow(ctx, `SELECT s.id
-		FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
-		WHERE u.machine_id=$1 AND u.enabled AND s.status='available'
-		  AND u.external_identifier=$2 AND s.external_identifier=$3
-		FOR UPDATE OF s`, machineID, value.InputUnitExternalID, value.SlotExternalID).Scan(&slotID); errors.Is(err, pgx.ErrNoRows) {
+	q := db.New(tx)
+	slotID, err := q.LockAvailableSlotByExternalIDs(ctx, db.LockAvailableSlotByExternalIDsParams{
+		MachineID:           machineID,
+		InputUnitExternalID: value.InputUnitExternalID,
+		SlotExternalID:      value.SlotExternalID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
-	} else if err != nil {
+	}
+	if err != nil {
 		return err
 	}
 	if value.Empty {
-		var mountID uuid.UUID
-		var source string
-		var mountedAt time.Time
-		err := tx.QueryRow(
-			ctx,
-			`SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
-			slotID,
-		).
-			Scan(&mountID, &source, &mountedAt)
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && source != "connector_reconciled") {
+		mount, err := q.LockOpenMountForSlot(ctx, slotID)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && mount.Source != "connector_reconciled") {
 			return nil
 		}
 		if err != nil {
@@ -87,15 +81,10 @@ func reconcileBambuSlotObservation(
 		if unmountedAt.IsZero() {
 			unmountedAt = time.Now().UTC()
 		}
-		if !unmountedAt.After(mountedAt) {
-			unmountedAt = mountedAt.Add(time.Microsecond)
+		if !unmountedAt.After(mount.MountedAt) {
+			unmountedAt = mount.MountedAt.Add(time.Microsecond)
 		}
-		if _, err = tx.Exec(
-			ctx,
-			`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`,
-			mountID,
-			unmountedAt,
-		); err != nil {
+		if err = q.CloseOpenMount(ctx, db.CloseOpenMountParams{UnmountedAt: unmountedAt, ID: mount.ID}); err != nil {
 			return err
 		}
 		return audit.Write(
@@ -120,57 +109,37 @@ func reconcileBambuSlotObservation(
 		return nil
 	}
 
-	var spoolID uuid.UUID
-	if err := tx.QueryRow(ctx, `SELECT s.id
-		FROM filament_spool_identifiers i
-		JOIN filament_spools s ON s.id=i.spool_id
-		JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
-		WHERE i.kind='nfc' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
-		  AND f.closed_at IS NULL AND s.lifecycle='active'
-		FOR UPDATE OF s`, value.TagUID).Scan(&spoolID); errors.Is(err, pgx.ErrNoRows) {
+	spoolID, err := q.LockActiveSpoolByNFCTag(ctx, value.TagUID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
-	} else if err != nil {
+	}
+	if err != nil {
 		return err
 	}
 
-	var remaining pgtype.Numeric
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)
-		FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
-		WHERE f.spool_id=$1 AND f.closed_at IS NULL`, spoolID).Scan(&remaining); err != nil {
+	remaining, err := q.GetOpenFillRemainingQuantity(ctx, spoolID)
+	if err != nil {
 		return err
 	}
 	if !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
 		return nil
 	}
 
-	type openMount struct {
-		ID, SlotID, SpoolID uuid.UUID
-		Source              string
-		MountedAt           time.Time
-	}
-	readMount := func(query string, id uuid.UUID) (*openMount, error) {
-		var mount openMount
-		err := tx.QueryRow(ctx, query, id).
-			Scan(&mount.ID, &mount.SlotID, &mount.SpoolID, &mount.Source, &mount.MountedAt)
+	readMount := func(mount db.LockOpenMountForSlotRow, err error) (*db.LockOpenMountForSlotRow, error) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return &mount, err
 	}
-	slotMount, err := readMount(
-		`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
-		slotID,
-	)
+	slotMount, err := readMount(q.LockOpenMountForSlot(ctx, slotID))
 	if err != nil {
 		return err
 	}
 	if slotMount != nil && slotMount.SpoolID == spoolID {
 		return nil
 	}
-	spoolMount, err := readMount(
-		`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE`,
-		spoolID,
-	)
+	spoolRow, err := q.LockOpenMountForSpool(ctx, spoolID)
+	spoolMount, err := readMount(db.LockOpenMountForSlotRow(spoolRow), err)
 	if err != nil {
 		return err
 	}
@@ -186,22 +155,16 @@ func reconcileBambuSlotObservation(
 	// Delayed telemetry must not create an assignment that overlaps the
 	// histories it replaces. Advance the new mount just past any newer open
 	// connector-derived mount before closing those histories.
-	for _, mount := range []*openMount{slotMount, spoolMount} {
+	for _, mount := range []*db.LockOpenMountForSlotRow{slotMount, spoolMount} {
 		if mount != nil && !mountedAt.After(mount.MountedAt) {
 			mountedAt = mount.MountedAt.Add(time.Microsecond)
 		}
 	}
-	closeMount := func(mount *openMount) error {
+	closeMount := func(mount *db.LockOpenMountForSlotRow) error {
 		if mount == nil {
 			return nil
 		}
-		_, err := tx.Exec(
-			ctx,
-			`UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`,
-			mount.ID,
-			mountedAt,
-		)
-		return err
+		return q.CloseOpenMount(ctx, db.CloseOpenMountParams{UnmountedAt: mountedAt, ID: mount.ID})
 	}
 	if err = closeMount(slotMount); err != nil {
 		return err
@@ -211,15 +174,13 @@ func reconcileBambuSlotObservation(
 			return err
 		}
 	}
-	if _, err = tx.Exec(
-		ctx,
-		`INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id) VALUES ($1,$2,$3,$4,'connector_reconciled',$5)`,
-		uuid.Must(uuid.NewV7()),
-		slotID,
-		spoolID,
-		mountedAt,
-		eventID,
-	); err != nil {
+	if err = q.CreateReconciledMount(ctx, db.CreateReconciledMountParams{
+		ID:            uuid.Must(uuid.NewV7()),
+		SlotID:        slotID,
+		SpoolID:       spoolID,
+		MountedAt:     mountedAt,
+		SourceEventID: eventID,
+	}); err != nil {
 		return err
 	}
 	return audit.Write(

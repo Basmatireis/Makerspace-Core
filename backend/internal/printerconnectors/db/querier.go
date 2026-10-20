@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -17,11 +18,13 @@ type Querier interface {
 	BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error
 	ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error)
+	CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
 	CreateCredential(ctx context.Context, arg CreateCredentialParams) (PrinterConnectorCredential, error)
 	CreateEnrollment(ctx context.Context, arg CreateEnrollmentParams) (PrinterConnectorEnrollment, error)
+	CreateReconciledMount(ctx context.Context, arg CreateReconciledMountParams) error
 	CreateRotatedCredential(ctx context.Context, arg CreateRotatedCredentialParams) (PrinterConnectorCredential, error)
 	DeleteConnector(ctx context.Context, arg DeleteConnectorParams) (int64, error)
 	DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
@@ -43,6 +46,7 @@ type Querier interface {
 	GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
+	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
 	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
@@ -53,6 +57,11 @@ type Querier interface {
 	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
+	LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
+	LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error)
+	LockEventSource(ctx context.Context, lockKey string) error
+	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
+	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
 	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)

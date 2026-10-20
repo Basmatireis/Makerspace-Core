@@ -249,13 +249,7 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 // machine_not_fdm_printing when the machine's type has another process: only
 // FDM printers have a printer setup.
 func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) error {
-	var process string
-	err := tx.QueryRow(
-		ctx,
-		"SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1",
-		machineID,
-	).
-		Scan(&process)
+	process, err := db.New(tx).GetMachineProcess(ctx, machineID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
@@ -592,18 +586,12 @@ func (s *Service) Mount(
 		return Slot{}, conflict("slot_unavailable", "Printer slot is not available")
 	}
 	// A spool can be mounted while it is active and its open fill still holds stock.
-	var lifecycle string
-	if err = tx.QueryRow(
-		ctx,
-		"SELECT lifecycle FROM filament_spools WHERE id=$1 FOR UPDATE",
-		spoolID,
-	).Scan(&lifecycle); err != nil {
+	lifecycle, err := q.LockSpoolLifecycle(ctx, spoolID)
+	if err != nil {
 		return Slot{}, noRows(err)
 	}
-	var remaining pgtype.Numeric
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)
-		FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
-		WHERE f.spool_id=$1 AND f.closed_at IS NULL`, spoolID).Scan(&remaining); err != nil {
+	remaining, err := q.GetOpenFillRemainingQuantity(ctx, spoolID)
+	if err != nil {
 		return Slot{}, err
 	}
 	if lifecycle != "active" || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
@@ -784,11 +772,7 @@ func (s *Service) IngestConnectorEvent(
 		input.ReportRevision,
 	})
 	q := printerconnectorsdb.New(tx)
-	if _, err := tx.Exec(
-		ctx,
-		"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-		sourceID+"\n"+eventKey,
-	); err != nil {
+	if err := q.LockEventSource(ctx, sourceID+"\n"+eventKey); err != nil {
 		return PrinterEvent{}, false, err
 	}
 	existing, err := q.GetConnectorEventByKey(

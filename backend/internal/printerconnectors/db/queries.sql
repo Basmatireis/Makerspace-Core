@@ -327,3 +327,42 @@ DELETE FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_
 
 -- name: DeleteConnector :execrows
 DELETE FROM printer_connectors WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version);
+
+-- name: LockEventSource :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key)::text, 0));
+
+-- name: LockAvailableSlotByExternalIDs :one
+SELECT s.id
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=sqlc.arg(machine_id) AND u.enabled AND s.status='available'
+  AND u.external_identifier=sqlc.arg(input_unit_external_id)::text AND s.external_identifier=sqlc.arg(slot_external_id)::text
+FOR UPDATE OF s;
+
+-- name: LockOpenMountForSlot :one
+SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments
+WHERE slot_id=sqlc.arg(slot_id) AND unmounted_at IS NULL FOR UPDATE;
+
+-- name: LockOpenMountForSpool :one
+SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments
+WHERE spool_id=sqlc.arg(spool_id) AND unmounted_at IS NULL FOR UPDATE;
+
+-- name: CloseOpenMount :exec
+UPDATE printer_spool_assignments SET unmounted_at=sqlc.arg(unmounted_at)::timestamptz WHERE id=sqlc.arg(id) AND unmounted_at IS NULL;
+
+-- name: CreateReconciledMount :exec
+INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id)
+VALUES (sqlc.arg(id), sqlc.arg(slot_id), sqlc.arg(spool_id), sqlc.arg(mounted_at), 'connector_reconciled', sqlc.arg(source_event_id)::uuid);
+
+-- name: LockActiveSpoolByNFCTag :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at IS NULL
+  AND f.closed_at IS NULL AND s.lifecycle='active'
+FOR UPDATE OF s;
+
+-- name: GetOpenFillRemainingQuantity :one
+SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
+FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+WHERE f.spool_id=sqlc.arg(spool_id) AND f.closed_at IS NULL;
