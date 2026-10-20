@@ -479,7 +479,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			)
 			return
 		}
-		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && isStaffSessionEntryPath(r.URL.Path) {
+		if device != nil && !managedDeviceAllowsMode(*device, manageddevices.ModeStaffUI) && isStaffSessionEntryPath(r.URL.Path) {
 			writeAPIError(
 				w,
 				r,
@@ -498,7 +498,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			next.ServeHTTP(w, r)
 			return
 		}
-		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && r.URL.Path != apiBasePath+"/auth/logout" {
+		if device != nil && !managedDeviceAllowsMode(*device, manageddevices.ModeStaffUI) && r.URL.Path != apiBasePath+"/auth/logout" {
 			writeAPIError(
 				w,
 				r,
@@ -1007,7 +1007,7 @@ func isUnsafeMethod(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
 }
 
-func managedDeviceAllowsMode(device manageddevices.DeviceContext, mode string) bool {
+func managedDeviceAllowsMode(device manageddevices.DeviceContext, mode manageddevices.ApplicationMode) bool {
 	for _, allowed := range device.AllowedApplicationModes {
 		if allowed == mode {
 			return true

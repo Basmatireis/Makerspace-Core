@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"net/http"
 	"time"
 
@@ -113,9 +114,10 @@ func (s *Service) Update(
 	}
 	return s.UpdateConfigured(ctx, principal, id, name, typeID, expiresAt, DeviceSettings{
 		SessionPolicyID: current.SessionPolicyID, TerminalEnabled: current.TerminalEnabled,
-		AllowedApplicationModes: append([]string(nil), current.AllowedAppModes...),
-		CheckInAssurance:        current.CheckInAssurance, CheckOutAssurance: current.CheckOutAssurance,
-		CheckoutMode: current.CheckoutMode, Capabilities: capabilities,
+		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](current.AllowedAppModes),
+		CheckInAssurance:        authorization.Assurance(current.CheckInAssurance),
+		CheckOutAssurance:       authorization.Assurance(current.CheckOutAssurance),
+		CheckoutMode:            CheckoutMode(current.CheckoutMode), Capabilities: capabilities,
 	}, version, requestID)
 }
 
@@ -159,7 +161,7 @@ func (s *Service) UpdateConfigured(
 	if current.Version != version {
 		return Device{}, apperror.StaleWrite
 	}
-	if isSignagePlayer(current.AllowedAppModes) {
+	if isSignagePlayer(optional.ConvertSlice[ApplicationMode](current.AllowedAppModes)) {
 		return Device{}, apperror.InvalidField("signage player devices are managed through signage displays")
 	}
 	now := time.Now().UTC()
@@ -193,9 +195,9 @@ func (s *Service) UpdateConfigured(
 			ExpiresAt: timestamp(
 				expiresAt,
 			), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.TerminalEnabled,
-			AllowedAppModes:  settings.AllowedApplicationModes,
-			CheckInAssurance: settings.CheckInAssurance, CheckOutAssurance: settings.CheckOutAssurance,
-			CheckoutMode: settings.CheckoutMode, ExpectedVersion: version},
+			AllowedAppModes:  optional.ConvertSlice[string](settings.AllowedApplicationModes),
+			CheckInAssurance: string(settings.CheckInAssurance), CheckOutAssurance: string(settings.CheckOutAssurance),
+			CheckoutMode: string(settings.CheckoutMode), ExpectedVersion: version},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Device{}, apperror.StaleWrite
@@ -216,7 +218,7 @@ func (s *Service) UpdateConfigured(
 	}
 	if !sameUUIDPointer(current.SessionPolicyID, settings.SessionPolicyID) ||
 		current.TerminalEnabled != settings.TerminalEnabled ||
-		!sameStringSet(current.AllowedAppModes, settings.AllowedApplicationModes) {
+		!sameStringSet(optional.ConvertSlice[ApplicationMode](current.AllowedAppModes), settings.AllowedApplicationModes) {
 		if err = q.RevokeSessionsForManagedDevice(ctx, &id); err != nil {
 			return Device{}, err
 		}
@@ -325,9 +327,10 @@ func (s *Service) Create(
 	requestID *uuid.UUID,
 ) (ProvisionedDevice, error) {
 	return s.CreateConfigured(ctx, principal, name, typeID, expiresAt, DeviceSettings{
-		AllowedApplicationModes: []string{
-			"staff_ui",
-		}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+		AllowedApplicationModes: []ApplicationMode{
+			ModeStaffUI,
+		}, CheckInAssurance: authorization.AssuranceLow, CheckOutAssurance: authorization.AssuranceLow,
+		CheckoutMode: CheckoutVerified,
 	}, requestID)
 }
 
@@ -380,9 +383,9 @@ func (s *Service) CreateConfigured(
 			TokenDigest:     digest,
 			ExpiresAt:       timestamp(expiresAt),
 			SessionPolicyID: settings.SessionPolicyID,
-			TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: settings.CheckInAssurance,
-			AllowedAppModes:   settings.AllowedApplicationModes,
-			CheckOutAssurance: settings.CheckOutAssurance, CheckoutMode: settings.CheckoutMode},
+			TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: string(settings.CheckInAssurance),
+			AllowedAppModes:   optional.ConvertSlice[string](settings.AllowedApplicationModes),
+			CheckOutAssurance: string(settings.CheckOutAssurance), CheckoutMode: string(settings.CheckoutMode)},
 	)
 	if err != nil {
 		return ProvisionedDevice{}, databaseError(err)
@@ -546,7 +549,7 @@ func (s *Service) Rotate(
 			"A revoked managed device cannot rotate its token",
 		)
 	}
-	if isSignagePlayer(current.AllowedAppModes) {
+	if isSignagePlayer(optional.ConvertSlice[ApplicationMode](current.AllowedAppModes)) {
 		return ProvisionedDevice{}, apperror.InvalidField(
 			"signage player devices cannot rotate their token; pair the display again",
 		)
@@ -601,9 +604,9 @@ func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
 		TerminalEnabled:         row.TerminalEnabled,
-		CheckInAssurance:        row.CheckInAssurance,
-		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
-		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
+		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
+		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
+		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), CheckoutMode: CheckoutMode(row.CheckoutMode),
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
@@ -613,8 +616,8 @@ func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
 		TerminalEnabled:         row.TerminalEnabled,
-		CheckInAssurance:        row.CheckInAssurance,
-		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
-		CheckOutAssurance:       row.CheckOutAssurance, CheckoutMode: row.CheckoutMode,
+		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
+		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
+		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), CheckoutMode: CheckoutMode(row.CheckoutMode),
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }

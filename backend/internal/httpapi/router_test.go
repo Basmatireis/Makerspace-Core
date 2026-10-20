@@ -731,8 +731,8 @@ func recordedAPIRequestLog(t *testing.T, method, target string) (map[string]any,
 }
 
 func TestManagedDeviceApplicationModeBoundaries(t *testing.T) {
-	visitorOnly := manageddevices.DeviceContext{AllowedApplicationModes: []string{"visitor_terminal"}}
-	staff := manageddevices.DeviceContext{AllowedApplicationModes: []string{"staff_ui"}}
+	visitorOnly := manageddevices.DeviceContext{AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"}}
+	staff := manageddevices.DeviceContext{AllowedApplicationModes: []manageddevices.ApplicationMode{"staff_ui"}}
 	if managedDeviceAllowsMode(visitorOnly, "staff_ui") || !managedDeviceAllowsMode(staff, "staff_ui") {
 		t.Fatal("staff UI mode was not enforced")
 	}

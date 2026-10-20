@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"net/http"
 	"strings"
 	"time"
@@ -34,10 +36,10 @@ type Device struct {
 	ExpiresAt, RevokedAt, LastSeenAt *time.Time
 	SessionPolicyID                  *uuid.UUID
 	TerminalEnabled                  bool
-	AllowedApplicationModes          []string
-	CheckInAssurance                 string
-	CheckOutAssurance                string
-	CheckoutMode                     string
+	AllowedApplicationModes          []ApplicationMode
+	CheckInAssurance                 authorization.Assurance
+	CheckOutAssurance                authorization.Assurance
+	CheckoutMode                     CheckoutMode
 	Capabilities                     []string
 	Version                          int64
 	CreatedAt, UpdatedAt             time.Time
@@ -62,24 +64,25 @@ func (d Device) Status(now time.Time) Status {
 }
 
 type DeviceContext struct {
-	ID                                                uuid.UUID
-	Name                                              string
-	DeviceTypeID                                      uuid.UUID
-	DeviceTypeName                                    string
-	ExpiresAt                                         *time.Time
-	SessionPolicyID                                   *uuid.UUID
-	TerminalEnabled                                   bool
-	AllowedApplicationModes                           []string
-	CheckInAssurance, CheckOutAssurance, CheckoutMode string
+	ID                                  uuid.UUID
+	Name                                string
+	DeviceTypeID                        uuid.UUID
+	DeviceTypeName                      string
+	ExpiresAt                           *time.Time
+	SessionPolicyID                     *uuid.UUID
+	TerminalEnabled                     bool
+	AllowedApplicationModes             []ApplicationMode
+	CheckInAssurance, CheckOutAssurance authorization.Assurance
+	CheckoutMode                        CheckoutMode
 }
 
 type DeviceSettings struct {
 	SessionPolicyID         *uuid.UUID
 	TerminalEnabled         bool
-	AllowedApplicationModes []string
-	CheckInAssurance        string
-	CheckOutAssurance       string
-	CheckoutMode            string
+	AllowedApplicationModes []ApplicationMode
+	CheckInAssurance        authorization.Assurance
+	CheckOutAssurance       authorization.Assurance
+	CheckoutMode            CheckoutMode
 	Capabilities            []string
 }
 
@@ -87,7 +90,7 @@ type SessionPolicy struct {
 	ID                                          uuid.UUID
 	Name                                        string
 	IdleTimeoutSeconds, AbsoluteLifetimeSeconds int32
-	PostSessionDestination                      string
+	PostSessionDestination                      Destination
 	IsDefault                                   bool
 	Version                                     int64
 	CreatedAt, UpdatedAt                        time.Time
@@ -96,7 +99,7 @@ type SessionPolicy struct {
 type SessionPolicyInput struct {
 	Name                                        string
 	IdleTimeoutSeconds, AbsoluteLifetimeSeconds int32
-	PostSessionDestination                      string
+	PostSessionDestination                      Destination
 	IsDefault                                   bool
 	ExpectedVersion                             int64
 }
@@ -111,19 +114,22 @@ type Page struct {
 }
 
 type HardwareReport struct {
-	Platform, BridgeVersion string
-	Capabilities            []string
+	Platform      Platform
+	BridgeVersion string
+	Capabilities  []string
 }
 
 type HardwareContext struct {
-	DeviceID                                        uuid.UUID
-	DeviceName                                      string
-	TerminalEnabled                                 bool
-	AllowedApplicationModes, ConfiguredCapabilities []string
-	ReportedCapabilities, EffectiveCapabilities     []string
-	SessionPolicyID                                 *uuid.UUID
-	Platform, BridgeVersion                         *string
-	ReportedAt                                      *time.Time
+	DeviceID                                    uuid.UUID
+	DeviceName                                  string
+	TerminalEnabled                             bool
+	AllowedApplicationModes                     []ApplicationMode
+	ConfiguredCapabilities                      []string
+	ReportedCapabilities, EffectiveCapabilities []string
+	SessionPolicyID                             *uuid.UUID
+	Platform                                    *Platform
+	BridgeVersion                               *string
+	ReportedAt                                  *time.Time
 }
 
 type Service struct{ pool *pgxpool.Pool }
@@ -153,10 +159,10 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 		),
 		SessionPolicyID:         row.SessionPolicyID,
 		TerminalEnabled:         row.TerminalEnabled,
-		AllowedApplicationModes: append([]string(nil), row.AllowedAppModes...),
-		CheckInAssurance:        row.CheckInAssurance,
-		CheckOutAssurance:       row.CheckOutAssurance,
-		CheckoutMode:            row.CheckoutMode,
+		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
+		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
+		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance),
+		CheckoutMode:            CheckoutMode(row.CheckoutMode),
 	}, nil
 }
 
@@ -172,7 +178,7 @@ func (s *Service) GetHardwareContext(ctx context.Context, device DeviceContext) 
 	}
 	result := HardwareContext{
 		DeviceID: device.ID, DeviceName: device.Name, TerminalEnabled: device.TerminalEnabled,
-		AllowedApplicationModes: append([]string(nil), device.AllowedApplicationModes...),
+		AllowedApplicationModes: append([]ApplicationMode(nil), device.AllowedApplicationModes...),
 		SessionPolicyID:         device.SessionPolicyID, ConfiguredCapabilities: configured,
 		ReportedCapabilities: reported, EffectiveCapabilities: intersectCapabilities(configured, reported),
 	}
@@ -183,7 +189,7 @@ func (s *Service) GetHardwareContext(ctx context.Context, device DeviceContext) 
 	if err != nil {
 		return HardwareContext{}, err
 	}
-	result.Platform = &report.Platform
+	result.Platform = optional.Of(Platform(report.Platform))
 	result.BridgeVersion = &report.BridgeVersion
 	reportedAt := report.ReportedAt.UTC()
 	result.ReportedAt = &reportedAt
@@ -196,9 +202,9 @@ func (s *Service) ReportHardware(
 	report HardwareReport,
 	requestID *uuid.UUID,
 ) (HardwareContext, error) {
-	report.Platform = strings.TrimSpace(report.Platform)
+	report.Platform = Platform(strings.TrimSpace(string(report.Platform)))
 	report.BridgeVersion = strings.TrimSpace(report.BridgeVersion)
-	if report.Platform != "desktop" && report.Platform != "android" {
+	if report.Platform != PlatformDesktop && report.Platform != PlatformAndroid {
 		return HardwareContext{}, apperror.InvalidField("platform is invalid")
 	}
 	if report.BridgeVersion == "" || len([]rune(report.BridgeVersion)) > 40 {
@@ -219,7 +225,7 @@ func (s *Service) ReportHardware(
 		return HardwareContext{}, err
 	}
 	if err = q.UpsertManagedDeviceHardwareReport(ctx, manageddevicesdb.UpsertManagedDeviceHardwareReportParams{
-		ManagedDeviceID: device.ID, Platform: report.Platform, BridgeVersion: report.BridgeVersion,
+		ManagedDeviceID: device.ID, Platform: string(report.Platform), BridgeVersion: report.BridgeVersion,
 	}); err != nil {
 		return HardwareContext{}, databaseError(err)
 	}
@@ -275,11 +281,11 @@ func sameUUIDPointer(left, right *uuid.UUID) bool {
 	return *left == *right
 }
 
-func sameStringSet(left, right []string) bool {
+func sameStringSet[T ~string](left, right []T) bool {
 	if len(left) != len(right) {
 		return false
 	}
-	values := make(map[string]struct{}, len(left))
+	values := make(map[T]struct{}, len(left))
 	for _, value := range left {
 		values[value] = struct{}{}
 	}
@@ -293,32 +299,35 @@ func sameStringSet(left, right []string) bool {
 
 func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if len(settings.AllowedApplicationModes) == 0 {
-		settings.AllowedApplicationModes = []string{"staff_ui"}
+		settings.AllowedApplicationModes = []ApplicationMode{ModeStaffUI}
 	}
-	seenModes := map[string]bool{}
+	seenModes := map[ApplicationMode]bool{}
 	for _, mode := range settings.AllowedApplicationModes {
-		if mode == SignagePlayerMode {
+		if mode == ModeSignagePlayer {
 			return settings, apperror.InvalidField("signage player devices are created by pairing a signage display")
 		}
-		if (mode != "visitor_terminal" && mode != "staff_ui") || seenModes[mode] {
+		if (mode != ModeVisitorTerminal && mode != ModeStaffUI) || seenModes[mode] {
 			return settings, apperror.InvalidField("allowedApplicationModes must contain unique supported values")
 		}
 		seenModes[mode] = true
 	}
 	if settings.CheckInAssurance == "" {
-		settings.CheckInAssurance = "low"
+		settings.CheckInAssurance = authorization.AssuranceLow
 	}
 	if settings.CheckOutAssurance == "" {
-		settings.CheckOutAssurance = "low"
+		settings.CheckOutAssurance = authorization.AssuranceLow
 	}
 	if settings.CheckoutMode == "" {
-		settings.CheckoutMode = "verified"
+		settings.CheckoutMode = CheckoutVerified
 	}
-	validAssurance := func(v string) bool { return v == "low" || v == "normal" || v == "strong" || v == "strong_mfa" }
+	validAssurance := func(v authorization.Assurance) bool {
+		return v == authorization.AssuranceLow || v == authorization.AssuranceNormal || v == authorization.AssuranceStrong ||
+			v == authorization.AssuranceStrongMFA
+	}
 	if !validAssurance(settings.CheckInAssurance) || !validAssurance(settings.CheckOutAssurance) {
 		return settings, apperror.InvalidField("attendance assurance is invalid")
 	}
-	if settings.CheckoutMode != "verified" && settings.CheckoutMode != "public_tap" {
+	if settings.CheckoutMode != CheckoutVerified && settings.CheckoutMode != CheckoutPublicTap {
 		return settings, apperror.InvalidField("checkoutMode is invalid")
 	}
 	if err := validateCapabilities(settings.Capabilities); err != nil {
@@ -327,7 +336,7 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if settings.TerminalEnabled && settings.SessionPolicyID == nil {
 		return settings, apperror.InvalidField("terminal-enabled devices require a session policy")
 	}
-	if settings.TerminalEnabled && !seenModes["visitor_terminal"] {
+	if settings.TerminalEnabled && !seenModes[ModeVisitorTerminal] {
 		return settings, apperror.InvalidField("terminal-enabled devices must allow visitor_terminal mode")
 	}
 	return settings, nil

@@ -17,7 +17,7 @@ import (
 
 func policyFromRow(row manageddevicesdb.SessionPolicy) SessionPolicy {
 	return SessionPolicy{ID: row.ID, Name: row.Name, IdleTimeoutSeconds: row.IdleTimeoutSeconds,
-		AbsoluteLifetimeSeconds: row.AbsoluteLifetimeSeconds, PostSessionDestination: row.PostSessionDestination,
+		AbsoluteLifetimeSeconds: row.AbsoluteLifetimeSeconds, PostSessionDestination: Destination(row.PostSessionDestination),
 		IsDefault: row.IsDefault, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
@@ -46,7 +46,7 @@ func validateSessionPolicy(input SessionPolicyInput) (SessionPolicyInput, error)
 		input.IdleTimeoutSeconds > input.AbsoluteLifetimeSeconds {
 		return input, apperror.InvalidField("session lifetimes are invalid")
 	}
-	if input.PostSessionDestination != "login" && input.PostSessionDestination != "visitor_terminal" {
+	if input.PostSessionDestination != DestinationLogin && input.PostSessionDestination != DestinationVisitorTerminal {
 		return input, apperror.InvalidField("postSessionDestination is invalid")
 	}
 	return input, nil
@@ -88,7 +88,7 @@ func (s *Service) CreateSessionPolicy(
 	}
 	row, err := q.CreateSessionPolicy(ctx, manageddevicesdb.CreateSessionPolicyParams{ID: id, Name: input.Name,
 		IdleTimeoutSeconds: input.IdleTimeoutSeconds, AbsoluteLifetimeSeconds: input.AbsoluteLifetimeSeconds,
-		PostSessionDestination: input.PostSessionDestination, IsDefault: input.IsDefault})
+		PostSessionDestination: string(input.PostSessionDestination), IsDefault: input.IsDefault})
 	if err != nil {
 		return SessionPolicy{}, databaseError(err)
 	}
@@ -166,7 +166,7 @@ func (s *Service) UpdateSessionPolicy(
 	}
 	row, err := q.UpdateSessionPolicy(ctx, manageddevicesdb.UpdateSessionPolicyParams{ID: id, Name: input.Name,
 		IdleTimeoutSeconds: input.IdleTimeoutSeconds, AbsoluteLifetimeSeconds: input.AbsoluteLifetimeSeconds,
-		PostSessionDestination: input.PostSessionDestination,
+		PostSessionDestination: string(input.PostSessionDestination),
 		IsDefault:              input.IsDefault,
 		ExpectedVersion:        input.ExpectedVersion})
 	if errors.Is(err, pgx.ErrNoRows) {

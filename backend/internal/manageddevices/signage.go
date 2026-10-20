@@ -16,15 +16,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SignagePlayerMode is the only application mode of a digital-signage player device. Such devices
-// are created by pairing a signage display, never through the generic managed-device endpoints.
-const SignagePlayerMode = "signage_player"
-
 const signageDeviceTypeName = "Signage display"
 
-func isSignagePlayer(modes []string) bool {
+func isSignagePlayer(modes []ApplicationMode) bool {
 	for _, mode := range modes {
-		if mode == SignagePlayerMode {
+		if mode == ModeSignagePlayer {
 			return true
 		}
 	}
@@ -68,8 +64,9 @@ func CreateSignagePlayerDeviceTx(
 			uuid.NewV7(),
 		), Name: name, DeviceTypeID: deviceType.ID, TokenDigest: security.DigestToken(string(unusable)),
 		AllowedAppModes: []string{
-			SignagePlayerMode,
-		}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+			string(ModeSignagePlayer),
+		}, CheckInAssurance: string(authorization.AssuranceLow), CheckOutAssurance: string(authorization.AssuranceLow),
+		CheckoutMode: string(CheckoutVerified),
 	})
 	if err != nil {
 		return uuid.Nil, databaseError(err)

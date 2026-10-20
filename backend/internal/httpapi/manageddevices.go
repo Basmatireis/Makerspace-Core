@@ -188,10 +188,10 @@ func (s *Server) CreateManagedDevice(
 		manageddevices.DeviceSettings{
 			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-			CheckInAssurance: string(
+			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
-			), CheckOutAssurance: string(r.Body.CheckOutAssurance),
-			CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
+			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
+			CheckoutMode: manageddevices.CheckoutMode(r.Body.CheckoutMode), Capabilities: capabilities,
 		},
 		requestIDPointer(ctx),
 	)
@@ -230,10 +230,10 @@ func (s *Server) UpdateManagedDevice(
 		manageddevices.DeviceSettings{
 			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-			CheckInAssurance: string(
+			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
-			), CheckOutAssurance: string(r.Body.CheckOutAssurance),
-			CheckoutMode: string(r.Body.CheckoutMode), Capabilities: capabilities,
+			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
+			CheckoutMode: manageddevices.CheckoutMode(r.Body.CheckoutMode), Capabilities: capabilities,
 		},
 		r.Body.ExpectedVersion,
 		requestIDPointer(ctx),
@@ -275,7 +275,7 @@ func (s *Server) ReportOwnManagedDeviceHardware(
 		capabilities[i] = string(capability)
 	}
 	value, err := s.managedDevices.ReportHardware(ctx, device, manageddevices.HardwareReport{
-		Platform: string(request.Body.Platform), BridgeVersion: request.Body.BridgeVersion, Capabilities: capabilities,
+		Platform: manageddevices.Platform(request.Body.Platform), BridgeVersion: request.Body.BridgeVersion, Capabilities: capabilities,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -425,15 +425,15 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 	}
 }
 
-func applicationModeStrings(values []openapi.DeviceApplicationMode) []string {
-	result := make([]string, len(values))
+func applicationModeStrings(values []openapi.DeviceApplicationMode) []manageddevices.ApplicationMode {
+	result := make([]manageddevices.ApplicationMode, len(values))
 	for i, value := range values {
-		result[i] = string(value)
+		result[i] = manageddevices.ApplicationMode(value)
 	}
 	return result
 }
 
-func applicationModes(values []string) []openapi.DeviceApplicationMode {
+func applicationModes(values []manageddevices.ApplicationMode) []openapi.DeviceApplicationMode {
 	result := make([]openapi.DeviceApplicationMode, len(values))
 	for i, value := range values {
 		result[i] = openapi.DeviceApplicationMode(value)
@@ -461,9 +461,9 @@ func hardwareContextDTO(value manageddevices.HardwareContext) openapi.DeviceHard
 			value.ConfiguredCapabilities,
 		), ReportedCapabilities: deviceCapabilities(value.ReportedCapabilities),
 		EffectiveCapabilities: deviceCapabilities(value.EffectiveCapabilities),
-		Platform: nullablePointer[string](
+		Platform: nullablePointer[manageddevices.Platform](
 			value.Platform,
-			func(platform string) openapi.DevicePlatform { return openapi.DevicePlatform(platform) },
+			func(platform manageddevices.Platform) openapi.DevicePlatform { return openapi.DevicePlatform(platform) },
 		),
 		BridgeVersion: nullablePointer[string](
 			value.BridgeVersion,
@@ -534,7 +534,7 @@ func (s *Server) UpdateSessionPolicy(
 			Name:                    request.Body.Name,
 			IdleTimeoutSeconds:      int32(request.Body.IdleTimeoutSeconds),
 			AbsoluteLifetimeSeconds: int32(request.Body.AbsoluteLifetimeSeconds),
-			PostSessionDestination: string(
+			PostSessionDestination: manageddevices.Destination(
 				request.Body.PostSessionDestination,
 			), IsDefault: request.Body.IsDefault, ExpectedVersion: request.Body.ExpectedVersion,
 		},
@@ -551,7 +551,7 @@ func sessionPolicyInput(value openapi.SessionPolicyInput, expected int64) manage
 		Name:                    value.Name,
 		IdleTimeoutSeconds:      int32(value.IdleTimeoutSeconds),
 		AbsoluteLifetimeSeconds: int32(value.AbsoluteLifetimeSeconds),
-		PostSessionDestination: string(
+		PostSessionDestination: manageddevices.Destination(
 			value.PostSessionDestination,
 		),
 		IsDefault:       value.IsDefault,
