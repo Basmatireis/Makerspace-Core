@@ -52,6 +52,14 @@ services:
       STREAM_ALLOWED_ORIGIN: ${STREAM_ALLOWED_ORIGIN:-}
       STREAM_DATA_DIR: /var/lib/makerspace-streaming-gateway
       STREAM_ENROLLMENT_SECRET: ${STREAM_ENROLLMENT_SECRET:-}
+      # TLS certificate, two ways (see docs/hosting.md). Certificate files in ./certs win when present.
+      # Simplest: the gateway obtains and renews a Let's Encrypt certificate for STREAM_PUBLIC_HOST by
+      # itself (DNS-01 via Cloudflare); it needs only ACME_EMAIL and CLOUDFLARE_DNS_API_TOKEN.
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      CLOUDFLARE_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN:-}
+      # Optional: ACME directory (Let's Encrypt staging for tests) and the resolvers for the DNS checks.
+      ACME_CA_DIR: ${ACME_CA_DIR:-}
+      ACME_DNS_RESOLVERS: ${ACME_DNS_RESOLVERS:-}
       STREAM_TLS_CERT_FILE: /certs/fullchain.pem
       STREAM_TLS_KEY_FILE: /certs/privkey.pem
       STREAM_LISTEN_ADDR: ":8443"
@@ -61,8 +69,9 @@ services:
     volumes:
       - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
       - go2rtc_config:/go2rtc-config
-      # fullchain.pem and privkey.pem for STREAM_PUBLIC_HOST, readable for uid 10001. A renewed
-      # certificate is picked up within about a minute without a restart.
+      # Optional (file mode): fullchain.pem and privkey.pem for STREAM_PUBLIC_HOST, readable for uid
+      # 10001. A renewed certificate is picked up within about a minute without a restart. Without
+      # these files (or without the directory) the gateway uses ACME mode.
       - ./certs:/certs:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

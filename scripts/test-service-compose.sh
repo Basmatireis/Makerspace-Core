@@ -66,5 +66,18 @@ cp "$deployment_directory/.env.example" "$deployment_directory/.env"
         printf '%s\n' "$rendered" | grep -F 'read_only: true' >/dev/null
         # go2rtc's API (1984) and RTSP (8554) must never be published.
         test -z "$(printf '%s\n' "$rendered" | grep -E 'published: "(1984|8554)"' || true)"
+        # Both TLS modes must render: ACME variables reach the gateway, and the certs directory is optional.
+        printf '%s\n' "$rendered" | grep -E '^ +ACME_EMAIL:' >/dev/null
+        printf '%s\n' "$rendered" | grep -E '^ +CLOUDFLARE_DNS_API_TOKEN:' >/dev/null
+        grep -E '^ACME_EMAIL=$' .env.example >/dev/null
+        grep -E '^CLOUDFLARE_DNS_API_TOKEN=$' .env.example >/dev/null
+        {
+            printf 'ACME_EMAIL=ops@example.org\n'
+            printf 'CLOUDFLARE_DNS_API_TOKEN=smoke-cloudflare-token\n'
+        } >>.env
+        rm -rf certs
+        acme_rendered=$(docker compose config)
+        printf '%s\n' "$acme_rendered" | grep -F 'ACME_EMAIL: ops@example.org' >/dev/null
+        printf '%s\n' "$acme_rendered" | grep -F 'CLOUDFLARE_DNS_API_TOKEN: smoke-cloudflare-token' >/dev/null
     fi
 )

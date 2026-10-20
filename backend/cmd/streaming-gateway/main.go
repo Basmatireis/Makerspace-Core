@@ -82,9 +82,44 @@ func run() error {
 		AllowedOrigin:      allowedOrigin,
 		ExpectedPublicHost: os.Getenv("STREAM_PUBLIC_HOST"),
 	}
+	selection, err := streaminggateway.SelectTLSMode(options.CertFile, options.KeyFile, options.ExpectedPublicHost,
+		os.Getenv("ACME_EMAIL"), os.Getenv("CLOUDFLARE_DNS_API_TOKEN"))
+	if err != nil {
+		return err
+	}
+	if selection.Mode == streaminggateway.TLSModeACME {
+		acme, acmeErr := acmeOptions(selection.Domain)
+		if acmeErr != nil {
+			return acmeErr
+		}
+		options.ACME = acme
+		options.CertFile, options.KeyFile = "", ""
+		logger.Info("tls: ACME mode", "domain", selection.Domain, "ca", acme.CADir)
+	} else {
+		logger.Info("tls: certificate files")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return streaminggateway.New(store, client, g2r, options, logger).Run(ctx)
+}
+
+// acmeOptions reads the ACME settings of the environment (ACME mode only).
+func acmeOptions(domain string) (*streaminggateway.ACMEOptions, error) {
+	caDir, err := streaminggateway.ValidateACMEDirectory(os.Getenv("ACME_CA_DIR"))
+	if err != nil {
+		return nil, err
+	}
+	resolvers, err := streaminggateway.ParseACMEResolvers(os.Getenv("ACME_DNS_RESOLVERS"))
+	if err != nil {
+		return nil, err
+	}
+	return &streaminggateway.ACMEOptions{
+		Domain:          domain,
+		Email:           strings.TrimSpace(os.Getenv("ACME_EMAIL")),
+		CloudflareToken: strings.TrimSpace(os.Getenv("CLOUDFLARE_DNS_API_TOKEN")),
+		CADir:           caDir,
+		Resolvers:       resolvers,
+	}, nil
 }
 
 // playerOrigin is the browser origin the proxy accepts: Core's origin by default. STREAM_ALLOWED_ORIGIN

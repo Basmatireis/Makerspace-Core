@@ -119,6 +119,37 @@ Normally not needed: revoking the display in Core makes the player delete its ca
 
 To keep the pairing and drop only the cached content, open `chrome://serviceworker-internals`, unregister `/player/`, then in DevTools (Application, Storage) clear "Cache storage" for the Core origin, and reload.
 
+## DNS on the kiosk: names that point to a private address
+
+A gateway with a public certificate (for example `signage-gw.example.org`, obtained from Let's Encrypt, see [Hosting](hosting.md)) has a public DNS record that points to a private LAN address. Many routers refuse to answer such names: OpenWrt's dnsmasq has **rebind protection** (`rebind_protection`) and drops answers with private addresses for public names. The display then shows no camera and the gateway name does not resolve, although Core works. If you have no admin access to the router, fix it on the display. WebRTC media is not affected: it uses the gateway's LAN IP address as an ICE candidate (`STREAM_LAN_ADDRESS:8555`) and needs no DNS; only the HTTPS signalling to the gateway name does.
+
+**Option 1 (recommended): DNS-over-HTTPS in Chromium.** Chromium then asks Cloudflare's resolver for names directly and bypasses the router's resolver. Create the managed policy file as root (the directory may not exist):
+
+```sh
+sudo mkdir -p /etc/chromium/policies/managed
+sudo tee /etc/chromium/policies/managed/makerspace-signage.json >/dev/null <<'JSON'
+{
+  "DnsOverHttpsMode": "secure",
+  "DnsOverHttpsTemplates": "https://cloudflare-dns.com/dns-query"
+}
+JSON
+```
+
+For Google Chrome the directory is `/etc/opt/chrome/policies/managed/` (same content, any file name ending in `.json`). Snap or Flatpak Chromium reads other paths: for the Snap use `/var/snap/chromium/current/policies/managed/`. Restart the browser. `secure` means no fallback to the system resolver; Chromium resolves the DoH server's own address (`cloudflare-dns.com`) through the system resolver once, which works because that name has a public address. Check `chrome://policy` (the two policies are listed with status OK) and open `https://signage-gw.example.org:8443/` in the kiosk browser or the player.
+
+**Option 2: system DNS.** Point the display's resolver to `1.1.1.1` (for example `nmcli connection modify <connection> ipv4.dns 1.1.1.1 ipv4.ignore-auto-dns yes`, or `DNS=1.1.1.1` in `/etc/systemd/resolved.conf`). Then every name of the display goes through Cloudflare, including local names.
+
+**Option 3: hosts entry.** On a fixed installation add one line to `/etc/hosts`: `192.168.1.20  signage-gw.example.org` (the gateway's LAN IP). Simple and robust, but it has to be changed by hand when the address changes.
+
+**Verify.**
+
+```sh
+nslookup signage-gw.example.org                 # through the router: fails or returns nothing when blocked
+nslookup signage-gw.example.org 1.1.1.1         # through Cloudflare: returns the LAN address
+```
+
+If the second answer is correct and the first is not, rebind protection is the cause. In Chromium open `chrome://net-internals/#dns` to see what the browser resolved (with DoH active the entries show the answer from Cloudflare), and `chrome://net-internals/#dns` also lets you clear the host cache after a change. If a DoH policy is set and names still fail, make sure the display can reach `cloudflare-dns.com` on port 443.
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -126,6 +157,7 @@ To keep the pairing and drop only the cached content, open `chrome://servicework
 | Pairing screen after every restart | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`. |
 | "This network may not pair displays" | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere. |
 | "Too many requests, trying again shortly" | Core limits 10 pairing codes per hour per client address. Behind a proxy make sure `HTTP_TRUSTED_PROXIES` is set. Wait; the player retries by itself. |
+| Camera widgets stay empty, the gateway name does not resolve | The router blocks public names that point to private addresses; see [DNS on the kiosk](#dns-on-the-kiosk-names-that-point-to-a-private-address). |
 | "Cannot reach Makerspace Core" | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors. |
 | "Waiting for content" | The display is paired but was never published. Publish it from the display detail page. |
 | Black screen, yellow dot | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network. |

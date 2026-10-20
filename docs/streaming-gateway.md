@@ -18,7 +18,7 @@ Port 8555 must be reachable from the displays on the LAN because WebRTC media do
 ## Requirements
 
 - A DNS name that resolves to the Docker host **on the displays' network** (split-horizon DNS or a local DNS entry), for example `signage-gw.example.org`.
-- A TLS certificate for that name that the display browsers trust (an internal CA installed on the displays, or a public certificate obtained with DNS-01 validation). The player is served over HTTPS from Core, so the gateway must be HTTPS as well (mixed content is blocked). Certificate and key (`certs/fullchain.pem` and `certs/privkey.pem`, mounted read-only) are reloaded when they change; the container must be able to read them (uid 10001).
+- A TLS certificate for that name that the display browsers trust: either obtained by the gateway itself from Let's Encrypt (ACME mode, DNS-01 via Cloudflare) or supplied as files (file mode). The player is served over HTTPS from Core, so the gateway must be HTTPS as well (mixed content is blocked). See [TLS](#tls).
 - The printers must be in LAN mode with the camera enabled, reachable from the Docker host on TCP 322, and have an active Bambu assignment in Core (H2D or X1 Carbon). See [Bambu setup](printer-connector.md#bambu-lab-h2d-and-x1-carbon-setup).
 - Core needs application encryption keys configured (the printer access codes and the ticket signing key are stored encrypted with them).
 
@@ -26,7 +26,7 @@ Port 8555 must be reachable from the displays on the LAN because WebRTC media do
 
 1. In Core create a gateway (`POST /streaming-gateways`, permission `local_services.manage`) with its **public host**, the `hostname[:port]` players use, for example `signage-gw.example.org:8443`. It must equal `STREAM_PUBLIC_HOST` below and match the certificate. In Core, use Settings, Local services, Add gateway (or the API).
 2. Issue an enrollment secret (`POST /streaming-gateways/{id}/enrollments`). It is shown once and valid 15 minutes.
-3. Prepare the streaming gateway bundle (`streaming-gateway/`, or `local-services/` to run the printer connector as well) as described in [Hosting](hosting.md#stack-3-streaming-gateway-makerspace-streaming): set `MAKERSPACE_VERSION`, `CORE_URL`, `STREAM_PUBLIC_HOST`, `STREAM_LAN_ADDRESS` and `STREAM_ENROLLMENT_SECRET` in `.env`, put `fullchain.pem` and `privkey.pem` into `certs/` (readable for uid 10001), then `docker compose up -d`.
+3. Prepare the streaming gateway bundle (`streaming-gateway/`, or `local-services/` to run the printer connector as well) as described in [Hosting](hosting.md#stack-3-streaming-gateway-makerspace-streaming): set `MAKERSPACE_VERSION`, `CORE_URL`, `STREAM_PUBLIC_HOST`, `STREAM_LAN_ADDRESS` and `STREAM_ENROLLMENT_SECRET` in `.env`, then either set `ACME_EMAIL` and `CLOUDFLARE_DNS_API_TOKEN` (the gateway gets its Let's Encrypt certificate itself) or put `fullchain.pem` and `privkey.pem` into `certs/` (readable for uid 10001), and run `docker compose up -d`.
 
 4. Assign cameras on the gateway's page (Assign camera) or with `POST /streaming-gateways/{id}/cameras {machineId, enabled}`. The machine needs an active Bambu printer assignment; the dialog offers exactly the machines without a camera that have one (`GET /local-services/camera-candidates`). `GET /local-services/cameras` shows health per camera. The gateway list shows when each gateway's credential expires; the gateway rotates it on its own during its last seven days.
 5. Publish a display that has a camera widget for that machine; `GET /signage/player/live` then contains `streams`.
@@ -34,6 +34,34 @@ Port 8555 must be reachable from the displays on the LAN because WebRTC media do
 The gateway generates its runtime credential locally, exchanges the enrollment secret (`STREAM_ENROLLMENT_SECRET`), stores its identity and the last configuration encrypted in its data volume and rotates the credential during its last seven days. After the first successful start the variable is ignored (the gateway logs that once) and can be removed; without an identity and without a secret the gateway exits with instructions. `STREAM_ENROLLMENT_SECRET_FILE` (a path) is still honoured as a legacy fallback when the variable is empty. Back up the data volume as sensitive; do not clone it to a second host. `streaming-gateway/compose.yaml` runs the gateway and go2rtc; `local-services/compose.yaml` runs the printer connector as well.
 
 Image names: `ghcr.io/basmatireis/makerspace-core-streaming-gateway:<version>` (the Compose file uses release tags, never `latest`; to pin content as well, set `STREAMING_GATEWAY_DIGEST=@sha256:...` (and `PRINTER_CONNECTOR_DIGEST` in `local-services`) in `.env` to the digests of that release, read with `docker buildx imagetools inspect <image>:<version>`; digests of an unpublished release cannot be known in advance) (built from `streaming-gateway/Dockerfile`; go2rtc is pinned to `alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae`, a digest verified against Docker Hub on the day of writing; re-verify when upgrading).
+
+## TLS
+
+The gateway decides at start how it gets its certificate:
+
+1. **File mode** when the certificate files exist (`STREAM_TLS_CERT_FILE` and `STREAM_TLS_KEY_FILE`; the Compose files set `/certs/fullchain.pem` and `/certs/privkey.pem`, the optional `./certs` mount). They are reloaded when their modification time changes (checked at most once a minute). Files win over ACME settings. If only one of the two files exists the gateway refuses to start.
+2. **ACME mode** when no files exist and both `ACME_EMAIL` and `CLOUDFLARE_DNS_API_TOKEN` are set.
+3. Otherwise the gateway exits with a message that lists both options.
+
+**ACME mode** is built on the [lego](https://github.com/go-acme/lego) library (the ACME client Traefik uses; only its Cloudflare DNS provider is linked in). It validates with DNS-01 because the gateway is typically LAN-only: a public DNS record at Cloudflare points to a private LAN address, so HTTP-01 and TLS-ALPN-01 cannot work.
+
+| Variable | Meaning |
+|---|---|
+| `STREAM_PUBLIC_HOST` | the domain is its host part (`signage-gw.example.org:8443` gives `signage-gw.example.org`); it must be a DNS name, not an IP address, and not a wildcard |
+| `ACME_EMAIL` | account address for Let's Encrypt (expiry notices); setting it accepts the Let's Encrypt subscriber agreement |
+| `CLOUDFLARE_DNS_API_TOKEN` | scoped API token with **Zone > Zone > Read** and **Zone > DNS > Edit** for the one zone; never logged |
+| `ACME_CA_DIR` | optional ACME directory, default `https://acme-v02.api.letsencrypt.org/directory`; staging: `https://acme-staging-v02.api.letsencrypt.org/directory` |
+| `ACME_DNS_RESOLVERS` | optional, default `1.1.1.1:53,1.0.0.1:53`: recursive resolvers (IP[:port]) for zone discovery and propagation checks |
+
+- **Resolvers.** The propagation checks never use the host's or container's resolver. A router with dnsmasq rebind protection (OpenWrt) refuses public names that point to private addresses, which would otherwise break the check; `ACME_DNS_RESOLVERS` avoids that. Let's Encrypt itself validates from the internet and is unaffected. The container needs outbound access to the ACME directory, `api.cloudflare.com` and the resolvers and Cloudflare's name servers (port 53).
+- **Storage.** The ACME account key, the certificate and its key live in the data volume under `acme/<ca>/` (directory mode 0700, files 0600), one directory per CA, so switching between staging and production never mixes certificates. They are reused after restarts; a stored certificate for another domain or an expired one is ignored.
+- **First start.** Port 8443 refuses TLS handshakes until a certificate exists (the log says `tls: waiting for certificate`, then `certificate obtained`, usually after one or two minutes). Configuration polling and heartbeats continue meanwhile.
+- **Renewal.** Checked every 12 hours (plus up to one hour of jitter); a certificate with fewer than 30 days left is renewed and swapped in with no restart or dropped connection. The old certificate keeps being served while renewal fails.
+- **Failures and rate limits.** After a failure the gateway waits 10 minutes, doubling up to 6 hours (plus 10% jitter) before it retries, which keeps it below Let's Encrypt's limit of 5 failed validations per hostname and hour. The limit of 5 identical certificates per week is avoided because the certificate is stored: do not delete the data volume repeatedly. Use the staging CA while experimenting.
+- **Logs.** The log shows progress and errors but never the token, the account key or the certificate key.
+- **Token scope.** The token can edit DNS records of its zone, so restrict it to that zone and keep `.env` private (mode 0600). A compromised token allows DNS changes, not access to the gateway or Core.
+
+Setup steps for Cloudflare are in [Hosting](hosting.md#stack-3-streaming-gateway-makerspace-streaming). Displays need to resolve the name; if a router blocks it, see [Signage player: DNS on the kiosk](signage-player.md#dns-on-the-kiosk-names-that-point-to-a-private-address).
 
 ## Development
 
@@ -56,7 +84,7 @@ The development file (`streaming-gateway/compose.development.yaml`) differs from
 - **Session epoch.** Core bumps the epoch when a display is revoked or deleted, when a display is republished without a camera it showed before, and when a display loses the right to show cameras to the outside (`allowCameraOutside`). The gateway then restarts go2rtc, which drops every running WebRTC and MSE session; players reconnect with fresh tickets, which Core no longer issues for the affected display or camera. A restart that fails is retried every poll until it worked; the applied epoch is stored in the gateway's state.
 - **Ticket key rotation.** `POST /local-services/ticket-key/rotation` (`local_services.manage`, audited) creates the next key as pending. Gateways receive its public key with their next poll, and it starts signing after at least 60 s (lazily, with the first ticket after that time, or at once when the endpoint is called again, which then stages yet another key). The previous key stays in the configuration for ten minutes after it stopped signing. The gateway needs no restart.
 - go2rtc connects to a printer on the first viewer and disconnects after the last (verify). An idle camera therefore shows as `idle`; `unavailable` means go2rtc is down, the stream is missing, or viewers get no media.
-- Healthcheck: `streaming-gateway healthcheck` reads a health file refreshed every 30 s.
+- Healthcheck: `streaming-gateway healthcheck` reads a health file refreshed every 30 s. It reports the process and the Core sync loop, not the certificate: a gateway that still waits for its first ACME certificate is healthy (restarting it would not help). The certificate state is a separate field `tls` in the health file (`files`, `waiting` or `ready`) and, to Core, the heartbeat: health state `degraded` with the summary `tls: waiting for certificate` until the first certificate exists, and `tls: certificate renewal failing` when a certificate has fewer than 14 days left and renewals keep failing.
 
 ## Security model
 

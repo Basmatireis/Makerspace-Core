@@ -3,7 +3,10 @@ package streaminggateway
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +50,8 @@ type Options struct {
 	Render     RenderOptions
 	// ListenAddr, CertFile and KeyFile configure the HTTPS reverse proxy.
 	ListenAddr, CertFile, KeyFile string
+	// ACME, when set, replaces CertFile/KeyFile: the gateway obtains and renews its own certificate.
+	ACME *ACMEOptions
 	// AllowedOrigin is Core's public origin; browsers from any other origin are refused.
 	AllowedOrigin string
 	// ExpectedPublicHost (STREAM_PUBLIC_HOST) is only compared with Core's publicHost to warn about a mismatch.
@@ -76,6 +81,9 @@ type Gateway struct {
 	lastSyncError   string
 
 	lastRejectedLog time.Time
+
+	// certs is set in ACME mode only (nil with certificate files).
+	certs atomic.Pointer[CertManager]
 }
 
 // New builds the gateway. The proxy serves nothing until a configuration is applied.
@@ -347,8 +355,12 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 		heartbeat.HealthState, summary = "degraded", "go2rtc_unreachable"
 	case pending:
 		heartbeat.HealthState, summary = "degraded", "go2rtc_restart_pending"
+	case g.tlsWaiting():
+		heartbeat.HealthState, summary = "degraded", "tls: waiting for certificate"
 	case syncError != "":
 		heartbeat.HealthState, summary = "degraded", syncError
+	case g.tlsRenewalFailing():
+		heartbeat.HealthState, summary = "degraded", "tls: certificate renewal failing"
 	}
 	if summary != "" {
 		heartbeat.HealthSummary = &summary
@@ -364,8 +376,31 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 	return heartbeat
 }
 
+// tlsState is "files" (certificate files), "waiting" (ACME, no certificate yet) or "ready".
+func (g *Gateway) tlsState() string {
+	certs := g.certs.Load()
+	switch {
+	case certs == nil:
+		return "files"
+	case certs.Status().Ready:
+		return "ready"
+	default:
+		return "waiting"
+	}
+}
+
+func (g *Gateway) tlsWaiting() bool { return g.tlsState() == "waiting" }
+
+func (g *Gateway) tlsRenewalFailing() bool {
+	certs := g.certs.Load()
+	return certs != nil && certs.Status().RenewalFailing
+}
+
+// writeHealth records that the main loop is alive and Core sync runs. The certificate state is
+// reported next to it, but a gateway that still waits for its first certificate is healthy: it
+// keeps polling and sending heartbeats, and restarting it would not help.
 func (g *Gateway) writeHealth(status string) error {
-	value, _ := json.Marshal(map[string]any{"status": status, "updatedAt": g.now()})
+	value, _ := json.Marshal(map[string]any{"status": status, "tls": g.tlsState(), "updatedAt": g.now()})
 	path := filepath.Join(g.options.DataDir, "health.json")
 	temporary := path + ".tmp"
 	if err := os.WriteFile(temporary, value, 0o600); err != nil {
@@ -421,15 +456,40 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 	g.Apply(ctx, *cached)
 
-	reloader, err := newCertReloader(g.options.CertFile, g.options.KeyFile)
-	if err != nil {
-		return fmt.Errorf("load TLS certificate: %w", err)
+	var tlsConfig *tls.Config
+	if acme := g.options.ACME; acme != nil {
+		if acme.CADir == "" {
+			acme.CADir = DefaultACMEDirectory
+		}
+		obtainer := acme.Obtainer
+		// One directory per CA, so switching to or from the staging CA never reuses the other's certificate.
+		caDigest := sha256.Sum256([]byte(acme.CADir))
+		directory := filepath.Join(g.options.DataDir, "acme", hex.EncodeToString(caDigest[:4]))
+		if obtainer == nil {
+			obtainer = newLegoObtainer(directory, *acme, g.logger)
+		}
+		manager, managerErr := NewCertManager(directory, acme.Domain, obtainer, g.logger, acme.CloudflareToken)
+		if managerErr != nil {
+			return managerErr
+		}
+		g.certs.Store(manager)
+		tlsConfig = manager.tlsConfig()
+		if !manager.Status().Ready {
+			g.logger.Info("tls: waiting for certificate", "domain", acme.Domain)
+		}
+		go manager.Run(ctx)
+	} else {
+		reloader, reloadErr := newCertReloader(g.options.CertFile, g.options.KeyFile)
+		if reloadErr != nil {
+			return fmt.Errorf("load TLS certificate: %w", reloadErr)
+		}
+		tlsConfig = reloader.tlsConfig()
 	}
 	origin := g.options.AllowedOrigin
 	server := &http.Server{
 		Addr:              g.options.ListenAddr,
 		Handler:           NewProxy(g.Snapshot, g.go2rtcURL(), origin, UpstreamAuth{Username: credentials.Username, Password: credentials.Password}, g.now),
-		TLSConfig:         reloader.tlsConfig(),
+		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

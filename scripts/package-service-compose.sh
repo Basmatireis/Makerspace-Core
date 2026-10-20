@@ -6,7 +6,8 @@
 #   package-service-compose.sh STACK_DIRECTORY ARCHIVE_PREFIX VERSION OUTPUT_DIRECTORY [with-certs]
 #
 # The bundle holds the stack's unchanged compose.yaml and its .env.example with MAKERSPACE_VERSION
-# set to VERSION. With "with-certs" it also holds certs/README, the place for the TLS certificate.
+# set to VERSION. With "with-certs" it also holds certs/README, the optional place for a TLS
+# certificate (file mode; without certificate files the gateway uses ACME mode).
 
 set -eu
 
@@ -46,10 +47,14 @@ entries="compose.yaml .env.example"
 if [ "$with_certs" = with-certs ]; then
     mkdir "$bundle_directory/certs"
     cat >"$bundle_directory/certs/README" <<'README'
-Put the TLS certificate chain and private key for STREAM_PUBLIC_HOST here as fullchain.pem and
-privkey.pem (the file names certbot and acme.sh produce). The gateway runs as uid 10001 and must be
-able to read both files. This directory is mounted read-only; a renewed certificate is picked up
-within about a minute without a restart. See docs/hosting.md.
+Optional (file mode). Without files here the gateway obtains a Let's Encrypt certificate by itself
+when ACME_EMAIL and CLOUDFLARE_DNS_API_TOKEN are set in .env (see .env.example).
+
+To use your own certificate instead, put the chain and private key for STREAM_PUBLIC_HOST here as
+fullchain.pem and privkey.pem (the file names certbot and acme.sh produce). When both files exist
+they win over ACME. The gateway runs as uid 10001 and must be able to read both files. This
+directory is mounted read-only; a renewed certificate is picked up within about a minute without a
+restart. See docs/hosting.md.
 README
     entries="$entries certs/README"
 fi

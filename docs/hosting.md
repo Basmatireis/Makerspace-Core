@@ -119,7 +119,7 @@ Enrollment: in Core open **Machines > Connectors**, create a connector, copy the
 
 ### Stack 3: Streaming gateway (`makerspace-streaming`)
 
-Bundle: `makerspace-streaming-VERSION-compose.tar.gz` (`compose.yaml`, `.env.example`, `certs/README`). Runs on a host in the makerspace network that the signage displays can reach; it also needs outbound HTTPS to Core and access to the printers' cameras (TCP 322).
+Bundle: `makerspace-streaming-VERSION-compose.tar.gz` (`compose.yaml`, `.env.example`, `certs/README`; `certs/` is optional). Runs on a host in the makerspace network that the signage displays can reach; it also needs outbound HTTPS to Core and access to the printers' cameras (TCP 322).
 
 | Variable | Meaning |
 |---|---|
@@ -128,31 +128,60 @@ Bundle: `makerspace-streaming-VERSION-compose.tar.gz` (`compose.yaml`, `.env.exa
 | `STREAM_PUBLIC_HOST` | `hostname[:port]` the displays use; must equal the gateway's public host in Core and match the certificate (required) |
 | `STREAM_LAN_ADDRESS` | fixed LAN IPv4 of this Docker host; go2rtc advertises `address:8555` to browsers (required) |
 | `STREAM_ENROLLMENT_SECRET` | one-time secret from Core (sensitive, first start only) |
+| `ACME_EMAIL`, `CLOUDFLARE_DNS_API_TOKEN` | simplest TLS: the gateway obtains and renews a Let's Encrypt certificate itself (the token is sensitive) |
+| `ACME_CA_DIR`, `ACME_DNS_RESOLVERS` | optional: ACME directory URL (default Let's Encrypt production; staging for tests) and resolvers for the DNS checks (default `1.1.1.1:53,1.0.0.1:53`) |
 | `STREAM_BIND_ADDRESS`, `STREAM_HTTPS_PORT` | optional: publish on one host address / another HTTPS port |
 | `STREAM_ALLOWED_ORIGIN` | optional: browser origin of the player when it differs from `CORE_URL` |
 | `STREAMING_GATEWAY_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
 
-**DNS, TLS and ports.** Create a DNS name that resolves to the host on the displays' network (split-horizon DNS or a local entry). Get a certificate for that name that the display browsers trust (a public certificate via DNS-01, or an internal CA installed on the displays); the player is served over HTTPS from Core, so the gateway must be HTTPS as well. Put the certificate chain and private key into `./certs` next to `compose.yaml`:
+**DNS, TLS and ports.** The player is served over HTTPS from Core, so the gateway must be HTTPS as well, with a certificate the display browsers trust. There are two ways; certificate files win when both are present.
+
+*Option 1 (simplest): built-in Let's Encrypt with Cloudflare.* Your domain's DNS is at Cloudflare and the gateway is only reachable from the LAN. HTTP-01 and TLS-ALPN validation are impossible for such a host, so the gateway uses DNS-01: it creates a temporary `_acme-challenge` TXT record through the Cloudflare API, Let's Encrypt checks it, and the record is removed. You only need the domain, an e-mail address and a token in `.env`:
+
+1. In Cloudflare open the DNS settings of your zone and add an **A record** `signage-gw` (that makes `signage-gw.<your-domain>`) pointing to the **LAN IP** of the Docker host (for example `192.168.1.20`). Set the proxy status to **DNS only** (grey cloud, not proxied): a proxied record would hide the private address.
+2. Create an API token (My Profile, API Tokens, Create Token, Custom token) with the permissions **Zone > Zone > Read** and **Zone > DNS > Edit** and, under Zone Resources, **Include > Specific zone > your zone**. The lookup of the zone id needs Zone Read; do not use the global API key. Copy the token (shown once).
+3. In `.env` set:
+
+   ```sh
+   STREAM_PUBLIC_HOST=signage-gw.example.org:8443
+   ACME_EMAIL=ops@example.org
+   CLOUDFLARE_DNS_API_TOKEN=<token>
+   ```
+
+   `STREAM_PUBLIC_HOST` must be a DNS name (an IP address is refused). Setting `ACME_EMAIL` accepts the Let's Encrypt subscriber agreement; Let's Encrypt uses the address for expiry notices. Leave `certs/` empty.
+4. `docker compose up -d`, then `docker compose logs -f streaming-gateway`. The log first says `tls: waiting for certificate`; after typically one or two minutes (DNS propagation) it says `certificate obtained`. The gateway stores its ACME account and the certificate in its data volume and reuses them after restarts, renews when fewer than 30 days remain (checked every 12 hours) and swaps the new certificate in without a restart. Failures are retried with exponential backoff (10 minutes up to 6 hours). Until the first certificate exists, port 8443 refuses TLS handshakes, but the gateway keeps syncing with Core; Core shows it as degraded with `tls: waiting for certificate`, and the container healthcheck stays healthy.
+
+To test without hitting the production rate limits, first set `ACME_CA_DIR=https://acme-staging-v02.api.letsencrypt.org/directory` and restart. Staging certificates are not trusted by browsers. Account and certificate are stored per CA, so removing the variable afterwards makes the gateway request a real certificate; nothing has to be deleted.
+
+The propagation checks use `ACME_DNS_RESOLVERS` (default Cloudflare's `1.1.1.1` and `1.0.0.1`) instead of the host's resolver, so they work even where the local resolver refuses public names that point to private addresses. The container needs outbound access to the ACME directory, `api.cloudflare.com` (HTTPS) and the resolvers (DNS, UDP/TCP 53 to the Cloudflare name servers). Let's Encrypt limits: 5 failed validations per hostname and hour, 5 identical certificates per week; the stored certificate and the backoff keep the gateway far below that, but do not delete the data volume repeatedly.
+
+*Option 2: your own certificate.* Get a certificate for the name from any CA, or an internal CA installed on the displays, and put the chain and private key into `./certs` next to `compose.yaml`:
 
 ```text
 certs/fullchain.pem
 certs/privkey.pem
 ```
 
-These are the names certbot and acme.sh produce. The directory is bind-mounted read-only. The gateway runs as uid 10001 and must be able to read both files:
+These are the names certbot and acme.sh produce. The directory is bind-mounted read-only (and optional: without it, or without the files, the gateway falls back to option 1). The gateway runs as uid 10001 and must be able to read both files:
 
 ```sh
 sudo chown 10001:10001 certs/fullchain.pem certs/privkey.pem
 sudo chmod 644 certs/fullchain.pem && sudo chmod 600 certs/privkey.pem
 ```
 
-A renewed certificate is picked up within about a minute without a restart (replace the files, do not edit them in place; the modification time is what is watched). With certbot, `live/` holds symlinks that do not resolve inside a container, so copy the files with `cp -L` from a renewal deploy hook. Open to the displays: `8443/tcp` (HTTPS) and `8555/tcp` plus `8555/udp` (WebRTC media). go2rtc's API (1984) and RTSP (8554) are never published.
+A renewed certificate is picked up within about a minute without a restart (replace the files, do not edit them in place; the modification time is what is watched). With certbot, `live/` holds symlinks that do not resolve inside a container, so copy the files with `cp -L` from a renewal deploy hook.
+
+If neither certificate files nor both `ACME_EMAIL` and `CLOUDFLARE_DNS_API_TOKEN` are set, the gateway exits at start with a message listing both options.
+
+**Display DNS.** The displays must resolve the name to the LAN IP. Routers with dnsmasq rebind protection (OpenWrt) drop public names that point to private addresses; see [Signage player: DNS on the kiosk](signage-player.md#dns-on-the-kiosk-names-that-point-to-a-private-address) for fixes that need no access to the router.
+
+Open to the displays: `8443/tcp` (HTTPS) and `8555/tcp` plus `8555/udp` (WebRTC media). go2rtc's API (1984) and RTSP (8554) are never published.
 
 Enrollment: in Core open **Settings > Local services**, **Add gateway** with the public host from `STREAM_PUBLIC_HOST`, copy the secret (shown once, valid 15 minutes) into `.env`, run `docker compose up -d`. As for the connector, the value is ignored afterwards and can be removed. Then assign cameras on the gateway's page. Details, security model and hardware assumptions: [streaming gateway](streaming-gateway.md).
 
 ### Stack 4: Local services (`makerspace-local-services`)
 
-Bundle: `makerspace-local-services-VERSION-compose.tar.gz` (`compose.yaml`, `.env.example`, `certs/README`). Production only: the connector, the gateway and go2rtc on one host, with the variables of stacks 2 and 3 combined (`CONNECTOR_ENROLLMENT_SECRET` and `STREAM_ENROLLMENT_SECRET` in one `.env`; both identities are stored in separate volumes). Create the connector and the gateway in Core, put both secrets into `.env`, add the certificate to `certs/`, run `docker compose up -d`. For development use `make dev-connector` and `make dev-streaming`.
+Bundle: `makerspace-local-services-VERSION-compose.tar.gz` (`compose.yaml`, `.env.example`, `certs/README`; `certs/` is optional). Production only: the connector, the gateway and go2rtc on one host, with the variables of stacks 2 and 3 combined (`CONNECTOR_ENROLLMENT_SECRET` and `STREAM_ENROLLMENT_SECRET` in one `.env`; both identities are stored in separate volumes). Create the connector and the gateway in Core, put both secrets into `.env`, add `ACME_EMAIL` and `CLOUDFLARE_DNS_API_TOKEN` (the gateway then obtains its Let's Encrypt certificate itself, see stack 3 for the Cloudflare steps) or put your certificate into `certs/`, run `docker compose up -d`. For development use `make dev-connector` and `make dev-streaming`.
 
 ### Upgrades
 
@@ -200,7 +229,10 @@ With local services in stack 4 the volume names start with `makerspace-local-ser
 | Container exits with "not enrolled and ..._ENROLLMENT_SECRET is not set" | same: the identity is missing from the data volume (new volume after a project rename, or `docker compose down --volumes`); put a fresh secret into `.env` and start again |
 | Enrollment fails with 401 or 429 | secret expired, used already or mistyped; Core answers 429 after 20 failed attempts in 15 minutes |
 | `docker compose` complains `Set MAKERSPACE_VERSION` / `Set CORE_URL` | the variable is missing in that directory's `.env` |
-| Gateway: `no such file` or permission denied for `/certs/...` | `certs/fullchain.pem` and `certs/privkey.pem` must exist and be readable by uid 10001 |
+| Gateway: `no TLS certificate configured` | neither certificate files nor both `ACME_EMAIL` and `CLOUDFLARE_DNS_API_TOKEN` are set |
+| Gateway: permission denied for `/certs/...` or "only one of the TLS certificate file and the TLS key file exists" | `certs/fullchain.pem` and `certs/privkey.pem` must both exist and be readable by uid 10001 (or remove them to use ACME) |
+| Gateway stays at `tls: waiting for certificate`, log says `certificate request failed` | read the error: wrong or too narrow Cloudflare token (needs Zone Read and DNS Edit on the zone), `STREAM_PUBLIC_HOST` not in a Cloudflare zone, outbound DNS/HTTPS blocked, or Let's Encrypt rate limit; it retries with growing delays |
+| Browser: name does not resolve on the display | the router's rebind protection blocks the name; see [Signage player](signage-player.md#dns-on-the-kiosk-names-that-point-to-a-private-address) |
 | Browser blocks the stream, certificate error | the displays must trust the certificate and `STREAM_PUBLIC_HOST` must match its name; in development open <https://localhost:8443/> once |
 | Video connects but stays black | `STREAM_LAN_ADDRESS` wrong or `8555/udp` and `8555/tcp` blocked between display and host |
 | Gateway logs a public host mismatch | `STREAM_PUBLIC_HOST` differs from the gateway's public host in Core |
