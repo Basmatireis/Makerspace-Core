@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,7 +42,8 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notifier Notifier) *Servi
 
 type OptionInput struct{ Label string }
 type QuestionInput struct {
-	Kind, Prompt         string
+	Kind                 QuestionKind
+	Prompt               string
 	Required             bool
 	Options              []OptionInput
 	RatingMin, RatingMax *int32
@@ -60,7 +62,8 @@ type Option struct {
 }
 type Question struct {
 	ID                   uuid.UUID
-	Kind, Prompt         string
+	Kind                 QuestionKind
+	Prompt               string
 	Required             bool
 	Position             int32
 	Options              []Option
@@ -68,7 +71,7 @@ type Question struct {
 }
 type Trigger struct {
 	ID                         uuid.UUID
-	Kind                       string
+	Kind                       TriggerKind
 	Enabled                    bool
 	DelaySeconds, CooldownDays int32
 	Version                    int64
@@ -77,7 +80,7 @@ type Survey struct {
 	ID                   uuid.UUID
 	Name                 string
 	Description          *string
-	Status               string
+	Status               Status
 	Anonymous            bool
 	Title                string
 	Introduction         *string
@@ -119,20 +122,20 @@ func clean(input Input) (Input, error) {
 			return input, apperror.InvalidField("question prompts are required")
 		}
 		switch q.Kind {
-		case "single_choice", "multiple_choice":
+		case QuestionSingleChoice, QuestionMultipleChoice:
 			if len(q.Options) < 2 || len(q.Options) > 50 {
 				return input, apperror.InvalidField("choice questions need between 2 and 50 options")
 			}
 			if q.RatingMin != nil || q.RatingMax != nil {
 				return input, apperror.InvalidField("only rating questions accept rating bounds")
 			}
-		case "rating":
+		case QuestionRating:
 			if q.RatingMin == nil || q.RatingMax == nil || *q.RatingMin < 0 || *q.RatingMax > 10 ||
 				*q.RatingMin >= *q.RatingMax ||
 				len(q.Options) != 0 {
 				return input, apperror.InvalidField("rating bounds are invalid")
 			}
-		case "free_text", "yes_no":
+		case QuestionFreeText, QuestionYesNo:
 			if len(q.Options) != 0 || q.RatingMin != nil || q.RatingMax != nil {
 				return input, apperror.InvalidField("this question type does not accept options or rating bounds")
 			}
@@ -227,7 +230,7 @@ func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.U
 			surveysdb.CreateSurveyQuestionParams{
 				ID:              id,
 				SurveyVersionID: versionID,
-				Kind:            input.Kind,
+				Kind:            string(input.Kind),
 				Prompt:          input.Prompt,
 				Required:        input.Required,
 				Position:        int32(index + 1),
@@ -284,7 +287,7 @@ func (s *Service) Update(
 	if err != nil {
 		return Survey{}, err
 	}
-	if current.Version != input.ExpectedVersion || current.Status != "draft" {
+	if current.Version != input.ExpectedVersion || Status(current.Status) != StatusDraft {
 		return Survey{}, apperror.StaleWrite
 	}
 	version, err := q.GetLatestSurveyVersionForUpdate(ctx, id)
@@ -364,7 +367,7 @@ func (s *Service) Publish(
 	if err != nil {
 		return Survey{}, err
 	}
-	if current.Version != expected || current.Status != "draft" {
+	if current.Version != expected || Status(current.Status) != StatusDraft {
 		return Survey{}, apperror.StaleWrite
 	}
 	version, err := q.GetLatestSurveyVersionForUpdate(ctx, id)
@@ -434,7 +437,7 @@ func (s *Service) Close(
 	} else if err != nil {
 		return Survey{}, err
 	}
-	if current.Version != expected || current.Status != "published" {
+	if current.Version != expected || Status(current.Status) != StatusPublished {
 		return Survey{}, apperror.StaleWrite
 	}
 	if _, err = q.CloseSurvey(ctx, surveysdb.CloseSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(
@@ -499,7 +502,7 @@ func (s *Service) UpdateTrigger(
 	} else if err != nil {
 		return Trigger{}, err
 	}
-	if enabled && survey.Status != "published" {
+	if enabled && Status(survey.Status) != StatusPublished {
 		return Trigger{}, apperror.New(
 			http.StatusConflict,
 			"survey_not_published",
@@ -571,7 +574,7 @@ func (s *Service) List(ctx context.Context, p authorization.Principal) ([]Survey
 			row.ID,
 			row.Name,
 			row.Description,
-			row.Status,
+			Status(row.Status),
 			row.Anonymous,
 			row.Version,
 			row.CreatedAt,
@@ -604,7 +607,7 @@ func (s *Service) Get(ctx context.Context, p authorization.Principal, id uuid.UU
 		row.ID,
 		row.Name,
 		row.Description,
-		row.Status,
+		Status(row.Status),
 		row.Anonymous,
 		row.Version,
 		row.CreatedAt,
@@ -621,7 +624,7 @@ func (s *Service) hydrate(
 	id uuid.UUID,
 	name string,
 	description *string,
-	status string,
+	status Status,
 	anonymous bool,
 	version int64,
 	created, updated time.Time,
@@ -672,7 +675,7 @@ func (s *Service) questions(ctx context.Context, versionID uuid.UUID) ([]Questio
 		}
 		item := Question{
 			ID:        row.ID,
-			Kind:      row.Kind,
+			Kind:      QuestionKind(row.Kind),
 			Prompt:    row.Prompt,
 			Required:  row.Required,
 			Position:  row.Position,
@@ -779,7 +782,7 @@ func (s *Service) Public(ctx context.Context, token string) (PublicSurvey, error
 			"Survey invitation has expired",
 		)
 	}
-	if row.Status == "redeemed" || row.Status == "cancelled" || row.Status == "expired" {
+	if slices.Contains([]InvitationStatus{InvitationRedeemed, InvitationCancelled, InvitationExpired}, InvitationStatus(row.Status)) {
 		return PublicSurvey{}, apperror.New(
 			http.StatusGone,
 			"survey_invitation_unavailable",
@@ -816,10 +819,10 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	if time.Now().UTC().After(invitation.ExpiresAt) {
 		return apperror.New(http.StatusGone, "survey_invitation_expired", "Survey invitation has expired")
 	}
-	if invitation.Status == "redeemed" {
+	if InvitationStatus(invitation.Status) == InvitationRedeemed {
 		return apperror.New(http.StatusConflict, "survey_already_submitted", "Survey response was already submitted")
 	}
-	if invitation.Status == "cancelled" || invitation.Status == "expired" {
+	if InvitationStatus(invitation.Status) == InvitationCancelled || InvitationStatus(invitation.Status) == InvitationExpired {
 		return apperror.New(
 			http.StatusGone,
 			"survey_invitation_unavailable",
@@ -901,18 +904,18 @@ func storeAnswer(
 	if len(answer.OptionIDs) > 0 {
 		valueCount++
 	}
-	switch question.Kind {
-	case "single_choice":
+	switch QuestionKind(question.Kind) {
+	case QuestionSingleChoice:
 		if valueCount != 1 || len(answer.OptionIDs) != 1 {
 			return apperror.InvalidField("single-choice answer is invalid")
 		}
 		return storeOptions(ctx, q, responseID, question.ID, answer.OptionIDs)
-	case "multiple_choice":
+	case QuestionMultipleChoice:
 		if valueCount != 1 || len(answer.OptionIDs) == 0 {
 			return apperror.InvalidField("multiple-choice answer is invalid")
 		}
 		return storeOptions(ctx, q, responseID, question.ID, answer.OptionIDs)
-	case "free_text":
+	case QuestionFreeText:
 		if valueCount != 1 || answer.TextValue == nil || strings.TrimSpace(*answer.TextValue) == "" {
 			return apperror.InvalidField("free-text answer is invalid")
 		}
@@ -927,7 +930,7 @@ func storeAnswer(
 				Position:   1,
 			},
 		)
-	case "rating":
+	case QuestionRating:
 		if valueCount != 1 || answer.NumericValue == nil || question.RatingMin == nil || question.RatingMax == nil ||
 			*answer.NumericValue < *question.RatingMin ||
 			*answer.NumericValue > *question.RatingMax {
@@ -943,7 +946,7 @@ func storeAnswer(
 				Position:     1,
 			},
 		)
-	case "yes_no":
+	case QuestionYesNo:
 		if valueCount != 1 || answer.BooleanValue == nil {
 			return apperror.InvalidField("yes/no answer is invalid")
 		}
@@ -999,7 +1002,7 @@ func storeOptions(
 func triggerFromRow(row surveysdb.SurveyTrigger) Trigger {
 	return Trigger{
 		ID:           row.ID,
-		Kind:         row.Kind,
+		Kind:         TriggerKind(row.Kind),
 		Enabled:      row.Enabled,
 		DelaySeconds: row.DelaySeconds,
 		CooldownDays: row.CooldownDays,

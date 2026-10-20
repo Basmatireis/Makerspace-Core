@@ -206,7 +206,7 @@ func surveyInput(
 			options[j] = surveys.OptionInput{Label: option.Label}
 		}
 		converted[i] = surveys.QuestionInput{
-			Kind:      string(question.Kind),
+			Kind:      surveys.QuestionKind(question.Kind),
 			Prompt:    question.Prompt,
 			Required:  question.Required,
 			Options:   options,
