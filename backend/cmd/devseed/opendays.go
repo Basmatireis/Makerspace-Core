@@ -23,7 +23,7 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 	check("periods", err)
 	var periodID uuid.UUID
 	for _, p := range periods {
-		if (p.Status == "staffing" || p.Status == "published") && !p.StartsOn.After(nextWeek) &&
+		if (p.Status == opendays.PeriodStaffing || p.Status == opendays.PeriodPublished) && !p.StartsOn.After(nextWeek) &&
 			!p.EndsOn.Before(nextWeek) {
 			periodID = p.ID
 			break
@@ -40,9 +40,9 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 			nil,
 		)
 		check("create period", err)
-		for _, target := range []string{"staffing", "published"} {
+		for _, target := range []opendays.PeriodStatus{opendays.PeriodStaffing, opendays.PeriodPublished} {
 			p, err = s.od.TransitionPeriod(s.ctx, s.actor, p.ID, p.Version, target, nil)
-			check("period "+target, err)
+			check("period "+string(target), err)
 		}
 		periodID = p.ID
 		log.Printf("created open day period %q", p.Name)
@@ -53,13 +53,13 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 	usedDates := map[string]bool{}
 	for _, day := range sched.Items {
 		usedDates[day.StartsAt.In(s.loc).Format(time.DateOnly)] = true
-		if day.EndsAt.After(s.now) && day.Status == "scheduled" {
+		if day.EndsAt.After(s.now) && day.Status == opendays.DayScheduled {
 			upcoming++
 		}
 	}
 	reqs := []opendays.RequirementInput{
-		{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{s.roles["supervisor"]}},
-		{Kind: "trainee", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{s.roles["trainee"]}},
+		{Kind: opendays.RequirementSupervisor, RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{s.roles["supervisor"]}},
+		{Kind: opendays.RequirementTrainee, RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{s.roles["trainee"]}},
 	}
 	for d := today.AddDate(0, 0, 1); upcoming < 6 && !d.After(sched.Period.EndsOn); d = d.AddDate(0, 0, 1) {
 		if wd := d.Weekday(); (wd != time.Tuesday && wd != time.Thursday) || usedDates[d.Format(time.DateOnly)] {
@@ -84,7 +84,7 @@ func (s *seeder) assignOpenDays() {
 	sched := s.openDaySchedule()
 	n := 0
 	for di, day := range sched.Items {
-		if day.EndsAt.Before(s.now) || day.Status != "scheduled" {
+		if day.EndsAt.Before(s.now) || day.Status != opendays.DayScheduled {
 			continue
 		}
 		if n >= 6 {
@@ -93,10 +93,10 @@ func (s *seeder) assignOpenDays() {
 		n++
 		for _, rq := range day.Requirements {
 			need := rq.RequiredCount - rq.AssignedCount
-			if rq.Kind == "supervisor" && n == 6 {
+			if rq.Kind == opendays.RequirementSupervisor && n == 6 {
 				need-- // leave a gap
 			}
-			if rq.Kind == "trainee" && n%2 == 0 {
+			if rq.Kind == opendays.RequirementTrainee && n%2 == 0 {
 				continue
 			}
 			elig, err := s.od.EligiblePeople(s.ctx, s.actor, rq.ID, "")

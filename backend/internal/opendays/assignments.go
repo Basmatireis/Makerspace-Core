@@ -85,7 +85,7 @@ func (s *Service) assign(
 	if req.OpenDayID != openDayID {
 		return Assignment{}, apperror.NotFound
 	}
-	if day.Status != "scheduled" || (period.Status != "staffing" && period.Status != "published") {
+	if DayStatus(day.Status) != DayScheduled || (PeriodStatus(period.Status) != PeriodStaffing && PeriodStatus(period.Status) != PeriodPublished) {
 		return Assignment{}, apperror.Conflicting(
 			"assignment_closed",
 			"Assignments are open only for scheduled Open Days in staffing or published periods",
@@ -223,7 +223,7 @@ func (s *Service) removeAssignment(
 	if err != nil {
 		return err
 	}
-	if day.Status != "scheduled" || period.Status == "archived" {
+	if DayStatus(day.Status) != DayScheduled || PeriodStatus(period.Status) == PeriodArchived {
 		return apperror.Conflicting("assignment_closed", "Assignments cannot change after cancellation or archive")
 	}
 	if _, err := q.DeleteAssignment(ctx, assignmentID); err != nil {

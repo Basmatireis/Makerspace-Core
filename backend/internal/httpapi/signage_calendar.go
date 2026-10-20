@@ -32,7 +32,7 @@ func (c publicCalendar) UpcomingOpenDays(
 		if day.EndsAt.After(now) {
 			result = append(
 				result,
-				signage.PublicOpenDay{StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: day.Status},
+				signage.PublicOpenDay{StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: string(day.Status)},
 			)
 		}
 	}

@@ -146,9 +146,11 @@ type AcademicBreak struct {
 	CreatedAt, UpdatedAt time.Time
 }
 type CalendarEntry struct {
-	ID                     *uuid.UUID
-	Name, Source, Category string
-	StartsOn, EndsOn       time.Time
+	ID               *uuid.UUID
+	Name             string
+	Source           EntrySource
+	Category         EntryCategory
+	StartsOn, EndsOn time.Time
 }
 type CalendarContext struct {
 	TimeZone, CountryCode, SubdivisionCode, LanguageCode string
@@ -206,8 +208,8 @@ func (s *Service) CalendarContext(
 			result.Entries,
 			CalendarEntry{
 				Name:     holiday.Name,
-				Source:   "holidayLibrary",
-				Category: "publicHoliday",
+				Source:   EntrySourceHolidayLibrary,
+				Category: EntryPublicHoliday,
 				StartsOn: date,
 				EndsOn:   date,
 			},
@@ -222,8 +224,8 @@ func (s *Service) CalendarContext(
 			CalendarEntry{
 				ID:       &id,
 				Name:     item.Name,
-				Source:   "manual",
-				Category: "academicBreak",
+				Source:   EntrySourceManual,
+				Category: EntryAcademicBreak,
 				StartsOn: item.StartsOn,
 				EndsOn:   item.EndsOn,
 			},
@@ -406,7 +408,8 @@ type RecurrenceInput struct {
 }
 type RecurrenceOccurrence struct {
 	Date, StartsAt, EndsAt time.Time
-	Disposition, Reason    string
+	Disposition            Disposition
+	Reason                 string
 }
 
 func (s *Service) PreviewRecurrence(
@@ -489,21 +492,21 @@ func (s *Service) PreviewRecurrence(
 		if err != nil {
 			return nil, err
 		}
-		item := RecurrenceOccurrence{Date: date, StartsAt: start.UTC(), EndsAt: end.UTC(), Disposition: "create"}
+		item := RecurrenceOccurrence{Date: date, StartsAt: start.UTC(), EndsAt: end.UTC(), Disposition: DispositionCreate}
 		if name, ok := holidayDates[dateKey(date)]; ok && input.SkipPublicHolidays {
-			item.Disposition = "publicHoliday"
+			item.Disposition = DispositionPublicHoliday
 			item.Reason = name
 		}
 		for _, b := range breaks {
 			if dateWithin(date, b.StartsOn.Time, b.EndsOn.Time) && input.SkipAcademicBreaks {
-				item.Disposition = "academicBreak"
+				item.Disposition = DispositionAcademicBreak
 				item.Reason = b.Name
 				break
 			}
 		}
 		for _, day := range days {
-			if day.Status == "scheduled" && day.StartsAt.Equal(item.StartsAt) && day.EndsAt.Equal(item.EndsAt) {
-				item.Disposition = "conflict"
+			if DayStatus(day.Status) == DayScheduled && day.StartsAt.Equal(item.StartsAt) && day.EndsAt.Equal(item.EndsAt) {
+				item.Disposition = DispositionConflict
 				item.Reason = "An Open Day already uses this time range"
 				break
 			}
@@ -518,7 +521,7 @@ type PublicOpenDay struct {
 	ID               uuid.UUID
 	Title            string
 	StartsAt, EndsAt time.Time
-	Status           string
+	Status           DayStatus
 	UpdatedAt        time.Time
 	Version          int64
 }
@@ -537,7 +540,7 @@ func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 				Title:     "Open Day",
 				StartsAt:  row.StartsAt,
 				EndsAt:    row.EndsAt,
-				Status:    row.Status,
+				Status:    DayStatus(row.Status),
 				UpdatedAt: row.UpdatedAt,
 				Version:   row.Version,
 			},
@@ -574,7 +577,7 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 		event.Props.SetDateTime(ical.PropDateTimeStamp, item.UpdatedAt.UTC())
 		event.Props.SetDateTime(ical.PropLastModified, item.UpdatedAt.UTC())
 		event.Props.SetText(ical.PropSequence, strconv.FormatInt(item.Version, 10))
-		if item.Status == "cancelled" {
+		if item.Status == DayCancelled {
 			event.SetStatus(ical.EventCancelled)
 		} else {
 			event.SetStatus(ical.EventConfirmed)

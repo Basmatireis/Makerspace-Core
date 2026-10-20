@@ -133,7 +133,7 @@ func (s *Server) OpenOpenDayPeriodForStaffing(
 		p,
 		r.PeriodId,
 		r.Body.ExpectedVersion,
-		"staffing",
+		opendays.PeriodStaffing,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *Server) ReturnOpenDayPeriodToDraft(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "draft", requestIDPointer(ctx))
+	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, opendays.PeriodDraft, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (s *Server) PublishOpenDayPeriod(
 		p,
 		r.PeriodId,
 		r.Body.ExpectedVersion,
-		"published",
+		opendays.PeriodPublished,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -201,7 +201,7 @@ func (s *Server) ReturnOpenDayPeriodToStaffing(
 		p,
 		r.PeriodId,
 		r.Body.ExpectedVersion,
-		"staffing",
+		opendays.PeriodStaffing,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -226,7 +226,7 @@ func (s *Server) ArchiveOpenDayPeriod(
 		p,
 		r.PeriodId,
 		r.Body.ExpectedVersion,
-		"archived",
+		opendays.PeriodArchived,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -853,7 +853,7 @@ func openDayInput(
 		values = append(
 			values,
 			opendays.RequirementInput{
-				Kind:            string(r.Kind),
+				Kind:            opendays.RequirementKind(r.Kind),
 				RequiredCount:   r.RequiredCount,
 				EligibleRoleIDs: r.EligibleRoleIds,
 			},

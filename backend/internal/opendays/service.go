@@ -26,7 +26,7 @@ type Period struct {
 	ID                      uuid.UUID
 	Name                    string
 	StartsOn, EndsOn        time.Time
-	Status                  string
+	Status                  PeriodStatus
 	Version                 int64
 	CreatedAt, UpdatedAt    time.Time
 	TotalOpenDays           int
@@ -48,12 +48,12 @@ type PersonAssignmentSummary struct {
 	AssignmentID, OpenDayID, PeriodID uuid.UUID
 	PeriodName                        string
 	StartsAt, EndsAt                  time.Time
-	Role                              string
+	Role                              RequirementKind
 }
 
 type Requirement struct {
 	ID                           uuid.UUID
-	Kind                         string
+	Kind                         RequirementKind
 	RequiredCount, AssignedCount int
 	EligibleRoleIDs              []uuid.UUID
 	EligibleRolesVisible         bool
@@ -65,7 +65,7 @@ type OpenDay struct {
 	StartsAt, EndsAt     time.Time
 	InternalNote         *string
 	InternalNoteVisible  bool
-	Status               string
+	Status               DayStatus
 	Requirements         []Requirement
 	MyAssignment         *Assignment
 	Version              int64
@@ -73,7 +73,7 @@ type OpenDay struct {
 }
 
 type RequirementInput struct {
-	Kind            string
+	Kind            RequirementKind
 	RequiredCount   int
 	EligibleRoleIDs []uuid.UUID
 }
@@ -137,7 +137,7 @@ func (s *Service) ListPeriods(ctx context.Context, principal authorization.Princ
 	}
 	items := make([]Period, 0, len(rows))
 	for _, row := range rows {
-		if row.Status == "draft" && !principal.Has(authorization.OpenDaysManage) {
+		if PeriodStatus(row.Status) == PeriodDraft && !principal.Has(authorization.OpenDaysManage) {
 			continue
 		}
 		item, err := s.periodFromRow(ctx, queries, principal, row)
@@ -165,7 +165,7 @@ func (s *Service) ListUpcomingAssignmentsForPerson(
 	for _, row := range rows {
 		result = append(result, PersonAssignmentSummary{
 			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, PeriodID: row.PeriodID,
-			PeriodName: row.PeriodName, StartsAt: row.StartsAt, EndsAt: row.EndsAt, Role: row.Kind,
+			PeriodName: row.PeriodName, StartsAt: row.StartsAt, EndsAt: row.EndsAt, Role: RequirementKind(row.Kind),
 		})
 	}
 	return result, nil
@@ -183,7 +183,7 @@ func (s *Service) GetPeriod(ctx context.Context, principal authorization.Princip
 	if err != nil {
 		return Period{}, err
 	}
-	if row.Status == "draft" && !principal.Has(authorization.OpenDaysManage) {
+	if PeriodStatus(row.Status) == PeriodDraft && !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.NotFound
 	}
 	return s.periodFromRow(ctx, queries, principal, row)
@@ -270,7 +270,7 @@ func (s *Service) UpdatePeriod(
 	if current.Version != expected {
 		return Period{}, apperror.StaleWrite
 	}
-	if current.Status != "draft" {
+	if PeriodStatus(current.Status) != PeriodDraft {
 		return Period{}, apperror.Conflicting("period_not_draft", "Period metadata can only be edited in draft")
 	}
 	days, err := queries.ListOpenDaysByPeriod(ctx, id)
@@ -374,16 +374,16 @@ func (s *Service) TransitionPeriod(
 	principal authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	target string,
+	target PeriodStatus,
 	requestID *uuid.UUID,
 ) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
-	allowed := map[string]map[string]bool{
-		"draft":     {"staffing": true},
-		"staffing":  {"draft": true, "published": true},
-		"published": {"staffing": true, "archived": true},
+	allowed := map[PeriodStatus]map[PeriodStatus]bool{
+		PeriodDraft:     {PeriodStaffing: true},
+		PeriodStaffing:  {PeriodDraft: true, PeriodPublished: true},
+		PeriodPublished: {PeriodStaffing: true, PeriodArchived: true},
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -401,12 +401,12 @@ func (s *Service) TransitionPeriod(
 	if current.Version != expected {
 		return Period{}, apperror.StaleWrite
 	}
-	if !allowed[current.Status][target] {
+	if !allowed[PeriodStatus(current.Status)][target] {
 		return Period{}, apperror.Conflicting("invalid_period_transition", "Open Day period transition is not allowed")
 	}
 	row, err := q.TransitionPeriod(
 		ctx,
-		opendaysdb.TransitionPeriodParams{Status: target, ID: id, ExpectedVersion: expected},
+		opendaysdb.TransitionPeriodParams{Status: string(target), ID: id, ExpectedVersion: expected},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Period{}, apperror.StaleWrite
@@ -418,7 +418,7 @@ func (s *Service) TransitionPeriod(
 		ctx,
 		tx,
 		principal,
-		"open_day_period."+target,
+		"open_day_period."+string(target),
 		"open_day_period",
 		id,
 		requestID,
@@ -473,7 +473,7 @@ func (s *Service) GetOpenDay(ctx context.Context, principal authorization.Princi
 	if err != nil {
 		return OpenDay{}, err
 	}
-	if p.Status == "draft" && !principal.Has(authorization.OpenDaysManage) {
+	if PeriodStatus(p.Status) == PeriodDraft && !principal.Has(authorization.OpenDaysManage) {
 		return OpenDay{}, apperror.NotFound
 	}
 	return s.dayFromRow(ctx, q, principal, row)
@@ -590,7 +590,7 @@ func (s *Service) SaveSchedule(
 	if period.Version != delta.ExpectedPeriodVersion {
 		return Schedule{}, apperror.StaleWrite
 	}
-	if period.Status == "archived" {
+	if PeriodStatus(period.Status) == PeriodArchived {
 		return Schedule{}, apperror.Conflicting("period_archived", "Archived Open Day periods are read-only")
 	}
 	existing, err := q.ListOpenDaysByPeriod(ctx, periodID)
@@ -630,14 +630,14 @@ func (s *Service) SaveSchedule(
 		if day.Version != input.ExpectedVersion {
 			return Schedule{}, apperror.StaleWrite
 		}
-		if day.Status != "scheduled" {
+		if DayStatus(day.Status) != DayScheduled {
 			return Schedule{}, apperror.Conflicting("open_day_cancelled", "Cancelled Open Days cannot be edited")
 		}
 		updates[input.ID] = input
 	}
 	seen := map[string]uuid.UUID{}
 	for _, day := range existing {
-		if day.Status != "scheduled" || removing[day.ID] {
+		if DayStatus(day.Status) != DayScheduled || removing[day.ID] {
 			continue
 		}
 		start, end := day.StartsAt, day.EndsAt
@@ -676,7 +676,7 @@ func (s *Service) SaveSchedule(
 	}
 	for _, rm := range delta.Removals {
 		day := byID[rm.ID]
-		if period.Status == "draft" {
+		if PeriodStatus(period.Status) == PeriodDraft {
 			if _, err := q.DeleteOpenDay(
 				ctx,
 				opendaysdb.DeleteOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion},
@@ -692,7 +692,7 @@ func (s *Service) SaveSchedule(
 			}
 		}
 		action := "open_day.cancelled"
-		if period.Status == "draft" {
+		if PeriodStatus(period.Status) == PeriodDraft {
 			action = "open_day.deleted"
 		}
 		if err := writeAudit(ctx, tx, principal, action, "open_day", day.ID, requestID, nil); err != nil {
@@ -791,7 +791,7 @@ func (s *Service) periodFromRow(
 		return Period{}, err
 	}
 	for _, day := range days {
-		if day.Status == "cancelled" {
+		if DayStatus(day.Status) == DayCancelled {
 			result.CancelledCount++
 			continue
 		}
@@ -806,7 +806,7 @@ func (s *Service) periodFromRow(
 			if err != nil {
 				return Period{}, err
 			}
-			if req.Kind == "supervisor" && count < int64(req.RequiredCount) {
+			if RequirementKind(req.Kind) == RequirementSupervisor && count < int64(req.RequiredCount) {
 				result.OpenSupervisorPositions += int(int64(req.RequiredCount) - count)
 			}
 			if count < int64(req.RequiredCount) {
@@ -841,7 +841,7 @@ func (s *Service) dayFromRow(
 		PeriodID:     row.PeriodID,
 		StartsAt:     row.StartsAt,
 		EndsAt:       row.EndsAt,
-		Status:       row.Status,
+		Status:       DayStatus(row.Status),
 		Version:      row.Version,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
@@ -888,7 +888,7 @@ func (s *Service) dayFromRow(
 		}
 		item := Requirement{
 			ID:                   req.ID,
-			Kind:                 req.Kind,
+			Kind:                 RequirementKind(req.Kind),
 			RequiredCount:        int(req.RequiredCount),
 			AssignedCount:        len(byReq[req.ID]),
 			EligibleRoleIDs:      roles,
@@ -920,7 +920,7 @@ func createRequirements(
 			opendaysdb.CreateRequirementParams{
 				ID:            id,
 				OpenDayID:     openDayID,
-				Kind:          input.Kind,
+				Kind:          string(input.Kind),
 				RequiredCount: int32(input.RequiredCount),
 			},
 		); err != nil {
@@ -953,7 +953,7 @@ func replaceRequirements(
 		byKind[r.Kind] = r
 	}
 	for _, input := range inputs {
-		r, ok := byKind[input.Kind]
+		r, ok := byKind[string(input.Kind)]
 		if !ok {
 			return apperror.Invalid("both supervisor and trainee requirements are required")
 		}
@@ -995,9 +995,9 @@ func (s *Service) validateInput(period opendaysdb.OpenDayPeriod, input ScheduleI
 	if len(input.Requirements) != 2 {
 		return apperror.Invalid("exactly supervisor and trainee requirements are required")
 	}
-	seen := map[string]bool{}
+	seen := map[RequirementKind]bool{}
 	for _, r := range input.Requirements {
-		if r.Kind != "supervisor" && r.Kind != "trainee" {
+		if r.Kind != RequirementSupervisor && r.Kind != RequirementTrainee {
 			return apperror.Invalid("requirement kind is invalid")
 		}
 		if seen[r.Kind] {
@@ -1047,7 +1047,7 @@ func periodBase(r opendaysdb.OpenDayPeriod) Period {
 		Name:      r.Name,
 		StartsOn:  r.StartsOn.Time,
 		EndsOn:    r.EndsOn.Time,
-		Status:    r.Status,
+		Status:    PeriodStatus(r.Status),
 		Version:   r.Version,
 		CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt,
