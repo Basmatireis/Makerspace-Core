@@ -68,11 +68,9 @@ type Service struct {
 	notifier NotificationService
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...NotificationService) *Service {
-	var notifier NotificationService
-	if len(notification) > 0 {
-		notifier = notification[0]
-	}
+// NewService returns the accounts service. notifier may be nil when no mail delivery is
+// configured (administrative tools, tests); notifications are then skipped.
+func NewService(pool *pgxpool.Pool, cfg config.Config, notifier NotificationService) *Service {
 	return &Service{pool: pool, config: cfg, notifier: notifier}
 }
 

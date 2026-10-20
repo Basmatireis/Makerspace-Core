@@ -75,7 +75,7 @@ func TestSecurityNoticeReplacesLegacyMessageName(t *testing.T) {
 func TestGenericSMSProviderAbstraction(t *testing.T) {
 	mail := &recordingMail{}
 	sms := &recordingSMS{}
-	service := NewService(mail).WithSMSProvider(sms)
+	service := NewService(mail, nil).WithSMSProvider(sms)
 	if err := service.Send(
 		context.Background(),
 		Notification{Channel: ChannelSMS, Recipient: "+4312345", Text: "Workshop update"},

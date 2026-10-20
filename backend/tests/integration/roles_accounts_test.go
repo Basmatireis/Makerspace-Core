@@ -165,7 +165,7 @@ func TestConcurrentMutationsCannotRemoveEveryEnabledMaster(t *testing.T) {
 	pool := migratedPool(t)
 	first := seedAccount(t, pool, "master-one", true)
 	second := seedAccount(t, pool, "master-two", true)
-	service := accounts.NewService(pool, config.Config{})
+	service := accounts.NewService(pool, config.Config{}, nil)
 	principal := authorization.Principal{AccountID: first.accountID, PersonID: first.personID, Master: true}
 
 	start := make(chan struct{})
@@ -216,8 +216,8 @@ func TestConcurrentMasterDestructiveOperationsPreserveEnabledMaster(t *testing.T
 			first := seedAccount(t, pool, "destructive-first-"+test.left, true)
 			second := seedAccount(t, pool, "destructive-second-"+test.right, true)
 			principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
-			accountService := accounts.NewService(pool, config.Config{})
-			peopleService := people.NewService(pool)
+			accountService := accounts.NewService(pool, config.Config{}, nil)
+			peopleService := people.NewService(pool, nil)
 			masterID := uuid.MustParse(masterRoleID)
 
 			run := func(kind string, subject seededAccount) error {
@@ -294,7 +294,7 @@ func TestAccountServiceDeletionPreservesPersonRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
-	if err := accounts.NewService(pool, config.Config{}).Delete(ctx, principal, target.accountID, 1, nil); err != nil {
+	if err := accounts.NewService(pool, config.Config{}, nil).Delete(ctx, principal, target.accountID, 1, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, target.accountID)
@@ -423,7 +423,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	go func() {
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		result <- people.NewService(pool).Delete(deleteCtx, principal, targetPersonID, 1, nil)
+		result <- people.NewService(pool, nil).Delete(deleteCtx, principal, targetPersonID, 1, nil)
 	}()
 	select {
 	case err := <-result:
@@ -463,7 +463,7 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	}
 
 	roleService := roles.NewService(pool)
-	peopleService := people.NewService(pool)
+	peopleService := people.NewService(pool, nil)
 	capabilityRole, err := roleService.Create(ctx, master, "subset-manager", nil, []authorization.PermissionGrant{
 		{PermissionID: authorization.PeopleRolesAssign, Scope: authorization.GrantEverywhere},
 		{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
@@ -649,7 +649,7 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		t.Fatal(err)
 	}
 
-	service := people.NewService(pool)
+	service := people.NewService(pool, nil)
 	assigned, err := service.ChangeRole(ctx, principal, personID, roleID, 1, true, nil)
 	if err != nil {
 		t.Fatal(err)

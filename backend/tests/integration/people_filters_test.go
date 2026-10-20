@@ -11,7 +11,7 @@ import (
 func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	service := people.NewService(pool)
+	service := people.NewService(pool, nil)
 	principal := authorization.Principal{Master: true}
 
 	seedAccount(t, pool, "directory-filter-enabled", false)
@@ -118,7 +118,7 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := people.NewService(pool).List(ctx, authorization.Principal{Master: true}, 1, 100, people.ListFilters{
+	page, err := people.NewService(pool, nil).List(ctx, authorization.Principal{Master: true}, 1, 100, people.ListFilters{
 		Search: "directory-filter-no-published-version", LaborordnungStatuses: []string{"no_published_version"},
 	})
 	if err != nil {

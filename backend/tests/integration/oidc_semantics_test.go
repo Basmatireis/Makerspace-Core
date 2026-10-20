@@ -124,7 +124,7 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 	}
 	cfg := integrationConfig(t)
 	cfg.EncryptionKeys = [][]byte{make([]byte, 32)}
-	f.auth, err = auth.NewService(f.pool, cfg)
+	f.auth, err = auth.NewService(f.pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +517,7 @@ func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
 
 func TestAdministrativeOIDCIdentityRemovalRevokesSessionsWithoutChangingAccountStatus(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, true)
-	accountService := accounts.NewService(f.pool, integrationConfig(t))
+	accountService := accounts.NewService(f.pool, integrationConfig(t), nil)
 	account, err := accountService.Get(f.ctx, f.principal, f.principal.AccountID)
 	if err != nil {
 		t.Fatal(err)

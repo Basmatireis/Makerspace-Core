@@ -115,7 +115,7 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 	).Scan(&accountVersion); err != nil {
 		t.Fatal(err)
 	}
-	issue, err := accounts.NewService(pool, cfg).IssuePasswordReset(ctx, principal, accountID, accountVersion, nil)
+	issue, err := accounts.NewService(pool, cfg, nil).IssuePasswordReset(ctx, principal, accountID, accountVersion, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 		fragment.Get("code") == "" {
 		t.Fatalf("manual URL=%q", *issue.SetupURL)
 	}
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

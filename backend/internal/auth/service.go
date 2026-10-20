@@ -54,7 +54,9 @@ type NotificationService interface {
 	SendSecurityNotice(context.Context, string, string, string) error
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...NotificationService) (*Service, error) {
+// NewService returns the authentication service. notifier may be nil when no mail delivery is
+// configured; challenge delivery then reports mail as unavailable.
+func NewService(pool *pgxpool.Pool, cfg config.Config, notifier NotificationService) (*Service, error) {
 	dummyHash, err := security.HashPassword("this is only a dummy password")
 	if err != nil {
 		return nil, err
@@ -62,10 +64,6 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...Notificat
 	dummyPINHash, err := security.HashPIN(cfg.PINPepper, "000000")
 	if err != nil {
 		return nil, err
-	}
-	var notifier NotificationService
-	if len(notification) > 0 {
-		notifier = notification[0]
 	}
 	return &Service{
 		pool:         pool,

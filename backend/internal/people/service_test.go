@@ -99,7 +99,7 @@ func TestCleanOptionalNormalizesWhitespaceToNull(t *testing.T) {
 }
 
 func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
-	service := NewService(nil)
+	service := NewService(nil, nil)
 	_, err := service.List(t.Context(), authorization.Principal{Master: true}, math.MaxInt32, 100, ListFilters{})
 	if !apperror.IsCode(err, "invalid_request") {
 		t.Fatalf("expected invalid_request, got %v", err)
@@ -107,7 +107,7 @@ func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
 }
 
 func TestListRequiresAccountsReadForAccountStatusFiltering(t *testing.T) {
-	service := NewService(nil)
+	service := NewService(nil, nil)
 	principal := principalWithPermissions(t, authorization.PeopleReadAll)
 	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{AccountStatuses: []string{"enabled"}})
 	if !apperror.IsCode(err, "permission_denied") {
@@ -116,7 +116,7 @@ func TestListRequiresAccountsReadForAccountStatusFiltering(t *testing.T) {
 }
 
 func TestRoleMutationRejectsNonPositivePersonVersionBeforePersistence(t *testing.T) {
-	service := NewService(nil)
+	service := NewService(nil, nil)
 	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
 	_, err := service.ChangeRole(t.Context(), principal, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 0, true, nil)
 	if !apperror.IsCode(err, "validation_failed") {
@@ -125,7 +125,7 @@ func TestRoleMutationRejectsNonPositivePersonVersionBeforePersistence(t *testing
 }
 
 func TestListRequiresLaborordnungRequestReadForLabRulesFiltering(t *testing.T) {
-	service := NewService(nil)
+	service := NewService(nil, nil)
 	principal := principalWithPermissions(t, authorization.PeopleReadAll)
 	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{LaborordnungStatuses: []string{"current"}})
 	if !apperror.IsCode(err, "permission_denied") {
@@ -134,7 +134,7 @@ func TestListRequiresLaborordnungRequestReadForLabRulesFiltering(t *testing.T) {
 }
 
 func TestListRejectsUnknownStatusFiltersBeforeQuery(t *testing.T) {
-	service := NewService(nil)
+	service := NewService(nil, nil)
 	principal := authorization.Principal{Master: true}
 	for _, filters := range []ListFilters{
 		{AccountStatuses: []string{"locked"}},

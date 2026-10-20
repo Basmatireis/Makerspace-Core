@@ -87,12 +87,10 @@ type Service struct {
 	files *files.Service
 }
 
-func NewService(pool *pgxpool.Pool, fileServices ...*files.Service) *Service {
-	service := &Service{pool: pool}
-	if len(fileServices) != 0 {
-		service.files = fileServices[0]
-	}
-	return service
+// NewService returns the people service. fileService may be nil when profile images are not
+// served (administrative tools); image operations then fail.
+func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
+	return &Service{pool: pool, files: fileService}
 }
 
 func (s *Service) Create(

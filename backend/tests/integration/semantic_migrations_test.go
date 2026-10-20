@@ -30,7 +30,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	); err != nil {
 		t.Fatal(err)
 	}
-	service, err := auth.NewService(pool, integrationConfig(t))
+	service, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

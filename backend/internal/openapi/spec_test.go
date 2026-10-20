@@ -35,10 +35,8 @@ func TestEmbeddedSpecificationIsValidAndOperationIDsAreStableStyle(t *testing.T)
 
 	lowerCamel := regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
 	seen := map[string]string{}
-	operationCount := 0
 	for path, item := range source.Paths.Map() {
 		for method, operation := range item.Operations() {
-			operationCount++
 			if !lowerCamel.MatchString(operation.OperationID) {
 				t.Errorf("%s %s has non-lower-camel operationId %q", method, path, operation.OperationID)
 			}
@@ -48,8 +46,28 @@ func TestEmbeddedSpecificationIsValidAndOperationIDsAreStableStyle(t *testing.T)
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	if operationCount != 451 {
-		t.Fatalf("operation count = %d, want 451", operationCount)
+
+	// The embedded specification is generated from api/openapi.yaml (with Go-style operation
+	// names); both must expose the same routes, otherwise the generated server is stale.
+	routes := func(document *openapi3.T) map[string]bool {
+		result := map[string]bool{}
+		for path, item := range document.Paths.Map() {
+			for method := range item.Operations() {
+				result[method+" "+path] = true
+			}
+		}
+		return result
+	}
+	sourceRoutes, embeddedRoutes := routes(source), routes(spec)
+	for route := range sourceRoutes {
+		if !embeddedRoutes[route] {
+			t.Errorf("%s is missing from the embedded specification; regenerate", route)
+		}
+	}
+	for route := range embeddedRoutes {
+		if !sourceRoutes[route] {
+			t.Errorf("embedded %s no longer exists in api/openapi.yaml; regenerate", route)
+		}
 	}
 }
 

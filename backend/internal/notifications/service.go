@@ -87,12 +87,10 @@ func formatDateTime(value time.Time) string {
 	return value.In(viennaLocation).Format("02.01.2006 15:04")
 }
 
-func NewService(mail MailService, names ...ApplicationNameProvider) *Service {
-	service := &Service{mail: mail}
-	if len(names) > 0 {
-		service.names = names[0]
-	}
-	return service
+// NewService returns the notification service. names may be nil; messages then use the
+// default application name.
+func NewService(mail MailService, names ApplicationNameProvider) *Service {
+	return &Service{mail: mail, names: names}
 }
 
 func (s *Service) applicationName(ctx context.Context) string {

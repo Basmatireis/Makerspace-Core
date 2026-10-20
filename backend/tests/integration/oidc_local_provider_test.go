@@ -84,7 +84,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 	cfg := integrationConfig(t)
 	cfg.EncryptionKeys = [][]byte{make([]byte, 32)}
 	cfg.PublicBaseURL, _ = url.Parse("https://makerspace.example.test")
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

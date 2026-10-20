@@ -245,9 +245,9 @@ func main() {
 		machines: map[string]*mach{},
 		roles:    map[string]uuid.UUID{}}
 	log.Printf("devseed run %s (seed %d)", s.tag, *seed)
-	s.people = people.NewService(pool)
+	s.people = people.NewService(pool, nil)
 	s.rolesSvc = roles.NewService(pool)
-	s.accounts = accounts.NewService(pool, cfg)
+	s.accounts = accounts.NewService(pool, cfg, nil)
 	s.ml = machinelogbook.NewService(pool)
 	s.printing = printing.NewService(pool)
 	s.pc, err = printerconnectors.NewService(pool, s.printing, cfg.EncryptionKeys)

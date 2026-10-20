@@ -10,7 +10,7 @@ import (
 func TestPINThrottleBacksOffAndForgetsQuietSources(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	authService, err := auth.NewService(pool, integrationConfig(t))
+	authService, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

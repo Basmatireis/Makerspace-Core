@@ -11,7 +11,7 @@ import (
 )
 
 func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T) {
-	service := NewService(nil, config.Config{})
+	service := NewService(nil, config.Config{}, nil)
 	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
 	accountID := uuid.Must(uuid.NewV7())
 

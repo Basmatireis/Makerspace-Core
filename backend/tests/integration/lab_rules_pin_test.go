@@ -50,7 +50,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	}
 	versionID := insertPublishedLabRulesVersion(t, pool, accountID, "2026.1")
 
-	authService, err := auth.NewService(pool, integrationConfig(t))
+	authService, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	); err != nil {
 		t.Fatal(err)
 	}
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatalf("stale PIN setup error=%v", err)
 	}
 
-	issue, err := accounts.NewService(pool, cfg).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
+	issue, err := accounts.NewService(pool, cfg, nil).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +366,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatal(err)
 	}
 
-	account, err := accounts.NewService(pool, cfg).
+	account, err := accounts.NewService(pool, cfg, nil).
 		SetStatus(ctx, principal, accountID, "enabled", issue.Account.Version+1, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -428,7 +428,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 		t.Fatalf("duplicate PIN username error=%v", err)
 	}
 
-	accountService := accounts.NewService(pool, cfg)
+	accountService := accounts.NewService(pool, cfg, nil)
 	currentAccount, err := accountService.Get(ctx, principal, accountID)
 	if err != nil {
 		t.Fatal(err)
@@ -529,7 +529,7 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	issue, err := accounts.NewService(pool, cfg).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
+	issue, err := accounts.NewService(pool, cfg, nil).IssuePINEnrollment(ctx, principal, accountID, 1, nil)
 	if err != nil || issue.SetupURL == nil {
 		t.Fatalf("manual issue=%#v err=%v", issue, err)
 	}
@@ -546,7 +546,7 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 		t.Fatal("manual setup URL did not contain a challenge code")
 	}
 	assertChallengeStoredAsDigest(t, pool, cfg, accountID, "pin_enrollment", code)
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -593,7 +593,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	principal := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	service := accounts.NewService(pool, cfg)
+	service := accounts.NewService(pool, cfg, nil)
 	identityUsable := func(kind string) bool {
 		t.Helper()
 		account, getErr := service.Get(ctx, principal, accountID)

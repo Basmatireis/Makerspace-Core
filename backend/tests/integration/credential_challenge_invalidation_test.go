@@ -29,7 +29,7 @@ func TestPasswordChallengeCompletionUsesAccountSecurityLock(t *testing.T) {
 				security.ChallengeDigest(cfg.ChallengeHMACKey, kind, account.accountID, code)); err != nil {
 				t.Fatal(err)
 			}
-			service, err := auth.NewService(pool, cfg)
+			service, err := auth.NewService(pool, cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -110,7 +110,7 @@ func TestOIDCSessionRejectsDisabledOrForeignIdentity(t *testing.T) {
 		VALUES ($1,$2,'oidc',$3,'https://session.example.test','subject')`, identityID, account.accountID, providerID); err != nil {
 		t.Fatal(err)
 	}
-	service, err := auth.NewService(pool, integrationConfig(t))
+	service, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 					t.Fatal(err)
 				}
 			}
-			service := accounts.NewService(pool, cfg)
+			service := accounts.NewService(pool, cfg, nil)
 			switch operation {
 			case "set_password":
 				if _, err := service.SetPassword(
@@ -208,7 +208,7 @@ func TestAdministrativeCredentialChangesInvalidateOutstandingChallenges(t *testi
 					t.Fatal(err)
 				}
 			}
-			authService, err := auth.NewService(pool, cfg)
+			authService, err := auth.NewService(pool, cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

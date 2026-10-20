@@ -142,7 +142,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		masterRoleID,
 	)
 
-	service, err := auth.NewService(pool, integrationConfig(t))
+	service, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	); err != nil {
 		t.Fatal(err)
 	}
-	authService, err := auth.NewService(pool, integrationConfig(t))
+	authService, err := auth.NewService(pool, integrationConfig(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

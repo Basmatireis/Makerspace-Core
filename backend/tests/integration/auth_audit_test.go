@@ -393,7 +393,7 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 	}
 
 	contactEmail := "disabled-person-contact@example.test"
-	person, err := people.NewService(pool).Create(ctx, authenticated.Principal, people.CreateInput{
+	person, err := people.NewService(pool, nil).Create(ctx, authenticated.Principal, people.CreateInput{
 		FirstName: "Disabled", LastName: "Member", Email: &contactEmail,
 	}, nil)
 	if err != nil {
@@ -547,7 +547,7 @@ func TestAdministrativeResetIssuanceDoesNotRevokeConcurrentLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,7 +640,7 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -786,7 +786,7 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	authService, err := auth.NewService(pool, cfg)
+	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +883,7 @@ func TestMutationRollsBackWhenAuditInsertionFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authService, err := auth.NewService(pool, serviceConfig)
+	authService, err := auth.NewService(pool, serviceConfig, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,7 +923,7 @@ func TestMutationRollsBackWhenAuditInsertionFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	rolledBackEmail := "must-not-persist@example.test"
-	_, err = people.NewService(pool).Create(ctx, authenticated.Principal, people.CreateInput{
+	_, err = people.NewService(pool, nil).Create(ctx, authenticated.Principal, people.CreateInput{
 		FirstName: "Rolled", LastName: "Back", Email: &rolledBackEmail,
 	}, nil)
 	if err == nil {
