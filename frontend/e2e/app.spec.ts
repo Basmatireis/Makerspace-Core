@@ -436,6 +436,11 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/oidc/providers' && request.method() === 'GET') {
+      await route.fulfill({ json: { items: [] } });
+      return;
+    }
+
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }
@@ -1230,4 +1235,33 @@ test('redirects to sign in when an authenticated request reports session expiry'
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+});
+
+test('groups the settings overview, redirects merged screens and fits a 375 px viewport', async ({ page }) => {
+  await installApi(page, {
+    authenticated: true,
+    user: currentUser(['roles.read', 'oidc.manage', 'scim.manage', 'mail.manage', 'configuration.export']),
+  });
+
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Access & identity' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Communication & appearance' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lab operations' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Single sign-on/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Pricing/ })).toHaveCount(0);
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoSeriousAccessibilityViolations(page);
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/settings');
+  await expect(page.getByRole('link', { name: /Email delivery/ })).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+
+  await page.goto('/settings/oidc');
+  await expect(page).toHaveURL(/\/settings\/single-sign-on\?tab=oidc$/);
+  await expect(page.getByRole('tab', { name: 'OpenID Connect', selected: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'SCIM provisioning' })).toBeVisible();
+  await expect(page.getByLabel('Breadcrumb').getByRole('link', { name: 'Access & identity' })).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
 });

@@ -4,9 +4,9 @@ Settings › Export & import moves the configuration of one makerspace instance 
 
 ## Permissions
 
-| Operation | Needs |
-| --- | --- |
-| Export | `configuration.export` and the read permission of every chosen section |
+| Operation                   | Needs                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| Export                      | `configuration.export` and the read permission of every chosen section                 |
 | Preview and apply an import | `configuration.import` and the read **and** manage permissions of every chosen section |
 
 Every write goes through the owning feature service (`*Tx` variants of the ordinary service methods), so the import enforces exactly the rules of the UI: a role editor can only create or change roles whose grants it could delegate itself (privilege-subset rule), the system role `master` is never exported, imported, changed or deleted, a visitor-enrollment initial role must be assignable by the actor, and so on. A refusal of a service becomes a **conflict** of that entry.
@@ -15,22 +15,22 @@ Every write goes through the owning feature service (`*Tx` variants of the ordin
 
 Entries are matched by natural key, never by ID; names compare case-insensitively. References between sections are resolved by name against the target instance at import time, after the earlier sections of the same import were applied (sections are imported in the order below).
 
-| Key | Content | Natural key | References | Missing from the file (overwrite) |
-| --- | --- | --- | --- | --- |
-| `deviceTypes` | Managed device types (not devices or credentials) | name | – | deleted; kept when devices, role grants or visitor enrollment use it |
-| `sessionPolicies` | Session policies | name | – | kept (no delete path) |
-| `roles` | Configurable roles with behaviors and permission grants | name | device types | deleted; kept when assigned to people or used by visitor enrollment or staffing requirements |
-| `machineTypes` | Machine types and their process | name | – | deactivated (no delete path) |
-| `materialTypes` | Material types (kind, unit, processes) | name | – | deleted; deactivated when articles or pricing rules use it |
-| `machines` | Machines with status, external identifier and printer setup (model, input units, slots) | name; units and slots by name | machine type | deleted; retired when the machine has jobs, runs, connector assignments, cameras or mounted spools |
-| `inventoryArticles` | Article definitions (no stock, ledger, spools or fills) | name | material type | deleted; deactivated when the article has stock history |
-| `pricing` | Pricing groups with their active rules, and the role → pricing group mapping | group name; rule by kind + machine type / material type + measure; mapping by role | roles, machine types, material types | groups and rules deactivated; mapping replaced |
-| `openDayRequirements` | Open days per semester, trainee promotion, supervisor role | single record | role | – |
-| `visitorEnrollment` | Enabled flag, initial role, methods, device types | single record | role, device types | – |
-| `branding` | Identity, colors, imprint and privacy, the five asset slots (custom assets as base64) | single record; assets by slot | – | – |
-| `labRules` | The Lab Rules version in force and later published versions, with their PDF (base64) | revision | – | kept: versions are immutable evidence |
-| `surveys` | Definitions of draft and published surveys and their post-visit trigger timing (never responses or invitations) | name | – | published surveys are closed, others kept |
-| `mail` | SMTP host, port, TLS mode, username, sender, base URL (never the password) | single record | – | – |
+| Key                   | Content                                                                                                         | Natural key                                                                        | References                           | Missing from the file (overwrite)                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `deviceTypes`         | Managed device types (not devices or credentials)                                                               | name                                                                               | –                                    | deleted; kept when devices, role grants or visitor enrollment use it                               |
+| `sessionPolicies`     | Session policies                                                                                                | name                                                                               | –                                    | kept (no delete path)                                                                              |
+| `roles`               | Configurable roles with behaviors and permission grants                                                         | name                                                                               | device types                         | deleted; kept when assigned to people or used by visitor enrollment or staffing requirements       |
+| `machineTypes`        | Machine types and their process                                                                                 | name                                                                               | –                                    | deactivated (no delete path)                                                                       |
+| `materialTypes`       | Material types (kind, unit, processes)                                                                          | name                                                                               | –                                    | deleted; deactivated when articles or pricing rules use it                                         |
+| `machines`            | Machines with status, external identifier and printer setup (model, input units, slots)                         | name; units and slots by name                                                      | machine type                         | deleted; retired when the machine has jobs, runs, connector assignments, cameras or mounted spools |
+| `inventoryArticles`   | Article definitions (no stock, ledger, spools or fills)                                                         | name                                                                               | material type                        | deleted; deactivated when the article has stock history                                            |
+| `pricing`             | Pricing groups with their active rules, and the role → pricing group mapping                                    | group name; rule by kind + machine type / material type + measure; mapping by role | roles, machine types, material types | groups and rules deactivated; mapping replaced                                                     |
+| `openDayRequirements` | Open days per semester, trainee promotion, supervisor role                                                      | single record                                                                      | role                                 | –                                                                                                  |
+| `visitorEnrollment`   | Enabled flag, initial role, methods, device types                                                               | single record                                                                      | role, device types                   | –                                                                                                  |
+| `branding`            | Identity, colors, imprint and privacy, the five asset slots (custom assets as base64)                           | single record; assets by slot                                                      | –                                    | –                                                                                                  |
+| `labRules`            | The Lab Rules version in force and later published versions, with their PDF (base64)                            | revision                                                                           | –                                    | kept: versions are immutable evidence                                                              |
+| `surveys`             | Definitions of draft and published surveys and their post-visit trigger timing (never responses or invitations) | name                                                                               | –                                    | published surveys are closed, others kept                                                          |
+| `mail`                | SMTP host, port, TLS mode, username, sender, base URL (never the password)                                      | single record                                                                      | –                                    | –                                                                                                  |
 
 Not part of any section: people, accounts, credentials, sessions, jobs, runs, orders, payments, stock, spools, printer connectors, streaming gateways, signage, events, open-day calendars, OIDC providers and SCIM connectors.
 
@@ -63,9 +63,23 @@ The services write their usual audit events; the import adds one `configuration.
   "appVersion": "v0.8.3",
   "exportedAt": "2026-10-21T08:00:00Z",
   "sections": {
-    "roles": [{ "name": "Supervisor", "description": null, "profileImageRequired": false, "labRulesMode": "warning",
-      "staffingLevel": "supervisor", "permissions": [{ "permission": "open_days.read", "scope": "global",
-      "minimumAssurance": "low", "deviceTypes": [] }] }],
+    "roles": [
+      {
+        "name": "Supervisor",
+        "description": null,
+        "profileImageRequired": false,
+        "labRulesMode": "warning",
+        "staffingLevel": "supervisor",
+        "permissions": [
+          {
+            "permission": "open_days.read",
+            "scope": "global",
+            "minimumAssurance": "low",
+            "deviceTypes": []
+          }
+        ]
+      }
+    ],
     "...": "one entry per exported section"
   }
 }

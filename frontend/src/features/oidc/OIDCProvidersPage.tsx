@@ -13,8 +13,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { createOIDCProvider, listOIDCProviders, updateOIDCProvider } from '../../api/generated/oidc/oidc';
 import type { AuthenticationAssurance, OIDCProvider } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { EmptyState, ErrorState } from '../../app/PageState';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 
 type Values = {
@@ -39,25 +39,33 @@ const blank: Values = {
   mappings: '',
 };
 
-export function OIDCProvidersPage() {
+export function OIDCProvidersPanel() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['oidc', 'providers'], queryFn: ({ signal }) => listOIDCProviders({ signal }) });
   const [creating, setCreating] = useState(false);
+  const [saved, setSaved] = useState(false);
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['oidc'] });
 
   return (
-    <PageShell
-      title="OpenID Connect"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsSection
+      title="OpenID Connect providers"
       description="Configure external sign-in, trusted assurance mappings, and optional just-in-time provisioning. Client secrets are never returned."
       actions={<Button onClick={() => setCreating(true)}>Add provider</Button>}
     >
-      {query.isPending && <InlineLoadingState label="Loading identity providers" />}
+      {query.isPending && <SettingsLoading label="Loading identity providers" />}
       {query.isError && (
         <ErrorState
           title="Unable to load identity providers"
           message="Check the connection and try again."
           onRetry={() => void query.refetch()}
+        />
+      )}
+      {saved && (
+        <InlineNotification
+          kind="success"
+          lowContrast
+          title="Provider saved"
+          onCloseButtonClick={() => setSaved(false)}
         />
       )}
       {creating && (
@@ -67,19 +75,28 @@ export function OIDCProvidersPage() {
           onCancel={() => setCreating(false)}
           onSaved={async () => {
             setCreating(false);
+            setSaved(true);
             await refresh();
           }}
         />
       )}
       {query.data?.items.length === 0 && !creating && (
-        <Tile>
-          <p>No OIDC providers are configured. Local password and PIN authentication remain available.</p>
-        </Tile>
+        <EmptyState
+          title="No providers configured"
+          description="Local password and PIN authentication remain available."
+        />
       )}
       {query.data?.items.map((provider) => (
-        <ProviderEditor key={provider.id} provider={provider} onSaved={refresh} />
+        <ProviderEditor
+          key={provider.id}
+          provider={provider}
+          onSaved={async () => {
+            setSaved(true);
+            await refresh();
+          }}
+        />
       ))}
-    </PageShell>
+    </SettingsSection>
   );
 }
 

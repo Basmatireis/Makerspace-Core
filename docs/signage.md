@@ -6,28 +6,28 @@ This document is the implementation contract for digital signage.
 
 ## Concepts
 
-| Concept | Meaning |
-|---|---|
-| Display | One physical screen. Bound 1:1 to a managed device whose only application mode is `signage_player`. |
-| Scene | One screen composition: a zone **layout template** (fixed set, defined in code) plus one widget per zone, background colour/image, text theme. |
-| Playlist | Ordered scenes with seconds per item and a transition (`cut`, `fade`). |
-| Rule | Per display, ordered. "When *condition* show *scene or playlist*". First enabled match wins; the display's default playlist is the fallback. |
-| Publication | Immutable manifest per display: rules, default playlist and every scene, playlist and asset they reach, at publish time. Players only ever play publications. |
-| Asset | An uploaded image or video (metadata here, bytes in the existing files/storage module). |
-| Announcement template | Fields (typed inputs) + title/body with `{placeholders}` + tone. |
-| Announcement | A started instance of a template: values, target displays (all or selected), start, optional end. Live data, never published. |
-| Streaming gateway | Headless local service (Go) that registers with Core, controls a bundled go2rtc, and serves camera streams to players on the LAN with ticket checks. |
+| Concept               | Meaning                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display               | One physical screen. Bound 1:1 to a managed device whose only application mode is `signage_player`.                                                           |
+| Scene                 | One screen composition: a zone **layout template** (fixed set, defined in code) plus one widget per zone, background colour/image, text theme.                |
+| Playlist              | Ordered scenes with seconds per item and a transition (`cut`, `fade`).                                                                                        |
+| Rule                  | Per display, ordered. "When _condition_ show _scene or playlist_". First enabled match wins; the display's default playlist is the fallback.                  |
+| Publication           | Immutable manifest per display: rules, default playlist and every scene, playlist and asset they reach, at publish time. Players only ever play publications. |
+| Asset                 | An uploaded image or video (metadata here, bytes in the existing files/storage module).                                                                       |
+| Announcement template | Fields (typed inputs) + title/body with `{placeholders}` + tone.                                                                                              |
+| Announcement          | A started instance of a template: values, target displays (all or selected), start, optional end. Live data, never published.                                 |
+| Streaming gateway     | Headless local service (Go) that registers with Core, controls a bundled go2rtc, and serves camera streams to players on the LAN with ticket checks.          |
 
 ## Permissions (registered; never role names)
 
-| Permission | Allows |
-|---|---|
-| `signage.read` | Read displays, health, content, media, rules, announcements |
-| `signage.manage` | Pair, rename, revoke, delete displays; edit rules, default playlist, display settings |
-| `signage.content.manage` | Create/edit/delete scenes, playlists, assets, announcement templates |
-| `signage.publish` | Publish a display |
-| `signage.override` | Start, edit, stop announcements |
-| `local_services.manage` | Manage streaming gateways and camera assignments; issue enrollment secrets |
+| Permission               | Allows                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `signage.read`           | Read displays, health, content, media, rules, announcements                           |
+| `signage.manage`         | Pair, rename, revoke, delete displays; edit rules, default playlist, display settings |
+| `signage.content.manage` | Create/edit/delete scenes, playlists, assets, announcement templates                  |
+| `signage.publish`        | Publish a display                                                                     |
+| `signage.override`       | Start, edit, stop announcements                                                       |
+| `local_services.manage`  | Manage streaming gateways and camera assignments; issue enrollment secrets            |
 
 Every write permission implies nothing else; services check exactly what they need and the frontend hides controls accordingly (UX only).
 
@@ -146,4 +146,3 @@ Setup, ports, TLS and the hardware checklist are in [Streaming gateway](streamin
 - **Heartbeat health is derived from go2rtc.** go2rtc connects to a printer on the first viewer, so an idle stream is `idle`; `unavailable` means go2rtc is unreachable, the stream is unknown, or viewers exist without a receiving producer. A printer that is switched off therefore shows `idle` until someone watches. go2rtc's `/api/streams` does not report resolution or frame rate (verify on hardware); they stay `null` unless a future go2rtc provides them.
 - **Audit.** Gateway and camera mutations, enrollment issue, enrollment, credential rotation and ticket key creation/rotation are audited in the same transaction; secrets, source URLs and tickets never are. Heartbeats and configuration reads are not audited.
 - **Admin UI.** Gateways and cameras are administered under Settings, Local services (the key rotation, `POST /local-services/ticket-key/rotation`, stays API-only). The list shows status, version, public host, camera count, enrollment and credential expiry.
-

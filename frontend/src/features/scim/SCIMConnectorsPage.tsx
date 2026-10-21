@@ -11,8 +11,8 @@ import {
   updateSCIMConnector,
 } from '../../api/generated/scim-administration/scim-administration';
 import type { SCIMConnector, SCIMConnectorTokenIssue, SCIMReconciliationReport } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { EmptyState, ErrorState } from '../../app/PageState';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { DateTimeInput } from '../../app/DateInput';
 import {
   formatDateTime,
@@ -29,7 +29,7 @@ const defaultExpiry = () => {
 
 const toISO = zonedDateTimeValueToISO;
 
-export function SCIMConnectorsPage() {
+export function SCIMConnectorsPanel() {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ['scim', 'connectors'],
@@ -40,9 +40,8 @@ export function SCIMConnectorsPage() {
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['scim'] });
 
   return (
-    <PageShell
-      title="SCIM provisioning"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsSection
+      title="SCIM connectors"
       description="Manage connector credentials and safely reconcile provisional SCIM Accounts. Groups, Roles, and entitlements are not supported."
       actions={<Button onClick={() => setCreating(true)}>Add connector</Button>}
     >
@@ -75,7 +74,7 @@ export function SCIMConnectorsPage() {
           }}
         />
       )}
-      {query.isPending && <InlineLoadingState label="Loading SCIM connectors" />}
+      {query.isPending && <SettingsLoading label="Loading SCIM connectors" />}
       {query.isError && (
         <ErrorState
           title="Unable to load SCIM connectors"
@@ -84,9 +83,7 @@ export function SCIMConnectorsPage() {
         />
       )}
       {query.data?.items.length === 0 && !creating && (
-        <Tile>
-          <p>No SCIM connectors are configured.</p>
-        </Tile>
+        <EmptyState title="No connectors configured" description="Add a connector to provision accounts via SCIM." />
       )}
       {query.data?.items.map((connector) => (
         <ConnectorEditor
@@ -97,7 +94,7 @@ export function SCIMConnectorsPage() {
         />
       ))}
       <ReconciliationPanel />
-    </PageShell>
+    </SettingsSection>
   );
 }
 

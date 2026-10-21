@@ -42,7 +42,7 @@ describe('invoicing settings', () => {
     );
     const user = userEvent.setup();
     renderRoute(<InvoicingSettingsPage />, '/settings/invoicing');
-    expect(await screen.findByRole('heading', { name: 'Sales & invoicing' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Invoicing' })).toBeInTheDocument();
     expect(await screen.findByText('{{organisation}}')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send test mail' })).toBeDisabled();
     await user.click(screen.getByRole('switch', { name: 'Send approved requests to wiRef' }));

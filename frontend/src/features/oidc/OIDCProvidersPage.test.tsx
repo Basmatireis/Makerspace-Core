@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { OIDCProvidersPage } from './OIDCProvidersPage';
+import { OIDCProvidersPanel } from './OIDCProvidersPage';
 
 describe('OIDC provider secrets', () => {
   it.each([201, 500])('keeps client secrets out of mutation variables after HTTP %s', async (status) => {
@@ -16,7 +16,7 @@ describe('OIDC provider secrets', () => {
         return HttpResponse.json(status === 201 ? {} : { code: 'unavailable' }, { status });
       }),
     );
-    const { queryClient } = renderRoute(<OIDCProvidersPage />, '/settings/oidc');
+    const { queryClient } = renderRoute(<OIDCProvidersPanel />, '/settings/oidc');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Add provider' }));
     await user.type(screen.getByLabelText('Stable slug'), 'test-provider');

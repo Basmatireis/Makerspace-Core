@@ -20,11 +20,11 @@ The OpenAPI-managed device API is the server source of truth. A native client au
 
 ## Supported capabilities
 
-| Platform | NFC | Simulator | Other declared capability IDs |
-| --- | --- | --- | --- |
-| Ordinary browser | unavailable with a clear typed error | no | discoverable contract only |
-| Desktop | USB PC/SC UID reads for compatible readers | development flag | contract supports camera, QR, barcode, scale, and label printer reports; adapters are not implemented |
-| Android | Android NFC Reader Mode | debug builds only | same discoverable contract; adapters are not implemented |
+| Platform         | NFC                                        | Simulator         | Other declared capability IDs                                                                         |
+| ---------------- | ------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Ordinary browser | unavailable with a clear typed error       | no                | discoverable contract only                                                                            |
+| Desktop          | USB PC/SC UID reads for compatible readers | development flag  | contract supports camera, QR, barcode, scale, and label printer reports; adapters are not implemented |
+| Android          | Android NFC Reader Mode                    | debug builds only | same discoverable contract; adapters are not implemented                                              |
 
 Desktop uses a Tauri system WebView around the same deployed React application. Its bundled sidecar uses authenticated long polling because that naturally resumes from a sequence cursor and keeps PC/SC outside the web process. Android uses an origin-scoped WebMessage listener. The frontend receives the same normalized objects from both paths.
 

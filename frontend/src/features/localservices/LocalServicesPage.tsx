@@ -1,7 +1,7 @@
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { useSearchParams } from 'react-router-dom';
 import { PermissionId } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
+import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { ConnectorsTab } from '../machinelogbook/components/ConnectorsTab';
@@ -33,11 +33,10 @@ export function LocalServicesPage() {
   const selected = requested && tabs.includes(requested) ? requested : tabs[0];
   return (
     <ToastProvider>
-      <PageShell
-        title="Local services"
+      <SettingsPageLayout
+        page="local-services"
         description="Software that runs in the makerspace network next to Core."
         width="wide"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
       >
         <Tabs
           selectedIndex={tabs.indexOf(selected)}
@@ -73,7 +72,7 @@ export function LocalServicesPage() {
             ))}
           </TabPanels>
         </Tabs>
-      </PageShell>
+      </SettingsPageLayout>
     </ToastProvider>
   );
 }

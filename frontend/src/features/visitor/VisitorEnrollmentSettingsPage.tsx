@@ -8,8 +8,8 @@ import {
   updateVisitorEnrollmentConfiguration,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { ErrorState } from '../../app/PageState';
 
 export function VisitorEnrollmentSettingsPage() {
   const client = useQueryClient();
@@ -51,13 +51,12 @@ export function VisitorEnrollmentSettingsPage() {
     checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
 
   return (
-    <PageShell
-      title="Visitor enrollment"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="visitor-enrollment"
       description="Allow only approved ManagedDevice types to create visitors with one backend-selected initial Role."
     >
       {(configuration.isPending || roles.isPending || deviceTypes.isPending) && (
-        <InlineLoadingState label="Loading visitor enrollment configuration" />
+        <SettingsLoading label="Loading visitor enrollment configuration" />
       )}
       {(configuration.isError || roles.isError || deviceTypes.isError) && (
         <ErrorState
@@ -160,6 +159,6 @@ export function VisitorEnrollmentSettingsPage() {
           </Stack>
         </Tile>
       )}
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

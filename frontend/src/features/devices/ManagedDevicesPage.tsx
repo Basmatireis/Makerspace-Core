@@ -18,8 +18,8 @@ import type {
   ManagedDeviceProvisioning,
   ManagedDeviceType,
 } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { ErrorState } from '../../app/PageState';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { keys, DeviceConfiguration, Confirmation } from './components/deviceShared';
@@ -29,7 +29,7 @@ import { ExpirationModal } from './components/ExpirationModal';
 import { DeviceTypesPanel, DeviceTypeModal } from './components/DeviceTypesPanel';
 import { ConfirmationModal } from './components/ConfirmationModal';
 
-export function ManagedDevicesPage() {
+export function ManagedDevicesPanel() {
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
   const canManage = hasPermission(currentUser, PermissionId.managed_devicesmanage);
@@ -136,13 +136,12 @@ export function ManagedDevicesPage() {
     },
   });
   return (
-    <PageShell
+    <SettingsSection
       title="Managed devices"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
       description="Register trusted local computers and control device-scoped access."
     >
       {secret && <OneTimeToken provisioning={secret} onDismiss={() => setSecret(null)} />}
-      {devicesQuery.isPending && <InlineLoadingState label="Loading managed devices" />}
+      {devicesQuery.isPending && <SettingsLoading label="Loading managed devices" />}
       {devicesQuery.isError && (
         <ErrorState
           title="Unable to load managed devices"
@@ -230,6 +229,6 @@ export function ManagedDevicesPage() {
         }}
         onConfirm={() => confirmation && lifecycleMutation.mutate(confirmation)}
       />
-    </PageShell>
+    </SettingsSection>
   );
 }

@@ -23,8 +23,8 @@ import {
   updateSurveyTrigger,
 } from '../../api/generated/surveys/surveys';
 import type { Survey, SurveyQuestionKind } from '../../api/generated/models';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
-import { PageShell } from '../../app/PageShell';
+import { ErrorState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 
@@ -62,13 +62,9 @@ export function SurveyAdminPage() {
   const query = useQuery({ queryKey: surveyKey, queryFn: ({ signal }) => listSurveys({ signal }) });
   const refresh = () => queryClient.invalidateQueries({ queryKey: surveyKey });
   return (
-    <PageShell
-      title="Surveys"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
-      description="Build reusable surveys and send them after visits."
-    >
+    <SettingsPageLayout page="surveys" description="Build reusable surveys and send them after visits.">
       <Stack gap={6}>
-        {query.isPending && <InlineLoadingState label="Loading surveys" />}
+        {query.isPending && <SettingsLoading label="Loading surveys" />}
         {query.isError && (
           <ErrorState
             title="Unable to load surveys"
@@ -97,7 +93,7 @@ export function SurveyAdminPage() {
           />
         )}
       </Stack>
-    </PageShell>
+    </SettingsPageLayout>
   );
 }
 

@@ -127,8 +127,13 @@ export const OpenDayManagementPage = lazy(() =>
 export const SettingsPage = lazy(() =>
   import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),
 );
-export const ManagedDevicesPage = lazy(() =>
-  import('../features/devices/ManagedDevicesPage').then(({ ManagedDevicesPage }) => ({ default: ManagedDevicesPage })),
+export const SingleSignOnPage = lazy(() =>
+  import('../features/settings/SingleSignOnPage').then(({ SingleSignOnPage }) => ({ default: SingleSignOnPage })),
+);
+export const DevicesSessionsPage = lazy(() =>
+  import('../features/settings/DevicesSessionsPage').then(({ DevicesSessionsPage }) => ({
+    default: DevicesSessionsPage,
+  })),
 );
 export const ConfigurationTransferPage = lazy(() =>
   import('../features/configtransfer/ConfigurationTransferPage').then(({ ConfigurationTransferPage }) => ({
@@ -147,12 +152,6 @@ export const GatewayDetailPage = lazy(() =>
 );
 export const LaborordnungPage = lazy(() =>
   import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })),
-);
-export const OIDCProvidersPage = lazy(() =>
-  import('../features/oidc/OIDCProvidersPage').then(({ OIDCProvidersPage }) => ({ default: OIDCProvidersPage })),
-);
-export const SCIMConnectorsPage = lazy(() =>
-  import('../features/scim/SCIMConnectorsPage').then(({ SCIMConnectorsPage }) => ({ default: SCIMConnectorsPage })),
 );
 export const VisitorEnrollmentSettingsPage = lazy(() =>
   import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({
@@ -229,11 +228,6 @@ export const PublicSurveyPage = lazy(() =>
 );
 export const AttendancePage = lazy(() =>
   import('../features/attendance/AttendancePage').then(({ AttendancePage }) => ({ default: AttendancePage })),
-);
-export const SessionPoliciesPage = lazy(() =>
-  import('../features/devices/SessionPoliciesPage').then(({ SessionPoliciesPage }) => ({
-    default: SessionPoliciesPage,
-  })),
 );
 export const SurveyAdminPage = lazy(() =>
   import('../features/surveys/SurveyAdminPage').then(({ SurveyAdminPage }) => ({ default: SurveyAdminPage })),

@@ -36,14 +36,14 @@ describe('open day requirements settings', () => {
   it('appears on the settings page only with open_days.manage', async () => {
     serve([PermissionId.open_daysmanage]);
     const { unmount } = renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Open day requirements' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open day requirements/ })).toHaveAttribute('href', '/settings/open-days');
+    expect(await screen.findByRole('heading', { name: 'Open days & staffing' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Open days & staffing/ })).toHaveAttribute('href', '/settings/open-days');
     unmount();
 
     serve([PermissionId.rolesread]);
     renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Roles' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Open day requirements' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Roles & Permissions' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Open days & staffing' })).not.toBeInTheDocument();
   });
 
   it('sends people without open_days.manage back to the dashboard', async () => {

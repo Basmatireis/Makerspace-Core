@@ -42,6 +42,7 @@
 @use '@carbon/styles/scss/components/progress-indicator';
 @use '@carbon/styles/scss/components/radio-button';
 @use '@carbon/styles/scss/components/search';
+@use '@carbon/styles/scss/components/skeleton-styles';
 @use '@carbon/styles/scss/components/select';
 @use '@carbon/styles/scss/components/stack';
 @use '@carbon/styles/scss/components/structured-list';
@@ -564,8 +565,50 @@ body.cds--body--with-modal-open .app-main > * {
   padding: 0;
 }
 
+.settings-group {
+  display: grid;
+  gap: $spacing-05;
+  scroll-margin-block-start: $spacing-09;
+}
+
+.settings-grid {
+  row-gap: $spacing-03;
+}
+
 .settings-tile {
-  min-height: 12rem;
+  display: flex;
+  min-height: 10rem;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.settings-tile h3 {
+  @include type-style('productive-heading-03');
+
+  margin-block-start: $spacing-03;
+}
+
+.settings-group h2 {
+  @include type-style('productive-heading-04');
+}
+
+.settings-section h2 {
+  @include type-style('productive-heading-03');
+}
+
+.settings-tile p,
+.settings-section__description {
+  color: theme.$text-secondary;
+}
+
+.settings-section {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+.settings-loading {
+  max-inline-size: 40rem;
 }
 
 .empty-state {

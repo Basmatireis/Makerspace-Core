@@ -90,8 +90,8 @@ describe('Local services', () => {
   it('offers the settings tile and lists gateways with status, version, host and camera count', async () => {
     setup([PermissionId.local_servicesmanage]);
     renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Local services' })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('link', { name: /Local services/ }));
+    expect(await screen.findByRole('heading', { name: 'Printer connectors & streaming gateways' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('link', { name: /Printer connectors/ }));
     const table = await screen.findByRole('table', { name: 'Streaming gateways' });
     const row = within(table).getByRole('row', { name: /Print room gateway/ });
     expect(within(row).getByText('Online')).toBeInTheDocument();
@@ -248,7 +248,9 @@ describe('Local services', () => {
       ).toBeInTheDocument();
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
       await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
-      expect(await screen.findByRole('heading', { name: 'Local services' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('heading', { name: 'Printer connectors & streaming gateways' }),
+      ).toBeInTheDocument();
     },
   );
 

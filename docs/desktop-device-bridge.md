@@ -6,7 +6,7 @@ The desktop app bundles the Go Device Bridge as a private sidecar. The shell sta
 
 ## Register a desktop
 
-1. In **Administration → Managed devices**, create or edit a device with the required application modes and capabilities. Select native-token delivery.
+1. In **Settings → Access & identity → Devices & sessions** (tab **Managed devices**), create or edit a device with the required application modes and capabilities. Select native-token delivery.
 2. Start Makerspace Core Desktop and enter the exact Core origin plus the one-time managed-device token.
 3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/terminal`; other permitted devices open `/login`.
 

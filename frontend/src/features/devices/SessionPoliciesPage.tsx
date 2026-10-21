@@ -18,24 +18,24 @@ import {
   updateSessionPolicy,
 } from '../../api/generated/managed-devices/managed-devices';
 import type { PostSessionDestination, SessionPolicy, SessionPolicyInput } from '../../api/generated/models';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
-import { PageShell } from '../../app/PageShell';
+import { ErrorState } from '../../app/PageState';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 
 const key = ['session-policies'] as const;
 
-export function SessionPoliciesPage() {
+export function SessionPoliciesPanel() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) => listSessionPolicies({ signal }) });
   const [editing, setEditing] = useState<SessionPolicy | null>(null);
+  const [saved, setSaved] = useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: key });
   return (
-    <PageShell
+    <SettingsSection
       title="Session policies"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
       description="Control idle and absolute session limits for private and registered devices."
     >
       <Stack gap={6}>
-        {query.isPending && <InlineLoadingState label="Loading session policies" />}
+        {query.isPending && <SettingsLoading label="Loading session policies" />}
         {query.isError && (
           <ErrorState
             title="Unable to load session policies"
@@ -60,17 +60,27 @@ export function SessionPoliciesPage() {
             </div>
           </Tile>
         ))}
+        {saved && (
+          <InlineNotification
+            kind="success"
+            lowContrast
+            title="Policy saved"
+            subtitle="The new limits apply to new sessions."
+            onCloseButtonClick={() => setSaved(false)}
+          />
+        )}
         <PolicyForm
           key={editing?.id ?? 'new'}
           policy={editing}
           onCancel={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
+            setSaved(true);
             await refresh();
           }}
         />
       </Stack>
-    </PageShell>
+    </SettingsSection>
   );
 }
 
@@ -155,14 +165,14 @@ function PolicyForm({
             />
           )}
           <div className="button-cluster">
-            <Button type="submit" disabled={!name.trim() || idle > absolute || mutation.isPending}>
-              {policy ? 'Save policy' : 'Create policy'}
-            </Button>
             {policy && (
               <Button kind="secondary" onClick={onCancel}>
                 Cancel
               </Button>
             )}
+            <Button type="submit" disabled={!name.trim() || idle > absolute || mutation.isPending}>
+              {policy ? 'Save policy' : 'Create policy'}
+            </Button>
           </div>
         </Stack>
       </Form>

@@ -145,19 +145,19 @@ The optional streaming gateway and the printer connector run on a computer in th
 
 ## SCIM connectors
 
-An administrator with `scim.manage` creates a connector under **Settings → SCIM provisioning**. Its bearer token is displayed exactly once, stored only as a digest, and must be copied directly into the provisioning system. Tokens have an explicit expiry and can be rotated or revoked without changing the connector URL, `/api/v1/scim/v2`.
+An administrator with `scim.manage` creates a connector under **Settings → Access & identity → Single sign-on** (tab **SCIM provisioning**; `/settings/single-sign-on?tab=scim`). Its bearer token is displayed exactly once, stored only as a digest, and must be copied directly into the provisioning system. Tokens have an explicit expiry and can be rotated or revoked without changing the connector URL, `/api/v1/scim/v2`.
 
 SCIM supports discovery plus User create, get, list/filter, replace, patch, and delete. Groups, Roles, entitlements, Makerspace profile images, matriculation numbers, local Roles, device constraints, and Lab Rules evidence are outside the SCIM contract. Binding a connector to an OIDC provider makes its scoped `externalId` that provider's subject; no email/name/phone correlation occurs. If SCIM provisioned a duplicate Person before an established local record was identified, run the UI preflight and resolve every reported preservation conflict before executing its atomic reconciliation.
 
 ## Controlled visitor terminals
 
-An administrator with `visitor_enrollment.manage` selects the approved managed-device types, one delegable initial Role, and allowed password/PIN methods under **Settings → Visitor enrollment**. The public `/visitor-enrollment` page remains unavailable until the backend validates the native managed-device header or HttpOnly browser device cookie. The frontend never submits a Role ID.
+An administrator with `visitor_enrollment.manage` selects the approved managed-device types, one delegable initial Role, and allowed password/PIN methods under **Settings → Lab operations → Visitor enrollment**. The public `/visitor-enrollment` page remains unavailable until the backend validates the native managed-device header or HttpOnly browser device cookie. The frontend never submits a Role ID.
 
 Each terminal enrollment context is short-lived, device-bound, CSRF-protected, and one-use. Final submission requires a real profile image, at least one configured authentication method, and an explicit request to enter the physical Lab Rules confirmation workflow. Visitor Accounts are active immediately; password-only visitors still cannot sign in until they complete their invitation, while a configured PIN is usable immediately. Authentication does not admit a visitor: the managed-device-only admission action returns admitted, warning, or blocked and reuses any pending confirmation request. A blocking Role remains blocked until a supervisor records physical-document verification.
 
 ## Email delivery
 
-Transactional email is configured in **Settings → Email delivery** by an Account holding `mail.manage`. SMTP host, port, TLS mode, username, password, sender identity, and the public application URL are stored in PostgreSQL. The SMTP password is encrypted with the configured application encryption key, is write-only in the API, and is never returned to the browser. Leaving the password field empty preserves the current ciphertext.
+Transactional email is configured in **Settings → Communication & appearance → Email delivery** by an Account holding `mail.manage`. SMTP host, port, TLS mode, username, password, sender identity, and the public application URL are stored in PostgreSQL. The SMTP password is encrypted with the configured application encryption key, is write-only in the API, and is never returned to the browser. Leaving the password field empty preserves the current ciphertext.
 
 Mail settings are applied dynamically; changing them does not require restarting the API. SMTP settings are deliberately absent from `.env` and Compose. `APP_ENCRYPTION_KEYS` remains deployment configuration in production because a database must not contain both ciphertext and the key that decrypts it. Development and test instances use a fixed development-only key when none is supplied.
 
@@ -165,7 +165,7 @@ When mail is disabled, an authorized administrator can still issue an invitation
 
 ## Branding and legal configuration
 
-An administrator holding `branding.manage` configures the installation-wide identity under **Settings → Branding & legal**. The initial row preserves the bundled HTU Graz Makerspace names, four brand colors, symbol, and blueprint backgrounds. Imprint and privacy default independently to empty internal pages that display a neutral not-configured notice; the application does not invent legal text. Existing configurable Roles do not receive this permission during migration, while `master` receives it through the registry.
+An administrator holding `branding.manage` configures the installation-wide identity under **Settings → Communication & appearance → Branding & legal**. The initial row preserves the bundled HTU Graz Makerspace names, four brand colors, symbol, and blueprint backgrounds. Imprint and privacy default independently to empty internal pages that display a neutral not-configured notice; the application does not invent legal text. Existing configurable Roles do not receive this permission during migration, while `master` receives it through the registry.
 
 Identity, colors, inactive legal drafts, and the active internal/external modes are stored in PostgreSQL and protected by optimistic version checks. External legal URLs are rendered as links and are never fetched by the API. Transactional email reads the current application name at send time, so an identity change applies without an API restart or frontend rebuild.
 

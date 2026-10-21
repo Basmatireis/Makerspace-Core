@@ -36,9 +36,7 @@ import {
   MachineLogbookOverviewPage,
   MachinesPage,
   MailSettingsPage,
-  ManagedDevicesPage,
   MaterialDetailPage,
-  OIDCProvidersPage,
   OpenDayDetailPage,
   OpenDayManagementPage,
   OpenDayPeriodPage,
@@ -58,11 +56,11 @@ import {
   ResetPasswordPage,
   RolesPage,
   RunDetailPage,
-  SCIMConnectorsPage,
   OpenDayRequirementsPage,
   SalesOverviewPage,
-  SessionPoliciesPage,
   SettingsPage,
+  SingleSignOnPage,
+  DevicesSessionsPage,
   SignageAnnouncementsPage,
   SignageContentPage,
   SignageDisplayDetailPage,
@@ -377,26 +375,36 @@ export function App() {
             />
             <Route path="settings" element={<SettingsRoute />} />
             <Route
-              path="settings/managed-devices"
+              path="settings/single-sign-on"
               element={
-                <PermissionRoute allOf={[PermissionId.managed_devicesread]}>
-                  <ManagedDevicesPage />
+                <PermissionRoute anyOf={[PermissionId.oidcmanage, PermissionId.scimmanage]}>
+                  <SingleSignOnPage />
                 </PermissionRoute>
               }
+            />
+            <Route
+              path="settings/devices-sessions"
+              element={
+                <PermissionRoute anyOf={[PermissionId.session_policiesmanage, PermissionId.managed_devicesread]}>
+                  <DevicesSessionsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route path="settings/oidc" element={<Navigate to="/settings/single-sign-on?tab=oidc" replace />} />
+            <Route path="settings/scim" element={<Navigate to="/settings/single-sign-on?tab=scim" replace />} />
+            <Route
+              path="settings/session-policies"
+              element={<Navigate to="/settings/devices-sessions?tab=session-policies" replace />}
+            />
+            <Route
+              path="settings/managed-devices"
+              element={<Navigate to="/settings/devices-sessions?tab=managed-devices" replace />}
             />
             <Route
               path="settings/open-days"
               element={
                 <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
                   <OpenDayRequirementsPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="settings/session-policies"
-              element={
-                <PermissionRoute allOf={[PermissionId.session_policiesmanage]}>
-                  <SessionPoliciesPage />
                 </PermissionRoute>
               }
             />
@@ -443,22 +451,6 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.local_servicesmanage]}>
                   <GatewayDetailPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="settings/oidc"
-              element={
-                <PermissionRoute allOf={[PermissionId.oidcmanage]}>
-                  <OIDCProvidersPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="settings/scim"
-              element={
-                <PermissionRoute allOf={[PermissionId.scimmanage]}>
-                  <SCIMConnectorsPage />
                 </PermissionRoute>
               }
             />

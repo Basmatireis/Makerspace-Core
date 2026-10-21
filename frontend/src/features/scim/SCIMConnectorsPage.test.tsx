@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { SCIMConnectorsPage } from './SCIMConnectorsPage';
+import { SCIMConnectorsPanel } from './SCIMConnectorsPage';
 
 const provisionalAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8ac01';
 const targetAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8ac02';
@@ -34,7 +34,7 @@ describe('SCIM connector administration', () => {
       ),
     );
     const user = userEvent.setup();
-    renderRoute(<SCIMConnectorsPage />);
+    renderRoute(<SCIMConnectorsPanel />);
 
     await user.click(await screen.findByRole('button', { name: 'Add connector' }));
     await user.type(screen.getByLabelText('Connector name'), 'Authentik');
@@ -70,7 +70,7 @@ describe('SCIM connector administration', () => {
       ),
     );
     const user = userEvent.setup();
-    renderRoute(<SCIMConnectorsPage />);
+    renderRoute(<SCIMConnectorsPanel />);
 
     await user.type(await screen.findByLabelText('Provisional SCIM Account ID'), provisionalAccountId);
     await user.type(screen.getByLabelText('Established target Account ID'), targetAccountId);

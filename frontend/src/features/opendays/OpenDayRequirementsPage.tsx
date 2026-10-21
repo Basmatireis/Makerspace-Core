@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { getOpenDayRequirements, updateOpenDayRequirements } from '../../api/generated/open-days/open-days';
 import { ApiError } from '../../api/http-client';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { ErrorState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { fullRoleCatalogOptions } from '../roles/queries';
@@ -76,12 +76,11 @@ export function OpenDayRequirementsPage() {
   const { errors, isDirty } = form.formState;
 
   return (
-    <PageShell
-      title="Open day requirements"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="open-days"
       description="What every supervisor and trainee has to staff per semester. Used by the dashboard and the staffing page."
     >
-      {requirements.isPending && <InlineLoadingState label="Loading open day requirements" />}
+      {requirements.isPending && <SettingsLoading label="Loading open day requirements" />}
       {requirements.isError && (
         <ErrorState
           title="Unable to load open day requirements"
@@ -187,6 +186,6 @@ export function OpenDayRequirementsPage() {
           </Form>
         </Tile>
       )}
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

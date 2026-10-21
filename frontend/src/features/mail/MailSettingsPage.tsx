@@ -16,8 +16,8 @@ import { useForm } from 'react-hook-form';
 import { getMailConfiguration, updateMailConfiguration } from '../../api/generated/mail/mail';
 import type { UpdateMailConfigurationRequest } from '../../api/generated/models';
 import { useSecretMutation } from '../../api/use-secret-mutation';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { ErrorState } from '../../app/PageState';
 
 type FormValues = Omit<UpdateMailConfigurationRequest, 'expectedVersion'>;
 
@@ -82,12 +82,11 @@ export function MailSettingsPage() {
     }
   });
   return (
-    <PageShell
-      title="Email delivery"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="mail"
       description="Configure transactional SMTP delivery. Passwords are encrypted and never returned by the API."
     >
-      {configuration.isPending && <InlineLoadingState label="Loading email configuration" />}
+      {configuration.isPending && <SettingsLoading label="Loading email configuration" />}
       {configuration.isError && (
         <ErrorState
           title="Unable to load email configuration"
@@ -182,6 +181,6 @@ export function MailSettingsPage() {
           </Form>
         </Tile>
       )}
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

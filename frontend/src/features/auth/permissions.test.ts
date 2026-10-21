@@ -44,9 +44,11 @@ describe('settings navigation', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.auditread]))).toBe(false);
   });
 
-  it('allows pricing configuration but not the Directory-owned organizations', () => {
+  it('admits invoicing and configuration transfer but not pricing or the Directory-owned organizations', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.organizationsread]))).toBe(false);
-    expect(canAccessSettings(currentUserFixture([PermissionId.pricingread]))).toBe(true);
+    expect(canAccessSettings(currentUserFixture([PermissionId.pricingread]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([PermissionId.invoicingsettingsmanage]))).toBe(true);
+    expect(canAccessSettings(currentUserFixture([PermissionId.configurationexport]))).toBe(true);
     expect(canAccessSettings(currentUserFixture([PermissionId.machinesread]))).toBe(false);
     expect(canAccessSettings(currentUserFixture([PermissionId.organizationsmanage, PermissionId.pricingmanage]))).toBe(
       false,

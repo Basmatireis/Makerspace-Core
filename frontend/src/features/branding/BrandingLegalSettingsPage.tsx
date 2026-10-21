@@ -18,7 +18,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import type { BrandingConfiguration, PublicConfiguration } from '../../api/generated/models';
 import { getBrandingConfiguration, updateBrandingConfiguration } from '../../api/generated/branding/branding';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { PageShell } from '../../app/PageShell';
+import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { defaultPublicConfiguration, publicConfigurationFromAdmin, publicConfigurationKey } from './branding';
 import { FormValues, adminQueryKey, assets, toFormValues, contrastRatio, mutationMessage } from './brandingSettings';
 import { ColorField } from './ColorField';
@@ -71,9 +71,8 @@ export function BrandingLegalSettingsPage() {
   const accentContrast = contrastRatio(colors.accent ?? '', colors.background ?? '');
   return (
     <Tabs>
-      <PageShell
-        title="Branding & legal"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+      <SettingsPageLayout
+        page="branding-legal"
         description="Configure the installation-wide organization identity, visual assets, colors, and public legal documents."
         tabs={
           <TabList aria-label="Branding configuration sections">
@@ -273,7 +272,7 @@ export function BrandingLegalSettingsPage() {
             </Form>
           </TabPanel>
         </TabPanels>
-      </PageShell>
+      </SettingsPageLayout>
     </Tabs>
   );
 }

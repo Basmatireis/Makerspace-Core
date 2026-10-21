@@ -10,14 +10,14 @@ Machine types and machines are versioned. A machine status is administrative onl
 
 A machine type has a **process** (migration 00047 replaced the `printer` flag): `fdm_printing`, `embroidery`, `uv_printing`, `laser_cutting`, `vinyl_cutting` or `other`. The process decides what a run records, which materials fit and whether a printer setup exists. The migration maps `printer = true`, and every type that owns a machine with a printer profile, to `fdm_printing`, everything else to `other`.
 
-| Process | Run measures | Typical material (unit) |
-|---|---|---|
-| `fdm_printing` | none | filament per material type (g), through spools |
-| `embroidery` | `stitches` | stabilizer (m), thread optional |
-| `uv_printing` | none | UV ink per colour (ml), DTF sticker paper (cm2), roll-to-film (m) |
-| `laser_cutting` | none | sheet material (cm2), customer material is free text |
-| `vinyl_cutting` | none | foil (cm2) |
-| `other` | none | free |
+| Process         | Run measures | Typical material (unit)                                           |
+| --------------- | ------------ | ----------------------------------------------------------------- |
+| `fdm_printing`  | none         | filament per material type (g), through spools                    |
+| `embroidery`    | `stitches`   | stabilizer (m), thread optional                                   |
+| `uv_printing`   | none         | UV ink per colour (ml), DTF sticker paper (cm2), roll-to-film (m) |
+| `laser_cutting` | none         | sheet material (cm2), customer material is free text              |
+| `vinyl_cutting` | none         | foil (cm2)                                                        |
+| `other`         | none         | free                                                              |
 
 Runtime is billable on every machine; a group that should not pay for time gets a 0 EUR/h rule. Only `fdm_printing` machines have a printer setup (printer profile, spool inputs, connector assignment): `PUT /machines/{id}/printer` and `PUT /machines/{id}/printer/setup` answer `409 machine_not_fdm_printing` for any other process. Everything FDM-specific (setup, wizard, connectors, spools, artifacts, live status, reported grams) is unchanged and gated on the process in the frontend as well. Changing a machine type's process is allowed; existing printer profiles and runs stay.
 
@@ -41,7 +41,7 @@ Pricing rule kind `machine_measure` prices a measure per machine type: `machineT
 
 A printer profile holds the printing switch, an optional model (`bambu_h2d`, `bambu_x1c`, `prusa_core_one`, `generic`; the frontend keeps the unit and slot templates per model), spool input units and their slots. A unit may name the nozzle it feeds (`left` or `right`).
 
-`PUT /machines/{machineId}/printer/setup` (`machines.manage`) saves all of it atomically. The body is the *desired state*, not a patch: `expectedVersion` (the profile version, `null` or `0` when the machine has no profile yet), `enabled`, `model` and the ordered `inputUnits`, each with its ordered `slots`. Entries with an `id` update the existing row, entries without one are created. In one transaction Core
+`PUT /machines/{machineId}/printer/setup` (`machines.manage`) saves all of it atomically. The body is the _desired state_, not a patch: `expectedVersion` (the profile version, `null` or `0` when the machine has no profile yet), `enabled`, `model` and the ordered `inputUnits`, each with its ordered `slots`. Entries with an `id` update the existing row, entries without one are created. In one transaction Core
 
 - creates the profile when it is missing, otherwise requires `expectedVersion` to match (`409 stale_write` when it does not) and bumps the profile version;
 - renumbers the active units and the active slots of each unit `0..n-1` in the given order;
@@ -150,7 +150,6 @@ Catalog, organization (including member add/remove; audit names only the changed
 
 Work item lists carry a `consumption` summary per item (material summed per material type and unit, plus measures); the frontend writes it in each unit ("12,400 stitches · 0.4 m Stabilizer", "3.20 ml UV ink · 180 cm² DTF paper"). FDM runs and jobs that only used grams keep their per-material text.
 
-
 `GET /machine-logbook/work-items` lists every job plus every recorded run not assigned to a job in one paginated table (`machine_jobs.read`). The unified status is **running**, **unassigned** (an ended recorded run without a job), **needs_outcome** (outcome still unknown), or the recorded outcome. The `run` filter separates **manual** from **recorded** items. Filters cover search, status, machine, material, billing state (jobs only), customer, operator, and a start-time range where `to` is exclusive. Billing states are on_order, order_outdated, not_on_order, price_incomplete, and pending.
 
 `GET /machine-logbook/machine-activity` returns one entry per machine with derived availability, the current running job or running run, connector state, and the last job start. `current` is included only for callers with `machine_jobs.read`.
@@ -173,7 +172,7 @@ The OpenAPI resource groups are:
 - **/filament-spools** (fills, finish, cleanup), **/inventory/receipts** and **/inventory/suggestions**
 - **/machine-logbook/overview**, **/machine-logbook/work-items**, **/machine-logbook/machine-activity**, **/machine-logbook/statistics**
 
-The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, article detail, and spool detail are sub-pages of Jobs and Inventory (the Inventory page has the tabs Filament, Consumables, Parts and Spools; see [Inventory UI](filament-printing.md#inventory-ui)). The former tab names `materials`, `material-types` and `products` open the Filament tab.  Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
+The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, article detail, and spool detail are sub-pages of Jobs and Inventory (the Inventory page has the tabs Filament, Consumables, Parts and Spools; see [Inventory UI](filament-printing.md#inventory-ui)). The former tab names `materials`, `material-types` and `products` open the Filament tab. Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
 
 ## Verification
 
@@ -195,12 +194,12 @@ Deleting a job or a recorded run needs `machine_jobs.delete`; removing a manual 
 
 The Jobs table lists work items (jobs and unassigned recorded runs) and can act on a selection. Four endpoints apply the rules of the single operations to several items in **one transaction**: all-or-nothing, one audit event per affected job and run in the same transaction, and an optimistic version check per item (`{id, expectedVersion}`, at most 100 per list, no repeated IDs).
 
-| Endpoint | Permission | Single operation it repeats |
-| --- | --- | --- |
-| `POST /machine-jobs/bulk-delete` `{jobs, runs, deleteRuns, material}` | `machine_jobs.delete` | `DELETE /machine-jobs/{id}` and `DELETE /machine-runs/{id}` |
-| `POST /machine-runs/bulk-create-jobs` `{runs, customer, operatorPersonId, notes?, pricingGroupId?}` | `machine_jobs.create` | `POST /machine-runs/{id}/job` |
-| `POST /machine-runs/bulk-combine` `{runs, title?, customer, operatorPersonId, notes?, pricingGroupId?}` | `machine_jobs.create` | `POST /machine-runs/{id}/job`, with all runs in one job |
-| `POST /machine-jobs/{id}/runs/bulk-attach` `{runs, replaceManualRuns, expectedJobVersion}` | `machine_jobs.edit` | `PUT /machine-runs/{id}/job` |
+| Endpoint                                                                                                | Permission            | Single operation it repeats                                 |
+| ------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------- |
+| `POST /machine-jobs/bulk-delete` `{jobs, runs, deleteRuns, material}`                                   | `machine_jobs.delete` | `DELETE /machine-jobs/{id}` and `DELETE /machine-runs/{id}` |
+| `POST /machine-runs/bulk-create-jobs` `{runs, customer, operatorPersonId, notes?, pricingGroupId?}`     | `machine_jobs.create` | `POST /machine-runs/{id}/job`                               |
+| `POST /machine-runs/bulk-combine` `{runs, title?, customer, operatorPersonId, notes?, pricingGroupId?}` | `machine_jobs.create` | `POST /machine-runs/{id}/job`, with all runs in one job     |
+| `POST /machine-jobs/{id}/runs/bulk-attach` `{runs, replaceManualRuns, expectedJobVersion}`              | `machine_jobs.edit`   | `PUT /machine-runs/{id}/job`                                |
 
 - **Blocked items refuse the whole request.** The service first locks and checks every item, then changes anything. If any item is blocked the answer is `409 bulk_blocked` and nothing changed; `details.items` lists every blocker as `{kind: job|run, id, displayId, code, message}`. Codes: `job_on_order` (delete), `run_assigned` (delete: a run listed under `runs` must be unassigned), `run_already_assigned`, `machine_retired`, `run_machine_mismatch`, `artifact_mismatch` (attach), `stale_write` (the item changed since `expectedVersion`) and `not_found`. The UI therefore filters blocked items first and shows them as "will be skipped"; the server check is the safety net for races. A stale job in bulk-attach answers a plain `409 stale_write`, an unknown job `404`.
 - **Delete.** `deleteRuns` deletes the recorded runs of the listed jobs too, otherwise they are detached into unassigned runs; manual runs always go with their job. `material: reverse` restores the consumed material of every deleted run with compensating ledger entries (see above), `keep` or `null` leaves the ledger untouched. Materials are locked in ID order before any is restored. Running recorded runs are accepted like in the single delete; the UI skips them.

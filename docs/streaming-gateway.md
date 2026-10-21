@@ -4,12 +4,12 @@ The streaming gateway restreams Bambu Lab printer cameras to digital-signage pla
 
 ## Components and ports
 
-| Component | Port | Published | Purpose |
-|---|---|---|---|
-| streaming-gateway (HTTPS proxy) | 8443/tcp | yes | `POST /api/webrtc` (SDP offer) and `/api/ws` (MSE websocket) with a ticket; everything else is 404 |
-| go2rtc WebRTC media | 8555/tcp and 8555/udp | yes | RTP media. Browsers connect to it directly after signalling, so it cannot be proxied |
-| go2rtc API | 1984/tcp | no | Never published. The gateway reaches it over the internal Docker network with generated credentials (HTTP Basic); every request from another container is refused without them, and only four paths are served at all (see [Security model](#security-model)). No web UI |
-| go2rtc RTSP/SRTP server | - | no | Disabled in the generated configuration |
+| Component                       | Port                  | Published | Purpose                                                                                                                                                                                                                                                                  |
+| ------------------------------- | --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| streaming-gateway (HTTPS proxy) | 8443/tcp              | yes       | `POST /api/webrtc` (SDP offer) and `/api/ws` (MSE websocket) with a ticket; everything else is 404                                                                                                                                                                       |
+| go2rtc WebRTC media             | 8555/tcp and 8555/udp | yes       | RTP media. Browsers connect to it directly after signalling, so it cannot be proxied                                                                                                                                                                                     |
+| go2rtc API                      | 1984/tcp              | no        | Never published. The gateway reaches it over the internal Docker network with generated credentials (HTTP Basic); every request from another container is refused without them, and only four paths are served at all (see [Security model](#security-model)). No web UI |
+| go2rtc RTSP/SRTP server         | -                     | no        | Disabled in the generated configuration                                                                                                                                                                                                                                  |
 
 Docker networks: `internal` (no outbound access) joins the gateway and go2rtc; the gateway also has its own `gateway_egress` network (Core, published HTTPS port), go2rtc its own `go2rtc_egress` network (the printers on the LAN, published WebRTC port) and, in the combined `local-services` stack, the printer connector its own `connector_egress`. No outbound network is shared between services.
 
@@ -45,13 +45,13 @@ The gateway decides at start how it gets its certificate:
 
 **ACME mode** is built on the [lego](https://github.com/go-acme/lego) library (the ACME client Traefik uses; only its Cloudflare DNS provider is linked in). It validates with DNS-01 because the gateway is typically LAN-only: a public DNS record at Cloudflare points to a private LAN address, so HTTP-01 and TLS-ALPN-01 cannot work.
 
-| Variable | Meaning |
-|---|---|
-| `STREAM_PUBLIC_HOST` | the domain is its host part (`signage-gw.example.org:8443` gives `signage-gw.example.org`); it must be a DNS name, not an IP address, and not a wildcard |
-| `ACME_EMAIL` | account address for Let's Encrypt (expiry notices); setting it accepts the Let's Encrypt subscriber agreement |
-| `CLOUDFLARE_DNS_API_TOKEN` | scoped API token with **Zone > Zone > Read** and **Zone > DNS > Edit** for the one zone; never logged |
-| `ACME_CA_DIR` | optional ACME directory, default `https://acme-v02.api.letsencrypt.org/directory`; staging: `https://acme-staging-v02.api.letsencrypt.org/directory` |
-| `ACME_DNS_RESOLVERS` | optional, default `1.1.1.1:53,1.0.0.1:53`: recursive resolvers (IP[:port]) for zone discovery and propagation checks |
+| Variable                   | Meaning                                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STREAM_PUBLIC_HOST`       | the domain is its host part (`signage-gw.example.org:8443` gives `signage-gw.example.org`); it must be a DNS name, not an IP address, and not a wildcard |
+| `ACME_EMAIL`               | account address for Let's Encrypt (expiry notices); setting it accepts the Let's Encrypt subscriber agreement                                            |
+| `CLOUDFLARE_DNS_API_TOKEN` | scoped API token with **Zone > Zone > Read** and **Zone > DNS > Edit** for the one zone; never logged                                                    |
+| `ACME_CA_DIR`              | optional ACME directory, default `https://acme-v02.api.letsencrypt.org/directory`; staging: `https://acme-staging-v02.api.letsencrypt.org/directory`     |
+| `ACME_DNS_RESOLVERS`       | optional, default `1.1.1.1:53,1.0.0.1:53`: recursive resolvers (IP[:port]) for zone discovery and propagation checks                                     |
 
 - **Resolvers.** The propagation checks never use the host's or container's resolver. A router with dnsmasq rebind protection (OpenWrt) refuses public names that point to private addresses, which would otherwise break the check; `ACME_DNS_RESOLVERS` avoids that. Let's Encrypt itself validates from the internet and is unaffected. The container needs outbound access to the ACME directory, `api.cloudflare.com` and the resolvers and Cloudflare's name servers (port 53).
 - **Storage.** The ACME account key, the certificate and its key live in the data volume under `acme/<ca>/` (directory mode 0700, files 0600), one directory per CA, so switching between staging and production never mixes certificates. They are reused after restarts; a stored certificate for another domain or an expired one is ignored.

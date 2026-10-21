@@ -9,8 +9,8 @@ import {
   updateWiRefDeliverySettings,
 } from '../../api/generated/external-invoicing/external-invoicing';
 import type { WiRefDeliverySettings, WiRefTemplateFields } from '../../api/generated/models';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { ErrorState } from '../../app/PageState';
 import { wirefSettingsKey, wirefSettingsQuery } from './queries';
 
 type FormValues = WiRefTemplateFields & {
@@ -349,12 +349,11 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
 export function InvoicingSettingsPage() {
   const settings = useQuery(wirefSettingsQuery());
   return (
-    <PageShell
-      title="Sales & invoicing"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="invoicing"
       description="Once an approver forwards an invoice request, Core mails the invoice data with a PDF to the university accounting office (wiRef)."
     >
-      {settings.isPending && <InlineLoadingState label="Loading invoicing settings" />}
+      {settings.isPending && <SettingsLoading label="Loading invoicing settings" />}
       {settings.isError && (
         <ErrorState
           title="Unable to load invoicing settings"
@@ -363,6 +362,6 @@ export function InvoicingSettingsPage() {
         />
       )}
       {settings.data && <SettingsForm settings={settings.data} />}
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

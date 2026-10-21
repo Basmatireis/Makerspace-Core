@@ -31,7 +31,7 @@ describe('protected application routing', () => {
   });
 
   it.each([
-    [PermissionId.oidcmanage, 'OpenID Connect'],
+    [PermissionId.oidcmanage, 'Single sign-on'],
     [PermissionId.mailmanage, 'Email delivery'],
     [PermissionId.brandingmanage, 'Branding & legal'],
   ])('allows settings navigation with only %s', async (permission, title) => {
@@ -44,7 +44,7 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Directory' })).not.toBeInTheDocument();
   });
 
-  it.each(['/settings/oidc', '/settings/mail', '/settings/branding-legal'])(
+  it.each(['/settings/single-sign-on', '/settings/mail', '/settings/branding-legal'])(
     'denies %s without its permission',
     async (path) => {
       server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.rolesread]))));
@@ -63,7 +63,10 @@ describe('protected application routing', () => {
     const { router } = renderRoute(<App />, '/settings');
 
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Local services/ })).toHaveAttribute('href', '/settings/local-services');
+    expect(screen.getByRole('link', { name: /Printer connectors/ })).toHaveAttribute(
+      'href',
+      '/settings/local-services',
+    );
     await user.click(screen.getByRole('link', { name: /Roles/ }));
     expect(router.state.location.pathname).toBe('/settings/roles');
   });
@@ -325,7 +328,7 @@ describe('protected application routing', () => {
     );
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Managed devices' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Devices & sessions' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Directory' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });

@@ -1,5 +1,7 @@
 # Managed devices
 
+In the UI, devices and device types are under **Settings → Access & identity → Devices & sessions** (`/settings/devices-sessions?tab=managed-devices`, permission `managed_devices.read`); the neighbouring tab **Session policies** (`?tab=session-policies`, `session_policies.manage`) holds the idle and absolute session limits. The former `/settings/managed-devices` and `/settings/session-policies` routes redirect there.
+
 A managed device is a trusted terminal identity, separate from a user identity. It has a random bearer token whose SHA-256 digest is stored in PostgreSQL. The plaintext token is returned only at creation and rotation and must be kept by native software in protected storage. It must never be put in local storage, IndexedDB, a URL, a log, or an audit event.
 
 Native clients send the token in `X-Managed-Device-Token`. The Android and Tauri desktop terminals also install it as an HttpOnly, SameSite cookie so WebView requests can carry device context without exposing the token to JavaScript. A valid user session continues to work without a device, and a device token alone never logs in a user.

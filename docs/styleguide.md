@@ -4,9 +4,9 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 
 ## General
 
-- Code, identifiers, comments, commit messages and documentation are in English. A domain term without a good English equivalent keeps an English identifier and names the original once in a comment (for example Lab Rules / *Laborordnung*).
+- Code, identifiers, comments, commit messages and documentation are in English. A domain term without a good English equivalent keeps an English identifier and names the original once in a comment (for example Lab Rules / _Laborordnung_).
 - The repository contains only implemented features. Prototypes live on branches, plans and progress notes in issues or pull requests — not in `docs/` or `src/`.
-- Comments explain *why* (an invariant, a security reason, a non-obvious constraint), not *what* the next line does.
+- Comments explain _why_ (an invariant, a security reason, a non-obvious constraint), not _what_ the next line does.
 - Commit messages: imperative or descriptive subject line about the user-visible effect, blank line, a short body. One logical change per commit.
 
 ## Go
@@ -116,3 +116,7 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 - Production images are built from pinned base images. GitHub Actions are pinned to commit SHAs with the version in a comment.
 - nginx serves HTML with the security headers in `frontend/nginx/` (CSP with `frame-ancestors 'none'` and no inline scripts, HSTS, `nosniff`, Referrer-Policy, Permissions-Policy). A new external origin the browser must reach is added to the matching CSP snippet in the same change.
 - Secrets come from the environment; examples in `*.env.example` are empty or obviously fake.
+
+## Settings screens
+
+Settings screens are registered in `frontend/src/features/settings/settingsCatalog.ts` (group, title, description, path, icon, permissions). The overview, the route guard permissions and each screen's breadcrumb (`Settings / Group / Page`) derive from it, so a new settings screen is added there and rendered inside `SettingsPageLayout`. Screens that belong together are one page with `SettingsTabs` (selection in `?tab=`); each tab appears only for people holding its permission, and old per-tab routes redirect to the tab. Use `SettingsSection` for titled blocks, `SettingsLoading` for loading placeholders, `EmptyState` for empty lists and inline notifications for save results; put the primary Save action last in a form's action row, after Cancel or Reset.

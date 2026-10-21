@@ -21,7 +21,7 @@ import type {
 } from '../../api/generated/models';
 import { createRole, deleteRole, replaceRolePermissions, updateRole } from '../../api/generated/roles/roles';
 import { ApiError } from '../../api/http-client';
-import { PageShell } from '../../app/PageShell';
+import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import {
@@ -312,9 +312,8 @@ export function RolesPage() {
     : [];
 
   return (
-    <PageShell
-      title="Roles & Permissions"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="roles"
       description="Manage role access and stage permission rules. Changes apply to all users with the respective role."
       width="fluid"
       className="roles-page"
@@ -594,6 +593,6 @@ export function RolesPage() {
           <p>Reloading fetches the current server version and permanently discards these local changes.</p>
         </Modal>
       )}
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

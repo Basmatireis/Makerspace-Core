@@ -1,4 +1,4 @@
-import { PageShell } from '../../app/PageShell';
+import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { ExportPanel } from './ExportPanel';
@@ -15,10 +15,9 @@ export function ConfigurationTransferPage() {
     : [];
 
   return (
-    <PageShell
-      title="Export & import"
+    <SettingsPageLayout
+      page="configuration-transfer"
       description="Move the configuration of this makerspace between instances as a file."
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
     >
       <div className="configuration-transfer">
         {exportable.length > 0 && <ExportPanel sections={exportable} />}
@@ -27,6 +26,6 @@ export function ConfigurationTransferPage() {
           <p>Your account cannot export or import any configuration section.</p>
         )}
       </div>
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

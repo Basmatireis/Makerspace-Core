@@ -60,7 +60,7 @@ describe('Configuration export and import', () => {
   it('is offered in Settings only with a transfer permission', async () => {
     setup([PermissionId.rolesread]);
     renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Roles' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Roles & Permissions' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Export & import' })).not.toBeInTheDocument();
   });
 

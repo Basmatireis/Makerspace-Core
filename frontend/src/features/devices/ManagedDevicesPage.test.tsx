@@ -101,7 +101,7 @@ describe('Managed devices administration', () => {
 
     expect(await screen.findByRole('heading', { name: 'Managed devices' })).toBeInTheDocument();
     expect(await screen.findByText('Active')).toBeInTheDocument();
-    expect(screen.getByText('Never')).toBeInTheDocument();
+    expect(await screen.findByText('Never')).toBeInTheDocument();
     expect(screen.getAllByText('No expiration')).not.toHaveLength(0);
 
     await user.type(screen.getByLabelText('Device name'), 'Lobby terminal');

@@ -32,8 +32,8 @@ import {
   publishLaborordnungVersion,
 } from '../../api/generated/laborordnung/laborordnung';
 import { apiFetch } from '../../api/http-client';
-import { PageShell } from '../../app/PageShell';
-import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { ErrorState } from '../../app/PageState';
 import { DateInput } from '../../app/DateInput';
 import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
@@ -98,9 +98,8 @@ export function LaborordnungPage() {
   });
 
   return (
-    <PageShell
-      title="Lab Rules"
-      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+    <SettingsPageLayout
+      page="laborordnung"
       description="Published documents are immutable. Confirmation records physical evidence only."
     >
       {canManage && (
@@ -139,7 +138,7 @@ export function LaborordnungPage() {
       <Tile>
         <Stack gap={5}>
           <h2>Version history</h2>
-          {versions.isPending && <InlineLoadingState label="Loading versions" />}
+          {versions.isPending && <SettingsLoading label="Loading versions" />}
           {versions.isError && (
             <ErrorState message="Unable to load Lab Rules versions." onRetry={() => void versions.refetch()} />
           )}
@@ -219,7 +218,7 @@ export function LaborordnungPage() {
         <Tile>
           <Stack gap={5}>
             <h2>Physical confirmation queue</h2>
-            {requests.isPending && <InlineLoadingState label="Loading requests" />}
+            {requests.isPending && <SettingsLoading label="Loading requests" />}
             {requests.isError && (
               <ErrorState message="Unable to load confirmation requests." onRetry={() => void requests.refetch()} />
             )}
@@ -324,6 +323,6 @@ export function LaborordnungPage() {
           </Button>
         </ModalFooter>
       </ComposedModal>
-    </PageShell>
+    </SettingsPageLayout>
   );
 }

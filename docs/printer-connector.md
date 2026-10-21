@@ -92,18 +92,18 @@ Besides events, an adapter may report the printer's current state as a **live st
 
 The snapshot is built from the merged status document. Fields that are not observed stay `null`.
 
-| Snapshot | H2D field |
-|---|---|
-| `state` | `gcode_state` (`IDLE`, `PREPARE`, `RUNNING`, `PAUSE`, `FINISH`, `FAILED`; anything else is `unknown`) |
-| `job` | `subtask_name` (else the base name of `gcode_file`), `mc_percent`, `layer_num`, `total_layer_num`, `mc_remaining_time` (minutes). `null` while idle or unknown. |
-| temperatures | `device.extruder.info[]` (`id`, `temp`, `htar`), `bed_temper`, `bed_target_temper`, `device.ctc.info.temp` (chamber) |
-| `nozzles` | `device.nozzle.info[]` (`id`, `diameter`, `type`) |
-| `units` | `ams.ams[]` (`id`, `humidity_raw` percent, `temp`, `tray[]`) and `vir_slot[]` |
-| tray | `tray_type`, `tray_sub_brands`, `tray_color` (RRGGBBAA, reported as RRGGBB), `remain` (percent; -1 and 0 mean unknown), `tag_uid` (all-zero means no RFID) |
-| `activeTray` | `ams.tray_now`, only while a job is preparing, printing or paused |
-| `errors` | `print_error` (family `print`) and `hms[].code` (family `hms`); `observedAt` is when this process first saw the code |
-| `wifiSignalDbm` | `wifi_signal`, for example `-39dBm` |
-| `firmwareVersion` | not observed in the captured reports, always `null` |
+| Snapshot          | H2D field                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state`           | `gcode_state` (`IDLE`, `PREPARE`, `RUNNING`, `PAUSE`, `FINISH`, `FAILED`; anything else is `unknown`)                                                           |
+| `job`             | `subtask_name` (else the base name of `gcode_file`), `mc_percent`, `layer_num`, `total_layer_num`, `mc_remaining_time` (minutes). `null` while idle or unknown. |
+| temperatures      | `device.extruder.info[]` (`id`, `temp`, `htar`), `bed_temper`, `bed_target_temper`, `device.ctc.info.temp` (chamber)                                            |
+| `nozzles`         | `device.nozzle.info[]` (`id`, `diameter`, `type`)                                                                                                               |
+| `units`           | `ams.ams[]` (`id`, `humidity_raw` percent, `temp`, `tray[]`) and `vir_slot[]`                                                                                   |
+| tray              | `tray_type`, `tray_sub_brands`, `tray_color` (RRGGBBAA, reported as RRGGBB), `remain` (percent; -1 and 0 mean unknown), `tag_uid` (all-zero means no RFID)      |
+| `activeTray`      | `ams.tray_now`, only while a job is preparing, printing or paused                                                                                               |
+| `errors`          | `print_error` (family `print`) and `hms[].code` (family `hms`); `observedAt` is when this process first saw the code                                            |
+| `wifiSignalDbm`   | `wifi_signal`, for example `-39dBm`                                                                                                                             |
+| `firmwareVersion` | not observed in the captured reports, always `null`                                                                                                             |
 
 Unit kinds: AMS IDs below 128 are `ams`, IDs from 128 are `ams_ht`, and `vir_slot` entries are `external`. A tray is `empty` when `tray_exist_bits` (bit `unit index * 4 + tray`, AMS HT 128 is unit index 4) marks it absent and it reports no material; without that bitmask, when it reports neither material nor RFID.
 

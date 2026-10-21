@@ -152,19 +152,19 @@ If the second answer is correct and the first is not, rebind protection is the c
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| Pairing screen after every restart | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`. |
-| "This network may not pair displays" | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere. |
-| "Too many requests, trying again shortly" | Core limits 10 pairing codes per hour per client address. Behind a proxy outside the Compose network make sure it is listed in `HTTP_TRUSTED_PROXIES`. Wait; the player retries by itself. |
-| Camera widgets stay empty, the gateway name does not resolve | The router blocks public names that point to private addresses; see [DNS on the kiosk](#dns-on-the-kiosk-names-that-point-to-a-private-address). |
-| "Cannot reach Makerspace Core" | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors. |
-| "Waiting for content" | The display is paired but was never published. Publish it from the display detail page. |
-| Black screen, yellow dot | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network. |
-| Revision not activated, "Not enough storage" in health | The device's browser storage is too small for the new media. Free space or reduce media; the old revision keeps playing. |
-| Old content after a publication | The new revision is still loading (large videos) or an asset failed. The display detail page shows the revision the display reports; errors appear in the health tab. |
-| Video stutters or stays black | Use H.264 MP4 at the display resolution or lower; on a Raspberry Pi 4 keep to 1080p30. |
-| Display is "offline" in Core but shows content | Heartbeats fail (rate limit, proxy blocking POST). Check the proxy log for `/api/v1/signage/player/heartbeat`. |
-| Needs to be paired again | Revoke the old display in Core (or delete it) and clear the browser profile, or just wait for the pairing screen after revoking. |
+| Symptom                                                      | Check                                                                                                                                                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pairing screen after every restart                           | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`.                                                                  |
+| "This network may not pair displays"                         | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere.                                                 |
+| "Too many requests, trying again shortly"                    | Core limits 10 pairing codes per hour per client address. Behind a proxy outside the Compose network make sure it is listed in `HTTP_TRUSTED_PROXIES`. Wait; the player retries by itself. |
+| Camera widgets stay empty, the gateway name does not resolve | The router blocks public names that point to private addresses; see [DNS on the kiosk](#dns-on-the-kiosk-names-that-point-to-a-private-address).                                           |
+| "Cannot reach Makerspace Core"                               | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors.                                                          |
+| "Waiting for content"                                        | The display is paired but was never published. Publish it from the display detail page.                                                                                                    |
+| Black screen, yellow dot                                     | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network.                       |
+| Revision not activated, "Not enough storage" in health       | The device's browser storage is too small for the new media. Free space or reduce media; the old revision keeps playing.                                                                   |
+| Old content after a publication                              | The new revision is still loading (large videos) or an asset failed. The display detail page shows the revision the display reports; errors appear in the health tab.                      |
+| Video stutters or stays black                                | Use H.264 MP4 at the display resolution or lower; on a Raspberry Pi 4 keep to 1080p30.                                                                                                     |
+| Display is "offline" in Core but shows content               | Heartbeats fail (rate limit, proxy blocking POST). Check the proxy log for `/api/v1/signage/player/heartbeat`.                                                                             |
+| Needs to be paired again                                     | Revoke the old display in Core (or delete it) and clear the browser profile, or just wait for the pairing screen after revoking.                                                           |
 
 Developer note: `https://<core>/player/` works with any current browser, so a staff member can check a display setup on a laptop. A paired browser keeps its device cookie, so use a separate profile for tests.
