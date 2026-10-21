@@ -447,7 +447,7 @@ func (s *Service) updateAssignmentContact(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := eventsdb.New(tx)
-	current, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
+	current, event, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -456,10 +456,6 @@ func (s *Service) updateAssignmentContact(
 	}
 	if AssignmentStatus(current.Status) != AssignmentStatusActive || current.PersonalDataErasedAt.Valid {
 		return Assignment{}, apperror.Conflict
-	}
-	event, err := q.GetEventForUpdate(ctx, current.EventID)
-	if err != nil {
-		return Assignment{}, err
 	}
 	if EventStatus(event.Status).Closed() {
 		return Assignment{}, eventReadOnly()
@@ -593,7 +589,7 @@ func (s *Service) moveAssignment(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := eventsdb.New(tx)
-	current, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
+	current, event, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -602,10 +598,6 @@ func (s *Service) moveAssignment(
 	}
 	if AssignmentStatus(current.Status) != AssignmentStatusActive || current.PersonalDataErasedAt.Valid {
 		return Assignment{}, apperror.Conflict
-	}
-	event, err := q.GetEventForUpdate(ctx, current.EventID)
-	if err != nil {
-		return Assignment{}, err
 	}
 	if EventStatus(event.Status).Closed() {
 		return Assignment{}, eventReadOnly()
@@ -800,7 +792,7 @@ func (s *Service) cancelAssignment(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := eventsdb.New(tx)
-	current, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
+	current, event, err := loadAuthorizedAssignment(ctx, q, principal, digest, eventID, id)
 	if err != nil {
 		return Assignment{}, err
 	}
@@ -809,10 +801,6 @@ func (s *Service) cancelAssignment(
 	}
 	if AssignmentStatus(current.Status) != AssignmentStatusActive {
 		return Assignment{}, apperror.Conflict
-	}
-	event, err := q.GetEventForUpdate(ctx, current.EventID)
-	if err != nil {
-		return Assignment{}, err
 	}
 	if EventStatus(event.Status).Closed() {
 		return Assignment{}, eventReadOnly()
@@ -856,15 +844,34 @@ func (s *Service) cancelAssignment(
 	return assignmentFromRow(row), nil
 }
 
+// loadAuthorizedAssignment locks the assignment's event and then the assignment, the same order as every other
+// assignment write, so concurrent joins, moves and cancellations cannot deadlock.
 func loadAuthorizedAssignment(
 	ctx context.Context,
 	q *eventsdb.Queries,
 	principal *authorization.Principal,
 	digest []byte,
 	eventID, id uuid.UUID,
-) (eventsdb.EventShiftAssignment, error) {
+) (eventsdb.EventShiftAssignment, eventsdb.Event, error) {
 	var row eventsdb.EventShiftAssignment
-	var err error
+	var event eventsdb.Event
+	if len(digest) != 0 {
+		unlocked, err := q.GetEventAssignmentByTokenDigest(ctx, digest)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return row, event, apperror.NotFound
+		}
+		if err != nil {
+			return row, event, err
+		}
+		eventID = unlocked.EventID
+	}
+	event, err := q.GetEventForUpdate(ctx, eventID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return row, event, apperror.NotFound
+	}
+	if err != nil {
+		return row, event, err
+	}
 	if len(digest) != 0 {
 		row, err = q.GetEventAssignmentByTokenDigestForUpdate(ctx, digest)
 	} else {
@@ -873,18 +880,19 @@ func loadAuthorizedAssignment(
 			eventsdb.GetEventAssignmentForUpdateParams{ID: id, EventID: eventID},
 		)
 	}
-	if errors.Is(err, pgx.ErrNoRows) {
-		return row, apperror.NotFound
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && row.EventID != eventID) {
+		return row, event, apperror.NotFound
 	}
 	if err != nil {
-		return row, err
+		return row, event, err
 	}
 	if principal != nil && !principal.Has(authorization.EventsAssign) &&
 		(row.PersonID == nil || *row.PersonID != principal.PersonID) {
-		return row, apperror.NotFound
+		return row, event, apperror.NotFound
 	}
-	return row, nil
+	return row, event, nil
 }
+
 func managementDigest(token string) ([]byte, error) {
 	if len(token) != 43 {
 		return nil, errors.New("invalid token")

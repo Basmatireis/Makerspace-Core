@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -334,8 +333,6 @@ func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid
 	}
 	return nil
 }
-
-var _ = time.Now
 
 // insertSession creates a validated session and its audit event inside the caller's transaction.
 func insertSession(
