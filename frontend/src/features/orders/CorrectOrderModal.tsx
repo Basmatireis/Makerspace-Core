@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   Checkbox,
-  InlineNotification,
   Modal,
   RadioButton,
   RadioButtonGroup,
@@ -14,6 +13,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { replaceOrder, reverseOrder } from '../../api/generated/orders/orders';
 import type { Order, PaymentReversalInput } from '../../api/generated/models';
+import { RichNotification } from '../../app/RichNotification';
+import { OrderErrorText } from './OrderErrorText';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { reasonKindHelp } from './labels';
 import { formatCents, toCents } from './money';
@@ -227,13 +228,9 @@ export function CorrectOrderModal({
           </>
         )}
         {mutation.error && (
-          <InlineNotification
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title="Nothing was saved"
-            subtitle={mutation.error.message}
-          />
+          <RichNotification kind="error" title="Nothing was saved">
+            <OrderErrorText error={mutation.error} order={order} />
+          </RichNotification>
         )}
       </Stack>
     </Modal>

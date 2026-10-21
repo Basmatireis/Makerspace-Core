@@ -24,13 +24,38 @@ import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
+/**
+ * name is required for parts and generated for filament and consumables when omitted.
+ */
 export interface UpdateMaterialRequest {
   /**
      * @minLength 1
      * @maxLength 150
      */
-  name: string;
+  name?: string;
   materialTypeId: UUIDv7;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  variant?: string | null;
+  /**
+     * @maxLength 150
+     * @nullable
+     */
+  manufacturer?: string | null;
+  salePrice?: Decimal | null;
+  packageSize?: Decimal | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  storageLocation?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  notes?: string | null;
   /**
      * @maxLength 80
      * @nullable

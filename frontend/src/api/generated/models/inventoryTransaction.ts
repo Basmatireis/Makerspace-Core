@@ -38,9 +38,21 @@ export interface InventoryTransaction {
   /** @nullable */
   note?: string | null;
   adjustmentReason?: InventoryAdjustmentReason | null;
+  /**
+     * Order or invoice number of a purchase.
+     * @nullable
+     */
+  reference?: string | null;
   machineJobId?: UUIDv7 | null;
   /** @nullable */
   machineJobDisplayId?: string | null;
+  /** Order of an order_sale or order_sale_reversal entry; null otherwise or once the order was deleted. */
+  orderId?: UUIDv7 | null;
+  /**
+     * Reference of that order (for example O-2026-000012). No customer data.
+     * @nullable
+     */
+  orderReference?: string | null;
   /** Null once the spool was deleted; the snapshot stays. */
   spoolId?: UUIDv7 | null;
   /** @nullable */

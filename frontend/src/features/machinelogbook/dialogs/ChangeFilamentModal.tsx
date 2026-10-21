@@ -35,7 +35,6 @@ export function ChangeFilamentModal({
     setStep,
     spoolList,
     materialList,
-    productList,
     ready,
     loadFailed,
     form,
@@ -95,15 +94,14 @@ export function ChangeFilamentModal({
               )}
               {loadFailed && (
                 <ErrorState
-                  message="Spools, materials and products could not be loaded."
+                  message="Spools and filament could not be loaded."
                   onRetry={() => {
                     void spoolList.refetch();
                     void materialList.refetch();
-                    void productList.refetch();
                   }}
                 />
               )}
-              {!ready && !loadFailed && <InlineLoadingState label="Loading spools and products" />}
+              {!ready && !loadFailed && <InlineLoadingState label="Loading spools and filament" />}
 
               {ready && current === 'spool' && <SpoolStep wizard={wizard} />}
 

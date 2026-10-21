@@ -127,7 +127,13 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	return h
 }
 
-func (h *ingestHarness) send(runID uuid.UUID, kind printing.EventKind, at time.Time, payload string, revision *int64) EventReceipt {
+func (h *ingestHarness) send(
+	runID uuid.UUID,
+	kind printing.EventKind,
+	at time.Time,
+	payload string,
+	revision *int64,
+) EventReceipt {
 	h.t.Helper()
 	h.sequence++
 	return h.sendEvent(
@@ -257,8 +263,9 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 		ctx,
 		h.principal,
 		"PLA "+name+" "+h.suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		nil,
 	)
 	if err != nil {

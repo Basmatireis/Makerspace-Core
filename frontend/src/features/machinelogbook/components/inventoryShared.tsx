@@ -4,11 +4,10 @@ import { CheckmarkFilled, ErrorFilled, WarningAltFilled } from '@carbon/icons-re
 import { decimalNumber } from '../../../app/decimalInput';
 import { EmptyState } from '../../../app/PageState';
 import type {
-  FilamentPackaging,
-  FilamentProduct,
   InventoryAdjustmentReason,
   InventoryTransactionKind,
   Material,
+  MaterialKind,
   MaterialUnit,
   StockState,
 } from '../../../api/generated/models';
@@ -69,24 +68,7 @@ export function StockTag({ state, size = 'md' }: { state: StockState; size?: 'sm
   );
 }
 
-export const packagingOptions: { id: FilamentPackaging; label: string }[] = [
-  { id: 'refill', label: 'Refill' },
-  { id: 'spool', label: 'Spool' },
-];
-export const packagingLabel = (packaging: FilamentPackaging) =>
-  packagingOptions.find((item) => item.id === packaging)?.label ?? packaging;
-export function PackagingTag({ packaging, size = 'sm' }: { packaging: FilamentPackaging; size?: 'sm' | 'md' }) {
-  return (
-    <Tag type={packaging === 'refill' ? 'teal' : 'cool-gray'} size={size}>
-      {packagingLabel(packaging)}
-    </Tag>
-  );
-}
-
 export const formatGrams = (value: string | number) => `${number.format(Number(value))} g`;
-/** "Bambu Lab · PLA Basic Black · 1,000 g", the text of a product in pickers. */
-export const productLabel = (product: Pick<FilamentProduct, 'manufacturer' | 'name' | 'netWeightG'>) =>
-  `${product.manufacturer} · ${product.name} · ${formatGrams(product.netWeightG)}`;
 
 // The API distinguishes who moved the stock; the table shows one tag per kind.
 export const transactionKindOptions: { id: InventoryTransactionKind; label: string }[] = [
@@ -96,6 +78,8 @@ export const transactionKindOptions: { id: InventoryTransactionKind; label: stri
   { id: 'adjustment', label: 'Correction' },
   { id: 'disposal', label: 'Disposal' },
   { id: 'spool_transfer', label: 'Transfer' },
+  { id: 'order_sale', label: 'Sold (order)' },
+  { id: 'order_sale_reversal', label: 'Order reversed' },
 ];
 const kindType = {
   purchase: 'green',
@@ -104,6 +88,8 @@ const kindType = {
   adjustment: 'purple',
   disposal: 'red',
   spool_transfer: 'teal',
+  order_sale: 'magenta',
+  order_sale_reversal: 'cyan',
 } as const;
 export function TransactionKindTag({ kind, size = 'sm' }: { kind: InventoryTransactionKind; size?: 'sm' | 'md' }) {
   return (
@@ -132,8 +118,38 @@ export function NoInventoryAccess() {
   );
 }
 
-/** Only materials with a filament diameter are tracked per spool. */
-export const isFilament = (material: Pick<Material, 'filamentDiameterMm'>) => material.filamentDiameterMm != null;
+/** Only filament articles are tracked per spool. */
+export const isFilament = (material: Pick<Material, 'kind'>) => material.kind === 'filament';
+
+export const articleKinds: MaterialKind[] = ['filament', 'consumable', 'part'];
+export const kindNames: Record<MaterialKind, string> = { filament: 'Filament', consumable: 'Consumable', part: 'Part' };
+/** What the material type of an article is called: parts have categories. */
+export const typeNoun = (kind: MaterialKind) => (kind === 'part' ? 'Category' : 'Material');
+export const typeNounLower = (kind: MaterialKind) => (kind === 'part' ? 'category' : 'material type');
+
+export function ArticleKindTag({ kind, size = 'sm' }: { kind: MaterialKind; size?: 'sm' | 'md' }) {
+  return (
+    <Tag type={kind === 'filament' ? 'purple' : kind === 'consumable' ? 'teal' : 'cool-gray'} size={size}>
+      {kindNames[kind]}
+    </Tag>
+  );
+}
+
+/** The name the backend generates for filament and consumables: "<Type> <Variant> · <Colour> · <Manufacturer>". */
+export function generatedArticleName({
+  typeName,
+  variant,
+  colorName,
+  manufacturer,
+}: {
+  typeName?: string | null;
+  variant?: string | null;
+  colorName?: string | null;
+  manufacturer?: string | null;
+}) {
+  const head = [typeName?.trim(), variant?.trim()].filter(Boolean).join(' ');
+  return [head, colorName?.trim(), manufacturer?.trim()].filter(Boolean).join(' · ');
+}
 
 /** Parses a typed decimal ("1,5" or "1.5"); null when empty or not a number. */
 export function parseDecimal(value: string): number | null {

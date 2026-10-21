@@ -20,6 +20,7 @@ func (s *Server) ListMaterials(
 		p,
 		defaultString(r.Params.Search),
 		r.Params.MaterialTypeId,
+		machinelogbook.MaterialKind(valueString(r.Params.Kind)),
 		machinelogbook.StockState(valueString(r.Params.StockState)),
 		defaultInt(r.Params.Page, 1),
 		defaultInt(r.Params.PageSize, 25),
@@ -51,23 +52,7 @@ func (s *Server) CreateMaterial(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	unit := materialUnitPointer(r.Body.Unit)
-	item, err := s.machineLogbook.CreateMaterial(
-		ctx,
-		p,
-		machinelogbook.MaterialInput{
-			Name:           r.Body.Name,
-			MaterialTypeID: r.Body.MaterialTypeId,
-			Unit:           unit,
-			ColorName:      nullableStringPointer(r.Body.ColorName),
-			ColorHex:       nullableStringPointer(r.Body.ColorHex),
-			LowStockThreshold: decimalNullable(
-				r.Body.LowStockThreshold,
-			),
-			FilamentDiameterMM: decimalNullable(r.Body.FilamentDiameterMm),
-		},
-		requestIDPointer(ctx),
-	)
+	item, err := s.machineLogbook.CreateMaterial(ctx, p, materialCreateInput(*r.Body), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -112,19 +97,7 @@ func (s *Server) UpdateMaterial(
 		ctx,
 		p,
 		r.MaterialId,
-		machinelogbook.MaterialInput{
-			Name:           r.Body.Name,
-			MaterialTypeID: r.Body.MaterialTypeId,
-			Unit:           materialUnitPointer(r.Body.Unit),
-			ColorName:      nullableStringPointer(r.Body.ColorName),
-			ColorHex:       nullableStringPointer(r.Body.ColorHex),
-			LowStockThreshold: decimalNullable(
-				r.Body.LowStockThreshold,
-			),
-			FilamentDiameterMM: diameter,
-			Active:             r.Body.Active,
-			ExpectedVersion:    r.Body.ExpectedVersion,
-		},
+		materialUpdateInput(*r.Body, diameter),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -153,6 +126,7 @@ func (s *Server) AddMaterialPurchase(
 		r.Body.TotalPrice,
 		r.Body.OccurredAt,
 		nullableStringPointer(r.Body.Supplier),
+		nullableStringPointer(r.Body.Reference),
 		nullableStringPointer(r.Body.Note),
 		requestIDPointer(ctx),
 	)
@@ -310,8 +284,9 @@ func (s *Server) CreateMaterialType(
 		ctx,
 		p,
 		r.Body.Name,
+		machinelogbook.MaterialKind(r.Body.Kind),
 		string(r.Body.Unit),
-		machineProcessStrings(r.Body.Processes),
+		machineProcessStringsPointer(r.Body.Processes),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -352,6 +327,7 @@ func (s *Server) UpdateMaterialType(
 		r.MaterialTypeId,
 		r.Body.ExpectedVersion,
 		r.Body.Name,
+		machinelogbook.MaterialKind(valueString(r.Body.Kind)),
 		string(r.Body.Unit),
 		machineProcessStringsPointer(r.Body.Processes),
 		r.Body.Active,
@@ -384,4 +360,42 @@ func (s *Server) DeleteMaterialType(
 		return nil, err
 	}
 	return openapi.DeleteMaterialType204Response{}, nil
+}
+
+func materialCreateInput(body openapi.CreateMaterialRequest) machinelogbook.MaterialInput {
+	return machinelogbook.MaterialInput{
+		Name:               defaultString(body.Name),
+		MaterialTypeID:     body.MaterialTypeId,
+		Unit:               materialUnitPointer(body.Unit),
+		ColorName:          nullableStringPointer(body.ColorName),
+		ColorHex:           nullableStringPointer(body.ColorHex),
+		Variant:            nullableStringPointer(body.Variant),
+		Manufacturer:       nullableStringPointer(body.Manufacturer),
+		StorageLocation:    nullableStringPointer(body.StorageLocation),
+		Notes:              nullableStringPointer(body.Notes),
+		SalePrice:          decimalNullable(body.SalePrice),
+		PackageSize:        decimalNullable(body.PackageSize),
+		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
+		FilamentDiameterMM: decimalNullable(body.FilamentDiameterMm),
+	}
+}
+
+func materialUpdateInput(body openapi.UpdateMaterialRequest, diameter *string) machinelogbook.MaterialInput {
+	return machinelogbook.MaterialInput{
+		Name:               defaultString(body.Name),
+		MaterialTypeID:     body.MaterialTypeId,
+		Unit:               materialUnitPointer(body.Unit),
+		ColorName:          nullableStringPointer(body.ColorName),
+		ColorHex:           nullableStringPointer(body.ColorHex),
+		Variant:            nullableStringPointer(body.Variant),
+		Manufacturer:       nullableStringPointer(body.Manufacturer),
+		StorageLocation:    nullableStringPointer(body.StorageLocation),
+		Notes:              nullableStringPointer(body.Notes),
+		SalePrice:          decimalNullable(body.SalePrice),
+		PackageSize:        decimalNullable(body.PackageSize),
+		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
+		FilamentDiameterMM: diameter,
+		Active:             body.Active,
+		ExpectedVersion:    body.ExpectedVersion,
+	}
 }

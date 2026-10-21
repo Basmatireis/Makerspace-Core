@@ -18,32 +18,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { Decimal } from './decimal';
-import type { FilamentPackaging } from './filamentPackaging';
-import type { Money } from './money';
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
+import type { FilamentSpool } from './filamentSpool';
+import type { InventoryTransaction } from './inventoryTransaction';
+import type { Material } from './material';
 
-export interface UpdateFilamentProductRequest {
-  /**
-     * @minLength 1
-     * @maxLength 150
-     */
-  manufacturer: string;
-  /**
-     * @minLength 1
-     * @maxLength 200
-     */
-  name: string;
-  materialId: UUIDv7;
-  netWeightG: Decimal;
-  defaultPrice?: Money | null;
-  packaging: FilamentPackaging;
-  /**
-     * @maxLength 2000
-     * @nullable
-     */
-  notes?: string | null;
-  active: boolean;
-  expectedVersion: Version;
+export interface InventoryReceiptResult {
+  material: Material;
+  spools: FilamentSpool[];
+  transactions: InventoryTransaction[];
 }

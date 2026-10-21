@@ -31,6 +31,7 @@ const typeOf = (
 ): MaterialType => ({
   id,
   name,
+  kind: processes.includes('fdm_printing') ? 'filament' : 'consumable',
   unit,
   processes,
   active,
@@ -49,6 +50,7 @@ const materialOf = (
 ): Material => ({
   id,
   name,
+  kind: unit === 'g' ? 'filament' : 'consumable',
   materialTypeId,
   materialTypeName: name,
   unit,

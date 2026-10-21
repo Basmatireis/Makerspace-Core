@@ -31,7 +31,7 @@ import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 /**
- * Material, product, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
+ * Material, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
  */
 export interface FilamentSpool {
   id: UUIDv7;
@@ -63,7 +63,6 @@ export interface FilamentSpool {
   colorName?: string | null;
   colorHex?: ColorHex | null;
   unit?: MaterialUnit | null;
-  productId?: UUIDv7 | null;
   /**
      * Snapshot taken when the fill started.
      * @nullable

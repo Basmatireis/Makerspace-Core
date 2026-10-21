@@ -61,8 +61,9 @@ func newFillFixture(t *testing.T) *fillFixture {
 		ctx,
 		f.p,
 		"Fill PLA "+f.suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&f.request,
 	)
 	if err != nil {
@@ -106,6 +107,7 @@ func (f *fillFixture) purchase(t *testing.T, m Material, quantity, total string)
 		quantity,
 		total,
 		f.now,
+		nil,
 		nil,
 		nil,
 		&f.request,
@@ -608,112 +610,44 @@ func TestChangeFilamentValidationAndPurchase(t *testing.T) {
 	}
 }
 
-func TestChangeFilamentProductRules(t *testing.T) {
+func TestChangeFillSnapshotsManufacturerOfTheArticle(t *testing.T) {
 	f := newFillFixture(t)
-	m := f.material(t, "1000")
-	other := f.material(t, "")
 	ctx := t.Context()
-	product, err := f.s.CreateFilamentProduct(
+	m := f.material(t, "1000")
+	updated, err := f.s.UpdateMaterial(
 		ctx,
 		f.p,
-		FilamentProductInput{
-			Manufacturer: "Prusa " + f.suffix,
-			Name:         "PLA Galaxy",
-			MaterialID:   m.ID,
-			NetWeightG:   "1000",
-			DefaultPrice: ptr("19.9"),
-			Packaging:    "refill",
-			Active:       true,
+		m.ID,
+		MaterialInput{
+			Name:               m.Name,
+			MaterialTypeID:     m.MaterialTypeID,
+			Manufacturer:       ptr("Prusa"),
+			FilamentDiameterMM: m.FilamentDiameterMM,
+			Active:             true,
+			ExpectedVersion:    m.Version,
 		},
 		&f.request,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	spool := f.spool(t, m, "reusable", "200")
+	spool := f.spool(t, updated, "reusable", "200")
 	leftover := &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}
-
-	fill := f.newFill(m, "100")
-	fill.ProductID = &product.ID
-	changed, err := f.change(t, spool.ID, leftover, fill)
+	changed, err := f.change(t, spool.ID, leftover, f.newFill(updated, "100"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if changed.ProductID == nil || *changed.ProductID != product.ID || changed.Manufacturer == nil ||
-		*changed.Manufacturer != product.Manufacturer ||
-		changed.ProductName == nil ||
-		*changed.ProductName != "PLA Galaxy" {
-		t.Fatalf("product snapshot not defaulted: %+v", changed)
+	if changed.Manufacturer == nil || *changed.Manufacturer != "Prusa" {
+		t.Fatalf("manufacturer not snapshotted: %+v", changed)
 	}
-	count := func() int64 {
-		p, err := f.s.GetFilamentProduct(ctx, f.p, product.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return p.InUseCount
-	}
-	if count() != 1 {
-		t.Fatalf("inUseCount = %d", count())
-	}
-
-	// Editing the product never touches the fill's snapshot.
-	edited, err := f.s.UpdateFilamentProduct(
-		ctx,
-		f.p,
-		product.ID,
-		FilamentProductInput{
-			Manufacturer:    product.Manufacturer,
-			Name:            "PLA Galaxy 2",
-			MaterialID:      m.ID,
-			NetWeightG:      "1000",
-			Packaging:       "refill",
-			Active:          true,
-			ExpectedVersion: product.Version,
-		},
-		&f.request,
-	)
+	explicit := f.newFill(updated, "50")
+	explicit.Manufacturer = ptr("Handmade")
+	again, err := f.change(t, spool.ID, leftover, explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after := f.get(t, spool.ID); after.ProductName == nil || *after.ProductName != "PLA Galaxy" {
-		t.Fatalf("product edit leaked into the fill: %+v", after)
-	}
-
-	// Material mismatch, unknown and inactive products are refused without side effects.
-	mismatch := f.newFill(other, "50")
-	mismatch.ProductID = &product.ID
-	if _, err = f.change(t, spool.ID, leftover, mismatch); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("material mismatch: %v", err)
-	}
-	unknown := f.newFill(m, "50")
-	unknown.ProductID = ptr(ids.New())
-	if _, err = f.change(t, spool.ID, leftover, unknown); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("unknown product: %v", err)
-	}
-	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, FilamentProductInput{Manufacturer: product.Manufacturer, Name: "PLA Galaxy 2", MaterialID: m.ID, NetWeightG: "1000", Packaging: "refill", Active: false, ExpectedVersion: edited.Version}, &f.request); err != nil {
-		t.Fatal(err)
-	}
-	inactive := f.newFill(m, "50")
-	inactive.ProductID = &product.ID
-	if _, err = f.change(t, spool.ID, leftover, inactive); !apperror.IsCode(err, "product_inactive") {
-		t.Fatalf("inactive product: %v", err)
-	}
-	if got := f.get(t, spool.ID); got.FillNumber != 2 {
-		t.Fatalf("refused changes created fills: %+v", got)
-	}
-
-	// Explicit manufacturer and product name win over the product defaults.
-	other2 := f.material(t, "")
-	plain := f.newFill(other2, "20")
-	plain.Manufacturer, plain.ProductName = ptr("Handmade"), ptr("Spooled by hand")
-	purchase := plain
-	purchase.Source, purchase.TotalPrice = "purchase", ptr("5")
-	again, err := f.change(t, spool.ID, leftover, purchase)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if again.Manufacturer == nil || *again.Manufacturer != "Handmade" || again.ProductID != nil {
-		t.Fatalf("manual fill: %+v", again)
+	if again.Manufacturer == nil || *again.Manufacturer != "Handmade" {
+		t.Fatalf("explicit manufacturer: %+v", again)
 	}
 }
 
@@ -919,7 +853,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 
 	mount := func(spool FilamentSpool) {
 		t.Helper()
-		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), "other", &f.request)
+		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), "fdm_printing", &f.request)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1014,7 +948,11 @@ func TestFinishFilamentSpool(t *testing.T) {
 		f.p,
 		reusable.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "weighed", GrossWeightG: ptr("450"), Disposition: ptr(DispositionDisposed)},
+			Leftover: LeftoverInput{
+				Basis:        "weighed",
+				GrossWeightG: ptr("450"),
+				Disposition:  ptr(DispositionDisposed),
+			},
 			OccurredAt:      f.now.Add(time.Hour),
 			ExpectedVersion: reusable.Version,
 		},
@@ -1537,162 +1475,4 @@ func TestCleanUpKeepsTransferRowsOfDeletedSpools(t *testing.T) {
 		}
 	}
 	assertMaterial(t, f.refresh(t, m), "1000", "0", "1000")
-}
-
-func TestFilamentProductsCatalog(t *testing.T) {
-	f := newFillFixture(t)
-	m := f.material(t, "")
-	other := f.material(t, "")
-	ctx := t.Context()
-	input := FilamentProductInput{
-		Manufacturer: "Maker " + f.suffix,
-		Name:         "Silk PLA",
-		MaterialID:   m.ID,
-		NetWeightG:   "1000",
-		DefaultPrice: ptr("21.5"),
-		Packaging:    "spool",
-		Notes:        ptr("note"),
-		Active:       true,
-	}
-	product, err := f.s.CreateFilamentProduct(ctx, f.p, input, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if product.Version != 1 || !product.Active || product.InUseCount != 0 || product.MaterialName == "" ||
-		product.NetWeightG != "1000" ||
-		product.DefaultPrice == nil ||
-		*product.DefaultPrice != "21.5" {
-		t.Fatalf("product: %+v", product)
-	}
-	dup := input
-	dup.Manufacturer, dup.Name = strings.ToUpper(input.Manufacturer), strings.ToLower(input.Name)
-	if _, err = f.s.CreateFilamentProduct(ctx, f.p, dup, &f.request); !apperror.IsCode(err, "product_exists") {
-		t.Fatalf("case-insensitive duplicate: %v", err)
-	}
-	missing := input
-	missing.Name, missing.MaterialID = "Other", ids.New()
-	if _, err = f.s.CreateFilamentProduct(ctx, f.p, missing, &f.request); !apperror.IsCode(err, "not_found") {
-		t.Fatalf("unknown material: %v", err)
-	}
-	bad := input
-	bad.Name, bad.Packaging = "Bad", "box"
-	if _, err = f.s.CreateFilamentProduct(ctx, f.p, bad, &f.request); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("bad packaging: %v", err)
-	}
-	second := input
-	second.Name = "Matte PLA"
-	other2, err := f.s.CreateFilamentProduct(ctx, f.p, second, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Renaming into a collision is a conflict, a stale version is stale.
-	collide := input
-	collide.Name, collide.ExpectedVersion = "matte pla", product.Version
-	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, collide, &f.request); !apperror.IsCode(
-		err,
-		"product_exists",
-	) {
-		t.Fatalf("rename into collision: %v", err)
-	}
-	stale := input
-	stale.ExpectedVersion = 9
-	if _, err = f.s.UpdateFilamentProduct(ctx, f.p, product.ID, stale, &f.request); !apperror.IsCode(
-		err,
-		"stale_write",
-	) {
-		t.Fatalf("stale update: %v", err)
-	}
-	// In-use counts follow open fills of non-archived spools.
-	spoolInput := f.spoolInput(m, "single_use", "100")
-	spoolInput.StockMode, spoolInput.TotalPrice, spoolInput.ProductID = "new_acquisition", ptr("10"), &product.ID
-	spool, err := f.s.CreateFilamentSpool(ctx, f.p, spoolInput, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spool.ProductID == nil || spool.Manufacturer == nil || *spool.Manufacturer != input.Manufacturer {
-		t.Fatalf("spool from product: %+v", spool)
-	}
-	if got, _ := f.s.GetFilamentProduct(ctx, f.p, product.ID); got.InUseCount != 1 {
-		t.Fatalf("inUseCount = %d", got.InUseCount)
-	}
-	mismatch := f.spoolInput(other, "single_use", "100")
-	mismatch.StockMode, mismatch.TotalPrice, mismatch.ProductID = "new_acquisition", ptr("10"), &product.ID
-	if _, err = f.s.CreateFilamentSpool(ctx, f.p, mismatch, &f.request); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("spool with a product of another material: %v", err)
-	}
-	if _, err = f.s.FinishFilamentSpool(ctx, f.p, spool.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "none"}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}, &f.request); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := f.s.GetFilamentProduct(ctx, f.p, product.ID); got.InUseCount != 0 {
-		t.Fatalf("inUseCount after finishing = %d", got.InUseCount)
-	}
-	// Deactivation hides the product from the default list.
-	deactivated := input
-	deactivated.Active, deactivated.ExpectedVersion = false, product.Version
-	updated, err := f.s.UpdateFilamentProduct(ctx, f.p, product.ID, deactivated, &f.request)
-	if err != nil || updated.Active || updated.Version != 2 {
-		t.Fatalf("deactivate: %+v %v", updated, err)
-	}
-	list := func(includeInactive bool) map[uuid.UUID]bool {
-		items, _, err := f.s.ListFilamentProducts(
-			ctx,
-			f.p,
-			FilamentProductFilters{Search: f.suffix, IncludeInactive: includeInactive, Page: 1, PageSize: 50},
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		result := map[uuid.UUID]bool{}
-		for _, item := range items {
-			result[item.ID] = true
-		}
-		return result
-	}
-	if got := list(false); got[product.ID] || !got[other2.ID] {
-		t.Fatalf("default list: %v", got)
-	}
-	if got := list(true); !got[product.ID] || !got[other2.ID] {
-		t.Fatalf("list with inactive: %v", got)
-	}
-	filtered, total, err := f.s.ListFilamentProducts(
-		ctx,
-		f.p,
-		FilamentProductFilters{MaterialID: &other.ID, IncludeInactive: true, Page: 1, PageSize: 10},
-	)
-	if err != nil || total != 0 || len(filtered) != 0 {
-		t.Fatalf("material filter: %d %v", total, err)
-	}
-
-	// Permissions: reading needs inventory.read, writing inventory.manage.
-	reader := restrictedPrincipal(t, f.pool, authorization.InventoryRead)
-	writer := restrictedPrincipal(t, f.pool, authorization.InventoryManage)
-	nobody := restrictedPrincipal(t, f.pool, authorization.MachinesRead)
-	if _, err = f.s.GetFilamentProduct(ctx, reader, product.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err = f.s.ListFilamentProducts(ctx, reader, FilamentProductFilters{Page: 1, PageSize: 5}); err != nil {
-		t.Fatal(err)
-	}
-	for name, call := range map[string]func() error{
-		"get without read": func() error { _, err := f.s.GetFilamentProduct(ctx, nobody, product.ID); return err },
-		"list without read": func() error {
-			_, _, err := f.s.ListFilamentProducts(ctx, nobody, FilamentProductFilters{Page: 1, PageSize: 5})
-			return err
-		},
-		"create read only": func() error { _, err := f.s.CreateFilamentProduct(ctx, reader, second, nil); return err },
-		"update read only": func() error {
-			_, err := f.s.UpdateFilamentProduct(ctx, reader, product.ID, deactivated, nil)
-			return err
-		},
-		"create without manage": func() error { _, err := f.s.CreateFilamentProduct(ctx, nobody, second, nil); return err },
-	} {
-		if err := call(); !apperror.IsCode(err, "permission_denied") {
-			t.Fatalf("%s: %v", name, err)
-		}
-	}
-	renamed := input
-	renamed.Name, renamed.ExpectedVersion = "Writer PLA", updated.Version
-	if _, err = f.s.UpdateFilamentProduct(ctx, writer, product.ID, renamed, &f.request); err != nil {
-		t.Fatal(err)
-	}
 }

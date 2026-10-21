@@ -66,9 +66,9 @@ const targets: Target[] = [
     ready: (page) => page.getByRole('table', { name: 'Machine types' }),
   },
   {
-    name: 'Inventory, Materials tab',
+    name: 'Inventory, Filament tab',
     path: `${base}/inventory`,
-    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black' }),
+    ready: (page) => page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true }),
   },
   {
     name: 'Inventory, Spools tab',
@@ -81,9 +81,9 @@ const targets: Target[] = [
     ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }),
   },
   {
-    name: 'Inventory, Products tab',
-    path: `${base}/inventory?tab=products`,
-    ready: (page) => page.getByRole('table', { name: 'Products' }).getByText('PLA Basic Black'),
+    name: 'Inventory, Consumables tab',
+    path: `${base}/inventory?tab=consumables`,
+    ready: (page) => page.getByRole('table', { name: 'Consumables' }).getByRole('link', { name: 'Birch plywood' }),
   },
   {
     name: 'Material detail (filament)',
@@ -258,12 +258,6 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await checkDialog(page, dialog);
   });
 
-  test('add product', async ({ page }) => {
-    await page.goto(`${base}/inventory?tab=products`);
-    await page.getByRole('button', { name: 'Add product' }).click();
-    await checkDialog(page, page.getByRole('dialog'));
-  });
-
   test('register spool', async ({ page }) => {
     await page.goto(`${base}/inventory?tab=spools`);
     await page.getByRole('button', { name: 'New', exact: true }).click();
@@ -359,7 +353,7 @@ test.describe('read-only role', () => {
     expect(world.requests).toEqual([]);
   });
 
-  test('offers no inventory changes: Change filament, New, Clean up, Add product', async ({ page }) => {
+  test('offers no inventory changes: Change filament, New, Clean up, Receive stock', async ({ page }) => {
     await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
     await expect(page.getByRole('heading', { name: 'S-2026-000001', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Change filament' })).toHaveCount(0);
@@ -370,11 +364,11 @@ test.describe('read-only role', () => {
     await expect(page.getByRole('button', { name: 'New', exact: true })).toHaveCount(0);
     await expect(page.locator('.cds--table-toolbar .cds--overflow-menu')).toHaveCount(0);
 
-    await page.goto(`${base}/inventory?tab=products`);
-    const products = page.getByRole('table', { name: 'Products' });
-    await expect(products.getByText('PLA Basic Black')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add product' })).toHaveCount(0);
-    await expect(products.getByRole('button', { name: 'PLA Basic Black' })).toHaveCount(0);
+    await page.goto(`${base}/inventory`);
+    await expect(
+      page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
   });
 
   test('offers no machine changes: Add machine, New job, Printer setup', async ({ page }) => {

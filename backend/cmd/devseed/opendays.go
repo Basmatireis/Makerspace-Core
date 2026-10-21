@@ -23,7 +23,8 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 	check("periods", err)
 	var periodID uuid.UUID
 	for _, p := range periods {
-		if (p.Status == opendays.PeriodStaffing || p.Status == opendays.PeriodPublished) && !p.StartsOn.After(nextWeek) &&
+		if (p.Status == opendays.PeriodStaffing || p.Status == opendays.PeriodPublished) &&
+			!p.StartsOn.After(nextWeek) &&
 			!p.EndsOn.Before(nextWeek) {
 			periodID = p.ID
 			break
@@ -148,7 +149,7 @@ func (s *seeder) setThresholds() {
 			}
 		}
 		var diameter *string
-		if m.Unit == "g" {
+		if m.Kind == machinelogbook.KindFilament {
 			diameter = ptr("1.75")
 		}
 		_, err := s.ml.UpdateMaterial(
@@ -156,11 +157,17 @@ func (s *seeder) setThresholds() {
 			s.actor,
 			m.ID,
 			machinelogbook.MaterialInput{
-				Name:           m.Name,
-				MaterialTypeID: m.MaterialTypeID,
-				ColorName:      m.ColorName,
-				ColorHex:       m.ColorHex,
-				Active:         true,
+				Name:            m.Name,
+				MaterialTypeID:  m.MaterialTypeID,
+				ColorName:       m.ColorName,
+				ColorHex:        m.ColorHex,
+				Variant:         m.Variant,
+				Manufacturer:    m.Manufacturer,
+				StorageLocation: m.StorageLocation,
+				Notes:           m.Notes,
+				SalePrice:       m.SalePrice,
+				PackageSize:     m.PackageSize,
+				Active:          true,
 				LowStockThreshold: ptr(
 					strconv.FormatFloat(th, 'f', prec, 64),
 				),

@@ -4,8 +4,8 @@
 // layer so business rules and audit events apply as they would in normal use.
 //
 // It runs on top of existing data and can be run repeatedly. Shared catalog
-// records (roles, organizations, pricing groups, machine types, materials,
-// filament products) are reused by name when a compatible one exists; every
+// records (roles, organizations, pricing groups, machine types, material
+// types, articles) are reused by name when a compatible one exists; every
 // run creates its own people, machines, connector, jobs and orders, with a
 // short run tag in the names that must be unique. When no master account
 // exists, it bootstraps a "Devseed Admin" master without a usable password.
@@ -78,8 +78,9 @@ type mat struct {
 	cat  string
 }
 
+// product describes a filament that spools are bought as. It only exists in
+// the seed; the manufacturer and name become the snapshot of the fill.
 type product struct {
-	id     uuid.UUID
 	mat    string
 	name   string
 	maker  string

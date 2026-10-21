@@ -98,7 +98,6 @@ func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
 		ColorName:         row.ColorName,
 		ColorHex:          row.ColorHex,
 		Unit:              row.Unit,
-		ProductID:         row.ProductID,
 		Manufacturer:      row.Manufacturer,
 		ProductName:       row.ProductName,
 		InitialNetWeightG: nullableDecimal(row.InitialNetWeightG),
@@ -123,7 +122,12 @@ func spoolFromList(row machinelogbookdb.ListFilamentSpoolsRow) FilamentSpool {
 }
 
 func identifierFromRow(row machinelogbookdb.FilamentSpoolIdentifier) FilamentSpoolIdentifier {
-	return FilamentSpoolIdentifier{ID: row.ID, Kind: IdentifierKind(row.Kind), Value: row.Value, CreatedAt: row.CreatedAt}
+	return FilamentSpoolIdentifier{
+		ID:        row.ID,
+		Kind:      IdentifierKind(row.Kind),
+		Value:     row.Value,
+		CreatedAt: row.CreatedAt,
+	}
 }
 
 func identifiersFromRows(rows []machinelogbookdb.FilamentSpoolIdentifier) []FilamentSpoolIdentifier {
@@ -180,7 +184,6 @@ func (s *Service) loadSpool(
 			FilamentSpoolFill{
 				ID:           fill.ID,
 				MaterialID:   fill.MaterialID,
-				ProductID:    fill.ProductID,
 				FillNumber:   fill.FillNumber,
 				MaterialName: fill.MaterialName,
 				Manufacturer: fill.Manufacturer,
@@ -212,7 +215,8 @@ func (s *Service) GetFilamentSpool(
 }
 
 func validSpoolStatus(status SpoolStatus) bool {
-	return status == SpoolStatusLoaded || status == SpoolStatusNeedsRefill || status == SpoolStatusActive || status == SpoolStatusArchived
+	return status == SpoolStatusLoaded || status == SpoolStatusNeedsRefill || status == SpoolStatusActive ||
+		status == SpoolStatusArchived
 }
 
 func (s *Service) ListFilamentSpools(
@@ -251,7 +255,6 @@ func (s *Service) ListFilamentSpools(
 		Kind:         string(f.Kind),
 		Statuses:     statuses,
 		Mounted:      f.Mounted,
-		ProductID:    f.ProductID,
 		Manufacturer: strings.TrimSpace(f.Manufacturer),
 		Consumable:   f.Consumable,
 		PageOffset:   offset,
@@ -271,7 +274,6 @@ func (s *Service) ListFilamentSpools(
 			Kind:         params.Kind,
 			Statuses:     params.Statuses,
 			Mounted:      params.Mounted,
-			ProductID:    params.ProductID,
 			Manufacturer: params.Manufacturer,
 			Consumable:   params.Consumable,
 		},
@@ -337,7 +339,8 @@ func (s *Service) CreateFilamentSpool(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if input.StockMode != StockModeNewAcquisition && input.StockMode != StockModeExistingStock && input.StockMode != StockModeEmpty {
+	if input.StockMode != StockModeNewAcquisition && input.StockMode != StockModeExistingStock &&
+		input.StockMode != StockModeEmpty {
 		return FilamentSpool{}, apperror.Invalid("invalid stockMode")
 	}
 	kind := input.Kind
@@ -408,14 +411,7 @@ func (s *Service) CreateFilamentSpool(
 		if material.InventoryVersion != input.ExpectedInventoryVersion {
 			return FilamentSpool{}, apperror.StaleWrite
 		}
-		manufacturer, productName, err = s.checkFillMaterialAndProduct(
-			ctx,
-			q,
-			input.MaterialID,
-			input.ProductID,
-			manufacturer,
-			productName,
-		)
+		manufacturer, err = s.checkFillMaterial(ctx, q, input.MaterialID, manufacturer)
 		if err != nil {
 			return FilamentSpool{}, err
 		}
@@ -476,7 +472,7 @@ func (s *Service) CreateFilamentSpool(
 		"filament_spool",
 		id,
 		requestID,
-		[]string{"materialId", "kind", "label", "productId", "stockMode", "inventory", "metadata"},
+		[]string{"materialId", "kind", "label", "stockMode", "inventory", "metadata"},
 	); err != nil {
 		return FilamentSpool{}, err
 	}
@@ -508,7 +504,6 @@ func (s *Service) fillNewSpool(
 			SpoolID:           spool.ID,
 			FillNumber:        1,
 			MaterialID:        input.MaterialID,
-			ProductID:         input.ProductID,
 			Manufacturer:      manufacturer,
 			ProductName:       productName,
 			InitialNetWeightG: numericFromDecimal(weight),

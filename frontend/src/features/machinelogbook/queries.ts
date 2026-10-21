@@ -19,13 +19,11 @@ import {
   listFilamentSpoolTransactions,
   listFilamentSpools,
 } from '../../api/generated/filament-spools/filament-spools';
-import { getFilamentProduct, listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile } from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
 import type {
   GetMachineLogbookStatisticsParams,
-  ListFilamentProductsParams,
   ListFilamentSpoolsParams,
   ListMachineJobsParams,
   ListMachineLogbookWorkItemsParams,
@@ -54,8 +52,6 @@ export const machineLogbookKeys = {
   runs: (params: ListMachineRunsParams) => [...machineLogbookKeys.all, 'runs', params] as const,
   run: (id: string) => [...machineLogbookKeys.all, 'run', id] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
-  products: (params: ListFilamentProductsParams) => [...machineLogbookKeys.all, 'products', params] as const,
-  product: (id: string) => [...machineLogbookKeys.all, 'product', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
 };
@@ -113,16 +109,6 @@ export const artifactQuery = (id: string) =>
   queryOptions({
     queryKey: machineLogbookKeys.artifact(id),
     queryFn: ({ signal }) => getPrintArtifact(id, { signal }),
-  });
-export const productsQuery = (params: ListFilamentProductsParams) =>
-  queryOptions({
-    queryKey: machineLogbookKeys.products(params),
-    queryFn: ({ signal }) => listFilamentProducts(params, { signal }),
-  });
-export const productQuery = (id: string) =>
-  queryOptions({
-    queryKey: machineLogbookKeys.product(id),
-    queryFn: ({ signal }) => getFilamentProduct(id, { signal }),
   });
 export const pricingQuery = () =>
   queryOptions({ queryKey: machineLogbookKeys.pricing(), queryFn: () => listPricingGroups() });

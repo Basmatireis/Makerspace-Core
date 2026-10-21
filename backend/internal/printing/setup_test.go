@@ -219,10 +219,16 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 				{ID: &secondSlots[0].ID, Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
 			},
 		},
-		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: optional.Of(Nozzle("left")), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
-			{ID: &firstSlots[1].ID, Name: "Slot 2 first", Status: "unavailable", ExternalIdentifier: str("0")},
-			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
-		}},
+		{
+			ID:                 &first.ID,
+			Name:               "AMS 2 Pro",
+			Nozzle:             optional.Of(Nozzle("left")),
+			ExternalIdentifier: str("0"),
+			Slots: []SetupSlotInput{
+				{ID: &firstSlots[1].ID, Name: "Slot 2 first", Status: "unavailable", ExternalIdentifier: str("0")},
+				{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
+			},
+		},
 	}}
 	edited := f.mustSave(created.Version, edit)
 	if edited.Version != 2 {
@@ -238,7 +244,8 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 		t.Fatalf("unexpected unit version %d", units[1].Version)
 	}
 	slots := slotsOf(edited, first.ID)
-	if len(slots) != 2 || slots[0].ID != firstSlots[1].ID || slots[0].Position != 0 || slots[0].Status != "unavailable" ||
+	if len(slots) != 2 || slots[0].ID != firstSlots[1].ID || slots[0].Position != 0 ||
+		slots[0].Status != "unavailable" ||
 		slots[0].ExternalIdentifier == nil ||
 		*slots[0].ExternalIdentifier != "0" ||
 		slots[1].ID != firstSlots[0].ID ||
@@ -260,9 +267,15 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 
 	// Removing a slot retires it; removing a unit disables it and retires its slots.
 	removeOne := SetupInput{Enabled: true, Model: optional.Of(PrinterModel("bambu_h2d")), InputUnits: []SetupUnitInput{
-		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: optional.Of(Nozzle("left")), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
-			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
-		}},
+		{
+			ID:                 &first.ID,
+			Name:               "AMS 2 Pro",
+			Nozzle:             optional.Of(Nozzle("left")),
+			ExternalIdentifier: str("0"),
+			Slots: []SetupSlotInput{
+				{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
+			},
+		},
 	}}
 	pruned := f.mustSave(edited.Version, removeOne)
 	prunedUnits := activeUnits(pruned)
@@ -291,9 +304,15 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
 			{Name: "New slot", Status: "available", ExternalIdentifier: str("0")},
 		}},
-		{ID: &second.ID, Name: "AMS HT", Nozzle: optional.Of(Nozzle("right")), ExternalIdentifier: str("128"), Slots: []SetupSlotInput{
-			{ID: &secondSlots[0].ID, Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
-		}},
+		{
+			ID:                 &second.ID,
+			Name:               "AMS HT",
+			Nozzle:             optional.Of(Nozzle("right")),
+			ExternalIdentifier: str("128"),
+			Slots: []SetupSlotInput{
+				{ID: &secondSlots[0].ID, Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
+			},
+		},
 	}}
 	final := f.mustSave(pruned.Version, again)
 	if final.Enabled || final.Model == nil || *final.Model != "generic" || len(activeUnits(final)) != 2 {
@@ -366,8 +385,9 @@ func TestSaveSetupRefusesToRemoveAMountedSlotAndRollsBack(t *testing.T) {
 		ctx,
 		f.principal,
 		"PLA "+f.suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		nil,
 	)
 	if err != nil {

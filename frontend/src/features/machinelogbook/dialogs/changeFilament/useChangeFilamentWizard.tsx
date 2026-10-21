@@ -4,7 +4,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { changeFilamentSpoolFill } from '../../../../api/generated/filament-spools/filament-spools';
 import type {
   FilamentNewFillInputSource,
-  FilamentProduct,
   FilamentSpool,
   FilamentSpoolIdentifierKind,
   InventoryTransactionKind,
@@ -30,13 +29,11 @@ import {
 import { closeMaterialDelta, planClose } from '../../fillPlan';
 import { useNotify } from '../../shared/toasts';
 import { useCan } from '../../shared/useCan';
-import { activeProductsQuery, allSpoolsQuery, filamentMaterialsQuery, useRefreshInventory } from '../../spoolData';
+import { allSpoolsQuery, filamentMaterialsQuery, useRefreshInventory } from '../../spoolData';
 import { useLatestCallback } from '../../../../app/useLatestCallback';
 
 export type Values = LeftoverValues & {
   spoolId: string;
-  productId: string;
-  manual: boolean;
   materialId: string;
   netWeight: string;
   source: FilamentNewFillInputSource;
@@ -58,7 +55,7 @@ export const LABELS: Record<StepKey, string> = {
 export const STEP_FIELDS: Record<StepKey, (keyof Values)[]> = {
   spool: ['spoolId'],
   leftover: ['grossWeight', 'tareWeight'],
-  filament: ['productId', 'materialId', 'netWeight', 'price', 'source'],
+  filament: ['materialId', 'netWeight', 'price', 'source'],
   tags: [],
 };
 
@@ -105,34 +102,24 @@ export function useChangeFilamentWizard({
   const canPurchase = can('inventory.manage');
   const spoolList = useQuery({ ...allSpoolsQuery({ kind: 'reusable', lifecycle: 'active' }), enabled: open });
   const materialList = useQuery({ ...filamentMaterialsQuery(), enabled: open });
-  const productList = useQuery({ ...activeProductsQuery(), enabled: open });
-  const ready = spoolList.isSuccess && materialList.isSuccess && productList.isSuccess;
-  const loadFailed = spoolList.isError || materialList.isError || productList.isError;
+  const ready = spoolList.isSuccess && materialList.isSuccess;
+  const loadFailed = spoolList.isError || materialList.isError;
   const choices = spoolList.data ?? [];
   const filaments = (materialList.data ?? []).filter((material) => material.active);
-  const products = (productList.data ?? []).filter((product) =>
-    filaments.some((item) => item.id === product.materialId),
-  );
-  /**
-   * Refilling the same filament is the common case, so the spool's current product is preselected — but only a
-   * refill product, because a reusable spool is refilled from refills, not from filament sold on its own spool.
-   */
+  /** Refilling the same filament is the common case, so the spool's current filament is preselected. */
   const defaults = (spool: FilamentSpool | undefined): Values => {
     const filled = Boolean(spool && !needsRefill(spool) && filaments.some((item) => item.id === spool.materialId));
-    const current = filled ? products.find((item) => item.id === spool?.productId) : undefined;
-    const product = current?.active && current.packaging === 'refill' ? current : undefined;
+    const material = filled ? filaments.find((item) => item.id === spool?.materialId) : undefined;
     return {
       ...leftoverDefaults(spool),
       spoolId: spool?.id ?? '',
-      productId: product?.id ?? '',
-      manual: filled && !current,
-      materialId: product?.materialId ?? (filled && spool ? (spool.materialId ?? '') : ''),
-      netWeight: product ? decimalText(product.netWeightG) : '1000',
+      materialId: material?.id ?? '',
+      netWeight: material?.packageSize != null ? decimalText(material.packageSize) : '1000',
       source: 'loose_stock',
       price: '',
       supplier: '',
-      manufacturer: product?.manufacturer ?? (filled ? (spool?.manufacturer ?? '') : ''),
-      product: product?.name ?? (filled ? (spool?.productName ?? '') : ''),
+      manufacturer: filled ? (spool?.manufacturer ?? '') : '',
+      product: filled ? (spool?.productName ?? '') : '',
       keep: keepDefaults(spool),
       added: [blankTag()],
     };
@@ -146,7 +133,6 @@ export function useChangeFilamentWizard({
     setValue,
     getValues,
     trigger,
-    clearErrors,
     formState: { errors },
   } = form;
   const { fields, append, remove } = useFieldArray({ control, name: 'added' });
@@ -165,7 +151,6 @@ export function useChangeFilamentWizard({
       return changeFilamentSpoolFill(spool.id, {
         leftover: refillOnly ? null : toLeftoverInput(spool, data),
         fill: {
-          productId: data.manual ? null : data.productId || null,
           materialId: material.id,
           manufacturer: data.manufacturer.trim() || null,
           productName: data.product.trim() || null,
@@ -206,8 +191,6 @@ export function useChangeFilamentWizard({
       'grossWeight',
       'tareWeight',
       'leftoverOutcome',
-      'productId',
-      'manual',
       'materialId',
       'netWeight',
       'manufacturer',
@@ -217,27 +200,8 @@ export function useChangeFilamentWizard({
       setValue(key, fresh[key]);
   };
 
-  const chooseProduct = (product: FilamentProduct | null) => {
-    setValue('productId', product?.id ?? '', { shouldValidate: Boolean(product) });
-    if (!product) return;
-    setValue('materialId', product.materialId, { shouldValidate: true });
-    setValue('netWeight', decimalText(product.netWeightG));
-    setValue('manufacturer', product.manufacturer);
-    setValue('product', product.name);
-    // The price only applies to a new purchase; it stays editable.
-    setValue('price', product.defaultPrice != null ? decimalText(product.defaultPrice) : '');
-  };
-  const setManual = (next: boolean) => {
-    setValue('manual', next);
-    if (next) {
-      setValue('productId', '');
-      clearErrors('productId');
-    }
-  };
-
   const leftover = spool && !refillOnly ? resolveLeftover(spool, values) : null;
   const material = filaments.find((item) => item.id === values.materialId);
-  const selectedProduct = products.find((item) => item.id === values.productId);
   const net = decimalNumber(values.netWeight) ?? 0;
 
   // Loose stock after the old fill has been closed: a returned leftover joins it, corrections and disposals leave the material.
@@ -378,12 +342,10 @@ export function useChangeFilamentWizard({
     canPurchase,
     spoolList,
     materialList,
-    productList,
     ready,
     loadFailed,
     choices,
     filaments,
-    products,
     form,
     fields,
     append,
@@ -397,11 +359,8 @@ export function useChangeFilamentWizard({
     mutation,
     pending,
     chooseSpool,
-    chooseProduct,
-    setManual,
     leftover,
     material,
-    selectedProduct,
     net,
     stockAfterClose,
     stock,
@@ -416,6 +375,7 @@ export function useChangeFilamentWizard({
     errors,
     control,
     register,
+    setValue,
   };
 }
 

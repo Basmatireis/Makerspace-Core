@@ -1957,17 +1957,19 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		view["errors"].([]any)[0] != "asset failed" {
 		t.Fatalf("display after heartbeat = %v", view)
 	}
-	status := func(age string) any {
+	// The heartbeat age is set with the same clock the API uses to evaluate it.
+	status := func(age time.Duration) any {
 		if _, err := e.pool.Exec(
 			ctx,
-			`UPDATE signage_display_states SET last_heartbeat_at = now() - interval '`+age+`' WHERE display_id = $1`,
+			`UPDATE signage_display_states SET last_heartbeat_at = $2 WHERE display_id = $1`,
 			displayID,
+			time.Now().UTC().Add(-age),
 		); err != nil {
 			t.Fatal(err)
 		}
 		return e.expect(e.as(staff, http.MethodGet, "/signage/displays/"+displayID, nil), http.StatusOK)["status"]
 	}
-	if status("80 seconds") != "online" || status("100 seconds") != "offline" {
+	if status(80*time.Second) != "online" || status(100*time.Second) != "offline" {
 		t.Fatal("online/offline must switch at 90 seconds")
 	}
 	// A repeated heartbeat replaces the state (single row).

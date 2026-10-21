@@ -60,11 +60,14 @@ func (s *seeder) createOrgsAndPricing() {
 		{"MDF", "m2"},
 	} {
 		if t[1] == "g" {
-			s.materialType(t[0], t[1], "fdm_printing")
+			s.materialType(t[0], machinelogbook.KindFilament, t[1])
 		} else {
-			s.materialType(t[0], t[1], "laser_cutting", "other")
+			s.materialType(t[0], machinelogbook.KindConsumable, t[1], "laser_cutting", "other")
 		}
 	}
+	// Categories of parts: stock that is counted and sold but never used in a machine run.
+	s.materialType("Fasteners", machinelogbook.KindPart, "piece")
+	s.materialType("Bike parts", machinelogbook.KindPart, "piece")
 	// Types for the other processes (embroidery, UV printing, plotting, cm2 sheets).
 	for _, t := range []struct {
 		name, unit string
@@ -77,7 +80,7 @@ func (s *seeder) createOrgsAndPricing() {
 		{"Birch plywood", "cm2", []string{"laser_cutting", "other"}},
 		{"Vinyl foil", "cm2", []string{"vinyl_cutting", "other"}},
 	} {
-		s.materialType(t.name, t.unit, t.processes...)
+		s.materialType(t.name, machinelogbook.KindConsumable, t.unit, t.processes...)
 	}
 	machineType := func(name, process string) uuid.UUID {
 		id, create := s.claim("machine_types", name, "active")
@@ -107,7 +110,17 @@ func (s *seeder) createOrgsAndPricing() {
 			continue
 		}
 		rule := func(kind string, mt, material *uuid.UUID, rate float64) {
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, machinelogbook.PricingRuleKind(kind), mt, material, nil, f3(rate), nil)
+			_, err := ml.CreatePricingRule(
+				s.ctx,
+				s.actor,
+				g.id,
+				machinelogbook.PricingRuleKind(kind),
+				mt,
+				material,
+				nil,
+				f3(rate),
+				nil,
+			)
 			check("rule", err)
 		}
 		material := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
@@ -152,7 +165,17 @@ func (s *seeder) createOrgsAndPricing() {
 			); taken {
 				return
 			}
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, machinelogbook.PricingRuleKind(kind), mt, material, measure, f4(rate), nil)
+			_, err := ml.CreatePricingRule(
+				s.ctx,
+				s.actor,
+				g.id,
+				machinelogbook.PricingRuleKind(kind),
+				mt,
+				material,
+				measure,
+				f4(rate),
+				nil,
+			)
 			check("rule", err)
 		}
 		typeID := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
@@ -171,14 +194,7 @@ func (s *seeder) createOrgsAndPricing() {
 		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g, 0, nil)
 		check("assign pg", err)
 	}
-	for _, c := range s.custs {
-		switch c.cat {
-		case "staff":
-			assign(c, staff)
-		case "external":
-			assign(c, ext)
-		}
-	}
+	// People are priced through their roles; only organizations get a group.
 	// Reused organizations keep their pricing group.
 	for key, g := range map[string]uuid.UUID{"chair": staff, "fs": students, "startup": ext} {
 		if newOrgs[key] {
@@ -195,7 +211,12 @@ func (s *seeder) createOrgsAndPricing() {
 
 // materialType returns the material type with this name, creating it when it
 // does not exist yet. An existing type keeps its unit and processes.
-func (s *seeder) materialType(name, unit string, processes ...string) uuid.UUID {
+func (s *seeder) materialType(
+	name string,
+	kind machinelogbook.MaterialKind,
+	unit string,
+	processes ...string,
+) uuid.UUID {
 	if id, ok := s.matTypes[name]; ok {
 		return id
 	}
@@ -205,7 +226,7 @@ func (s *seeder) materialType(name, unit string, processes ...string) uuid.UUID 
 		if _, taken := s.existing("SELECT id FROM material_types WHERE lower(name) = lower($1)", name); taken {
 			createName = s.tagged(name) // same name, other unit: keep both
 		}
-		t, err := s.ml.CreateMaterialType(s.ctx, s.actor, createName, unit, processes, nil)
+		t, err := s.ml.CreateMaterialType(s.ctx, s.actor, createName, kind, unit, processes, nil)
 		check("material type", err)
 		id = t.ID
 	}
@@ -213,11 +234,23 @@ func (s *seeder) materialType(name, unit string, processes ...string) uuid.UUID 
 	return id
 }
 
+// filamentArticles are the manufacturer and variant of the seeded filament.
+var filamentArticles = map[string]struct{ manufacturer, variant string }{
+	"PLA Black":     {"Bambu Lab", "Basic"},
+	"PLA White":     {"Bambu Lab", "Basic"},
+	"PLA Grey":      {"Extrudr", "NX2"},
+	"PLA Red":       {"Bambu Lab", "Basic"},
+	"PETG Black":    {"Prusa Research", "Prusament"},
+	"PETG Clear":    {"Prusa Research", "Prusament"},
+	"TPU 95A Black": {"Extrudr", "Medium"},
+	"ASA White":     {"Polymaker", "ASA"},
+}
+
 func (s *seeder) createCatalog() {
 	ml := s.ml
 	// Materials are reused when name and unit match.
 	material := func(name, typeName, unit string, colorName, colorHex *string) {
-		typeID := s.materialType(typeName, unit)
+		typeID := s.matTypes[typeName]
 		id, create := s.claim("materials", name, "active AND unit = $2", unit)
 		if create != "" {
 			in := machinelogbook.MaterialInput{
@@ -228,6 +261,10 @@ func (s *seeder) createCatalog() {
 			}
 			if unit == "g" {
 				in.FilamentDiameterMM = ptr("1.75")
+				in.PackageSize = ptr("1000")
+				if f, ok := filamentArticles[name]; ok {
+					in.Manufacturer, in.Variant = ptr(f.manufacturer), ptr(f.variant)
+				}
 			}
 			m, err := ml.CreateMaterial(s.ctx, s.actor, in, nil)
 			check("mat", err)
@@ -263,7 +300,7 @@ func (s *seeder) createCatalog() {
 	// Materials of the other processes. They stay out of newMats: the generic
 	// stock thresholds are sized for grams and square metres.
 	extra := func(name, typeName, unit string, colorName, colorHex *string) {
-		typeID := s.materialType(typeName, unit)
+		typeID := s.matTypes[typeName]
 		id, create := s.claim("materials", name, "active AND unit = $2", unit)
 		if create != "" {
 			m, err := ml.CreateMaterial(
@@ -299,48 +336,57 @@ func (s *seeder) createCatalog() {
 	extra("Birch plywood 4 mm sheet", "Birch plywood", "cm2", nil, nil)
 	extra("Vinyl foil matt white", "Vinyl foil", "cm2", nil, nil)
 
-	// Products are reused when they belong to the same material.
-	prod := func(key, maker, name, matName, pack string, weight, price float64, active bool) {
-		matID := s.mats[matName].id
-		const byName = "SELECT id FROM filament_products WHERE lower(manufacturer) = lower($1) AND lower(name) = lower($2)"
-		id, ok := s.existing(byName+" AND material_id = $3 AND (active OR NOT $4)", maker, name, matID, active)
-		if !ok {
-			createName := name
-			if _, taken := s.existing(byName, maker, name); taken {
-				createName = s.tagged(name)
-			}
-			in := machinelogbook.FilamentProductInput{
-				Manufacturer: maker,
-				Name:         createName,
-				NetWeightG:   f1(weight),
-				Packaging:    machinelogbook.Packaging(pack),
-				MaterialID:   matID,
-				DefaultPrice: ptr(f2(price)),
-				Active:       true,
-			}
-			p, err := ml.CreateFilamentProduct(s.ctx, s.actor, in, nil)
-			check("product", err)
-			if !active {
-				in.Active, in.ExpectedVersion = false, p.Version
-				_, err = ml.UpdateFilamentProduct(s.ctx, s.actor, p.ID, in, nil)
-				check("product deactivate", err)
-			}
-			id = p.ID
+	// Parts: stock that is counted and sold. Each article is received with its first purchase.
+	part := func(name, typeName, manufacturer, location, packageSize, salePrice string, packageCount int, totalPrice, supplier string) {
+		_, create := s.claim("materials", name, "active AND unit = $2", "piece")
+		if create == "" {
+			return
 		}
-		s.prods[key] = &product{id, matName, name, maker, weight, price}
+		receivedAt := s.dateOf(9, 20)
+		_, err := ml.ReceiveStock(
+			s.ctx,
+			s.actor,
+			machinelogbook.ReceiptInput{
+				Material: &machinelogbook.MaterialInput{
+					Name:            create,
+					MaterialTypeID:  s.matTypes[typeName],
+					Manufacturer:    &manufacturer,
+					StorageLocation: &location,
+					SalePrice:       &salePrice,
+					PackageSize:     &packageSize,
+				},
+				PackageCount: packageCount,
+				TotalPrice:   totalPrice,
+				Supplier:     &supplier,
+				Reference:    ptr(fmt.Sprintf("PO-%d-%03d", receivedAt.Year(), 100+s.rng.Intn(800))),
+				OccurredAt:   receivedAt,
+			},
+			nil,
+		)
+		check("part "+name, err)
 	}
-	prod("bl-black", "Bambu Lab", "PLA Basic Black (refill)", "PLA Black", "refill", 1000, 17.49, true)
-	prod("bl-white", "Bambu Lab", "PLA Basic White (refill)", "PLA White", "refill", 1000, 17.49, true)
-	prod("bl-grey", "Bambu Lab", "PLA Basic Grey (refill)", "PLA Grey", "refill", 1000, 17.49, true)
-	prod("bl-red", "Bambu Lab", "PLA Basic Red (refill)", "PLA Red", "refill", 1000, 17.49, true)
-	prod("bl-petg", "Bambu Lab", "PETG HF Black (refill)", "PETG Black", "refill", 1000, 19.99, true)
-	prod("bl-charcoal", "Bambu Lab", "PLA Matte Charcoal (refill)", "PLA Black", "refill", 1000, 21.99, false)
-	prod("pr-pla", "Prusa Research", "Prusament PLA Prusa Galaxy Black", "PLA Black", "spool", 1000, 29.99, true)
-	prod("pr-petg-black", "Prusa Research", "Prusament PETG Jet Black", "PETG Black", "spool", 1000, 29.99, true)
-	prod("pr-petg-clear", "Prusa Research", "Prusament PETG Clear", "PETG Clear", "spool", 1000, 29.99, true)
-	prod("ex-grey", "Extrudr", "PLA NX2 Grey", "PLA Grey", "spool", 1000, 26.50, true)
-	prod("ex-tpu", "Extrudr", "TPU Medium Black", "TPU 95A Black", "spool", 500, 27.90, true)
-	prod("pm-asa", "Polymaker", "ASA White", "ASA White", "spool", 1000, 24.99, true)
+	part("M3 heat-set insert", "Fasteners", "Ruthex", "Shelf B2", "100", "0.15", 5, "62.50", "Fasteners Online")
+	part("M3x8 screw", "Fasteners", "Würth", "Shelf B2", "200", "0.05", 4, "28.00", "Fasteners Online")
+	part("Bike chain 8-speed", "Bike parts", "KMC", "Bike corner", "1", "14.90", 6, "42.00", "Radsport Huber")
+	part("Brake caliper", "Bike parts", "Shimano", "Bike corner", "1", "39.00", 4, "96.00", "Radsport Huber")
+
+	// Filament the spools are bought as. Only the manufacturer and the name end
+	// up in the data: the fill snapshots them.
+	prod := func(key, maker, name, matName string, weight, price float64) {
+		s.prods[key] = &product{matName, name, maker, weight, price}
+	}
+	prod("bl-black", "Bambu Lab", "PLA Basic Black (refill)", "PLA Black", 1000, 17.49)
+	prod("bl-white", "Bambu Lab", "PLA Basic White (refill)", "PLA White", 1000, 17.49)
+	prod("bl-grey", "Bambu Lab", "PLA Basic Grey (refill)", "PLA Grey", 1000, 17.49)
+	prod("bl-red", "Bambu Lab", "PLA Basic Red (refill)", "PLA Red", 1000, 17.49)
+	prod("bl-petg", "Bambu Lab", "PETG HF Black (refill)", "PETG Black", 1000, 19.99)
+	prod("bl-charcoal", "Bambu Lab", "PLA Matte Charcoal (refill)", "PLA Black", 1000, 21.99)
+	prod("pr-pla", "Prusa Research", "Prusament PLA Prusa Galaxy Black", "PLA Black", 1000, 29.99)
+	prod("pr-petg-black", "Prusa Research", "Prusament PETG Jet Black", "PETG Black", 1000, 29.99)
+	prod("pr-petg-clear", "Prusa Research", "Prusament PETG Clear", "PETG Clear", 1000, 29.99)
+	prod("ex-grey", "Extrudr", "PLA NX2 Grey", "PLA Grey", 1000, 26.50)
+	prod("ex-tpu", "Extrudr", "TPU Medium Black", "TPU 95A Black", 500, 27.90)
+	prod("pm-asa", "Polymaker", "ASA White", "ASA White", 1000, 24.99)
 }
 
 // freeName returns name, or its tagged variant when table already uses it.

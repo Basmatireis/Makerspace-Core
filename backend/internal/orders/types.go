@@ -33,6 +33,7 @@ type OrderItemKind string
 const (
 	ItemManual     OrderItemKind = "manual"
 	ItemMachineJob OrderItemKind = "machine_job"
+	ItemInventory  OrderItemKind = "inventory_item"
 )
 
 // ItemAction is a change to the items of a draft order.

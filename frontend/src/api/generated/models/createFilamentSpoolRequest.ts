@@ -33,8 +33,6 @@ export interface CreateFilamentSpoolRequest {
      * @nullable
      */
   label?: string | null;
-  /** When set, materialId must be the product's material. */
-  productId?: UUIDv7 | null;
   materialId?: UUIDv7;
   initialNetWeightG?: Decimal;
   /** new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored). */

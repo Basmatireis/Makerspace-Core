@@ -6,7 +6,6 @@ export * from './branding/branding';
 export * from './dashboard/dashboard';
 export * from './events/events';
 export * from './external-invoicing/external-invoicing';
-export * from './filament-products/filament-products';
 export * from './filament-spools/filament-spools';
 export * from './health/health';
 export * from './inventory/inventory';

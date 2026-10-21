@@ -40,7 +40,6 @@ kind?: FilamentSpoolKind;
  */
 status?: FilamentSpoolStatus[];
 mounted?: boolean;
-productId?: UUIDv7;
 /**
  * @maxLength 150
  */

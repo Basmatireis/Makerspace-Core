@@ -19,13 +19,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * refill comes without a spool (for reusable spools); spool comes on its own single-use spool.
- */
-export type FilamentPackaging = typeof FilamentPackaging[keyof typeof FilamentPackaging];
+export type InventoryReceiptPlacementMode = typeof InventoryReceiptPlacementMode[keyof typeof InventoryReceiptPlacementMode];
 
 
-export const FilamentPackaging = {
-  refill: 'refill',
-  spool: 'spool',
+export const InventoryReceiptPlacementMode = {
+  storage: 'storage',
+  new_spools: 'new_spools',
+  reusable_spool: 'reusable_spool',
 } as const;

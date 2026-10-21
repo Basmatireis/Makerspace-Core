@@ -121,7 +121,10 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			"machine_jobs.override_price clear",
 			func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err },
 		},
-		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", nil, "", 1, 25); return err }},
+		{
+			"inventory.read",
+			func() error { _, _, _, err := s.ListMaterials(ctx, p, "", nil, "", "", 1, 25); return err },
+		},
 		{"inventory.read spools", func() error {
 			_, _, err := s.ListFilamentSpools(ctx, p, SpoolFilters{Page: 1, PageSize: 25})
 			return err
@@ -133,12 +136,15 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"inventory.read material types", func() error { _, err := s.ListMaterialTypes(ctx, p); return err }},
 		{"inventory.read material type", func() error { _, err := s.GetMaterialType(ctx, p, id); return err }},
 		{"inventory.manage create material type", func() error {
-			_, err := s.CreateMaterialType(ctx, p, "PLA", "g", []string{"fdm_printing", "other"}, nil)
+			_, err := s.CreateMaterialType(ctx, p, "PLA", "filament", "g", []string{"fdm_printing"}, nil)
 			return err
 		}},
 		{
 			"inventory.manage update material type",
-			func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", nil, true, nil); return err },
+			func() error {
+				_, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "", "g", nil, true, nil)
+				return err
+			},
 		},
 		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
 		{
@@ -157,14 +163,6 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			_, _, err := s.CleanUpFilamentSpools(ctx, p, 3, true, nil, nil)
 			return err
 		}},
-		{"inventory.read products", func() error {
-			_, _, err := s.ListFilamentProducts(ctx, p, FilamentProductFilters{Page: 1, PageSize: 25})
-			return err
-		}},
-		{
-			"inventory.manage products",
-			func() error { _, err := s.CreateFilamentProduct(ctx, p, FilamentProductInput{}, nil); return err },
-		},
 		{"organizations.read", func() error {
 			_, _, err := s.ListOrganizations(ctx, p, OrganizationFilters{Page: 1, PageSize: 25})
 			return err
@@ -285,7 +283,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM people WHERE id = $1`, personID)
 	})
 
-	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, "other", &requestID)
+	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, "fdm_printing", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,8 +308,9 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		ctx,
 		p,
 		"Test PLA "+suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&requestID,
 	)
 	if err != nil {
@@ -339,6 +338,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		time.Now().UTC(),
 		nil,
 		nil,
+		nil,
 		&requestID,
 	)
 	if err != nil {
@@ -352,6 +352,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		"1000",
 		"22",
 		time.Now().UTC(),
+		nil,
 		nil,
 		nil,
 		&requestID,

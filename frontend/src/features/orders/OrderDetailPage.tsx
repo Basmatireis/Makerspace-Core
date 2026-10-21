@@ -36,7 +36,8 @@ import { acceptsCashAndCard, activeItems, canPrintReceipt, customerLabel, invoic
 import { customerKindLabel, requestStateLabel } from './labels';
 import { formatCents, toCents } from './money';
 import { useOperationKeys } from './operations';
-import { AddJobsModal, CustomItemModal, EditOrderModal } from './OrderDialogs';
+import { AddJobsModal, CustomItemModal, EditOrderModal, InventoryItemModal } from './OrderDialogs';
+import { OrderErrorText } from './OrderErrorText';
 import { OrderItemsTable } from './OrderItemsTable';
 import { PaymentsSection } from './PaymentsSection';
 import { orderQuery, useFinanceMutation } from './queries';
@@ -46,7 +47,8 @@ import { OrderStatusTag } from './status';
 import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
 
-type Dialog = 'edit' | 'jobs' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
+type Dialog =
+  'edit' | 'jobs' | 'stock' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
 const crumbs = [
   { label: 'Sales & payments', to: '/sales' },
   { label: 'Orders', to: '/orders' },
@@ -79,6 +81,7 @@ function OrderDetail({ order }: { order: Order }) {
   const draft = order.status === 'draft';
   const items = activeItems(order);
   const canWrite = can(PermissionId.orderswrite);
+  const canReadInventory = can(PermissionId.inventoryread);
   const canFinalize = can(PermissionId.ordersfinalize);
   const recorded = can(PermissionId.paymentsrecord) && can(PermissionId.paymentsread);
   const canInvoiceManage =
@@ -245,7 +248,7 @@ function OrderDetail({ order }: { order: Order }) {
         )}
         {mutation.error && (
           <RichNotification kind="error" title="That did not work">
-            {mutation.error.message}
+            <OrderErrorText error={mutation.error} order={order} />
           </RichNotification>
         )}
 
@@ -281,6 +284,15 @@ function OrderDetail({ order }: { order: Order }) {
                   {can(PermissionId.machine_jobsread) ? (
                     <MenuItem label="Jobs…" onClick={() => setDialog('jobs')} />
                   ) : null}
+                  {canReadInventory ? (
+                    <MenuItem
+                      label="From inventory…"
+                      onClick={() => {
+                        setEditing(null);
+                        setDialog('stock');
+                      }}
+                    />
+                  ) : null}
                   <MenuItem
                     label="Custom item…"
                     onClick={() => {
@@ -295,6 +307,7 @@ function OrderDetail({ order }: { order: Order }) {
               order={order}
               editable={draft && canWrite}
               busy={mutation.isPending}
+              canReadInventory={canReadInventory}
               onRefresh={(item) =>
                 mutation.mutate(async () => {
                   await refreshOrderItem(order.id, item.id, command(`refresh-${item.id}`));
@@ -311,7 +324,7 @@ function OrderDetail({ order }: { order: Order }) {
               }}
               onEdit={(item) => {
                 setEditing(item);
-                setDialog('custom');
+                setDialog(item.kind === 'inventory_item' ? 'stock' : 'custom');
               }}
             />
             <PaymentsSection order={order} notice={notice} canRead={can(PermissionId.paymentsread)} />
@@ -379,6 +392,7 @@ function OrderDetail({ order }: { order: Order }) {
 
       {dialog === 'edit' && <EditOrderModal order={order} onClose={close} onSaved={() => undefined} />}
       {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
+      {dialog === 'stock' && <InventoryItemModal order={order} item={editing} onClose={close} />}
       {dialog === 'custom' && <CustomItemModal order={order} item={editing} onClose={close} />}
       {dialog === 'pay' && (
         <RecordPaymentModal
@@ -434,12 +448,17 @@ function OrderDetail({ order }: { order: Order }) {
         >
           <Stack gap={4}>
             <p>
-              Prices and items freeze, and the jobs on this order are reserved for it. Total:{' '}
-              <strong>{formatCents(toCents(order.totalAmount))}</strong> for {customerLabel(order)}.
+              Prices and items freeze, the jobs on this order are reserved for it, and stock items leave inventory.
+              Total: <strong>{formatCents(toCents(order.totalAmount))}</strong> for {customerLabel(order)}.
             </p>
             <p className="mj-secondary">
               Later changes need a correction, which reverses this order and creates a replacement.
             </p>
+            {mutation.error && (
+              <RichNotification kind="error" title="Could not finalize">
+                <OrderErrorText error={mutation.error} order={order} />
+              </RichNotification>
+            )}
           </Stack>
         </Modal>
       )}

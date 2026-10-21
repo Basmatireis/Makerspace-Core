@@ -36,7 +36,7 @@ func (s *seeder) purchase(name string, qty float64, price float64, at time.Time,
 	} else {
 		q = f3(qty)
 	}
-	_, err := s.ml.AddPurchase(s.ctx, s.actor, m.ID, m.InventoryVersion, q, f2(price), at, ptr(supplier), nil, nil)
+	_, err := s.ml.AddPurchase(s.ctx, s.actor, m.ID, m.InventoryVersion, q, f2(price), at, ptr(supplier), nil, nil, nil)
 	check("purchase "+name, err)
 }
 
@@ -76,10 +76,11 @@ func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 		s.ctx,
 		s.actor,
 		machinelogbook.FilamentSpoolInput{
-			Kind:       "single_use",
-			Label:      label,
-			ProductID:  &p.id,
-			MaterialID: s.mats[p.mat].id,
+			Kind:         "single_use",
+			Label:        label,
+			Manufacturer: &p.maker,
+			ProductName:  &p.name,
+			MaterialID:   s.mats[p.mat].id,
 			InitialNetWeightG: f1(
 				p.weight,
 			),
@@ -107,7 +108,8 @@ func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {
 	in := machinelogbook.FilamentSpoolInput{
 		Kind:                     "reusable",
 		Label:                    label,
-		ProductID:                &p.id,
+		Manufacturer:             &p.maker,
+		ProductName:              &p.name,
 		MaterialID:               s.mats[p.mat].id,
 		InitialNetWeightG:        f1(p.weight),
 		StockMode:                machinelogbook.StockMode(mode),
@@ -171,7 +173,10 @@ func (s *seeder) leftover(sp machinelogbook.FilamentSpool, exhausted bool) *mach
 	}
 	switch r := s.rng.Float64(); {
 	case r < 0.4:
-		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr(machinelogbook.DispositionReturnedToStock)}
+		return &machinelogbook.LeftoverInput{
+			Basis:       "system",
+			Disposition: ptr(machinelogbook.DispositionReturnedToStock),
+		}
 	case r < 0.75:
 		return &machinelogbook.LeftoverInput{
 			Basis:        "weighed",
@@ -186,7 +191,10 @@ func (s *seeder) leftover(sp machinelogbook.FilamentSpool, exhausted bool) *mach
 				Disposition:  ptr(machinelogbook.DispositionDisposed),
 			}
 		}
-		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr(machinelogbook.DispositionReturnedToStock)}
+		return &machinelogbook.LeftoverInput{
+			Basis:       "system",
+			Disposition: ptr(machinelogbook.DispositionReturnedToStock),
+		}
 	}
 }
 
@@ -221,7 +229,7 @@ func (s *seeder) changeFill(r *reusable, at time.Time, matName, source string, e
 	if fill.Source == "purchase" {
 		if key != "" {
 			p := s.prods[key]
-			fill.ProductID = &p.id
+			fill.Manufacturer, fill.ProductName = &p.maker, &p.name
 			fill.TotalPrice = ptr(f2(p.price * (0.96 + s.rng.Float64()*0.08)))
 		} else {
 			fill.TotalPrice = ptr("19.99")

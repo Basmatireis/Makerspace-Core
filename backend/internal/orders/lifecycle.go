@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -56,12 +57,22 @@ func (s *Service) finalize(
 	})
 	count := 0
 	total := decimal.Zero
+	var sales []machinelogbook.StockSale
 	for _, i := range items {
 		if i.RemovedAt.Valid {
 			continue
 		}
 		count++
 		total = total.Add(d(i.Amount))
+		if OrderItemKind(i.Kind) == ItemInventory {
+			if i.SourceMaterialID == nil {
+				return o, apperror.Conflicting("source_unavailable", "The sold article is unavailable")
+			}
+			sales = append(
+				sales,
+				machinelogbook.StockSale{MaterialID: *i.SourceMaterialID, OrderItemID: i.ID, Quantity: d(i.Quantity)},
+			)
+		}
 		if i.SourceMachineJobID != nil {
 			job, e := s.jobs.ChargeSource(ctx, tx, p, *i.SourceMachineJobID)
 			if e != nil {
@@ -113,6 +124,9 @@ func (s *Service) finalize(
 			"anonymous_requires_full_settlement",
 			"Deferred fulfillment requires a named customer",
 		)
+	}
+	if err = s.jobs.SellFromStock(ctx, tx, p, sales, requestID); err != nil {
+		return o, err
 	}
 	if err = q.TransitionOrder(
 		ctx,
@@ -213,6 +227,25 @@ func (s *Service) reverse(
 			); err != nil {
 				return err
 			}
+		}
+	}
+	sold := []db.ListItemsRow{}
+	for _, i := range items {
+		if !i.RemovedAt.Valid && OrderItemKind(i.Kind) == ItemInventory {
+			sold = append(sold, i)
+		}
+	}
+	// Same lock order as finalization: ascending article id.
+	sort.SliceStable(sold, func(a, b int) bool {
+		x, y := sold[a].SourceMaterialID, sold[b].SourceMaterialID
+		if x == nil || y == nil {
+			return y == nil && x != nil
+		}
+		return x.String() < y.String()
+	})
+	for _, i := range sold {
+		if err = s.jobs.RestockOrderSale(ctx, tx, p, i.ID, requestID); err != nil {
+			return err
 		}
 	}
 	if err = q.ReleaseOrderClaims(ctx, o.ID); err != nil {
@@ -384,6 +417,16 @@ func (s *Service) Command(
 					Quantity:    d(i.Quantity).String(),
 					Unit:        i.Unit,
 					UnitPrice:   d(i.UnitPrice).String(),
+				}
+				if OrderItemKind(i.Kind) == ItemInventory {
+					if i.SourceMaterialID == nil {
+						err = apperror.Conflicting(
+							"source_unavailable",
+							"The sold article is unavailable; add a manual replacement item explicitly",
+						)
+						break
+					}
+					v.MaterialID = *i.SourceMaterialID
 				}
 				if i.SourceMachineJobID != nil {
 					job, e := s.jobs.ChargeSource(ctx, tx, p, *i.SourceMachineJobID)

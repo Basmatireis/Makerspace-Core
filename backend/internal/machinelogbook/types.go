@@ -238,12 +238,13 @@ const (
 	FillSourcePurchase   FillSource = "purchase"
 )
 
-// Packaging is how a filament product is sold.
-type Packaging string
+// PlacementMode is where received filament goes.
+type PlacementMode string
 
 const (
-	PackagingRefill Packaging = "refill"
-	PackagingSpool  Packaging = "spool"
+	PlacementStorage       PlacementMode = "storage"
+	PlacementNewSpools     PlacementMode = "new_spools"
+	PlacementReusableSpool PlacementMode = "reusable_spool"
 )
 
 // StockState classifies the stock level of a material.
@@ -265,6 +266,8 @@ const (
 	InventoryManualConsumption  InventoryKind = "manual_consumption"
 	InventoryMachineConsumption InventoryKind = "machine_run_consumption"
 	InventorySpoolTransfer      InventoryKind = "spool_transfer"
+	InventoryOrderSale          InventoryKind = "order_sale"
+	InventoryOrderSaleReversal  InventoryKind = "order_sale_reversal"
 )
 
 // WorkItemKind says whether a work item is a job or an unassigned run.
@@ -298,6 +301,17 @@ const (
 	BillingNotOnOrder      BillingState = "not_on_order"
 	BillingPriceIncomplete BillingState = "price_incomplete"
 	BillingPending         BillingState = "pending"
+)
+
+// MaterialKind is the kind of an article; it comes from the article's material
+// type. Filament and consumables are used in machine runs, parts are only
+// counted and sold.
+type MaterialKind string
+
+const (
+	KindFilament   MaterialKind = "filament"
+	KindConsumable MaterialKind = "consumable"
+	KindPart       MaterialKind = "part"
 )
 
 // MaterialUnit is the unit a material type is counted in.

@@ -36,6 +36,8 @@ export interface OrderItem {
   amount: Money;
   sourceMachineJobId?: UUIDv7 | null;
   sourceJobVersion?: Version | null;
+  /** Sold article of an inventory_item; null after the article was deleted. */
+  sourceMaterialId?: UUIDv7 | null;
   sourceChanged: boolean;
   snapshot?: JobChargeSnapshot;
   createdAt: string;
