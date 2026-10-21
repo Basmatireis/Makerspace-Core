@@ -4,6 +4,44 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-21
+
+### Upgrade notes
+
+- Migrations 00056–00059 run automatically when the production stack starts (inventory articles, inventory items on orders, role staffing levels and open day requirements, split card receipts).
+- The filament product catalog is folded into the inventory articles and removed; its manufacturer, product and package data move onto the articles.
+- The role flag "supervisor dashboard" becomes the role's _open day staffing_ level. Roles that had the flag become supervisor-level roles; set the trainee level on your trainee role in the role editor, and choose the role that "Make supervisor" assigns under Settings › Open day requirements.
+- The production Compose stack now runs on its own network with a fixed subnet (`MAKERSPACE_NETWORK_SUBNET`, default `172.30.240.0/24`) and trusts it as forwarding proxy by default, so rate limits and audit records see real client addresses. Keep the frontend port bound to loopback or firewalled; set `MAKERSPACE_NETWORK_SUBNET` only if the default collides with a network on the host.
+- nginx now sends a Content-Security-Policy, HSTS and further security headers; an external proxy or CDN should pass them through.
+
+### Added
+
+- **Personal dashboard.** The landing page is about the signed-in person: next open day or shift with one info box, semester progress against the open-day minimum, coming-up open days and event shifts (open days can be left), all-time statistics (jobs and success rate, material printed in Benchys, machine time, favourite machine, open days and shifts staffed), recent jobs and orders, a jobs-per-month chart and the lab-rules status. Sections follow the person's permissions; guests see their lab-rules status and the next open days ([docs/staffing-and-dashboard.md](docs/staffing-and-dashboard.md)).
+- **Open balance and paying your own orders.** The dashboard shows unpaid orders and own priced jobs that are not on an order yet, with the sum (also at €0.00). "Pay now" pays everything or a selection in one step: jobs go onto one new order, and every selected order is paid in full with cash, card or split, recorded under your own name. A card slip that covers several orders is stored as numbered receipts sharing the terminal reference.
+- **Semester staffing.** Roles carry an open day staffing level (supervisor or trainee). Settings › Open day requirements holds the minimum open days per semester (default 2), the open days as trainee before someone counts as ready (default 3) and the role a promoted trainee gets. Being signed up is enough to reach the minimum; supervisor and trainee places both count; only empty supervisor places make an open day short-staffed.
+- **Supervisor staffing page.** Four key figures (below minimum, lab rules not signed, ready for supervisor, no profile picture) filter the member table, which shows role and trainee progress, lab rules, open days this semester, status and last open day, with pagination. "Make supervisor" promotes a trainee by hand.
+- **Inventory articles.** Inventory is organised by article kind: filament, consumables and parts, each with variant, manufacturer, sale price, package size, storage location and notes. "Receive stock" books purchases onto existing or new articles (and new spools), with suggestions from earlier entries; material types and categories are managed in one dialog.
+- **Selling from stock.** Orders can contain inventory items ("From inventory…"). Finalizing an order books the stock out, reversing or replacing it books the stock back, and an order that would go below zero is refused with `insufficient_stock`.
+
+### Security
+
+- Login throttling can no longer lock everyone out: a full limiter table evicts the least recently active entry instead of refusing new clients, and every credential check also has a per-client limit.
+- Password and PIN hashing runs outside database transactions with bounded concurrency, so parallel logins cannot exhaust memory or the connection pool.
+- PIN attempts pass an atomic in-memory gate before the persistent back-off, and the persistent back-off starts over after 15 quiet minutes.
+- Which API operations need a staff session is derived from the OpenAPI contract instead of hand-kept path lists; every API response defaults to `Cache-Control: no-store`; rate-limited responses carry the `Retry-After` of the limiter that fired.
+- nginx sends a Content-Security-Policy without inline scripts and with `frame-ancestors 'none'`, HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` and `Cross-Origin-Opener-Policy`.
+- Go 1.26.10, pgx 5.9.2 and x/net 0.60.0 close the vulnerabilities govulncheck reported as reachable; vulnerable transitive frontend packages are pinned to patched versions.
+- GitHub Actions are pinned to commit SHAs; CI runs golangci-lint, govulncheck and `pnpm audit`, and Dependabot proposes weekly updates.
+
+### Changed
+
+- The code base follows a written style guide ([docs/styleguide.md](docs/styleguide.md)): golangci-lint and Prettier in CI, typed enums for domain states, shared helpers, all SQL in sqlc, large files split by topic. The design prototype, plan documents and the old review report were removed; open points are in [docs/known-limitations.md](docs/known-limitations.md).
+
+### Fixed
+
+- Several Carbon colour tokens had no value in the default theme (for example the text on selected read-only access buttons in the role editor was dark on the primary colour); styles now use Carbon's Sass tokens with fallbacks.
+- Clearing a printer connector's events compared timestamps from two different clocks, so an event arriving right after clearing could stay hidden.
+
 ## [0.7.2] - 2026-10-20
 
 ### Fixed
@@ -239,6 +277,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.3.0...v0.4.0
