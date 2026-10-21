@@ -3,45 +3,27 @@
 @use '@carbon/styles/scss/components/progress-bar';
 @use '@carbon/styles/scss/theme' as theme;
 
-// Layout glue for the personal dashboard. Sections sit in named grid areas so further sections (balance, jobs,
-// orders, charts) can be added without reshuffling the page.
+// Layout glue for the personal dashboard. Rows of tiles and panels share the width; a row with one section lets it
+// fill the row and a narrow screen stacks them.
 
 .db-grid {
   display: grid;
-  // Rows of areas without a section collapse to nothing, so spacing comes from the areas' own margins.
-  column-gap: $spacing-05;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-areas:
-    'next semester'
-    'stats stats'
-    'coming coming';
-}
-
-.db-grid--solo {
-  grid-template-areas:
-    'next next'
-    'stats stats'
-    'coming coming';
-}
-
-.db-grid > * {
+  gap: $spacing-05;
   margin-block-end: $spacing-05;
 }
 
-.db-area-next {
-  grid-area: next;
+.db-row {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
 }
 
-.db-area-semester {
-  grid-area: semester;
+.db-row--pair {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
 }
 
-.db-area-stats {
-  grid-area: stats;
-}
-
-.db-area-coming {
-  grid-area: coming;
+.db-row > * {
+  min-inline-size: 0;
 }
 
 .db-notices {
@@ -182,6 +164,34 @@
   align-items: center;
 }
 
+.db-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+.db-balance__lines {
+  display: grid;
+  gap: $spacing-02;
+  @include type-style('body-compact-01');
+}
+
+.db-balance__lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.db-balance__lines dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.db-chart.cds--tile {
+  display: grid;
+  gap: $spacing-04;
+  align-content: start;
+}
+
 .db-panel__empty {
   padding: $spacing-05;
   color: theme.$text-secondary;
@@ -200,19 +210,6 @@
 .db-item__meta {
   color: theme.$text-secondary;
   @include type-style('helper-text-01');
-}
-
-// Carbon's breakpoints: md 42rem, lg 66rem.
-@media (max-width: 65.98rem) {
-  .db-grid,
-  .db-grid--solo {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'next'
-      'semester'
-      'stats'
-      'coming';
-  }
 }
 
 @media (max-width: 41.98rem) {

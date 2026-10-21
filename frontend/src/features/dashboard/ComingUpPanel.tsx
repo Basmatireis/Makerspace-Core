@@ -3,6 +3,7 @@ import {
   ContainedList,
   ContainedListItem,
   InlineNotification,
+  Link as CarbonLink,
   Modal,
   OverflowMenu,
   OverflowMenuItem,
@@ -71,7 +72,15 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
                 }
               >
                 <div className="db-item">
-                  <span className="db-item__title">{item.title}</span>
+                  <span className="db-item__title">
+                    {openDay && canFindOpenDays && item.periodId && item.openDayId ? (
+                      <CarbonLink as={Link} to={`/open-days/${item.periodId}/days/${item.openDayId}`}>
+                        {item.title}
+                      </CarbonLink>
+                    ) : (
+                      item.title
+                    )}
+                  </span>
                   <span className="db-item__meta">
                     {range}
                     {item.shortStaffed ? ' · needs supervisors' : ''}

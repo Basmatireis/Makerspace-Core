@@ -130,6 +130,19 @@ export function NextUpTile(props: Props) {
         {when(next.startsAt, next.endsAt, now)} · {openDay ? 'Open day' : 'Event shift'}
       </p>
       {hint}
+      {openDay && canFindOpenDays && next.periodId && next.openDayId && (
+        <div className="db-tile__actions">
+          <Button
+            as={Link}
+            to={`/open-days/${next.periodId}/days/${next.openDayId}`}
+            kind="ghost"
+            size="sm"
+            renderIcon={ArrowRight}
+          >
+            Open day details
+          </Button>
+        </div>
+      )}
       {!openDay && next.publicId && (
         <div className="db-tile__actions">
           <Button as={Link} to={`/events/public/${next.publicId}`} kind="ghost" size="sm" renderIcon={ArrowRight}>

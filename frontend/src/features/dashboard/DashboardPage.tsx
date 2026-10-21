@@ -1,18 +1,24 @@
 import { Button } from '@carbon/react';
 import { UserMultiple } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
 import { canAccessOpenDays, hasPermission, PermissionId } from '../auth/permissions';
+import { BalanceTile } from './BalanceTile';
 import { ComingUpPanel } from './ComingUpPanel';
 import { NextOpenDayTile, UpcomingOpenDaysList } from './GuestOpenDays';
 import { LabRulesNotice, LabRulesTile } from './LabRules';
+import { JobsPerMonth } from './JobsPerMonth';
 import { NextUpTile } from './NextUpTile';
+import { PayDialog } from './PayDialog';
+import { RecentJobsPanel, RecentOrdersPanel } from './RecentPanels';
 import { SemesterTile } from './SemesterTile';
 import { StatisticsSection } from './StatisticsSection';
+import { jobItems, orderItems, payableOrders } from './balance';
 import { greeting, longToday, plural, upcomingOpenDays } from './format';
 import { ownLabRulesOptions, personalDashboardOptions, publicOpenDaysOptions } from './queries';
 import './dashboard.scss';
@@ -28,6 +34,8 @@ export function DashboardPage() {
   const now = useNow();
   const dashboard = useQuery(personalDashboardOptions);
   const labRules = useQuery(ownLabRulesOptions);
+  /** Ids ticked in the pay dialog; null while it is closed. */
+  const [paying, setPaying] = useState<string[] | null>(null);
   const staffed = dashboard.data?.staffing !== undefined;
   const publicDays = useQuery({ ...publicOpenDaysOptions, enabled: dashboard.isSuccess && !staffed });
 
@@ -61,7 +69,20 @@ export function DashboardPage() {
         }`;
   const labRulesStatus = labRules.data;
   const upcoming = upcomingOpenDays(publicDays.data?.items ?? [], now);
-  const solo = data.staffing === undefined && labRulesStatus === undefined;
+  const balance = data.balance;
+  const canPay =
+    hasPermission(currentUser, PermissionId.ordersread) &&
+    hasPermission(currentUser, PermissionId.paymentsread) &&
+    hasPermission(currentUser, PermissionId.paymentsrecord);
+  const canPayJobs =
+    canPay &&
+    hasPermission(currentUser, PermissionId.orderswrite) &&
+    hasPermission(currentUser, PermissionId.ordersfinalize);
+  const payOrderIds = new Set(canPay && balance ? payableOrders(balance).map((order) => order.id) : []);
+  const payItems = balance ? [...orderItems(balance), ...(canPayJobs ? jobItems(balance) : [])] : [];
+  const jobStats = data.statistics?.jobs;
+  const jobsChart = jobStats && jobStats.jobs > 0 ? <JobsPerMonth months={jobStats.jobsPerMonth} /> : null;
+  const showComing = data.staffing || comingUp.length > 0 || upcoming.length > 0 || data.staffing === undefined;
 
   return (
     <PageShell
@@ -79,10 +100,10 @@ export function DashboardPage() {
           <LabRulesNotice status={labRulesStatus} />
         </div>
       )}
-      <div className={solo ? 'db-grid db-grid--solo' : 'db-grid'}>
-        {data.staffing ? (
-          <>
-            <div className="db-area-next">
+      <div className="db-grid">
+        <div className="db-row">
+          {data.staffing ? (
+            <>
               <NextUpTile
                 next={comingUp[0] ?? null}
                 total={comingUp.length}
@@ -91,46 +112,63 @@ export function DashboardPage() {
                 canSignUp={canSignUp}
                 canFindOpenDays={canFindOpenDays}
               />
-            </div>
-            <div className="db-area-semester">
               <SemesterTile staffing={data.staffing} canFindOpenDays={canFindOpenDays} />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="db-area-next">
+            </>
+          ) : (
+            <>
               {labRulesStatus ? (
                 <LabRulesTile status={labRulesStatus} />
               ) : (
                 <NextOpenDayTile next={upcoming[0]} now={now} />
               )}
-            </div>
-            {labRulesStatus && (
-              <div className="db-area-semester">
-                <NextOpenDayTile next={upcoming[0]} now={now} />
+              {labRulesStatus && <NextOpenDayTile next={upcoming[0]} now={now} />}
+            </>
+          )}
+          {balance && (
+            <BalanceTile
+              balance={balance}
+              canPay={canPay}
+              canPayJobs={canPayJobs}
+              hasPayable={payItems.length > 0}
+              onPay={() => setPaying(payItems.map((item) => item.id))}
+            />
+          )}
+        </div>
+        {data.statistics && <StatisticsSection statistics={data.statistics} now={now} />}
+        {(showComing || data.recentJobs) && (
+          <div className="db-row db-row--pair">
+            {showComing && (
+              <div>
+                {data.staffing === undefined && <UpcomingOpenDaysList days={upcoming} now={now} />}
+                {(data.staffing !== undefined || comingUp.length > 0) && (
+                  <ComingUpPanel
+                    items={comingUp}
+                    now={now}
+                    canLeave={canSignUp}
+                    canFindOpenDays={canFindOpenDays && data.staffing !== undefined}
+                  />
+                )}
               </div>
             )}
-          </>
-        )}
-        {data.statistics && (
-          <div className="db-area-stats">
-            <StatisticsSection statistics={data.statistics} now={now} />
+            {data.recentJobs && <RecentJobsPanel jobs={data.recentJobs} />}
           </div>
         )}
-        {(data.staffing || comingUp.length > 0 || upcoming.length > 0 || data.staffing === undefined) && (
-          <div className="db-area-coming">
-            {data.staffing === undefined && <UpcomingOpenDaysList days={upcoming} now={now} />}
-            {(data.staffing !== undefined || comingUp.length > 0) && (
-              <ComingUpPanel
-                items={comingUp}
-                now={now}
-                canLeave={canSignUp}
-                canFindOpenDays={canFindOpenDays && data.staffing !== undefined}
+        {(data.recentOrders || jobsChart) && (
+          <div className="db-row db-row--pair">
+            {data.recentOrders && (
+              <RecentOrdersPanel
+                orders={data.recentOrders}
+                payableIds={payOrderIds}
+                onPay={(order) => setPaying([order.id])}
               />
             )}
+            {jobsChart}
           </div>
         )}
       </div>
+      {balance && paying !== null && (
+        <PayDialog balance={balance} initialSelected={paying} canPayJobs={canPayJobs} onClose={() => setPaying(null)} />
+      )}
     </PageShell>
   );
 }
