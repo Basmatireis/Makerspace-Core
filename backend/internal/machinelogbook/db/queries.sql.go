@@ -699,6 +699,39 @@ func (q *Queries) CountMaterialFills(ctx context.Context, materialID uuid.UUID) 
 	return count, err
 }
 
+const countMaterialUses = `-- name: CountMaterialUses :one
+SELECT (SELECT count(*) FROM inventory_transactions x WHERE x.material_id = m.id)::bigint AS ledger_entries,
+       (SELECT count(*) FROM filament_spool_fills x WHERE x.material_id = m.id)::bigint AS spool_fills,
+       (SELECT count(*) FROM machine_run_usages x WHERE x.material_id = m.id)::bigint AS run_usages,
+       (SELECT count(*) FROM machine_run_reported_usage_items x WHERE x.material_id = m.id)::bigint AS reported_usages,
+       (SELECT count(*) FROM order_items x WHERE x.source_material_id = m.id)::bigint AS order_items
+FROM materials m WHERE m.id = $1
+`
+
+type CountMaterialUsesRow struct {
+	LedgerEntries  int64
+	SpoolFills     int64
+	RunUsages      int64
+	ReportedUsages int64
+	OrderItems     int64
+}
+
+// How many rows of each kind still point at the article. Anything that records stock or
+// history counts as a use; material_balances and material_filament_properties are owned
+// detail rows that go with the article.
+func (q *Queries) CountMaterialUses(ctx context.Context, id uuid.UUID) (CountMaterialUsesRow, error) {
+	row := q.db.QueryRow(ctx, countMaterialUses, id)
+	var i CountMaterialUsesRow
+	err := row.Scan(
+		&i.LedgerEntries,
+		&i.SpoolFills,
+		&i.RunUsages,
+		&i.ReportedUsages,
+		&i.OrderItems,
+	)
+	return i, err
+}
+
 const countMaterials = `-- name: CountMaterials :one
 SELECT count(*) FROM materials m JOIN material_balances b ON b.material_id = m.id
 JOIN material_types mt ON mt.id = m.material_type_id
@@ -1398,6 +1431,24 @@ DELETE FROM machine_runs WHERE id = $1 AND source = 'manual'
 
 func (q *Queries) DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteManualRun, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMaterial = `-- name: DeleteMaterial :execrows
+DELETE FROM materials WHERE id = $1 AND version = $2
+`
+
+type DeleteMaterialParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+// material_balances and material_filament_properties go with the row (ON DELETE CASCADE).
+func (q *Queries) DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMaterial, arg.ID, arg.ExpectedVersion)
 	if err != nil {
 		return 0, err
 	}
@@ -2147,6 +2198,11 @@ const getMaterial = `-- name: GetMaterial :one
 SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.sale_price, m.package_size, m.storage_location, m.notes, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
+       (NOT (EXISTS (SELECT 1 FROM inventory_transactions u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM filament_spool_fills u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM order_items u WHERE u.source_material_id = m.id)))::boolean AS deletable,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -2187,6 +2243,7 @@ type GetMaterialRow struct {
 	InventoryVersion  int64
 	BalanceUpdatedAt  time.Time
 	RecentConsumption pgtype.Numeric
+	Deletable         bool
 	DiameterMm        pgtype.Numeric
 	AssignedQuantity  pgtype.Numeric
 }
@@ -2220,6 +2277,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 		&i.InventoryVersion,
 		&i.BalanceUpdatedAt,
 		&i.RecentConsumption,
+		&i.Deletable,
 		&i.DiameterMm,
 		&i.AssignedQuantity,
 	)
@@ -4716,6 +4774,11 @@ const listMaterials = `-- name: ListMaterials :many
 SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.sale_price, m.package_size, m.storage_location, m.notes, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
+       (NOT (EXISTS (SELECT 1 FROM inventory_transactions u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM filament_spool_fills u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM order_items u WHERE u.source_material_id = m.id)))::boolean AS deletable,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -4774,6 +4837,7 @@ type ListMaterialsRow struct {
 	InventoryVersion  int64
 	BalanceUpdatedAt  time.Time
 	RecentConsumption pgtype.Numeric
+	Deletable         bool
 	DiameterMm        pgtype.Numeric
 	AssignedQuantity  pgtype.Numeric
 }
@@ -4820,6 +4884,7 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 			&i.InventoryVersion,
 			&i.BalanceUpdatedAt,
 			&i.RecentConsumption,
+			&i.Deletable,
 			&i.DiameterMm,
 			&i.AssignedQuantity,
 		); err != nil {

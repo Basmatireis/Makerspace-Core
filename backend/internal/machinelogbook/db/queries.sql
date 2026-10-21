@@ -322,6 +322,11 @@ DELETE FROM material_filament_properties WHERE material_id=sqlc.arg(material_id)
 SELECT m.*, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
+       (NOT (EXISTS (SELECT 1 FROM inventory_transactions u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM filament_spool_fills u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM order_items u WHERE u.source_material_id = m.id)))::boolean AS deletable,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -345,6 +350,11 @@ FOR UPDATE OF b, m;
 SELECT m.*, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
+       (NOT (EXISTS (SELECT 1 FROM inventory_transactions u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM filament_spool_fills u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.material_id = m.id)
+            OR EXISTS (SELECT 1 FROM order_items u WHERE u.source_material_id = m.id)))::boolean AS deletable,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -1566,3 +1576,18 @@ SELECT to_char(mo.month_start, 'YYYY-MM')::text AS month, count(own.month_start)
 FROM months mo LEFT JOIN own ON own.month_start = mo.month_start
 GROUP BY mo.month_start
 ORDER BY mo.month_start;
+
+-- name: CountMaterialUses :one
+-- How many rows of each kind still point at the article. Anything that records stock or
+-- history counts as a use; material_balances and material_filament_properties are owned
+-- detail rows that go with the article.
+SELECT (SELECT count(*) FROM inventory_transactions x WHERE x.material_id = m.id)::bigint AS ledger_entries,
+       (SELECT count(*) FROM filament_spool_fills x WHERE x.material_id = m.id)::bigint AS spool_fills,
+       (SELECT count(*) FROM machine_run_usages x WHERE x.material_id = m.id)::bigint AS run_usages,
+       (SELECT count(*) FROM machine_run_reported_usage_items x WHERE x.material_id = m.id)::bigint AS reported_usages,
+       (SELECT count(*) FROM order_items x WHERE x.source_material_id = m.id)::bigint AS order_items
+FROM materials m WHERE m.id = sqlc.arg(id);
+
+-- name: DeleteMaterial :execrows
+-- material_balances and material_filament_properties go with the row (ON DELETE CASCADE).
+DELETE FROM materials WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);

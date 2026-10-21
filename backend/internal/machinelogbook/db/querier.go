@@ -39,6 +39,10 @@ type Querier interface {
 	CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error)
 	CountMachines(ctx context.Context, arg CountMachinesParams) (int64, error)
 	CountMaterialFills(ctx context.Context, materialID uuid.UUID) (int64, error)
+	// How many rows of each kind still point at the article. Anything that records stock or
+	// history counts as a use; material_balances and material_filament_properties are owned
+	// detail rows that go with the article.
+	CountMaterialUses(ctx context.Context, id uuid.UUID) (CountMaterialUsesRow, error)
 	CountMaterials(ctx context.Context, arg CountMaterialsParams) (int64, error)
 	CountMaterialsOfType(ctx context.Context, materialTypeID uuid.UUID) (int64, error)
 	CountOrganizations(ctx context.Context, arg CountOrganizationsParams) (int64, error)
@@ -68,6 +72,8 @@ type Querier interface {
 	DeleteMachineRunsOfMachine(ctx context.Context, machineID uuid.UUID) error
 	DeleteMachineSpoolMountHistory(ctx context.Context, machineID uuid.UUID) error
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
+	// material_balances and material_filament_properties go with the row (ON DELETE CASCADE).
+	DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
 	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
 	DeleteMaterialTypeProcesses(ctx context.Context, materialTypeID uuid.UUID) error

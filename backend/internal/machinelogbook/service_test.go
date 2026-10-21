@@ -147,6 +147,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			},
 		},
 		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
+		{"inventory.manage delete material", func() error { return s.DeleteMaterial(ctx, p, id, 1, nil) }},
 		{
 			"filament_spools.manage",
 			func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err },

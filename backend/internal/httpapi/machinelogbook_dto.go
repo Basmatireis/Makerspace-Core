@@ -224,6 +224,7 @@ func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
 		ColorHex:           nullableString(item.ColorHex),
 		Unit:               openapi.MaterialUnit(item.Unit),
 		Active:             item.Active,
+		Deletable:          &item.Deletable,
 		LowStockThreshold:  nullableDecimalValue(item.LowStockThreshold),
 		FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM),
 		Quantity:           item.Quantity,

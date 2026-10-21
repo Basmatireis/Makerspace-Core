@@ -399,3 +399,27 @@ func materialUpdateInput(body openapi.UpdateMaterialRequest, diameter *string) m
 		ExpectedVersion:    body.ExpectedVersion,
 	}
 }
+
+// DeleteMaterial hard-deletes an article that nothing uses yet.
+func (s *Server) DeleteMaterial(
+	ctx context.Context,
+	r openapi.DeleteMaterialRequestObject,
+) (openapi.DeleteMaterialResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.machineLogbook.DeleteMaterial(
+		ctx,
+		p,
+		r.MaterialId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteMaterial204Response{}, nil
+}

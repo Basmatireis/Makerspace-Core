@@ -54,6 +54,7 @@ func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 		ColorHex:           row.ColorHex,
 		Unit:               row.Unit,
 		Active:             row.Active,
+		Deletable:          row.Deletable,
 		LowStockThreshold:  nullableDecimal(row.LowStockThreshold),
 		FilamentDiameterMM: nullableDecimal(row.DiameterMm),
 		Quantity:           q.String(),

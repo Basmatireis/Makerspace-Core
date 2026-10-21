@@ -175,7 +175,7 @@ type Material struct {
 	ColorName, ColorHex                                *string
 	Variant, Manufacturer, StorageLocation, Notes      *string
 	SalePrice, PackageSize                             *string
-	Active                                             bool
+	Active, Deletable                                  bool
 	LowStockThreshold                                  *string
 	FilamentDiameterMM                                 *string
 	Quantity, AssignedQuantity, UnassignedQuantity     string
