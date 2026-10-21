@@ -4,7 +4,7 @@
 # multi-platform build never runs the Go toolchain under emulation. Tests are not run here: CI
 # validates the exact commit before any image is published (see docs/ci-cd.md).
 
-FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.24 AS goose
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine3.24 AS goose
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && cp "$(find /go/bin -type f -name goose)" /out/goose
 
 # Code generators and goose for the development container. Never part of the final image.
-FROM golang:1.26.10-alpine3.24 AS tools
+FROM golang:1.27.2-alpine3.24 AS tools
 
 ENV CGO_ENABLED=0
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -37,7 +37,7 @@ COPY api/ /workspace/api/
 EXPOSE 8080
 CMD ["go", "run", "./cmd/api"]
 
-FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.24 AS dependencies
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine3.24 AS dependencies
 
 ENV CGO_ENABLED=0
 WORKDIR /workspace/backend
@@ -54,7 +54,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
     && GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/admin ./cmd/admin
 
-FROM alpine:3.24.1 AS final
+FROM alpine:3.24.2 AS final
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S makerspace \

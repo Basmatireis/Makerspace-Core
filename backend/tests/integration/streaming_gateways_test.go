@@ -163,13 +163,13 @@ func (g *gatewayEnv) enrolledGateway(name, host string) (map[string]any, gateway
 		http.StatusOK,
 	)
 	return g.expect(
-			g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id, nil),
-			http.StatusOK,
-		), gatewayIdentity{
-			id:     id,
-			secret: credSecret,
-			credID: credID,
-		}
+		g.as(g.admin, http.MethodGet, "/streaming-gateways/"+id, nil),
+		http.StatusOK,
+	), gatewayIdentity{
+		id:     id,
+		secret: credSecret,
+		credID: credID,
+	}
 }
 
 func (g *gatewayEnv) gw(token, method, path string, body any) *http.Response {

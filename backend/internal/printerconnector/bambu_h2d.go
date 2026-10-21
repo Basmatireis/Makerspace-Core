@@ -97,12 +97,12 @@ func parseBambuConfiguration(
 		)
 	}
 	return BambuH2DSettings{
-			IPAddress:        ip,
-			SerialNumber:     serial,
-			AutoDetectSpools: autoDetect,
-		}, BambuH2DSecrets{
-			LANAccessCode: accessCode,
-		}, nil
+		IPAddress:        ip,
+		SerialNumber:     serial,
+		AutoDetectSpools: autoDetect,
+	}, BambuH2DSecrets{
+		LANAccessCode: accessCode,
+	}, nil
 }
 
 type bambuH2DAdapter struct {
