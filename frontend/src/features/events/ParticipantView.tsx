@@ -34,6 +34,7 @@ import { eventMutationMessage } from './errors';
 import { fmtDay, fmtRange, rangeLabel } from './format';
 import { isClosed, joinReasonLabel, programme } from './logic';
 import { eventParticipationQueryOptions, invalidateEvents } from './queries';
+import { ScrollRegion } from './components/ScrollRegion';
 
 /** What a helper sees: own shifts with Leave, then the programme by day with Join. Organizers see it before the edit mode. */
 export function ParticipantView({ event }: { event: Event }) {
@@ -215,7 +216,7 @@ export function ParticipantView({ event }: { event: Event }) {
         {mine.length > 0 && (
           <section className="ev-day" aria-label="Your shifts">
             <SectionHeading title="You are signed up" summary={String(mine.length)} />
-            <div className="ev-scroll">
+            <ScrollRegion label="Your shifts">
               <Table size="md" aria-label="Your shifts" className="ev-table">
                 <TableHead>
                   <TableRow>
@@ -250,7 +251,7 @@ export function ParticipantView({ event }: { event: Event }) {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ScrollRegion>
           </section>
         )}
         {data && empty && <p className="ev-secondary">The programme has not been published yet.</p>}

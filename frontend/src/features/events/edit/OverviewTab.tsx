@@ -18,6 +18,7 @@ import { SectionHeading, SummaryTiles } from '../components/Layout';
 import { fmtDay, fmtRange, plural, rangeLabel } from '../format';
 import { isClosed, nextSteps, type EditTab, type NextStep } from '../logic';
 import { eventHelpersQueryOptions, eventSessionsQueryOptions, eventShiftsQueryOptions } from '../queries';
+import { ScrollRegion } from '../components/ScrollRegion';
 
 export type OverviewActions = {
   editDetails: () => void;
@@ -152,7 +153,7 @@ export function OverviewTab({
               The programme is empty. Add a session or a helper shift in the Programme tab.
             </p>
           ) : (
-            <div className="ev-scroll">
+            <ScrollRegion label="Coming up">
               <Table size="md" aria-label="Coming up" className="ev-table">
                 <TableHead>
                   <TableRow>
@@ -177,7 +178,7 @@ export function OverviewTab({
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ScrollRegion>
           )}
         </Tile>
         <Tile>

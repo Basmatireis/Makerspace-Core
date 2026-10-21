@@ -15,6 +15,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Members join event shifts in the app.** With `events.signup` members see a helper view of each confirmed event and join or leave open places themselves; the same capacity, role, signup-window and overlap rules apply. Names of co-helpers need `events.read_assignments`.
 - **Go-live readiness.** Events report whether the public page and helper signup are live and what is still missing.
+- **Events screens redesigned.** `/events` pages events into Upcoming, Drafts and Past with search and an owner filter; organizers see status, public page, signup, staffing and overdue tasks, helpers see open places and their own shifts. An event opens as a participant view (programme by day, Join, a confirmed Leave) and organizers switch to an edit mode (`?mode=edit`) with Overview and next steps, a Go live panel, Programme with a positions editor, Helpers by shift and by helper, Tasks, a Public page tab with a live preview of the real page, and Files. Creating an event also creates its first session.
+- **Public event page.** The visitor page has a Help us section with availability per position, a signup dialog with the one-time management link, and move/cancel for signed-in members.
 - **Event helpers overview** grouped by helper, with unlinked public signups, suggested people and overridden overlaps.
 - Shifts can be duplicated; new events can be created with their first session.
 - Event documentation in `docs/events.md`.

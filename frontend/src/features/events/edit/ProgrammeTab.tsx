@@ -35,6 +35,7 @@ import { fmtDay, fmtRange, plural } from '../format';
 import { closedNotice, isClosed, programme } from '../logic';
 import { eventSessionsQueryOptions, eventShiftsQueryOptions, invalidateEvents } from '../queries';
 import { sessionBody, shiftBody } from '../requestBodies';
+import { ScrollRegion } from '../components/ScrollRegion';
 
 type Dialog =
   | { kind: 'session'; session?: EventSession }
@@ -92,7 +93,7 @@ export function ProgrammeTab({
     );
 
   const shiftTable = (rows: EventShift[]) => (
-    <div className="ev-scroll">
+    <ScrollRegion label="Helper shifts">
       <Table size="md" aria-label="Helper shifts" className="ev-table ev-table--shifts">
         <TableHead>
           <TableRow>
@@ -169,7 +170,7 @@ export function ProgrammeTab({
           ))}
         </TableBody>
       </Table>
-    </div>
+    </ScrollRegion>
   );
 
   const sessionName = (session: EventSession) => session.name || 'Session';

@@ -26,6 +26,7 @@ import { EmptyState, ErrorState, InlineLoadingState } from '../../app/PageState'
 import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { useCurrentUser } from '../auth/auth';
 import { eventAccess } from './access';
+import { ScrollRegion } from './components/ScrollRegion';
 import { FillMeter } from './components/FillMeter';
 import { PersonCombo } from './components/PersonCombo';
 import { EventStatusTag, PublicPageTag, SignupStateTag } from './components/StatusTags';
@@ -230,59 +231,61 @@ export function EventsPage({
         )}
         {events.length > 0 && (
           <>
-            <div className="ev-wide ev-scroll">
-              <Table aria-label="Events">
-                <TableHead>
-                  {access.organizer ? (
-                    <TableRow>
-                      <TableHeader>Date</TableHeader>
-                      <TableHeader>Name</TableHeader>
-                      <TableHeader>Status</TableHeader>
-                      <TableHeader>Public page</TableHeader>
-                      <TableHeader>Helper signup</TableHeader>
-                      <TableHeader>Places filled</TableHeader>
-                      <TableHeader>Tasks</TableHeader>
-                      <TableHeader>Owner</TableHeader>
-                    </TableRow>
-                  ) : (
-                    <TableRow>
-                      <TableHeader>Date</TableHeader>
-                      <TableHeader>Event</TableHeader>
-                      <TableHeader>Open places</TableHeader>
-                      <TableHeader>Your shifts</TableHeader>
-                    </TableRow>
-                  )}
-                </TableHead>
-                <TableBody>
-                  {events.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell>{rangeLabel(event)}</TableCell>
-                      <TableCell>{nameCell(event)}</TableCell>
-                      {access.organizer ? (
-                        <>
-                          <TableCell>
-                            <EventStatusTag status={event.status} size="sm" />
-                          </TableCell>
-                          <TableCell>
-                            <PublicPageTag event={event} size="sm" />
-                          </TableCell>
-                          <TableCell>
-                            <SignupStateTag event={event} size="sm" />
-                          </TableCell>
-                          <TableCell>{staffCell(event)}</TableCell>
-                          <TableCell>{taskCell(event)}</TableCell>
-                          <TableCell>{ownerCell(event)}</TableCell>
-                        </>
-                      ) : (
-                        <>
-                          <TableCell>{placesCell(event)}</TableCell>
-                          <TableCell>{shiftsCell(event)}</TableCell>
-                        </>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="ev-wide">
+              <ScrollRegion label="Events">
+                <Table aria-label="Events">
+                  <TableHead>
+                    {access.organizer ? (
+                      <TableRow>
+                        <TableHeader>Date</TableHeader>
+                        <TableHeader>Name</TableHeader>
+                        <TableHeader>Status</TableHeader>
+                        <TableHeader>Public page</TableHeader>
+                        <TableHeader>Helper signup</TableHeader>
+                        <TableHeader>Places filled</TableHeader>
+                        <TableHeader>Tasks</TableHeader>
+                        <TableHeader>Owner</TableHeader>
+                      </TableRow>
+                    ) : (
+                      <TableRow>
+                        <TableHeader>Date</TableHeader>
+                        <TableHeader>Event</TableHeader>
+                        <TableHeader>Open places</TableHeader>
+                        <TableHeader>Your shifts</TableHeader>
+                      </TableRow>
+                    )}
+                  </TableHead>
+                  <TableBody>
+                    {events.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell>{rangeLabel(event)}</TableCell>
+                        <TableCell>{nameCell(event)}</TableCell>
+                        {access.organizer ? (
+                          <>
+                            <TableCell>
+                              <EventStatusTag status={event.status} size="sm" />
+                            </TableCell>
+                            <TableCell>
+                              <PublicPageTag event={event} size="sm" />
+                            </TableCell>
+                            <TableCell>
+                              <SignupStateTag event={event} size="sm" />
+                            </TableCell>
+                            <TableCell>{staffCell(event)}</TableCell>
+                            <TableCell>{taskCell(event)}</TableCell>
+                            <TableCell>{ownerCell(event)}</TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell>{placesCell(event)}</TableCell>
+                            <TableCell>{shiftsCell(event)}</TableCell>
+                          </>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollRegion>
             </div>
             <div className="ev-cards" aria-label="Events">
               {events.map((event) => (

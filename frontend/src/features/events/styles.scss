@@ -437,6 +437,10 @@ h3.ev-heading__title {
 .ev-scroll {
   overflow-x: auto;
 }
+// The focusable region scrolls, not Carbon's inner wrapper, so keyboard users reach one scroller.
+.ev-scroll .cds--data-table-content {
+  overflow-x: visible;
+}
 
 // Go live side panel: a Carbon modal pinned to the right on wide screens; below Carbon's medium breakpoint it is the regular
 // full-screen modal.
@@ -611,8 +615,10 @@ h3.ev-heading__title {
   justify-content: space-between;
   gap: $spacing-04;
 }
+
 .ev-preview__bar .cds--content-switcher {
   inline-size: auto;
+  min-inline-size: 16rem;
 }
 .ev-preview__frame {
   border: 1px solid theme.$border-strong-01;

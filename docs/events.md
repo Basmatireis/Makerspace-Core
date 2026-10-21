@@ -4,14 +4,14 @@ Events are the workshops, fairs and community days of the lab. Organizers plan t
 
 ## Domain
 
-| Object | What it is |
-|---|---|
-| Event | Internal name, description, location and owner (a person); public title, description and location; status; public page and public-signup switches; files and one public banner. |
-| Session | A programme slot visitors attend: time, optional name and location, public or internal, scheduled or cancelled. |
-| Shift | A helper time slot, optionally linked to a session, with its own public flag, optional signup window and status `draft`, `open`, `closed` or `cancelled` (shown as Draft, Signup open, Signup closed, Cancelled). |
-| Position (requirement) | What a shift needs, for example "Bar 2×": a name, the number of places and who may fill it (anyone or members with one of some roles). Positions are saved with their shift. |
-| Assignment | One helper in one place: a linked person or a name with e-mail or phone, its source (`public_signup`, `authenticated_self` shown as Member, `authenticated_on_behalf`, `staff_entry`), active or cancelled, and a marker when an overlap was overridden. |
-| Task list, task | Planning checklist: a task is open or done, may be Important, has an optional assignee and due time. |
+| Object                 | What it is                                                                                                                                                                                                                                               |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Event                  | Internal name, description, location and owner (a person); public title, description and location; status; public page and public-signup switches; files and one public banner.                                                                          |
+| Session                | A programme slot visitors attend: time, optional name and location, public or internal, scheduled or cancelled.                                                                                                                                          |
+| Shift                  | A helper time slot, optionally linked to a session, with its own public flag, optional signup window and status `draft`, `open`, `closed` or `cancelled` (shown as Draft, Signup open, Signup closed, Cancelled).                                        |
+| Position (requirement) | What a shift needs, for example "Bar 2×": a name, the number of places and who may fill it (anyone or members with one of some roles). Positions are saved with their shift.                                                                             |
+| Assignment             | One helper in one place: a linked person or a name with e-mail or phone, its source (`public_signup`, `authenticated_self` shown as Member, `authenticated_on_behalf`, `staff_entry`), active or cancelled, and a marker when an overlap was overridden. |
+| Task list, task        | Planning checklist: a task is open or done, may be Important, has an optional assignee and due time.                                                                                                                                                     |
 
 ## Lifecycle
 
@@ -30,14 +30,14 @@ draft ⇄ confirmed → completed
 
 ## Permissions
 
-| Permission | Allows |
-|---|---|
-| `events.read` | Confirmed and closed events with programme, planning, files and staffing counts. No drafts. |
-| `events.manage` | Create, edit, confirm, complete, cancel, delete, publish; sessions, tasks and files. Sees drafts. |
-| `events.staffing.manage` | Shifts with their positions and eligibility, duplicate shifts; helper names and contacts. Sees drafts. |
-| `events.assign` | Assign, move, cancel and link helpers, override an overlap (audited); helper names and contacts. Sees drafts. |
-| `events.signup` | Join and leave places in confirmed events for yourself. |
-| `events.read_assignments` | Names (never contact details) of the other helpers. |
+| Permission                | Allows                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `events.read`             | Confirmed and closed events with programme, planning, files and staffing counts. No drafts.                   |
+| `events.manage`           | Create, edit, confirm, complete, cancel, delete, publish; sessions, tasks and files. Sees drafts.             |
+| `events.staffing.manage`  | Shifts with their positions and eligibility, duplicate shifts; helper names and contacts. Sees drafts.        |
+| `events.assign`           | Assign, move, cancel and link helpers, override an overlap (audited); helper names and contacts. Sees drafts. |
+| `events.signup`           | Join and leave places in confirmed events for yourself.                                                       |
+| `events.read_assignments` | Names (never contact details) of the other helpers.                                                           |
 
 Drafts answer 404 to everyone without an organizer permission, in the list, the detail and every sub-resource. Migration 00060 granted `events.signup` to roles with `open_days.signup` and `events.read_assignments` to roles with `open_days.read_assignments`, `events.staffing.manage` or `events.assign`, copying each grant's scope and assurance.
 
@@ -60,6 +60,13 @@ Both are audited (`event_assignment.joined`, `event_assignment.left`). The event
 - **Create.** `POST /events` takes an optional `firstSession` that is created in the same transaction; new events are drafts.
 - **Helpers.** `GET /events/{id}/helpers` groups the active assignments by helper (person, else e-mail, phone or name) with their shifts, sources and override markers, and lists what needs attention: public signups not linked to a person (with matching people for `events.assign`) and overridden overlaps. It needs a helper-name permission; contact details need `events.staffing.manage` or `events.assign`. Assign, move, cancel and link stay at `/events/{id}/assignments`.
 - **Tasks.** `GET /events/{id}/tasks?mine=&overdue=&includeDone=` filters by assignee, overdue (open and past its due time) and done.
+
+## Screens
+
+- **List** (`/events`). Upcoming, Drafts (organizers only) and Past are server-paged. Organizers get Date, Name, Status, Public page, Helper signup, Places filled, Tasks (overdue in red) and Owner; everyone else gets Date, Event, Open places and Your shifts. Narrow screens show cards.
+- **Participant view** (`/events/:id`). Header with a key-value strip, "You are signed up" with Leave (confirmed), the programme by day with sessions and their shifts, positions with "x of y filled" and Join or the reason it is not possible, helper names only when the server sends them. Organizers get Edit event; people with only `events.assign` get Assign on open places and Manage helpers.
+- **Edit mode** (`?mode=edit&tab=overview|programme|helpers|tasks|public|files`). Tabs depend on permissions: Programme needs `events.manage` or `events.staffing.manage`, Helpers one of those or `events.assign` (names and contacts as the server allows), Tasks, Public page and Files `events.manage`. The header holds View as helper, Go live (the readiness checklists come from `goLive`, each item links to where it is fixed) and the lifecycle actions; delete explains why it is unavailable.
+- **Public page** (`/events/public/:publicId`) renders outside the app shell; the Public page tab previews the same component with data built from the organizer's view.
 
 ## Integrations
 

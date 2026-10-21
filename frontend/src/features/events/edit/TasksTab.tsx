@@ -25,6 +25,7 @@ import { fmtDate } from '../format';
 import { isOverdue } from '../logic';
 import { eventTaskListsQueryOptions, eventTasksQueryOptions, invalidateEvents } from '../queries';
 import { taskBody } from '../requestBodies';
+import { ScrollRegion } from '../components/ScrollRegion';
 
 type Dialog =
   | { kind: 'task'; task?: EventTask; listId?: string | null }
@@ -213,7 +214,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
           {groupTasks.length === 0 ? (
             <p className="ev-secondary">No tasks in this list.</p>
           ) : (
-            <div className="ev-scroll">
+            <ScrollRegion label="Tasks">
               <Table size="md" aria-label={list ? list.name : 'Other tasks'} className="ev-table ev-table--tasks">
                 <TableHead>
                   <TableRow>
@@ -229,7 +230,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
                 </TableHead>
                 <TableBody>{groupTasks.map(row)}</TableBody>
               </Table>
-            </div>
+            </ScrollRegion>
           )}
         </section>
       ))}

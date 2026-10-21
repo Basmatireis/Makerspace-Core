@@ -35,6 +35,7 @@ import { eventMutationMessage } from '../errors';
 import { fmtDay, fmtRange, plural } from '../format';
 import { closedNotice, isClosed } from '../logic';
 import { eventHelpersQueryOptions, eventShiftsQueryOptions, invalidateEvents } from '../queries';
+import { ScrollRegion } from '../components/ScrollRegion';
 
 const SOURCE: Record<EventAssignmentSource, { label: string; type: 'blue' | 'teal' | 'cool-gray' }> = {
   public_signup: { label: 'Public signup', type: 'blue' },
@@ -164,7 +165,7 @@ export function HelpersTab({
         {shift.requirements.length === 0 ? (
           <p className="ev-secondary">No positions yet. Add them in the Programme tab.</p>
         ) : names ? (
-          <div className="ev-scroll">
+          <ScrollRegion label="Helpers">
             <Table size="md" aria-label={`Helpers for ${shift.name}`} className="ev-table ev-table--helpers">
               <TableHead>
                 <TableRow>
@@ -251,9 +252,9 @@ export function HelpersTab({
                 })}
               </TableBody>
             </Table>
-          </div>
+          </ScrollRegion>
         ) : (
-          <div className="ev-scroll">
+          <ScrollRegion label="Helpers">
             <Table size="md" aria-label={`Places for ${shift.name}`} className="ev-table">
               <TableHead>
                 <TableRow>
@@ -277,7 +278,7 @@ export function HelpersTab({
                 })}
               </TableBody>
             </Table>
-          </div>
+          </ScrollRegion>
         )}
       </section>
     );
@@ -293,7 +294,7 @@ export function HelpersTab({
         />
       );
     return (
-      <div className="ev-scroll">
+      <ScrollRegion label="Helpers">
         <Table size="md" aria-label="Helpers" className="ev-table ev-table--helpers">
           <TableHead>
             <TableRow>
@@ -359,7 +360,7 @@ export function HelpersTab({
             ))}
           </TableBody>
         </Table>
-      </div>
+      </ScrollRegion>
     );
   };
 
