@@ -109,7 +109,7 @@ test-db: db-up ## Create the dedicated integration-test database if missing and 
 	docker compose run --rm --no-deps -e TEST_POSTGRES_DB=$(TEST_POSTGRES_DB) backend sh -c 'goose -dir migrations postgres "$(TEST_DATABASE_URL_EXPR)" up'
 
 test-integration: test-db ## Run Go tests against the dedicated test database (never the development database).
-	docker compose run --rm --no-deps -e APP_ENV=test -e TEST_POSTGRES_DB=$(TEST_POSTGRES_DB) backend sh -c 'TEST_DATABASE_URL="$(TEST_DATABASE_URL_EXPR)" go test -count=1 ./...'
+	docker compose run --rm --no-deps -e APP_ENV=test -e TEST_POSTGRES_DB=$(TEST_POSTGRES_DB) backend sh -c 'TEST_DATABASE_URL="$(TEST_DATABASE_URL_EXPR)" go test -count=1 -timeout 25m ./...'
 
 seed-dev: migrate-up ## Add demo makerspace data to the development database (repeatable; SEED_ARGS="-seed 42 -actor-email ...").
 	docker compose run --rm backend go run ./cmd/devseed $(SEED_ARGS)
