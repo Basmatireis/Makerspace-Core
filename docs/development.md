@@ -15,7 +15,7 @@ Set a local `POSTGRES_PASSWORD` before first start. Because Compose constructs a
 The development services are:
 
 - `db`: exactly `postgres:18.6-alpine3.24`, with its named volume mounted at the PostgreSQL 18 parent data path;
-- `backend`: exactly `golang:1.27.2-alpine3.24` for development and build, source-mounted at `/workspace/backend`, published on port 8080;
+- `backend`: exactly `golang:1.27.3-alpine3.24` for development and build, source-mounted at `/workspace/backend`, published on port 8080;
 - `frontend`: exactly `node:24.21.0-alpine3.24` with pnpm 11.19.0, source-mounted at `/workspace/frontend`, published on port 5173;
 - `migrate`: profile-gated goose command using the backend final image.
 - `admin`: profile-gated interactive administrative CLI from the backend final image.
