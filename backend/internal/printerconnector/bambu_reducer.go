@@ -239,6 +239,12 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			sessionKey = p.state.CurrentSessionKey
 		}
 		if sessionKey != p.state.CurrentSessionKey {
+			// The printer moved on to another print while the previous run was
+			// still open, for example because the connector was down when it
+			// ended. End that run instead of leaving it running forever.
+			if previousActive && !p.state.RunTimedOut {
+				observations = append(observations, p.endSupersededRun(observedAt)...)
+			}
 			p.state.RunTimedOut = false
 			p.state.DisconnectedAt = nil
 		}
@@ -400,6 +406,23 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		p.state.Lifecycle = lifecycle
 	}
 	return observations, true, nil
+}
+
+func (p *bambuProcessor) endSupersededRun(observedAt time.Time) []Observation {
+	runID, externalID := p.currentRun()
+	if runID == nil {
+		return nil
+	}
+	facts := p.state.RunFacts[runID.String()]
+	facts.Outcome = OutcomeUnknown
+	p.state.RunFacts[runID.String()] = facts
+	return []Observation{{
+		Kind:            ObservationTerminalOutcome,
+		Payload:         mustJSON(map[string]any{"outcome": OutcomeUnknown, "reason": "superseded", "observedAt": observedAt}),
+		RunID:           runID,
+		HistoryComplete: facts.HistoryComplete,
+		ExternalPrintID: externalID,
+	}}
 }
 
 func (p *bambuProcessor) currentRun() (*uuid.UUID, *string) {

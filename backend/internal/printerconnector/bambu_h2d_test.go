@@ -634,6 +634,65 @@ func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
 	}
 }
 
+func TestBambuNewPrintAfterConnectorDowntimeEndsPreviousRun(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID := ids.New()
+	processor, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Date(2026, 10, 20, 17, 43, 0, 0, time.UTC)
+	if _, _, err = processor.apply(
+		ctx,
+		[]byte(`{"print":{"gcode_state":"RUNNING","task_id":"41","mc_percent":77}}`),
+		startedAt,
+	); err != nil {
+		t.Fatal(err)
+	}
+	previousRunID, _ := processor.currentRun()
+	if previousRunID == nil {
+		t.Fatal("first print did not open a run")
+	}
+	// The connector stops without observing a disconnect, the first print ends
+	// unobserved, and the printer reports the next print after the restart.
+	if err = processor.persist(ctx); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observations, _, err := restarted.apply(
+		ctx,
+		[]byte(`{"print":{"gcode_state":"RUNNING","task_id":"42","mc_percent":5}}`),
+		startedAt.Add(24*time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observations) == 0 || observations[0].Kind != ObservationTerminalOutcome ||
+		observations[0].RunID == nil || *observations[0].RunID != *previousRunID ||
+		!bytes.Contains(observations[0].Payload, []byte(`"outcome":"unknown"`)) ||
+		!bytes.Contains(observations[0].Payload, []byte(`"reason":"superseded"`)) {
+		t.Fatalf("previous run was not ended: %#v", observations)
+	}
+	nextRunID, _ := restarted.currentRun()
+	if nextRunID == nil || *nextRunID == *previousRunID {
+		t.Fatal("next print did not open its own run")
+	}
+	for _, observation := range observations[1:] {
+		if observation.RunID == nil || *observation.RunID != *nextRunID {
+			t.Fatalf("observation attributed to the wrong run: %#v", observation)
+		}
+	}
+}
+
 func TestBambuReconnectBeforeTimeoutKeepsRunActive(t *testing.T) {
 	t.Parallel()
 	runID := ids.New()
