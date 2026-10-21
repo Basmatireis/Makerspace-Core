@@ -25,7 +25,8 @@
  * scheduled session and no shift that is not cancelled; `public_title_missing`; `public_content_missing`: no public
  * scheduled session and no public shift that is not cancelled; `public_page_off`; `signup_disabled`: public signup
  * is switched off; `no_public_open_shift`: no public shift with status open, at least one position and no
- * cancelled session.
+ * cancelled session; `signup_period_over`: such shifts exist, but all of them have ended or their signup
+ * window has closed.
  */
 export type EventReadinessCode = typeof EventReadinessCode[keyof typeof EventReadinessCode];
 
@@ -40,4 +41,5 @@ export const EventReadinessCode = {
   public_page_off: 'public_page_off',
   signup_disabled: 'signup_disabled',
   no_public_open_shift: 'no_public_open_shift',
+  signup_period_over: 'signup_period_over',
 } as const;

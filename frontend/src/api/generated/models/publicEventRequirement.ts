@@ -36,5 +36,6 @@ export interface PublicEventRequirement {
   filledCount: number;
   /** @minimum 0 */
   remainingCount: number;
+  /** `not_open`: signup has not started (or is switched off); `closed`: the shift has ended or stopped taking signups. */
   availability: PublicEventRequirementAvailability;
 }

@@ -407,3 +407,37 @@ func addPosition(
 	}
 	return events.Requirement{}, apperror.NotFound
 }
+
+// A confirmed event whose public shifts are all over says so: the public page marks the places as closed instead of
+// "not open yet", and the go-live readiness names the reason.
+func TestEventSignupAfterShiftsEnded(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	fixture := e.newEventFixture("Welcome day", e.now.Add(-21*24*time.Hour).Truncate(time.Minute), 2)
+	title := "Welcome day"
+	owner := e.master.PersonID
+	updated, err := e.events.Update(ctx, e.master, fixture.event.ID, events.EventInput{
+		Name: fixture.event.Name, OwnerPersonID: &owner, PublicTitle: &title, PublicSignupEnabled: true,
+		ExpectedVersion: fixture.event.Version,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fixture.event, err = e.events.SetPublished(ctx, e.master, fixture.event.ID, updated.Version, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.transition(&fixture, events.EventStatusConfirmed)
+	goLive := fixture.event.GoLive
+	if goLive.HelperSignupState != events.HelperSignupClosed ||
+		!containsCode(goLive.HelperSignupUnmet, events.ReadinessSignupPeriodOver) ||
+		containsCode(goLive.HelperSignupUnmet, events.ReadinessNoPublicOpenShift) {
+		t.Fatalf("ended event readiness = %#v", goLive)
+	}
+	public, err := e.events.GetPublic(ctx, fixture.event.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := public.Shifts[0].Requirements[0].Availability; got != events.AvailabilityClosed {
+		t.Fatalf("ended shift availability = %q", got)
+	}
+}

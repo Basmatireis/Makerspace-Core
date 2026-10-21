@@ -19,6 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * `not_open`: signup has not started (or is switched off); `closed`: the shift has ended or stopped taking signups.
+ */
 export type PublicEventRequirementAvailability = typeof PublicEventRequirementAvailability[keyof typeof PublicEventRequirementAvailability];
 
 
@@ -26,5 +29,6 @@ export const PublicEventRequirementAvailability = {
   available: 'available',
   full: 'full',
   not_open: 'not_open',
+  closed: 'closed',
   authenticated_only: 'authenticated_only',
 } as const;

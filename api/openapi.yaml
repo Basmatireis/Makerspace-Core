@@ -10392,8 +10392,9 @@ components:
         scheduled session and no shift that is not cancelled; `public_title_missing`; `public_content_missing`: no public
         scheduled session and no public shift that is not cancelled; `public_page_off`; `signup_disabled`: public signup
         is switched off; `no_public_open_shift`: no public shift with status open, at least one position and no
-        cancelled session.
-      enum: [event_closed, event_not_confirmed, owner_missing, programme_missing, public_title_missing, public_content_missing, public_page_off, signup_disabled, no_public_open_shift]
+        cancelled session; `signup_period_over`: such shifts exist, but all of them have ended or their signup
+        window has closed.
+      enum: [event_closed, event_not_confirmed, owner_missing, programme_missing, public_title_missing, public_content_missing, public_page_off, signup_disabled, no_public_open_shift, signup_period_over]
     EventGoLive:
       type: object
       additionalProperties: false
@@ -11030,7 +11031,10 @@ components:
         requiredCount: {type: integer, minimum: 1}
         filledCount: {type: integer, minimum: 0}
         remainingCount: {type: integer, minimum: 0}
-        availability: {type: string, enum: [available, full, not_open, authenticated_only]}
+        availability:
+          type: string
+          description: "`not_open`: signup has not started (or is switched off); `closed`: the shift has ended or stopped taking signups."
+          enum: [available, full, not_open, closed, authenticated_only]
     PublicEventSession:
       type: object
       additionalProperties: false

@@ -105,7 +105,7 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			LinkedSessionStatus: optional.Convert[SessionStatus](row.SessionStatus),
 			Version:             int64(row.Version),
 		}
-		effective := result.PublicSignupEnabled && shiftSignupBlock(
+		block := shiftSignupBlock(
 			status,
 			ShiftStatus(row.Status),
 			row.SessionStatus,
@@ -113,11 +113,16 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			pgTime(row.SignupOpensAt),
 			pgTime(row.SignupClosesAt),
 			now,
-		) == signupAllowed
+		)
 		items := byShift[row.ID]
-		if !effective {
+		if !result.PublicSignupEnabled || block != signupAllowed {
+			// A shift that has ended or stopped taking signups says so, instead of "not open yet".
+			unavailable := AvailabilityNotOpen
+			if result.PublicSignupEnabled && block == signupBlockClosed {
+				unavailable = AvailabilityClosed
+			}
 			for i := range items {
-				items[i].Availability = AvailabilityNotOpen
+				items[i].Availability = unavailable
 			}
 		}
 		result.Shifts = append(result.Shifts, PublicShift{Shift: shift, Requirements: items})

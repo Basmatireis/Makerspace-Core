@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { checklist, joinReasonLabel, nextSteps, previewPublicEvent, programme, signupTag } from './logic';
+import {
+  availabilityOf,
+  checklist,
+  joinReasonLabel,
+  nextSteps,
+  previewPublicEvent,
+  programme,
+  signupTag,
+} from './logic';
 import { eventFixture, participationFixture, sessionFixture, shiftFixture } from './testData';
 
 describe('programme', () => {
@@ -111,5 +119,15 @@ describe('public preview', () => {
     const draft = previewPublicEvent(eventFixture({ status: 'draft' }), [], [shiftFixture()], [], now);
     expect(draft.shifts[0].requirements.every((r) => r.availability === 'not_open')).toBe(true);
     expect(draft.publicSignupEnabled).toBe(false);
+  });
+
+  it('marks places of an ended shift as closed instead of not open yet', () => {
+    const afterShift = Date.parse('2026-11-03T10:00:00Z');
+    const preview = previewPublicEvent(eventFixture(), [], [shiftFixture()], [], afterShift);
+    expect(preview.shifts[0].requirements.every((r) => r.availability === 'closed')).toBe(true);
+    expect(availabilityOf(preview.shifts[0].requirements[0], false, true)).toMatchObject({
+      label: 'Signup closed',
+      canSignUp: false,
+    });
   });
 });
