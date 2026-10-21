@@ -54,7 +54,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
     && GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/admin ./cmd/admin
 
-FROM alpine:3.24.1 AS final
+FROM alpine:3.24.2 AS final
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S makerspace \
