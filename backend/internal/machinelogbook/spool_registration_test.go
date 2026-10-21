@@ -314,3 +314,61 @@ func TestSpoolMountedOn(t *testing.T) {
 		t.Fatalf("after unmount: %+v", after)
 	}
 }
+
+func TestEmptySpoolsStayListedUnderTheirMaterial(t *testing.T) {
+	f := newFillFixture(t)
+	ctx := t.Context()
+	m := f.material(t, "1000")
+	other := f.material(t, "1000")
+	usedUp := f.spool(t, m, "reusable", "300")
+	f.consume(t, usedUp, m, "300")
+	finished := f.spool(t, m, "reusable", "300")
+	f.consume(t, finished, m, "300")
+	if _, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		finished.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "none"},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: f.get(t, finished.ID).Version,
+		},
+		&f.request,
+	); err != nil {
+		t.Fatal(err)
+	}
+	// A spool that last held another material belongs to that one.
+	elsewhere := f.spool(t, other, "reusable", "200")
+	if _, err := f.s.FinishFilamentSpool(
+		ctx,
+		f.p,
+		elsewhere.ID,
+		FinishSpoolInput{
+			Leftover:        LeftoverInput{Basis: "none"},
+			OccurredAt:      f.now.Add(time.Hour),
+			ExpectedVersion: elsewhere.Version,
+		},
+		&f.request,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	filters := SpoolFilters{MaterialID: &m.ID, Lifecycle: SpoolActive, Page: 1, PageSize: 100}
+	items, total, err := f.s.ListFilamentSpools(ctx, f.p, filters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := map[uuid.UUID]SpoolStatus{}
+	for _, item := range items {
+		status[item.ID] = item.Status
+	}
+	if total != int64(len(items)) || len(items) != 2 || status[usedUp.ID] != SpoolStatusLoaded ||
+		status[finished.ID] != SpoolStatusNeedsRefill {
+		t.Fatalf("spools of the material: total %d, %+v", total, status)
+	}
+	filters.MaterialID = &other.ID
+	if items, _, err = f.s.ListFilamentSpools(ctx, f.p, filters); err != nil || len(items) != 1 ||
+		items[0].ID != elsewhere.ID {
+		t.Fatalf("spools of the other material: %+v %v", items, err)
+	}
+}

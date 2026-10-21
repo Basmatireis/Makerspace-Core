@@ -529,7 +529,10 @@ WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
-  AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id))
+  -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
+  AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id)
+       OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
+                             ORDER BY lf.fill_number DESC LIMIT 1)=sqlc.narg(material_id)))
   AND (sqlc.arg(lifecycle)::text='' OR s.lifecycle=sqlc.arg(lifecycle)::text)
   AND (sqlc.arg(location)::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(location)::text)||'%')
   AND (sqlc.arg(kind)::text='' OR s.kind=sqlc.arg(kind)::text)
@@ -551,7 +554,10 @@ WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
-  AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id))
+  -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
+  AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id)
+       OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
+                             ORDER BY lf.fill_number DESC LIMIT 1)=sqlc.narg(material_id)))
   AND (sqlc.arg(lifecycle)::text='' OR s.lifecycle=sqlc.arg(lifecycle)::text)
   AND (sqlc.arg(location)::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(location)::text)||'%')
   AND (sqlc.arg(kind)::text='' OR s.kind=sqlc.arg(kind)::text)

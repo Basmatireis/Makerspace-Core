@@ -543,7 +543,10 @@ WHERE ($1::text='' OR lower(s.display_id) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower($1::text)||'%')
-  AND ($2::uuid IS NULL OR f.material_id=$2)
+  -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
+  AND ($2::uuid IS NULL OR f.material_id=$2
+       OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
+                             ORDER BY lf.fill_number DESC LIMIT 1)=$2))
   AND ($3::text='' OR s.lifecycle=$3::text)
   AND ($4::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower($4::text)||'%')
   AND ($5::text='' OR s.kind=$5::text)
@@ -3777,7 +3780,10 @@ WHERE ($1::text='' OR lower(s.display_id) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower($1::text)||'%')
-  AND ($2::uuid IS NULL OR f.material_id=$2)
+  -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
+  AND ($2::uuid IS NULL OR f.material_id=$2
+       OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
+                             ORDER BY lf.fill_number DESC LIMIT 1)=$2))
   AND ($3::text='' OR s.lifecycle=$3::text)
   AND ($4::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower($4::text)||'%')
   AND ($5::text='' OR s.kind=$5::text)
