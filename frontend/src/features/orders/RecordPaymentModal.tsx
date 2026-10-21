@@ -3,10 +3,12 @@ import { InlineNotification, Modal, Stack } from '@carbon/react';
 import { checkoutOrder } from '../../api/generated/orders/orders';
 import { recordOrderPayment } from '../../api/generated/payments/payments';
 import type { Order } from '../../api/generated/models';
+import { RichNotification } from '../../app/RichNotification';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { acceptsCashAndCard, customerLabel } from './logic';
 import { requestStateLabel } from './labels';
 import { formatCents, toCents } from './money';
+import { OrderErrorText } from './OrderErrorText';
 import { useOperationKeys } from './operations';
 import { checkEntry, newPaymentEntry, PaymentEntryForm, toPaymentInputs } from './PaymentEntry';
 import { useFinanceMutation } from './queries';
@@ -77,6 +79,7 @@ export function RecordPaymentModal({ order, mode, onClose, onRequestInvoice }: {
       preventCloseOnClickOutside onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={submit}
     >
       <Stack gap={5}>
+        {mutation.error && <RichNotification kind="error" title="Could not record"><OrderErrorText error={mutation.error} order={order} /></RichNotification>}
         <div className="sales-modal-summary">
           <div><span className="mj-secondary">{checkout ? 'Total to pay' : 'Outstanding'}</span><strong className="sales-modal-summary__amount">{formatCents(due)}</strong></div>
           <div className="mj-cell-stack"><span>{customerLabel(order)}</span><OrderStatusTag order={order} size="sm" /></div>
@@ -85,7 +88,6 @@ export function RecordPaymentModal({ order, mode, onClose, onRequestInvoice }: {
         {!invoice && <p className="mj-secondary">Partial payments are fine; the rest stays outstanding.</p>}
         {!open && <InlineNotification kind="warning" lowContrast hideCloseButton title="No payment can be recorded right now" subtitle={`${order.activeExternalRequestReference} is ${state ? (requestStateLabel[state as keyof typeof requestStateLabel] ?? state).toLowerCase() : 'active'}, so cash and card can no longer be added. An issued invoice settles the balance by itself.`} />}
         {open && <PaymentEntryForm idPrefix={`pay-${order.id}`} entry={entry} onChange={setEntry} due={due} requireFull={false} disabled={pending} allowInvoice={!!onRequestInvoice && due > 0} />}
-        {mutation.error && <InlineNotification kind="error" lowContrast hideCloseButton title="Could not record" subtitle={mutation.error.message} />}
       </Stack>
     </Modal>
   );

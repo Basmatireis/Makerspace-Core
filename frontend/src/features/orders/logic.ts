@@ -347,3 +347,11 @@ export function reversalOptions(payment: OrderPayment, reversal: OrderPayment | 
   }
   return { kinds: ['refund', 'recording_error'], blocker: null, prerequisite: state && state !== 'draft' ? `${order.activeExternalRequestReference} states what was already paid, so it has to be cancelled first.` : null };
 }
+
+/** The refusal of a finalization (409 insufficient_stock): which article is short and how much loose stock there is. Null for any other error. */
+export function insufficientStock(error: unknown): { materialId: string; available: string } | null {
+  const data = (error as { status?: number; data?: { code?: string; details?: { materialId?: unknown; available?: unknown } } } | null);
+  if (data?.status !== 409 || data.data?.code !== 'insufficient_stock') return null;
+  const details = data.data.details;
+  return { materialId: typeof details?.materialId === 'string' ? details.materialId : '', available: typeof details?.available === 'string' || typeof details?.available === 'number' ? String(details.available) : '' };
+}

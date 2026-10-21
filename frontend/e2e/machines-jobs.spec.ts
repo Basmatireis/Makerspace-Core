@@ -264,7 +264,7 @@ test.describe('inventory', () => {
     await expect(page.getByText('S-2026-000001 refilled with PLA Black (fill 4)')).toBeVisible();
     expect(world.bodyOf('POST', `/api/v1/filament-spools/${ids.spoolReusable}/fills`)).toEqual({
       leftover: { basis: 'weighed', grossWeightG: '850', disposition: 'returned_to_stock' },
-      fill: { productId: ids.productRefill, materialId: ids.pla, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black', netWeightG: '1000', source: 'loose_stock', totalPrice: null, supplier: null },
+      fill: { materialId: ids.pla, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black', netWeightG: '1000', source: 'loose_stock', totalPrice: null, supplier: null },
       keepIdentifierIds: [ids.barcode], newIdentifiers: [{ kind: 'nfc', value: '04BB22' }],
       occurredAt: expect.any(String), expectedVersion: 5,
     });
@@ -300,32 +300,6 @@ test.describe('inventory', () => {
     expect(requests.at(-1)).toEqual({ olderThanMonths: 3, dryRun: false, spoolIds: [ids.spoolArchivedOld, ids.spoolArchivedNew] });
   });
 
-  test('adds and edits a product in the catalog', async ({ page, world }) => {
-    await page.goto(`${base}/inventory?tab=products`);
-    const table = page.getByRole('table', { name: 'Products' });
-    await expect(table.getByText('PLA Basic Black')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Add product' }).click();
-    const add = page.getByRole('dialog');
-    await add.getByRole('combobox', { name: 'Manufacturer' }).fill('Polymaker');
-    await add.getByLabel('Product', { exact: true }).fill('PETG Orange');
-    await add.getByLabel('Material', { exact: true }).selectOption(ids.pla);
-    await add.getByLabel('Default price (€, optional)').fill('24.5');
-    await add.getByLabel(/Refill/).check({ force: true });
-    await add.getByRole('button', { name: 'Add product' }).click();
-    await expect(page.getByText('Product added', { exact: true })).toBeVisible();
-    expect(world.bodyOf('POST', '/api/v1/filament-products')).toEqual({ manufacturer: 'Polymaker', name: 'PETG Orange', materialId: ids.pla, netWeightG: '1000', defaultPrice: '24.50', packaging: 'refill', notes: null });
-    await expect(table.getByText('PETG Orange')).toBeVisible();
-
-    await table.getByRole('button', { name: 'PLA Basic Black' }).click();
-    const edit = page.getByRole('dialog');
-    await expect(edit.getByText('Edit product')).toBeVisible();
-    await edit.getByLabel('Product', { exact: true }).fill('PLA Matte Black');
-    await edit.getByRole('button', { name: 'Save product' }).click();
-    await expect(page.getByText('Product saved', { exact: true })).toBeVisible();
-    expect(world.bodyOf('PATCH', `/api/v1/filament-products/${ids.productRefill}`)).toMatchObject({ manufacturer: 'Bambu Lab', name: 'PLA Matte Black', materialId: ids.pla, packaging: 'refill', active: true, expectedVersion: 2 });
-    await expect(table.getByText('PLA Matte Black')).toBeVisible();
-  });
 });
 
 test.describe('statistics', () => {

@@ -36,3 +36,14 @@ export const moneyInputText = (value: number) => fromCents(value).replace('.', '
 export function parseDecimalInput(text: string, places = 6): string | null {
   return parseDecimalText(text, { places });
 }
+
+const scaled = (value: string): bigint => {
+  const [whole, fraction = ''] = value.split('.');
+  return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
+};
+
+/** Quantity times unit price (both API decimals, up to six places), rounded half up to cents like the server rounds manual items. */
+export function lineAmountCents(quantity: string, unitPrice: string): number {
+  const product = scaled(quantity) * scaled(unitPrice); // six + six decimal places
+  return Number((product + 5_000_000_000n) / 10_000_000_000n);
+}

@@ -25,10 +25,10 @@ const targets: Target[] = [
   { name: 'Machine detail, Jobs tab', path: `${base}/machines/${ids.bambu}?tab=jobs`, ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }) },
   { name: 'Machine detail, Printer setup tab', path: `${base}/machines/${ids.bambu}?tab=printer`, ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }) },
   { name: 'Machines, Machine types tab', path: `${base}/machines?tab=types`, ready: (page) => page.getByRole('table', { name: 'Machine types' }) },
-  { name: 'Inventory, Materials tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black' }) },
+  { name: 'Inventory, Filament tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'PLA Black' }) },
   { name: 'Inventory, Spools tab', path: `${base}/inventory?tab=spools`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }) },
   { name: 'Inventory, Spools tab with archived spools', path: `${base}/inventory?tab=spools&spoolsarchived=1`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }) },
-  { name: 'Inventory, Products tab', path: `${base}/inventory?tab=products`, ready: (page) => page.getByRole('table', { name: 'Products' }).getByText('PLA Basic Black') },
+  { name: 'Inventory, Consumables tab', path: `${base}/inventory?tab=consumables`, ready: (page) => page.getByRole('table', { name: 'Consumables' }).getByRole('link', { name: 'Birch plywood' }) },
   { name: 'Material detail (filament)', path: `${base}/inventory/materials/${ids.pla}`, ready: heading('PLA Black', 1) },
   { name: 'Material detail (sheet)', path: `${base}/inventory/materials/${ids.plywood}`, ready: heading('Birch plywood', 1) },
   { name: 'Spool detail (reusable, with fill history)', path: `${base}/inventory/spools/${ids.spoolReusable}`, ready: (page) => page.getByRole('table', { name: 'Fills' }) },
@@ -178,12 +178,6 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await checkDialog(page, dialog);
   });
 
-  test('add product', async ({ page }) => {
-    await page.goto(`${base}/inventory?tab=products`);
-    await page.getByRole('button', { name: 'Add product' }).click();
-    await checkDialog(page, page.getByRole('dialog'));
-  });
-
   test('register spool', async ({ page }) => {
     await page.goto(`${base}/inventory?tab=spools`);
     await page.getByRole('button', { name: 'New', exact: true }).click();
@@ -279,7 +273,7 @@ test.describe('read-only role', () => {
     expect(world.requests).toEqual([]);
   });
 
-  test('offers no inventory changes: Change filament, New, Clean up, Add product', async ({ page }) => {
+  test('offers no inventory changes: Change filament, New, Clean up, Receive stock', async ({ page }) => {
     await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
     await expect(page.getByRole('heading', { name: 'S-2026-000001', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Change filament' })).toHaveCount(0);
@@ -290,11 +284,9 @@ test.describe('read-only role', () => {
     await expect(page.getByRole('button', { name: 'New', exact: true })).toHaveCount(0);
     await expect(page.locator('.cds--table-toolbar .cds--overflow-menu')).toHaveCount(0);
 
-    await page.goto(`${base}/inventory?tab=products`);
-    const products = page.getByRole('table', { name: 'Products' });
-    await expect(products.getByText('PLA Basic Black')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add product' })).toHaveCount(0);
-    await expect(products.getByRole('button', { name: 'PLA Basic Black' })).toHaveCount(0);
+    await page.goto(`${base}/inventory`);
+    await expect(page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'PLA Black' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
   });
 
   test('offers no machine changes: Add machine, New job, Printer setup', async ({ page }) => {
