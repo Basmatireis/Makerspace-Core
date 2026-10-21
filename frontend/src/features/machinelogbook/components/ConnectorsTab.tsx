@@ -48,6 +48,8 @@ import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { useNow } from '../shared/useNow';
 import { DiagnosticsModal } from './ConnectorDiagnostics';
+// The connectors are shown under Settings, Local services, outside the machine logbook's pages.
+import '../styles/machines.scss';
 
 const headers = [
   { key: 'name', header: 'Connector' },

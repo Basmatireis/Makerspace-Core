@@ -26,4 +26,6 @@ export const machineLogbookPaths = {
   material: (id: string) => `${root}/inventory/materials/${segment(id)}`,
   spool: (id: string) => `${root}/inventory/spools/${segment(id)}`,
   statistics: () => `${root}/statistics`,
+  /** Printer connectors live under Settings, Local services. */
+  connectors: () => '/settings/local-services?tab=connectors',
 };

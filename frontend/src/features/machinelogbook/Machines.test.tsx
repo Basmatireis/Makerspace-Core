@@ -17,6 +17,7 @@ import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
 import { MachineDetailPage } from './MachineDetailPage';
 import { MachinesPage } from './MachinesPage';
+import { LocalServicesPage } from '../localservices/LocalServicesPage';
 import { ToastProvider } from './shared/toasts';
 
 // These pages are rendered directly (not through App) so the printer tab works before the interim route glue is removed.
@@ -39,6 +40,7 @@ function renderPage(route: string) {
           { path: 'machines/:machineId', element: <MachineDetailPage /> },
         ],
       },
+      { path: '/settings/local-services', element: <LocalServicesPage /> },
     ],
     { initialEntries: [route] },
   );
@@ -261,7 +263,7 @@ describe('Machines list', () => {
     expect(await screen.findByRole('link', { name: 'Laser cutter' })).toBeInTheDocument();
   });
 
-  it('shows the Connectors tab only with printer_connectors.read and keeps Machines and Machine types for readers', async () => {
+  it('keeps Machines and Machine types and sends the former Connectors tab to Settings, Local services', async () => {
     setup([PermissionId.machinesread]);
     const readOnly = renderPage('/machine-logbook/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
@@ -269,16 +271,13 @@ describe('Machines list', () => {
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.printer_connectorsread]);
-    server.use(http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [] })));
-    renderPage('/machine-logbook/machines?tab=connectors');
+    server.use(http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [], coreVersion: '0.8.3' })));
+    const { router } = renderPage('/machine-logbook/machines?tab=connectors');
     expect(
-      await screen.findByRole('tab', { name: 'Connectors', selected: true }, { timeout: 5000 }),
+      await screen.findByRole('tab', { name: 'Printer connectors', selected: true }, { timeout: 5000 }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Machines',
-      'Connectors',
-      'Machine types',
-    ]);
+    expect(router.state.location.pathname).toBe('/settings/local-services');
+    expect(router.state.location.search).toBe('?tab=connectors');
   });
 
   it('only offers Add machine with machines.manage', async () => {

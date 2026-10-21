@@ -53,7 +53,7 @@ describe('protected application routing', () => {
     },
   );
 
-  it('uses client-side navigation for settings tiles and no longer lists printer connectors', async () => {
+  it('uses client-side navigation for settings tiles and offers local services to connector readers', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.rolesread, PermissionId.printer_connectorsread])),
@@ -63,7 +63,7 @@ describe('protected application routing', () => {
     const { router } = renderRoute(<App />, '/settings');
 
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Printer connectors/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Local services/ })).toHaveAttribute('href', '/settings/local-services');
     await user.click(screen.getByRole('link', { name: /Roles/ }));
     expect(router.state.location.pathname).toBe('/settings/roles');
   });

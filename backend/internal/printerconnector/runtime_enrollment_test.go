@@ -77,7 +77,7 @@ func TestEnrollmentWithoutAnySecretExplainsWhatToDo(t *testing.T) {
 	runtime, tokens := newEnrollmentRuntime(t, Enrollment{}, io.Discard)
 	_, err := runtime.ensureIdentity(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "CONNECTOR_ENROLLMENT_SECRET") ||
-		!strings.Contains(err.Error(), "Machines > Connectors") {
+		!strings.Contains(err.Error(), "Settings > Local services > Printer connectors") {
 		t.Fatalf("expected an actionable error, got %v", err)
 	}
 	if len(*tokens) != 0 {

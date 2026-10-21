@@ -418,3 +418,27 @@ test.describe('role without job access', () => {
     }
   });
 });
+
+test.describe('printer connectors under Settings, Local services', () => {
+  test.use({
+    userPermissions: ['machines.read', 'printer_connectors.read', 'printer_connectors.manage', 'local_services.manage'],
+  });
+
+  test('the former Connectors tab leads there, and the page passes axe and fits a phone', async ({ page, world }) => {
+    test.setTimeout(60_000);
+    await page.goto(`${base}/machines?tab=connectors`);
+    await expect(page).toHaveURL(/\/settings\/local-services\?tab=connectors$/);
+    await expect(page.getByRole('table', { name: 'Printer connectors' })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectNoAccessibilityViolations(page);
+
+    await page.getByRole('tab', { name: 'Versions and updates' }).click();
+    const updates = page.getByRole('table', { name: 'Versions and updates' });
+    await expect(updates.getByText('Update available')).toBeVisible();
+    await expect(updates.getByRole('button', { name: 'Update to 0.8.3' })).toBeVisible();
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expectNoHorizontalScroll(page);
+    await expectNoAccessibilityViolations(page);
+    expect(world.requests).toEqual([]);
+  });
+});

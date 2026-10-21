@@ -45,7 +45,10 @@ export function SettingsPage() {
   const canManageVisitorEnrollment = hasAnyPermission(currentUser, [PermissionId.visitor_enrollmentmanage]);
   const canManageMail = hasAnyPermission(currentUser, [PermissionId.mailmanage]);
   const canManageBranding = hasAnyPermission(currentUser, [PermissionId.brandingmanage]);
-  const canManageLocalServices = hasPermission(currentUser, PermissionId.local_servicesmanage);
+  const canManageLocalServices = hasAnyPermission(currentUser, [
+    PermissionId.local_servicesmanage,
+    PermissionId.printer_connectorsread,
+  ]);
   const canManageOpenDays = hasPermission(currentUser, PermissionId.open_daysmanage);
   const canConfigureMachineLogbook = hasPermission(currentUser, PermissionId.pricingread);
 
@@ -202,7 +205,7 @@ export function SettingsPage() {
                 <VideoChat size={32} />
                 <div>
                   <h2>Local services</h2>
-                  <p>Streaming gateways and printer cameras for digital signage.</p>
+                  <p>Printer connectors, streaming gateways and their updates.</p>
                 </div>
               </Stack>
             </ClickableTile>

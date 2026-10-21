@@ -498,7 +498,7 @@ describe('Printer setup tab', () => {
     expect(screen.getAllByText('01P00A123456789').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Print room agent' })).toHaveAttribute(
       'href',
-      '/machine-logbook/machines?tab=connectors',
+      '/settings/local-services?tab=connectors',
     );
     await user.click(screen.getByRole('button', { name: 'Edit connection' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit connection' });

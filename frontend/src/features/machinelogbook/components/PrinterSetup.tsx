@@ -376,7 +376,7 @@ export function PrinterSetup({
               <div>
                 <dt>Connector</dt>
                 <dd>
-                  <CarbonLink as={Link} to={`${machineLogbookPaths.machines()}?tab=connectors`}>
+                  <CarbonLink as={Link} to={machineLogbookPaths.connectors()}>
                     {connection.connector.name}
                   </CarbonLink>
                 </dd>

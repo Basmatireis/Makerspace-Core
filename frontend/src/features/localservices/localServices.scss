@@ -1,0 +1,5 @@
+// The visually hidden "Actions" column header is positioned absolutely; keep it inside the table's
+// horizontal scroll area so a narrow screen does not scroll the page.
+.local-services-table .cds--data-table-content {
+  position: relative;
+}

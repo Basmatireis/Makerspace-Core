@@ -73,6 +73,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.brandingmanage,
   PermissionId.pricingread,
   PermissionId.local_servicesmanage,
+  PermissionId.printer_connectorsread,
   PermissionId.open_daysmanage,
 ];
 

@@ -213,7 +213,7 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 	}
 	if enrollment == "" {
 		return Identity{}, errors.New(
-			"not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Machines > Connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again",
+			"not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Settings > Local services > Printer connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again",
 		)
 	}
 	value, err := r.client.Enroll(ctx, enrollment, *identity, Version)

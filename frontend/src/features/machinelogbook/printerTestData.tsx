@@ -15,6 +15,7 @@ import { testQueryClient } from '../../test/render';
 import { MachineDetailPage } from './MachineDetailPage';
 import { MachinesPage } from './MachinesPage';
 import { ToastProvider } from './shared/toasts';
+import { LocalServicesPage } from '../localservices/LocalServicesPage';
 
 // Shared fixtures and render helper of the printer setup tests (wizard, spool inputs, connectors, diagnostics).
 
@@ -34,6 +35,7 @@ export function renderPage(route: string) {
           { path: 'machines/:machineId', element: <MachineDetailPage /> },
         ],
       },
+      { path: '/settings/local-services', element: <LocalServicesPage /> },
     ],
     { initialEntries: [route] },
   );

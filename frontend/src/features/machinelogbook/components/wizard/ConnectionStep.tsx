@@ -158,7 +158,7 @@ export function ConnectionStep({
             {hosts.length === 0 && (
               <p className="mj-secondary">
                 No active connector yet.{' '}
-                <CarbonLink as={Link} to={`${machineLogbookPaths.machines()}?tab=connectors`} onClick={onNavigate}>
+                <CarbonLink as={Link} to={machineLogbookPaths.connectors()} onClick={onNavigate}>
                   Add a connector
                 </CarbonLink>
               </p>
