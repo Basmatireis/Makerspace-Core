@@ -11,8 +11,8 @@ import {
   listCashMovements,
   listOrderPayments,
 } from '../../api/generated/payments/payments';
-import { listRolePricingGroups } from '../../api/generated/pricing/pricing';
-import type { WorkItem } from '../../api/generated/models';
+import { getPriceQuote, listRolePricingGroups } from '../../api/generated/pricing/pricing';
+import type { GetPriceQuoteParams, WorkItem } from '../../api/generated/models';
 import { machineLogbookKeys } from '../machinelogbook/queries';
 import { financeKeys } from './operations';
 
@@ -99,3 +99,9 @@ export function useFinanceMutation<TVariables, TResult>(
     },
   });
 }
+
+export const priceQuoteQuery = (params: GetPriceQuoteParams) =>
+  queryOptions({
+    queryKey: ['pricing', 'quote', params] as const,
+    queryFn: ({ signal }) => getPriceQuote(params, { signal }),
+  });

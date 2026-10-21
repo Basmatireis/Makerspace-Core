@@ -1,4 +1,4 @@
-import { Fragment, useMemo, type ComponentProps, type ComponentType, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react';
 import {
   Button,
   ClickableTile as CarbonClickableTile,
@@ -7,7 +7,7 @@ import {
   SkeletonText,
   Tag,
 } from '@carbon/react';
-import { ArrowRight } from '@carbon/icons-react';
+import { ArrowRight, Calculator } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
@@ -17,6 +17,7 @@ import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { requestStateLabel } from './labels';
+import { PriceLookupModal } from './PriceLookupModal';
 import {
   customerLabel,
   invoiceKey,
@@ -53,6 +54,7 @@ export function SalesOverviewPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
   const can = (permission: PermissionId) => hasPermission(user, permission);
+  const [lookupOpen, setLookupOpen] = useState(false);
   const canOrders = can(PermissionId.ordersread);
   const canPayments = can(PermissionId.paymentsread);
   const canRegister = canPayments && can(PermissionId.cash_movementsread);
@@ -242,10 +244,19 @@ export function SalesOverviewPage() {
       breadcrumbs={[{ label: 'Sales & payments' }]}
       description="What is in the register, what is open and what needs you."
       actions={
-        can(PermissionId.orderswrite) ? (
-          <Button as={Link} to="/orders" kind="primary">
-            New order
-          </Button>
+        can(PermissionId.pricingread) || can(PermissionId.orderswrite) ? (
+          <>
+            {can(PermissionId.pricingread) && (
+              <Button kind="tertiary" renderIcon={Calculator} onClick={() => setLookupOpen(true)}>
+                Price lookup
+              </Button>
+            )}
+            {can(PermissionId.orderswrite) && (
+              <Button as={Link} to="/orders" kind="primary">
+                New order
+              </Button>
+            )}
+          </>
         ) : undefined
       }
     >
@@ -340,6 +351,7 @@ export function SalesOverviewPage() {
           )}
         </div>
       )}
+      {lookupOpen && <PriceLookupModal onClose={() => setLookupOpen(false)} />}
     </PageShell>
   );
 }

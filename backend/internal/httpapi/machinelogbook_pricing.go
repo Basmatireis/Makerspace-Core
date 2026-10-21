@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/oapi-codegen/nullable"
 )
 
 func (s *Server) ListPricingGroups(
@@ -221,4 +222,76 @@ func (s *Server) SetRolePricingGroups(
 		return nil, err
 	}
 	return openapi.SetRolePricingGroups200JSONResponse(rolePricingGroupDTOs(items)), nil
+}
+
+func (s *Server) GetPriceQuote(
+	ctx context.Context,
+	r openapi.GetPriceQuoteRequestObject,
+) (openapi.GetPriceQuoteResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	quote, err := s.machineLogbook.QuotePrice(
+		ctx,
+		p,
+		machinelogbook.PriceQuoteInput{
+			MachineID:  r.Params.MachineId,
+			Hours:      r.Params.Hours,
+			MaterialID: r.Params.MaterialId,
+			Quantity:   r.Params.Quantity,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetPriceQuote200JSONResponse(priceQuoteDTO(quote)), nil
+}
+
+func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
+	dto := openapi.PriceQuote{
+		Machine:    nullable.NewNullNullable[openapi.PriceQuoteMachine](),
+		Material:   nullable.NewNullNullable[openapi.PriceQuoteMaterial](),
+		Hours:      nullableDecimalValue(quote.Hours),
+		Quantity:   nullableDecimalValue(quote.Quantity),
+		SaleAmount: nullableMoney(quote.SaleAmount),
+		Groups:     make([]openapi.PriceQuoteGroup, 0, len(quote.Groups)),
+	}
+	if m := quote.Machine; m != nil {
+		dto.Machine = nullable.NewNullableWithValue(
+			openapi.PriceQuoteMachine{Id: m.ID, Name: m.Name, MachineTypeName: m.MachineTypeName},
+		)
+	}
+	if m := quote.Material; m != nil {
+		typeName := nullable.NewNullNullable[string]()
+		if m.MaterialTypeName != nil {
+			typeName = nullable.NewNullableWithValue(*m.MaterialTypeName)
+		}
+		dto.Material = nullable.NewNullableWithValue(
+			openapi.PriceQuoteMaterial{
+				Id:               m.ID,
+				Name:             m.Name,
+				Unit:             openapi.MaterialUnit(m.Unit),
+				MaterialTypeName: typeName,
+				SalePrice:        nullableDecimalValue(m.SalePrice),
+			},
+		)
+	}
+	for _, g := range quote.Groups {
+		dto.Groups = append(
+			dto.Groups,
+			openapi.PriceQuoteGroup{
+				PricingGroupId: g.PricingGroupID,
+				Name:           g.Name,
+				IsDefault:      g.IsDefault,
+				MachineRate:    nullableDecimalValue(g.MachineRate),
+				MachineAmount:  nullableMoney(g.MachineAmount),
+				MaterialRate:   nullableDecimalValue(g.MaterialRate),
+				MaterialAmount: nullableMoney(g.MaterialAmount),
+				Total:          nullableMoney(g.Total),
+				Complete:       g.Complete,
+			},
+		)
+	}
+	return dto
 }
