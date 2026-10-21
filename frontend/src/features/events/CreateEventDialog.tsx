@@ -8,10 +8,10 @@ import { dateInAppTimeZone } from '../../app/dateTime';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
-import { FieldRow, FormSection, FormSections } from './components/FormSection';
+import { FieldRow, FormSection, FormSections, OvernightHint } from './components/FormSection';
 import { PersonCombo, type PersonChoice } from './components/PersonCombo';
 import { eventMutationMessage } from './errors';
-import { toInstant } from './format';
+import { endDayOf, overnightHint, toInstant } from './format';
 import { invalidateEvents } from './queries';
 
 type Values = {
@@ -44,7 +44,7 @@ export function CreateEventDialog({ open, onClose }: { open: boolean; onClose: (
           name: null,
           location,
           startsAt: toInstant(value.date, value.start),
-          endsAt: toInstant(value.date, value.end),
+          endsAt: toInstant(endDayOf(value.date, value.start, value.end), value.end),
           isPublic: true,
         },
       });
@@ -135,10 +135,11 @@ export function CreateEventDialog({ open, onClose }: { open: boolean; onClose: (
                 {...form.register('end', {
                   required: true,
                   pattern: /^([01]\d|2[0-3]):[0-5]\d$/,
-                  validate: (value, values) => value > values.start,
+                  validate: (value, values) => value !== values.start,
                 })}
               />
             </FieldRow>
+            <OvernightHint text={overnightHint(form.watch('date'), form.watch('start'), form.watch('end'))} />
           </FormSection>
           <FormSection title="Responsibility">
             <Controller

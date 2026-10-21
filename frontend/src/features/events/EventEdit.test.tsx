@@ -240,6 +240,32 @@ describe('Event edit mode', () => {
     });
   });
 
+  it('saves a shift that ends after midnight on the next day', async () => {
+    mockEdit(organizer);
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`*/api/v1/events/${eventId}/shifts`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(shiftFixture(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/events/${eventId}?mode=edit&tab=programme`);
+    await user.click((await screen.findAllByRole('button', { name: 'Add shift' }))[0]);
+    await user.type(await screen.findByLabelText('Name', { exact: true }), 'Cleanup');
+    const start = screen.getByLabelText('Start (24-hour)');
+    const end = screen.getByLabelText('End (24-hour)');
+    await user.clear(start);
+    await user.type(start, '23:00');
+    await user.clear(end);
+    await user.type(end, '01:00');
+    expect(await screen.findByText(/^Ends the next day, /)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Add shift' }).at(-1)!);
+    await waitFor(() => expect(body).toBeDefined());
+    const length = Date.parse(body!.endsAt as string) - Date.parse(body!.startsAt as string);
+    expect(length).toBe(2 * 3_600_000);
+  });
+
   it('keeps positions that already have helpers from being removed', async () => {
     mockEdit(organizer);
     const user = userEvent.setup();

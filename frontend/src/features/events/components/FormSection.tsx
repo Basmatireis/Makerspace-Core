@@ -31,6 +31,11 @@ export function FieldRow({ cols = 2, children }: { cols?: 2 | 3; children: React
 }
 
 /** Read-only label/value pairs, for example the place a signup currently sits in. */
+/** Helper text under a time row, e.g. that an end earlier than the start falls on the next day. */
+export function OvernightHint({ text }: { text?: string }) {
+  return text ? <p className="cds--form__helper-text">{text}</p> : null;
+}
+
 export function KeyValueList({ label, rows }: { label: string; rows: Array<[string, ReactNode]> }) {
   return (
     <StructuredListWrapper isFlush isCondensed aria-label={label}>

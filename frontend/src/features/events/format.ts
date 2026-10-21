@@ -50,4 +50,22 @@ export function toInstant(date: string, time: string) {
 }
 export const toISO = zonedDateTimeValueToISO;
 
+/**
+ * The day a time span ends on. An end time earlier than the start on the same day is an overnight span and ends the
+ * next day; an explicitly chosen other end day stays as it is.
+ */
+export function endDayOf(date: string, start: string, end: string, endDate = date) {
+  if (endDate !== date || !start || !end || end >= start) return endDate;
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+/** "Ends the next day, Fri 18 Dec." for an overnight span, otherwise undefined. */
+export function overnightHint(date: string, start: string, end: string, endDate = date) {
+  const day = endDayOf(date, start, end, endDate);
+  if (endDate !== date || day === date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
+  return `Ends the next day, ${fmtDay(`${day}T12:00:00Z`)}.`;
+}
+
 export const publicLink = (publicId: string) => `${window.location.origin}/events/public/${publicId}`;
