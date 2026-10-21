@@ -18,13 +18,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SupervisorPeriodStatus } from './supervisorPeriodStatus';
-import type { UUIDv7 } from './uUIDv7';
 
-export interface SupervisorPeriod {
-  id: UUIDv7;
-  name: string;
-  status: SupervisorPeriodStatus;
-  /** @minimum 0 */
-  supervisorAssignments: number;
-}
+export type ComingUpItemKind = typeof ComingUpItemKind[keyof typeof ComingUpItemKind];
+
+
+export const ComingUpItemKind = {
+  open_day: 'open_day',
+  event_shift: 'event_shift',
+} as const;

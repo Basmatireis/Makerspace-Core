@@ -266,7 +266,7 @@ describe('Roles and permissions matrix', () => {
         permissionGrants: source.permissionGrants,
         profileImageRequired: false,
         laborordnungMode: 'not_required',
-        supervisorDashboard: false,
+        staffingLevel: null,
       }),
     );
   });
@@ -370,7 +370,7 @@ describe('Roles and permissions matrix', () => {
           name: 'Workshop coordinators',
           profileImageRequired: role.profileImageRequired,
           laborordnungMode: role.laborordnungMode,
-          supervisorDashboard: role.supervisorDashboard,
+          staffingLevel: role.staffingLevel,
         }),
       ),
     );

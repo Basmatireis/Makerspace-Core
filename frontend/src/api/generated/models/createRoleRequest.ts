@@ -20,6 +20,7 @@
  */
 import type { CreateRoleRequestLaborordnungMode } from './createRoleRequestLaborordnungMode';
 import type { PermissionGrant } from './permissionGrant';
+import type { StaffingLevel } from './staffingLevel';
 
 export interface CreateRoleRequest {
   /**
@@ -35,5 +36,6 @@ export interface CreateRoleRequest {
   permissionGrants: PermissionGrant[];
   profileImageRequired?: boolean;
   laborordnungMode?: CreateRoleRequestLaborordnungMode;
-  supervisorDashboard?: boolean;
+  /** How people holding this role staff open days. Omitted or null means the role does not staff. */
+  staffingLevel?: StaffingLevel | null;
 }

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   Button,
   DataTable,
-  Dropdown,
   InlineNotification,
   Link as CarbonLink,
   Pagination,
@@ -20,7 +19,7 @@ import {
 } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import type { SupervisorRowLaborordnungState } from '../../api/generated/models';
+import type { StaffingStatus, SupervisorRowLaborordnungState } from '../../api/generated/models';
 import { getSupervisorDashboard } from '../../api/generated/supervisors/supervisors';
 import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
@@ -49,6 +48,12 @@ const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<SupervisorRowLaborordnungStat
   { value: 'no_published_version', label: 'No published version' },
 ];
 
+const STATUS_LABELS: Record<StaffingStatus, string> = {
+  fulfilled: 'Minimum reached',
+  missing: 'Below minimum',
+  ready: 'Ready for supervisor',
+};
+
 function labRulesLabel(state: string): string {
   return state.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
 }
@@ -58,7 +63,6 @@ export function SupervisorStaffingPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>({});
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const canOpenPeople = hasPermission(currentUser, PermissionId.peoplereadall);
@@ -79,28 +83,22 @@ export function SupervisorStaffingPage() {
   }
 
   const dashboard = query.data;
-  const selectedPeriod =
-    dashboard.periods.find((period) => period.id === selectedPeriodId) ?? dashboard.periods[0] ?? null;
   const headers = [
     { key: 'name', header: 'Member' },
     { key: 'photo', header: 'Profile picture' },
     { key: 'laborordnung', header: 'Lab Rules' },
-    { key: 'supervisorAssignments', header: 'Supervisor' },
-    { key: 'traineeAssignments', header: 'Trainee' },
+    { key: 'openDays', header: 'Open days this semester' },
+    { key: 'status', header: 'Status' },
   ];
-  const rows = dashboard.supervisors.map((supervisor) => {
-    const assignmentCount = selectedPeriod
-      ? supervisor.assignmentCounts.find((count) => count.periodId === selectedPeriod.id)
-      : undefined;
-    return {
-      id: supervisor.personId,
-      name: supervisor.name,
-      photo: supervisor.hasProfileImage ? 'Complete' : 'Missing',
-      laborordnung: supervisor.laborordnungState,
-      supervisorAssignments: assignmentCount?.supervisorCount ?? 0,
-      traineeAssignments: assignmentCount?.traineeCount ?? 0,
-    };
-  });
+  const minimum = dashboard.requirements.minOpenDaysPerSemester;
+  const rows = dashboard.supervisors.map((supervisor) => ({
+    id: supervisor.personId,
+    name: supervisor.name,
+    photo: supervisor.hasProfileImage ? 'Complete' : 'Missing',
+    laborordnung: supervisor.laborordnungState,
+    openDays: `${supervisor.staffed + supervisor.booked} of ${minimum}`,
+    status: STATUS_LABELS[supervisor.status],
+  }));
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const selectedProfilePictureStatuses = PROFILE_PICTURE_STATUS_OPTIONS.filter((option) =>
     filters.photo?.includes(option.value),
@@ -151,18 +149,18 @@ export function SupervisorStaffingPage() {
         ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : []),
         { label: 'Members' },
       ]}
-      description="Profile-picture readiness, Lab Rules status, and staffing across active Open Day periods."
+      description="Profile-picture readiness, Lab Rules status, and open days this semester."
       width="wide"
       className="supervisor-staffing-page"
     >
       <section className="supervisor-staffing-main" aria-label="Members table">
-        {dashboard.periods.length === 0 && (
+        {dashboard.semester === null && (
           <InlineNotification
             kind="info"
             lowContrast
             hideCloseButton
-            title="No active staffing periods"
-            subtitle="Members are shown without assignment totals."
+            title="No open-day period"
+            subtitle="Members are shown without open-day counts."
           />
         )}
 
@@ -196,22 +194,6 @@ export function SupervisorStaffingPage() {
                     }}
                     onReset={() => {
                       setFilters({});
-                      setPage(1);
-                    }}
-                  />
-                  <Dropdown
-                    id="members-period-selector"
-                    className="supervisor-staffing-period-selector"
-                    titleText="Open Days period"
-                    hideLabel
-                    size="lg"
-                    label={dashboard.periods.length === 0 ? 'No active periods' : 'Select a period'}
-                    items={dashboard.periods}
-                    itemToString={(period) => period?.name ?? ''}
-                    selectedItem={selectedPeriod}
-                    disabled={dashboard.periods.length === 0}
-                    onChange={({ selectedItem }) => {
-                      setSelectedPeriodId(selectedItem?.id ?? null);
                       setPage(1);
                     }}
                   />

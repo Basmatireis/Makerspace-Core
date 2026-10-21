@@ -34,6 +34,7 @@ import type {
   OpenDayCalendarContext,
   OpenDayPeriod,
   OpenDayPeriodList,
+  OpenDayRequirements,
   OpenDaySchedule,
   RecurrencePreview,
   RecurrencePreviewRequest,
@@ -41,6 +42,7 @@ import type {
   UpdateAcademicBreakRequest,
   UpdateOpenDayPeriodRequest,
   UpdateOpenDayRequest,
+  UpdateOpenDayRequirementsRequest,
   VersionRequest
 } from '../models';
 
@@ -1004,6 +1006,69 @@ return apiFetch<void>(getDeleteOpenDayAcademicBreakUrl(academicBreakId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getGetOpenDayRequirementsUrl = () => {
+
+
+
+
+  return `/api/v1/open-day-requirements`
+}
+
+/**
+ * Requires `open_days.read`.
+ * @summary Read the semester requirements for open-day staffing
+ */
+export const getOpenDayRequirements = async ( options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayRequirements> => {
+
+  return apiFetch<OpenDayRequirements>(getGetOpenDayRequirementsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateOpenDayRequirementsUrl = () => {
+
+
+
+
+  return `/api/v1/open-day-requirements`
+}
+
+/**
+ * Requires `open_days.manage`. `supervisorRoleId` must reference a role with the supervisor staffing level
+ * (`422 validation_failed` otherwise). Writes the audit event `open_day_requirements.updated`.
+ * @summary Replace the semester requirements for open-day staffing
+ */
+export const updateOpenDayRequirements = async (updateOpenDayRequirementsRequest: UpdateOpenDayRequirementsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayRequirements> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<OpenDayRequirements>(getUpdateOpenDayRequirementsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateOpenDayRequirementsRequest)
   }
 );}
 

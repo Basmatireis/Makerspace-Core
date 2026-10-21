@@ -18,12 +18,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
-export interface SupervisorAssignmentCount {
-  periodId: UUIDv7;
-  /** @minimum 0 */
-  supervisorCount: number;
-  /** @minimum 0 */
-  traineeCount: number;
-}
+/**
+ * `fulfilled`: staffed plus booked open days reach the minimum. `missing`: the minimum is not reached even with
+ * sign-ups. `ready`: a trainee staffed enough open days as trainee and can be made supervisor.
+ */
+export type StaffingStatus = typeof StaffingStatus[keyof typeof StaffingStatus];
+
+
+export const StaffingStatus = {
+  fulfilled: 'fulfilled',
+  missing: 'missing',
+  ready: 'ready',
+} as const;

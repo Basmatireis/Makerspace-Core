@@ -358,6 +358,48 @@ export const getPersonMakerspaceStatus = async (personId: string, options?: Para
 );}
 
 
+export const getPromotePersonToSupervisorUrl = (personId: string,) => {
+
+
+
+
+  return `/api/v1/people/${personId}/promote-to-supervisor`
+}
+
+/**
+ * Requires `people.roles.assign`. In one transaction removes the person's roles with the trainee staffing level
+ * and assigns the configured supervisor role, under the same privilege-subset and last-master rules as role
+ * assignment. `409 promotion_role_not_configured` when the requirements settings name no supervisor role;
+ * `409 not_a_trainee` when the person is not a trainee.
+ * @summary Make a trainee a supervisor
+ */
+export const promotePersonToSupervisor = async (personId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Person> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Person>(getPromotePersonToSupervisorUrl(personId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
 export const getAssignPersonRoleUrl = (personId: string,
     roleId: string,) => {
 

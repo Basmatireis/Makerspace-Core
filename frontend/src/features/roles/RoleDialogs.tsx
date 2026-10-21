@@ -15,7 +15,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useForm } from 'react-hook-form';
-import type { CreateRoleRequest, Role, UpdateRoleRequest } from '../../api/generated/models';
+import type { CreateRoleRequest, Role, StaffingLevel, UpdateRoleRequest } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { normalizePermissionGrants } from '../auth/permissions';
 
@@ -25,7 +25,7 @@ type RoleForm = {
   copyFromRoleId: string;
   profileImageRequired: boolean;
   laborordnungMode: Role['laborordnungMode'];
-  supervisorDashboard: boolean;
+  staffingLevel: StaffingLevel | 'none';
 };
 
 export function CreateRoleDialog({
@@ -55,7 +55,7 @@ export function CreateRoleDialog({
       permissionGrants: normalizePermissionGrants(source?.permissionGrants ?? []),
       profileImageRequired: values.profileImageRequired,
       laborordnungMode: values.laborordnungMode,
-      supervisorDashboard: values.supervisorDashboard,
+      staffingLevel: values.staffingLevel === 'none' ? null : values.staffingLevel,
     });
   });
 
@@ -126,12 +126,18 @@ export function CreateRoleDialog({
               <SelectItem value="warning" text="Warning" />
               <SelectItem value="blocking" text="Block admission" />
             </Select>
-            <Checkbox
-              id="create-role-supervisor-dashboard"
-              labelText="Designate as a supervisor role"
-              checked={form.watch('supervisorDashboard')}
-              onChange={(_, data) => form.setValue('supervisorDashboard', data.checked, { shouldDirty: true })}
-            />
+            <Select
+              id="create-role-staffing-level"
+              labelText="Open day staffing"
+              value={form.watch('staffingLevel')}
+              onChange={(event) =>
+                form.setValue('staffingLevel', event.target.value as StaffingLevel | 'none', { shouldDirty: true })
+              }
+            >
+              <SelectItem value="none" text="None" />
+              <SelectItem value="supervisor" text="Supervisor" />
+              <SelectItem value="trainee" text="Trainee" />
+            </Select>
           </Stack>
         </Form>
       </ModalBody>
@@ -169,7 +175,7 @@ export function RoleSettingsDialog({
         copyFromRoleId: '',
         profileImageRequired: role.profileImageRequired,
         laborordnungMode: role.laborordnungMode,
-        supervisorDashboard: role.supervisorDashboard,
+        staffingLevel: role.staffingLevel ?? 'none',
       });
   }, [form, role]);
   const submit = form.handleSubmit((values) => {
@@ -180,7 +186,7 @@ export function RoleSettingsDialog({
       description: values.description.trim() || null,
       profileImageRequired: values.profileImageRequired,
       laborordnungMode: values.laborordnungMode,
-      supervisorDashboard: values.supervisorDashboard,
+      staffingLevel: values.staffingLevel === 'none' ? null : values.staffingLevel,
     });
   });
   return (
@@ -237,12 +243,18 @@ export function RoleSettingsDialog({
                 <SelectItem value="warning" text="Warning" />
                 <SelectItem value="blocking" text="Block admission" />
               </Select>
-              <Checkbox
-                id="edit-role-supervisor-dashboard"
-                labelText="Designate as a supervisor role"
-                checked={form.watch('supervisorDashboard')}
-                onChange={(_, data) => form.setValue('supervisorDashboard', data.checked, { shouldDirty: true })}
-              />
+              <Select
+                id="edit-role-staffing-level"
+                labelText="Open day staffing"
+                value={form.watch('staffingLevel')}
+                onChange={(event) =>
+                  form.setValue('staffingLevel', event.target.value as StaffingLevel | 'none', { shouldDirty: true })
+                }
+              >
+                <SelectItem value="none" text="None" />
+                <SelectItem value="supervisor" text="Supervisor" />
+                <SelectItem value="trainee" text="Trainee" />
+              </Select>
             </Stack>
           </Form>
         )}
@@ -301,5 +313,5 @@ const emptyRoleForm: RoleForm = {
   copyFromRoleId: '',
   profileImageRequired: false,
   laborordnungMode: 'not_required',
-  supervisorDashboard: false,
+  staffingLevel: 'none',
 };

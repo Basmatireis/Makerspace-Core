@@ -15,6 +15,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -87,7 +88,7 @@ func (s *seeder) ensureRoles() {
 	for _, r := range []struct {
 		name, desc string
 		grants     []authorization.PermissionGrant
-		dashboard  bool
+		level      *roles.StaffingLevel
 	}{
 		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
 			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
@@ -96,14 +97,14 @@ func (s *seeder) ensureRoles() {
 			authorization.MachineJobsCreate,
 			authorization.MachineJobsEdit,
 			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign,
-			authorization.OrganizationsRead, authorization.PricingRead), true},
+			authorization.OrganizationsRead, authorization.PricingRead), ptr(roles.StaffingSupervisor)},
 		{"trainee", "Supervisor in training (created by devseed)", grants(
 			authorization.OpenDaysRead,
 			authorization.OpenDaysSignup,
 			authorization.MachinesRead,
 			authorization.MachineJobsRead,
-			authorization.InventoryRead), false},
-		{"Visitor", "External visitor without permissions (created by devseed)", nil, false},
+			authorization.InventoryRead), ptr(roles.StaffingTrainee)},
+		{"Visitor", "External visitor without permissions (created by devseed)", nil, nil},
 	} {
 		if _, ok := s.roles[strings.ToLower(r.name)]; ok {
 			continue
@@ -116,12 +117,21 @@ func (s *seeder) ensureRoles() {
 			r.grants,
 			false,
 			laborordnung.ModeNotRequired,
-			r.dashboard,
+			r.level,
 			nil,
 		)
 		check("role "+r.name, err)
 		s.roles[strings.ToLower(r.name)] = role.ID
 		log.Printf("created role %s", r.name)
+	}
+	// Promotions need a configured supervisor role; keep an existing choice.
+	if id, ok := s.roles["supervisor"]; ok {
+		_, err := s.pool.Exec(
+			s.ctx,
+			"UPDATE open_day_requirements SET supervisor_role_id = $1 WHERE supervisor_role_id IS NULL",
+			id,
+		)
+		check("promotion role", err)
 	}
 }
 

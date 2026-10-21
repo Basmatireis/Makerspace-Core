@@ -58,6 +58,8 @@ type Querier interface {
 	GetEventShift(ctx context.Context, arg GetEventShiftParams) (GetEventShiftRow, error)
 	GetEventTask(ctx context.Context, arg GetEventTaskParams) (EventTask, error)
 	GetEventTaskList(ctx context.Context, arg GetEventTaskListParams) (EventTaskList, error)
+	// Ended shifts the person was actively assigned to, all time, with their scheduled duration in seconds.
+	GetOwnShiftStatistics(ctx context.Context, arg GetOwnShiftStatisticsParams) (GetOwnShiftStatisticsRow, error)
 	GetPublicEventBanner(ctx context.Context, publicID string) (GetPublicEventBannerRow, error)
 	GetPublicEventFile(ctx context.Context, arg GetPublicEventFileParams) (GetPublicEventFileRow, error)
 	LinkEventAssignmentPerson(ctx context.Context, arg LinkEventAssignmentPersonParams) (EventShiftAssignment, error)
@@ -73,6 +75,9 @@ type Querier interface {
 	ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]EventTask, error)
 	ListEvents(ctx context.Context) ([]ListEventsRow, error)
 	ListExpiredEventAssignmentsForUpdate(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredEventAssignmentsForUpdateRow, error)
+	// Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
+	// only for public events, otherwise empty.
+	ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error)
 	ListOwnEventAssignments(ctx context.Context, arg ListOwnEventAssignmentsParams) ([]EventShiftAssignment, error)
 	// One row per event: its next public scheduled session. Only already publicly visible events
 	// (published, with a public title) that are still planned or confirmed; returns nothing internal.

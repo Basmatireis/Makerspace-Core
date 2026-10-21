@@ -114,7 +114,7 @@ func (s *Server) CreateRole(
 	if request.Body.LaborordnungMode != nil {
 		laborordnungMode = laborordnung.Mode(*request.Body.LaborordnungMode)
 	}
-	supervisorDashboard := request.Body.SupervisorDashboard != nil && *request.Body.SupervisorDashboard
+	staffingLevel := optional.Convert[roles.StaffingLevel](nullableStringPointer(request.Body.StaffingLevel))
 	role, err := s.roles.CreateWithBehaviors(
 		ctx,
 		principal,
@@ -123,7 +123,7 @@ func (s *Server) CreateRole(
 		grants,
 		profileImageRequired,
 		laborordnungMode,
-		supervisorDashboard,
+		staffingLevel,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -195,7 +195,8 @@ func (s *Server) UpdateRole(
 		nullableStringPointer(request.Body.Description),
 		request.Body.ProfileImageRequired,
 		optional.Convert[laborordnung.Mode](request.Body.LaborordnungMode),
-		request.Body.SupervisorDashboard,
+		request.Body.StaffingLevel.IsSpecified(),
+		optional.Convert[roles.StaffingLevel](nullableStringPointer(request.Body.StaffingLevel)),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -250,8 +251,11 @@ func roleDTO(role roles.Role) openapi.Role {
 		Id: role.ID, Name: role.Name, PermissionGrants: grants, Version: role.Version,
 		ProfileImageRequired: role.ProfileImageRequired,
 		LaborordnungMode:     openapi.RoleLaborordnungMode(role.LaborordnungMode),
-		SupervisorDashboard:  role.SupervisorDashboard,
-		CreatedAt:            role.CreatedAt, UpdatedAt: role.UpdatedAt,
+		StaffingLevel: nullablePointer[roles.StaffingLevel](
+			role.StaffingLevel,
+			func(value roles.StaffingLevel) openapi.StaffingLevel { return openapi.StaffingLevel(value) },
+		),
+		CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt,
 		Description: nullablePointer[string](role.Description, func(value string) string { return value }),
 	}
 	if role.SystemKey == nil {

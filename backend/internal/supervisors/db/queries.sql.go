@@ -7,97 +7,23 @@ package supervisorsdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-const listOpenPeriods = `-- name: ListOpenPeriods :many
-SELECT id, name, status
-FROM open_day_periods
-WHERE status IN ('staffing', 'published')
-ORDER BY starts_on, id
-`
-
-type ListOpenPeriodsRow struct {
-	ID     uuid.UUID
-	Name   string
-	Status string
-}
-
-func (q *Queries) ListOpenPeriods(ctx context.Context) ([]ListOpenPeriodsRow, error) {
-	rows, err := q.db.Query(ctx, listOpenPeriods)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListOpenPeriodsRow{}
-	for rows.Next() {
-		var i ListOpenPeriodsRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.Status); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSupervisorAssignmentCounts = `-- name: ListSupervisorAssignmentCounts :many
-SELECT a.person_id, p.id AS period_id,
-    count(*) FILTER (WHERE r.kind = 'supervisor')::bigint AS supervisor_count,
-    count(*) FILTER (WHERE r.kind = 'trainee')::bigint AS trainee_count
-FROM open_day_assignments a
-JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
-JOIN open_day_staff_requirements r ON r.id = a.requirement_id AND r.kind IN ('supervisor', 'trainee')
-GROUP BY a.person_id, p.id
-ORDER BY a.person_id, p.id
-`
-
-type ListSupervisorAssignmentCountsRow struct {
-	PersonID        uuid.UUID
-	PeriodID        uuid.UUID
-	SupervisorCount int64
-	TraineeCount    int64
-}
-
-func (q *Queries) ListSupervisorAssignmentCounts(ctx context.Context) ([]ListSupervisorAssignmentCountsRow, error) {
-	rows, err := q.db.Query(ctx, listSupervisorAssignmentCounts)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSupervisorAssignmentCountsRow{}
-	for rows.Next() {
-		var i ListSupervisorAssignmentCountsRow
-		if err := rows.Scan(
-			&i.PersonID,
-			&i.PeriodID,
-			&i.SupervisorCount,
-			&i.TraineeCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSupervisors = `-- name: ListSupervisors :many
+const listStaffingPeople = `-- name: ListStaffingPeople :many
 WITH current_version AS (
     SELECT id FROM laborordnung_versions
     WHERE status = 'published' AND effective_at <= now()
     ORDER BY effective_at DESC, id DESC LIMIT 1
-), supervisor_people AS (
-    SELECT DISTINCT p.id, p.first_name, p.last_name, p.profile_image_file_id
+), staffing_people AS (
+    SELECT p.id, p.first_name, p.last_name, p.profile_image_file_id, p.created_at,
+        CASE WHEN bool_or(designated.staffing_level = 'supervisor') THEN 'supervisor' ELSE 'trainee' END::text AS kind
     FROM people p
     JOIN person_roles pr ON pr.person_id = p.id
-    JOIN roles designated ON designated.id = pr.role_id AND designated.supervisor_dashboard
+    JOIN roles designated ON designated.id = pr.role_id AND designated.staffing_level IS NOT NULL
+    GROUP BY p.id
 ), modes AS (
     SELECT p.id AS person_id,
         COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)::integer AS mode_rank
@@ -106,7 +32,7 @@ WITH current_version AS (
     LEFT JOIN roles r ON r.id = pr.role_id
     GROUP BY p.id
 )
-SELECT sp.id AS person_id, sp.first_name, sp.last_name,
+SELECT sp.id AS person_id, sp.first_name, sp.last_name, sp.kind, sp.created_at AS member_since,
     (sp.profile_image_file_id IS NOT NULL)::boolean AS has_profile_image,
     CASE
       WHEN m.mode_rank = 0 THEN 'not_required'
@@ -117,32 +43,37 @@ SELECT sp.id AS person_id, sp.first_name, sp.last_name,
       ) THEN 'current'
       ELSE 'outdated'
     END::text AS laborordnung_state
-FROM supervisor_people sp
+FROM staffing_people sp
 JOIN modes m ON m.person_id = sp.id
 ORDER BY lower(sp.last_name), lower(sp.first_name), sp.id
 `
 
-type ListSupervisorsRow struct {
+type ListStaffingPeopleRow struct {
 	PersonID          uuid.UUID
 	FirstName         string
 	LastName          string
+	Kind              string
+	MemberSince       time.Time
 	HasProfileImage   bool
 	LaborordnungState string
 }
 
-func (q *Queries) ListSupervisors(ctx context.Context) ([]ListSupervisorsRow, error) {
-	rows, err := q.db.Query(ctx, listSupervisors)
+// Everyone holding at least one role with a staffing level, with their kind (supervisor wins over trainee).
+func (q *Queries) ListStaffingPeople(ctx context.Context) ([]ListStaffingPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listStaffingPeople)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListSupervisorsRow{}
+	items := []ListStaffingPeopleRow{}
 	for rows.Next() {
-		var i ListSupervisorsRow
+		var i ListStaffingPeopleRow
 		if err := rows.Scan(
 			&i.PersonID,
 			&i.FirstName,
 			&i.LastName,
+			&i.Kind,
+			&i.MemberSince,
 			&i.HasProfileImage,
 			&i.LaborordnungState,
 		); err != nil {

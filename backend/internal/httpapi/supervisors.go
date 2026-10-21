@@ -2,8 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
+	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 func (s *Server) GetSupervisorDashboard(
@@ -18,41 +22,35 @@ func (s *Server) GetSupervisorDashboard(
 	if err != nil {
 		return nil, err
 	}
-	periods := make([]openapi.SupervisorPeriod, 0, len(dashboard.Periods))
-	for _, period := range dashboard.Periods {
-		periods = append(
-			periods,
-			openapi.SupervisorPeriod{
-				Id:                    period.ID,
-				Name:                  period.Name,
-				Status:                openapi.SupervisorPeriodStatus(period.Status),
-				SupervisorAssignments: int(period.SupervisorAssignments),
-			},
-		)
-	}
 	rows := make([]openapi.SupervisorRow, 0, len(dashboard.Supervisors))
 	for _, supervisor := range dashboard.Supervisors {
-		counts := make([]openapi.SupervisorAssignmentCount, 0, len(supervisor.AssignmentCounts))
-		for _, count := range supervisor.AssignmentCounts {
-			counts = append(counts, openapi.SupervisorAssignmentCount{
-				PeriodId:        count.PeriodID,
-				SupervisorCount: int(count.SupervisorCount),
-				TraineeCount:    int(count.TraineeCount),
-			})
+		row := openapi.SupervisorRow{
+			PersonId:          supervisor.PersonID,
+			Name:              supervisor.Name,
+			Kind:              openapi.StaffingLevel(supervisor.Kind),
+			HasProfileImage:   supervisor.HasProfileImage,
+			LaborordnungState: openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState),
+			Staffed:           supervisor.Counts.Staffed,
+			Booked:            supervisor.Counts.Booked,
+			StaffedAsTrainee:  supervisor.Counts.StaffedAsTrainee,
+			Status:            openapi.StaffingStatus(supervisor.Standing.Status),
+			Missing:           supervisor.Standing.Missing,
+			MemberSince:       supervisor.MemberSince,
+			LastOpenDayAt:     nullable.NewNullNullable[time.Time](),
 		}
-		rows = append(
-			rows,
-			openapi.SupervisorRow{
-				PersonId:          supervisor.PersonID,
-				Name:              supervisor.Name,
-				HasProfileImage:   supervisor.HasProfileImage,
-				LaborordnungState: openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState),
-				AssignmentCounts:  counts,
-			},
-		)
+		if supervisor.LastOpenDayAt != nil {
+			row.LastOpenDayAt = nullable.NewNullableWithValue(*supervisor.LastOpenDayAt)
+		}
+		rows = append(rows, row)
 	}
 	return openapi.GetSupervisorDashboard200JSONResponse{
-		Periods: periods, Supervisors: rows,
+		Semester: semesterDTO(dashboard.Semester),
+		Requirements: openapi.SupervisorDashboardRequirements{
+			MinOpenDaysPerSemester:      dashboard.Requirements.MinOpenDaysPerSemester,
+			TraineeOpenDaysForPromotion: dashboard.Requirements.TraineeOpenDaysForPromotion,
+			SupervisorRoleConfigured:    dashboard.Requirements.SupervisorRoleID != nil,
+		},
+		Supervisors: rows,
 		Totals: openapi.SupervisorTotals{
 			Supervisors:           dashboard.Totals.Supervisors,
 			ProfileImagesComplete: dashboard.Totals.ProfileImagesComplete,
@@ -60,4 +58,16 @@ func (s *Server) GetSupervisorDashboard(
 			LaborordnungOutdated:  dashboard.Totals.LaborordnungOutdated,
 		},
 	}, nil
+}
+
+func semesterDTO(semester *staffing.Semester) nullable.Nullable[openapi.Semester] {
+	if semester == nil {
+		return nullable.NewNullNullable[openapi.Semester]()
+	}
+	return nullable.NewNullableWithValue(openapi.Semester{
+		PeriodId: semester.ID,
+		Name:     semester.Name,
+		StartsOn: openapi_types.Date{Time: semester.StartsOn},
+		EndsOn:   openapi_types.Date{Time: semester.EndsOn},
+	})
 }

@@ -811,6 +811,16 @@ type OpenDayPeriod struct {
 	UpdatedAt time.Time
 }
 
+type OpenDayRequirement struct {
+	Singleton                   bool
+	MinOpenDaysPerSemester      int32
+	TraineeOpenDaysForPromotion int32
+	SupervisorRoleID            *uuid.UUID
+	Version                     int64
+	UpdatedByAccountID          *uuid.UUID
+	UpdatedAt                   time.Time
+}
+
 type OpenDayStaffRequirement struct {
 	ID            uuid.UUID
 	OpenDayID     uuid.UUID
@@ -1300,7 +1310,7 @@ type Role struct {
 	UpdatedAt            time.Time
 	ProfileImageRequired bool
 	LaborordnungMode     string
-	SupervisorDashboard  bool
+	StaffingLevel        *string
 }
 
 type RolePermissionGrant struct {

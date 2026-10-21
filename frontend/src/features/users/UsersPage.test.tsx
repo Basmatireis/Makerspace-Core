@@ -27,7 +27,7 @@ describe('People page', () => {
   });
 
   it('renders permitted table columns and actions', async () => {
-    const supervisorRole = roleFixture({ supervisorDashboard: true });
+    const supervisorRole = roleFixture({ staffingLevel: 'supervisor' });
     const user = userEvent.setup();
     server.use(
       http.get('*/api/v1/auth/me', () =>

@@ -71,6 +71,34 @@ func (s *Server) AssignPersonRole(
 	return openapi.AssignPersonRole200JSONResponse(response), nil
 }
 
+func (s *Server) PromotePersonToSupervisor(
+	ctx context.Context,
+	request openapi.PromotePersonToSupervisorRequestObject,
+) (openapi.PromotePersonToSupervisorResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	person, err := s.people.PromoteToSupervisor(
+		ctx,
+		principal,
+		request.PersonId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	response, err := s.personDTO(ctx, principal, person, principal.CanReadPerson(person.ID), true)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.PromotePersonToSupervisor200JSONResponse(response), nil
+}
+
 func (s *Server) ListPeople(
 	ctx context.Context,
 	request openapi.ListPeopleRequestObject,

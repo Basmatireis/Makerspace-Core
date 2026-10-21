@@ -25,6 +25,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -789,6 +790,136 @@ func (s *Service) ChangeRole(
 			ResourceID:     &personID,
 			RequestID:      requestID,
 			Metadata:       map[string]any{"roleId": roleID.String()},
+		},
+	); err != nil {
+		return Person{}, err
+	}
+	result, err := loadPerson(
+		ctx,
+		queries,
+		row,
+		principal.CanReadPerson(personID),
+		principal.Has(authorization.PeopleReadMatriculation),
+	)
+	if err != nil {
+		return Person{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Person{}, err
+	}
+	return result, nil
+}
+
+// PromoteToSupervisor replaces a trainee's trainee roles with the configured supervisor role in one transaction.
+// Every role added or removed passes the same privilege-subset check as an ordinary role assignment.
+func (s *Service) PromoteToSupervisor(
+	ctx context.Context,
+	principal authorization.Principal,
+	personID uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (Person, error) {
+	if !principal.Has(authorization.PeopleRolesAssign) {
+		return Person{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return Person{}, apperror.InvalidField("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Person{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := peopledb.New(tx)
+	current, err := queries.GetPersonForDeletion(ctx, personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, apperror.NotFound
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	if current.Version != expectedVersion {
+		return Person{}, apperror.StaleWrite
+	}
+	supervisorRoleID, err := queries.GetPromotionSupervisorRole(ctx)
+	if err != nil {
+		return Person{}, err
+	}
+	notConfigured := apperror.Conflicting(
+		"promotion_role_not_configured",
+		"No supervisor role is configured for promotions",
+	)
+	if supervisorRoleID == nil {
+		return Person{}, notConfigured
+	}
+	held, err := queries.ListPersonStaffingRoles(ctx, personID)
+	if err != nil {
+		return Person{}, err
+	}
+	var traineeRoleIDs []uuid.UUID
+	for _, role := range held {
+		switch roles.StaffingLevel(role.StaffingLevel) {
+		case roles.StaffingSupervisor:
+			return Person{}, apperror.Conflicting("not_a_trainee", "The person is not a trainee")
+		case roles.StaffingTrainee:
+			traineeRoleIDs = append(traineeRoleIDs, role.ID)
+		}
+	}
+	if len(traineeRoleIDs) == 0 {
+		return Person{}, apperror.Conflicting("not_a_trainee", "The person is not a trainee")
+	}
+	supervisorRole, err := authorizeRoleAssignment(ctx, queries, principal, *supervisorRoleID)
+	if err != nil {
+		return Person{}, err
+	}
+	if supervisorRole.StaffingLevel == nil || roles.StaffingLevel(*supervisorRole.StaffingLevel) != roles.StaffingSupervisor {
+		return Person{}, notConfigured
+	}
+	for _, roleID := range traineeRoleIDs {
+		if _, err := authorizeRoleAssignment(ctx, queries, principal, roleID); err != nil {
+			return Person{}, err
+		}
+	}
+	row, err := queries.BumpPersonVersion(
+		ctx,
+		peopledb.BumpPersonVersionParams{ID: personID, ExpectedVersion: expectedVersion},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, apperror.StaleWrite
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	for _, roleID := range traineeRoleIDs {
+		if _, err := queries.RemovePersonRole(
+			ctx,
+			peopledb.RemovePersonRoleParams{PersonID: personID, RoleID: roleID},
+		); err != nil {
+			return Person{}, err
+		}
+	}
+	if _, err := queries.AssignPersonRole(
+		ctx,
+		peopledb.AssignPersonRoleParams{
+			PersonID:            personID,
+			RoleID:              *supervisorRoleID,
+			AssignedByAccountID: &principal.AccountID,
+		},
+	); err != nil {
+		return Person{}, err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "person.promoted_to_supervisor",
+			ResourceType:   "person",
+			ResourceID:     &personID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"roles"},
+			Metadata:       map[string]any{"roleId": supervisorRoleID.String()},
 		},
 	); err != nil {
 		return Person{}, err

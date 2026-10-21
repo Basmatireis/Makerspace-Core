@@ -1549,6 +1549,32 @@ func (q *Queries) GetEventTaskList(ctx context.Context, arg GetEventTaskListPara
 	return i, err
 }
 
+const getOwnShiftStatistics = `-- name: GetOwnShiftStatistics :one
+SELECT count(*)::bigint AS shifts,
+       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds
+FROM event_shift_assignments a
+JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
+WHERE a.person_id = $1 AND a.status = 'active' AND s.ends_at <= $2
+`
+
+type GetOwnShiftStatisticsParams struct {
+	PersonID *uuid.UUID
+	Now      time.Time
+}
+
+type GetOwnShiftStatisticsRow struct {
+	Shifts           int64
+	ScheduledSeconds float64
+}
+
+// Ended shifts the person was actively assigned to, all time, with their scheduled duration in seconds.
+func (q *Queries) GetOwnShiftStatistics(ctx context.Context, arg GetOwnShiftStatisticsParams) (GetOwnShiftStatisticsRow, error) {
+	row := q.db.QueryRow(ctx, getOwnShiftStatistics, arg.PersonID, arg.Now)
+	var i GetOwnShiftStatisticsRow
+	err := row.Scan(&i.Shifts, &i.ScheduledSeconds)
+	return i, err
+}
+
 const getPublicEventBanner = `-- name: GetPublicEventBanner :one
 SELECT ef.id, ef.event_id, ef.file_id, ef.description, ef.visibility, ef.version, ef.created_at, ef.updated_at, ef.is_banner, f.original_filename, f.content_type, f.size_bytes, f.storage_key
 FROM event_files ef JOIN files f ON f.id = ef.file_id JOIN events e ON e.id = ef.event_id
@@ -2205,6 +2231,62 @@ func (q *Queries) ListExpiredEventAssignmentsForUpdate(ctx context.Context, cuto
 	for rows.Next() {
 		var i ListExpiredEventAssignmentsForUpdateRow
 		if err := rows.Scan(&i.ID, &i.EventID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnComingUpShifts = `-- name: ListOwnComingUpShifts :many
+SELECT a.id AS assignment_id, e.id AS event_id,
+       COALESCE(CASE WHEN e.is_public THEN e.public_id END, '')::text AS public_id,
+       COALESCE(e.public_title, e.name)::text AS event_title, s.name AS shift_name, s.starts_at, s.ends_at
+FROM event_shift_assignments a
+JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
+JOIN events e ON e.id = a.event_id AND e.status NOT IN ('cancelled', 'archived')
+WHERE a.person_id = $1 AND a.status = 'active' AND s.ends_at > $2
+ORDER BY s.starts_at, a.id
+`
+
+type ListOwnComingUpShiftsParams struct {
+	PersonID *uuid.UUID
+	Now      time.Time
+}
+
+type ListOwnComingUpShiftsRow struct {
+	AssignmentID uuid.UUID
+	EventID      uuid.UUID
+	PublicID     string
+	EventTitle   string
+	ShiftName    string
+	StartsAt     time.Time
+	EndsAt       time.Time
+}
+
+// Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
+// only for public events, otherwise empty.
+func (q *Queries) ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnComingUpShifts, arg.PersonID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnComingUpShiftsRow{}
+	for rows.Next() {
+		var i ListOwnComingUpShiftsRow
+		if err := rows.Scan(
+			&i.AssignmentID,
+			&i.EventID,
+			&i.PublicID,
+			&i.EventTitle,
+			&i.ShiftName,
+			&i.StartsAt,
+			&i.EndsAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

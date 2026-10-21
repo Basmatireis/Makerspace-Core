@@ -1,6 +1,6 @@
 -- name: CreateRole :one
-INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, supervisor_dashboard)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.narg(description), sqlc.arg(profile_image_required), sqlc.arg(laborordnung_mode), sqlc.arg(supervisor_dashboard)) RETURNING *;
+INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.narg(description), sqlc.arg(profile_image_required), sqlc.arg(laborordnung_mode), sqlc.narg(staffing_level)) RETURNING *;
 
 -- name: ListRoles :many
 SELECT * FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id;
@@ -14,7 +14,7 @@ SELECT * FROM roles WHERE id = sqlc.arg(id) FOR UPDATE;
 -- name: UpdateRole :one
 UPDATE roles SET name = sqlc.arg(name), description = sqlc.narg(description),
     profile_image_required = sqlc.arg(profile_image_required),
-    laborordnung_mode = sqlc.arg(laborordnung_mode), supervisor_dashboard = sqlc.arg(supervisor_dashboard),
+    laborordnung_mode = sqlc.arg(laborordnung_mode), staffing_level = sqlc.narg(staffing_level),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key IS NULL RETURNING *;
 
@@ -44,3 +44,8 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key 
 
 -- name: RoleAssignmentCount :one
 SELECT count(*) FROM person_roles WHERE role_id = sqlc.arg(role_id);
+
+-- name: ClearSupervisorRoleRequirement :exec
+-- A role that stops being a supervisor role can no longer be the role promotions assign.
+UPDATE open_day_requirements SET supervisor_role_id = NULL, version = version + 1, updated_at = now()
+WHERE supervisor_role_id = sqlc.arg(role_id);

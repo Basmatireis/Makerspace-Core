@@ -388,6 +388,62 @@ func (q *Queries) GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (Ge
 	return i, err
 }
 
+const getNextOpenPlace = `-- name: GetNextOpenPlace :one
+SELECT d.id AS open_day_id, r.id AS requirement_id, d.starts_at, d.ends_at,
+       (r.required_count - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))::bigint AS free_places
+FROM open_days d
+JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
+JOIN open_day_staff_requirements r ON r.open_day_id = d.id AND r.kind = $1
+WHERE d.status = 'scheduled'
+  AND d.starts_at > $2 AND d.starts_at <= $3
+  AND NOT EXISTS (
+      SELECT 1 FROM open_day_assignments ma WHERE ma.open_day_id = d.id AND ma.person_id = $4
+  )
+  AND r.required_count > (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id)
+  AND EXISTS (
+      SELECT 1 FROM open_day_staff_requirement_roles rr
+      JOIN person_roles pr ON pr.role_id = rr.role_id
+      WHERE rr.requirement_id = r.id AND pr.person_id = $4
+  )
+ORDER BY d.starts_at, d.id
+LIMIT 1
+`
+
+type GetNextOpenPlaceParams struct {
+	Kind     string
+	Now      time.Time
+	Until    time.Time
+	PersonID uuid.UUID
+}
+
+type GetNextOpenPlaceRow struct {
+	OpenDayID     uuid.UUID
+	RequirementID uuid.UUID
+	StartsAt      time.Time
+	EndsAt        time.Time
+	FreePlaces    int64
+}
+
+// The next open day starting within the window that the person is not on yet and that has a free place of the given
+// kind they are eligible for.
+func (q *Queries) GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlaceParams) (GetNextOpenPlaceRow, error) {
+	row := q.db.QueryRow(ctx, getNextOpenPlace,
+		arg.Kind,
+		arg.Now,
+		arg.Until,
+		arg.PersonID,
+	)
+	var i GetNextOpenPlaceRow
+	err := row.Scan(
+		&i.OpenDayID,
+		&i.RequirementID,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.FreePlaces,
+	)
+	return i, err
+}
+
 const getOpenDay = `-- name: GetOpenDay :one
 SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at FROM open_days WHERE id = $1
 `
@@ -427,6 +483,32 @@ func (q *Queries) GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getOwnOpenDayStatistics = `-- name: GetOwnOpenDayStatistics :one
+SELECT count(*)::bigint AS staffed,
+       COALESCE(sum(extract(epoch FROM d.ends_at - d.starts_at)), 0)::float8 AS scheduled_seconds
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+WHERE a.person_id = $1 AND d.ends_at <= $2
+`
+
+type GetOwnOpenDayStatisticsParams struct {
+	PersonID uuid.UUID
+	Now      time.Time
+}
+
+type GetOwnOpenDayStatisticsRow struct {
+	Staffed          int64
+	ScheduledSeconds float64
+}
+
+// Ended scheduled open days the person staffed, all time, with their scheduled duration in seconds.
+func (q *Queries) GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDayStatisticsParams) (GetOwnOpenDayStatisticsRow, error) {
+	row := q.db.QueryRow(ctx, getOwnOpenDayStatistics, arg.PersonID, arg.Now)
+	var i GetOwnOpenDayStatisticsRow
+	err := row.Scan(&i.Staffed, &i.ScheduledSeconds)
 	return i, err
 }
 
@@ -741,6 +823,65 @@ func (q *Queries) ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) 
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnComingUpOpenDays = `-- name: ListOwnComingUpOpenDays :many
+SELECT a.id AS assignment_id, d.id AS open_day_id, p.name AS period_name, d.starts_at, d.ends_at,
+       COALESCE(sup.open_places, 0)::bigint AS open_supervisor_places
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
+LEFT JOIN LATERAL (
+    SELECT GREATEST(0, sr.required_count - (
+        SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = sr.id
+    ))::bigint AS open_places
+    FROM open_day_staff_requirements sr
+    WHERE sr.open_day_id = d.id AND sr.kind = 'supervisor'
+) sup ON true
+WHERE a.person_id = $1 AND d.ends_at > $2
+ORDER BY d.starts_at, d.id
+`
+
+type ListOwnComingUpOpenDaysParams struct {
+	PersonID uuid.UUID
+	Now      time.Time
+}
+
+type ListOwnComingUpOpenDaysRow struct {
+	AssignmentID         uuid.UUID
+	OpenDayID            uuid.UUID
+	PeriodName           string
+	StartsAt             time.Time
+	EndsAt               time.Time
+	OpenSupervisorPlaces int64
+}
+
+// Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
+func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComingUpOpenDaysParams) ([]ListOwnComingUpOpenDaysRow, error) {
+	rows, err := q.db.Query(ctx, listOwnComingUpOpenDays, arg.PersonID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnComingUpOpenDaysRow{}
+	for rows.Next() {
+		var i ListOwnComingUpOpenDaysRow
+		if err := rows.Scan(
+			&i.AssignmentID,
+			&i.OpenDayID,
+			&i.PeriodName,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.OpenSupervisorPlaces,
 		); err != nil {
 			return nil, err
 		}

@@ -32,7 +32,7 @@ type Role struct {
 	PermissionGrants     []authorization.PermissionGrant
 	ProfileImageRequired bool
 	LaborordnungMode     laborordnung.Mode
-	SupervisorDashboard  bool
+	StaffingLevel        *StaffingLevel
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
@@ -61,7 +61,7 @@ func (s *Service) Create(
 	grants []authorization.PermissionGrant,
 	requestID *uuid.UUID,
 ) (Role, error) {
-	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, laborordnung.ModeNotRequired, false, requestID)
+	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, laborordnung.ModeNotRequired, nil, requestID)
 }
 
 func (s *Service) CreateWithBehaviors(
@@ -72,7 +72,7 @@ func (s *Service) CreateWithBehaviors(
 	grants []authorization.PermissionGrant,
 	profileImageRequired bool,
 	laborordnungMode laborordnung.Mode,
-	supervisorDashboard bool,
+	staffingLevel *StaffingLevel,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
@@ -88,6 +88,9 @@ func (s *Service) CreateWithBehaviors(
 	}
 	if !laborordnungMode.Valid() {
 		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
+	}
+	if staffingLevel != nil && !staffingLevel.Valid() {
+		return Role{}, apperror.InvalidField("staffing level is invalid")
 	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
@@ -108,7 +111,7 @@ func (s *Service) CreateWithBehaviors(
 			Description:          description,
 			ProfileImageRequired: profileImageRequired,
 			LaborordnungMode:     string(laborordnungMode),
-			SupervisorDashboard:  supervisorDashboard,
+			StaffingLevel:        optional.Convert[string](staffingLevel),
 		},
 	)
 	if err != nil {
@@ -127,7 +130,7 @@ func (s *Service) CreateWithBehaviors(
 			ResourceType:   "role",
 			ResourceID:     &id,
 			RequestID:      requestID,
-			ChangedFields:  []string{"name", "description", "permissionGrants", "profileImageRequired"},
+			ChangedFields:  []string{"name", "description", "permissionGrants", "profileImageRequired", "staffingLevel"},
 		},
 	); err != nil {
 		return Role{}, err
@@ -428,6 +431,7 @@ func (s *Service) Update(
 		description,
 		nil,
 		nil,
+		false,
 		nil,
 		requestID,
 	)
@@ -443,14 +447,15 @@ func (s *Service) UpdateWithBehaviors(
 	description *string,
 	profileImageRequired *bool,
 	laborordnungMode *laborordnung.Mode,
-	supervisorDashboard *bool,
+	staffingLevelSet bool,
+	staffingLevel *StaffingLevel,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 ||
-		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && supervisorDashboard == nil) {
+		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet) {
 		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -475,7 +480,7 @@ func (s *Service) UpdateWithBehaviors(
 	newName, newDescription := current.Name, current.Description
 	newProfileImageRequired := current.ProfileImageRequired
 	newLaborordnungMode := laborordnung.Mode(current.LaborordnungMode)
-	newSupervisorDashboard := current.SupervisorDashboard
+	newStaffingLevel := optional.Convert[StaffingLevel](current.StaffingLevel)
 	changed := make([]string, 0, 5)
 	if name != nil {
 		newName = strings.TrimSpace(*name)
@@ -493,9 +498,12 @@ func (s *Service) UpdateWithBehaviors(
 		newLaborordnungMode = *laborordnungMode
 		changed = append(changed, "laborordnungMode")
 	}
-	if supervisorDashboard != nil {
-		newSupervisorDashboard = *supervisorDashboard
-		changed = append(changed, "supervisorDashboard")
+	if staffingLevelSet {
+		newStaffingLevel = staffingLevel
+		changed = append(changed, "staffingLevel")
+	}
+	if newStaffingLevel != nil && !newStaffingLevel.Valid() {
+		return Role{}, apperror.InvalidField("staffing level is invalid")
 	}
 	if !newLaborordnungMode.Valid() {
 		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
@@ -515,7 +523,7 @@ func (s *Service) UpdateWithBehaviors(
 			Description:          newDescription,
 			ProfileImageRequired: newProfileImageRequired,
 			LaborordnungMode:     string(newLaborordnungMode),
-			SupervisorDashboard:  newSupervisorDashboard,
+			StaffingLevel:        optional.Convert[string](newStaffingLevel),
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -523,6 +531,11 @@ func (s *Service) UpdateWithBehaviors(
 	}
 	if err != nil {
 		return Role{}, databaseError(err)
+	}
+	if staffingLevelSet && (newStaffingLevel == nil || *newStaffingLevel != StaffingSupervisor) {
+		if err := queries.ClearSupervisorRoleRequirement(ctx, &id); err != nil {
+			return Role{}, err
+		}
 	}
 	actor := principal.AccountID
 	if err := audit.Write(
@@ -661,7 +674,7 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 		PermissionGrants:     grants,
 		ProfileImageRequired: row.ProfileImageRequired,
 		LaborordnungMode:     laborordnung.Mode(row.LaborordnungMode),
-		SupervisorDashboard:  row.SupervisorDashboard,
+		StaffingLevel:        optional.Convert[StaffingLevel](row.StaffingLevel),
 		Version:              row.Version,
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,

@@ -9,9 +9,8 @@ import (
 )
 
 type Querier interface {
-	ListOpenPeriods(ctx context.Context) ([]ListOpenPeriodsRow, error)
-	ListSupervisorAssignmentCounts(ctx context.Context) ([]ListSupervisorAssignmentCountsRow, error)
-	ListSupervisors(ctx context.Context) ([]ListSupervisorsRow, error)
+	// Everyone holding at least one role with a staffing level, with their kind (supervisor wins over trainee).
+	ListStaffingPeople(ctx context.Context) ([]ListStaffingPeopleRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -3,6 +3,7 @@ export * from './attendance/attendance';
 export * from './audit/audit';
 export * from './authentication/authentication';
 export * from './branding/branding';
+export * from './dashboard/dashboard';
 export * from './events/events';
 export * from './external-invoicing/external-invoicing';
 export * from './filament-products/filament-products';

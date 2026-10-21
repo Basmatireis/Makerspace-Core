@@ -18,11 +18,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 
-export type SupervisorPeriodStatus = typeof SupervisorPeriodStatus[keyof typeof SupervisorPeriodStatus];
-
-
-export const SupervisorPeriodStatus = {
-  staffing: 'staffing',
-  published: 'published',
-} as const;
+export interface OpenPlace {
+  openDayId: UUIDv7;
+  requirementId: UUIDv7;
+  startsAt: string;
+  endsAt: string;
+  /** @minimum 1 */
+  freePlaces: number;
+}

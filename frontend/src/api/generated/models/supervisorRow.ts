@@ -18,14 +18,42 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SupervisorAssignmentCount } from './supervisorAssignmentCount';
+import type { StaffingLevel } from './staffingLevel';
+import type { StaffingStatus } from './staffingStatus';
 import type { SupervisorRowLaborordnungState } from './supervisorRowLaborordnungState';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SupervisorRow {
   personId: UUIDv7;
   name: string;
+  kind: StaffingLevel;
   hasProfileImage: boolean;
   laborordnungState: SupervisorRowLaborordnungState;
-  assignmentCounts: SupervisorAssignmentCount[];
+  /**
+     * Open days of the semester that ended, in any place.
+     * @minimum 0
+     */
+  staffed: number;
+  /**
+     * Upcoming open days of the semester, in any place.
+     * @minimum 0
+     */
+  booked: number;
+  /**
+     * Ended open days of the semester staffed in a trainee place.
+     * @minimum 0
+     */
+  staffedAsTrainee: number;
+  status: StaffingStatus;
+  /**
+     * Open days still missing to reach the minimum.
+     * @minimum 0
+     */
+  missing: number;
+  /**
+     * Start of the last open day the person staffed in any semester.
+     * @nullable
+     */
+  lastOpenDayAt: string | null;
+  memberSince: string;
 }

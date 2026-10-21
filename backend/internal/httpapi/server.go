@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
@@ -29,6 +30,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
@@ -65,6 +67,8 @@ type Server struct {
 	printerConnectors *printerconnectors.Service
 	streamingGateways *streaminggateways.Service
 	supervisors       *supervisors.Service
+	staffing          *staffing.Service
+	dashboard         *dashboard.Service
 	oidc              *oidcservice.Service
 	scim              *scimservice.Service
 	visitor           *visitor.Service
@@ -100,6 +104,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	eventService, err := events.NewService(pool, cfg, fileService)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Events: %w", err)
+	}
+	staffingService, err := staffing.NewService(pool, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize staffing: %w", err)
 	}
 	oidcService, err := oidcservice.NewService(pool, cfg, authService)
 	if err != nil {
@@ -151,7 +159,9 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printerConnectors: printerConnectorService,
 		streamingGateways: streamingGatewayService,
 		orders:            orders.NewService(pool, machineLogbook),
-		supervisors:       supervisors.NewService(pool),
+		supervisors:       supervisors.NewService(pool, staffingService),
+		staffing:          staffingService,
+		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService),
 		oidc:              oidcService,
 		scim:              scimservice.NewService(pool),
 		visitor:           visitor.NewService(pool, cfg, fileService, labRulesService, notifier),

@@ -2,33 +2,29 @@ package supervisors
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	supervisorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Period struct {
-	ID                    uuid.UUID
-	Name                  string
-	Status                string
-	SupervisorAssignments int64
-}
-
-type AssignmentCount struct {
-	PeriodID        uuid.UUID
-	SupervisorCount int64
-	TraineeCount    int64
-}
-
+// Row is one person with a staffing level and their standing in the current semester.
 type Row struct {
 	PersonID          uuid.UUID
 	Name              string
+	Kind              roles.StaffingLevel
 	HasProfileImage   bool
 	LaborordnungState string
-	AssignmentCounts  []AssignmentCount
+	Counts            staffing.Counts
+	Standing          staffing.Standing
+	LastOpenDayAt     *time.Time
+	MemberSince       time.Time
 }
 
 type Totals struct {
@@ -39,70 +35,66 @@ type Totals struct {
 }
 
 type Dashboard struct {
-	Periods     []Period
-	Supervisors []Row
-	Totals      Totals
+	Semester     *staffing.Semester
+	Requirements staffing.Requirements
+	Supervisors  []Row
+	Totals       Totals
 }
 
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	pool     *pgxpool.Pool
+	staffing *staffing.Service
+}
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+func NewService(pool *pgxpool.Pool, staffingService *staffing.Service) *Service {
+	return &Service{pool: pool, staffing: staffingService}
+}
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal) (Dashboard, error) {
 	if !principal.Has(authorization.SupervisorDashboardRead) {
 		return Dashboard{}, apperror.PermissionDenied
 	}
-	queries := supervisorsdb.New(s.pool)
-	periodRows, err := queries.ListOpenPeriods(ctx)
+	now := time.Now().UTC()
+	semester, err := s.staffing.CurrentSemester(ctx, now)
 	if err != nil {
 		return Dashboard{}, err
 	}
-	supervisorRows, err := queries.ListSupervisors(ctx)
+	requirements, err := s.staffing.Settings(ctx)
 	if err != nil {
 		return Dashboard{}, err
 	}
-	counts, err := queries.ListSupervisorAssignmentCounts(ctx)
+	people, err := supervisorsdb.New(s.pool).ListStaffingPeople(ctx)
 	if err != nil {
 		return Dashboard{}, err
 	}
-	byPerson := make(map[uuid.UUID]map[uuid.UUID]AssignmentCount, len(supervisorRows))
-	periodTotals := make(map[uuid.UUID]int64, len(periodRows))
-	for _, count := range counts {
-		if byPerson[count.PersonID] == nil {
-			byPerson[count.PersonID] = map[uuid.UUID]AssignmentCount{}
-		}
-		byPerson[count.PersonID][count.PeriodID] = AssignmentCount{
-			PeriodID: count.PeriodID, SupervisorCount: count.SupervisorCount, TraineeCount: count.TraineeCount,
-		}
-		periodTotals[count.PeriodID] += count.SupervisorCount
+	counts, err := s.staffing.Counts(ctx, semester, now, nil)
+	if err != nil {
+		return Dashboard{}, err
+	}
+	lastStaffed, err := s.staffing.LastStaffed(ctx, now, nil)
+	if err != nil {
+		return Dashboard{}, err
 	}
 	dashboard := Dashboard{
-		Periods:     make([]Period, 0, len(periodRows)),
-		Supervisors: make([]Row, 0, len(supervisorRows)),
+		Semester:     semester,
+		Requirements: requirements,
+		Supervisors:  make([]Row, 0, len(people)),
 	}
-	for _, period := range periodRows {
-		dashboard.Periods = append(
-			dashboard.Periods,
-			Period{
-				ID:                    period.ID,
-				Name:                  period.Name,
-				Status:                period.Status,
-				SupervisorAssignments: periodTotals[period.ID],
-			},
-		)
-	}
-	for _, supervisor := range supervisorRows {
+	for _, person := range people {
+		kind := roles.StaffingLevel(person.Kind)
+		personCounts := counts[person.PersonID]
 		row := Row{
-			PersonID:          supervisor.PersonID,
-			Name:              supervisor.FirstName + " " + supervisor.LastName,
-			HasProfileImage:   supervisor.HasProfileImage,
-			LaborordnungState: supervisor.LaborordnungState,
-			AssignmentCounts:  make([]AssignmentCount, 0, len(periodRows)),
+			PersonID:          person.PersonID,
+			Name:              strings.TrimSpace(person.FirstName + " " + person.LastName),
+			Kind:              kind,
+			HasProfileImage:   person.HasProfileImage,
+			LaborordnungState: person.LaborordnungState,
+			Counts:            personCounts,
+			Standing:          staffing.StatusFor(kind, personCounts, requirements),
+			MemberSince:       person.MemberSince,
 		}
-		for _, period := range periodRows {
-			count := byPerson[supervisor.PersonID][period.ID]
-			count.PeriodID = period.ID
-			row.AssignmentCounts = append(row.AssignmentCounts, count)
+		if last, ok := lastStaffed[person.PersonID]; ok {
+			row.LastOpenDayAt = &last
 		}
 		dashboard.Supervisors = append(dashboard.Supervisors, row)
 		dashboard.Totals.Supervisors++

@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { StaffingLevel } from './staffingLevel';
 import type { UpdateRoleRequestLaborordnungMode } from './updateRoleRequestLaborordnungMode';
 import type { Version } from './version';
 
@@ -27,7 +28,8 @@ import type { Version } from './version';
 export interface UpdateRoleRequest {
   profileImageRequired?: boolean;
   laborordnungMode?: UpdateRoleRequestLaborordnungMode;
-  supervisorDashboard?: boolean;
+  /** Omitted keeps the level; null clears it. */
+  staffingLevel?: StaffingLevel | null;
   expectedVersion: Version;
   /**
      * @minLength 1

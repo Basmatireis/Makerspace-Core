@@ -28,8 +28,13 @@ type Querier interface {
 	GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (OpenDayAcademicBreak, error)
 	GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
 	GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error)
+	// The next open day starting within the window that the person is not on yet and that has a free place of the given
+	// kind they are eligible for.
+	GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlaceParams) (GetNextOpenPlaceRow, error)
 	GetOpenDay(ctx context.Context, id uuid.UUID) (OpenDay, error)
 	GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDay, error)
+	// Ended scheduled open days the person staffed, all time, with their scheduled duration in seconds.
+	GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDayStatisticsParams) (GetOwnOpenDayStatisticsRow, error)
 	GetPeriod(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error)
 	GetPeriodForUpdate(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error)
 	GetPersonOpenDayAssignment(ctx context.Context, arg GetPersonOpenDayAssignmentParams) (OpenDayAssignment, error)
@@ -41,6 +46,8 @@ type Querier interface {
 	ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRolesRow, error)
 	ListEligiblePeople(ctx context.Context, arg ListEligiblePeopleParams) ([]ListEligiblePeopleRow, error)
 	ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDay, error)
+	// Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
+	ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComingUpOpenDaysParams) ([]ListOwnComingUpOpenDaysRow, error)
 	ListPeriods(ctx context.Context) ([]OpenDayPeriod, error)
 	ListPublishedOpenDays(ctx context.Context) ([]OpenDay, error)
 	ListRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error)

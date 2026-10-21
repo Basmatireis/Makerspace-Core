@@ -482,3 +482,23 @@ SELECT title, starts_at, location FROM (
 ) upcoming
 ORDER BY starts_at, title
 LIMIT sqlc.arg(row_limit)::int;
+
+-- name: ListOwnComingUpShifts :many
+-- Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
+-- only for public events, otherwise empty.
+SELECT a.id AS assignment_id, e.id AS event_id,
+       COALESCE(CASE WHEN e.is_public THEN e.public_id END, '')::text AS public_id,
+       COALESCE(e.public_title, e.name)::text AS event_title, s.name AS shift_name, s.starts_at, s.ends_at
+FROM event_shift_assignments a
+JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
+JOIN events e ON e.id = a.event_id AND e.status NOT IN ('cancelled', 'archived')
+WHERE a.person_id = sqlc.arg(person_id) AND a.status = 'active' AND s.ends_at > sqlc.arg(now)
+ORDER BY s.starts_at, a.id;
+
+-- name: GetOwnShiftStatistics :one
+-- Ended shifts the person was actively assigned to, all time, with their scheduled duration in seconds.
+SELECT count(*)::bigint AS shifts,
+       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds
+FROM event_shift_assignments a
+JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
+WHERE a.person_id = sqlc.arg(person_id) AND a.status = 'active' AND s.ends_at <= sqlc.arg(now);

@@ -242,3 +242,14 @@ WHERE r.system_key = 'master';
 
 -- name: GetMasterRole :one
 SELECT * FROM roles WHERE system_key = 'master';
+
+-- name: GetPromotionSupervisorRole :one
+-- Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
+SELECT supervisor_role_id FROM open_day_requirements WHERE singleton = true;
+
+-- name: ListPersonStaffingRoles :many
+SELECT r.id, r.staffing_level::text AS staffing_level
+FROM roles r
+JOIN person_roles pr ON pr.role_id = r.id
+WHERE pr.person_id = sqlc.arg(person_id) AND r.staffing_level IS NOT NULL
+ORDER BY r.id;

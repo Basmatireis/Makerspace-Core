@@ -14,6 +14,8 @@ type Querier interface {
 	AddRolePermission(ctx context.Context, arg AddRolePermissionParams) error
 	AddRolePermissionDeviceType(ctx context.Context, arg AddRolePermissionDeviceTypeParams) error
 	BumpRoleVersion(ctx context.Context, arg BumpRoleVersionParams) (Role, error)
+	// A role that stops being a supervisor role can no longer be the role promotions assign.
+	ClearSupervisorRoleRequirement(ctx context.Context, roleID *uuid.UUID) error
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	DeleteRole(ctx context.Context, arg DeleteRoleParams) (uuid.UUID, error)
 	DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) error

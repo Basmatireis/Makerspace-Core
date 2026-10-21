@@ -444,7 +444,7 @@ describe('User detail page', () => {
       ),
       http.get('*/api/v1/roles', () =>
         HttpResponse.json({
-          items: [roleFixture({ supervisorDashboard: true })],
+          items: [roleFixture({ staffingLevel: 'supervisor' })],
           nextCursor: null,
         }),
       ),

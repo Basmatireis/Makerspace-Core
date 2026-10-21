@@ -8,35 +8,29 @@ import { currentUserFixture, otherPersonId } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
-const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a932';
-const secondPeriodId = '0192f6f8-743e-7c77-a349-cd07c3e8a933';
-
 function supervisorDashboard() {
   return {
-    periods: [
-      {
-        id: periodId,
-        name: 'Autumn Open Days',
-        status: 'staffing',
-        supervisorAssignments: 3,
-      },
-      {
-        id: secondPeriodId,
-        name: 'Spring Open Days',
-        status: 'published',
-        supervisorAssignments: 1,
-      },
-    ],
+    semester: {
+      periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+      name: 'Autumn',
+      startsOn: '2026-10-01',
+      endsOn: '2027-01-31',
+    },
+    requirements: { minOpenDaysPerSemester: 2, traineeOpenDaysForPromotion: 3, supervisorRoleConfigured: true },
     supervisors: [
       {
         personId: otherPersonId,
         name: 'Grace Hopper',
+        kind: 'supervisor',
         hasProfileImage: false,
         laborordnungState: 'outdated',
-        assignmentCounts: [
-          { periodId, supervisorCount: 2, traineeCount: 1 },
-          { periodId: secondPeriodId, supervisorCount: 0, traineeCount: 2 },
-        ],
+        staffed: 1,
+        booked: 0,
+        staffedAsTrainee: 0,
+        status: 'missing',
+        missing: 1,
+        lastOpenDayAt: null,
+        memberSince: '2026-01-01T00:00:00Z',
       },
     ],
     totals: {
@@ -101,22 +95,14 @@ describe('Members inside Directory', () => {
     const toolbarControls = toolbar.querySelector('.cds--toolbar-content')?.children;
     expect(toolbarControls?.item(0)).toContainElement(screen.getByRole('searchbox', { name: 'Search members' }));
     expect(toolbarControls?.item(1)).toContainElement(screen.getByRole('button', { name: 'Filters' }));
-    expect(toolbarControls?.item(2)).toContainElement(screen.getByRole('combobox', { name: 'Open Days period' }));
-    expect(toolbarControls?.item(3)).toBe(directoryButton);
+    expect(toolbarControls?.item(2)).toBe(directoryButton);
     expect(document.querySelector('.supervisor-staffing-table > .cds--pagination')).toBeInTheDocument();
     expect(within(table).getByText('Outdated')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Member$/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Supervisor$/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Trainee$/ })).toBeInTheDocument();
-    let memberCells = within(screen.getByRole('row', { name: /Grace Hopper/ })).getAllByRole('cell');
-    expect(memberCells[3]).toHaveTextContent('2');
-    expect(memberCells[4]).toHaveTextContent('1');
-    const periodSelector = screen.getByRole('combobox', { name: 'Open Days period' });
-    await user.click(periodSelector);
-    await user.click(screen.getByRole('option', { name: 'Spring Open Days' }));
-    memberCells = within(screen.getByRole('row', { name: /Grace Hopper/ })).getAllByRole('cell');
-    expect(memberCells[3]).toHaveTextContent('0');
-    expect(memberCells[4]).toHaveTextContent('2');
+    expect(screen.getByRole('columnheader', { name: /Open days this semester$/ })).toBeInTheDocument();
+    const memberCells = within(screen.getByRole('row', { name: /Grace Hopper/ })).getAllByRole('cell');
+    expect(memberCells[3]).toHaveTextContent('1 of 2');
+    expect(memberCells[4]).toHaveTextContent('Below minimum');
     expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
     expect(screen.queryByText('Member readiness')).not.toBeInTheDocument();
 

@@ -267,7 +267,7 @@ func (q *Queries) GetAccountByPersonForMutation(ctx context.Context, personID uu
 }
 
 const getMasterRole = `-- name: GetMasterRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE system_key = 'master'
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles WHERE system_key = 'master'
 `
 
 func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
@@ -283,7 +283,7 @@ func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.SupervisorDashboard,
+		&i.StaffingLevel,
 	)
 	return i, err
 }
@@ -354,8 +354,20 @@ func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfile
 	return i, err
 }
 
+const getPromotionSupervisorRole = `-- name: GetPromotionSupervisorRole :one
+SELECT supervisor_role_id FROM open_day_requirements WHERE singleton = true
+`
+
+// Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
+func (q *Queries) GetPromotionSupervisorRole(ctx context.Context) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPromotionSupervisorRole)
+	var supervisor_role_id *uuid.UUID
+	err := row.Scan(&supervisor_role_id)
+	return supervisor_role_id, err
+}
+
 const getRoleForAssignment = `-- name: GetRoleForAssignment :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1 FOR SHARE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles WHERE id = $1 FOR SHARE
 `
 
 func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -371,7 +383,7 @@ func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role,
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.SupervisorDashboard,
+		&i.StaffingLevel,
 	)
 	return i, err
 }
@@ -555,7 +567,7 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 }
 
 const listPersonRoles = `-- name: ListPersonRoles :many
-SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r
+SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.staffing_level FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
 WHERE pr.person_id = $1
 ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id
@@ -580,7 +592,7 @@ func (q *Queries) ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Ro
 			&i.UpdatedAt,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.SupervisorDashboard,
+			&i.StaffingLevel,
 		); err != nil {
 			return nil, err
 		}
@@ -593,7 +605,7 @@ func (q *Queries) ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Ro
 }
 
 const listPersonRolesByPeople = `-- name: ListPersonRolesByPeople :many
-SELECT pr.person_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r
+SELECT pr.person_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.staffing_level FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
 WHERE pr.person_id = ANY(($1::text[])::uuid[])
 ORDER BY pr.person_id, r.system_key DESC NULLS LAST, lower(r.name), r.id
@@ -610,7 +622,7 @@ type ListPersonRolesByPeopleRow struct {
 	UpdatedAt            time.Time
 	ProfileImageRequired bool
 	LaborordnungMode     string
-	SupervisorDashboard  bool
+	StaffingLevel        *string
 }
 
 func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error) {
@@ -633,8 +645,41 @@ func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []strin
 			&i.UpdatedAt,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.SupervisorDashboard,
+			&i.StaffingLevel,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPersonStaffingRoles = `-- name: ListPersonStaffingRoles :many
+SELECT r.id, r.staffing_level::text AS staffing_level
+FROM roles r
+JOIN person_roles pr ON pr.role_id = r.id
+WHERE pr.person_id = $1 AND r.staffing_level IS NOT NULL
+ORDER BY r.id
+`
+
+type ListPersonStaffingRolesRow struct {
+	ID            uuid.UUID
+	StaffingLevel string
+}
+
+func (q *Queries) ListPersonStaffingRoles(ctx context.Context, personID uuid.UUID) ([]ListPersonStaffingRolesRow, error) {
+	rows, err := q.db.Query(ctx, listPersonStaffingRoles, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonStaffingRolesRow{}
+	for rows.Next() {
+		var i ListPersonStaffingRolesRow
+		if err := rows.Scan(&i.ID, &i.StaffingLevel); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

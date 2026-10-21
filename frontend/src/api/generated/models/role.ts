@@ -21,6 +21,7 @@
 import type { PermissionGrant } from './permissionGrant';
 import type { RoleLaborordnungMode } from './roleLaborordnungMode';
 import type { RoleSystemKey } from './roleSystemKey';
+import type { StaffingLevel } from './staffingLevel';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -42,7 +43,8 @@ export interface Role {
   permissionGrants: PermissionGrant[];
   profileImageRequired: boolean;
   laborordnungMode: RoleLaborordnungMode;
-  supervisorDashboard: boolean;
+  /** How people holding this role staff open days; null when the role does not staff. */
+  staffingLevel: StaffingLevel | null;
   createdAt: string;
   updatedAt: string;
   version: Version;
