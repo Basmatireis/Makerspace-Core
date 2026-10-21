@@ -58,11 +58,10 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if _, err = admin.NewService(pool).BootstrapMaster(
 		ctx,
 		admin.BootstrapInput{
-			FirstName:    "Setup",
-			LastName:     "Admin",
-			ContactEmail: "setup-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
+			FirstName:  "Setup",
+			LastName:   "Admin",
+			LoginEmail: adminLogin,
+			Password:   adminPassword,
 		},
 	); err != nil {
 		t.Fatal(err)

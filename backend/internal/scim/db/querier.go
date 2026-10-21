@@ -17,6 +17,7 @@ type Querier interface {
 	BumpReconciledPersonVersion(ctx context.Context, id uuid.UUID) error
 	CountConnectorUsers(ctx context.Context, connectorID uuid.UUID) (int64, error)
 	CountIndependentUsableIdentities(ctx context.Context, arg CountIndependentUsableIdentitiesParams) (int64, error)
+	// A password identity without a credential (the login email of a provisioned account) carries nothing to transfer.
 	CountLocalIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountSCIMMappingsForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CountSCIMUsers(ctx context.Context, arg CountSCIMUsersParams) (int64, error)

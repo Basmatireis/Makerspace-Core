@@ -58,7 +58,8 @@ export function AccountDialogs({
             <Stack gap={5}>
               <p>
                 Create an active application account for this person. Authentication methods can be configured
-                afterwards; without one, the person cannot sign in.
+                afterwards; without one, the person cannot sign in. Every account has an email, which is also the
+                address used for password login.
               </p>
               {createAccountMutation.isError && (
                 <InlineNotification
@@ -66,17 +67,17 @@ export function AccountDialogs({
                   lowContrast
                   hideCloseButton
                   title="Account not created"
-                  subtitle="Check the email and try again."
+                  subtitle="Check the email and try again. It may already be used by another account."
                 />
               )}
               <TextInput
                 id="new-account-email"
                 type="email"
-                labelText="Password login email (optional)"
-                helperText="This creates a password identity for convenience. It is independent of the person's contact email."
+                labelText="Email"
+                helperText="The address this person logs in with. It becomes the person's email."
                 invalid={Boolean(accountCreateForm.formState.errors.loginEmail)}
                 invalidText={accountCreateForm.formState.errors.loginEmail?.message}
-                {...accountCreateForm.register('loginEmail')}
+                {...accountCreateForm.register('loginEmail', { required: 'Enter an email address.' })}
               />
             </Stack>
           </Form>
@@ -94,38 +95,38 @@ export function AccountDialogs({
       <ComposedModal
         open={loginEmailModalOpen}
         onClose={() => {
-          accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' });
+          accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? person.email ?? '' });
           emailMutation.reset();
           setLoginEmailModalOpen(false);
         }}
       >
         <ModalHeader
-          title={passwordIdentity ? 'Change password login email' : 'Add password login'}
+          title={passwordIdentity ? 'Change email' : 'Set login email'}
           label={`${person.firstName} ${person.lastName}`}
         />
         <ModalBody>
           <Form id="account-login-email-form" onSubmit={submitEmail}>
             <Stack gap={5}>
               <p>
-                This identifier is used only for local password authentication. It does not change the person's contact
-                email.
+                This is the person's email and the address used for password login. Changing it signs the person out of
+                existing sessions and invalidates pending password links.
               </p>
               {emailMutation.isError && (
                 <InlineNotification
                   kind="error"
                   lowContrast
                   hideCloseButton
-                  title="Password login not updated"
+                  title="Email not updated"
                   subtitle="The email may already be in use or the account may have changed."
                 />
               )}
               <TextInput
                 id="account-login-email"
                 type="email"
-                labelText="Password login email"
+                labelText="Email"
                 invalid={Boolean(accountEmailForm.formState.errors.loginEmail)}
                 invalidText={accountEmailForm.formState.errors.loginEmail?.message}
-                {...accountEmailForm.register('loginEmail', { required: 'Enter a password login email.' })}
+                {...accountEmailForm.register('loginEmail', { required: 'Enter an email address.' })}
               />
             </Stack>
           </Form>
@@ -134,7 +135,7 @@ export function AccountDialogs({
           <Button
             kind="secondary"
             onClick={() => {
-              accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' });
+              accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? person.email ?? '' });
               emailMutation.reset();
               setLoginEmailModalOpen(false);
             }}

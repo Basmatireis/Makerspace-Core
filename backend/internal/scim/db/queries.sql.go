@@ -118,9 +118,12 @@ func (q *Queries) CountIndependentUsableIdentities(ctx context.Context, arg Coun
 }
 
 const countLocalIdentitiesForAccount = `-- name: CountLocalIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','pin')
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id=$1
+  AND (i.kind='pin' OR (i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id)))
 `
 
+// A password identity without a credential (the login email of a provisioned account) carries nothing to transfer.
 func (q *Queries) CountLocalIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countLocalIdentitiesForAccount, accountID)
 	var count int64
@@ -286,17 +289,18 @@ func (q *Queries) CreateProvisionedAccount(ctx context.Context, arg CreateProvis
 }
 
 const createProvisionedPerson = `-- name: CreateProvisionedPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+INSERT INTO people (id, first_name, last_name, email, phone, member_since)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type CreateProvisionedPersonParams struct {
-	ID        uuid.UUID
-	FirstName string
-	LastName  string
-	Email     *string
-	Phone     *string
+	ID          uuid.UUID
+	FirstName   string
+	LastName    string
+	Email       *string
+	Phone       *string
+	MemberSince pgtype.Date
 }
 
 func (q *Queries) CreateProvisionedPerson(ctx context.Context, arg CreateProvisionedPersonParams) (Person, error) {
@@ -306,6 +310,7 @@ func (q *Queries) CreateProvisionedPerson(ctx context.Context, arg CreateProvisi
 		arg.LastName,
 		arg.Email,
 		arg.Phone,
+		arg.MemberSince,
 	)
 	var i Person
 	err := row.Scan(
@@ -321,6 +326,7 @@ func (q *Queries) CreateProvisionedPerson(ctx context.Context, arg CreateProvisi
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }

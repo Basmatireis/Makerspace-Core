@@ -55,8 +55,8 @@ VALUES (sqlc.arg(id), sqlc.arg(account_id), 'oidc', sqlc.arg(provider_id), sqlc.
 RETURNING *;
 
 -- name: CreateJITPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone))
+INSERT INTO people (id, first_name, last_name, email, phone, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateJITAccount :one

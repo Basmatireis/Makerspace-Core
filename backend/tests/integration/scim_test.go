@@ -84,7 +84,7 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 			assertCount(
 				t,
 				pool,
-				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND disabled_at IS NULL`,
+				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND disabled_at IS NULL`,
 				1,
 				accountID,
 			)
@@ -176,8 +176,7 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	masterID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "SCIM", LastName: "Administrator", ContactEmail: "scim-admin@example.test",
-		LoginEmail: "scim-admin-login@example.test", Password: bootstrapPassword,
+		FirstName: "SCIM", LastName: "Administrator", LoginEmail: "scim-admin-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -277,8 +276,7 @@ func TestSCIMReconciliationPreflightIsAtomicAndRetryable(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	targetAccountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Established", LastName: "Member", ContactEmail: "established@example.test",
-		LoginEmail: "established-login@example.test", Password: bootstrapPassword,
+		FirstName: "Established", LastName: "Member", LoginEmail: "established-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -467,8 +465,7 @@ func TestPersonDeletionExplainsSCIMProvisioning(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	masterID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "SCIM", LastName: "Deleter", ContactEmail: "scim-deleter@example.test",
-		LoginEmail: "scim-deleter-login@example.test", Password: bootstrapPassword,
+		FirstName: "SCIM", LastName: "Deleter", LoginEmail: "scim-deleter-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -22,7 +22,7 @@ import type { Email } from './email';
 import type { Version } from './version';
 
 /**
- * At least one update field must be present and a contact method must remain afterward.
+ * At least one update field must be present and a contact method must remain afterward. `email` of a person with an account cannot be changed here (see `updatePerson`).
  */
 export interface UpdatePersonRequest {
   expectedVersion: Version;
@@ -49,4 +49,6 @@ export interface UpdatePersonRequest {
      * @nullable
      */
   matriculationNumber?: string | null;
+  /** Requires `people.update.all`. Must not lie in the future; cannot be cleared. */
+  memberSince?: string;
 }

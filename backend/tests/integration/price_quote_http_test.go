@@ -36,7 +36,7 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 		adminLogin    = "price-quote-admin@example.test"
 		adminPassword = "Price quote admin password 51"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Quote", LastName: "Admin", ContactEmail: "price-quote-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Quote", LastName: "Admin", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)

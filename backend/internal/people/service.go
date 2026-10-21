@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/dates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 
@@ -46,9 +47,11 @@ type Person struct {
 	ProfileImageFileID  *uuid.UUID
 	ProfileImageSource  *ProfileImageSource
 	Roles               []RoleSummary
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// MemberSince is a calendar day (UTC midnight), editable only with people.update.all.
+	MemberSince time.Time
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type RoleSummary struct {
@@ -77,6 +80,8 @@ type UpdateInput struct {
 	Email               OptionalString
 	Phone               OptionalString
 	MatriculationNumber OptionalString
+	// MemberSince changes the membership start day; it requires people.update.all even for the own person.
+	MemberSince *time.Time
 }
 
 type Page struct {
@@ -124,6 +129,7 @@ func (s *Service) Create(
 	row, err := peopledb.New(tx).CreatePerson(ctx, peopledb.CreatePersonParams{
 		ID: id, FirstName: strings.TrimSpace(input.FirstName), LastName: strings.TrimSpace(input.LastName),
 		Email: email, Phone: phone, MatriculationNumber: matriculation, PhotoReference: nil,
+		MemberSince: dates.TodayUTC(),
 	})
 	if err != nil {
 		return Person{}, databaseError(err)
@@ -305,8 +311,13 @@ func (s *Service) Update(
 	if input.MatriculationNumber.Set && !principal.Has(authorization.PeopleUpdateMatriculation) {
 		return Person{}, apperror.PermissionDenied
 	}
+	// The membership start is an administrative fact: self-service profile edits must not change it.
+	if input.MemberSince != nil && !principal.Has(authorization.PeopleUpdateAll) {
+		return Person{}, apperror.PermissionDenied
+	}
 	if input.ExpectedVersion < 1 ||
-		(input.FirstName == nil && input.LastName == nil && !input.Email.Set && !input.Phone.Set && !input.MatriculationNumber.Set) {
+		(input.FirstName == nil && input.LastName == nil && !input.Email.Set && !input.Phone.Set &&
+			!input.MatriculationNumber.Set && input.MemberSince == nil) {
 		return Person{}, apperror.InvalidField("at least one field and a valid expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -315,7 +326,9 @@ func (s *Service) Update(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := peopledb.New(tx)
-	current, err := queries.GetPerson(ctx, id)
+	// Lock the person first (people before accounts): it serializes with account creation, which decides
+	// whether the email below is still a plain contact email.
+	current, err := queries.GetPersonForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Person{}, apperror.NotFound
 	}
@@ -332,6 +345,22 @@ func (s *Service) Update(
 	email, phone, matriculation := current.Email, current.Phone, current.MatriculationNumber
 	if input.Email.Set {
 		email = optional.Trimmed(input.Email.Value)
+		if !sameString(current.Email, email) {
+			hasAccount, err := queries.PersonHasAccount(ctx, id)
+			if err != nil {
+				return Person{}, err
+			}
+			if hasAccount {
+				return Person{}, ErrEmailManagedByAccount
+			}
+		}
+	}
+	memberSince := current.MemberSince
+	if input.MemberSince != nil {
+		memberSince = dates.FromTime(*input.MemberSince)
+		if err := validateMemberSince(memberSince.Time, time.Now()); err != nil {
+			return Person{}, err
+		}
 	}
 	if input.Phone.Set {
 		phone = optional.Trimmed(input.Phone.Value)
@@ -343,9 +372,13 @@ func (s *Service) Update(
 		return Person{}, err
 	}
 	changed := changedFields(current, firstName, lastName, email, phone, matriculation)
+	if !memberSince.Time.Equal(current.MemberSince.Time) {
+		changed = append(changed, "memberSince")
+	}
 	row, err := queries.UpdatePerson(ctx, peopledb.UpdatePersonParams{
 		ID: id, ExpectedVersion: input.ExpectedVersion, FirstName: firstName, LastName: lastName,
 		Email: email, Phone: phone, MatriculationNumber: matriculation, PhotoReference: current.PhotoReference,
+		MemberSince: memberSince,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Person{}, apperror.StaleWrite
@@ -1125,6 +1158,24 @@ func validate(firstName, lastName string, email, phone, matriculation *string) e
 	return nil
 }
 
+// ErrEmailManagedByAccount rejects a plain person update of the email of someone who has an Account: the
+// person's email is the Account's login email and changes only through the login-email operation, which
+// carries its own permission, uniqueness check and session/reset-token handling.
+var ErrEmailManagedByAccount = apperror.New(
+	http.StatusUnprocessableEntity,
+	"email_managed_by_account",
+	"This person has an account; change the email with the account's login email instead.",
+)
+
+// validateMemberSince accepts days from 1900 up to tomorrow (UTC), tolerating a client ahead of UTC.
+func validateMemberSince(day, now time.Time) error {
+	latest := dates.FromTime(now.AddDate(0, 0, 1)).Time
+	if day.Year() < 1900 || day.After(latest) {
+		return apperror.InvalidField("memberSince must be a past or current date")
+	}
+	return nil
+}
+
 func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Person {
 	email, phone, photoReference := row.Email, row.Phone, row.PhotoReference
 	if !includeDetails {
@@ -1140,6 +1191,7 @@ func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Per
 		MatriculationNumber: matriculation, PhotoReference: photoReference, ProfileImageFileID: row.ProfileImageFileID,
 		ProfileImageSource: optional.Convert[ProfileImageSource](row.ProfileImageSource),
 		Roles:              []RoleSummary{},
+		MemberSince:        row.MemberSince.Time,
 		Version:            row.Version,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt}

@@ -1016,6 +1016,7 @@ type Person struct {
 	UpdatedAt           time.Time
 	ProfileImageFileID  *uuid.UUID
 	ProfileImageSource  *string
+	MemberSince         pgtype.Date
 }
 
 type PersonRole struct {

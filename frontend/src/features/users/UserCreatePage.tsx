@@ -15,6 +15,7 @@ const EMPTY_PERSON: PersonFormValues = {
   email: '',
   phone: '',
   matriculationNumber: '',
+  memberSince: '',
 };
 
 export function UserCreatePage() {

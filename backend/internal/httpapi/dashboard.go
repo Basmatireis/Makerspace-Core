@@ -5,6 +5,8 @@ import (
 
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -25,7 +27,7 @@ func (s *Server) GetPersonalDashboard(
 		return nil, err
 	}
 	response := openapi.PersonalDashboard{
-		Person: openapi.PersonalDashboardPerson{FirstName: result.Person.FirstName, MemberSince: result.Person.MemberSince},
+		Person: openapi.PersonalDashboardPerson{FirstName: result.Person.FirstName, MemberSince: openapi_types.Date{Time: result.Person.MemberSince}},
 	}
 	comingUp := make([]openapi.ComingUpItem, 0, len(result.ComingUp))
 	for _, item := range result.ComingUp {
@@ -52,7 +54,7 @@ func (s *Server) GetPersonalDashboard(
 			OpenDayHours:    result.Statistics.OpenDayHours,
 			EventShifts:     result.Statistics.EventShifts,
 			EventShiftHours: result.Statistics.EventShiftHours,
-			MemberSince:     result.Statistics.MemberSince,
+			MemberSince:     openapi_types.Date{Time: result.Statistics.MemberSince},
 		}
 		if jobs := result.Statistics.Jobs; jobs != nil {
 			response.Statistics.Jobs = jobStatisticsDTO(jobs)

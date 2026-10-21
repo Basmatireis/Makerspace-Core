@@ -40,7 +40,7 @@ describe('Create person page', () => {
 
     await user.type(await screen.findByLabelText('First name'), '  Katherine  ');
     await user.type(screen.getByLabelText('Last name'), 'Johnson');
-    await user.type(screen.getByLabelText('Contact email'), 'katherine@example.test');
+    await user.type(screen.getByLabelText('Email'), 'katherine@example.test');
     await user.type(screen.getByLabelText('Matriculation number'), 'M-2042');
     await user.click(screen.getByRole('button', { name: 'Create person' }));
 

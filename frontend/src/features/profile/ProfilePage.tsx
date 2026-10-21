@@ -15,7 +15,7 @@ import { Edit } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { PageShell } from '../../app/PageShell';
-import { formatDateTime } from '../../app/dateTime';
+import { formatDate, formatDateTime } from '../../app/dateTime';
 import { updatePerson } from '../../api/generated/people/people';
 import { deletePersonProfileImage, getPutPersonProfileImageUrl } from '../../api/generated/people/people';
 import type { ProfileImage, UpdatePersonRequest } from '../../api/generated/models';
@@ -42,6 +42,7 @@ export function ProfilePage() {
       email: currentUser.person.email ?? '',
       phone: currentUser.person.phone ?? '',
       matriculationNumber: currentUser.person.matriculationNumber ?? '',
+      memberSince: currentUser.person.memberSince,
     },
   });
   const updateProfileMutation = useMutation({
@@ -85,6 +86,7 @@ export function ProfilePage() {
       personForm.formState.dirtyFields,
       currentUser.person.version,
       mayEditMatriculation,
+      { includeEmail: false },
     );
     try {
       await updateProfileMutation.mutateAsync(patch);
@@ -227,6 +229,8 @@ export function ProfilePage() {
                       form={personForm}
                       showMatriculation={mayReadMatriculation}
                       editMatriculation={mayEditMatriculation}
+                      hasAccount
+                      emailLocked
                     />
                     <div className="form-actions">
                       <Button
@@ -250,8 +254,9 @@ export function ProfilePage() {
                   <StructuredListBody>
                     <DetailRow label="First name" value={currentUser.person.firstName} />
                     <DetailRow label="Last name" value={currentUser.person.lastName} />
-                    <DetailRow label="Contact email" value={currentUser.person.email ?? 'Not provided'} />
+                    <DetailRow label="Email" value={currentUser.person.email ?? 'Not provided'} />
                     <DetailRow label="Phone" value={currentUser.person.phone ?? 'Not provided'} />
+                    <DetailRow label="Member since" value={formatDate(currentUser.person.memberSince)} />
                     {mayReadMatriculation && (
                       <DetailRow
                         label="Matriculation number"

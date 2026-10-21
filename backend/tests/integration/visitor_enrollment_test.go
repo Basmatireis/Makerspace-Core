@@ -29,8 +29,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	cfg := integrationConfig(t)
 
 	masterAccountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Visitor", LastName: "Administrator", ContactEmail: "visitor-admin@example.test",
-		LoginEmail: "visitor-admin-login@example.test", Password: bootstrapPassword,
+		FirstName: "Visitor", LastName: "Administrator", LoginEmail: "visitor-admin-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,9 +179,18 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	assertCount(
 		t,
 		pool,
-		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','oidc')`,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`,
 		0,
 		result.AccountID,
+	)
+	// The visitor's email is the account's login email even for a PIN-only enrollment.
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password' AND identifier_normalized=$2`,
+		1,
+		result.AccountID,
+		email,
 	)
 	assertCount(
 		t,

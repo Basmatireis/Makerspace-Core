@@ -135,7 +135,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	if err != nil {
 		return Dashboard{}, err
 	}
-	result := Dashboard{Person: Person{FirstName: person.FirstName, MemberSince: person.CreatedAt}}
+	result := Dashboard{Person: Person{FirstName: person.FirstName, MemberSince: person.MemberSince.Time}}
 	kind, err := s.staffing.PersonKind(ctx, principal.PersonID)
 	if err != nil {
 		return Dashboard{}, err
@@ -184,7 +184,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 		result.Staffing = section
 	}
 	if kind != nil || principal.Has(authorization.OpenDaysSignup) {
-		statistics, err := s.statistics(ctx, principal, now, person.CreatedAt)
+		statistics, err := s.statistics(ctx, principal, now, person.MemberSince.Time)
 		if err != nil {
 			return Dashboard{}, err
 		}

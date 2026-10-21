@@ -106,15 +106,13 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	serviceConfig := integrationConfig(t)
 	notifier := newNotificationRecorder()
 
-	contactEmail := "Contact.Person@Example.test"
 	loginEmail := "Login.Admin+makerspace@Example.test"
 	adminService := admin.NewService(pool)
 	accountID, err := adminService.BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName:    "Ada",
-		LastName:     "Lovelace",
-		ContactEmail: contactEmail,
-		LoginEmail:   loginEmail,
-		Password:     bootstrapPassword,
+		FirstName:  "Ada",
+		LastName:   "Lovelace",
+		LoginEmail: loginEmail,
+		Password:   bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
@@ -147,9 +145,9 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if storedContact != contactEmail || storedLogin != loginEmail || storedNormalized != strings.ToLower(loginEmail) {
+	if storedContact != loginEmail || storedLogin != loginEmail || storedNormalized != strings.ToLower(loginEmail) {
 		t.Fatalf(
-			"contact/login identities were conflated: contact=%q login=%q normalized=%q",
+			"person email must mirror the login email: contact=%q login=%q normalized=%q",
 			storedContact,
 			storedLogin,
 			storedNormalized,
@@ -169,8 +167,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	)
 
 	if _, err := adminService.BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Second", LastName: "Master", ContactEmail: "second-contact@example.test",
-		LoginEmail: "second-login@example.test", Password: "A second unique workshop password 82",
+		FirstName: "Second", LastName: "Master", LoginEmail: "second-login@example.test", Password: "A second unique workshop password 82",
 	}); err == nil {
 		t.Fatal("second bootstrap unexpectedly succeeded")
 	}
@@ -359,7 +356,6 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	assertAuditContainsNoPII(
 		t,
 		pool,
-		contactEmail,
 		loginEmail,
 		bootstrapPassword,
 		resetPassword,
@@ -376,8 +372,7 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 
 	masterLogin := "reset-provisioning-master@example.test"
 	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Reset", LastName: "Administrator", ContactEmail: masterLogin,
-		LoginEmail: masterLogin, Password: bootstrapPassword,
+		FirstName: "Reset", LastName: "Administrator", LoginEmail: masterLogin, Password: bootstrapPassword,
 	}); err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
@@ -543,8 +538,7 @@ func TestAdministrativeResetIssuanceDoesNotRevokeConcurrentLogin(t *testing.T) {
 	cfg := integrationConfig(t)
 	loginEmail := "login-reset-race@example.test"
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Login", LastName: "Race", ContactEmail: loginEmail,
-		LoginEmail: loginEmail, Password: bootstrapPassword,
+		FirstName: "Login", LastName: "Race", LoginEmail: loginEmail, Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
@@ -636,8 +630,7 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	cfg := integrationConfig(t)
 	loginEmail := "password-reset-race@example.test"
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Password", LastName: "Race", ContactEmail: loginEmail,
-		LoginEmail: loginEmail, Password: bootstrapPassword,
+		FirstName: "Password", LastName: "Race", LoginEmail: loginEmail, Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
@@ -773,8 +766,7 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	loginEmail := "login-recovery-race@example.test"
 	recoveryPassword := "Recovered workshop access 81"
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Recovery", LastName: "Race", ContactEmail: loginEmail,
-		LoginEmail: loginEmail, Password: bootstrapPassword,
+		FirstName: "Recovery", LastName: "Race", LoginEmail: loginEmail, Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
@@ -879,8 +871,7 @@ func TestMutationRollsBackWhenAuditInsertionFails(t *testing.T) {
 	loginEmail := "rollback-login@example.test"
 
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Audit", LastName: "Rollback", ContactEmail: "rollback-contact@example.test",
-		LoginEmail: loginEmail, Password: bootstrapPassword,
+		FirstName: "Audit", LastName: "Rollback", LoginEmail: loginEmail, Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)

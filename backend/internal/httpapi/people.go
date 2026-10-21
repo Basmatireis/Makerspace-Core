@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -9,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 func (s *Server) RemovePersonRole(
@@ -297,6 +299,7 @@ func (s *Server) UpdatePerson(
 		FirstName:       request.Body.FirstName, LastName: request.Body.LastName,
 		Email: optionalString(request.Body.Email), Phone: optionalString(request.Body.Phone),
 		MatriculationNumber: optionalString(request.Body.MatriculationNumber),
+		MemberSince:         dateTimePointer(request.Body.MemberSince),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -394,30 +397,14 @@ func (s *Server) CreatePersonAccount(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	var loginEmail *string
-	if value, err := request.Body.LoginEmail.Get(); err == nil {
-		converted := string(value)
-		loginEmail = &converted
-	}
-	var account accounts.Account
-	if loginEmail == nil {
-		account, err = s.accounts.CreateWithoutIdentity(
-			ctx,
-			principal,
-			request.PersonId,
-			request.Body.ExpectedVersion,
-			requestIDPointer(ctx),
-		)
-	} else {
-		account, err = s.accounts.Create(
-			ctx,
-			principal,
-			request.PersonId,
-			*loginEmail,
-			request.Body.ExpectedVersion,
-			requestIDPointer(ctx),
-		)
-	}
+	account, err := s.accounts.Create(
+		ctx,
+		principal,
+		request.PersonId,
+		string(request.Body.LoginEmail),
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -461,6 +448,7 @@ func personDTOWithRelated(
 	response := openapi.Person{
 		Id: person.ID, FirstName: person.FirstName, LastName: person.LastName,
 		Version: person.Version, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
+		MemberSince:          openapi_types.Date{Time: person.MemberSince},
 		ProfileImageRequired: &profileImageRequired, Roles: roleSummaries,
 	}
 	if includeContact {
@@ -500,4 +488,12 @@ func profileImageDTO(person people.Person) openapi.ProfileImage {
 		FileId: *person.ProfileImageFileID, Source: openapi.ProfileImageSource(*person.ProfileImageSource),
 		DownloadUrl: apiBasePath + "/people/" + person.ID.String() + "/profile-image",
 	}
+}
+
+func dateTimePointer(value *openapi_types.Date) *time.Time {
+	if value == nil {
+		return nil
+	}
+	day := value.Time
+	return &day
 }

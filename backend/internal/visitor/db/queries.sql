@@ -76,8 +76,8 @@ JOIN visitor_enrollment_contexts ec ON ec.lab_rules_version_id=v.id
 WHERE ec.id=sqlc.arg(context_id);
 
 -- name: CreateVisitorPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(profile_image_file_id), 'terminal_capture')
+INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(profile_image_file_id), 'terminal_capture', sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateVisitorAccount :one

@@ -268,11 +268,10 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 		BootstrapMaster(
 			ctx,
 			admin.BootstrapInput{
-				FirstName:    "CLI",
-				LastName:     "Master",
-				ContactEmail: "cli-master@example.test",
-				LoginEmail:   "cli-login@example.test",
-				Password:     oldPassword,
+				FirstName:  "CLI",
+				LastName:   "Master",
+				LoginEmail: "cli-login@example.test",
+				Password:   oldPassword,
 			},
 		)
 	if err != nil {

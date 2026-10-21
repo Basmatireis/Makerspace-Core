@@ -28,16 +28,15 @@ func (s *seeder) setupActor(email string) {
 	var fn, ln string
 	err := s.pool.QueryRow(s.ctx, masterQuery, email).Scan(&acc, &person, &fn, &ln)
 	if errors.Is(err, pgx.ErrNoRows) && email != "" {
-		log.Fatalf("no enabled master account with contact email %q", email)
+		log.Fatalf("no enabled master account with email %q", email)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		pw := make([]byte, 32)
 		_, _ = rand.Read(pw)
 		_, err = admin.NewService(s.pool).
 			BootstrapMaster(s.ctx, admin.BootstrapInput{FirstName: "Devseed", LastName: "Admin",
-				ContactEmail: "devseed-admin@makerspace.example.org",
-				LoginEmail:   "devseed-admin@makerspace.example.org",
-				Password:     base64.RawURLEncoding.EncodeToString(pw)})
+				LoginEmail: "devseed-admin@makerspace.example.org",
+				Password:   base64.RawURLEncoding.EncodeToString(pw)})
 		check("bootstrap devseed master", err)
 		log.Println(
 			"no master found; created Devseed Admin (devseed-admin@makerspace.example.org) without a usable password",
@@ -395,7 +394,7 @@ func (s *seeder) createPeople() {
 		check("person "+email, err)
 		ver := p.Version
 		if account {
-			_, err = s.accounts.CreateWithoutIdentity(s.ctx, s.actor, p.ID, ver, nil)
+			_, err = s.accounts.Create(s.ctx, s.actor, p.ID, email, ver, nil)
 			check("account "+email, err)
 		}
 		if role != "" {

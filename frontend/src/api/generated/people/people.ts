@@ -144,8 +144,15 @@ export const getUpdatePersonUrl = (personId: string,) => {
 /**
  * Requires the applicable `people.update.self` or `people.update.all`
  * permission. Sending `matriculationNumber` additionally requires
- * `people.update.matriculation`. Omitted fields are unchanged; nullable
- * fields sent as `null` are cleared.
+ * `people.update.matriculation`, and sending `memberSince` requires
+ * `people.update.all` even for the caller's own person. Omitted fields are
+ * unchanged; nullable fields sent as `null` are cleared.
+ *
+ * A person with an account has exactly one email, the account's login
+ * email. Sending a different `email` (including `null`) for such a person
+ * is rejected with 422 `email_managed_by_account`; change it with
+ * `updateAccountLoginEmail` instead. Resending the current value is
+ * accepted.
  * @summary Update one person
  */
 export const updatePerson = async (personId: string,

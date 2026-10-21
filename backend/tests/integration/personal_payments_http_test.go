@@ -25,8 +25,7 @@ func TestOwnPaymentAndBalanceOverHTTP(t *testing.T) {
 		adminPassword = "Own payments workshop password 73"
 	)
 	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Own", LastName: "Payer", ContactEmail: "own-payments-contact@example.test",
-		LoginEmail: adminLogin, Password: adminPassword,
+		FirstName: "Own", LastName: "Payer", LoginEmail: adminLogin, Password: adminPassword,
 	}); err != nil {
 		t.Fatal(err)
 	}

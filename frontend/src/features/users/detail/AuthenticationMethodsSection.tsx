@@ -53,7 +53,7 @@ export function AuthenticationMethodsSection({
               <OverflowMenu iconDescription="Actions for Local password" size="sm" flipped>
                 {canEditLoginEmail && (
                   <OverflowMenuItem
-                    itemText={passwordIdentity ? 'Change login email' : 'Add password login'}
+                    itemText={passwordIdentity ? 'Change email' : 'Set login email'}
                     onClick={() => ctrl.setLoginEmailModalOpen(true)}
                   />
                 )}

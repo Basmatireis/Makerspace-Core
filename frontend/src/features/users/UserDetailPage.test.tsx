@@ -66,7 +66,7 @@ describe('User detail page', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
-  it('shows a recipient-owned invitation link in a modal when contact email is missing', async () => {
+  it('shows a recipient-owned invitation link in a modal when the person has no email yet', async () => {
     let person = personFixture({ account: null, email: null });
     let account: Account | undefined;
     let accountRequest: CreateAccountRequest | undefined;
@@ -130,7 +130,7 @@ describe('User detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
-    const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
+    const loginEmail = within(createDialog).getByLabelText('Email');
     await user.clear(loginEmail);
     await user.type(loginEmail, '  member@example.test  ');
     await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
@@ -165,11 +165,8 @@ describe('User detail page', () => {
     await waitFor(() => expect(screen.queryByLabelText('One-time setup link')).not.toBeInTheDocument());
   });
 
-  it.each([
-    ['empty', ''],
-    ['whitespace-only', '   '],
-  ])('creates an Account without an authentication identity for %s login email input', async (_case, input) => {
-    let person = personFixture({ account: null });
+  it("prefills the new account's login email from the person's email", async () => {
+    let person = personFixture({ account: null, email: 'grace@example.test' });
     let accountRequest: CreateAccountRequest | undefined;
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -180,12 +177,7 @@ describe('User detail page', () => {
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
       http.post(`*/api/v1/people/${otherPersonId}/account`, async ({ request }) => {
         accountRequest = (await request.json()) as CreateAccountRequest;
-        const account = accountFixture({
-          loginEmail: null,
-          status: 'enabled',
-          passwordStatus: 'not_set',
-          authIdentities: [],
-        });
+        const account = accountFixture({ loginEmail: accountRequest.loginEmail, status: 'enabled' });
         person = { ...person, account };
         return HttpResponse.json(account, { status: 201 });
       }),
@@ -196,22 +188,131 @@ describe('User detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
-    expect(
-      within(createDialog).getByText(
-        'Create an active application account for this person. Authentication methods can be configured afterwards; without one, the person cannot sign in.',
-      ),
-    ).toBeInTheDocument();
-    const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
-    expect(loginEmail).toHaveValue('');
-    if (input) await user.type(loginEmail, input);
+    expect(within(createDialog).getByLabelText('Email')).toHaveValue('grace@example.test');
     await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
 
-    await waitFor(() =>
-      expect(accountRequest).toEqual({
-        loginEmail: null,
-        expectedVersion: 1,
+    await waitFor(() => expect(accountRequest).toEqual({ loginEmail: 'grace@example.test', expectedVersion: 1 }));
+  });
+
+  it('does not create an account without an email', async () => {
+    let requested = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountscreate]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture({ account: null, email: null, phone: '+43 660 123456' })),
+      ),
+      http.post(`*/api/v1/people/${otherPersonId}/account`, () => {
+        requested = true;
+        return HttpResponse.json(accountFixture(), { status: 201 });
       }),
     );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}`);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
+    const createDialog = screen.getByRole('dialog');
+    await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
+
+    expect(await within(createDialog).findByText('Enter an email address.')).toBeInTheDocument();
+    expect(requested).toBe(false);
+  });
+
+  it('warns about an account without a login email and offers to set one', async () => {
+    const account = accountFixture({ loginEmail: null, passwordStatus: 'not_set', authIdentities: [] });
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountslogin_emailupdate,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=personal-information`);
+
+    expect(await screen.findByText('This account has no login email')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Set login email' }));
+    expect(await screen.findByRole('heading', { name: 'Set login email' })).toBeInTheDocument();
+  });
+
+  it('saves the email of an account holder through the login-email operation', async () => {
+    let loginEmailRequest: unknown;
+    let personRequest: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.peopleupdateall,
+            PermissionId.accountsread,
+            PermissionId.accountslogin_emailupdate,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture({ account: accountFixture(), email: 'grace@example.test' })),
+      ),
+      http.put('*/api/v1/accounts/:accountId/login-email', async ({ request }) => {
+        loginEmailRequest = await request.json();
+        return HttpResponse.json(accountFixture());
+      }),
+      http.patch(`*/api/v1/people/${otherPersonId}`, async ({ request }) => {
+        personRequest = await request.json();
+        return HttpResponse.json(personFixture());
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=personal-information`);
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    const email = screen.getByLabelText('Email', { selector: '#person-email' });
+    await user.clear(email);
+    await user.type(email, 'new@example.test');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(loginEmailRequest).toEqual({ loginEmail: 'new@example.test', expectedVersion: 1 }));
+    expect(personRequest).toBeUndefined();
+  });
+
+  it('locks the email of an account holder without the login-email permission', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([PermissionId.peoplereadall, PermissionId.peopleupdateall, PermissionId.accountsread]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture({ account: accountFixture() })),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=personal-information`);
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('Email', { selector: '#person-email' })).toBeDisabled();
+  });
+
+  it('lets only people.update.all holders edit the member-since date', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.peopleupdateall])),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture())),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=personal-information`);
+    expect(await screen.findByText('Member since')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('Member since')).toHaveValue('01.01.2026');
   });
 
   it('activates an identity-free Account and shows missing login methods separately', async () => {

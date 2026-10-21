@@ -9,7 +9,7 @@ make migrate-up
 docker compose --profile tools run --rm --build admin bootstrap-master
 ```
 
-The CLI requires an interactive TTY and prompts for first name, last name, separate contact and login email addresses, and a non-echoed password. It does not accept passwords through flags, standard input, or environment variables. It creates the Person, Account, email/password identity, credential, master assignment, and secret-free audit event in one transaction.
+The CLI requires an interactive TTY and prompts for first name, last name, one email address (login email and person email), and a non-echoed password. It does not accept passwords through flags, standard input, or environment variables. It creates the Person, Account, email/password identity, credential, master assignment, and secret-free audit event in one transaction.
 
 Bootstrap locks the relevant database state and refuses to create a second “first” master if a master assignment already exists. A failed command leaves no partial Person or credential.
 

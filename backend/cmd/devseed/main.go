@@ -202,7 +202,7 @@ var timelineAnchor = time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
 
 func main() {
 	seed := flag.Int64("seed", time.Now().UnixNano(), "random seed; the same seed produces the same structure")
-	actorEmail := flag.String("actor-email", "", "contact email of the master person to act as (default: first master)")
+	actorEmail := flag.String("actor-email", "", "email of the master person to act as (default: first master)")
 	flag.Parse()
 	if env := os.Getenv("APP_ENV"); env == "production" || env == "prod" {
 		fmt.Fprintln(os.Stderr, "devseed refuses to run with APP_ENV=production")

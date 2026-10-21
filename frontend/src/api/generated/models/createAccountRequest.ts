@@ -21,9 +21,11 @@
 import type { Email } from './email';
 import type { Version } from './version';
 
+/**
+ * The login email becomes the person's email.
+ */
 export interface CreateAccountRequest {
-  /** Optional login email. Omit or send null to create the Account without a password authentication identity. */
-  loginEmail?: Email | null;
+  loginEmail: Email;
   /** Expected version of the owning person loaded by the caller. */
   expectedVersion: Version;
 }

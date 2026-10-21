@@ -36,7 +36,7 @@ func (s *Server) GetSupervisorDashboard(
 			StaffedAsTrainee:  supervisor.Counts.StaffedAsTrainee,
 			Status:            openapi.StaffingStatus(supervisor.Standing.Status),
 			Missing:           supervisor.Standing.Missing,
-			MemberSince:       supervisor.MemberSince,
+			MemberSince:       openapi_types.Date{Time: supervisor.MemberSince},
 			LastOpenDayAt:     nullable.NewNullNullable[time.Time](),
 		}
 		if supervisor.LastOpenDayAt != nil {

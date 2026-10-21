@@ -40,11 +40,10 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	if _, err = admin.NewService(pool).BootstrapMaster(
 		ctx,
 		admin.BootstrapInput{
-			FirstName:    "Mdel",
-			LastName:     "Admin",
-			ContactEmail: "mdel-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
+			FirstName:  "Mdel",
+			LastName:   "Admin",
+			LoginEmail: adminLogin,
+			Password:   adminPassword,
 		},
 	); err != nil {
 		t.Fatal(err)

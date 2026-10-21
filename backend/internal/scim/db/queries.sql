@@ -55,8 +55,8 @@ UPDATE scim_connector_tokens SET last_used_at=now()
 WHERE token_digest=sqlc.arg(token_digest) AND (last_used_at IS NULL OR last_used_at < now()-interval '5 minutes');
 
 -- name: CreateProvisionedPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone))
+INSERT INTO people (id, first_name, last_name, email, phone, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateProvisionedAccount :one
@@ -168,7 +168,10 @@ WHERE a.id IN (sqlc.arg(source_account_id), sqlc.arg(target_account_id))
 ORDER BY p.id FOR UPDATE OF p;
 
 -- name: CountLocalIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities WHERE account_id=sqlc.arg(account_id) AND kind IN ('password','pin');
+-- A password identity without a credential (the login email of a provisioned account) carries nothing to transfer.
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id=sqlc.arg(account_id)
+  AND (i.kind='pin' OR (i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id)));
 
 -- name: CountSCIMMappingsForAccount :one
 SELECT count(*) FROM scim_users WHERE account_id=sqlc.arg(account_id);

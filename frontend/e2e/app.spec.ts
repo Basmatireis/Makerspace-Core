@@ -87,6 +87,7 @@ function currentUser(permissions: string[] = []) {
         passwordStatus: 'active',
         version: 1,
       },
+      memberSince: '2025-01-01',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       version: 1,
@@ -190,6 +191,7 @@ function managedPerson(role = customRole()) {
       passwordStatus: 'active',
       version: 1,
     },
+    memberSince: '2025-01-01',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -247,7 +249,7 @@ function supervisorDashboard() {
         status: 'fulfilled',
         missing: 0,
         lastOpenDayAt: '2026-10-10T08:00:00Z',
-        memberSince: '2025-01-01T00:00:00Z',
+        memberSince: '2025-01-01',
       },
       {
         personId: traineePersonId,
@@ -262,7 +264,7 @@ function supervisorDashboard() {
         status: 'missing',
         missing: 2,
         lastOpenDayAt: null,
-        memberSince: '2026-03-01T00:00:00Z',
+        memberSince: '2026-03-01',
       },
     ],
     totals: {
@@ -276,7 +278,7 @@ function supervisorDashboard() {
 
 function personalDashboard() {
   return {
-    person: { firstName: 'Ada', memberSince: '2025-01-01T00:00:00Z' },
+    person: { firstName: 'Ada', memberSince: '2025-01-01' },
   };
 }
 

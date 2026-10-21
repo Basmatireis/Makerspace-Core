@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/dates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 
@@ -25,11 +26,11 @@ import (
 )
 
 type BootstrapInput struct {
-	FirstName    string
-	LastName     string
-	ContactEmail string
-	LoginEmail   string
-	Password     string
+	FirstName string
+	LastName  string
+	// LoginEmail is the account's only email; the person row mirrors it.
+	LoginEmail string
+	Password   string
 }
 
 type Service struct{ pool *pgxpool.Pool }
@@ -40,10 +41,6 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	firstName, lastName := strings.TrimSpace(input.FirstName), strings.TrimSpace(input.LastName)
 	if firstName == "" || lastName == "" || len([]rune(firstName)) > 100 || len([]rune(lastName)) > 100 {
 		return uuid.Nil, errors.New("first and last name are required and limited to 100 characters")
-	}
-	contactDisplay, _, err := security.NormalizeEmail(input.ContactEmail)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("contact email: %w", err)
 	}
 	loginDisplay, loginNormalized, err := security.NormalizeEmail(input.LoginEmail)
 	if err != nil {
@@ -73,7 +70,10 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	personID := ids.New()
 	if _, err := peopleQueries.CreatePerson(
 		ctx,
-		peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay},
+		peopledb.CreatePersonParams{
+			ID: personID, FirstName: firstName, LastName: lastName, Email: &loginDisplay,
+			MemberSince: dates.TodayUTC(),
+		},
 	); err != nil {
 		return uuid.Nil, err
 	}

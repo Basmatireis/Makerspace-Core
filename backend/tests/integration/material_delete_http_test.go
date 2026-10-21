@@ -29,8 +29,7 @@ func TestDeleteMaterialOverHTTP(t *testing.T) {
 		readerPass    = "Material delete reader password 77"
 	)
 	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Delete", LastName: "Admin", ContactEmail: "material-delete-contact@example.test",
-		LoginEmail: adminLogin, Password: adminPassword,
+		FirstName: "Delete", LastName: "Admin", LoginEmail: adminLogin, Password: adminPassword,
 	}); err != nil {
 		t.Fatal(err)
 	}

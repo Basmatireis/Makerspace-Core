@@ -790,6 +790,34 @@ func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChall
 	return err
 }
 
+const setPersonEmail = `-- name: SetPersonEmail :exec
+UPDATE people SET email = $1::text, version = version + 1, updated_at = now()
+WHERE id = $2 AND email IS DISTINCT FROM $1::text
+`
+
+type SetPersonEmailParams struct {
+	Email    string
+	PersonID uuid.UUID
+}
+
+// Mirrors the login email into the person row (people.email is the single readable email of an account holder).
+func (q *Queries) SetPersonEmail(ctx context.Context, arg SetPersonEmailParams) error {
+	_, err := q.db.Exec(ctx, setPersonEmail, arg.Email, arg.PersonID)
+	return err
+}
+
+const syncPersonEmailFromLoginEmail = `-- name: SyncPersonEmailFromLoginEmail :exec
+UPDATE people p SET email = i.identifier_display, version = p.version + 1, updated_at = now()
+FROM accounts a
+JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+WHERE a.id = $1 AND p.id = a.person_id AND p.email IS DISTINCT FROM i.identifier_display
+`
+
+func (q *Queries) SyncPersonEmailFromLoginEmail(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, syncPersonEmailFromLoginEmail, accountID)
+	return err
+}
+
 const updateAccountStatus = `-- name: UpdateAccountStatus :one
 UPDATE accounts SET status = $1,
     administratively_disabled_at = CASE WHEN $1::text = 'disabled' THEN now() ELSE NULL END,
@@ -816,41 +844,6 @@ func (q *Queries) UpdateAccountStatus(ctx context.Context, arg UpdateAccountStat
 		&i.ProvisioningSource,
 		&i.FirstAuthenticatedAt,
 		&i.AdministrativelyDisabledAt,
-	)
-	return i, err
-}
-
-const updateLoginEmail = `-- name: UpdateLoginEmail :one
-UPDATE auth_identities SET identifier_display = $1::text,
-    identifier_normalized = $2::text,
-    verified_at = CASE WHEN identifier_normalized = $2::text THEN verified_at ELSE NULL END,
-    updated_at = now()
-WHERE account_id = $3 AND kind = 'password' RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
-`
-
-type UpdateLoginEmailParams struct {
-	IdentifierDisplay    string
-	IdentifierNormalized string
-	AccountID            uuid.UUID
-}
-
-func (q *Queries) UpdateLoginEmail(ctx context.Context, arg UpdateLoginEmailParams) (AuthIdentity, error) {
-	row := q.db.QueryRow(ctx, updateLoginEmail, arg.IdentifierDisplay, arg.IdentifierNormalized, arg.AccountID)
-	var i AuthIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Kind,
-		&i.IdentifierDisplay,
-		&i.IdentifierNormalized,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProviderID,
-		&i.Issuer,
-		&i.Subject,
-		&i.VerifiedAt,
-		&i.DisabledAt,
-		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -931,6 +924,56 @@ type UpsertPasswordCredentialParams struct {
 func (q *Queries) UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error {
 	_, err := q.db.Exec(ctx, upsertPasswordCredential, arg.AuthIdentityID, arg.PasswordHash)
 	return err
+}
+
+const upsertPasswordIdentity = `-- name: UpsertPasswordIdentity :one
+INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
+VALUES ($1, $2, 'password', $3::text,
+        $4::text, $5)
+ON CONFLICT (account_id) WHERE kind = 'password' DO UPDATE
+SET identifier_display = EXCLUDED.identifier_display,
+    identifier_normalized = EXCLUDED.identifier_normalized,
+    verified_at = CASE WHEN auth_identities.identifier_normalized = EXCLUDED.identifier_normalized
+                       THEN auth_identities.verified_at ELSE EXCLUDED.verified_at END,
+    updated_at = now()
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+`
+
+type UpsertPasswordIdentityParams struct {
+	ID                   uuid.UUID
+	AccountID            uuid.UUID
+	IdentifierDisplay    string
+	IdentifierNormalized string
+	VerifiedAt           pgtype.Timestamptz
+}
+
+// Creates or replaces the account's login email. A changed address resets verification to the supplied value;
+// an unchanged address keeps its verification. A login email held by another account raises a unique violation.
+func (q *Queries) UpsertPasswordIdentity(ctx context.Context, arg UpsertPasswordIdentityParams) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, upsertPasswordIdentity,
+		arg.ID,
+		arg.AccountID,
+		arg.IdentifierDisplay,
+		arg.IdentifierNormalized,
+		arg.VerifiedAt,
+	)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
 }
 
 const verifyPasswordIdentity = `-- name: VerifyPasswordIdentity :exec

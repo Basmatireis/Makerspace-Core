@@ -20,11 +20,10 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 		BootstrapMaster(
 			ctx,
 			admin.BootstrapInput{
-				FirstName:    "Mail",
-				LastName:     "Administrator",
-				ContactEmail: "mail-admin@example.test",
-				LoginEmail:   "mail-login@example.test",
-				Password:     bootstrapPassword,
+				FirstName:  "Mail",
+				LastName:   "Administrator",
+				LoginEmail: "mail-login@example.test",
+				Password:   bootstrapPassword,
 			},
 		)
 	if err != nil {

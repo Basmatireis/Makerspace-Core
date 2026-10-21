@@ -24,8 +24,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Warning", LastName: "Member", ContactEmail: "warning@example.test",
-		LoginEmail: "warning-login@example.test", Password: bootstrapPassword,
+		FirstName: "Warning", LastName: "Member", LoginEmail: "warning-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +145,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	cfg := integrationConfig(t)
 	notifier := newNotificationRecorder()
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "PIN", LastName: "Member", ContactEmail: "pin-member@example.test",
-		LoginEmail: "pin-password@example.test", Password: bootstrapPassword,
+		FirstName: "PIN", LastName: "Member", LoginEmail: "pin-password@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +165,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	code := notifier.pinCode("pin-member@example.test")
+	code := notifier.pinCode("pin-password@example.test")
 	if code == "" {
 		t.Fatal("PIN enrollment code was not delivered")
 	}
@@ -237,8 +235,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
 	masterAccountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "PIN", LastName: "Administrator", ContactEmail: "pin-admin@example.test",
-		LoginEmail: "pin-admin-login@example.test", Password: bootstrapPassword,
+		FirstName: "PIN", LastName: "Administrator", LoginEmail: "pin-admin-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -494,8 +491,7 @@ func TestPhoneOnlyPINSetupLinkIsSingleUse(t *testing.T) {
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
 	masterAccountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Manual", LastName: "Administrator", ContactEmail: "manual-admin@example.test",
-		LoginEmail: "manual-admin-login@example.test", Password: bootstrapPassword,
+		FirstName: "Manual", LastName: "Administrator", LoginEmail: "manual-admin-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -584,8 +580,7 @@ func TestAuthenticationIdentityUsabilityProjection(t *testing.T) {
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Usability", LastName: "Projection", ContactEmail: "usability-contact@example.test",
-		LoginEmail: "usability-login@example.test", Password: bootstrapPassword,
+		FirstName: "Usability", LastName: "Projection", LoginEmail: "usability-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -705,8 +700,7 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 	notifier := newNotificationRecorder()
 	loginEmail := "verify-login@example.test"
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Verify", LastName: "Member", ContactEmail: "verify-contact@example.test",
-		LoginEmail: loginEmail, Password: bootstrapPassword,
+		FirstName: "Verify", LastName: "Member", LoginEmail: loginEmail, Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)
