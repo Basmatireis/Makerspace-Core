@@ -133,6 +133,12 @@ function OrderDetail({ order }: { order: Order }) {
       run: () => navigate(`/orders/${order.replacedByOrderId}`),
     };
 
+  // Taking payment is optional: with payment rights "Finalize" stays available next to "Finalize and take payment".
+  const finalizeWithoutPayment =
+    draft && !order.replacesOrderId && canFinalize && recorded
+      ? { label: 'Finalize', disabled: draftBlockers.length > 0, run: () => setDialog('finalize') }
+      : null;
+
   const canCorrect =
     (order.status === 'finalized' || order.status === 'reversed') &&
     !order.replacedByOrderId &&
@@ -198,6 +204,11 @@ function OrderDetail({ order }: { order: Order }) {
           {invoiceAction && (
             <Button kind="secondary" renderIcon={DocumentIcon} onClick={invoiceAction.run}>
               {invoiceAction.label}
+            </Button>
+          )}
+          {finalizeWithoutPayment && (
+            <Button kind="secondary" disabled={finalizeWithoutPayment.disabled} onClick={finalizeWithoutPayment.run}>
+              {finalizeWithoutPayment.label}
             </Button>
           )}
           {primary && (
@@ -451,6 +462,7 @@ function OrderDetail({ order }: { order: Order }) {
               Prices and items freeze, the jobs on this order are reserved for it, and stock items leave inventory.
               Total: <strong>{formatCents(toCents(order.totalAmount))}</strong> for {customerLabel(order)}.
             </p>
+            <p>No payment is taken now. The full total stays outstanding and can be paid later from the order.</p>
             <p className="mj-secondary">
               Later changes need a correction, which reverses this order and creates a replacement.
             </p>

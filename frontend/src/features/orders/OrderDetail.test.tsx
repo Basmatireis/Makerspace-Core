@@ -110,6 +110,40 @@ describe('order detail: payments', () => {
     );
   });
 
+  it('finalizes a draft without payment and keeps the balance payable later', async () => {
+    as(everything);
+    serve(order());
+    let body: Record<string, unknown> | undefined;
+    let checkedOut = false;
+    server.use(
+      http.post(`*/api/v1/orders/${ids.order}/finalize`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(finalized({ version: 3 }));
+      }),
+      http.post(`*/api/v1/orders/${ids.order}/checkout`, () => {
+        checkedOut = true;
+        return HttpResponse.json(paid());
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect(await screen.findByRole('button', { name: 'Finalize and take payment' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finalize' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Finalize' }));
+    await waitFor(() => expect(body).toMatchObject({ expectedVersion: 2 }));
+    expect(body).not.toHaveProperty('payments');
+    expect(checkedOut).toBe(false);
+  });
+
+  it('offers only Finalize to users who cannot record payments', async () => {
+    as(everything.filter((id) => id !== PermissionId.paymentsrecord));
+    serve(order());
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect(await screen.findByRole('button', { name: 'Finalize' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Finalize and take payment' })).not.toBeInTheDocument();
+  });
+
   it('pauses payments inside the table while an invoice awaits approval', async () => {
     as(everything);
     serve(awaitingApproval);
