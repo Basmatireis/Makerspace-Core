@@ -1,6 +1,6 @@
 # Inventory redesign
 
-Branch `worktree-feat-inventory-redesign`. Status: design, awaiting decisions.
+Branch `worktree-feat-inventory-redesign`. Status: phases 1–4 and follow-ups implemented (migrations 00056, 00057); awaiting review and merge into main.
 
 ## Problem
 
