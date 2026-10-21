@@ -1,6 +1,6 @@
 import { InlineNotification, Modal } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPerson, promotePersonToSupervisor } from '../../api/generated/people/people';
+import { promotePersonToSupervisor } from '../../api/generated/people/people';
 import type { SupervisorRow } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { plural } from '../dashboard/format';
@@ -12,17 +12,12 @@ type Props = {
   onPromoted: (name: string) => void;
 };
 
-/**
- * Making a trainee a supervisor changes the person's roles, which is guarded by the person's version. The staffing
- * overview does not carry it, so the dialog reads the person right before promoting.
- */
+/** Making a trainee a supervisor changes the person's roles, which is guarded by the person's version the overview row carries. */
 export function PromoteDialog({ member, threshold, onClose, onPromoted }: Props) {
   const client = useQueryClient();
   const promote = useMutation({
-    mutationFn: async (personId: string) => {
-      const person = await getPerson(personId);
-      return promotePersonToSupervisor(personId, { expectedVersion: person.version });
-    },
+    mutationFn: (target: SupervisorRow) =>
+      promotePersonToSupervisor(target.personId, { expectedVersion: target.personVersion }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['supervisor-dashboard'] });
       if (member) onPromoted(member.name);
@@ -45,7 +40,7 @@ export function PromoteDialog({ member, threshold, onClose, onPromoted }: Props)
       secondaryButtonText="Cancel"
       onRequestClose={close}
       onRequestSubmit={() => {
-        if (member) promote.mutate(member.personId);
+        if (member) promote.mutate(member);
       }}
     >
       {member && (

@@ -269,7 +269,13 @@ describe('staffing key figures', () => {
 });
 
 describe('making a trainee a supervisor', () => {
-  const trainee = row(1, { kind: 'trainee', staffedAsTrainee: 3, status: 'ready', name: 'Tina Trainee' });
+  const trainee = row(1, {
+    kind: 'trainee',
+    personVersion: 7,
+    staffedAsTrainee: 3,
+    status: 'ready',
+    name: 'Tina Trainee',
+  });
   const optionText = { selector: '.cds--overflow-menu-options__option-content' };
 
   async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -282,7 +288,9 @@ describe('making a trainee a supervisor', () => {
     let promoted: { id: string; body: unknown } | undefined;
     serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign]);
     server.use(
-      http.get(`*/api/v1/people/${trainee.personId}`, () => HttpResponse.json({ id: trainee.personId, version: 7 })),
+      http.get(`*/api/v1/people/${trainee.personId}`, () => {
+        throw new Error('The promotion must not read the person first');
+      }),
       http.post('*/api/v1/people/:id/promote-to-supervisor', async ({ params, request }) => {
         promoted = { id: String(params.id), body: await request.json() };
         return HttpResponse.json({ id: trainee.personId, version: 8 });
@@ -305,7 +313,6 @@ describe('making a trainee a supervisor', () => {
     const user = userEvent.setup();
     serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign]);
     server.use(
-      http.get(`*/api/v1/people/${trainee.personId}`, () => HttpResponse.json({ id: trainee.personId, version: 7 })),
       http.post('*/api/v1/people/:id/promote-to-supervisor', () =>
         HttpResponse.json({ code: 'not_a_trainee', message: 'The person is not a trainee.' }, { status: 409 }),
       ),
