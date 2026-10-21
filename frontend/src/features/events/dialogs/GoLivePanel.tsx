@@ -19,11 +19,9 @@ import type { Event, EventShift } from '../../../api/generated/models';
 import { ShiftStatusTag, VisibilityTag } from '../components/StatusTags';
 import { eventMutationMessage } from '../errors';
 import { checklist, isClosed, PAGE_REQUIREMENTS, SIGNUP_REQUIREMENTS, type Check, type FixTarget } from '../logic';
-import { plural } from '../format';
+import { plural, publicLink } from '../format';
 import { invalidateEvents } from '../queries';
 import { eventBody } from '../requestBodies';
-
-export const publicLink = (publicId: string) => `${window.location.origin}/events/public/${publicId}`;
 
 function Checklist({ label, checks, onFix }: { label: string; checks: Check[]; onFix: (target: FixTarget) => void }) {
   return (

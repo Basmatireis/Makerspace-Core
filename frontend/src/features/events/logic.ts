@@ -9,6 +9,7 @@ import type {
   EventShiftStatus,
   EventStatus,
   PublicEvent,
+  PublicEventRequirement,
   PublicEventRequirementAvailability,
 } from '../../api/generated/models';
 import { APP_TIME_ZONE } from '../../app/dateTime';
@@ -269,4 +270,39 @@ export function previewPublicEvent(
         sizeBytes: file.sizeBytes,
       })),
   };
+}
+
+// Public page -------------------------------------------------------------------------------------------------------
+
+type Availability = { label: string; type: 'green' | 'gray' | 'blue' | 'purple'; note?: string; canSignUp: boolean };
+
+export function availabilityOf(
+  requirement: PublicEventRequirement,
+  signedIn: boolean,
+  signupEnabled: boolean,
+): Availability {
+  switch (requirement.availability) {
+    case 'full':
+      return { label: 'Full', type: 'gray', canSignUp: false };
+    case 'not_open':
+      return {
+        label: 'Not open yet',
+        type: 'blue',
+        note: signupEnabled
+          ? 'Signup is not open for this shift right now.'
+          : 'Helper signup is not open at the moment.',
+        canSignUp: false,
+      };
+    case 'authenticated_only':
+      return signedIn
+        ? { label: 'Available', type: 'green', canSignUp: true }
+        : {
+            label: 'Members only',
+            type: 'purple',
+            note: 'Sign in as a member with the required role to sign up.',
+            canSignUp: false,
+          };
+    default:
+      return { label: 'Available', type: 'green', canSignUp: true };
+  }
 }

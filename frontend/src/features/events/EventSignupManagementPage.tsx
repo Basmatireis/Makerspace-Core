@@ -1,4 +1,4 @@
-import './styles.scss';
+import './public.scss';
 import { Checkmark } from '@carbon/icons-react';
 import { Button, InlineNotification, Select, SelectItem, Stack, TextInput, Tile } from '@carbon/react';
 import { useEffect, useState, type FormEvent } from 'react';

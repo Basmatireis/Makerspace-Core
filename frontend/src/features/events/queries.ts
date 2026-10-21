@@ -4,7 +4,6 @@ import {
   getEventHelpers,
   getEventParticipation,
   listEventEligibilityRoles,
-  listEventAssignments,
   listEventFiles,
   listEventPeople,
   listEventSessions,
@@ -26,8 +25,6 @@ export const eventKeys = {
   taskLists: (id: string) => ['events', id, 'task-lists'] as const,
   tasks: (id: string, params: ListEventTasksParams = {}) => ['events', id, 'tasks', params] as const,
   shifts: (id: string) => ['events', id, 'shifts'] as const,
-  requirements: (id: string, shiftId: string) => ['events', id, 'shifts', shiftId, 'requirements'] as const,
-  assignments: (id: string) => ['events', id, 'assignments'] as const,
   helpers: (id: string) => ['events', id, 'helpers'] as const,
   files: (id: string) => ['events', id, 'files'] as const,
   roles: ['events', 'roles'] as const,
@@ -114,20 +111,4 @@ export const ownEventAssignmentsQueryOptions = (publicId: string, enabled: boole
     queryFn: ({ signal }) => listOwnPublicEventAssignments(publicId, { signal }),
     enabled: Boolean(publicId) && enabled,
     retry: false,
-  });
-
-// Used by the previous edit screens until the new edit mode replaces them.
-export const eventRequirementsQueryOptions = (id: string, shiftId: string) =>
-  queryOptions({
-    queryKey: eventKeys.requirements(id, shiftId),
-    queryFn: async ({ signal }) => ({
-      items: (await listEventShifts(id, { signal })).items.find((shift) => shift.id === shiftId)?.requirements ?? [],
-    }),
-    enabled: Boolean(id && shiftId),
-  });
-export const eventAssignmentsQueryOptions = (id: string, enabled: boolean) =>
-  queryOptions({
-    queryKey: eventKeys.assignments(id),
-    queryFn: ({ signal }) => listEventAssignments(id, { signal }),
-    enabled: Boolean(id) && enabled,
   });

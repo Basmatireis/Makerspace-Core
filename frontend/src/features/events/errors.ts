@@ -15,6 +15,7 @@ const MESSAGES: Record<string, string> = {
   requirement_has_assignments:
     'A position that has had helpers cannot be removed. Reduce its places or cancel the shift.',
   requirement_below_assignments: 'A position cannot have fewer places than helpers already assigned to it.',
+  event_not_deletable: 'Only a draft event can be deleted.',
   event_has_assignment_history: 'This draft has assignment history and cannot be deleted. Cancel it instead.',
 };
 

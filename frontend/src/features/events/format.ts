@@ -50,20 +50,4 @@ export function toInstant(date: string, time: string) {
 }
 export const toISO = zonedDateTimeValueToISO;
 
-// Used by the previous edit screens until the new edit mode replaces them.
-export function statusTagType(status: string): 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray' {
-  const types: Record<string, 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray'> = {
-    draft: 'gray',
-    confirmed: 'cyan',
-    completed: 'green',
-    done: 'green',
-    open: 'blue',
-    cancelled: 'red',
-  };
-  return types[status] ?? 'gray';
-}
-export function eventRange(event: Pick<Event, 'rangeStartsAt' | 'rangeEndsAt'>) {
-  return event.rangeStartsAt && event.rangeEndsAt
-    ? `${formatInstant(event.rangeStartsAt)} – ${formatInstant(event.rangeEndsAt)}`
-    : 'Schedule not set';
-}
+export const publicLink = (publicId: string) => `${window.location.origin}/events/public/${publicId}`;
