@@ -71,6 +71,7 @@ export function RoleAndConfirmationDialogs({ person, ctrl }: { person: Person; c
             {rolesQuery.data && assignableRoles.length === 0 && <p>No additional roles are available.</p>}
             {rolesQuery.data && assignableRoles.length > 0 && (
               <Dropdown
+                autoAlign
                 id="assign-role"
                 titleText="Role"
                 label="Choose a role"

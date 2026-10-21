@@ -143,6 +143,7 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
   );
   const articleField = (
     <ComboBox
+      autoAlign
       id="price-lookup-article"
       titleText={mode === 'machine' ? 'Material article (optional)' : 'Inventory article'}
       placeholder="Search articles"
@@ -194,6 +195,7 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
             {mode === 'machine' && (
               <>
                 <ComboBox
+                  autoAlign
                   id="price-lookup-machine"
                   titleText="Machine"
                   placeholder="Search machines"

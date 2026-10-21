@@ -51,6 +51,7 @@ export function PersonCombo({
   return (
     <div onFocusCapture={() => setUsed(true)}>
       <ComboBox<PersonChoice>
+        autoAlign
         id={id}
         titleText={titleText}
         helperText={helperText}

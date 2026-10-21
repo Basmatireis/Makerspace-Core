@@ -13,6 +13,7 @@ type Props = {
 export function RoleMultiSelect({ id, titleText, roles, selectedRoleIds, label = 'Choose roles', onChange }: Props) {
   return (
     <MultiSelect
+      autoAlign
       id={id}
       titleText={titleText}
       label={label}

@@ -17,6 +17,7 @@ export function SpoolStep({ wizard }: { wizard: ChangeFilamentWizard }) {
       rules={{ required: 'Choose a spool.' }}
       render={({ fieldState }) => (
         <ComboBox<FilamentSpool>
+          autoAlign
           id="refill-spool"
           titleText="Spool"
           placeholder="Search by ID, label, material or tag"

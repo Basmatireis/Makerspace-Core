@@ -50,6 +50,7 @@ export function DetectedTagPicker({
     return <p className="mj-secondary">No spool tags are detected in a printer right now. Type or scan the value.</p>;
   return (
     <ComboBox
+      autoAlign
       id={id}
       titleText="Detected in a printer"
       helperText="Pick a tag a printer currently reads to fill in the value."

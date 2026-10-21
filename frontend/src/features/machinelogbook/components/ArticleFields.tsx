@@ -150,6 +150,7 @@ export function SuggestionComboBox({
 }) {
   return (
     <ComboBox<string>
+      autoAlign
       id={id}
       titleText={titleText}
       items={items}
@@ -269,6 +270,7 @@ export function ArticleFields({
         rules={{ validate: (value) => (value ? true : `Choose a ${typeNounLower(kind)}.`) }}
         render={({ field, fieldState }) => (
           <ComboBox<TypeItem>
+            autoAlign
             id={`${idPrefix}-type`}
             titleText={noun === 'Category' ? 'Category' : 'Material type'}
             items={items}

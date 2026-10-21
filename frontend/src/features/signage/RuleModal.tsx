@@ -244,6 +244,7 @@ export function RuleModal({
               }}
               render={({ field }) => (
                 <MultiSelect<Option>
+                  autoAlign
                   key={machineItems.length}
                   id="rule-machines"
                   titleText="Machines"
@@ -308,6 +309,7 @@ export function RuleModal({
                 }}
                 render={({ field }) => (
                   <MultiSelect<Option>
+                    autoAlign
                     key={templateItems.length}
                     id="rule-templates"
                     titleText="Templates"
@@ -339,6 +341,7 @@ export function RuleModal({
           rules={{ validate: (value) => value !== '' || 'Choose what to show' }}
           render={({ field }) => (
             <ComboBox<Option>
+              autoAlign
               id="rule-target"
               titleText="Show"
               placeholder="Choose a scene or playlist"

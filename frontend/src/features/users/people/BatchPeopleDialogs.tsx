@@ -88,6 +88,7 @@ export function BatchPeopleDialogs({
           <Form>
             <Stack gap={5}>
               <Dropdown
+                autoAlign
                 id="batch-assign-role"
                 titleText="Role"
                 label="Choose a role"

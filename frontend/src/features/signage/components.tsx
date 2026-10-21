@@ -168,6 +168,7 @@ export function AssetPicker({
   const selected = items.find((item) => item.id === value) ?? null;
   return (
     <ComboBox<SignageAsset>
+      autoAlign
       id={id}
       titleText={label}
       placeholder={`Choose ${kind === 'image' ? 'an image' : 'a video'} from Media`}

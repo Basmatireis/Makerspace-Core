@@ -283,6 +283,7 @@ export function AnnouncementStartModal({
         </RadioButtonGroup>
         {draft.target === 'selected' && (
           <MultiSelect<Option>
+            autoAlign
             key={displayItems.length}
             id="ann-displays"
             titleText="Displays"

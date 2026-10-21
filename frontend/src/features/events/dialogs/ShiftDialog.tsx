@@ -363,6 +363,7 @@ export function ShiftDialog({
                             rules={{ validate: (ids, all) => !all.positions[index]?.restricted || ids.length > 0 }}
                             render={({ field, fieldState }) => (
                               <MultiSelect<EventRole>
+                                autoAlign
                                 id={`ev-pos-roles-${row.id}`}
                                 titleText={`Roles for position ${index + 1}`}
                                 hideLabel

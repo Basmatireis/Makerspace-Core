@@ -323,6 +323,7 @@ export function ReceiveStockModal({
                   />
                 ) : (
                   <ComboBox<ArticleItem>
+                    autoAlign
                     id="receive-article"
                     titleText="Article"
                     items={items}
@@ -604,6 +605,7 @@ export function ReceiveStockModal({
                         }}
                         render={({ field, fieldState }) => (
                           <Dropdown<FilamentSpool>
+                            autoAlign
                             id="receive-reusable"
                             titleText="Reusable spool"
                             label="Choose an empty spool"

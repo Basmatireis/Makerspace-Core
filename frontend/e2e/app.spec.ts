@@ -11,6 +11,7 @@ type ApiState = {
   publicBranding?: ReturnType<typeof defaultPublicBrandingConfiguration>;
   makerspaceStatus?: ReturnType<typeof personMakerspaceStatus>;
   role?: ReturnType<typeof customRole>;
+  extraRoles?: ReturnType<typeof customRole>[];
   personalDashboard?: ReturnType<typeof personalDashboard>;
   supervisorDashboard?: ReturnType<typeof supervisorDashboard>;
   user?: ReturnType<typeof currentUser>;
@@ -355,7 +356,7 @@ async function installApi(page: Page, state: ApiState) {
     }
 
     if (path === '/api/v1/roles' && request.method() === 'GET' && state.role) {
-      await json(route, { items: [state.role], nextCursor: null });
+      await json(route, { items: [state.role, ...(state.extraRoles ?? [])], nextCursor: null });
       return;
     }
 
@@ -699,6 +700,45 @@ test('renders the Directory-styled Members table without summary statistics', as
   await expect(tableContainer).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
   await expectNoSeriousAccessibilityViolations(page);
+});
+
+test('shows the whole role menu above the Assign role modal instead of clipping it', async ({ page }) => {
+  const role = customRole();
+  const person = managedPerson(role);
+  const extraRoles = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'].map((name, index) => ({
+    ...customRole(),
+    id: `0192f6f8-743e-7c77-a349-cd07c3e8a9${40 + index}`,
+    name: `${name} crew`,
+  }));
+  await installApi(page, {
+    authenticated: true,
+    person,
+    makerspaceStatus: personMakerspaceStatus(),
+    role,
+    extraRoles,
+    user: currentUser(['people.read.all', 'people.roles.assign', 'roles.read', 'roles.manage']),
+  });
+
+  await page.goto(`/people/${person.id}`);
+  await page.getByRole('button', { name: 'Manage roles' }).first().click();
+  await page.locator('#assign-role').click();
+  const options = page.getByRole('option');
+  await expect(options).toHaveCount(extraRoles.length);
+  // Carbon limits the list height and scrolls it; what matters is that it is not cut off by the modal.
+  const modal = await visibleBoundingBox(
+    page.locator('.cds--modal-container', { has: page.locator('#assign-role') }),
+    'modal',
+  );
+  const menu = await visibleBoundingBox(page.getByRole('listbox'), 'role menu');
+  expect(menu.y + menu.height).toBeGreaterThan(modal.y + modal.height);
+  for (const option of (await options.all()).slice(0, 5)) {
+    const box = await visibleBoundingBox(option, 'role option');
+    const hit = await option.evaluate(
+      (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    );
+    expect(hit).toBe(true);
+  }
 });
 
 test('renders the responsive person detail hierarchy and functional tabs', async ({ page }) => {
