@@ -128,6 +128,7 @@ func (u *Updater) dir(component Component) string {
 func (u *Updater) Prepare() error {
 	for _, component := range u.config.Components {
 		dir := u.dir(component)
+		//nolint:gosec // the mode is widened to world-writable with the sticky bit right below, on purpose
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
@@ -345,6 +346,7 @@ func ProjectDirectory(ctx context.Context, runner Runner, containerID, mountPoin
 	if _, statErr := os.Lstat(source); statErr == nil {
 		return "", fmt.Errorf("%s already exists in the updater container", source)
 	}
+	//nolint:gosec // parent directories of the host path inside the updater's own container, holding only the link
 	if err = os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
 		return "", err
 	}
