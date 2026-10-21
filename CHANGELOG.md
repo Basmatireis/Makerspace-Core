@@ -4,6 +4,31 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-21
+
+### Upgrade notes
+
+- No migrations. Update Core before the printer connector: a 0.8.1 connector reports spool tag UIDs in its live status, which a 0.8.0 Core rejects.
+- The printer live status now contains the RFID/NFC tag UID of each loaded spool (still no addresses, serial numbers, camera or network identifiers).
+- Inventory sections are now Materials, Parts, Spools and Types & categories. Links to the former Filament and Consumables tabs open Materials (Filament with the FDM printing process filter).
+
+### Added
+
+- **Detected spool tags.** When adding an NFC tag to a spool, or tags in Change filament, staff can pick a tag a printer currently reads in one of its slots instead of typing it; tags already on a spool are marked. The printer setup shows each slot's tag UID with a copy button. `GET /printers/detected-spool-tags` needs `machines.read` and `inventory.read`.
+- **New filament while filling a spool.** Change filament and Register spool can create the filament article in place and fill the spool with it as a purchase, so stock and cost stay tracked.
+- **Recalculate a job's price.** Jobs with an incomplete price, or whose rates changed, can be recalculated from the current rates of their pricing group (`machine_jobs.edit`); the price adjustment stays applied. A charge that is outdated on an order can be refreshed from the job page.
+- **Price lookup.** Sales & payments has a read-only price lookup: a machine run of some hours, optionally with material, or an amount of an inventory article, priced for every active pricing group (`pricing.read`).
+- **Deleting articles.** Filament, consumables and parts can be deleted while nothing uses them yet (`inventory.manage`). An article with ledger entries, spool fills, run usages or order items cannot be deleted; the dialog says what still uses it.
+
+### Changed
+
+- Filament and consumables share one Materials table, told apart by the Process filter. Material types and part categories are managed in the new Types & categories section, in one combined list, instead of a dialog in the overflow menu.
+
+### Fixed
+
+- The Spools section of a filament article no longer drops empty spools: a finished spool waiting for a refill is listed under the material of its last fill.
+- Printer connector: when the connector missed the end of a print, the next print's task ID left the previous run running forever; the open run now ends with an unknown outcome ("superseded").
+
 ## [0.8.0] - 2026-10-21
 
 ### Upgrade notes
@@ -277,6 +302,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.0...v0.7.1
