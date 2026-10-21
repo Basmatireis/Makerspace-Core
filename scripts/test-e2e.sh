@@ -7,7 +7,7 @@ e2e_origin="http://127.0.0.1:55173"
 
 export COMPOSE_PROJECT_NAME="$e2e_project"
 export POSTGRES_PASSWORD="e2e-local-database-password"
-export POSTGRES_PORT="55432"
+export POSTGRES_PORT="${E2E_POSTGRES_PORT:-55432}"
 export BACKEND_PORT="58080"
 export FRONTEND_PORT="55173"
 export PUBLIC_BASE_URL="$e2e_origin"

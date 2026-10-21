@@ -11,6 +11,7 @@ type ApiState = {
   publicBranding?: ReturnType<typeof defaultPublicBrandingConfiguration>;
   makerspaceStatus?: ReturnType<typeof personMakerspaceStatus>;
   role?: ReturnType<typeof customRole>;
+  personalDashboard?: ReturnType<typeof personalDashboard>;
   supervisorDashboard?: ReturnType<typeof supervisorDashboard>;
   user?: ReturnType<typeof currentUser>;
 };
@@ -21,6 +22,7 @@ const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8a903';
 const pageErrors = new WeakMap<Page, Error[]>();
 const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8a904';
 const managedPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a905';
+const traineePersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a907';
 const managedAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8a906';
 const openDayPeriodId = '0192f6f8-743e-7c77-a349-cd07c3e8a932';
 
@@ -150,7 +152,7 @@ function customRole() {
     })),
     profileImageRequired: false,
     laborordnungMode: 'not_required',
-    supervisorDashboard: false,
+    staffingLevel: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -219,29 +221,61 @@ function personMakerspaceStatus() {
 
 function supervisorDashboard() {
   return {
-    periods: [
-      {
-        id: openDayPeriodId,
-        name: 'Autumn Open Days',
-        status: 'published',
-        supervisorAssignments: 4,
-      },
-    ],
+    semester: {
+      periodId: openDayPeriodId,
+      name: 'Autumn Open Days',
+      startsOn: '2026-09-01',
+      endsOn: '2027-02-28',
+    },
+    requirements: {
+      minOpenDaysPerSemester: 3,
+      traineeOpenDaysForPromotion: 2,
+      supervisorRoleConfigured: true,
+    },
     supervisors: [
       {
         personId: managedPersonId,
+        personVersion: 1,
         name: 'Grace Hopper',
+        kind: 'supervisor',
         hasProfileImage: true,
         laborordnungState: 'current',
-        assignmentCounts: [{ periodId: openDayPeriodId, supervisorCount: 2, traineeCount: 1 }],
+        staffed: 2,
+        booked: 1,
+        staffedAsTrainee: 0,
+        status: 'fulfilled',
+        missing: 0,
+        lastOpenDayAt: '2026-10-10T08:00:00Z',
+        memberSince: '2025-01-01T00:00:00Z',
+      },
+      {
+        personId: traineePersonId,
+        personVersion: 1,
+        name: 'Alan Turing',
+        kind: 'trainee',
+        hasProfileImage: false,
+        laborordnungState: 'outdated',
+        staffed: 1,
+        booked: 0,
+        staffedAsTrainee: 1,
+        status: 'missing',
+        missing: 2,
+        lastOpenDayAt: null,
+        memberSince: '2026-03-01T00:00:00Z',
       },
     ],
     totals: {
-      supervisors: 1,
+      supervisors: 2,
       profileImagesComplete: 1,
       laborordnungCurrent: 1,
       laborordnungOutdated: 0,
     },
+  };
+}
+
+function personalDashboard() {
+  return {
+    person: { firstName: 'Ada', memberSince: '2025-01-01T00:00:00Z' },
   };
 }
 
@@ -379,6 +413,21 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/me/dashboard' && request.method() === 'GET') {
+      await json(route, state.personalDashboard ?? personalDashboard());
+      return;
+    }
+
+    if (path === '/api/v1/laborordnung/status/me' && request.method() === 'GET') {
+      await json(route, currentUser().laborordnungStatus);
+      return;
+    }
+
+    if (path === '/api/v1/public/open-days' && request.method() === 'GET') {
+      await json(route, { items: [] });
+      return;
+    }
+
     if (path === '/api/v1/supervisor-dashboard' && request.method() === 'GET' && state.supervisorDashboard) {
       await json(route, state.supervisorDashboard);
       return;
@@ -435,12 +484,13 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.locator('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
+  await expect(page.getByRole('heading', { name: /^(Still up|Good (morning|afternoon|evening)), Ada$/ })).toBeVisible();
+  await expect(page.getByLabel('Breadcrumb').getByText('Dashboard', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-page-shell]')).toHaveAttribute('data-page-width', 'wide');
   await expectShellHeaderAndContentAligned(page);
   await expectNoHorizontalPageOverflow(page);
   await expectNoVerticalPageOverflow(page);
-  await expect(page.getByText('Welcome, Ada.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^(Still up|Good (morning|afternoon|evening)), Ada$/ })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByText('Administration', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
@@ -512,7 +562,7 @@ test('shows promoted Directory navigation and exposes self-service profile acces
 });
 
 test('shows Lab Rules between roles and a centered Status column', async ({ page }) => {
-  const role = { ...customRole(), supervisorDashboard: true };
+  const role = { ...customRole(), staffingLevel: 'supervisor' };
   const person = managedPerson(role);
   await installApi(page, {
     authenticated: true,
@@ -605,36 +655,42 @@ test('renders the Directory-styled Members table without summary statistics', as
   await expect(page.getByRole('heading', { name: 'Summary' })).toHaveCount(0);
   await expect(page.getByText('Member readiness')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Designated supervisors' })).toHaveCount(0);
+  await expect(page.getByText('Autumn Open Days · ')).toBeVisible();
   const toolbar = page.getByLabel('Members table toolbar');
-  const directoryButton = page.getByRole('button', { name: 'People' });
+  const directoryButton = toolbar.getByRole('button', { name: 'People' });
   await expect(toolbar).toBeVisible();
-  const periodSelector = toolbar.getByRole('combobox', { name: 'Open Days period' });
-  await expect(periodSelector).toBeVisible();
-  await expect(periodSelector).toHaveAttribute('title', 'Autumn Open Days');
-  await expect(toolbar.getByRole('button', { name: 'People' })).toBeVisible();
-  await expect(page.locator('.page-header').getByRole('button', { name: 'People' })).toHaveCount(0);
   await expect(directoryButton).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Member$/ })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Supervisor$/ })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Trainee$/ })).toBeVisible();
+  await expect(page.locator('.page-header').getByRole('button', { name: 'People' })).toHaveCount(0);
+  for (const name of ['Member', 'Role', 'Lab Rules', 'Open days this semester', 'Status', 'Last open day']) {
+    await expect(page.getByRole('columnheader', { name, exact: true })).toBeVisible();
+  }
   const memberCells = page.getByRole('row', { name: /Grace Hopper/ }).getByRole('cell');
-  await expect(memberCells.nth(3)).toHaveText('2');
-  await expect(memberCells.nth(4)).toHaveText('1');
-  const [periodSelectorBounds, directoryButtonBounds] = await Promise.all([
-    periodSelector.boundingBox(),
-    directoryButton.boundingBox(),
-  ]);
-  if (!periodSelectorBounds || !directoryButtonBounds) {
+  await expect(memberCells.nth(1)).toHaveText('Supervisor');
+  await expect(memberCells.nth(2)).toHaveText('Current');
+  await expect(memberCells.nth(3)).toContainText('3 of 3');
+  await expect(memberCells.nth(4)).toHaveText('Minimum reached');
+  const traineeCells = page.getByRole('row', { name: /Alan Turing/ }).getByRole('cell');
+  await expect(traineeCells.nth(1)).toContainText('1 of 2 as trainee');
+  await expect(traineeCells.nth(4)).toHaveText('2 missing');
+  await expect(traineeCells.nth(5)).toHaveText('None yet');
+  await expect(page.getByRole('button', { name: 'Actions for Alan Turing' })).toBeVisible();
+  const searchBounds = await toolbar.getByRole('searchbox', { name: 'Search members' }).boundingBox();
+  const directoryButtonBounds = await directoryButton.boundingBox();
+  if (!searchBounds || !directoryButtonBounds) {
     throw new Error('Could not measure the Members toolbar controls.');
   }
-  expect(Math.abs(periodSelectorBounds.y - directoryButtonBounds.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(periodSelectorBounds.height - directoryButtonBounds.height)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(searchBounds.y + searchBounds.height - (directoryButtonBounds.y + directoryButtonBounds.height)),
+  ).toBeLessThanOrEqual(1);
   const filterButton = toolbar.getByRole('button', { name: 'Filters' });
   await filterButton.click();
   const filters = page.getByRole('group', { name: 'Members filters' });
+  await expect(filters.getByRole('group', { name: 'Semester status' })).toBeVisible();
+  await expect(filters.getByRole('group', { name: 'Role' })).toBeVisible();
   await expect(filters.getByRole('group', { name: 'Profile picture' })).toBeVisible();
   await expect(filters.getByRole('group', { name: 'Lab Rules' })).toBeVisible();
   await expect(tableContainer.locator('.cds--pagination')).toBeVisible();
+  await expect(tableContainer.locator('.cds--pagination')).toContainText('1–2 of 2 items');
   await expect(tableContainer).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
 
@@ -920,7 +976,7 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
     };
 
     await page.goto(`/dashboard?background=${background.name}`);
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /, Ada$/ })).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--app-background-image')))
       .toContain('data:image/svg+xml');

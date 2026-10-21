@@ -1028,6 +1028,11 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
 
     // Session, branding
     if (path === '/api/v1/auth/me') return ok(route, currentUser(world.permissions));
+    // The dashboard is where redirects land; it asks for these three once it renders.
+    if (path === '/api/v1/me/dashboard')
+      return ok(route, { person: { firstName: 'Ada', memberSince: '2025-01-01T00:00:00Z' } });
+    if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
+    if (path === '/api/v1/public/open-days') return ok(route, { items: [] });
     if (path === '/api/v1/auth/oidc/providers') return ok(route, { items: [] });
     if (path === '/api/v1/public/config') return ok(route, defaultPublicBrandingConfiguration());
 

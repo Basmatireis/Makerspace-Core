@@ -33,6 +33,7 @@ function Metric({ label, value, detail, active, onClick }: MetricProps) {
     <ClickableTile
       className={`staffing-metric${active ? ' staffing-metric--active' : ''}`}
       onClick={onClick}
+      role="button"
       aria-pressed={active}
     >
       <span className="staffing-metric__label">{label}</span>

@@ -40,8 +40,10 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
 
   await test.step('sign in with the CLI-bootstrap fixture and reach Dashboard', async () => {
     await signIn(page, masterLogin, masterPassword);
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText('Welcome, E2E.')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /^(Still up|Good (morning|afternoon|evening)), E2E$/ }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Breadcrumb').getByText('Dashboard', { exact: true })).toBeVisible();
   });
 
   await test.step('create, configure, and edit a custom supervisor role', async () => {
