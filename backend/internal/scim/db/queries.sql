@@ -168,7 +168,10 @@ WHERE a.id IN (sqlc.arg(source_account_id), sqlc.arg(target_account_id))
 ORDER BY p.id FOR UPDATE OF p;
 
 -- name: CountLocalIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities WHERE account_id=sqlc.arg(account_id) AND kind IN ('password','pin');
+-- A password identity without a credential (the login email of a provisioned account) carries nothing to transfer.
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id=sqlc.arg(account_id)
+  AND (i.kind='pin' OR (i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id)));
 
 -- name: CountSCIMMappingsForAccount :one
 SELECT count(*) FROM scim_users WHERE account_id=sqlc.arg(account_id);

@@ -95,7 +95,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.goto('/people/new');
     await page.getByLabel('First name').fill('Katherine');
     await page.getByLabel('Last name').fill('Johnson');
-    await page.getByLabel('Contact email').fill('e2e-contact@example.test');
+    await page.getByLabel('Email', { exact: true }).fill('e2e-contact@example.test');
     await page.getByLabel('Matriculation number').fill('E2E-MAT-2042');
     await page.getByRole('button', { name: 'Create person' }).click();
     await expect(page).toHaveURL(/\/people\/[0-9a-f-]+$/);
@@ -119,7 +119,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     const createAccountDialog = page.getByRole('dialog', {
       name: 'Katherine Johnson',
     });
-    await createAccountDialog.getByLabel('Password login email (optional)').fill(memberLogin);
+    await createAccountDialog.getByLabel('Email', { exact: true }).fill(memberLogin);
     await createAccountDialog.getByRole('button', { name: 'Create account' }).click();
     await expect(createAccountDialog).toBeHidden();
     await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
@@ -167,7 +167,8 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Create account' }).click();
     const createAccountDialog = page.getByRole('dialog', { name: 'Phone Only' });
-    await expect(createAccountDialog.getByLabel('Password login email (optional)')).toHaveValue('');
+    await expect(createAccountDialog.getByLabel('Email', { exact: true })).toHaveValue('');
+    await createAccountDialog.getByLabel('Email', { exact: true }).fill('phone-only-login@example.test');
     await createAccountDialog.getByRole('button', { name: 'Create account' }).click();
     await expect(createAccountDialog).toBeHidden();
     await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();

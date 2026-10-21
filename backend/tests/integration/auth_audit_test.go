@@ -106,7 +106,6 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	serviceConfig := integrationConfig(t)
 	notifier := newNotificationRecorder()
 
-	contactEmail := "Contact.Person@Example.test"
 	loginEmail := "Login.Admin+makerspace@Example.test"
 	adminService := admin.NewService(pool)
 	accountID, err := adminService.BootstrapMaster(ctx, admin.BootstrapInput{
@@ -146,9 +145,9 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if storedContact != contactEmail || storedLogin != loginEmail || storedNormalized != strings.ToLower(loginEmail) {
+	if storedContact != loginEmail || storedLogin != loginEmail || storedNormalized != strings.ToLower(loginEmail) {
 		t.Fatalf(
-			"contact/login identities were conflated: contact=%q login=%q normalized=%q",
+			"person email must mirror the login email: contact=%q login=%q normalized=%q",
 			storedContact,
 			storedLogin,
 			storedNormalized,
@@ -357,7 +356,6 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	assertAuditContainsNoPII(
 		t,
 		pool,
-		contactEmail,
 		loginEmail,
 		bootstrapPassword,
 		resetPassword,

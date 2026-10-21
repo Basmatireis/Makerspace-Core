@@ -118,9 +118,12 @@ func (q *Queries) CountIndependentUsableIdentities(ctx context.Context, arg Coun
 }
 
 const countLocalIdentitiesForAccount = `-- name: CountLocalIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','pin')
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id=$1
+  AND (i.kind='pin' OR (i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id)))
 `
 
+// A password identity without a credential (the login email of a provisioned account) carries nothing to transfer.
 func (q *Queries) CountLocalIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countLocalIdentitiesForAccount, accountID)
 	var count int64

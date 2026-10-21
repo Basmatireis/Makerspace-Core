@@ -10,7 +10,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `people.read.all` | List and read every Person. |
 | `people.create` | Create a Person. |
 | `people.update.self` | Update ordinary fields on the linked Person. |
-| `people.update.all` | Update ordinary fields on any Person. |
+| `people.update.all` | Update ordinary fields on any Person, including `memberSince` (never allowed with `people.update.self`). |
 | `people.delete` | Hard-delete a Person; an attached Account also requires `accounts.delete`. |
 | `people.read.matriculation` | Receive matriculation numbers in authorized Person responses. |
 | `people.update.matriculation` | Set or clear a matriculation number in an otherwise authorized create/update operation. |
@@ -19,7 +19,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.delete` | Hard-delete an Account and its authentication data. |
 | `accounts.enable` | Activate an Account independently of its authentication methods. |
 | `accounts.disable` | Disable an Account and revoke its sessions. |
-| `accounts.login_email.update` | Change an account login email independently of Person contact email. |
+| `accounts.login_email.update` | Change an account's login email, which is also the person's email. |
 | `accounts.password.set` | Directly set another account's password. |
 | `accounts.password.reset` | Issue a one-time reset link for another account. |
 | `people.roles.assign` | Assign or remove allowed Roles from People. |

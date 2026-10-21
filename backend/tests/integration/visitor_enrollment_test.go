@@ -179,9 +179,18 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	assertCount(
 		t,
 		pool,
-		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','oidc')`,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`,
 		0,
 		result.AccountID,
+	)
+	// The visitor's email is the account's login email even for a PIN-only enrollment.
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password' AND identifier_normalized=$2`,
+		1,
+		result.AccountID,
+		email,
 	)
 	assertCount(
 		t,

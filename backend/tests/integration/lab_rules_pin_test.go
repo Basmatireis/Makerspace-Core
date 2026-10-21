@@ -165,7 +165,7 @@ func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	code := notifier.pinCode("pin-member@example.test")
+	code := notifier.pinCode("pin-password@example.test")
 	if code == "" {
 		t.Fatal("PIN enrollment code was not delivered")
 	}

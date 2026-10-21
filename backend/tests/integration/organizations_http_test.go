@@ -38,10 +38,10 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if _, err = admin.NewService(pool).BootstrapMaster(
 		ctx,
 		admin.BootstrapInput{
-			FirstName:    "Runs",
-			LastName:     "Admin",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
+			FirstName:  "Runs",
+			LastName:   "Admin",
+			LoginEmail: adminLogin,
+			Password:   adminPassword,
 		},
 	); err != nil {
 		t.Fatal(err)

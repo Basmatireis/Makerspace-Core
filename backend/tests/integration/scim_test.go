@@ -84,7 +84,7 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 			assertCount(
 				t,
 				pool,
-				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND disabled_at IS NULL`,
+				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND disabled_at IS NULL`,
 				1,
 				accountID,
 			)

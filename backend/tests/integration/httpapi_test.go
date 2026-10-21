@@ -215,6 +215,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("new account authentication identities = %#v, want one password identity", account.AuthIdentities)
 	}
 
+	// Every account has a login email: omitting it or sending null violates the contract.
 	for _, test := range []struct {
 		name          string
 		accountFields map[string]any
@@ -223,7 +224,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		{name: "null login email", accountFields: map[string]any{"loginEmail": nil}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			response = doJSON(
+			response := doJSON(
 				t,
 				adminClient,
 				http.MethodPost,
@@ -253,103 +254,9 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 				adminCSRF,
 				requestBody,
 			)
-			assertStatus(t, response, http.StatusCreated)
-			var accountWithoutIdentity openapi.Account
-			decodeResponse(t, response, &accountWithoutIdentity)
-
-			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled ||
-				accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
-				t.Fatalf(
-					"identity-free account state = %s/%s",
-					accountWithoutIdentity.Status,
-					accountWithoutIdentity.PasswordStatus,
-				)
-			}
-			if !accountWithoutIdentity.LoginEmail.IsNull() || len(accountWithoutIdentity.AuthIdentities) != 0 {
-				t.Fatalf(
-					"identity-free account unexpectedly has authentication data: loginEmail=%#v identities=%#v",
-					accountWithoutIdentity.LoginEmail,
-					accountWithoutIdentity.AuthIdentities,
-				)
-			}
-			assertCount(
-				t,
-				pool,
-				`SELECT count(*) FROM auth_identities WHERE account_id = $1`,
-				0,
-				accountWithoutIdentity.Id,
-			)
-
-			response = doJSON(
-				t,
-				adminClient,
-				http.MethodPost,
-				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/disable",
-				origin,
-				adminCSRF,
-				map[string]any{
-					"expectedVersion": accountWithoutIdentity.Version,
-				},
-			)
-			assertStatus(t, response, http.StatusOK)
-			decodeResponse(t, response, &accountWithoutIdentity)
-			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled ||
-				len(accountWithoutIdentity.AuthIdentities) != 0 {
-				t.Fatalf("disabled identity-free account = %#v", accountWithoutIdentity)
-			}
-			response = doJSON(
-				t,
-				adminClient,
-				http.MethodPost,
-				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/enable",
-				origin,
-				adminCSRF,
-				map[string]any{
-					"expectedVersion": accountWithoutIdentity.Version,
-				},
-			)
-			assertStatus(t, response, http.StatusOK)
-			decodeResponse(t, response, &accountWithoutIdentity)
-			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled ||
-				len(accountWithoutIdentity.AuthIdentities) != 0 {
-				t.Fatalf("reactivated identity-free account = %#v", accountWithoutIdentity)
-			}
-
-			passwordLogin := "added-password-" + uuid.NewString() + "@example.test"
-			response = doJSON(
-				t,
-				adminClient,
-				http.MethodPut,
-				server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/login-email",
-				origin,
-				adminCSRF,
-				map[string]any{
-					"loginEmail": passwordLogin, "expectedVersion": accountWithoutIdentity.Version,
-				},
-			)
-			assertStatus(t, response, http.StatusOK)
-			decodeResponse(t, response, &accountWithoutIdentity)
-			if len(accountWithoutIdentity.AuthIdentities) != 1 ||
-				accountWithoutIdentity.AuthIdentities[0].Kind != openapi.AuthIdentitySummaryKindPassword {
-				t.Fatalf(
-					"password identity added after identity-free creation = %#v",
-					accountWithoutIdentity.AuthIdentities,
-				)
-			}
-			identityLogin, identityLoginErr := accountWithoutIdentity.AuthIdentities[0].DisplayIdentifier.Get()
-			if identityLoginErr != nil || identityLogin != passwordLogin {
-				t.Fatalf(
-					"password identity added after identity-free creation = %#v",
-					accountWithoutIdentity.AuthIdentities,
-				)
-			}
-			assertCount(
-				t,
-				pool,
-				`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`,
-				1,
-				accountWithoutIdentity.Id,
-			)
+			assertStatus(t, response, http.StatusBadRequest)
+			response.Body.Close()
+			assertCount(t, pool, `SELECT count(*) FROM accounts WHERE person_id = $1`, 0, personWithoutIdentity.Id)
 		})
 	}
 
@@ -443,7 +350,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	if bytes.Contains(rawPerson, []byte("matriculationNumber")) || bytes.Contains(rawPerson, []byte("M-0042")) {
 		t.Fatalf("matriculation leaked without dedicated permission: %s", rawPerson)
 	}
-	if !bytes.Contains(rawPerson, []byte("grace-contact@example.test")) {
+	if !bytes.Contains(rawPerson, []byte("http-member@example.test")) {
 		t.Fatalf("ordinary self-readable contact field was unexpectedly hidden: %s", rawPerson)
 	}
 

@@ -191,7 +191,7 @@ describe('People page', () => {
     expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument();
   });
 
-  it('creates selected email-less member accounts without a password identity', async () => {
+  it('creates selected member accounts with the persons own email as login email', async () => {
     let accountRequest: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -200,7 +200,9 @@ describe('People page', () => {
         ),
       ),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([personFixture({ account: null, email: null, phone: '+43 660 123456' })])),
+        HttpResponse.json(
+          peoplePage([personFixture({ account: null, email: 'grace@example.test', phone: '+43 660 123456' })]),
+        ),
       ),
       http.post('*/api/v1/people/:personId/account', async ({ request }) => {
         accountRequest = await request.json();
@@ -221,6 +223,7 @@ describe('People page', () => {
 
     await waitFor(() =>
       expect(accountRequest).toEqual({
+        loginEmail: 'grace@example.test',
         expectedVersion: 1,
       }),
     );
