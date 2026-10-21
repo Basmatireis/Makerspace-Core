@@ -1,52 +1,69 @@
 import type { Event } from '../../api/generated/models';
-import { APP_LOCALE, APP_TIME_ZONE, zonedDateTimeValueToISO } from '../../app/dateTime';
+import { APP_LOCALE, APP_TIME_ZONE, dateInAppTimeZone, formatTime, zonedDateTimeValueToISO } from '../../app/dateTime';
 
-const defaultTimeZone = APP_TIME_ZONE;
-
-export function formatInstant(value?: string | null, timeZone = defaultTimeZone) {
+export function formatInstant(value?: string | null, timeZone = APP_TIME_ZONE) {
   return value
     ? new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: 'medium', timeStyle: 'short', timeZone }).format(new Date(value))
     : 'Not set';
 }
-export function formatLocalDate(value: string, timeZone = defaultTimeZone) {
+export function formatLocalDate(value: string, timeZone = APP_TIME_ZONE) {
   return new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: 'full', timeZone }).format(new Date(value));
 }
-export function formatTimeRange(start: string, end: string, timeZone = defaultTimeZone) {
+export function formatTimeRange(start: string, end: string, timeZone = APP_TIME_ZONE) {
   const formatter = new Intl.DateTimeFormat(APP_LOCALE, { timeStyle: 'short', timeZone });
   return `${formatter.format(new Date(start))}–${formatter.format(new Date(end))}`;
+}
+
+/** "Sun 2 Nov": weekday, day and month in the lab's time zone. */
+export function fmtDay(value: string) {
+  return new Intl.DateTimeFormat(APP_LOCALE, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: APP_TIME_ZONE,
+  })
+    .format(new Date(value))
+    .replace(',', '');
+}
+/** "2 Nov". */
+export function fmtDate(value: string) {
+  return new Intl.DateTimeFormat(APP_LOCALE, { day: 'numeric', month: 'short', timeZone: APP_TIME_ZONE }).format(
+    new Date(value),
+  );
+}
+export const fmtRange = (start: string, end: string) => `${formatTime(start)}–${formatTime(end)}`;
+export const fmtDateTime = (value: string) => `${fmtDate(value)}, ${formatTime(value)}`;
+export const dayKey = dateInAppTimeZone;
+export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+/** One-line date of an event: a single day with its times, or the first and last day. */
+export function rangeLabel(event: Pick<Event, 'rangeStartsAt' | 'rangeEndsAt'>) {
+  if (!event.rangeStartsAt || !event.rangeEndsAt) return 'No dates yet';
+  return dayKey(event.rangeStartsAt) === dayKey(event.rangeEndsAt)
+    ? `${fmtDay(event.rangeStartsAt)} · ${fmtRange(event.rangeStartsAt, event.rangeEndsAt)}`
+    : `${fmtDay(event.rangeStartsAt)} – ${fmtDay(event.rangeEndsAt)}`;
+}
+
+/** A date input value plus a time to an instant; throws a readable message for non-existent local times. */
+export function toInstant(date: string, time: string) {
+  return zonedDateTimeValueToISO(`${date}T${time}`);
+}
+export const toISO = zonedDateTimeValueToISO;
+
+// Used by the previous edit screens until the new edit mode replaces them.
+export function statusTagType(status: string): 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray' {
+  const types: Record<string, 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray'> = {
+    draft: 'gray',
+    confirmed: 'cyan',
+    completed: 'green',
+    done: 'green',
+    open: 'blue',
+    cancelled: 'red',
+  };
+  return types[status] ?? 'gray';
 }
 export function eventRange(event: Pick<Event, 'rangeStartsAt' | 'rangeEndsAt'>) {
   return event.rangeStartsAt && event.rangeEndsAt
     ? `${formatInstant(event.rangeStartsAt)} – ${formatInstant(event.rangeEndsAt)}`
     : 'Schedule not set';
-}
-export function eventDateLines(event: Pick<Event, 'rangeStartsAt' | 'rangeEndsAt'>) {
-  if (!event.rangeStartsAt || !event.rangeEndsAt) return { date: 'Schedule not set', time: null };
-  const start = new Date(event.rangeStartsAt);
-  const end = new Date(event.rangeEndsAt);
-  const dateFormatter = new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: 'medium', timeZone: defaultTimeZone });
-  const timeFormatter = new Intl.DateTimeFormat(APP_LOCALE, { timeStyle: 'short', timeZone: defaultTimeZone });
-  return {
-    date: dateFormatter.formatRange(start, end),
-    time: timeFormatter.formatRange(start, end),
-  };
-}
-export function statusTagType(status: string): 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray' {
-  const types: Record<string, 'gray' | 'blue' | 'cyan' | 'green' | 'red' | 'warm-gray'> = {
-    draft: 'gray',
-    planning: 'blue',
-    confirmed: 'cyan',
-    completed: 'green',
-    done: 'green',
-    open: 'blue',
-    in_progress: 'cyan',
-    blocked: 'red',
-    cancelled: 'red',
-    archived: 'warm-gray',
-  };
-  return types[status] ?? 'gray';
-}
-
-export function toISO(localValue: string) {
-  return zonedDateTimeValueToISO(localValue);
 }

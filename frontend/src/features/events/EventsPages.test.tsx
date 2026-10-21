@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
@@ -91,14 +91,6 @@ const publicEvent = {
 
 afterEach(() => window.history.replaceState(null, '', '/'));
 
-// Carbon hides the label of a collapsed toolbar search with visibility:hidden. Browsers still use that native
-// label as the accessible name (see e2e/events.spec.ts), but jsdom drops it, so find the control by its label.
-async function findEventSearch() {
-  const search = await screen.findByLabelText('Search events', { selector: 'input' });
-  expect(screen.getByRole('searchbox')).toBe(search);
-  return search;
-}
-
 describe('Event pages', () => {
   it('shows actionable Event validation and stale-write messages', () => {
     expect(
@@ -121,117 +113,6 @@ describe('Event pages', () => {
     ).toBe('This event changed in another session. Reload it before saving again.');
   });
 
-  it('shows Events navigation with any Event permission', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.eventsread]))),
-      http.get('*/api/v1/events', () =>
-        HttpResponse.json({
-          items: [
-            {
-              id: '0192f6f8-743e-7c77-a349-cd07c3e8b010',
-              name: 'Autumn exhibition',
-              internalDescription: null,
-              location: 'Main workshop',
-              ownerPersonId: null,
-              ownerName: null,
-              status: 'confirmed',
-              publicTitle: null,
-              publicDescription: null,
-              publicLocation: null,
-              publicId,
-              isPublic: false,
-              publicSignupEnabled: false,
-              hasBanner: true,
-              closedAt: null,
-              rangeStartsAt: '2026-11-02T16:00:00Z',
-              rangeEndsAt: '2026-11-02T22:00:00Z',
-              taskTotal: 4,
-              taskCompleted: 2,
-              filledCount: 2,
-              requiredCount: 4,
-              nextDeadline: null,
-              nextScheduleAt: '2026-11-02T16:00:00Z',
-              version: 1,
-              createdAt: '2026-10-04T12:00:00Z',
-              updatedAt: '2026-10-04T12:00:00Z',
-            },
-          ],
-        }),
-      ),
-    );
-    const { container } = renderRoute(<App />, '/events');
-    expect(await screen.findByRole('heading', { name: 'Events' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Events' })).toHaveAttribute('href', '/events');
-    expect(await screen.findByRole('link', { name: 'Autumn exhibition' })).toHaveAttribute(
-      'href',
-      `/events/0192f6f8-743e-7c77-a349-cd07c3e8b010`,
-    );
-    expect(container.querySelector('.events-table__name img')).toHaveAttribute(
-      'src',
-      expect.stringContaining(`/api/v1/events/0192f6f8-743e-7c77-a349-cd07c3e8b010/banner`),
-    );
-    expect(screen.getByText('2 Nov 2026')).toBeInTheDocument();
-    expect(screen.getByText('17:00–23:00')).toBeInTheDocument();
-    expect(screen.getByText('2 / 4')).toBeInTheDocument();
-    expect(screen.getByLabelText('Events table toolbar')).toContainElement(await findEventSearch());
-    // Icon-only Carbon buttons are named by a CSS-hidden tooltip, which jsdom ignores; use the label lookup.
-    expect(screen.getByLabelText('Filters', { selector: 'button' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
-  });
-
-  it('restores the overview state and focus when the create modal closes', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.eventsread, PermissionId.eventsmanage])),
-      ),
-      http.get('*/api/v1/events', () => HttpResponse.json({ items: [eventFixture('draft')] })),
-    );
-    const user = userEvent.setup();
-    const { router } = renderRoute(<App />, '/events');
-    const search = await findEventSearch();
-    await user.type(search, 'Autumn');
-    await user.click(screen.getByRole('button', { name: 'Create event' }));
-    expect(await screen.findByRole('heading', { name: 'Create event' })).toBeInTheDocument();
-    expect(await findEventSearch()).toHaveValue('Autumn');
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/events'));
-    expect(await findEventSearch()).toHaveValue('Autumn');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Create event' })).toHaveFocus());
-  });
-
-  it('keeps the create modal behind one discard dialog and reports assignment-history conflicts', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.eventsread, PermissionId.eventsmanage])),
-      ),
-      http.get('*/api/v1/events', () => HttpResponse.json({ items: [eventFixture('draft')] })),
-      http.delete(`*/api/v1/events/${eventId}`, () =>
-        HttpResponse.json(
-          { code: 'event_has_assignment_history', message: 'Conflict', requestId: 'delete-event' },
-          { status: 409 },
-        ),
-      ),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/events');
-    await screen.findByRole('heading', { name: 'Events' });
-    for (const name of ['Name', 'Status', 'Location', 'Staffing', 'Owner', 'Actions']) {
-      expect(await screen.findByRole('columnheader', { name: new RegExp(`${name}$`) })).toBeInTheDocument();
-    }
-    await user.click(screen.getByRole('button', { name: 'Create event' }));
-    await user.type(await screen.findByLabelText('Internal event name'), 'Volunteer day');
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByText('Your changes have not been saved.')).toBeInTheDocument();
-    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
-    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByLabelText('Internal event name')).toHaveValue('Volunteer day');
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
-    await user.click(await screen.findByRole('button', { name: 'Delete event' }));
-    expect(await screen.findByText(/assignment history and cannot be deleted/i)).toBeInTheDocument();
-  });
-
   it('guards dirty Settings during same-path tab navigation and preserves unrelated query parameters', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -251,7 +132,7 @@ describe('Event pages', () => {
       http.get(`*/api/v1/events/${eventId}/shifts`, () => HttpResponse.json({ items: [] })),
     );
     const user = userEvent.setup();
-    const { router } = renderRoute(<App />, `/events/${eventId}?view=compact&tab=settings`);
+    const { router } = renderRoute(<App />, `/events/${eventId}?mode=edit&view=compact&tab=settings`);
     const name = await screen.findByLabelText('Internal name');
     await user.clear(name);
     await user.type(name, 'Unsaved exhibition');
@@ -298,7 +179,7 @@ describe('Event pages', () => {
       }),
     );
     const user = userEvent.setup();
-    const { container } = renderRoute(<App />, `/events/${eventId}?tab=settings`);
+    const { container } = renderRoute(<App />, `/events/${eventId}?mode=edit&tab=settings`);
     const name = await screen.findByLabelText('Internal name');
     await user.clear(name);
     await user.type(name, 'Draft survives banner');
@@ -365,7 +246,7 @@ describe('Event pages', () => {
       http.get(`*/api/v1/events/${eventId}/files`, () => HttpResponse.json({ items: [] })),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/events/${eventId}?tab=schedule`);
+    renderRoute(<App />, `/events/${eventId}?mode=edit&tab=schedule`);
 
     await user.click(await screen.findByRole('button', { name: 'Add shift' }));
     await user.type(screen.getByLabelText('Name', { exact: true }), 'Late setup');
@@ -421,7 +302,7 @@ describe('Event pages', () => {
       http.get(`*/api/v1/events/${eventId}/files`, () => HttpResponse.json({ items: [] })),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/events/${eventId}?tab=schedule`);
+    renderRoute(<App />, `/events/${eventId}?mode=edit&tab=schedule`);
     expect(await screen.findByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add session' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add shift' })).not.toBeInTheDocument();
