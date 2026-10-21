@@ -27,6 +27,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Event lists are scoped by date (upcoming, drafts, past), sorted by start and paged.
 - Shifts are saved together with their positions in one request.
 - Tasks are open or done with an Important flag and can be filtered by assignee, overdue and done.
+- Toolchain and dependency updates, no behavior change. Go 1.26 to 1.27.3 (including golangci-lint 2.15.0), Alpine 3.24.2, Node 24 to 26 and nginx-unprivileged 1.31.6 in the images, and the pending backend, frontend and desktop-terminal packages. Frontend majors: TypeScript 7, ESLint 10, eslint-plugin-react-hooks 7, eslint-plugin-react-refresh 0.5, msw 3, @testing-library/jest-dom 7 and @types/node 26. typescript-eslint does not support TypeScript 7 yet, so linting runs against the side-by-side TypeScript 6 package.
 
 ## [0.8.2] - 2026-10-21
 

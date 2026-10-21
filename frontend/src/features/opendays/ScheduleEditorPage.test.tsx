@@ -290,8 +290,8 @@ describe('schedule editor calendar context', () => {
     expect(within(planningCalendar).getAllByText('Autumn break')).toHaveLength(2);
     expect(within(planningCalendar).queryByText('Academic break: Autumn break')).not.toBeInTheDocument();
 
-    const holidayAdd = screen.getByRole('button', { name: 'Add Open Day on 26.10.2026' });
-    const breakAdd = screen.getByRole('button', { name: 'Add Open Day on 27.10.2026' });
+    const holidayAdd = screen.getByRole('button', { name: '26, Add Open Day on 26.10.2026' });
+    const breakAdd = screen.getByRole('button', { name: '27, Add Open Day on 27.10.2026' });
     expect(holidayAdd).toBeEnabled();
     expect(breakAdd).toBeEnabled();
     fireEvent.click(holidayAdd);
@@ -311,13 +311,13 @@ describe('schedule editor calendar context', () => {
 
     expect(await screen.findByRole('heading', { name: 'October 2026' })).toBeInTheDocument();
     expect(document.querySelector('.calendar-weekdays')?.textContent).toBe('SuMoTuWeThFrSa');
-    fireEvent.click(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ }));
     const editDialog = await screen.findByRole('dialog', { name: 'Edit Open Day' });
     expect(within(editDialog).getByLabelText('Internal note')).toHaveValue('Keep this setup');
     await user.click(within(editDialog).getByRole('button', { name: 'Delete Open Day' }));
     const confirmation = await screen.findByRole('dialog', { name: 'Delete Open Day?' });
     await user.click(within(confirmation).getByRole('button', { name: 'Delete Open Day' }));
-    expect(screen.queryByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   }, 30_000);
 
@@ -325,7 +325,7 @@ describe('schedule editor calendar context', () => {
     const { getSavedBody } = renderEditor([], { items: [openDay()] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Add Open Day on 27.10.2026' }));
+    await user.click(await screen.findByRole('button', { name: '27, Add Open Day on 27.10.2026' }));
     const createDialog = await screen.findByRole('dialog', { name: 'Create Open Day' });
     expect(createDialog).toHaveClass('cds--modal-container--sm');
     expect(within(createDialog).queryByLabelText('Time zone')).not.toBeInTheDocument();
@@ -593,7 +593,7 @@ describe('schedule editor calendar context', () => {
     const { router } = renderEditor([]);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Add Open Day on 26.10.2026' }));
+    await user.click(await screen.findByRole('button', { name: '26, Add Open Day on 26.10.2026' }));
     await user.click(
       within(screen.getByRole('dialog', { name: 'Create Open Day' })).getByRole('button', { name: 'Create' }),
     );
@@ -608,7 +608,7 @@ describe('schedule editor calendar context', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Open Days' }));
     const blockerDialog = await screen.findByRole('alertdialog', { name: 'Discard unsaved schedule changes?' });
     await user.click(within(blockerDialog).getByRole('button', { name: 'Keep editing' }));
@@ -645,7 +645,7 @@ describe('schedule editor calendar context', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Preview series' }));
     expect(await within(dialog).findByRole('checkbox', { name: '28.10.2026 · create' })).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Add selected' }));
-    expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   }, 30_000);
 
@@ -655,7 +655,7 @@ describe('schedule editor calendar context', () => {
 
     await screen.findByRole('heading', { name: 'Winter Semester 2026/27' });
     expect(screen.queryByText('Published schedule')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add Open Day on 26.10.2026' }));
+    await user.click(screen.getByRole('button', { name: '26, Add Open Day on 26.10.2026' }));
     await user.click(
       within(screen.getByRole('dialog', { name: 'Create Open Day' })).getByRole('button', { name: 'Create' }),
     );

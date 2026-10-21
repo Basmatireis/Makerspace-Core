@@ -97,7 +97,7 @@ function DraggableSlot({
         mainRef={handleRef}
         disabled={cancelled}
         dragging={isDragging}
-        ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)} to ${timeInTimeZone(slot.endsAt, timeZone)}`}
+        ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`}
         actions={actions}
       />
     </div>

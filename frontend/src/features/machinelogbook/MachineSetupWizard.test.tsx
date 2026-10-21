@@ -293,7 +293,8 @@ describe('Add machine wizard for a printer', () => {
     expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
     expect(within(dialog).getByText(/does not match the configured serial number/i)).toBeInTheDocument();
     expect(recorded.assignment).toBeDefined();
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    // The button leaves its "Testing…" label one render after the notice appears.
+    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
     expect(await within(dialog).findByDisplayValue('AMS 2 Pro')).toBeInTheDocument();
     expect(within(dialog).getByText("Connect the printer to see what's loaded in each slot.")).toBeInTheDocument();
   });
@@ -319,7 +320,7 @@ describe('Add machine wizard for a printer', () => {
     expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
     expect(recorded.assignment).toBeDefined();
 
-    await user.click(within(dialog).getByRole('button', { name: 'Test again' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Test again' }));
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
 

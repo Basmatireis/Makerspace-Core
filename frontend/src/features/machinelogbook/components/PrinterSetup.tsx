@@ -128,18 +128,19 @@ export function PrinterSetup({
       mountPrinterSpool(slot.id, { spoolId: spool.id }),
     onSuccess: async (_saved, { slot, spool }) => {
       notify({ kind: 'success', title: 'Spool mounted', subtitle: `${spool.displayId} in ${slot.name}` });
-      closeMount();
+      setMountSlot(null);
+      setSelectedSpool(null);
       await refresh();
     },
-  });
-  const closeIfIdle = useLatestCallback(() => {
-    if (!mount.isPending) closeMount();
   });
   function closeMount() {
     setMountSlot(null);
     setSelectedSpool(null);
     mount.reset();
   }
+  const closeIfIdle = useLatestCallback(() => {
+    if (!mount.isPending) closeMount();
+  });
 
   const wizardDialog = wizard && (
     <MachineSetupWizard

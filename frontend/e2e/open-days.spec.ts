@@ -331,10 +331,10 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
   await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
   await expectAccessible(page);
 
-  await page.getByRole('button', { name: 'Add Open Day on 02.10.2026' }).click();
+  await page.getByRole('button', { name: '2, Add Open Day on 02.10.2026' }).click();
   await capture(page, testInfo, 'open-days-create-modal.png');
   await page.getByRole('dialog', { name: 'Create Open Day' }).getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
   const editWorkspaceHeight = await page.locator('.app-main').evaluate((main) => main.getBoundingClientRect().height);
   await capture(page, testInfo, 'open-days-manager-working-copy.png');
@@ -353,7 +353,7 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
   await page.getByRole('button', { name: 'Edit' }).click();
   await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}\\?mode=edit$`));
   await expect(page.getByRole('group', { name: 'Schedule editor tools' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00–19:00/ })).toBeVisible();
   await expect
     .poll(() =>
       page
@@ -638,7 +638,7 @@ for (const width of [320, 390, 414, 768, 1440]) {
     expect(legendBox!.y).toBeGreaterThanOrEqual(toolbarBox!.y + toolbarBox!.height - 1);
     if (phone) {
       await expect(page.getByRole('button', { name: /Drag or edit/ })).toHaveCount(0);
-      await page.getByRole('button', { name: 'Show Open Days on 02.10.2026' }).click();
+      await page.getByRole('button', { name: '2, Show Open Days on 02.10.2026' }).click();
       await expect(
         page.locator('.open-day-agenda-selection').getByRole('button', { name: 'Edit', exact: true }),
       ).toBeVisible();

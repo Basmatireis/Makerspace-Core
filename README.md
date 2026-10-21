@@ -31,9 +31,9 @@ In production, extract a release bundle, copy `.env.example` to `.env`, fill it 
 
 ## Technology
 
-- Go 1.26 (`golang:1.26.5-alpine3.24`), `net/http`, Chi, pgx, sqlc, and goose
+- Go 1.27 (`golang:1.27.3-alpine3.24`), `net/http`, Chi, pgx, sqlc, and goose
 - PostgreSQL 18 (`postgres:18.6-alpine3.24`)
-- Node 24 LTS (`node:24.21.0-alpine3.24`), pnpm 11.19.0, React 19.3.0, Vite 8.3.0, IBM Carbon 11 (`@carbon/react` 1.116.0), TanStack Query, and React Hook Form
+- Node 26 (`node:26.12.0-alpine3.24`), pnpm 11.19.0, React 19.3.1, Vite 8.3.4, IBM Carbon 11 (`@carbon/react` 1.118.0), TanStack Query, and React Hook Form
 - OpenAPI 3.0.3 with oapi-codegen 2.5.1 and Orval 7.21-generated bindings
 - Docker Compose for the reproducible development environment and standalone production release bundles
 

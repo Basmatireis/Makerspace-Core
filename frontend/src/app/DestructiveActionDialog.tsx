@@ -30,11 +30,15 @@ export function DestructiveActionDialog({
   const wasOpenRef = useRef(false);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
+  // The element to return focus to must be captured during the render that opens the dialog: Carbon moves focus into
+  // the modal in a child effect that runs before any effect of this component could read document.activeElement.
+  /* eslint-disable react-hooks/refs */
   if (open && !wasOpenRef.current) {
     returnFocusRef.current =
       launcherButtonRef?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     wasOpenRef.current = true;
   }
+  /* eslint-enable react-hooks/refs */
 
   useEffect(() => {
     if (!open) {

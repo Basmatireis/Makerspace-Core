@@ -114,7 +114,7 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
             renderIcon={selectLabel ? undefined : Add}
             className="calendar-cell__date-action"
             onClick={onSelectDate}
-            aria-label={selectLabel ?? `Add Open Day on ${formatDate(day.date)}`}
+            aria-label={`${day.dayNumber}, ${selectLabel ?? `Add Open Day on ${formatDate(day.date)}`}`}
             aria-pressed={selectLabel ? selected : undefined}
           >
             {day.dayNumber}

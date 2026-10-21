@@ -185,7 +185,7 @@ export class PlayerRuntime {
   private every(task: () => number | Promise<number>, immediately = false) {
     const run = async () => {
       if (this.stopped) return;
-      let delay = 1_000;
+      let delay: number;
       try {
         delay = await task();
       } catch {
@@ -398,7 +398,7 @@ export class PlayerRuntime {
         this.note(`Revision ${manifest.revision} not activated: ${error.message}`.slice(0, 200));
         // Drop what the refused revision already downloaded; the active one keeps playing.
         await store.retain(this.active?.manifest.assets ?? []).catch(() => undefined);
-        throw new Error('preload failed');
+        throw new Error('preload failed', { cause: error });
       }
       throw error;
     }

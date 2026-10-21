@@ -169,6 +169,17 @@ export function useBatchPeopleActions({
 
   const deleteAccountsLauncher = useRef<HTMLButtonElement>(null);
   const deletePeopleLauncher = useRef<HTMLButtonElement>(null);
+  // The launcher is remembered so closing the dialog can return focus to the button that opened it.
+  const openDeleteAccounts = (launcher: HTMLButtonElement, members: Person[]) => {
+    deleteAccountsLauncher.current = launcher;
+    setBatchMembers(members);
+    setBatchAction('delete-accounts');
+  };
+  const openDeletePeople = (launcher: HTMLButtonElement, members: Person[]) => {
+    deletePeopleLauncher.current = launcher;
+    setBatchMembers(members);
+    setBatchAction('delete-people');
+  };
   const closeDeleteAccounts = useLatestCallback(() => {
     if (!batchDeleteAccounts.isPending) setBatchAction(null);
     return false;
@@ -193,6 +204,8 @@ export function useBatchPeopleActions({
     batchDeletePeople,
     deleteAccountsLauncher,
     deletePeopleLauncher,
+    openDeleteAccounts,
+    openDeletePeople,
     closeDeleteAccounts,
     closeDeletePeople,
   };

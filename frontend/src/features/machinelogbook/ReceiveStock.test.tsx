@@ -276,10 +276,14 @@ describe('Receive stock', () => {
     await user.type(within(dialog).getByLabelText('Total price in EUR'), '20');
     await user.click(within(dialog).getByRole('button', { name: 'Receive stock' }));
 
-    expect(await within(dialog).findByText('This article already exists')).toBeInTheDocument();
-    expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
-      'PLA Basic · Black · Bambu Lab · 2,000 g in stock',
+    // The same title also shows as a duplicate warning while the form still is in "new article" mode, so wait for the
+    // switch to the existing article before looking for the notice.
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
+        'PLA Basic · Black · Bambu Lab · 2,000 g in stock',
+      ),
     );
+    expect(await within(dialog).findByText('This article already exists')).toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox', { name: 'Material type' })).not.toBeInTheDocument();
   });
 
