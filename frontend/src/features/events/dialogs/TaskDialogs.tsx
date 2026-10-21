@@ -35,15 +35,12 @@ export function TaskDialog({
   task,
   listId,
   lists,
-  assigneeLabel,
   onClose,
 }: {
   event: Event;
   task?: EventTask;
   listId?: string | null;
   lists: EventTaskList[];
-  /** Name of the current assignee when known; tasks only carry the person's id. */
-  assigneeLabel?: string;
   onClose: () => void;
 }) {
   const client = useQueryClient();
@@ -53,7 +50,7 @@ export function TaskDialog({
       description: task?.description ?? '',
       listId: task?.taskListId ?? listId ?? '',
       assignee: task?.assigneePersonId
-        ? { id: task.assigneePersonId, label: assigneeLabel ?? 'Current assignee' }
+        ? { id: task.assigneePersonId, label: task.assigneeName ?? 'Deleted person' }
         : null,
       due: task?.dueAt ? dateInAppTimeZone(task.dueAt) : '',
       important: task?.important ?? false,

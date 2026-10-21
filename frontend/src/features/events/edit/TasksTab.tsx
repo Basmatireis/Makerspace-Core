@@ -94,7 +94,13 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
             {task.description && <span className="ev-secondary">{task.description}</span>}
           </div>
         </TableCell>
-        <TableCell>{task.assigneePersonId ? 'Assigned' : <span className="ev-secondary">Unassigned</span>}</TableCell>
+        <TableCell>
+          {task.assigneePersonId ? (
+            (task.assigneeName ?? 'Deleted person')
+          ) : (
+            <span className="ev-secondary">Unassigned</span>
+          )}
+        </TableCell>
         <TableCell>
           {task.dueAt ? (
             <span className={overdue ? 'ev-overdue' : undefined}>

@@ -238,6 +238,7 @@ type Task struct {
 	Status               TaskStatus
 	Important            bool
 	AssigneePersonID     *uuid.UUID
+	AssigneeName         *string
 	DueAt, CompletedAt   *time.Time
 	CompletedByAccount   *uuid.UUID
 	SortOrder            int

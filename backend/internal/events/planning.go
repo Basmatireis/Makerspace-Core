@@ -3,13 +3,13 @@ package events
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
-
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -250,6 +250,9 @@ func (s *Service) ListTasks(
 	for _, row := range rows {
 		result = append(result, taskFromRow(row))
 	}
+	if err = withAssigneeNames(ctx, q, result); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -327,7 +330,11 @@ func (s *Service) CreateTask(
 	if err = tx.Commit(ctx); err != nil {
 		return Task{}, err
 	}
-	return taskFromRow(row), nil
+	task := []Task{taskFromRow(row)}
+	if err = withAssigneeNames(ctx, eventsdb.New(s.pool), task); err != nil {
+		return Task{}, err
+	}
+	return task[0], nil
 }
 
 func (s *Service) UpdateTask(
@@ -418,7 +425,11 @@ func (s *Service) UpdateTask(
 	if err = tx.Commit(ctx); err != nil {
 		return Task{}, err
 	}
-	return taskFromRow(row), nil
+	task := []Task{taskFromRow(row)}
+	if err = withAssigneeNames(ctx, eventsdb.New(s.pool), task); err != nil {
+		return Task{}, err
+	}
+	return task[0], nil
 }
 
 func (s *Service) DeleteTask(
@@ -506,6 +517,32 @@ func taskListFromRow(row eventsdb.EventTaskList) TaskList {
 		UpdatedAt:   row.UpdatedAt,
 	}
 }
+
+// withAssigneeNames fills in the display names of the tasks' assignees; a deleted person leaves the name empty.
+func withAssigneeNames(ctx context.Context, q *eventsdb.Queries, tasks []Task) error {
+	names := map[uuid.UUID]*string{}
+	for i := range tasks {
+		id := tasks[i].AssigneePersonID
+		if id == nil {
+			continue
+		}
+		name, known := names[*id]
+		if !known {
+			person, err := q.GetEventPerson(ctx, *id)
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			if err == nil {
+				full := strings.TrimSpace(person.FirstName + " " + person.LastName)
+				name = &full
+			}
+			names[*id] = name
+		}
+		tasks[i].AssigneeName = name
+	}
+	return nil
+}
+
 func taskFromRow(row eventsdb.EventTask) Task {
 	return Task{
 		ID:                 row.ID,

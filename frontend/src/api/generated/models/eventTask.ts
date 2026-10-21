@@ -25,6 +25,11 @@ import type { Version } from './version';
 export type EventTask = EventTaskInput & ({
   id: UUIDv7;
   eventId: UUIDv7;
+  /**
+     * Display name of the assignee; null without an assignee or when the person was deleted.
+     * @nullable
+     */
+  assigneeName?: string | null;
   /** @nullable */
   completedAt?: string | null;
   completedByAccountId?: UUIDv7 | null;

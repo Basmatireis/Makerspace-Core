@@ -368,8 +368,9 @@ func eventTaskDTO(v events.Task) openapi.EventTask {
 			v.AssigneePersonID,
 			func(x uuid.UUID) openapi.UUIDv7 { return x },
 		),
-		DueAt:       nullablePointer(v.DueAt, func(x time.Time) time.Time { return x }),
-		CompletedAt: nullablePointer(v.CompletedAt, func(x time.Time) time.Time { return x }),
+		AssigneeName: nullablePointer[string](v.AssigneeName, func(x string) string { return x }),
+		DueAt:        nullablePointer(v.DueAt, func(x time.Time) time.Time { return x }),
+		CompletedAt:  nullablePointer(v.CompletedAt, func(x time.Time) time.Time { return x }),
 		CompletedByAccountId: nullablePointer[openapi.UUIDv7](
 			v.CompletedByAccount,
 			func(x uuid.UUID) openapi.UUIDv7 { return x },

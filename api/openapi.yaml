@@ -10278,6 +10278,7 @@ components:
           properties:
             id: {$ref: "#/components/schemas/UUIDv7"}
             eventId: {$ref: "#/components/schemas/UUIDv7"}
+            assigneeName: {type: string, nullable: true, description: "Display name of the assignee; null without an assignee or when the person was deleted."}
             completedAt: {type: string, format: date-time, nullable: true}
             completedByAccountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
             version: {$ref: "#/components/schemas/Version"}

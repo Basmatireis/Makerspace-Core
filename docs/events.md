@@ -59,7 +59,7 @@ Both are audited (`event_assignment.joined`, `event_assignment.left`). The event
 - **Programme.** `POST /events/{id}/shifts` and `PATCH /events/{id}/shifts/{shiftId}` save a shift with its complete list of positions in one transaction: a position with `id` is updated, one without is created and a missing one is deleted. Removing a position with any assignment history fails with `requirement_has_assignments`; fewer places than active helpers fail with `requirement_below_assignments`. Shifts are returned with their positions. `POST /events/{id}/shifts/{shiftId}/duplicate` copies a shift and its positions as a draft without helpers.
 - **Create.** `POST /events` takes an optional `firstSession` that is created in the same transaction; new events are drafts.
 - **Helpers.** `GET /events/{id}/helpers` groups the active assignments by helper (person, else e-mail, phone or name) with their shifts, sources and override markers, and lists what needs attention: public signups not linked to a person (with matching people for `events.assign`) and overridden overlaps. It needs a helper-name permission; contact details need `events.staffing.manage` or `events.assign`. Assign, move, cancel and link stay at `/events/{id}/assignments`.
-- **Tasks.** `GET /events/{id}/tasks?mine=&overdue=&includeDone=` filters by assignee, overdue (open and past its due time) and done.
+- **Tasks.** `GET /events/{id}/tasks?mine=&overdue=&includeDone=` filters by assignee, overdue (open and past its due time) and done. Tasks carry the assignee's display name (`assigneeName`, null when the person was deleted).
 
 ## Screens
 

@@ -295,7 +295,10 @@ func TestEventTasksOpenDoneImportantAndFilters(t *testing.T) {
 		return task
 	}
 	overdueMine := create("Order drinks", &mine, &past, events.TaskStatusOpen)
-	create("Book DJ", &other.PersonID, &past, events.TaskStatusOpen)
+	bookDJ := create("Book DJ", &other.PersonID, &past, events.TaskStatusOpen)
+	if bookDJ.AssigneeName == nil || *bookDJ.AssigneeName == "" {
+		t.Fatalf("assignee name = %v", bookDJ.AssigneeName)
+	}
 	create("Posters", &mine, &future, events.TaskStatusOpen)
 	doneTask := create("Budget", &mine, &past, events.TaskStatusDone)
 	if doneTask.CompletedAt == nil || doneTask.CompletedByAccount == nil {
@@ -317,6 +320,15 @@ func TestEventTasksOpenDoneImportantAndFilters(t *testing.T) {
 	}
 	if got := count(events.TaskFilter{IncludeDone: true}); got != 4 {
 		t.Fatalf("all tasks = %d", got)
+	}
+	listed, err := e.events.ListTasks(ctx, e.master, fixture.event.ID, events.TaskFilter{IncludeDone: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range listed {
+		if task.ID == bookDJ.ID && (task.AssigneeName == nil || *task.AssigneeName != *bookDJ.AssigneeName) {
+			t.Fatalf("listed assignee name = %v, want %q", task.AssigneeName, *bookDJ.AssigneeName)
+		}
 	}
 	if got := count(events.TaskFilter{}); got != 3 {
 		t.Fatalf("open tasks = %d", got)

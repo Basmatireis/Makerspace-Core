@@ -305,6 +305,39 @@ describe('Event edit mode', () => {
     });
   });
 
+  it('shows the assignee name of a task', async () => {
+    mockEdit(organizer);
+    server.use(
+      http.get(`*/api/v1/events/${eventId}/tasks`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 'task-2',
+              eventId,
+              taskListId: 'list-1',
+              title: 'Book the van',
+              description: null,
+              status: 'open',
+              important: false,
+              assigneePersonId: '0192f6f8-743e-7c77-a349-cd07c3e8b031',
+              assigneeName: 'Robin Example',
+              dueAt: null,
+              sortOrder: 0,
+              completedAt: null,
+              completedByAccountId: null,
+              version: 1,
+              createdAt: '2026-10-04T12:00:00Z',
+              updatedAt: '2026-10-04T12:00:00Z',
+            },
+          ],
+        }),
+      ),
+    );
+    renderRoute(<App />, `/events/${eventId}?mode=edit&tab=tasks`);
+    expect(await screen.findByText('Book the van')).toBeInTheDocument();
+    expect(screen.getByText('Robin Example')).toBeInTheDocument();
+  });
+
   it('ticks a task done with the full task body and its version', async () => {
     mockEdit(organizer);
     let body: Record<string, unknown> | undefined;
