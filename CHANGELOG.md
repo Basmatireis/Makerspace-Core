@@ -4,9 +4,15 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-21
+
+### Upgrade notes
+
+- No migrations. Core and connector can be updated in either order; the recovery below needs both at 0.8.2.
+
 ### Fixed
 
-- Printer connector: a connector that lost its local data (for example a container recreated without its volume) numbered its events from 1 again, and Core silently rejected every one, so no runs were recorded while the live status looked normal. Core now answers a reused sequence with the next free one, and the connector renumbers its pending events from there and logs a warning. Both sides stay compatible with 0.8.1.
+- Printer connector: a connector that lost its local data (for example a container recreated without its volume) numbered its events from 1 again, and Core silently rejected every one, so no runs were recorded while the live status looked normal. Core now answers a reused sequence with the next free one, and the connector renumbers its pending events from there and logs a warning. Both sides stay compatible with 0.8.1. A connector that is already stuck needs Core 0.8.2 and connector 0.8.2; events it quarantined before the update stay quarantined.
 
 ## [0.8.1] - 2026-10-21
 
@@ -306,6 +312,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.1...v0.7.2
