@@ -8,7 +8,7 @@ configure({ asyncUtilTimeout: 5000 });
 
 Element.prototype.scrollIntoView = vi.fn();
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();

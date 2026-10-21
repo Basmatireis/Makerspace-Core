@@ -3,12 +3,12 @@
 # The dependency install and the Vite build run once on the build platform: the static output does
 # not depend on the target architecture, so only the final nginx stage is per platform (and it only
 # copies files).
-FROM --platform=$BUILDPLATFORM node:24.21.0-alpine3.24 AS base
+FROM --platform=$BUILDPLATFORM node:26.12.0-alpine3.24 AS base
 
 WORKDIR /workspace/frontend
-RUN corepack enable
-
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.pnpmfile.cjs ./
+# Node 25+ no longer bundles corepack; install the pnpm version pinned in package.json directly.
+RUN npm install --global "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
 RUN --mount=type=cache,id=makerspace-pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 
@@ -24,7 +24,7 @@ COPY frontend/ ./
 COPY api/ /workspace/api/
 RUN pnpm generate:api && pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24 AS final
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24 AS final
 
 COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY frontend/nginx/security-headers.conf frontend/nginx/csp-app.conf frontend/nginx/csp-player.conf /etc/nginx/snippets/

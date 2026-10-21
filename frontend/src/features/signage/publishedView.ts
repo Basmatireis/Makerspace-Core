@@ -96,7 +96,7 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
     assetUrl: (assetId) => (digests.has(assetId) ? assetContentUrl(assetId, digests.get(assetId)) : null),
   };
   let scene: SignagePlayerScene | null = null;
-  let targetName = '';
+  let targetName: string;
   let transition: SignageTransition = 'cut';
   let itemKey = result.target.id;
   let secondsLeft: number | null = null;

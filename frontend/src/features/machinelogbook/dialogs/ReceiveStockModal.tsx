@@ -146,13 +146,6 @@ export function ReceiveStockModal({
   }).data;
   const freeSpools: FilamentSpool[] = (emptySpools.data ?? []).filter(needsRefill);
 
-  const resetForm = useLatestCallback(() => {
-    reset(defaultsFor(kind, fixedArticle));
-    save.reset();
-  });
-  useEffect(() => {
-    if (open) resetForm();
-  }, [open, fixedArticle?.id, kind, resetForm]);
   // A new article's package size is the natural size of what arrives.
   const articlePackage = values.article?.packageSize ?? '';
   useEffect(() => {
@@ -232,6 +225,14 @@ export function ReceiveStockModal({
       void refresh();
     },
   });
+
+  const resetForm = useLatestCallback(() => {
+    reset(defaultsFor(kind, fixedArticle));
+    save.reset();
+  });
+  useEffect(() => {
+    if (open) resetForm();
+  }, [open, fixedArticle?.id, kind, resetForm]);
 
   const submit = handleSubmit(async (data) => {
     let result;

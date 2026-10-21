@@ -109,48 +109,51 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const hold = useRef(false);
 
   // Stable identity: the autosave timer and the leave-page effect call the latest save through this callback.
-  const save = useCallback(async (): Promise<void> => {
-    if (gone.current || hold.current || inFlight.current || revision.current === savedRevision.current) return;
-    const current = latest.current;
-    const problem = draftError(current);
-    if (problem) {
-      setSaveState('invalid');
-      setSaveMessage(problem);
-      return;
-    }
-    const sent = revision.current;
-    inFlight.current = true;
-    setSaveState('saving');
-    try {
-      const saved = await updateSignageScene(scene.id, {
-        expectedVersion: version.current,
-        ...current,
-        name: current.name.trim(),
-        orientation: scene.orientation,
-        backgroundColor: current.backgroundColor.toLowerCase(),
-      });
-      version.current = saved.version;
-      savedRevision.current = sent;
-      queryClient.setQueryData(signageKeys.scene(scene.id), saved);
-      void queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
-      inFlight.current = false;
-      if (revision.current !== sent) void save();
-      else {
-        setSaveState('saved');
-        setSaveMessage(null);
+  const save = useCallback(
+    async function saveScene(): Promise<void> {
+      if (gone.current || hold.current || inFlight.current || revision.current === savedRevision.current) return;
+      const current = latest.current;
+      const problem = draftError(current);
+      if (problem) {
+        setSaveState('invalid');
+        setSaveMessage(problem);
+        return;
       }
-    } catch (error) {
-      inFlight.current = false;
-      if (isStaleWrite(error)) {
-        hold.current = true;
-        setSaveState('conflict');
-        setSaveMessage(null);
-      } else {
-        setSaveState('error');
-        setSaveMessage(errorMessage(error));
+      const sent = revision.current;
+      inFlight.current = true;
+      setSaveState('saving');
+      try {
+        const saved = await updateSignageScene(scene.id, {
+          expectedVersion: version.current,
+          ...current,
+          name: current.name.trim(),
+          orientation: scene.orientation,
+          backgroundColor: current.backgroundColor.toLowerCase(),
+        });
+        version.current = saved.version;
+        savedRevision.current = sent;
+        queryClient.setQueryData(signageKeys.scene(scene.id), saved);
+        void queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
+        inFlight.current = false;
+        if (revision.current !== sent) void saveScene();
+        else {
+          setSaveState('saved');
+          setSaveMessage(null);
+        }
+      } catch (error) {
+        inFlight.current = false;
+        if (isStaleWrite(error)) {
+          hold.current = true;
+          setSaveState('conflict');
+          setSaveMessage(null);
+        } else {
+          setSaveState('error');
+          setSaveMessage(errorMessage(error));
+        }
       }
-    }
-  }, [queryClient, scene.id, scene.orientation]);
+    },
+    [queryClient, scene.id, scene.orientation],
+  );
 
   const edit = (change: (current: Draft) => Draft) => {
     const next = change(latest.current);

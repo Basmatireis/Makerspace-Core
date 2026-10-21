@@ -21,6 +21,7 @@ export function PeopleBatchActions({
   hasAssignableRoles: boolean;
   batch: ReturnType<typeof useBatchPeopleActions>;
 }) {
+  const { setBatchMembers, setBatchAction, openDeleteAccounts, openDeletePeople } = batch;
   const selectedForAccountCreation = selectedMembers.filter((member) => member.account === null);
   const selectedForRoleAssignment = selectedMembers;
   const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
@@ -34,8 +35,8 @@ export function PeopleBatchActions({
           iconDescription="Create login accounts"
           disabled={selectedForAccountCreation.length === 0}
           onClick={() => {
-            batch.setBatchMembers(selectedMembers);
-            batch.setBatchAction('create-accounts');
+            setBatchMembers(selectedMembers);
+            setBatchAction('create-accounts');
           }}
         >
           Create accounts
@@ -47,8 +48,8 @@ export function PeopleBatchActions({
           iconDescription="Assign role"
           disabled={selectedForRoleAssignment.length === 0 || !hasAssignableRoles}
           onClick={() => {
-            batch.setBatchMembers(selectedMembers);
-            batch.setBatchAction('assign-role');
+            setBatchMembers(selectedMembers);
+            setBatchAction('assign-role');
           }}
         >
           Assign role
@@ -59,11 +60,7 @@ export function PeopleBatchActions({
           renderIcon={TrashCan}
           iconDescription="Delete login accounts"
           disabled={selectedForAccountDeletion.length === 0}
-          onClick={(event) => {
-            batch.deleteAccountsLauncher.current = event.currentTarget;
-            batch.setBatchMembers(selectedMembers);
-            batch.setBatchAction('delete-accounts');
-          }}
+          onClick={(event) => openDeleteAccounts(event.currentTarget, selectedMembers)}
         >
           Delete accounts
         </TableBatchAction>
@@ -73,11 +70,7 @@ export function PeopleBatchActions({
           renderIcon={TrashCan}
           iconDescription="Delete people"
           disabled={selectedForPersonDeletion.length === 0}
-          onClick={(event) => {
-            batch.deletePeopleLauncher.current = event.currentTarget;
-            batch.setBatchMembers(selectedMembers);
-            batch.setBatchAction('delete-people');
-          }}
+          onClick={(event) => openDeletePeople(event.currentTarget, selectedMembers)}
         >
           Delete people
         </TableBatchAction>
