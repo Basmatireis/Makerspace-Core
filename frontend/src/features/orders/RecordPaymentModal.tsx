@@ -3,10 +3,12 @@ import { InlineNotification, Modal, Stack } from '@carbon/react';
 import { checkoutOrder } from '../../api/generated/orders/orders';
 import { recordOrderPayment } from '../../api/generated/payments/payments';
 import type { Order } from '../../api/generated/models';
+import { RichNotification } from '../../app/RichNotification';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { acceptsCashAndCard, customerLabel } from './logic';
 import { requestStateLabel } from './labels';
 import { formatCents, toCents } from './money';
+import { OrderErrorText } from './OrderErrorText';
 import { useOperationKeys } from './operations';
 import { checkEntry, newPaymentEntry, PaymentEntryForm, toPaymentInputs } from './PaymentEntry';
 import { useFinanceMutation } from './queries';
@@ -117,6 +119,11 @@ export function RecordPaymentModal({
       onRequestSubmit={submit}
     >
       <Stack gap={5}>
+        {mutation.error && (
+          <RichNotification kind="error" title="Could not record">
+            <OrderErrorText error={mutation.error} order={order} />
+          </RichNotification>
+        )}
         <div className="sales-modal-summary">
           <div>
             <span className="mj-secondary">{checkout ? 'Total to pay' : 'Outstanding'}</span>
@@ -152,15 +159,6 @@ export function RecordPaymentModal({
             requireFull={false}
             disabled={pending}
             allowInvoice={!!onRequestInvoice && due > 0}
-          />
-        )}
-        {mutation.error && (
-          <InlineNotification
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title="Could not record"
-            subtitle={mutation.error.message}
           />
         )}
       </Stack>

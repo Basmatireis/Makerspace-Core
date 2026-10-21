@@ -1,8 +1,7 @@
 import { Controller } from 'react-hook-form';
 import { InlineNotification, RadioButton, RadioButtonGroup, Select, SelectItem, Stack, TextInput } from '@carbon/react';
 import { DecimalField } from '../../../../app/DecimalField';
-import { decimalNumber, decimalValidator } from '../../../../app/decimalInput';
-import { ProductPicker } from '../../components/ProductPicker';
+import { decimalNumber, decimalText, decimalValidator } from '../../../../app/decimalInput';
 import { formatGrams } from '../../components/inventoryShared';
 import { type ChangeFilamentWizard } from './useChangeFilamentWizard';
 
@@ -10,14 +9,9 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
   const {
     canPurchase,
     filaments,
-    products,
     values,
-    spool,
     refillOnly,
-    chooseProduct,
-    setManual,
     material,
-    selectedProduct,
     stockAfterClose,
     stock,
     sourceHelper,
@@ -26,6 +20,7 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
     errors,
     control,
     register,
+    setValue,
   } = wizard;
 
   return (
@@ -39,56 +34,24 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
           subtitle={`${name} has no filament. The new fill is fill ${nextFill}.`}
         />
       )}
-      <Controller
-        control={control}
-        name="productId"
-        rules={{
-          validate: (value, form) => form.manual || Boolean(value) || 'Choose a product, or select Not in catalog.',
-        }}
-        render={({ fieldState }) => (
-          <ProductPicker
-            id="refill-product-picker"
-            products={products}
-            productId={values.productId}
-            manual={values.manual}
-            onProduct={chooseProduct}
-            onManual={setManual}
-            invalid={fieldState.invalid}
-            invalidText={fieldState.error?.message}
-          />
-        )}
-      />
-      {spool?.kind === 'reusable' && selectedProduct?.packaging === 'spool' && (
-        <InlineNotification
-          kind="info"
-          lowContrast
-          hideCloseButton
-          title="Single-use packaging"
-          subtitle={`${selectedProduct.manufacturer} ${selectedProduct.name} comes on its own spool. Loading it onto reusable ${spool.displayId} means rewinding it onto this spool.`}
-        />
-      )}
-      {selectedProduct ? (
-        <TextInput
-          id="refill-material-product"
-          labelText="Material"
-          readOnly
-          value={material?.name ?? selectedProduct.materialName}
-          helperText="Set by the product."
-        />
-      ) : (
-        <Select
-          id="refill-material"
-          labelText="Material"
-          invalid={Boolean(errors.materialId)}
-          invalidText={errors.materialId?.message}
-          {...register('materialId', { required: 'Choose a material.' })}
-        >
-          <SelectItem value="" text="Choose a material" />
-          {filaments.map((item) => (
-            <SelectItem key={item.id} value={item.id} text={item.name} />
-          ))}
-        </Select>
-      )}
+      <Select
+        id="refill-material"
+        labelText="Filament"
+        invalid={Boolean(errors.materialId)}
+        invalidText={errors.materialId?.message}
+        {...register('materialId', {
+          required: 'Choose a filament.',
+          onChange: (event) => {
+            const next = filaments.find((item) => item.id === event.target.value);
+            if (next?.packageSize != null) setValue('netWeight', decimalText(next.packageSize));
+          },
+        })}
+      >
+        <SelectItem value="" text="Choose a filament" />
+        {filaments.map((item) => (
+          <SelectItem key={item.id} value={item.id} text={item.name} />
+        ))}
+      </Select>
       <Controller
         control={control}
         name="netWeight"
@@ -175,17 +138,14 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
           />
         </>
       )}
-      {values.manual && (
-        <TextInput
-          id="refill-manufacturer"
-          labelText="Manufacturer (optional)"
-          autoComplete="off"
-          {...register('manufacturer')}
-        />
-      )}
-      {values.manual && (
-        <TextInput id="refill-product" labelText="Product (optional)" autoComplete="off" {...register('product')} />
-      )}
+      <TextInput
+        id="refill-manufacturer"
+        labelText="Manufacturer (optional)"
+        helperText="Defaults to the manufacturer of the article."
+        autoComplete="off"
+        {...register('manufacturer')}
+      />
+      <TextInput id="refill-product" labelText="Product name (optional)" autoComplete="off" {...register('product')} />
     </Stack>
   );
 }

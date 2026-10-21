@@ -18,29 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentPackaging } from './filamentPackaging';
-import type { UUIDv7 } from './uUIDv7';
 
-export type ListFilamentProductsParams = {
 /**
- * Matches manufacturer and name.
- * @maxLength 200
+ * filament is measured in grams, serves FDM printing and can sit on spools; consumable serves at least one machine process; part has no process, so it can never be used in a machine run.
  */
-search?: string;
-materialId?: UUIDv7;
-/**
- * @maxLength 150
- */
-manufacturer?: string;
-packaging?: FilamentPackaging;
-includeInactive?: boolean;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-};
+export type MaterialKind = typeof MaterialKind[keyof typeof MaterialKind];
+
+
+export const MaterialKind = {
+  filament: 'filament',
+  consumable: 'consumable',
+  part: 'part',
+} as const;

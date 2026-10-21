@@ -24,7 +24,10 @@ import type {
   CreateMaterialRequest,
   CreateMaterialTypeRequest,
   InventoryMutationResult,
+  InventoryReceiptResult,
+  InventorySuggestions,
   InventoryTransactionPage,
+  ListInventorySuggestionsParams,
   ListMaterialTransactionsParams,
   ListMaterialsParams,
   MarkMaterialEmptyRequest,
@@ -32,6 +35,7 @@ import type {
   MaterialPage,
   MaterialType,
   MaterialTypeList,
+  ReceiveInventoryStockRequest,
   RecordMaterialConsumptionRequest,
   UUIDv7,
   UpdateMaterialRequest,
@@ -221,7 +225,8 @@ export const getListMaterialsUrl = (params?: ListMaterialsParams,) => {
 }
 
 /**
- * @summary List inventory materials and balances
+ * Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
+ * @summary List inventory articles and balances
  */
 export const listMaterials = async (params?: ListMaterialsParams, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialPage> => {
 
@@ -244,7 +249,8 @@ export const getCreateMaterialUrl = () => {
 }
 
 /**
- * @summary Create an inventory material
+ * Requires `inventory.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
+ * @summary Create an inventory article
  */
 export const createMaterial = async (createMaterialRequest: CreateMaterialRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
 
@@ -399,6 +405,75 @@ return apiFetch<InventoryMutationResult>(getAddMaterialPurchaseUrl(materialId),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(addMaterialPurchaseRequest)
+  }
+);}
+
+
+export const getReceiveInventoryStockUrl = () => {
+
+
+
+
+  return `/api/v1/inventory/receipts`
+}
+
+/**
+ * Requires `inventory.manage`; a placement on spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
+ * @summary Receive purchased stock
+ */
+export const receiveInventoryStock = async (receiveInventoryStockRequest: ReceiveInventoryStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryReceiptResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<InventoryReceiptResult>(getReceiveInventoryStockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(receiveInventoryStockRequest)
+  }
+);}
+
+
+export const getListInventorySuggestionsUrl = (params?: ListInventorySuggestionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/inventory/suggestions?${stringifiedParams}` : `/api/v1/inventory/suggestions`
+}
+
+/**
+ * Requires `inventory.read`. Distinct values in use, most frequent first, at most 50 each. Variants can be restricted to one material type.
+ * @summary Suggestions for article and receipt forms
+ */
+export const listInventorySuggestions = async (params?: ListInventorySuggestionsParams, options?: Parameters<typeof apiFetch>[1]): Promise<InventorySuggestions> => {
+
+  return apiFetch<InventorySuggestions>(getListInventorySuggestionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

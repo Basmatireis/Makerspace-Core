@@ -18,7 +18,7 @@ import { JobFormModal } from './dialogs/JobFormModal';
 import { machineActivityQuery, machinesQuery, overviewQuery } from './queries';
 import { formatDecimal } from './formatting';
 import { formatRelative, formatTime } from './shared/format';
-import { machineLogbookPaths } from './shared/paths';
+import { inventoryTabForKind, machineLogbookPaths } from './shared/paths';
 import {
   AvailabilityTag,
   ConnectorIssueTag,
@@ -289,7 +289,7 @@ export function MachineLogbookOverviewPage() {
                 action={
                   <Button
                     as={Link}
-                    to={`${machineLogbookPaths.inventory('materials')}&stock=low_stock`}
+                    to={`${machineLogbookPaths.inventory(lowStock ? inventoryTabForKind(lowStock.kind) : 'filament')}&stock=low_stock`}
                     kind="ghost"
                     size="sm"
                     renderIcon={ArrowRight}

@@ -37,6 +37,7 @@ type OrderItemInput struct {
 	Unit               string        `json:"unit,omitempty"`
 	UnitPrice          string        `json:"unitPrice,omitempty"`
 	MachineJobID       uuid.UUID     `json:"machineJobId,omitempty"`
+	MaterialID         uuid.UUID     `json:"materialId,omitempty"`
 	ExpectedJobVersion int64         `json:"expectedJobVersion,omitempty"`
 	ExpectedVersion    int64         `json:"expectedVersion"`
 }
@@ -112,6 +113,7 @@ type OrderItem struct {
 	Amount             string             `json:"amount"`
 	SourceMachineJobID *uuid.UUID         `json:"sourceMachineJobId,omitempty"`
 	SourceJobVersion   *int64             `json:"sourceJobVersion,omitempty"`
+	SourceMaterialID   *uuid.UUID         `json:"sourceMaterialId,omitempty"`
 	SourceChanged      bool               `json:"sourceChanged"`
 	Snapshot           *JobChargeSnapshot `json:"snapshot,omitempty"`
 	CreatedAt          time.Time          `json:"createdAt"`

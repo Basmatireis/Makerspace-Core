@@ -53,6 +53,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		ctx,
 		p,
 		"  PETG-CF "+suffix+"  ",
+		"consumable",
 		"g",
 		[]string{"fdm_printing", "other"},
 		&request,
@@ -70,8 +71,9 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		ctx,
 		p,
 		strings.ToLower(created.Name),
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&request,
 	); !apperror.IsCode(
 		err,
@@ -79,13 +81,13 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	) {
 		t.Fatalf("duplicate name: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "kg", []string{"other"}, &request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "kg", []string{"other"}, &request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
 		t.Fatalf("invalid unit: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "   ", "g", []string{"fdm_printing", "other"}, &request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, "   ", "filament", "g", []string{"fdm_printing"}, &request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -142,7 +144,15 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		}
 	}
 	// Moving the material to a type with another unit is refused by the stock rule once stock exists.
-	other, err := s.CreateMaterialType(ctx, p, "Resin "+suffix, "ml", []string{"fdm_printing", "other"}, &request)
+	other, err := s.CreateMaterialType(
+		ctx,
+		p,
+		"Resin "+suffix,
+		"consumable",
+		"ml",
+		[]string{"fdm_printing", "other"},
+		&request,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +165,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		"100",
 		"5",
 		time.Now().UTC(),
+		nil,
 		nil,
 		nil,
 		&request,
@@ -194,6 +205,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		created.ID,
 		current.Version,
 		created.Name,
+		"",
 		"ml",
 		nil,
 		true,
@@ -210,6 +222,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		created.ID,
 		current.Version+5,
 		created.Name,
+		"",
 		"g",
 		nil,
 		true,
@@ -227,6 +240,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		created.ID,
 		current.Version,
 		"PETG carbon "+suffix,
+		"",
 		"g",
 		nil,
 		false,
@@ -292,8 +306,9 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		ctx,
 		nobody,
 		"Nope "+suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		nil,
 	); !apperror.IsCode(
 		err,
@@ -334,8 +349,9 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 		ctx,
 		f.p,
 		"Jobs TPU "+suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&f.request,
 	)
 	must(err)
@@ -348,7 +364,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 	)
 	must(err)
 	extraMaterials = append(extraMaterials, tpu.ID)
-	_, err = f.s.AddPurchase(ctx, f.p, tpu.ID, tpu.InventoryVersion, "500", "20", f.now, nil, nil, &f.request)
+	_, err = f.s.AddPurchase(ctx, f.p, tpu.ID, tpu.InventoryVersion, "500", "20", f.now, nil, nil, nil, &f.request)
 	must(err)
 
 	input := f.input(-3*time.Hour, time.Hour, "successful")
@@ -437,6 +453,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 		tpuType.ID,
 		tpuType.Version,
 		"Renamed TPU "+suffix,
+		"",
 		"g",
 		nil,
 		true,

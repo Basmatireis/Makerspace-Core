@@ -177,7 +177,7 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 
 	// cm2, measures and measure rules exist now; the database enforces their shape.
 	cmType := id()
-	exec(`INSERT INTO material_types (id, name, unit) VALUES ($1, 'Sticker paper', 'cm2')`, cmType)
+	exec(`INSERT INTO material_types (id, name, unit, kind) VALUES ($1, 'Sticker paper', 'cm2', 'consumable')`, cmType)
 	runID := id()
 	exec(
 		`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, history_complete) VALUES ($1, 'R-2026-900010', $2, 'manual', $3, now() - interval '2 hours', now() - interval '1 hour', true)`,

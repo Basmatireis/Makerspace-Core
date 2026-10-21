@@ -8,8 +8,12 @@ const withQuery = (path: string, query?: Record<string, string | undefined>) => 
 };
 const segment = (id: string) => encodeURIComponent(id);
 
-export type InventoryTab = 'materials' | 'material-types' | 'spools' | 'products';
+export type InventoryTab = 'filament' | 'consumables' | 'parts' | 'spools';
 export type MachineTab = 'printer';
+
+/** The Inventory tab that lists articles of a kind. */
+export const inventoryTabForKind = (kind: 'filament' | 'consumable' | 'part'): InventoryTab =>
+  kind === 'filament' ? 'filament' : kind === 'consumable' ? 'consumables' : 'parts';
 
 export const machineLogbookPaths = {
   overview: () => root,

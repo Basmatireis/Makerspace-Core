@@ -1,19 +1,16 @@
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   CreateMaterialRequest,
-  FilamentProduct,
-  FilamentProductInput,
   InventoryTransaction,
   MarkMaterialEmptyRequest,
   Material,
   MaterialType,
-  UpdateFilamentProductRequest,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { server } from '../../test/server';
@@ -49,16 +46,25 @@ const ids = {
   pla: '0192f6f8-743e-7c77-a349-cd07c3e8d001',
   plaType: '0192f6f8-743e-7c77-a349-cd07c3e8d0a1',
   sheetType: '0192f6f8-743e-7c77-a349-cd07c3e8d0a2',
+  partType: '0192f6f8-743e-7c77-a349-cd07c3e8d0a3',
   sheet: '0192f6f8-743e-7c77-a349-cd07c3e8d002',
-  product: '0192f6f8-743e-7c77-a349-cd07c3e8d010',
+  insert: '0192f6f8-743e-7c77-a349-cd07c3e8d003',
+  petg: '0192f6f8-743e-7c77-a349-cd07c3e8d004',
   spool: '0192f6f8-743e-7c77-a349-cd07c3e8d020',
 };
 
 const filament: Material = {
   id: ids.pla,
-  name: 'PLA Black',
+  name: 'PLA Basic · Black · Bambu Lab',
+  kind: 'filament',
   materialTypeId: ids.plaType,
   materialTypeName: 'PLA',
+  variant: 'Basic',
+  manufacturer: 'Bambu Lab',
+  salePrice: null,
+  packageSize: '1000',
+  storageLocation: 'Shelf A',
+  notes: null,
   colorName: 'Black',
   colorHex: '#1A1A1A',
   unit: 'g',
@@ -77,12 +83,30 @@ const filament: Material = {
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-09-15T11:26:00Z',
 };
+const lowFilament: Material = {
+  ...filament,
+  id: ids.petg,
+  name: 'PETG · White',
+  variant: null,
+  manufacturer: null,
+  colorName: 'White',
+  colorHex: '#FFFFFF',
+  quantity: '300',
+  assignedQuantity: '0',
+  unassignedQuantity: '300',
+  stockState: 'low_stock',
+  storageLocation: null,
+  packageSize: null,
+};
 const sheet: Material = {
   ...filament,
   id: ids.sheet,
   name: 'Birch plywood',
+  kind: 'consumable',
   materialTypeId: ids.sheetType,
   materialTypeName: 'Plywood',
+  variant: '3 mm',
+  manufacturer: null,
   colorName: null,
   colorHex: null,
   unit: 'm2',
@@ -95,22 +119,25 @@ const sheet: Material = {
   inventoryValue: '108',
   inventoryVersion: 4,
   version: 1,
+  storageLocation: null,
+  packageSize: null,
 };
-const product: FilamentProduct = {
-  id: ids.product,
-  manufacturer: 'Bambu Lab',
-  name: 'PLA Basic Black',
-  materialId: ids.pla,
-  materialName: 'PLA Black',
-  netWeightG: '1000',
-  defaultPrice: '19.99',
-  packaging: 'spool',
-  notes: null,
-  active: true,
-  inUseCount: 2,
-  version: 5,
-  createdAt: '2026-08-01T00:00:00Z',
-  updatedAt: '2026-08-01T00:00:00Z',
+const insert: Material = {
+  ...sheet,
+  id: ids.insert,
+  name: 'M3 heat-set insert',
+  kind: 'part',
+  materialTypeId: ids.partType,
+  materialTypeName: 'Fasteners',
+  variant: null,
+  unit: 'piece',
+  quantity: '250',
+  unassignedQuantity: '250',
+  salePrice: '0.15',
+  averageUnitCost: '0.05',
+  inventoryValue: '12.5',
+  storageLocation: 'Drawer 4',
+  packageSize: '100',
 };
 
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
@@ -162,6 +189,7 @@ const materialTypes: MaterialType[] = [
   {
     id: ids.plaType,
     name: 'PLA',
+    kind: 'filament',
     unit: 'g',
     processes: ['fdm_printing'],
     active: true,
@@ -174,6 +202,7 @@ const materialTypes: MaterialType[] = [
   {
     id: ids.sheetType,
     name: 'Plywood',
+    kind: 'consumable',
     unit: 'm2',
     processes: ['laser_cutting'],
     active: true,
@@ -183,21 +212,28 @@ const materialTypes: MaterialType[] = [
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
   },
+  {
+    id: ids.partType,
+    name: 'Fasteners',
+    kind: 'part',
+    unit: 'piece',
+    processes: [],
+    active: true,
+    materialCount: 1,
+    pricingRuleCount: 0,
+    version: 1,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
 ];
 
-function serveInventory(materials: Material[] = [filament, sheet], products: FilamentProduct[] = [product]) {
+function serveInventory(materials: Material[] = [filament, lowFilament, sheet, insert]) {
   server.use(
     http.get('*/api/v1/materials', () => HttpResponse.json({ ...page(materials), totalInventoryValue: '218' })),
-    http.get('*/api/v1/filament-spools', () =>
-      HttpResponse.json(
-        page([
-          { id: ids.spool, materialId: ids.pla },
-          { id: ids.spool + '1', materialId: ids.pla },
-        ]),
-      ),
-    ),
-    http.get('*/api/v1/filament-products', () => HttpResponse.json(page(products))),
     http.get('*/api/v1/material-types', () => HttpResponse.json({ items: materialTypes })),
+    http.get('*/api/v1/inventory/suggestions', () =>
+      HttpResponse.json({ variants: [], manufacturers: [], suppliers: [], storageLocations: [] }),
+    ),
   );
 }
 
@@ -206,51 +242,117 @@ describe('Inventory page', () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     const user = userEvent.setup();
-    const { router } = renderPage(<InventoryPage />, `${machineLogbookPaths.inventory('products')}`);
+    const { router } = renderPage(<InventoryPage />, machineLogbookPaths.inventory('parts'));
 
-    expect(await screen.findByRole('tab', { name: 'Products', selected: true })).toBeInTheDocument();
-    expect(await screen.findByRole('table', { name: 'Products' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Parts', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Parts' })).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Spools' }));
     expect(await screen.findByTestId('spools-table')).toHaveAttribute('data-compact', 'false');
     expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('spools');
-    await user.click(screen.getByRole('tab', { name: 'Materials' }));
-    expect(await screen.findByRole('table', { name: 'Materials' })).toBeInTheDocument();
-    expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('materials');
+    await user.click(screen.getByRole('tab', { name: 'Consumables' }));
+    expect(await screen.findByRole('table', { name: 'Consumables' })).toBeInTheDocument();
+    expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('consumables');
   });
 
-  it('shows the split between filament on spools and loose stock, and the spool count', async () => {
+  it('opens the filament tab for the tab names of the former page', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory();
+    renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=material-types');
+    expect(await screen.findByRole('tab', { name: 'Filament', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Filament' })).toBeInTheDocument();
+  });
+
+  it('shows filament with colour, type, variant, manufacturer and the split between loose stock and spools', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory());
 
-    const table = await screen.findByRole('table', { name: 'Materials' });
-    const plaRow = (await within(table).findByRole('link', { name: 'PLA Black' })).closest('tr') as HTMLElement;
-    expect(within(plaRow).getByText('6,107 g')).toBeInTheDocument();
-    expect(within(plaRow).getByText('5,000 g on spools · 1,107 g loose')).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        within(plaRow)
-          .getAllByRole('cell')
-          .some((cell) => cell.textContent === '2'),
-      ).toBe(true),
+    const table = await screen.findByRole('table', { name: 'Filament' });
+    for (const header of [
+      'Colour',
+      'Material',
+      'Variant',
+      'Manufacturer',
+      'Loose stock',
+      'On spools',
+      'Location',
+      'State',
+    ]) {
+      expect(within(table).getByRole('columnheader', { name: new RegExp(header) })).toBeInTheDocument();
+    }
+    const row = (await within(table).findByRole('link', { name: 'Black' })).closest('tr') as HTMLElement;
+    expect(within(row).getByText('PLA')).toBeInTheDocument();
+    expect(within(row).getByText('Basic')).toBeInTheDocument();
+    expect(within(row).getByText('Bambu Lab')).toBeInTheDocument();
+    expect(within(row).getByText('1,107 g')).toBeInTheDocument();
+    expect(within(row).getByText('5,000 g')).toBeInTheDocument();
+    expect(within(row).getByText('Shelf A')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'Black' })).toHaveAttribute(
+      'href',
+      machineLogbookPaths.material(ids.pla),
     );
-    const sheetRow = within(table).getByRole('link', { name: 'Birch plywood' }).closest('tr') as HTMLElement;
-    expect(within(sheetRow).getByText('12 m²')).toBeInTheDocument();
-    expect(within(sheetRow).queryByText(/on spools/)).not.toBeInTheDocument();
-    expect(within(plaRow).getByText('€18.00 / kg')).toBeInTheDocument();
+    expect(within(table).queryByText('Birch plywood')).not.toBeInTheDocument();
+    // The stock value of the whole inventory sits in the page description.
+    expect(screen.getByText(/Stock value €218\.00/)).toBeInTheDocument();
   });
 
-  it('offers New only to people who may manage inventory or register spools', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.filament_spoolsmanage];
+  it('shows consumables with their unit and parts with category and sale price', async () => {
+    auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     const user = userEvent.setup();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory());
-    await user.click(await screen.findByRole('button', { name: 'New' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Register spool' }));
-    expect(await screen.findByRole('dialog', { name: 'Spool form stub' })).toBeInTheDocument();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('consumables'));
+
+    const consumables = await screen.findByRole('table', { name: 'Consumables' });
+    const sheetRow = (await within(consumables).findByRole('link', { name: 'Birch plywood' })).closest(
+      'tr',
+    ) as HTMLElement;
+    expect(within(sheetRow).getByText('12 m²')).toBeInTheDocument();
+    expect(within(sheetRow).getByText('3 mm')).toBeInTheDocument();
+    expect(within(consumables).queryByRole('columnheader', { name: /On spools/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Parts' }));
+    const parts = await screen.findByRole('table', { name: 'Parts' });
+    const partRow = (await within(parts).findByRole('link', { name: 'M3 heat-set insert' })).closest(
+      'tr',
+    ) as HTMLElement;
+    expect(within(partRow).getByText('Fasteners')).toBeInTheDocument();
+    expect(within(partRow).getByText('250 pcs')).toBeInTheDocument();
+    expect(within(partRow).getByText('€0.15')).toBeInTheDocument();
+    expect(within(parts).getByRole('columnheader', { name: /Category/ })).toBeInTheDocument();
   });
 
-  it('adds a material from the toolbar', async () => {
+  it('applies the low-stock filter named in the URL', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory();
+    renderPage(<InventoryPage />, `${machineLogbookPaths.inventory('filament')}&stock=low_stock`);
+
+    const table = await screen.findByRole('table', { name: 'Filament' });
+    expect(await within(table).findByRole('link', { name: 'White' })).toBeInTheDocument();
+    expect(within(table).queryByRole('link', { name: 'Black' })).not.toBeInTheDocument();
+    expect(within(table).getByText('Low')).toBeInTheDocument();
+  });
+
+  it('offers receiving stock and new articles only to people who may manage inventory', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory());
+    await screen.findByRole('table', { name: 'Filament' });
+    expect(screen.queryByRole('button', { name: 'Receive stock' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'More inventory actions' })).toBeInTheDocument();
+  });
+
+  it('opens Receive stock for the kind of the current tab', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveInventory();
+    const user = userEvent.setup();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('parts'));
+    await user.click(await screen.findByRole('button', { name: 'Receive stock' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+    expect(within(dialog).getByRole('combobox', { name: 'Article' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('Where it goes')).not.toBeInTheDocument();
+  });
+
+  it('adds an article without stock from the overflow menu', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveInventory([]);
     let submitted: CreateMaterialRequest | undefined;
@@ -261,158 +363,88 @@ describe('Inventory page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory());
-    // The toolbar button comes first; the empty state repeats it.
-    await user.click((await screen.findAllByRole('button', { name: 'Add material' }))[0]);
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Name'), 'PETG Clear');
-    await user.selectOptions(await within(dialog).findByLabelText('Material type'), ids.plaType);
-    await user.type(within(dialog).getByLabelText('Colour name (optional)'), 'Clear');
-    await user.type(within(dialog).getByLabelText('Colour code (optional)'), '#dde8ee');
-    await user.type(within(dialog).getByLabelText('Filament diameter in mm (optional)'), '1.75');
-    await user.type(within(dialog).getByLabelText('Low-stock threshold in g (optional)'), '1,5');
-    await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('parts'));
+    await user.click(await screen.findByRole('img', { name: 'More inventory actions' }));
+    await user.click(await screen.findByText('New article'));
+    const dialog = await screen.findByRole('dialog', { name: 'New article' });
+    await user.type(within(dialog).getByLabelText('Name'), 'Brake caliper');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Category' }));
+    await user.click(await screen.findByText('Fasteners'));
+    await user.type(within(dialog).getByLabelText(/Sale price per/), '39,9');
+    await user.click(within(dialog).getByRole('button', { name: 'Add article' }));
     await waitFor(() =>
-      expect(submitted).toEqual({
-        name: 'PETG Clear',
-        materialTypeId: ids.plaType,
-        colorName: 'Clear',
-        colorHex: '#DDE8EE',
-        lowStockThreshold: '1.5',
-        filamentDiameterMm: '1.75',
+      expect(submitted).toMatchObject({
+        name: 'Brake caliper',
+        materialTypeId: ids.partType,
+        salePrice: '39.90',
+        colorName: null,
+        filamentDiameterMm: null,
       }),
     );
-    expect(await screen.findByText('Material added')).toBeInTheDocument();
-  });
-
-  it('hides add and edit controls from readers and shows plain product names', async () => {
-    auth.permissions = [PermissionId.inventoryread];
-    serveInventory();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory('products'));
-    const table = await screen.findByRole('table', { name: 'Products' });
-    expect(await within(table).findByText('PLA Basic Black')).toBeInTheDocument();
-    expect(within(table).queryByRole('button', { name: 'PLA Basic Black' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add product' })).not.toBeInTheDocument();
-    expect(within(table).getByText('Bambu Lab')).toBeInTheDocument();
-    expect(within(table).getByText('€19.99')).toBeInTheDocument();
-  });
-
-  it('creates a product with a new manufacturer', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
-    serveInventory();
-    let submitted: FilamentProductInput | undefined;
-    server.use(
-      http.post('*/api/v1/filament-products', async ({ request }) => {
-        submitted = (await request.json()) as FilamentProductInput;
-        return HttpResponse.json(
-          { ...product, ...submitted, id: ids.product + '9', inUseCount: 0, version: 1 },
-          { status: 201 },
-        );
-      }),
-    );
-    const user = userEvent.setup();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory('products'));
-    await user.click(await screen.findByRole('button', { name: 'Add product' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByRole('combobox', { name: 'Manufacturer' }), 'Prusament');
-    await user.type(within(dialog).getByLabelText('Product'), 'PETG Orange');
-    await user.selectOptions(within(dialog).getByLabelText('Material'), ids.pla);
-    await user.type(within(dialog).getByLabelText('Default price (€, optional)'), '24.5');
-    await user.click(within(dialog).getByLabelText(/Refill/));
-    await user.click(within(dialog).getByRole('button', { name: 'Add product' }));
-    await waitFor(() =>
-      expect(submitted).toEqual({
-        manufacturer: 'Prusament',
-        name: 'PETG Orange',
-        materialId: ids.pla,
-        netWeightG: '1000',
-        defaultPrice: '24.50',
-        packaging: 'refill',
-        notes: null,
-      }),
-    );
-    expect(await screen.findByText('Product added')).toBeInTheDocument();
-  });
-
-  it('edits a product with its version and shows a duplicate as an inline error', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
-    serveInventory();
-    const submissions: UpdateFilamentProductRequest[] = [];
-    server.use(
-      http.patch(`*/api/v1/filament-products/${ids.product}`, async ({ request }) => {
-        submissions.push((await request.json()) as UpdateFilamentProductRequest);
-        return HttpResponse.json(
-          { code: 'product_exists', message: 'A product with this manufacturer and name already exists' },
-          { status: 409 },
-        );
-      }),
-    );
-    const user = userEvent.setup();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory('products'));
-    await user.click(await screen.findByRole('button', { name: 'PLA Basic Black' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Edit product')).toBeInTheDocument();
-    expect(within(dialog).getByRole('switch', { name: 'Active' })).toBeInTheDocument();
-    const name = within(dialog).getByLabelText('Product');
-    await user.clear(name);
-    await user.type(name, 'PLA Matte Black');
-    await user.click(within(dialog).getByRole('button', { name: 'Save product' }));
-    await waitFor(() => expect(submissions).toHaveLength(1));
-    expect(submissions[0]).toMatchObject({
-      manufacturer: 'Bambu Lab',
-      name: 'PLA Matte Black',
-      materialId: ids.pla,
-      netWeightG: '1000',
-      defaultPrice: '19.99',
-      packaging: 'spool',
-      active: true,
-      expectedVersion: 5,
-    });
-    expect(
-      await within(dialog).findByText('This manufacturer already has a product with this name.'),
-    ).toBeInTheDocument();
-    expect(JSON.stringify(submissions)).not.toContain(ids.product);
+    expect(await screen.findByText('Article added')).toBeInTheDocument();
   });
 });
 
-describe('Material detail page', () => {
+describe('Article detail page', () => {
   function serveMaterial(material: Material, transactions: InventoryTransaction[] = []) {
     server.use(
       http.get(`*/api/v1/materials/${material.id}`, () => HttpResponse.json(material)),
       http.get(`*/api/v1/materials/${material.id}/transactions`, () => HttpResponse.json(page(transactions))),
-      http.get('*/api/v1/filament-products', () => HttpResponse.json(page([product]))),
       http.get('*/api/v1/materials', () =>
         HttpResponse.json({ ...page([filament, sheet]), totalInventoryValue: '218' }),
+      ),
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: materialTypes })),
+      http.get('*/api/v1/inventory/suggestions', () =>
+        HttpResponse.json({ variants: [], manufacturers: [], suppliers: [], storageLocations: [] }),
       ),
     );
   }
   const route = '/machine-logbook/inventory/materials/:materialId';
 
-  it('shows the stock split, products and a compact spools table for filament', async () => {
+  it('shows the article fields, the stock split and a compact spools table for filament', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(filament);
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
 
-    expect(await screen.findByRole('heading', { name: 'PLA Black' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'PLA Basic · Black · Bambu Lab' })).toBeInTheDocument();
     const facts = document.querySelector('.mj-facts') as HTMLElement;
     expect(within(facts).getByText('On spools').nextSibling).toHaveTextContent('5,000 g');
     expect(within(facts).getByText('Loose stock').nextSibling).toHaveTextContent('1,107 g');
     expect(within(facts).getByText('Stock value').nextSibling).toHaveTextContent('€109.93');
-    expect(await screen.findByRole('table', { name: 'Products' })).toBeInTheDocument();
+    expect(within(facts).getByText('Package size').nextSibling).toHaveTextContent('1,000 g');
+    expect(within(facts).getByText('Storage location').nextSibling).toHaveTextContent('Shelf A');
+    expect(within(facts).getByText('Manufacturer').nextSibling).toHaveTextContent('Bambu Lab');
+    expect(within(facts).getByText('Variant').nextSibling).toHaveTextContent('Basic');
+    expect(within(facts).getByText('Material type').nextSibling).toHaveTextContent('PLA');
+    expect(screen.queryByRole('table', { name: 'Products' })).not.toBeInTheDocument();
     expect(screen.getByTestId('spools-table')).toMatchObject({ dataset: { material: ids.pla, compact: 'true' } });
-    expect(screen.getByRole('button', { name: 'Add stock' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Receive stock' })).toBeInTheDocument();
   });
 
-  it('leaves out the spool sections and split for other materials, and the actions for readers', async () => {
+  it('shows the sale price and category of a part, without spool sections, and no actions for readers', async () => {
     auth.permissions = [PermissionId.inventoryread];
-    serveMaterial(sheet);
-    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.sheet), route);
+    serveMaterial(insert);
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
 
-    expect(await screen.findByRole('heading', { name: 'Birch plywood' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'M3 heat-set insert' })).toBeInTheDocument();
+    const facts = document.querySelector('.mj-facts') as HTMLElement;
+    expect(within(facts).getByText('Sale price').nextSibling).toHaveTextContent('€0.15 / pcs');
+    expect(within(facts).getByText('Category').nextSibling).toHaveTextContent('Fasteners');
     expect(screen.queryByText('On spools')).not.toBeInTheDocument();
     expect(screen.queryByTestId('spools-table')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add stock' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'More material actions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive stock' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'More article actions' })).not.toBeInTheDocument();
+  });
+
+  it('opens Receive stock with the article preselected', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveMaterial(insert);
+    const user = userEvent.setup();
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    await user.click(await screen.findByRole('button', { name: 'Receive stock' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+    expect(within(dialog).getByLabelText('Article')).toHaveValue('M3 heat-set insert · 250 pcs in stock');
+    expect(within(dialog).getByLabelText(/Size of one package/)).toHaveValue('100');
   });
 
   it('writes spool snapshots and transfers into the ledger as text', async () => {
@@ -475,6 +507,76 @@ describe('Material detail page', () => {
     );
   });
 
+  it('shows the purchase reference and the order sale kinds in the ledger', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveMaterial(insert, [
+      transaction({
+        id: ids.spool + 'f',
+        materialId: ids.insert,
+        kind: 'purchase',
+        supplier: 'Würth',
+        reference: 'INV-2026-77',
+        occurredAt: '2026-09-12T10:00:00Z',
+      }),
+      transaction({
+        id: ids.spool + 'g',
+        materialId: ids.insert,
+        kind: 'order_sale',
+        quantityDelta: '-10',
+        inventoryValueDelta: '-0.5',
+        totalPurchasePrice: null,
+        occurredAt: '2026-09-13T10:00:00Z',
+      }),
+      transaction({
+        id: ids.spool + 'h',
+        materialId: ids.insert,
+        kind: 'order_sale_reversal',
+        quantityDelta: '10',
+        inventoryValueDelta: '0.5',
+        totalPurchasePrice: null,
+        occurredAt: '2026-09-14T10:00:00Z',
+      }),
+    ]);
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+
+    const ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByText('Sold (order)')).toBeInTheDocument();
+    expect(within(ledger).getByText('Order reversed')).toBeInTheDocument();
+    expect(within(ledger).getByText('INV-2026-77')).toBeInTheDocument();
+    expect(within(ledger).getByText('Würth')).toBeInTheDocument();
+  });
+
+  it('links the order of a sale in the ledger only with orders.read', async () => {
+    const sales = [
+      transaction({
+        id: ids.spool + 'g',
+        materialId: ids.insert,
+        kind: 'order_sale',
+        quantityDelta: '-10',
+        inventoryValueDelta: '-0.5',
+        totalPurchasePrice: null,
+        orderId: ids.spool,
+        orderReference: 'O-2026-000012',
+        occurredAt: '2026-09-13T10:00:00Z',
+      }),
+    ];
+    auth.permissions = [PermissionId.inventoryread, PermissionId.ordersread];
+    serveMaterial(insert, sales);
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    let ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByRole('link', { name: 'O-2026-000012' })).toHaveAttribute(
+      'href',
+      `/orders/${ids.spool}`,
+    );
+    cleanup();
+
+    auth.permissions = [PermissionId.inventoryread];
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByText('O-2026-000012')).toBeInTheDocument();
+    expect(within(ledger).queryByRole('link', { name: 'O-2026-000012' })).toBeNull();
+  });
+
   it('labels the stock a machine run consumed and names the job it belongs to', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.machine_jobsread];
     serveMaterial(filament, [
@@ -497,7 +599,7 @@ describe('Material detail page', () => {
     );
   });
 
-  it('asks for confirmation and sends the latest inventory version when marking a material empty', async () => {
+  it('asks for confirmation and sends the latest inventory version when marking an article empty', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(sheet);
     let submitted: MarkMaterialEmptyRequest | undefined;
@@ -515,7 +617,7 @@ describe('Material detail page', () => {
 
     await screen.findByRole('heading', { name: 'Birch plywood' });
     // Carbon names the overflow button through a tooltip that only exists on hover; its icon carries the label.
-    await user.click(screen.getByRole('img', { name: 'More material actions' }));
+    await user.click(screen.getByRole('img', { name: 'More article actions' }));
     // jsdom never positions the floating menu, so Carbon leaves it visibility:hidden.
     await user.click(await screen.findByText('Mark as empty'));
     const dialog = await screen.findByRole('alertdialog');
@@ -540,8 +642,8 @@ describe('Material detail page', () => {
     const user = userEvent.setup();
     renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
 
-    await screen.findByRole('heading', { name: 'PLA Black' });
-    await user.click(screen.getByRole('img', { name: 'More material actions' }));
+    await screen.findByRole('heading', { name: 'PLA Basic · Black · Bambu Lab' });
+    await user.click(screen.getByRole('img', { name: 'More article actions' }));
     await user.click(await screen.findByText('Record consumption'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Loose stock: 1,107 g')).toBeInTheDocument();
@@ -554,37 +656,6 @@ describe('Material detail page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Record consumption' }));
     await waitFor(() =>
       expect(submitted).toMatchObject({ quantity: '100', disposal: false, reason: null, expectedInventoryVersion: 7 }),
-    );
-  });
-
-  it('records a purchase against the material with its price', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
-    serveMaterial(sheet);
-    let submitted: Record<string, unknown> | undefined;
-    server.use(
-      http.post(`*/api/v1/materials/${ids.sheet}/purchases`, async ({ request }) => {
-        submitted = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(
-          { material: sheet, transaction: transaction({ materialId: ids.sheet }) },
-          { status: 201 },
-        );
-      }),
-    );
-    const user = userEvent.setup();
-    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.sheet), route);
-
-    await user.click(await screen.findByRole('button', { name: 'Add stock' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Quantity received (m²)'), '5');
-    await user.type(within(dialog).getByLabelText('Total price in EUR'), '45');
-    await user.click(within(dialog).getByRole('button', { name: 'Add stock' }));
-    await waitFor(() =>
-      expect(submitted).toMatchObject({
-        quantity: '5',
-        totalPrice: '45.00',
-        supplier: null,
-        expectedInventoryVersion: 4,
-      }),
     );
   });
 });

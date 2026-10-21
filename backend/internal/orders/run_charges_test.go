@@ -17,8 +17,9 @@ func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 		t.Context(),
 		f.p,
 		"PLA "+ids.New().String(),
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		nil,
 	)
 	if e != nil {
@@ -41,6 +42,7 @@ func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 		"1000",
 		"20",
 		time.Now(),
+		nil,
 		nil,
 		nil,
 		nil,

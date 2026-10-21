@@ -111,8 +111,9 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		ctx,
 		p,
 		"PLA "+suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&requestID,
 	)
 	if err != nil {
@@ -139,6 +140,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		"1000",
 		"20",
 		time.Now().UTC(),
+		nil,
 		nil,
 		nil,
 		&requestID,

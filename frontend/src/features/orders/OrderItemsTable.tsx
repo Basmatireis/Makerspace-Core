@@ -1,6 +1,7 @@
 import {
   Button,
   IconButton,
+  Link as CarbonLink,
   Table,
   TableBody,
   TableCell,
@@ -11,6 +12,7 @@ import {
   Tag,
 } from '@carbon/react';
 import { Edit, Renew, TrashCan } from '@carbon/icons-react';
+import { Link } from 'react-router-dom';
 import type { Order, OrderItem } from '../../api/generated/models';
 import { formatDateTimeRange } from '../../app/dateTime';
 import { RefLink } from '../../app/RefLink';
@@ -23,13 +25,22 @@ type Props = {
   order: Order;
   editable: boolean;
   busy: boolean;
+  canReadInventory?: boolean;
   onRefresh: (item: OrderItem) => void;
   onRemove: (item: OrderItem) => void;
   onEdit: (item: OrderItem) => void;
 };
 
 /** The items of an order: jobs with their frozen charge details, manual items, and the total. */
-export function OrderItemsTable({ order, editable, busy, onRefresh, onRemove, onEdit }: Props) {
+export function OrderItemsTable({
+  order,
+  editable,
+  busy,
+  canReadInventory = false,
+  onRefresh,
+  onRemove,
+  onEdit,
+}: Props) {
   const items = activeItems(order);
   const draft = order.status === 'draft';
   return (
@@ -52,7 +63,7 @@ export function OrderItemsTable({ order, editable, busy, onRefresh, onRemove, on
         <TableBody>
           {items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5}>No items yet. Use “Add items” to add jobs or a custom item.</TableCell>
+              <TableCell colSpan={5}>No items yet. Use “Add items” to add jobs, stock or a custom item.</TableCell>
             </TableRow>
           )}
           {items.map((item) => {
@@ -65,6 +76,10 @@ export function OrderItemsTable({ order, editable, busy, onRefresh, onRemove, on
                       <RefLink reference={snapshot.displayId} id={item.sourceMachineJobId} kind="job">
                         {item.description}
                       </RefLink>
+                    ) : item.kind === 'inventory_item' && item.sourceMaterialId && canReadInventory ? (
+                      <CarbonLink as={Link} to={`/machine-logbook/inventory/materials/${item.sourceMaterialId}`}>
+                        {item.description}
+                      </CarbonLink>
                     ) : (
                       <span>{item.description}</span>
                     )}
@@ -83,9 +98,16 @@ export function OrderItemsTable({ order, editable, busy, onRefresh, onRemove, on
                         </span>
                       </>
                     ) : (
-                      <span className="mj-secondary">Manual item</span>
+                      <span className="mj-secondary">
+                        {item.kind === 'inventory_item' ? 'From stock' : 'Manual item'}
+                      </span>
                     )}
                     <span className="mj-inline">
+                      {item.kind === 'inventory_item' && (
+                        <Tag type="outline" size="sm">
+                          Stock
+                        </Tag>
+                      )}
                       {item.sourceChanged && (
                         <Tag type="red" size="sm">
                           Job changed since charged
@@ -119,7 +141,7 @@ export function OrderItemsTable({ order, editable, busy, onRefresh, onRemove, on
                 <TableCell>{formatMoney(item.unitPrice)}</TableCell>
                 <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>
                 <TableCell className="sales-row-actions">
-                  {editable && item.kind === 'manual' && (
+                  {editable && (item.kind === 'manual' || item.kind === 'inventory_item') && (
                     <IconButton label={`Edit ${item.description}`} kind="ghost" size="sm" onClick={() => onEdit(item)}>
                       <Edit />
                     </IconButton>

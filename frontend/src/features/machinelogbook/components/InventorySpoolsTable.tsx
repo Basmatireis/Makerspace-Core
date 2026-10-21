@@ -112,16 +112,9 @@ function SpoolsTable({
   const statusIds = url.list('status');
   const mountedIds = url.list('mounted');
   const kindIds = url.list('kind');
-  const productIds = url.list('product');
   const manufacturerIds = url.list('manufacturer');
   const showArchived = url.get('archived') === '1';
 
-  // A spool's product is its snapshot text (catalog products and fills recorded by hand), so the filter matches on that.
-  const productOptions: Option[] = [
-    ...new Set(spools.map((spool) => spool.productName).filter((name): name is string => Boolean(name))),
-  ]
-    .sort()
-    .map((name) => ({ id: name, label: name }));
   const manufacturerOptions: Option[] = [
     ...new Set(spools.map((spool) => spool.manufacturer).filter((name): name is string => Boolean(name))),
   ]
@@ -133,7 +126,6 @@ function SpoolsTable({
       (showArchived || spool.status !== 'archived') &&
       (kindIds.length === 0 || kindIds.includes(spool.kind)) &&
       (materialIds.length === 0 || materialIds.includes(spool.materialId ?? '')) &&
-      (productIds.length === 0 || productIds.includes(spool.productName ?? '')) &&
       (manufacturerIds.length === 0 || manufacturerIds.includes(spool.manufacturer ?? '')) &&
       (statusIds.length === 0 || statusIds.some((id) => matchesStatus(spool, id))) &&
       (mountedIds.length === 0 || mountedIds.includes(spool.mounted ? 'mounted' : 'free')),
@@ -152,7 +144,7 @@ function SpoolsTable({
           {spool.label && <span className="mj-secondary">{spool.label}</span>}
           {needsRefill(spool) && <span className="mj-secondary">Waiting for a refill</span>}
           {!needsRefill(spool) && (
-            <span className="mj-secondary mj-show-narrow">{spoolTitle(spool) || 'No product recorded'}</span>
+            <span className="mj-secondary mj-show-narrow">{spoolTitle(spool) || 'No manufacturer recorded'}</span>
           )}
           <span className="mj-secondary mj-show-narrow">{kindLabel(spool.kind)}</span>
           {!fixedMaterial && spool.materialName && (
@@ -177,19 +169,11 @@ function SpoolsTable({
       render: (spool) => <KindTag kind={spool.kind} size="sm" />,
     },
     {
-      key: 'product',
-      header: 'Product',
+      key: 'manufacturer',
+      header: 'Manufacturer',
       narrow: true,
-      sortValue: (spool) => `${spool.productName ?? ''} ${spool.manufacturer ?? ''}`.trim(),
-      render: (spool) =>
-        spool.productName || spool.manufacturer ? (
-          <div className="mj-cell-stack">
-            <span>{spool.productName ?? spool.manufacturer}</span>
-            {spool.productName && spool.manufacturer && <span className="mj-secondary">{spool.manufacturer}</span>}
-          </div>
-        ) : (
-          '—'
-        ),
+      sortValue: (spool) => spool.manufacturer ?? '',
+      render: (spool) => spool.manufacturer || '—',
     },
     ...(fixedMaterial
       ? []
@@ -288,7 +272,6 @@ function SpoolsTable({
       }
       filterCategories={[
         ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
-        { key: 'product', label: 'Product', options: productOptions },
         { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
         { key: 'kind', label: 'Type', options: kindOptions },
         { key: 'status', label: 'Status', options: statusOptions },

@@ -49,8 +49,8 @@ SELECT i.*,j.version AS current_job_version FROM order_items i LEFT JOIN machine
 -- name: GetItem :one
 SELECT * FROM order_items WHERE id=$1 AND order_id=$2;
 -- name: InsertItem :one
-INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id)
-VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *;
+INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id,source_material_id)
+VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *;
 -- name: RemoveItem :exec
 UPDATE order_items SET removed_at=now(),removed_by_account_id=$2 WHERE id=$1;
 -- name: ClaimJob :exec

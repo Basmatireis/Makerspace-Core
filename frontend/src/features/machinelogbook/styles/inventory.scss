@@ -13,6 +13,14 @@
   display: none;
 }
 
+// Two fields side by side in a dialog; they stack on narrow screens.
+.mj-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-05;
+  align-items: start;
+}
+
 // Name that opens a dialog: a Carbon link rendered as a button.
 .mj-link-button {
   font: inherit;

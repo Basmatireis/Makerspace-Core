@@ -18,14 +18,25 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentProduct } from './filamentProduct';
+import type { Decimal } from './decimal';
+import type { InventoryReceiptPlacementMode } from './inventoryReceiptPlacementMode';
+import type { NewFilamentSpoolIdentifier } from './newFilamentSpoolIdentifier';
+import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
-export interface FilamentProductPage {
-  items: FilamentProduct[];
-  /** @minimum 1 */
-  page: number;
-  /** @minimum 1 */
-  pageSize: number;
-  /** @minimum 0 */
-  total: number;
+/**
+ * Filament only. storage books loose stock; new_spools creates one single-use spool per package; reusable_spool loads one package onto an empty, active reusable spool (409 spool_already_loaded otherwise). identifiers are only valid when exactly one spool is created or loaded.
+ */
+export interface InventoryReceiptPlacement {
+  mode: InventoryReceiptPlacementMode;
+  tareWeightG?: Decimal | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  storageLocation?: string | null;
+  reusableSpoolId?: UUIDv7;
+  reusableSpoolExpectedVersion?: Version;
+  /** @maxItems 20 */
+  identifiers?: NewFilamentSpoolIdentifier[];
 }

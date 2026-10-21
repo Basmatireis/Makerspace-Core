@@ -56,6 +56,7 @@ func newProcessFixture(t *testing.T) *processFixture {
 		ctx,
 		f.p,
 		"Stabilizer "+suffix,
+		"consumable",
 		"m",
 		[]string{ProcessEmbroidery},
 		&f.request,
@@ -78,11 +79,20 @@ func newProcessFixture(t *testing.T) *processFixture {
 		f.now,
 		nil,
 		nil,
+		nil,
 		&f.request,
 	)
 	must(err)
 	f.stabilizer = purchase.Material
-	f.inkType, err = f.s.CreateMaterialType(ctx, f.p, "UV ink "+suffix, "ml", []string{ProcessUVPrinting}, &f.request)
+	f.inkType, err = f.s.CreateMaterialType(
+		ctx,
+		f.p,
+		"UV ink "+suffix,
+		"consumable",
+		"ml",
+		[]string{ProcessUVPrinting},
+		&f.request,
+	)
 	must(err)
 	f.ink, err = f.s.CreateMaterial(
 		ctx,
@@ -104,6 +114,7 @@ func newProcessFixture(t *testing.T) *processFixture {
 		"100",
 		"90",
 		f.now,
+		nil,
 		nil,
 		nil,
 		&f.request,
@@ -286,7 +297,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 	f := newProcessFixture(t)
 	ctx := t.Context()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
-	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "g", nil, &f.request); !apperror.IsCode(
+	if _, err := f.s.CreateMaterialType(ctx, f.p, "None "+suffix, "consumable", "g", nil, &f.request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -296,6 +307,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 		ctx,
 		f.p,
 		"Bad "+suffix,
+		"consumable",
 		"g",
 		[]string{"milling"},
 		&f.request,
@@ -309,6 +321,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 		ctx,
 		f.p,
 		"Sticker paper "+suffix,
+		"consumable",
 		"cm2",
 		[]string{ProcessUVPrinting, ProcessEmbroidery, ProcessUVPrinting},
 		&f.request,
@@ -328,6 +341,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 		created.ID,
 		created.Version,
 		created.Name,
+		"",
 		"cm2",
 		nil,
 		true,
@@ -342,6 +356,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 		created.ID,
 		updated.Version,
 		created.Name,
+		"",
 		"cm2",
 		[]string{},
 		true,
@@ -358,6 +373,7 @@ func TestMaterialTypeProcessesAreRequiredAndStored(t *testing.T) {
 		created.ID,
 		updated.Version,
 		created.Name,
+		"",
 		"cm2",
 		[]string{ProcessLaserCutting},
 		true,
@@ -488,6 +504,7 @@ func TestMaterialProcessMismatchIsRefusedForNewUsages(t *testing.T) {
 		f.stabilizerType.ID,
 		f.stabilizerType.Version,
 		f.stabilizerType.Name,
+		"",
 		"m",
 		[]string{ProcessUVPrinting},
 		true,
@@ -1142,6 +1159,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 		ctx,
 		f.p,
 		"DTF paper "+suffix,
+		"consumable",
 		"cm2",
 		[]string{ProcessUVPrinting},
 		&f.request,
@@ -1176,6 +1194,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 		f.now,
 		nil,
 		nil,
+		nil,
 		&f.request,
 	)
 	if err != nil {
@@ -1199,6 +1218,7 @@ func TestSquareCentimetreAndMetreMaterialsAreConsumedAndPriced(t *testing.T) {
 		ctx,
 		f.p,
 		"Bad unit "+suffix,
+		"consumable",
 		"mm2",
 		[]string{"other"},
 		&f.request,

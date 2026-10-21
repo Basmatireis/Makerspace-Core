@@ -13,32 +13,18 @@ import {
 } from '@carbon/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFilamentSpool, updateFilamentSpool } from '../../../api/generated/filament-spools/filament-spools';
-import type {
-  CreateFilamentSpoolRequestStockMode,
-  FilamentProduct,
-  FilamentSpool,
-  FilamentSpoolKind,
-} from '../../../api/generated/models';
+import type { FilamentSpool, FilamentSpoolKind } from '../../../api/generated/models';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
-import { ProductPicker } from '../components/ProductPicker';
+import { useLatestCallback } from '../../../app/useLatestCallback';
 import { formatGrams, parseDecimal, toDecimal } from '../components/inventoryShared';
 import { hasOpenFill, toNumber } from '../components/spoolShared';
 import { useNotify } from '../shared/toasts';
-import {
-  activeProductsQuery,
-  filamentMaterialsQuery,
-  spoolErrorMessage,
-  spoolUpdateBody,
-  useRefreshInventory,
-} from '../spoolData';
-import { useLatestCallback } from '../../../app/useLatestCallback';
+import { filamentMaterialsQuery, spoolErrorMessage, spoolUpdateBody, useRefreshInventory } from '../spoolData';
 
 type Values = {
   kind: FilamentSpoolKind;
   label: string;
-  productId: string;
-  manual: boolean;
   materialId: string;
   weight: string;
   tare: string;
@@ -46,9 +32,6 @@ type Values = {
   product: string;
   location: string;
   firstFill: 'fill' | 'empty';
-  source: Exclude<CreateFilamentSpoolRequestStockMode, 'empty'>;
-  price: string;
-  supplier: string;
   acquiredOn: string;
   reference: string;
   notes: string;
@@ -58,7 +41,10 @@ const nonNegative = (value: string) =>
   !value.trim() || (parseDecimal(value) ?? -1) >= 0 || 'Enter a number of zero or more.';
 const orNull = (value: string) => value.trim() || null;
 
-/** Registers a new spool with its first fill, or edits the descriptive fields of an existing one. */
+/**
+ * Registers a physical spool that already exists: it takes its filament from loose stock, or stays empty for a
+ * reusable spool. Purchases are booked with Receive stock. With a spool, edits its descriptive fields.
+ */
 export function SpoolFormModal({
   open,
   onClose,
@@ -73,20 +59,11 @@ export function SpoolFormModal({
   const notify = useNotify();
   const refresh = useRefreshInventory();
   const materials = useQuery({ ...filamentMaterialsQuery(), enabled: open });
-  const catalog = useQuery({ ...activeProductsQuery(), enabled: open && !spool });
   const keptMaterialId = spool?.materialId ?? initialMaterialId;
   const choices = (materials.data ?? []).filter((material) => material.active || material.id === keptMaterialId);
-  // Registering offers the active catalog (of the material, when opened from a material page); editing keeps the snapshot text fields.
-  const products = (catalog.data ?? []).filter(
-    (product) =>
-      (!initialMaterialId || product.materialId === initialMaterialId) &&
-      (materials.data ?? []).some((material) => material.id === product.materialId && material.active),
-  );
   const defaults = (): Values => ({
     kind: spool?.kind ?? 'reusable',
     label: spool?.label ?? '',
-    productId: '',
-    manual: Boolean(spool),
     materialId: spool?.materialId ?? initialMaterialId ?? '',
     weight: spool ? String(toNumber(spool.initialNetWeightG)) : '1000',
     tare: spool?.tareWeightG != null ? String(toNumber(spool.tareWeightG)) : '',
@@ -94,9 +71,6 @@ export function SpoolFormModal({
     product: spool?.productName ?? '',
     location: spool?.storageLocation ?? '',
     firstFill: 'fill',
-    source: 'existing_stock',
-    price: '',
-    supplier: '',
     acquiredOn: spool?.acquiredOn ?? dateInAppTimeZone(new Date()),
     reference: spool?.acquisitionReference ?? '',
     notes: spool?.notes ?? '',
@@ -107,16 +81,14 @@ export function SpoolFormModal({
     handleSubmit,
     reset,
     watch,
-    setValue,
-    clearErrors,
     formState: { errors },
   } = useForm<Values>({ defaultValues: defaults() });
   // Reusable spools can be registered empty; an existing spool without a current fill has nothing to edit about a fill.
   const showFill = spool ? hasOpenFill(spool) : watch('kind') === 'single_use' || watch('firstFill') === 'fill';
   const mutation = useMutation({
     mutationFn: (values: Values) => {
+      const tare = parseDecimal(values.tare);
       if (spool) {
-        const tare = parseDecimal(values.tare);
         return updateFilamentSpool(
           spool.id,
           spoolUpdateBody(spool, {
@@ -133,7 +105,6 @@ export function SpoolFormModal({
           }),
         );
       }
-      const tare = parseDecimal(values.tare);
       if (!showFill) {
         // A reusable spool registered without a fill; Change filament starts its first fill later.
         return createFilamentSpool({
@@ -153,12 +124,9 @@ export function SpoolFormModal({
       return createFilamentSpool({
         kind: values.kind,
         label: orNull(values.label),
-        productId: values.manual ? null : values.productId || null,
         materialId: material.id,
         initialNetWeightG: toDecimal(parseDecimal(values.weight) ?? 0),
-        stockMode: values.source,
-        totalPrice: values.source === 'new_acquisition' ? toDecimal(parseDecimal(values.price) ?? 0) : null,
-        supplier: values.source === 'new_acquisition' ? orNull(values.supplier) : null,
+        stockMode: 'existing_stock',
         manufacturer: orNull(values.manufacturer),
         productName: orNull(values.product),
         tareWeightG: tare == null ? null : toDecimal(tare),
@@ -179,36 +147,12 @@ export function SpoolFormModal({
     if (open) resetForm();
   }, [open, spool?.id, initialMaterialId, resetForm]);
   const pending = mutation.isPending;
-  const source = watch('source');
-  const productId = watch('productId');
-  const manual = watch('manual');
-  const selectedProduct = products.find((item) => item.id === productId);
-  const chooseProduct = (product: FilamentProduct | null) => {
-    setValue('productId', product?.id ?? '', { shouldValidate: Boolean(product) });
-    if (!product) return;
-    setValue('materialId', product.materialId, { shouldValidate: true });
-    setValue('weight', String(toNumber(product.netWeightG)));
-    setValue('manufacturer', product.manufacturer);
-    setValue('product', product.name);
-    // The price is only used for a purchase; it stays editable.
-    setValue('price', product.defaultPrice != null ? String(toNumber(product.defaultPrice)) : '');
-    setValue('kind', product.packaging === 'spool' ? 'single_use' : 'reusable');
-  };
-  const setManual = (next: boolean) => {
-    setValue('manual', next);
-    if (next) {
-      setValue('productId', '');
-      clearErrors('productId');
-    }
-  };
   const selectedMaterial = choices.find((material) => material.id === watch('materialId'));
   const available = selectedMaterial ? toNumber(selectedMaterial.unassignedQuantity) : 0;
   const typedWeight = parseDecimal(watch('weight')) ?? 0;
-  const effect = !selectedMaterial
-    ? undefined
-    : source === 'existing_stock'
-      ? `Moves ${formatGrams(typedWeight)} from loose stock to this spool. The material total stays ${formatGrams(toNumber(selectedMaterial.quantity))}.`
-      : `Adds ${formatGrams(typedWeight)} to ${selectedMaterial.name} stock (new total ${formatGrams(toNumber(selectedMaterial.quantity) + typedWeight)}) and records the purchase.`;
+  const effect = selectedMaterial
+    ? `Moves ${formatGrams(typedWeight)} from loose stock to this spool. The total stays ${formatGrams(toNumber(selectedMaterial.quantity))}; ${formatGrams(available)} is loose.`
+    : undefined;
 
   const submit = handleSubmit(async (values) => {
     let saved: FilamentSpool;
@@ -252,6 +196,12 @@ export function SpoolFormModal({
         noValidate
       >
         <Stack gap={6}>
+          {!spool && (
+            <p className="mj-secondary">
+              Registers a spool you already have, using filament from loose stock. To book a purchase, use Receive
+              stock.
+            </p>
+          )}
           {mutation.isError && (
             <InlineNotification
               kind="error"
@@ -261,13 +211,13 @@ export function SpoolFormModal({
               subtitle={spoolErrorMessage(mutation.error)}
             />
           )}
-          {(materials.isError || catalog.isError) && (
+          {materials.isError && (
             <InlineNotification
               kind="error"
               lowContrast
               hideCloseButton
               title="Not loaded"
-              subtitle="Materials and products could not be loaded. Close the dialog and try again."
+              subtitle="Filament articles could not be loaded. Close the dialog and try again."
             />
           )}
           {materials.isSuccess && choices.length === 0 && !spool && (
@@ -275,8 +225,8 @@ export function SpoolFormModal({
               kind="warning"
               lowContrast
               hideCloseButton
-              title="No filament materials"
-              subtitle="Add a material in the Filament category first."
+              title="No filament articles"
+              subtitle="Receive filament stock first."
             />
           )}
           <Controller
@@ -321,7 +271,7 @@ export function SpoolFormModal({
                   valueSelected={field.value}
                   onChange={(value) => field.onChange(value)}
                 >
-                  <RadioButton id="spool-first-fill-yes" value="fill" labelText="With a first fill" />
+                  <RadioButton id="spool-first-fill-yes" value="fill" labelText="With filament from loose stock" />
                   <RadioButton
                     id="spool-first-fill-no"
                     value="empty"
@@ -331,48 +281,17 @@ export function SpoolFormModal({
               )}
             />
           )}
-          {showFill && !spool && (
-            <Controller
-              control={control}
-              name="productId"
-              rules={{
-                validate: (value, form) =>
-                  form.manual || Boolean(value) || 'Choose a product, or select Not in catalog.',
-              }}
-              render={({ fieldState }) => (
-                <ProductPicker
-                  id="spool-product-picker"
-                  products={products}
-                  productId={productId}
-                  manual={manual}
-                  onProduct={chooseProduct}
-                  onManual={setManual}
-                  invalid={fieldState.invalid}
-                  invalidText={fieldState.error?.message}
-                />
-              )}
-            />
-          )}
-          {showFill && selectedProduct && (
-            <TextInput
-              id="spool-material-product"
-              labelText="Material"
-              readOnly
-              value={selectedMaterial?.name ?? selectedProduct.materialName}
-              helperText="Set by the product."
-            />
-          )}
-          {showFill && !selectedProduct && (
+          {showFill && (
             <Select
               id="spool-material"
-              labelText="Material"
+              labelText="Filament"
               disabled={Boolean(spool)}
-              helperText={spool ? 'The material of a registered spool cannot change.' : undefined}
+              helperText={spool ? 'The article of a registered spool cannot change.' : undefined}
               invalid={Boolean(errors.materialId)}
               invalidText={errors.materialId?.message}
-              {...register('materialId', { validate: (value) => !showFill || Boolean(value) || 'Choose a material.' })}
+              {...register('materialId', { validate: (value) => !showFill || Boolean(value) || 'Choose a filament.' })}
             >
-              <SelectItem value="" text="Choose a material" />
+              <SelectItem value="" text="Choose a filament" />
               {choices.map((material) => (
                 <SelectItem
                   key={material.id}
@@ -385,14 +304,14 @@ export function SpoolFormModal({
           {showFill && (
             <TextInput
               id="spool-weight"
-              labelText="Initial net weight (g)"
+              labelText="Net weight (g)"
               inputMode="decimal"
               autoComplete="off"
               disabled={Boolean(spool)}
               helperText={
                 spool
                   ? 'Corrections change the remaining weight; the initial weight stays.'
-                  : 'Filament weight without the spool.'
+                  : (effect ?? 'Filament weight without the spool.')
               }
               invalid={Boolean(errors.weight)}
               invalidText={errors.weight?.message}
@@ -401,7 +320,7 @@ export function SpoolFormModal({
                   if (!showFill) return true;
                   const weight = parseDecimal(value);
                   if (weight == null || weight <= 0) return 'Enter a weight above zero.';
-                  return !spool && source === 'existing_stock' && weight > available
+                  return !spool && weight > available
                     ? `Only ${formatGrams(available)} of loose stock is available.`
                     : true;
                 },
@@ -418,19 +337,20 @@ export function SpoolFormModal({
             invalidText={errors.tare?.message}
             {...register('tare', { validate: nonNegative })}
           />
-          {showFill && manual && (
+          {showFill && (
             <TextInput
               id="spool-manufacturer"
               labelText="Manufacturer (optional)"
+              helperText="Defaults to the manufacturer of the article."
               autoComplete="off"
               maxLength={150}
               {...register('manufacturer')}
             />
           )}
-          {showFill && manual && (
+          {showFill && (
             <TextInput
               id="spool-product"
-              labelText="Product (optional)"
+              labelText="Product name (optional)"
               autoComplete="off"
               maxLength={200}
               {...register('product')}
@@ -443,54 +363,6 @@ export function SpoolFormModal({
             maxLength={200}
             {...register('location')}
           />
-          {!spool && showFill && (
-            <>
-              <Controller
-                control={control}
-                name="source"
-                render={({ field }) => (
-                  <RadioButtonGroup
-                    legendText="Stock source"
-                    name="spool-source"
-                    orientation="vertical"
-                    valueSelected={field.value}
-                    helperText={effect}
-                    onChange={(value) => field.onChange(value)}
-                  >
-                    <RadioButton
-                      id="spool-source-stock"
-                      value="existing_stock"
-                      labelText={`Taken from loose stock${selectedMaterial ? ` (${formatGrams(available)} available)` : ''}`}
-                    />
-                    <RadioButton id="spool-source-purchase" value="new_acquisition" labelText="Bought as a spool" />
-                  </RadioButtonGroup>
-                )}
-              />
-              {source === 'new_acquisition' && (
-                <>
-                  <TextInput
-                    id="spool-price"
-                    labelText="Total purchase price in EUR"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    invalid={Boolean(errors.price)}
-                    invalidText={errors.price?.message}
-                    {...register('price', {
-                      validate: (value) =>
-                        parseDecimal(value) == null ? 'Enter the total price, zero or more.' : nonNegative(value),
-                    })}
-                  />
-                  <TextInput
-                    id="spool-supplier"
-                    labelText="Supplier (optional)"
-                    autoComplete="off"
-                    maxLength={200}
-                    {...register('supplier')}
-                  />
-                </>
-              )}
-            </>
-          )}
           <Controller
             control={control}
             name="acquiredOn"

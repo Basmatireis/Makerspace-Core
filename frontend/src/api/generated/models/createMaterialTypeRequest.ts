@@ -19,15 +19,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MachineProcess } from './machineProcess';
+import type { MaterialKind } from './materialKind';
 import type { MaterialUnit } from './materialUnit';
 
+/**
+ * filament needs unit g and the process fdm_printing (the default when processes is omitted); consumable needs at least one process; part takes no process.
+ */
 export interface CreateMaterialTypeRequest {
   /**
      * @minLength 1
      * @maxLength 120
      */
   name: string;
+  kind: MaterialKind;
   unit: MaterialUnit;
-  /** @minItems 1 */
-  processes: MachineProcess[];
+  processes?: MachineProcess[];
 }

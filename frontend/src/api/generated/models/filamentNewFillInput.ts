@@ -24,10 +24,9 @@ import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface FilamentNewFillInput {
-  /** When set, materialId must be the product's material. */
-  productId?: UUIDv7 | null;
   materialId: UUIDv7;
   /**
+     * Defaults to the manufacturer of the material.
      * @maxLength 150
      * @nullable
      */

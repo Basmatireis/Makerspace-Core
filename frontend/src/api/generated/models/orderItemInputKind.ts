@@ -25,4 +25,5 @@ export type OrderItemInputKind = typeof OrderItemInputKind[keyof typeof OrderIte
 export const OrderItemInputKind = {
   manual: 'manual',
   machine_job: 'machine_job',
+  inventory_item: 'inventory_item',
 } as const;

@@ -51,6 +51,7 @@ const {
 const material: Material = {
   id: materialId,
   name: 'PLA Black',
+  kind: 'filament',
   materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001',
   materialTypeName: 'PLA',
   colorName: 'Black',

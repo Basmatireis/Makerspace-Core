@@ -29,7 +29,6 @@ export interface FilamentSpoolFill {
   fillNumber: number;
   materialId: UUIDv7;
   materialName: string;
-  productId?: UUIDv7 | null;
   /** @nullable */
   manufacturer?: string | null;
   /** @nullable */

@@ -104,13 +104,13 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 			t.Fatal(err)
 		}
 	}
-	typ, err := f.s.CreateMachineType(ctx, f.p, "Jobs printer "+suffix, "other", &f.request)
+	typ, err := f.s.CreateMachineType(ctx, f.p, "Jobs printer "+suffix, "fdm_printing", &f.request)
 	must(err)
 	typeIDs = append(typeIDs, typ.ID)
 	f.machine, err = f.s.CreateMachine(ctx, f.p, typ.ID, "Jobs machine "+suffix, "active", nil, false, &f.request)
 	must(err)
 	machineIDs = append(machineIDs, f.machine.ID)
-	bareType, err := f.s.CreateMachineType(ctx, f.p, "Jobs bare "+suffix, "other", &f.request)
+	bareType, err := f.s.CreateMachineType(ctx, f.p, "Jobs bare "+suffix, "fdm_printing", &f.request)
 	must(err)
 	typeIDs = append(typeIDs, bareType.ID)
 	f.bareMachine, err = f.s.CreateMachine(
@@ -129,8 +129,9 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 		ctx,
 		f.p,
 		"Jobs PLA "+suffix,
+		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]string{"fdm_printing"},
 		&f.request,
 	)
 	must(err)
@@ -149,6 +150,7 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 		"1000",
 		"20",
 		f.now,
+		nil,
 		nil,
 		nil,
 		&f.request,

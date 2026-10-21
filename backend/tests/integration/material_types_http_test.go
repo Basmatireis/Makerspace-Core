@@ -180,7 +180,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response := doJSON(t, nobodyClient, http.MethodGet, base, "", "", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	create := map[string]any{"name": "PLA", "unit": "g", "processes": []string{"fdm_printing"}}
+	create := map[string]any{"name": "PLA", "kind": "filament", "unit": "g", "processes": []string{"fdm_printing"}}
 	for name, who := range map[string]struct {
 		client *http.Client
 		csrf   string
@@ -210,9 +210,9 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "No process", "unit": "g", "processes": []string{}},
+		map[string]any{"name": "No process", "kind": "consumable", "unit": "g", "processes": []string{}},
 	)
-	assertStatus(t, response, http.StatusBadRequest)
+	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
 	response = doJSON(
 		t,
@@ -221,7 +221,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "pla", "unit": "g", "processes": []string{"fdm_printing"}},
+		map[string]any{"name": "pla", "kind": "filament", "unit": "g", "processes": []string{"fdm_printing"}},
 	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
@@ -327,7 +327,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "Unused", "unit": "m", "processes": []string{"embroidery"}},
+		map[string]any{"name": "Unused", "kind": "consumable", "unit": "m", "processes": []string{"embroidery"}},
 	)
 	assertStatus(t, response, http.StatusCreated)
 	var unused openapi.MaterialType

@@ -81,6 +81,11 @@ export function InventoryLedgerTable({
           <RefLink kind="job" reference={tx.machineJobDisplayId} id={tx.machineJobId} />
         </span>
       ),
+      tx.orderReference && (
+        <span key="order">
+          <RefLink kind="order" reference={tx.orderReference} id={tx.orderId} />
+        </span>
+      ),
       ...(showSpool
         ? tx.kind === 'spool_transfer'
           ? [spoolLink('from', from(tx)), spoolLink('to', to(tx))]
@@ -92,6 +97,7 @@ export function InventoryLedgerTable({
         </span>
       ),
       tx.supplier && <span key="supplier">{tx.supplier}</span>,
+      tx.reference && <span key="reference">{tx.reference}</span>,
     ].filter(Boolean);
     return parts.length ? <div className="mj-cell-stack">{parts}</div> : '—';
   };
@@ -158,13 +164,15 @@ export function InventoryLedgerTable({
       rows={rows}
       totalCount={transactions.length}
       searchText={(tx) =>
-        [tx.actorName, tx.note, tx.supplier, tx.machineJobDisplayId, ...spoolTexts(tx)].filter(Boolean).join(' ')
+        [tx.actorName, tx.note, tx.supplier, tx.reference, tx.machineJobDisplayId, tx.orderReference, ...spoolTexts(tx)]
+          .filter(Boolean)
+          .join(' ')
       }
       defaultSort={{ key: 'date', direction: 'DESC' }}
       filterCategories={[{ key: 'type', label: 'Type', options: transactionKindOptions }]}
       empty={{
         title: 'No movements yet',
-        description: 'Purchases, consumption, corrections and disposals appear here.',
+        description: 'Purchases, sales, consumption, corrections and disposals appear here.',
       }}
     />
   );

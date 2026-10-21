@@ -3,7 +3,6 @@ import type {
   BillingParty,
   MachineProcess,
   MaterialType,
-  FilamentProduct,
   FilamentSpool,
   Machine,
   MachineActivity,
@@ -58,14 +57,11 @@ export const ids = {
   spoolMounted: id(74),
   fillClosed: id(80),
   fillCurrent: id(81),
-  productRefill: id(90),
-  productSpool: id(91),
   nfc: id(95),
   barcode: id(96),
   unit: id(100),
   slot: id(101),
   newJob: id(110),
-  newProduct: id(111),
 };
 
 export const staffPermissions = [
@@ -169,6 +165,13 @@ export const operator: Operator = { personId: ids.operator, displayName: 'Maria 
 const material = (materialId: string, name: string, overrides: Partial<Material> = {}): Material => ({
   id: materialId,
   name,
+  kind: 'filament',
+  variant: null,
+  manufacturer: null,
+  salePrice: null,
+  packageSize: null,
+  storageLocation: null,
+  notes: null,
   materialTypeId: id(900),
   materialTypeName: 'PLA',
   colorName: 'Black',
@@ -186,30 +189,6 @@ const material = (materialId: string, name: string, overrides: Partial<Material>
   inventoryVersion: 7,
   recentConsumption: '240',
   version: 3,
-  createdAt: created,
-  updatedAt: created,
-  ...overrides,
-});
-
-const product = (
-  productId: string,
-  manufacturer: string,
-  name: string,
-  packaging: 'refill' | 'spool',
-  overrides: Partial<FilamentProduct> = {},
-): FilamentProduct => ({
-  id: productId,
-  manufacturer,
-  name,
-  materialId: ids.pla,
-  materialName: 'PLA Black',
-  netWeightG: '1000',
-  defaultPrice: '19.90',
-  packaging,
-  notes: null,
-  active: true,
-  inUseCount: 1,
-  version: 2,
   createdAt: created,
   updatedAt: created,
   ...overrides,
@@ -236,7 +215,6 @@ const spool = (overrides: Partial<FilamentSpool>): FilamentSpool => ({
   colorName: 'Black',
   colorHex: '#1A1A1A',
   unit: 'g',
-  productId: ids.productRefill,
   manufacturer: 'Bambu Lab',
   productName: 'PLA Basic Black',
   initialNetWeightG: '1000',
@@ -261,7 +239,6 @@ const closedFill = {
   fillNumber: 2,
   materialId: ids.pla,
   materialName: 'PLA Black',
-  productId: ids.productSpool,
   manufacturer: 'Prusament',
   productName: 'PLA Galaxy Black',
   initialNetWeightG: '1000',
@@ -383,6 +360,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
   const materials: Material[] = [
     material(ids.pla, 'PLA Black'),
     material(ids.plywood, 'Birch plywood', {
+      kind: 'consumable',
       materialTypeId: id(901),
       materialTypeName: 'Plywood',
       colorName: null,
@@ -399,10 +377,6 @@ export function createWorld(permissions: string[] = staffPermissions) {
       version: 1,
     }),
   ];
-  const products: FilamentProduct[] = [
-    product(ids.productRefill, 'Bambu Lab', 'PLA Basic Black', 'refill'),
-    product(ids.productSpool, 'Prusament', 'PLA Galaxy Black', 'spool', { defaultPrice: '24.99', inUseCount: 0 }),
-  ];
   const spools: FilamentSpool[] = [
     spool({ fills: [closedFill] }),
     spool({
@@ -416,7 +390,6 @@ export function createWorld(permissions: string[] = staffPermissions) {
       initialNetWeightG: '1000',
       tareWeightG: null,
       identifiers: [],
-      productId: ids.productSpool,
       manufacturer: 'Prusament',
       productName: 'PLA Galaxy Black',
     }),
@@ -684,7 +657,6 @@ export function createWorld(permissions: string[] = staffPermissions) {
     permissions,
     machines,
     materials,
-    products,
     spools,
     jobs,
     runs,
@@ -861,8 +833,6 @@ function overview(world: World) {
     activity: [{ date: '2026-09-14', count: 7 }],
   };
 }
-
-const money = (value: string | null | undefined) => value ?? null;
 
 function ok(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -1361,40 +1331,6 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     if ((match = path.match(/^\/api\/v1\/materials\/([^/]+)$/))) {
       const found = world.materials.find((item) => item.id === match![1]);
       return found ? ok(route, found) : notFound(route);
-    }
-    if (path === '/api/v1/filament-products' && method === 'GET') return ok(route, pageOf(world.products));
-    if (path === '/api/v1/filament-products' && method === 'POST') {
-      const added = product(
-        ids.newProduct,
-        String(body?.manufacturer),
-        String(body?.name),
-        body?.packaging as 'refill',
-        {
-          defaultPrice: money(body?.defaultPrice as string),
-          inUseCount: 0,
-          version: 1,
-          notes: (body?.notes as string | null) ?? null,
-        },
-      );
-      world.products.push(added);
-      return ok(route, added, 201);
-    }
-    if ((match = path.match(/^\/api\/v1\/filament-products\/([^/]+)$/))) {
-      const found = world.products.find((item) => item.id === match![1]);
-      if (!found) return notFound(route);
-      if (method === 'PATCH') {
-        const updated = {
-          ...found,
-          name: String(body?.name ?? found.name),
-          manufacturer: String(body?.manufacturer ?? found.manufacturer),
-          defaultPrice: money(body?.defaultPrice as string),
-          active: Boolean(body?.active ?? found.active),
-          version: found.version + 1,
-        };
-        world.products[world.products.indexOf(found)] = updated;
-        return ok(route, updated);
-      }
-      return ok(route, found);
     }
     if (path === '/api/v1/filament-spools/cleanup' && method === 'POST') {
       const months = Number(body?.olderThanMonths);

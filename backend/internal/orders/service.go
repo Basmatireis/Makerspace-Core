@@ -458,6 +458,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 			Amount:             money(i.Amount),
 			SourceMachineJobID: i.SourceMachineJobID,
 			SourceJobVersion:   i.SourceJobVersion,
+			SourceMaterialID:   i.SourceMaterialID,
 			CreatedAt:          i.CreatedAt,
 			RemovedAt:          timePointer(i.RemovedAt),
 		}

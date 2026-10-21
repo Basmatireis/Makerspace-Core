@@ -18,29 +18,44 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateMaterialRequest } from './createMaterialRequest';
 import type { Decimal } from './decimal';
-import type { FilamentPackaging } from './filamentPackaging';
+import type { InventoryReceiptPlacement } from './inventoryReceiptPlacement';
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
-export interface FilamentProductInput {
+/**
+ * Exactly one of materialId (with expectedInventoryVersion) and material (a new article created in the same transaction). The received quantity is packageCount times packageSize.
+ */
+export interface ReceiveInventoryStockRequest {
+  materialId?: UUIDv7;
+  material?: CreateMaterialRequest;
+  expectedInventoryVersion?: Version;
   /**
-     * @minLength 1
-     * @maxLength 150
+     * @minimum 1
+     * @maximum 500
      */
-  manufacturer: string;
+  packageCount: number;
+  /** Quantity per package; defaults to the article's package size. */
+  packageSize?: Decimal;
+  /** Price of all packages together. */
+  totalPrice: Money;
   /**
-     * @minLength 1
      * @maxLength 200
-     */
-  name: string;
-  materialId: UUIDv7;
-  netWeightG: Decimal;
-  defaultPrice?: Money | null;
-  packaging: FilamentPackaging;
-  /**
-     * @maxLength 2000
      * @nullable
      */
-  notes?: string | null;
+  supplier?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  reference?: string | null;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  note?: string | null;
+  occurredAt: string;
+  placement?: InventoryReceiptPlacement;
 }
