@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Button, OverflowMenu, OverflowMenuItem, Tile } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { markMaterialEmpty } from '../../api/generated/inventory/inventory';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { deleteMaterial, markMaterialEmpty } from '../../api/generated/inventory/inventory';
 import type { Material } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
@@ -39,7 +39,7 @@ const crumbs = [
   { label: 'Workshop', to: machineLogbookPaths.overview() },
   { label: 'Inventory', to: machineLogbookPaths.inventory() },
 ];
-type Dialog = 'movement' | 'edit' | 'empty' | 'receive' | null;
+type Dialog = 'movement' | 'edit' | 'empty' | 'receive' | 'delete' | null;
 
 function Ledger({ material }: { material: Material }) {
   const transactions = useQuery(allTransactionsQuery(material.id));
@@ -56,6 +56,7 @@ function MaterialDetail({ material }: { material: Material }) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
+  const navigate = useNavigate();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [mode, setMode] = useState<MovementMode>('consumption');
   const openMovement = (next: MovementMode) => {
@@ -88,6 +89,20 @@ function MaterialDetail({ material }: { material: Material }) {
     },
   });
 
+  const removal = useMutation({
+    mutationFn: () => deleteMaterial(material.id, { expectedVersion: material.version }),
+    onSuccess: async () => {
+      notify({ kind: 'success', title: 'Article deleted', subtitle: material.name });
+      navigate(machineLogbookPaths.inventory(inventoryTabForKind(material.kind)));
+      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
+    },
+    onError: () => {
+      void client.invalidateQueries({ queryKey: machineLogbookKeys.all });
+    },
+  });
+  // Only an article nothing uses can be deleted; the backend decides, `deletable` just spares the failed attempt.
+  const deletable = material.deletable !== false;
+
   const actions = canManage ? (
     <>
       <Button renderIcon={Add} onClick={() => setDialog('receive')}>
@@ -112,6 +127,13 @@ function MaterialDetail({ material }: { material: Material }) {
           onClick={() => setDialog('empty')}
         />
         <OverflowMenuItem itemText="Edit article" onClick={() => setDialog('edit')} />
+        <OverflowMenuItem
+          itemText="Delete article"
+          isDelete
+          hasDivider
+          disabled={!deletable}
+          onClick={() => setDialog('delete')}
+        />
       </OverflowMenu>
     </>
   ) : undefined;
@@ -231,6 +253,12 @@ function MaterialDetail({ material }: { material: Material }) {
             )}
           </dl>
         </Tile>
+        {canManage && !deletable && (
+          <p className="mj-secondary">
+            Used by ledger entries, spools or orders, so this article cannot be deleted. Deactivate it instead (Edit
+            article).
+          </p>
+        )}
         <section className="mj-inventory-section" aria-labelledby="material-ledger-title">
           <h2 id="material-ledger-title" className="mj-section-title">
             Ledger
@@ -268,6 +296,23 @@ function MaterialDetail({ material }: { material: Material }) {
           The remaining {formatQuantity(material.quantity, material.unit)} of {material.name} is written off as a
           disposal and stock becomes 0. The ledger keeps every entry.
         </p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog
+        open={dialog === 'delete'}
+        title="Delete this article?"
+        confirmLabel="Delete article"
+        pending={removal.isPending}
+        onClose={close}
+        error={
+          removal.isError
+            ? removal.error instanceof ApiError
+              ? removal.error.message
+              : 'The article could not be deleted. Reload the page and try again.'
+            : undefined
+        }
+        onConfirm={() => removal.mutate()}
+      >
+        <p>{material.name} will be deleted permanently. This cannot be undone.</p>
       </DestructiveActionDialog>
     </PageShell>
   );

@@ -249,27 +249,46 @@ describe('Inventory page', () => {
     await user.click(screen.getByRole('tab', { name: 'Spools' }));
     expect(await screen.findByTestId('spools-table')).toHaveAttribute('data-compact', 'false');
     expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('spools');
-    await user.click(screen.getByRole('tab', { name: 'Consumables' }));
-    expect(await screen.findByRole('table', { name: 'Consumables' })).toBeInTheDocument();
-    expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('consumables');
+    await user.click(screen.getByRole('tab', { name: 'Materials' }));
+    expect(await screen.findByRole('table', { name: 'Materials' })).toBeInTheDocument();
+    expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('materials');
+    await user.click(screen.getByRole('tab', { name: 'Types & categories' }));
+    expect(await screen.findByRole('table', { name: 'Types and categories' })).toBeInTheDocument();
+    expect(new URLSearchParams(router.state.location.search).get('tab')).toBe('types');
   });
 
-  it('opens the filament tab for the tab names of the former page', async () => {
+  it('opens Materials for the tab names of the former page', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=material-types');
-    expect(await screen.findByRole('tab', { name: 'Filament', selected: true })).toBeInTheDocument();
-    expect(await screen.findByRole('table', { name: 'Filament' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Materials' })).toBeInTheDocument();
   });
 
-  it('shows filament with colour, type, variant, manufacturer and the split between loose stock and spools', async () => {
+  it('sends the former Filament and Consumables tabs to Materials', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory();
+    const { router } = renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=filament&stock=low_stock');
+    expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
+    const search = new URLSearchParams(router.state.location.search);
+    expect(search.get('tab')).toBe('materials');
+    expect(search.get('process')).toBe('fdm_printing');
+    expect(search.get('stock')).toBe('low_stock');
+    cleanup();
+    const second = renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=consumables');
+    expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
+    expect(new URLSearchParams(second.router.state.location.search).get('tab')).toBe('materials');
+  });
+
+  it('lists filament and consumables together with the split between loose stock and spools', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory());
 
-    const table = await screen.findByRole('table', { name: 'Filament' });
+    const table = await screen.findByRole('table', { name: 'Materials' });
     for (const header of [
       'Colour',
+      'Kind',
       'Material',
       'Variant',
       'Manufacturer',
@@ -291,25 +310,46 @@ describe('Inventory page', () => {
       'href',
       machineLogbookPaths.material(ids.pla),
     );
-    expect(within(table).queryByText('Birch plywood')).not.toBeInTheDocument();
+    expect(within(row).getByText('Filament')).toBeInTheDocument();
+    // Consumables share the table; loose stock and spools do not apply to them.
+    const sheetRow = within(table).getByRole('link', { name: 'Birch plywood' }).closest('tr') as HTMLElement;
+    expect(within(sheetRow).getByText('Consumable')).toBeInTheDocument();
+    expect(within(sheetRow).getByText('12 m²')).toBeInTheDocument();
+    expect(within(sheetRow).getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(within(table).queryByText('M3 heat-set insert')).not.toBeInTheDocument();
     // The stock value of the whole inventory sits in the page description.
     expect(screen.getByText(/Stock value €218\.00/)).toBeInTheDocument();
   });
 
-  it('shows consumables with their unit and parts with category and sale price', async () => {
+  it('narrows Materials to filament or consumables with the Process filter', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     const user = userEvent.setup();
-    renderPage(<InventoryPage />, machineLogbookPaths.inventory('consumables'));
+    const { router } = renderPage(<InventoryPage />, machineLogbookPaths.inventory('materials'));
 
-    const consumables = await screen.findByRole('table', { name: 'Consumables' });
-    const sheetRow = (await within(consumables).findByRole('link', { name: 'Birch plywood' })).closest(
-      'tr',
-    ) as HTMLElement;
-    expect(within(sheetRow).getByText('12 m²')).toBeInTheDocument();
-    expect(within(sheetRow).getByText('3 mm')).toBeInTheDocument();
-    expect(within(consumables).queryByRole('columnheader', { name: /On spools/ })).not.toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Materials' });
+    expect(await within(table).findByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Filters', { selector: 'button' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Laser cutting' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+    expect(router.state.location.search).toContain('process=laser_cutting');
+    expect(await screen.findByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Black' })).not.toBeInTheDocument();
 
+    await user.click(screen.getByLabelText('Filters (1 applied)', { selector: 'button' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Laser cutting' }));
+    await user.click(screen.getByRole('checkbox', { name: 'FDM 3D printing' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+    expect(await screen.findByRole('link', { name: 'Black' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Birch plywood' })).not.toBeInTheDocument();
+  });
+
+  it('shows parts with category and sale price', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory();
+    const user = userEvent.setup();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('materials'));
+    await screen.findByRole('table', { name: 'Materials' });
     await user.click(screen.getByRole('tab', { name: 'Parts' }));
     const parts = await screen.findByRole('table', { name: 'Parts' });
     const partRow = (await within(parts).findByRole('link', { name: 'M3 heat-set insert' })).closest(
@@ -324,9 +364,9 @@ describe('Inventory page', () => {
   it('applies the low-stock filter named in the URL', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
-    renderPage(<InventoryPage />, `${machineLogbookPaths.inventory('filament')}&stock=low_stock`);
+    renderPage(<InventoryPage />, `${machineLogbookPaths.inventory('materials')}&stock=low_stock`);
 
-    const table = await screen.findByRole('table', { name: 'Filament' });
+    const table = await screen.findByRole('table', { name: 'Materials' });
     expect(await within(table).findByRole('link', { name: 'White' })).toBeInTheDocument();
     expect(within(table).queryByRole('link', { name: 'Black' })).not.toBeInTheDocument();
     expect(within(table).getByText('Low')).toBeInTheDocument();
@@ -336,9 +376,22 @@ describe('Inventory page', () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
     renderPage(<InventoryPage />, machineLogbookPaths.inventory());
-    await screen.findByRole('table', { name: 'Filament' });
+    await screen.findByRole('table', { name: 'Materials' });
     expect(screen.queryByRole('button', { name: 'Receive stock' })).not.toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'More inventory actions' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'More inventory actions' })).not.toBeInTheDocument();
+  });
+
+  it('asks for the kind when receiving stock on the combined Materials list', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveInventory();
+    const user = userEvent.setup();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('materials'));
+    await user.click(await screen.findByRole('button', { name: 'Receive stock' }));
+    const choice = await screen.findByRole('dialog', { name: 'Receive stock for' });
+    await user.click(within(choice).getByRole('radio', { name: 'Consumable' }));
+    await user.click(within(choice).getByRole('button', { name: 'Continue' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+    expect(within(dialog).getByRole('combobox', { name: 'Article' })).toBeInTheDocument();
   });
 
   it('opens Receive stock for the kind of the current tab', async () => {
@@ -445,6 +498,86 @@ describe('Article detail page', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
     expect(within(dialog).getByLabelText('Article')).toHaveValue('M3 heat-set insert · 250 pcs in stock');
     expect(within(dialog).getByLabelText(/Size of one package/)).toHaveValue('100');
+  });
+
+  describe('deleting an unused article', () => {
+    const openMenu = async (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(await screen.findByRole('img', { name: 'More article actions' }));
+
+    it('deletes a deletable article with its version and returns to the inventory', async () => {
+      auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+      const unused = { ...sheet, deletable: true, version: 5 };
+      serveMaterial(unused);
+      let sent: unknown;
+      server.use(
+        http.delete(`*/api/v1/materials/${unused.id}`, async ({ request }) => {
+          sent = await request.json();
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const user = userEvent.setup();
+      const router = createMemoryRouter(
+        [
+          { path: route, element: <MaterialDetailPage /> },
+          { path: '/machine-logbook/inventory', element: <p>Inventory list</p> },
+        ],
+        { initialEntries: [machineLogbookPaths.material(unused.id)] },
+      );
+      render(
+        <QueryClientProvider client={testQueryClient()}>
+          <ToastProvider>
+            <RouterProvider router={router} />
+          </ToastProvider>
+        </QueryClientProvider>,
+      );
+      await openMenu(user);
+      await user.click(await screen.findByText('Delete article'));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Delete this article?' });
+      await user.click(within(dialog).getByRole('button', { name: 'Delete article' }));
+      await waitFor(() => expect(sent).toEqual({ expectedVersion: 5 }));
+      expect(await screen.findByText('Article deleted')).toBeInTheDocument();
+      await waitFor(() => expect(router.state.location.pathname).toBe('/machine-logbook/inventory'));
+      expect(router.state.location.search).toBe('?tab=materials');
+    });
+
+    it('disables the action with an explanation while the article is in use', async () => {
+      auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+      serveMaterial({ ...sheet, deletable: false });
+      const user = userEvent.setup();
+      renderPage(<MaterialDetailPage />, machineLogbookPaths.material(sheet.id), route);
+      await openMenu(user);
+      const item = (await screen.findByText('Delete article')).closest('button') as HTMLElement;
+      expect(item).toBeDisabled();
+      expect(screen.getByText(/so this article cannot be deleted\. Deactivate it instead/)).toBeInTheDocument();
+    });
+
+    it('is not offered without inventory.manage', async () => {
+      auth.permissions = [PermissionId.inventoryread];
+      serveMaterial({ ...sheet, deletable: true });
+      renderPage(<MaterialDetailPage />, machineLogbookPaths.material(sheet.id), route);
+      await screen.findByRole('heading', { name: sheet.name });
+      expect(screen.queryByText('Delete article')).not.toBeInTheDocument();
+    });
+
+    it('shows the backend message when the article turned out to be in use', async () => {
+      auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+      serveMaterial({ ...sheet, deletable: true });
+      server.use(
+        http.delete(`*/api/v1/materials/${sheet.id}`, () =>
+          HttpResponse.json(
+            { code: 'material_in_use', message: 'The article is used by 2 ledger entries.', requestId: 'r1' },
+            { status: 409 },
+          ),
+        ),
+      );
+      const user = userEvent.setup();
+      renderPage(<MaterialDetailPage />, machineLogbookPaths.material(sheet.id), route);
+      await openMenu(user);
+      await user.click(await screen.findByText('Delete article'));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Delete this article?' });
+      await user.click(within(dialog).getByRole('button', { name: 'Delete article' }));
+      expect(await within(dialog).findByText('The article is used by 2 ledger entries.')).toBeInTheDocument();
+    });
   });
 
   it('writes spool snapshots and transfers into the ledger as text', async () => {

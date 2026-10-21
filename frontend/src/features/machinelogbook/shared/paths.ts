@@ -8,12 +8,12 @@ const withQuery = (path: string, query?: Record<string, string | undefined>) => 
 };
 const segment = (id: string) => encodeURIComponent(id);
 
-export type InventoryTab = 'filament' | 'consumables' | 'parts' | 'spools';
+export type InventoryTab = 'materials' | 'parts' | 'spools' | 'types';
 export type MachineTab = 'printer';
 
-/** The Inventory tab that lists articles of a kind. */
+/** The Inventory tab that lists articles of a kind: filament and consumables share Materials. */
 export const inventoryTabForKind = (kind: 'filament' | 'consumable' | 'part'): InventoryTab =>
-  kind === 'filament' ? 'filament' : kind === 'consumable' ? 'consumables' : 'parts';
+  kind === 'part' ? 'parts' : 'materials';
 
 export const machineLogbookPaths = {
   overview: () => root,

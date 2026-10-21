@@ -255,7 +255,7 @@ export function App() {
               {/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
               <Route
                 path="inventory/materials"
-                element={<Navigate to="/machine-logbook/inventory?tab=filament" replace />}
+                element={<Navigate to="/machine-logbook/inventory?tab=materials" replace />}
               />
               <Route
                 path="inventory/spools"
@@ -263,7 +263,7 @@ export function App() {
               />
               <Route
                 path="inventory/products"
-                element={<Navigate to="/machine-logbook/inventory?tab=filament" replace />}
+                element={<Navigate to="/machine-logbook/inventory?tab=materials" replace />}
               />
               <Route
                 path="inventory/:materialId"

@@ -68,7 +68,7 @@ const targets: Target[] = [
   {
     name: 'Inventory, Filament tab',
     path: `${base}/inventory`,
-    ready: (page) => page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true }),
+    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Black', exact: true }),
   },
   {
     name: 'Inventory, Spools tab',
@@ -81,9 +81,9 @@ const targets: Target[] = [
     ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }),
   },
   {
-    name: 'Inventory, Consumables tab',
-    path: `${base}/inventory?tab=consumables`,
-    ready: (page) => page.getByRole('table', { name: 'Consumables' }).getByRole('link', { name: 'Birch plywood' }),
+    name: 'Inventory, Materials tab',
+    path: `${base}/inventory?tab=materials`,
+    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Birch plywood' }),
   },
   {
     name: 'Material detail (filament)',
@@ -366,7 +366,7 @@ test.describe('read-only role', () => {
 
     await page.goto(`${base}/inventory`);
     await expect(
-      page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true }),
+      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Black', exact: true }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
   });

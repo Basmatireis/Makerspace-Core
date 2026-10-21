@@ -289,7 +289,7 @@ export function MachineLogbookOverviewPage() {
                 action={
                   <Button
                     as={Link}
-                    to={`${machineLogbookPaths.inventory(lowStock ? inventoryTabForKind(lowStock.kind) : 'filament')}&stock=low_stock`}
+                    to={`${machineLogbookPaths.inventory(lowStock ? inventoryTabForKind(lowStock.kind) : 'materials')}&stock=low_stock`}
                     kind="ghost"
                     size="sm"
                     renderIcon={ArrowRight}

@@ -86,30 +86,50 @@ function serveTypes(items: MaterialType[] = [pla, plywood, retired, fasteners]) 
 }
 
 async function openTypes(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('img', { name: 'More inventory actions' }));
-  await user.click(await screen.findByText('Types & categories'));
-  return screen.findByRole('dialog', { name: 'Types & categories' });
+  await user.click(await screen.findByRole('tab', { name: 'Types & categories' }));
+  return screen.findByRole('table', { name: 'Types and categories' });
+}
+
+async function newType(user: ReturnType<typeof userEvent.setup>, kindLabel: string) {
+  await user.click(await screen.findByRole('button', { name: 'New type or category' }));
+  const choice = await screen.findByRole('dialog', { name: 'New type or category' });
+  await user.click(within(choice).getByRole('radio', { name: kindLabel }));
+  await user.click(within(choice).getByRole('button', { name: 'Continue' }));
 }
 
 describe('Types and categories', () => {
-  it('lists the types of a kind and switches to part categories', async () => {
+  it('lists filament and consumable types and part categories in one table', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveTypes();
     const user = userEvent.setup();
-    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory());
-    const dialog = await openTypes(user);
-    const table = await within(dialog).findByRole('table', { name: 'Filament types' });
-    expect(within(table).getByText('PLA')).toBeInTheDocument();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    expect(await within(table).findByText('PLA')).toBeInTheDocument();
     expect(within(table).getByText('ABS')).toBeInTheDocument();
-    expect(within(table).queryByText('Plywood')).not.toBeInTheDocument();
+    expect(within(table).getByText('Plywood')).toBeInTheDocument();
+    expect(within(table).getByText('Fasteners')).toBeInTheDocument();
+    const plaRow = within(table).getByText('PLA').closest('tr') as HTMLElement;
+    expect(within(plaRow).getByText('Filament')).toBeInTheDocument();
+    expect(within(plaRow).getByText('FDM 3D printing')).toBeInTheDocument();
+    expect(within(plaRow).getByText('g')).toBeInTheDocument();
     // Readers cannot edit or add.
     expect(within(table).queryByRole('button', { name: 'PLA' })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Add material type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New type or category' })).not.toBeInTheDocument();
+  });
 
-    await user.click(within(dialog).getByRole('tab', { name: 'Part categories' }));
-    const categories = await within(dialog).findByRole('table', { name: 'Part categories' });
-    expect(within(categories).getByText('Fasteners')).toBeInTheDocument();
-    expect(within(categories).queryByRole('columnheader', { name: 'Processes' })).not.toBeInTheDocument();
+  it('narrows the types with the Process filter', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveTypes();
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await within(table).findByText('PLA');
+    await user.click(screen.getByLabelText('Filters', { selector: 'button' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Laser cutting' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+    expect(await screen.findByText('Plywood')).toBeInTheDocument();
+    expect(screen.queryByText('PLA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fasteners')).not.toBeInTheDocument();
   });
 
   it('creates a filament type in grams without asking for processes', async () => {
@@ -126,9 +146,8 @@ describe('Types and categories', () => {
       }),
     );
     const user = userEvent.setup();
-    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory());
-    const list = await openTypes(user);
-    await user.click(within(list).getByRole('button', { name: 'Add material type' }));
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    await newType(user, 'Filament material type');
     const dialog = await screen.findByRole('dialog', { name: 'Add material type' });
     expect(within(dialog).getByLabelText('Unit')).toBeDisabled();
     expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
@@ -154,9 +173,8 @@ describe('Types and categories', () => {
       }),
     );
     const user = userEvent.setup();
-    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('consumables'));
-    const list = await openTypes(user);
-    await user.click(within(list).getByRole('button', { name: 'Add material type' }));
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    await newType(user, 'Consumable material type');
     let dialog = await screen.findByRole('dialog', { name: 'Add material type' });
     await user.type(within(dialog).getByLabelText('Name'), 'Vinyl foil');
     await user.selectOptions(within(dialog).getByLabelText('Unit'), 'm2');
@@ -165,11 +183,9 @@ describe('Types and categories', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add material type' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({ name: 'Vinyl foil', kind: 'consumable', unit: 'm2', processes: ['vinyl_cutting'] });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add material type' })).not.toBeInTheDocument());
 
-    // Back in the list: parts have categories.
-    const again = await screen.findByRole('dialog', { name: 'Types & categories' });
-    await user.click(within(again).getByRole('tab', { name: 'Part categories' }));
-    await user.click(within(again).getByRole('button', { name: 'Add category' }));
+    await newType(user, 'Part category');
     dialog = await screen.findByRole('dialog', { name: 'Add category' });
     expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Name'), 'Bike');
@@ -187,9 +203,9 @@ describe('Types and categories', () => {
       ),
     );
     const user = userEvent.setup();
-    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory());
-    const list = await openTypes(user);
-    await user.click(await within(list).findByRole('button', { name: 'PLA' }));
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: 'PLA' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit material type' });
     expect(within(dialog).getByLabelText('Unit')).toBeDisabled();
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
