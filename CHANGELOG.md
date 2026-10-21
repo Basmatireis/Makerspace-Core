@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Fixed
+
+- Printer connector: a connector that lost its local data (for example a container recreated without its volume) numbered its events from 1 again, and Core silently rejected every one, so no runs were recorded while the live status looked normal. Core now answers a reused sequence with the next free one, and the connector renumbers its pending events from there and logs a warning. Both sides stay compatible with 0.8.1.
+
 ## [0.8.1] - 2026-10-21
 
 ### Upgrade notes

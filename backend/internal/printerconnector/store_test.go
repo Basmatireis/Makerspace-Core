@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/google/uuid"
 )
 
 func TestStorePersistsIdentityConfigurationAndOutboxAcrossRestart(t *testing.T) {
@@ -153,6 +154,81 @@ func TestStoreQuarantinesRejectedEventsAndLocksDataDirectory(t *testing.T) {
 	pending, quarantined, err := store.QueueCounts(ctx)
 	if err != nil || pending != 0 || quarantined != 1 {
 		t.Fatalf("unexpected queue counts: pending=%d quarantined=%d err=%v", pending, quarantined, err)
+	}
+}
+
+func TestStoreRenumbersPendingEventsBehindCoreAfterLostState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	// A fresh store numbers from 1 again while Core already holds 1–40.
+	assignmentID, otherAssignmentID := ids.New(), ids.New()
+	enqueue := func(assignment uuid.UUID) QueuedEvent {
+		event, enqueueErr := store.Enqueue(
+			ctx,
+			assignment,
+			1,
+			"progress",
+			json.RawMessage(`{"percent":20}`),
+			nil,
+			true,
+			nil,
+			nil,
+		)
+		if enqueueErr != nil {
+			t.Fatal(enqueueErr)
+		}
+		return event
+	}
+	first, second, third := enqueue(assignmentID), enqueue(assignmentID), enqueue(assignmentID)
+	other := enqueue(otherAssignmentID)
+	if first.Sequence != 1 || third.Sequence != 3 || other.Sequence != 1 {
+		t.Fatalf("unexpected initial sequences: %d %d %d", first.Sequence, third.Sequence, other.Sequence)
+	}
+
+	reason, next := sequenceConflictReason, int64(41)
+	if err = store.ApplyReceipts(
+		ctx,
+		[]EventReceipt{
+			{EventID: first.EventID, Status: ReceiptRejected, ReasonCode: &reason, NextSequence: &next},
+			{EventID: second.EventID, Status: ReceiptRejected, ReasonCode: &reason, NextSequence: &next},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	pending, quarantined, err := store.QueueCounts(ctx)
+	if err != nil || pending != 4 || quarantined != 0 {
+		t.Fatalf("conflicting events were not kept pending: pending=%d quarantined=%d err=%v", pending, quarantined, err)
+	}
+	events, err := store.Pending(ctx, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sequences := map[uuid.UUID]int64{}
+	for _, event := range events {
+		sequences[event.EventID] = event.Sequence
+	}
+	if sequences[first.EventID] != 41 || sequences[second.EventID] != 42 || sequences[third.EventID] != 43 ||
+		sequences[other.EventID] != 1 {
+		t.Fatalf("pending events were not renumbered from Core's next sequence: %v", sequences)
+	}
+	if event := enqueue(assignmentID); event.Sequence != 44 {
+		t.Fatalf("new event sequence = %d, want 44", event.Sequence)
+	}
+
+	// A conflict without Core's next sequence is still quarantined.
+	if err = store.ApplyReceipts(
+		ctx,
+		[]EventReceipt{{EventID: other.EventID, Status: ReceiptRejected, ReasonCode: &reason}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, quarantined, err = store.QueueCounts(ctx); err != nil || quarantined != 1 {
+		t.Fatalf("conflict without next sequence was not quarantined: quarantined=%d err=%v", quarantined, err)
 	}
 }
 

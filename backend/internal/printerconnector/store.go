@@ -487,6 +487,11 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 		case ReceiptAccepted, ReceiptDuplicate:
 			_, err = tx.ExecContext(ctx, `DELETE FROM outbox WHERE event_id=?`, receipt.EventID.String())
 		case ReceiptRejected:
+			if receipt.NextSequence != nil && receipt.ReasonCode != nil &&
+				*receipt.ReasonCode == sequenceConflictReason {
+				err = renumberBehindCore(ctx, tx, receipt.EventID, *receipt.NextSequence)
+				break
+			}
 			_, err = tx.ExecContext(
 				ctx,
 				`UPDATE outbox SET state='quarantined',reason_code=? WHERE event_id=?`,
@@ -525,6 +530,86 @@ func (s *Store) ApplyReceipts(ctx context.Context, receipts []EventReceipt) erro
 		}
 	}
 	return tx.Commit()
+}
+
+// sequenceConflictReason is Core's rejection of a sequence it already holds
+// for the assignment with different facts.
+const sequenceConflictReason = "printer_event_sequence_conflict"
+
+// renumberBehindCore recovers from lost local state. A connector whose state
+// was reset starts its sequences at 1 again and Core rejects every reused
+// number. The rejected event and every other pending event of its assignment
+// below Core's next sequence get fresh numbers from there, in creation order,
+// and stay pending.
+func renumberBehindCore(ctx context.Context, tx *sql.Tx, eventID uuid.UUID, coreNext int64) error {
+	var assignmentID string
+	err := tx.QueryRowContext(
+		ctx,
+		`SELECT assignment_id FROM outbox WHERE event_id=? AND state='pending'`,
+		eventID.String(),
+	).Scan(&assignmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var next int64
+	err = tx.QueryRowContext(
+		ctx,
+		`SELECT next_sequence FROM assignment_sequences WHERE assignment_id=?`,
+		assignmentID,
+	).Scan(&next)
+	if errors.Is(err, sql.ErrNoRows) {
+		next = 1
+	} else if err != nil {
+		return err
+	}
+	// Every local sequence is below next, so numbers from max(next, coreNext)
+	// cannot collide with the events that keep theirs.
+	next = max(next, coreNext)
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT event_id FROM outbox WHERE assignment_id=? AND state='pending' AND sequence<? ORDER BY created_at, sequence`,
+		assignmentID,
+		coreNext,
+	)
+	if err != nil {
+		return err
+	}
+	var behind []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		behind = append(behind, id)
+	}
+	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, id := range behind {
+		if _, err = tx.ExecContext(
+			ctx,
+			`UPDATE outbox SET sequence=?,next_attempt_at=? WHERE event_id=?`,
+			next,
+			now,
+			id,
+		); err != nil {
+			return err
+		}
+		next++
+	}
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO assignment_sequences(assignment_id,next_sequence) VALUES(?,?)
+		ON CONFLICT(assignment_id) DO UPDATE SET next_sequence=excluded.next_sequence`,
+		assignmentID,
+		next,
+	)
+	return err
 }
 
 func (s *Store) QueueCounts(ctx context.Context) (pending, quarantined int64, err error) {

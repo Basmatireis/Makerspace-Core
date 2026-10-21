@@ -30,4 +30,9 @@ export interface PrinterConnectorEventReceipt {
      * @nullable
      */
   reasonCode: string | null;
+  /**
+     * Sent with reasonCode printer_event_sequence_conflict. The first sequence Core has not seen for the event's assignment; a connector that lost its local state renumbers its pending events from here.
+     * @minimum 1
+     */
+  nextSequence?: number;
 }

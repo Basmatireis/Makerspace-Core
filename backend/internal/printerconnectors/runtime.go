@@ -277,8 +277,17 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		},
 	)
 	if err != nil {
-		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "printer_event_sequence_conflict") ||
-			apperror.IsCode(err, "validation_failed") {
+		if apperror.IsCode(err, "printer_event_sequence_conflict") {
+			receipt := rejected("printer_event_sequence_conflict")
+			next, nextErr := db.New(tx).GetConnectorAssignmentNextSequence(ctx, &a.ID)
+			if nextErr != nil {
+				code := "temporarily_unavailable"
+				return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
+			}
+			receipt.NextSequence = &next
+			return receipt
+		}
+		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "validation_failed") {
 			return rejected(apperrorCode(err))
 		}
 		code := "temporarily_unavailable"

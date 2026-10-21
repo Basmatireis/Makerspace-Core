@@ -190,6 +190,10 @@ type EventReceipt struct {
 	CoreEventID *uuid.UUID
 	Status      ReceiptStatus
 	ReasonCode  *string
+	// NextSequence is the first sequence Core has not seen for the assignment,
+	// sent with a sequence conflict so a connector that lost its local state
+	// can renumber its pending events instead of quarantining them.
+	NextSequence *int64
 }
 
 func nullableTime(value pgtype.Timestamptz) *time.Time {

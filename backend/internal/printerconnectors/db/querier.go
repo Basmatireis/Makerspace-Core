@@ -41,6 +41,7 @@ type Querier interface {
 	GetAssignmentForLiveStatus(ctx context.Context, arg GetAssignmentForLiveStatusParams) (GetAssignmentForLiveStatusRow, error)
 	GetAssignmentForUpdate(ctx context.Context, arg GetAssignmentForUpdateParams) (PrinterConnectorAssignment, error)
 	GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
+	GetConnectorAssignmentNextSequence(ctx context.Context, assignmentID *uuid.UUID) (int64, error)
 	GetConnectorCredential(ctx context.Context, arg GetConnectorCredentialParams) (PrinterConnectorCredential, error)
 	GetConnectorEventByKey(ctx context.Context, arg GetConnectorEventByKeyParams) (PrinterEvent, error)
 	GetConnectorEventBySequence(ctx context.Context, arg GetConnectorEventBySequenceParams) (PrinterEvent, error)

@@ -241,6 +241,22 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil || receipts[0].Status != "rejected" {
 		t.Fatalf("conflicting event receipts=%+v err=%v", receipts, err)
 	}
+	// A connector that lost its local state numbers from 1 again; Core tells it
+	// where to continue.
+	reset := second
+	reset.EventID = ids.New()
+	reset.Sequence = 1
+	receipts, err = service.IngestEvents(ctx, *connectorContext, []EventInput{reset})
+	if err != nil || receipts[0].Status != "rejected" || receipts[0].ReasonCode == nil ||
+		*receipts[0].ReasonCode != "printer_event_sequence_conflict" ||
+		receipts[0].NextSequence == nil || *receipts[0].NextSequence != 3 {
+		t.Fatalf("reused sequence receipts=%+v err=%v", receipts, err)
+	}
+	reset.Sequence = *receipts[0].NextSequence
+	receipts, err = service.IngestEvents(ctx, *connectorContext, []EventInput{reset})
+	if err != nil || receipts[0].Status != "accepted" {
+		t.Fatalf("renumbered event receipts=%+v err=%v", receipts, err)
+	}
 	current, err := service.Get(ctx, principal, connector.ID)
 	if err != nil {
 		t.Fatal(err)

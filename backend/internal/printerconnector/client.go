@@ -55,6 +55,9 @@ type EventReceipt struct {
 	CoreEventID *uuid.UUID    `json:"coreEventId"`
 	Status      ReceiptStatus `json:"status"`
 	ReasonCode  *string       `json:"reasonCode"`
+	// NextSequence accompanies a sequence conflict: the first sequence Core has
+	// not seen for the event's assignment.
+	NextSequence *int64 `json:"nextSequence,omitempty"`
 }
 
 type ArtifactUploadResult struct {

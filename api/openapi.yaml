@@ -11678,6 +11678,11 @@ components:
         coreEventId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         status: {type: string, enum: [accepted, duplicate, rejected, retry]}
         reasonCode: {type: string, maxLength: 80, nullable: true}
+        nextSequence:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Sent with reasonCode printer_event_sequence_conflict. The first sequence Core has not seen for the event's assignment; a connector that lost its local state renumbers its pending events from here.
 
     PrinterConnectorEventBatchReceipt:
       type: object

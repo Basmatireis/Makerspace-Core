@@ -265,6 +265,10 @@ SELECT * FROM printer_events WHERE source_id=sqlc.arg(source_id) AND event_key=s
 -- name: GetConnectorEventBySequence :one
 SELECT * FROM printer_events WHERE connector_assignment_id=sqlc.arg(assignment_id) AND source_sequence=sqlc.arg(source_sequence);
 
+-- name: GetConnectorAssignmentNextSequence :one
+SELECT (COALESCE(max(source_sequence), 0) + 1)::bigint AS next_sequence
+FROM printer_events WHERE connector_assignment_id=sqlc.arg(assignment_id);
+
 -- name: InsertConnectorEvent :one
 INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at,
     source_sequence, external_print_id, payload, connector_id, connector_assignment_id,

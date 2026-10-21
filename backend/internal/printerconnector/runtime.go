@@ -544,6 +544,15 @@ func (r *Runtime) deliver(ctx context.Context, identity Identity) error {
 		}
 		return err
 	}
+	for _, receipt := range receipts {
+		if receipt.NextSequence != nil && receipt.ReasonCode != nil && *receipt.ReasonCode == sequenceConflictReason {
+			r.logger.Warn(
+				"core already holds these event sequences, likely after local connector state was lost; renumbering pending events",
+				"next_sequence", *receipt.NextSequence,
+			)
+			break
+		}
+	}
 	return r.store.ApplyReceipts(ctx, receipts)
 }
 

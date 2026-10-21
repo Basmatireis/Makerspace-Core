@@ -779,6 +779,18 @@ func (q *Queries) GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnec
 	return i, err
 }
 
+const getConnectorAssignmentNextSequence = `-- name: GetConnectorAssignmentNextSequence :one
+SELECT (COALESCE(max(source_sequence), 0) + 1)::bigint AS next_sequence
+FROM printer_events WHERE connector_assignment_id=$1
+`
+
+func (q *Queries) GetConnectorAssignmentNextSequence(ctx context.Context, assignmentID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getConnectorAssignmentNextSequence, assignmentID)
+	var next_sequence int64
+	err := row.Scan(&next_sequence)
+	return next_sequence, err
+}
+
 const getConnectorCredential = `-- name: GetConnectorCredential :one
 SELECT id, connector_id, token_digest, state, expires_at, last_used_at, retire_after, revoked_at, created_at FROM printer_connector_credentials WHERE id=$1 AND connector_id=$2
 `

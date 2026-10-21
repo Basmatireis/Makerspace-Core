@@ -526,10 +526,11 @@ func (s *Server) IngestPrinterConnectorEvents(
 		result = append(
 			result,
 			openapi.PrinterConnectorEventReceipt{
-				EventId:     value.EventID,
-				CoreEventId: nullableValue(value.CoreEventID),
-				Status:      openapi.PrinterConnectorEventReceiptStatus(value.Status),
-				ReasonCode:  nullableString(value.ReasonCode),
+				EventId:      value.EventID,
+				CoreEventId:  nullableValue(value.CoreEventID),
+				Status:       openapi.PrinterConnectorEventReceiptStatus(value.Status),
+				ReasonCode:   nullableString(value.ReasonCode),
+				NextSequence: value.NextSequence,
 			},
 		)
 	}
