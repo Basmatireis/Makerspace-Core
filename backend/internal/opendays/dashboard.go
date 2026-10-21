@@ -16,6 +16,7 @@ import (
 type ComingUpOpenDay struct {
 	AssignmentID         uuid.UUID
 	OpenDayID            uuid.UUID
+	PeriodID             uuid.UUID
 	PeriodName           string
 	StartsAt, EndsAt     time.Time
 	OpenSupervisorPlaces int
@@ -23,9 +24,9 @@ type ComingUpOpenDay struct {
 
 // OpenPlace is an open day with a free place the current person could take.
 type OpenPlace struct {
-	OpenDayID, RequirementID uuid.UUID
-	StartsAt, EndsAt         time.Time
-	FreePlaces               int
+	OpenDayID, PeriodID, RequirementID uuid.UUID
+	StartsAt, EndsAt                   time.Time
+	FreePlaces                         int
 }
 
 // OwnComingUp lists the current person's upcoming open days, never another person's.
@@ -47,7 +48,7 @@ func (s *Service) OwnComingUp(
 	items := make([]ComingUpOpenDay, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ComingUpOpenDay{
-			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, PeriodName: row.PeriodName,
+			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, PeriodID: row.PeriodID, PeriodName: row.PeriodName,
 			StartsAt: row.StartsAt, EndsAt: row.EndsAt, OpenSupervisorPlaces: int(row.OpenSupervisorPlaces),
 		})
 	}
@@ -76,7 +77,7 @@ func (s *Service) NextOpenPlace(
 		return nil, err
 	}
 	return &OpenPlace{
-		OpenDayID: row.OpenDayID, RequirementID: row.RequirementID,
+		OpenDayID: row.OpenDayID, PeriodID: row.PeriodID, RequirementID: row.RequirementID,
 		StartsAt: row.StartsAt, EndsAt: row.EndsAt, FreePlaces: int(row.FreePlaces),
 	}, nil
 }

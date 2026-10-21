@@ -185,7 +185,7 @@ DELETE FROM open_day_academic_breaks WHERE id = sqlc.arg(id) AND version = sqlc.
 
 -- name: ListOwnComingUpOpenDays :many
 -- Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
-SELECT a.id AS assignment_id, d.id AS open_day_id, p.name AS period_name, d.starts_at, d.ends_at,
+SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name, d.starts_at, d.ends_at,
        COALESCE(sup.open_places, 0)::bigint AS open_supervisor_places
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
@@ -203,7 +203,7 @@ ORDER BY d.starts_at, d.id;
 -- name: GetNextOpenPlace :one
 -- The next open day starting within the window that the person is not on yet and that has a free place of the given
 -- kind they are eligible for.
-SELECT d.id AS open_day_id, r.id AS requirement_id, d.starts_at, d.ends_at,
+SELECT d.id AS open_day_id, d.period_id, r.id AS requirement_id, d.starts_at, d.ends_at,
        (r.required_count - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))::bigint AS free_places
 FROM open_days d
 JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')

@@ -22,9 +22,11 @@ import type { StaffingLevel } from './staffingLevel';
 import type { StaffingStatus } from './staffingStatus';
 import type { SupervisorRowLaborordnungState } from './supervisorRowLaborordnungState';
 import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
 export interface SupervisorRow {
   personId: UUIDv7;
+  personVersion: Version;
   name: string;
   kind: StaffingLevel;
   hasProfileImage: boolean;

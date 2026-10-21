@@ -12,6 +12,7 @@ import { server } from '../../test/server';
 const openDayId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const otherOpenDayId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
 const requirementId = '0192f6f8-743e-7c77-a349-cd07c3e8b003';
+const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8b005';
 const shiftId = '0192f6f8-743e-7c77-a349-cd07c3e8b004';
 
 /** Instants relative to the real clock: the page compares them with "now". */
@@ -81,6 +82,7 @@ describe('personal dashboard', () => {
           },
           nextOpenPlace: {
             openDayId: otherOpenDayId,
+            periodId,
             requirementId,
             startsAt: inHours(200),
             endsAt: inHours(204),
@@ -144,6 +146,7 @@ describe('personal dashboard', () => {
         staffing: staffing({
           nextOpenPlace: {
             openDayId: otherOpenDayId,
+            periodId,
             requirementId,
             startsAt: inHours(100),
             endsAt: inHours(104),
@@ -180,6 +183,7 @@ describe('personal dashboard', () => {
           missing: 0,
           nextOpenPlace: {
             openDayId: otherOpenDayId,
+            periodId,
             requirementId,
             startsAt: inHours(100),
             endsAt: inHours(104),
@@ -205,6 +209,7 @@ describe('personal dashboard', () => {
           kind: 'trainee',
           nextOpenPlace: {
             openDayId: otherOpenDayId,
+            periodId,
             requirementId,
             startsAt: inHours(100),
             endsAt: inHours(104),

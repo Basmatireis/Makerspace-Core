@@ -20,6 +20,7 @@ function supervisorDashboard() {
     supervisors: [
       {
         personId: otherPersonId,
+        personVersion: 1,
         name: 'Grace Hopper',
         kind: 'supervisor',
         hasProfileImage: false,

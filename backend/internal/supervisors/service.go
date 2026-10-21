@@ -17,6 +17,7 @@ import (
 // Row is one person with a staffing level and their standing in the current semester.
 type Row struct {
 	PersonID          uuid.UUID
+	PersonVersion     int64
 	Name              string
 	Kind              roles.StaffingLevel
 	HasProfileImage   bool
@@ -85,6 +86,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 		personCounts := counts[person.PersonID]
 		row := Row{
 			PersonID:          person.PersonID,
+			PersonVersion:     person.PersonVersion,
 			Name:              strings.TrimSpace(person.FirstName + " " + person.LastName),
 			Kind:              kind,
 			HasProfileImage:   person.HasProfileImage,

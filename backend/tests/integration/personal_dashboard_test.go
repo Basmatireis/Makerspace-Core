@@ -155,7 +155,8 @@ func TestPersonalDashboardStaffingNumbersAndNextOpenPlace(t *testing.T) {
 		t.Fatalf("supervisor staffing = %+v", section)
 	}
 	if section.NextOpenPlace == nil || section.NextOpenPlace.OpenDayID != free.id ||
-		section.NextOpenPlace.RequirementID != free.supervisorRequirement || section.NextOpenPlace.FreePlaces != 1 {
+		section.NextOpenPlace.RequirementID != free.supervisorRequirement || section.NextOpenPlace.FreePlaces != 1 ||
+		section.NextOpenPlace.PeriodID != e.period {
 		t.Fatalf("supervisor next open place = %+v, want the supervisor place of the day with room", section.NextOpenPlace)
 	}
 
@@ -220,12 +221,12 @@ func TestPersonalDashboardComingUpMergesOpenDaysAndShiftsChronologically(t *test
 		early.PublicID == nil || len(*early.PublicID) != 43 {
 		t.Fatalf("early shift = %+v", early)
 	}
-	if view.ComingUp[2].PublicID != nil {
+	if view.ComingUp[2].PublicID != nil || early.PeriodID != nil {
 		t.Fatal("an internal event leaked its public id")
 	}
 	openDay := view.ComingUp[1]
 	if openDay.Title != "Current semester" || openDay.OpenDayID == nil || *openDay.OpenDayID != day.id ||
-		openDay.ShortStaffed == nil || !*openDay.ShortStaffed {
+		openDay.PeriodID == nil || *openDay.PeriodID != e.period || openDay.ShortStaffed == nil || !*openDay.ShortStaffed {
 		t.Fatalf("open day item = %+v, want short-staffed open day", openDay)
 	}
 	if view.Staffing.NextOpenDay == nil || !view.Staffing.NextOpenDay.ShortStaffed || view.Staffing.NextOpenDay.OpenSupervisorPlaces != 1 {

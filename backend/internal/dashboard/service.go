@@ -51,14 +51,15 @@ type Staffing struct {
 	NextOpenDay      *NextOpenDay
 }
 
-// ComingUpItem is one upcoming commitment. OpenDayID and ShortStaffed are set for open days, EventID and PublicID
-// for event shifts.
+// ComingUpItem is one upcoming commitment. OpenDayID, PeriodID and ShortStaffed are set for open days, EventID and
+// PublicID for event shifts.
 type ComingUpItem struct {
 	Kind             ItemKind
 	ID               uuid.UUID
 	Title            string
 	StartsAt, EndsAt time.Time
 	OpenDayID        *uuid.UUID
+	PeriodID         *uuid.UUID
 	ShortStaffed     *bool
 	EventID          *uuid.UUID
 	PublicID         *string
@@ -122,7 +123,8 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 			shortStaffed := day.OpenSupervisorPlaces > 0
 			result.ComingUp = append(result.ComingUp, ComingUpItem{
 				Kind: ItemOpenDay, ID: day.AssignmentID, Title: day.PeriodName,
-				StartsAt: day.StartsAt, EndsAt: day.EndsAt, OpenDayID: &day.OpenDayID, ShortStaffed: &shortStaffed,
+				StartsAt: day.StartsAt, EndsAt: day.EndsAt, OpenDayID: &day.OpenDayID, PeriodID: &day.PeriodID,
+				ShortStaffed:         &shortStaffed,
 				openSupervisorPlaces: day.OpenSupervisorPlaces,
 			})
 		}

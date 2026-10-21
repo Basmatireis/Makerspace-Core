@@ -28,6 +28,7 @@ export interface ComingUpItem {
   startsAt: string;
   endsAt: string;
   openDayId?: UUIDv7;
+  periodId?: UUIDv7;
   /** Open days only; true when supervisor places are open. */
   shortStaffed?: boolean;
   eventId?: UUIDv7;

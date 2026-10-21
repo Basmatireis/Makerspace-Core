@@ -22,6 +22,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export interface OpenPlace {
   openDayId: UUIDv7;
+  periodId: UUIDv7;
   requirementId: UUIDv7;
   startsAt: string;
   endsAt: string;

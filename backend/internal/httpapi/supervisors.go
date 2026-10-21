@@ -26,6 +26,7 @@ func (s *Server) GetSupervisorDashboard(
 	for _, supervisor := range dashboard.Supervisors {
 		row := openapi.SupervisorRow{
 			PersonId:          supervisor.PersonID,
+			PersonVersion:     supervisor.PersonVersion,
 			Name:              supervisor.Name,
 			Kind:              openapi.StaffingLevel(supervisor.Kind),
 			HasProfileImage:   supervisor.HasProfileImage,

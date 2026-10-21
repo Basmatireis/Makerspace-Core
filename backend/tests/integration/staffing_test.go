@@ -391,6 +391,13 @@ func TestSupervisorDashboardShowsSemesterStandingPerPerson(t *testing.T) {
 		row.Counts.Booked != 1 || row.Standing.Status != staffing.StatusFulfilled || row.LastOpenDayAt == nil {
 		t.Fatalf("fulfilled row = %+v", row)
 	}
+	var fulfilledVersion int64
+	if err := e.pool.QueryRow(ctx, `SELECT version FROM people WHERE id=$1`, fulfilled.PersonID).Scan(&fulfilledVersion); err != nil {
+		t.Fatal(err)
+	}
+	if byPerson[fulfilled.PersonID].PersonVersion != fulfilledVersion {
+		t.Fatalf("person version = %d, want %d", byPerson[fulfilled.PersonID].PersonVersion, fulfilledVersion)
+	}
 	if row := byPerson[missing.PersonID]; row.Counts.Staffed != 0 || row.Counts.Booked != 0 ||
 		row.Standing.Status != staffing.StatusMissing || row.Standing.Missing != 2 ||
 		row.LastOpenDayAt == nil || !row.LastOpenDayAt.Equal(pastStart.Truncate(time.Microsecond)) {

@@ -8963,9 +8963,10 @@ components:
     SupervisorRow:
       type: object
       additionalProperties: false
-      required: [personId, name, kind, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, status, missing, lastOpenDayAt, memberSince]
+      required: [personId, personVersion, name, kind, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, status, missing, lastOpenDayAt, memberSince]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
+        personVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string}
         kind: {$ref: "#/components/schemas/StaffingLevel"}
         hasProfileImage: {type: boolean}
@@ -9029,9 +9030,10 @@ components:
     OpenPlace:
       type: object
       additionalProperties: false
-      required: [openDayId, requirementId, startsAt, endsAt, freePlaces]
+      required: [openDayId, periodId, requirementId, startsAt, endsAt, freePlaces]
       properties:
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
         requirementId: {$ref: "#/components/schemas/UUIDv7"}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
@@ -9057,6 +9059,7 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
         shortStaffed: {type: boolean, description: "Open days only; true when supervisor places are open."}
         eventId: {$ref: "#/components/schemas/UUIDv7"}
         publicId: {type: string, description: "Event shifts of public events only."}

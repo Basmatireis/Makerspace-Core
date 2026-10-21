@@ -32,6 +32,7 @@ func (s *Server) GetPersonalDashboard(
 			StartsAt:     item.StartsAt,
 			EndsAt:       item.EndsAt,
 			OpenDayId:    item.OpenDayID,
+			PeriodId:     item.PeriodID,
 			ShortStaffed: item.ShortStaffed,
 			EventId:      item.EventID,
 			PublicId:     item.PublicID,
@@ -69,7 +70,7 @@ func staffingDTO(section *dashboard.Staffing) *openapi.PersonalDashboardStaffing
 	}
 	if place := section.NextOpenPlace; place != nil {
 		response.NextOpenPlace = nullable.NewNullableWithValue(openapi.OpenPlace{
-			OpenDayId: place.OpenDayID, RequirementId: place.RequirementID,
+			OpenDayId: place.OpenDayID, PeriodId: place.PeriodID, RequirementId: place.RequirementID,
 			StartsAt: place.StartsAt, EndsAt: place.EndsAt, FreePlaces: place.FreePlaces,
 		})
 	}

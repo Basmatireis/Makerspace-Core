@@ -389,7 +389,7 @@ func (q *Queries) GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (Ge
 }
 
 const getNextOpenPlace = `-- name: GetNextOpenPlace :one
-SELECT d.id AS open_day_id, r.id AS requirement_id, d.starts_at, d.ends_at,
+SELECT d.id AS open_day_id, d.period_id, r.id AS requirement_id, d.starts_at, d.ends_at,
        (r.required_count - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))::bigint AS free_places
 FROM open_days d
 JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
@@ -418,6 +418,7 @@ type GetNextOpenPlaceParams struct {
 
 type GetNextOpenPlaceRow struct {
 	OpenDayID     uuid.UUID
+	PeriodID      uuid.UUID
 	RequirementID uuid.UUID
 	StartsAt      time.Time
 	EndsAt        time.Time
@@ -436,6 +437,7 @@ func (q *Queries) GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlacePara
 	var i GetNextOpenPlaceRow
 	err := row.Scan(
 		&i.OpenDayID,
+		&i.PeriodID,
 		&i.RequirementID,
 		&i.StartsAt,
 		&i.EndsAt,
@@ -835,7 +837,7 @@ func (q *Queries) ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) 
 }
 
 const listOwnComingUpOpenDays = `-- name: ListOwnComingUpOpenDays :many
-SELECT a.id AS assignment_id, d.id AS open_day_id, p.name AS period_name, d.starts_at, d.ends_at,
+SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name, d.starts_at, d.ends_at,
        COALESCE(sup.open_places, 0)::bigint AS open_supervisor_places
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
@@ -859,6 +861,7 @@ type ListOwnComingUpOpenDaysParams struct {
 type ListOwnComingUpOpenDaysRow struct {
 	AssignmentID         uuid.UUID
 	OpenDayID            uuid.UUID
+	PeriodID             uuid.UUID
 	PeriodName           string
 	StartsAt             time.Time
 	EndsAt               time.Time
@@ -878,6 +881,7 @@ func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComing
 		if err := rows.Scan(
 			&i.AssignmentID,
 			&i.OpenDayID,
+			&i.PeriodID,
 			&i.PeriodName,
 			&i.StartsAt,
 			&i.EndsAt,
