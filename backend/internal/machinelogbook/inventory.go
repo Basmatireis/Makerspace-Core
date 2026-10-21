@@ -468,6 +468,8 @@ type inventoryMutation struct {
 	// such as stock receipts write their own single event.
 	SkipAudit bool
 	UsageID   *uuid.UUID
+	// OrderItemID attributes an order sale or its reversal to the sold item.
+	OrderItemID *uuid.UUID
 	// Fill attributes the movement to a spool's open fill.
 	Fill *fillRef
 	// KeepSpoolVersion leaves the spool version alone; the caller bumps it once.
@@ -546,7 +548,7 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	if m.Fill != nil {
 		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor, PurchaseReference: cleanOptional(m.Reference), SpoolID: &m.Fill.SpoolID, FillID: &m.Fill.FillID, SpoolDisplayID: &m.Fill.SpoolDisplayID, FillNumber: &m.Fill.FillNumber})
 	} else {
-		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor, PurchaseReference: cleanOptional(m.Reference)})
+		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor, PurchaseReference: cleanOptional(m.Reference), OrderItemID: m.OrderItemID})
 	}
 	if err != nil {
 		return InventoryMutationResult{}, databaseError(err)

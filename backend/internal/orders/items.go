@@ -96,6 +96,41 @@ func (s *Service) insertItem(ctx context.Context, tx pgx.Tx, p authorization.Pri
 		if err != nil {
 			return db.OrderItem{}, err
 		}
+	case "inventory_item":
+		if input.MaterialID == uuid.Nil {
+			return db.OrderItem{}, validation("materialId is required")
+		}
+		article, err := s.jobs.SaleSource(ctx, tx, p, input.MaterialID)
+		if err != nil {
+			return db.OrderItem{}, err
+		}
+		if !article.Active {
+			return db.OrderItem{}, conflict("article_inactive", "The article is inactive and cannot be sold")
+		}
+		qty, err := parseAmount(input.Quantity, 6, true)
+		if err != nil {
+			return db.OrderItem{}, err
+		}
+		priceText := strings.TrimSpace(input.UnitPrice)
+		if priceText == "" && article.SalePrice != nil {
+			priceText = *article.SalePrice
+		}
+		if priceText == "" {
+			return db.OrderItem{}, apperror.New(422, "sale_price_required", "The article has no sale price; enter a unit price")
+		}
+		price, err := parseAmount(priceText, 6, false)
+		if err != nil {
+			return db.OrderItem{}, err
+		}
+		amount := qty.Mul(price).Round(2)
+		if amount.GreaterThanOrEqual(decimal.New(1, 18)) {
+			return db.OrderItem{}, validation("Item amount exceeds supported precision")
+		}
+		params.Description, params.Unit = article.Name, article.Unit
+		params.Quantity = numeric(qty)
+		params.UnitPrice = numeric(price)
+		params.Amount = numeric(amount)
+		params.SourceMaterialID = &article.ID
 	default:
 		return db.OrderItem{}, validation("Invalid item kind")
 	}

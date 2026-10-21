@@ -2408,6 +2408,47 @@ func (q *Queries) GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUI
 	return i, err
 }
 
+const getOrderItemSaleTransaction = `-- name: GetOrderItemSaleTransaction :one
+SELECT id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference, order_item_id FROM inventory_transactions WHERE order_item_id = $1 AND kind = 'order_sale'
+`
+
+func (q *Queries) GetOrderItemSaleTransaction(ctx context.Context, orderItemID *uuid.UUID) (InventoryTransaction, error) {
+	row := q.db.QueryRow(ctx, getOrderItemSaleTransaction, orderItemID)
+	var i InventoryTransaction
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialID,
+		&i.Kind,
+		&i.QuantityDelta,
+		&i.UnitAcquisitionCost,
+		&i.InventoryValueDelta,
+		&i.TotalPurchasePrice,
+		&i.OccurredAt,
+		&i.Supplier,
+		&i.Note,
+		&i.AdjustmentReason,
+		&i.RunUsageID,
+		&i.ActorAccountID,
+		&i.CreatedAt,
+		&i.SpoolID,
+		&i.FromSpoolID,
+		&i.ToSpoolID,
+		&i.TransferQuantity,
+		&i.FillID,
+		&i.FromFillID,
+		&i.ToFillID,
+		&i.SpoolDisplayID,
+		&i.FillNumber,
+		&i.FromSpoolDisplayID,
+		&i.FromFillNumber,
+		&i.ToSpoolDisplayID,
+		&i.ToFillNumber,
+		&i.PurchaseReference,
+		&i.OrderItemID,
+	)
+	return i, err
+}
+
 const getOrganization = `-- name: GetOrganization :one
 SELECT id, name, kind, active, version, created_at, updated_at, address_line, postal_code, locality, country_code, contact_name, contact_email FROM organizations WHERE id = $1
 `
@@ -2809,10 +2850,10 @@ func (q *Queries) InsertFilamentSpoolFill(ctx context.Context, arg InsertFilamen
 
 const insertInventoryTransaction = `-- name: InsertInventoryTransaction :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
-    total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, purchase_reference)
+    total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, purchase_reference, order_item_id)
 VALUES ($1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference
+    $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference, order_item_id
 `
 
 type InsertInventoryTransactionParams struct {
@@ -2830,6 +2871,7 @@ type InsertInventoryTransactionParams struct {
 	RunUsageID          *uuid.UUID
 	ActorAccountID      *uuid.UUID
 	PurchaseReference   *string
+	OrderItemID         *uuid.UUID
 }
 
 func (q *Queries) InsertInventoryTransaction(ctx context.Context, arg InsertInventoryTransactionParams) (InventoryTransaction, error) {
@@ -2848,6 +2890,7 @@ func (q *Queries) InsertInventoryTransaction(ctx context.Context, arg InsertInve
 		arg.RunUsageID,
 		arg.ActorAccountID,
 		arg.PurchaseReference,
+		arg.OrderItemID,
 	)
 	var i InventoryTransaction
 	err := row.Scan(
@@ -2879,6 +2922,7 @@ func (q *Queries) InsertInventoryTransaction(ctx context.Context, arg InsertInve
 		&i.ToSpoolDisplayID,
 		&i.ToFillNumber,
 		&i.PurchaseReference,
+		&i.OrderItemID,
 	)
 	return i, err
 }
@@ -3114,7 +3158,7 @@ VALUES ($1, $2, $3, $4, $5,
     $6, $7, $8, $9,
     $10, $11, $12, $13,
     $14, $15, $16, $17, $18)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference, order_item_id
 `
 
 type InsertSpoolInventoryTransactionParams struct {
@@ -3189,6 +3233,7 @@ func (q *Queries) InsertSpoolInventoryTransaction(ctx context.Context, arg Inser
 		&i.ToSpoolDisplayID,
 		&i.ToFillNumber,
 		&i.PurchaseReference,
+		&i.OrderItemID,
 	)
 	return i, err
 }
@@ -3201,7 +3246,7 @@ VALUES ($1, $2, 'spool_transfer', 0, 0, 0, $3, $4,
     $5, $6, $7, $8,
     $9, $10, $11, $12,
     $13, $14, $15)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number, purchase_reference, order_item_id
 `
 
 type InsertSpoolTransferParams struct {
@@ -3270,6 +3315,7 @@ func (q *Queries) InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransf
 		&i.ToSpoolDisplayID,
 		&i.ToFillNumber,
 		&i.PurchaseReference,
+		&i.OrderItemID,
 	)
 	return i, err
 }
@@ -3525,7 +3571,7 @@ func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid
 }
 
 const listFilamentSpoolTransactions = `-- name: ListFilamentSpoolTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, t.order_item_id, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
@@ -3573,6 +3619,7 @@ type ListFilamentSpoolTransactionsRow struct {
 	ToSpoolDisplayID    *string
 	ToFillNumber        *int32
 	PurchaseReference   *string
+	OrderItemID         *uuid.UUID
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
 	ActorFirstName      *string
@@ -3617,6 +3664,7 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 			&i.ToSpoolDisplayID,
 			&i.ToFillNumber,
 			&i.PurchaseReference,
+			&i.OrderItemID,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
 			&i.ActorFirstName,
@@ -3871,7 +3919,7 @@ func (q *Queries) ListInventorySupplierSuggestions(ctx context.Context) ([]strin
 }
 
 const listInventoryTransactions = `-- name: ListInventoryTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, t.order_item_id, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
@@ -3919,6 +3967,7 @@ type ListInventoryTransactionsRow struct {
 	ToSpoolDisplayID    *string
 	ToFillNumber        *int32
 	PurchaseReference   *string
+	OrderItemID         *uuid.UUID
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
 	ActorFirstName      *string
@@ -3963,6 +4012,7 @@ func (q *Queries) ListInventoryTransactions(ctx context.Context, arg ListInvento
 			&i.ToSpoolDisplayID,
 			&i.ToFillNumber,
 			&i.PurchaseReference,
+			&i.OrderItemID,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
 			&i.ActorFirstName,
@@ -5906,6 +5956,17 @@ func (q *Queries) OperatorExists(ctx context.Context, personID uuid.UUID) (bool,
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const orderItemHasSaleReversal = `-- name: OrderItemHasSaleReversal :one
+SELECT EXISTS(SELECT 1 FROM inventory_transactions WHERE order_item_id = $1 AND kind = 'order_sale_reversal')::boolean
+`
+
+func (q *Queries) OrderItemHasSaleReversal(ctx context.Context, orderItemID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, orderItemHasSaleReversal, orderItemID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const organizationIsReferenced = `-- name: OrganizationIsReferenced :one

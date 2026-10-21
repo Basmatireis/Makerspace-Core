@@ -414,6 +414,7 @@ type InventoryTransaction struct {
 	ToSpoolDisplayID    *string
 	ToFillNumber        *int32
 	PurchaseReference   *string
+	OrderItemID         *uuid.UUID
 }
 
 type LaborordnungRequest struct {
@@ -882,6 +883,7 @@ type OrderItem struct {
 	CreatedByAccountID    *uuid.UUID
 	RemovedAt             pgtype.Timestamptz
 	RemovedByAccountID    *uuid.UUID
+	SourceMaterialID      *uuid.UUID
 }
 
 type OrderJobClaim struct {

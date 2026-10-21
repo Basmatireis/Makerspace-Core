@@ -116,8 +116,8 @@ func TestInventoryArticlesMigrationFoldsProducts(t *testing.T) {
 	if got := text(`SELECT diameter_mm::text FROM material_filament_properties WHERE material_id = $1`, none); got != "1.750" {
 		t.Errorf("default diameter = %s", got)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM information_schema.tables WHERE table_name = 'filament_products'`, 0)
-	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_name = 'filament_spool_fills' AND column_name = 'product_id'`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'filament_products'`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'filament_spool_fills' AND column_name = 'product_id'`, 0)
 	assertCount(t, pool, `SELECT count(*) FROM filament_spool_fills WHERE manufacturer = 'Polymaker'`, 1)
 	_ = sheetMaterial
 

@@ -514,6 +514,7 @@ export * from './orderItemKind';
 export * from './orderItemRemovedAt';
 export * from './orderItemSourceJobVersion';
 export * from './orderItemSourceMachineJobId';
+export * from './orderItemSourceMaterialId';
 export * from './orderPage';
 export * from './orderPayment';
 export * from './orderPaymentEntryKind';

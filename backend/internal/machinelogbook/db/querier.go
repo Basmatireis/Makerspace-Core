@@ -105,6 +105,7 @@ type Querier interface {
 	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error)
+	GetOrderItemSaleTransaction(ctx context.Context, orderItemID *uuid.UUID) (InventoryTransaction, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
 	GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (Organization, error)
@@ -194,6 +195,7 @@ type Querier interface {
 	NextMachineRunSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)
+	OrderItemHasSaleReversal(ctx context.Context, orderItemID *uuid.UUID) (bool, error)
 	// True while any historical record points at the organization. Soft-deleted
 	// jobs count: their foreign key would otherwise be nulled out by the delete.
 	OrganizationIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)

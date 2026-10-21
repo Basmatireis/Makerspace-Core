@@ -396,10 +396,16 @@ RETURNING *;
 
 -- name: InsertInventoryTransaction :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
-    total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, purchase_reference)
+    total_purchase_price, occurred_at, supplier, note, adjustment_reason, run_usage_id, actor_account_id, purchase_reference, order_item_id)
 VALUES (sqlc.arg(id), sqlc.arg(material_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(unit_acquisition_cost), sqlc.arg(inventory_value_delta),
-    sqlc.narg(total_purchase_price), sqlc.arg(occurred_at), sqlc.narg(supplier), sqlc.narg(note), sqlc.narg(adjustment_reason), sqlc.narg(run_usage_id), sqlc.narg(actor_account_id), sqlc.narg(purchase_reference))
+    sqlc.narg(total_purchase_price), sqlc.arg(occurred_at), sqlc.narg(supplier), sqlc.narg(note), sqlc.narg(adjustment_reason), sqlc.narg(run_usage_id), sqlc.narg(actor_account_id), sqlc.narg(purchase_reference), sqlc.narg(order_item_id))
 RETURNING *;
+
+-- name: GetOrderItemSaleTransaction :one
+SELECT * FROM inventory_transactions WHERE order_item_id = sqlc.arg(order_item_id) AND kind = 'order_sale';
+
+-- name: OrderItemHasSaleReversal :one
+SELECT EXISTS(SELECT 1 FROM inventory_transactions WHERE order_item_id = sqlc.arg(order_item_id) AND kind = 'order_sale_reversal')::boolean;
 
 -- name: ListInventoryTransactions :many
 SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id,

@@ -459,7 +459,7 @@ func (q *Queries) GetCustomerName(ctx context.Context, id uuid.UUID) (string, er
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id FROM order_items WHERE id=$1 AND order_id=$2
+SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id FROM order_items WHERE id=$1 AND order_id=$2
 `
 
 type GetItemParams struct {
@@ -488,6 +488,7 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (OrderItem, er
 		&i.CreatedByAccountID,
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
+		&i.SourceMaterialID,
 	)
 	return i, err
 }
@@ -834,8 +835,8 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 }
 
 const insertItem = `-- name: InsertItem :one
-INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id)
-VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id
+INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id,source_material_id)
+VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id
 `
 
 type InsertItemParams struct {
@@ -851,6 +852,7 @@ type InsertItemParams struct {
 	SourceJobVersion   *int64
 	MachineJobSnapshot []byte
 	CreatedByAccountID *uuid.UUID
+	SourceMaterialID   *uuid.UUID
 }
 
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error) {
@@ -867,6 +869,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		arg.SourceJobVersion,
 		arg.MachineJobSnapshot,
 		arg.CreatedByAccountID,
+		arg.SourceMaterialID,
 	)
 	var i OrderItem
 	err := row.Scan(
@@ -887,6 +890,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		&i.CreatedByAccountID,
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
+		&i.SourceMaterialID,
 	)
 	return i, err
 }
@@ -1126,7 +1130,7 @@ func (q *Queries) ListCashMovements(ctx context.Context, arg ListCashMovementsPa
 }
 
 const listItems = `-- name: ListItems :many
-SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
+SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
 `
 
 type ListItemsRow struct {
@@ -1147,6 +1151,7 @@ type ListItemsRow struct {
 	CreatedByAccountID    *uuid.UUID
 	RemovedAt             pgtype.Timestamptz
 	RemovedByAccountID    *uuid.UUID
+	SourceMaterialID      *uuid.UUID
 	CurrentJobVersion     *int64
 }
 
@@ -1177,6 +1182,7 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 			&i.CreatedByAccountID,
 			&i.RemovedAt,
 			&i.RemovedByAccountID,
+			&i.SourceMaterialID,
 			&i.CurrentJobVersion,
 		); err != nil {
 			return nil, err

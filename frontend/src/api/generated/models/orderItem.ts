@@ -24,6 +24,7 @@ import type { Decimal } from './decimal';
 import type { Money } from './money';
 import type { OrderItemSourceMachineJobId } from './orderItemSourceMachineJobId';
 import type { OrderItemSourceJobVersion } from './orderItemSourceJobVersion';
+import type { OrderItemSourceMaterialId } from './orderItemSourceMaterialId';
 import type { JobChargeSnapshot } from './jobChargeSnapshot';
 import type { OrderItemRemovedAt } from './orderItemRemovedAt';
 
@@ -40,6 +41,11 @@ export interface OrderItem {
   sourceMachineJobId?: OrderItemSourceMachineJobId;
   /** @nullable */
   sourceJobVersion?: OrderItemSourceJobVersion;
+  /**
+   * Sold article of an inventory_item; null after the article was deleted.
+   * @nullable
+   */
+  sourceMaterialId?: OrderItemSourceMaterialId;
   sourceChanged: boolean;
   snapshot?: JobChargeSnapshot;
   createdAt: string;

@@ -12121,7 +12121,7 @@ components:
 
     InventoryTransactionKind:
       type: string
-      enum: [purchase, machine_run_consumption, manual_consumption, adjustment, disposal, spool_transfer]
+      enum: [purchase, machine_run_consumption, manual_consumption, adjustment, disposal, spool_transfer, order_sale, order_sale_reversal]
 
     InventoryAdjustmentReason:
       type: string
@@ -13588,6 +13588,7 @@ components:
           enum:
             - "manual"
             - "machine_job"
+            - "inventory_item"
         description:
           type: "string"
           maxLength: 500
@@ -13600,6 +13601,11 @@ components:
           $ref: "#/components/schemas/Decimal"
         machineJobId:
           $ref: "#/components/schemas/UUIDv7"
+        materialId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          description: "Inventory article for kind inventory_item. The description and unit come from the article, the unit price defaults to its sale price (422 sale_price_required when neither exists). Needs inventory.read in addition to orders.write. Stock is consumed from loose stock on finalization (409 insufficient_stock with details.materialId and details.available) and returned on reversal."
         expectedJobVersion:
           $ref: "#/components/schemas/Version"
         expectedVersion:
@@ -13801,6 +13807,7 @@ components:
           enum:
             - "manual"
             - "machine_job"
+            - "inventory_item"
         description:
           type: "string"
         quantity:
@@ -13821,6 +13828,12 @@ components:
             -
               $ref: "#/components/schemas/Version"
           nullable: true
+        sourceMaterialId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+          description: "Sold article of an inventory_item; null after the article was deleted."
         sourceChanged:
           type: "boolean"
         snapshot:

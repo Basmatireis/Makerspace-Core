@@ -32,6 +32,8 @@ export interface OrderItemInput {
   unit?: string;
   unitPrice?: Decimal;
   machineJobId?: UUIDv7;
+  /** Inventory article for kind inventory_item. The description and unit come from the article, the unit price defaults to its sale price (422 sale_price_required when neither exists). Needs inventory.read in addition to orders.write. Stock is consumed from loose stock on finalization (409 insufficient_stock with details.materialId and details.available) and returned on reversal. */
+  materialId?: UUIDv7;
   expectedJobVersion?: Version;
   expectedVersion: Version;
 }

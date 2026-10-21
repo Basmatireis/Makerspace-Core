@@ -327,7 +327,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	}
 	total := decimal.Zero
 	for _, i := range items {
-		item := OrderItem{ID: i.ID, Position: int64(i.Position), Kind: i.Kind, Description: i.Description, Quantity: d(i.Quantity).String(), Unit: i.Unit, UnitPrice: d(i.UnitPrice).String(), Amount: money(i.Amount), SourceMachineJobID: i.SourceMachineJobID, SourceJobVersion: i.SourceJobVersion, CreatedAt: i.CreatedAt, RemovedAt: timePointer(i.RemovedAt)}
+		item := OrderItem{ID: i.ID, Position: int64(i.Position), Kind: i.Kind, Description: i.Description, Quantity: d(i.Quantity).String(), Unit: i.Unit, UnitPrice: d(i.UnitPrice).String(), Amount: money(i.Amount), SourceMachineJobID: i.SourceMachineJobID, SourceJobVersion: i.SourceJobVersion, SourceMaterialID: i.SourceMaterialID, CreatedAt: i.CreatedAt, RemovedAt: timePointer(i.RemovedAt)}
 		if i.CurrentJobVersion != nil && i.SourceJobVersion != nil {
 			item.SourceChanged = *i.CurrentJobVersion != *i.SourceJobVersion
 		}
