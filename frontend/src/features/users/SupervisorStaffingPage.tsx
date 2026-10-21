@@ -1,71 +1,63 @@
 import { useState } from 'react';
-import {
-  Button,
-  DataTable,
-  InlineNotification,
-  Link as CarbonLink,
-  Pagination,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
-  Tag,
-} from '@carbon/react';
+import { Button, ClickableTile, InlineNotification } from '@carbon/react';
+import { Settings } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import type { StaffingStatus, SupervisorRowLaborordnungState } from '../../api/generated/models';
+import { Link } from 'react-router-dom';
+import type { SupervisorRow } from '../../api/generated/models';
 import { getSupervisorDashboard } from '../../api/generated/supervisors/supervisors';
-import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
+import type { FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { plural } from '../dashboard/format';
+import { PromoteDialog } from './PromoteDialog';
+import { StaffingTable } from './StaffingTable';
+import { filterRows, isTileActive } from './staffing';
+import './staffing.scss';
 
-const PAGE_SIZES = [10, 25, 50, 100];
+const WEEK_MS = 7 * 86_400_000;
 
-type FilterOption<T extends string> = {
-  value: T;
+type MetricProps = {
   label: string;
+  value: number;
+  detail: string;
+  active: boolean;
+  onClick: () => void;
 };
 
-type ProfilePictureStatus = 'complete' | 'missing';
-
-const PROFILE_PICTURE_STATUS_OPTIONS: Array<FilterOption<ProfilePictureStatus>> = [
-  { value: 'complete', label: 'Complete' },
-  { value: 'missing', label: 'Missing' },
-];
-
-const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<SupervisorRowLaborordnungState>> = [
-  { value: 'current', label: 'Current' },
-  { value: 'outdated', label: 'Outdated' },
-  { value: 'not_required', label: 'Not required' },
-  { value: 'no_published_version', label: 'No published version' },
-];
-
-const STATUS_LABELS: Record<StaffingStatus, string> = {
-  fulfilled: 'Minimum reached',
-  missing: 'Below minimum',
-  ready: 'Ready for supervisor',
-};
-
-function labRulesLabel(state: string): string {
-  return state.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
+/** A key figure that filters the table; clicking the active one again clears its filter. */
+function Metric({ label, value, detail, active, onClick }: MetricProps) {
+  return (
+    <ClickableTile
+      className={`staffing-metric${active ? ' staffing-metric--active' : ''}`}
+      onClick={onClick}
+      aria-pressed={active}
+    >
+      <span className="staffing-metric__label">{label}</span>
+      <span
+        className={`staffing-metric__value ${value > 0 ? 'staffing-metric__value--bad' : 'staffing-metric__value--zero'}`}
+      >
+        {value}
+      </span>
+      <span className="staffing-secondary">{detail}</span>
+    </ClickableTile>
+  );
 }
 
 export function SupervisorStaffingPage() {
   const currentUser = useCurrentUser();
-  const navigate = useNavigate();
+  const now = useNow();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [promoting, setPromoting] = useState<SupervisorRow | null>(null);
+  const [promoted, setPromoted] = useState<string | null>(null);
   const canOpenPeople = hasPermission(currentUser, PermissionId.peoplereadall);
+  const canAssignRoles = hasPermission(currentUser, PermissionId.peoplerolesassign);
+  const canManageRequirements = hasPermission(currentUser, PermissionId.open_daysmanage);
   const query = useQuery({
     queryKey: ['supervisor-dashboard'],
     queryFn: ({ signal }) => getSupervisorDashboard({ signal }),
@@ -82,64 +74,33 @@ export function SupervisorStaffingPage() {
     );
   }
 
-  const dashboard = query.data;
-  const headers = [
-    { key: 'name', header: 'Member' },
-    { key: 'photo', header: 'Profile picture' },
-    { key: 'laborordnung', header: 'Lab Rules' },
-    { key: 'openDays', header: 'Open days this semester' },
-    { key: 'status', header: 'Status' },
-  ];
-  const minimum = dashboard.requirements.minOpenDaysPerSemester;
-  const rows = dashboard.supervisors.map((supervisor) => ({
-    id: supervisor.personId,
-    name: supervisor.name,
-    photo: supervisor.hasProfileImage ? 'Complete' : 'Missing',
-    laborordnung: supervisor.laborordnungState,
-    openDays: `${supervisor.staffed + supervisor.booked} of ${minimum}`,
-    status: STATUS_LABELS[supervisor.status],
-  }));
-  const normalizedSearch = search.trim().toLocaleLowerCase();
-  const selectedProfilePictureStatuses = PROFILE_PICTURE_STATUS_OPTIONS.filter((option) =>
-    filters.photo?.includes(option.value),
-  );
-  const selectedLabRulesStatuses = LAB_RULES_STATUS_OPTIONS.filter((option) =>
-    filters.labRules?.includes(option.value),
-  );
-  const hasActiveFilters = selectedProfilePictureStatuses.length > 0 || selectedLabRulesStatuses.length > 0;
-  const filterCategories: FilterCategory[] = [
-    {
-      key: 'photo',
-      label: 'Profile picture',
-      options: PROFILE_PICTURE_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
-    },
-    {
-      key: 'labRules',
-      label: 'Lab Rules',
-      options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
-    },
-  ];
-  const filteredRows = rows.filter((row) => {
-    if (normalizedSearch && !row.name.toLocaleLowerCase().includes(normalizedSearch)) {
-      return false;
-    }
-    if (
-      selectedProfilePictureStatuses.length > 0 &&
-      !selectedProfilePictureStatuses.some((option) => option.label === row.photo)
-    ) {
-      return false;
-    }
-    if (
-      selectedLabRulesStatuses.length > 0 &&
-      !selectedLabRulesStatuses.some((option) => option.value === row.laborordnung)
-    ) {
-      return false;
-    }
-    return true;
+  const { semester, requirements, supervisors } = query.data;
+  const applyFilters = (values: FilterValues) => {
+    setFilters(values);
+    setPage(1);
+  };
+  const tile = (key: string, value: string) => ({
+    active: isTileActive(filters, key, value),
+    onClick: () => applyFilters(isTileActive(filters, key, value) ? {} : { [key]: [value] }),
   });
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const visibleRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const visible = filterRows(supervisors, search, filters);
+  const below = supervisors.filter((row) => row.status === 'missing').length;
+  const unsigned = supervisors.filter((row) => row.laborordnungState === 'outdated').length;
+  const ready = supervisors.filter((row) => row.status === 'ready').length;
+  const noPhoto = supervisors.filter((row) => !row.hasProfileImage).length;
+  const hasTrainees = supervisors.some((row) => row.kind === 'trainee');
+
+  let promoteBlockedReason: string | null = null;
+  if (!canAssignRoles) {
+    promoteBlockedReason = 'You need permission to assign roles to make a trainee a supervisor.';
+  } else if (!requirements.supervisorRoleConfigured) {
+    promoteBlockedReason = 'No supervisor role is configured. Choose one in the open day requirements first.';
+  }
+
+  const weeksLeft = semester ? Math.ceil((Date.parse(`${semester.endsOn}T12:00:00Z`) - now) / WEEK_MS) : 0;
+  const semesterText = semester
+    ? `${semester.name} · ${weeksLeft > 0 ? `${plural(weeksLeft, 'week')} left` : 'ended'}`
+    : 'No open-day period';
 
   return (
     <PageShell
@@ -149,12 +110,19 @@ export function SupervisorStaffingPage() {
         ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : []),
         { label: 'Members' },
       ]}
-      description="Profile-picture readiness, Lab Rules status, and open days this semester."
+      description={`${semesterText} · minimum ${plural(requirements.minOpenDaysPerSemester, 'open day')} per person`}
       width="wide"
       className="supervisor-staffing-page"
+      actions={
+        canManageRequirements ? (
+          <Button as={Link} to="/settings/open-days" kind="tertiary" renderIcon={Settings}>
+            Requirements
+          </Button>
+        ) : undefined
+      }
     >
       <section className="supervisor-staffing-main" aria-label="Members table">
-        {dashboard.semester === null && (
+        {semester === null && (
           <InlineNotification
             kind="info"
             lowContrast
@@ -163,111 +131,84 @@ export function SupervisorStaffingPage() {
             subtitle="Members are shown without open-day counts."
           />
         )}
+        {promoted && (
+          <InlineNotification
+            kind="success"
+            lowContrast
+            title={`${promoted} is now a supervisor`}
+            subtitle="They take supervisor places from now on."
+            onCloseButtonClick={() => setPromoted(null)}
+          />
+        )}
+        {hasTrainees && promoteBlockedReason && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="Making supervisors"
+            subtitle={promoteBlockedReason}
+          />
+        )}
 
-        <DataTable rows={visibleRows} headers={headers} isSortable>
-          {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
-            <TableContainer className="people-table-container supervisor-staffing-table">
-              <TableToolbar aria-label="Members table toolbar">
-                <TableToolbarContent>
-                  <TableToolbarSearch
-                    id="members-search"
-                    labelText="Search members"
-                    placeholder="Search members"
-                    value={search}
-                    onChange={(_event, value) => {
-                      setSearch(value ?? '');
-                      setPage(1);
-                    }}
-                    onClear={() => {
-                      setSearch('');
-                      setPage(1);
-                    }}
-                  />
-                  <BatchFilter
-                    id="members"
-                    label="Members"
-                    categories={filterCategories}
-                    applied={filters}
-                    onApply={(values) => {
-                      setFilters(values);
-                      setPage(1);
-                    }}
-                    onReset={() => {
-                      setFilters({});
-                      setPage(1);
-                    }}
-                  />
-                  {canOpenPeople && (
-                    <Button kind="tertiary" onClick={() => navigate('/people')}>
-                      People
-                    </Button>
-                  )}
-                </TableToolbarContent>
-              </TableToolbar>
-              <Table {...getTableProps()}>
-                <TableHead>
-                  <TableRow>
-                    {tableHeaders.map((header) => (
-                      <TableHeader {...getHeaderProps({ header })} key={header.key}>
-                        {header.header}
-                      </TableHeader>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tableRows.map((row) => (
-                    <TableRow {...getRowProps({ row })} key={row.id}>
-                      {row.cells.map((cell) => (
-                        <TableCell key={cell.id}>
-                          {cell.info.header === 'name' && canOpenPeople ? (
-                            <CarbonLink
-                              href={`/people/${row.id}`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                navigate(`/people/${row.id}`);
-                              }}
-                            >
-                              {String(cell.value)}
-                            </CarbonLink>
-                          ) : cell.info.header === 'photo' ? (
-                            <Tag type={cell.value === 'Complete' ? 'green' : 'red'}>{String(cell.value)}</Tag>
-                          ) : cell.info.header === 'laborordnung' ? (
-                            <Tag type={cell.value === 'current' || cell.value === 'not_required' ? 'green' : 'red'}>
-                              {labRulesLabel(String(cell.value))}
-                            </Tag>
-                          ) : (
-                            String(cell.value)
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {filteredRows.length === 0 && (
-                <div className="empty-state">
-                  <h2>{search || hasActiveFilters ? 'No members found' : 'No designated supervisors'}</h2>
-                  <p>
-                    {search || hasActiveFilters
-                      ? 'Try different search terms or filters.'
-                      : 'Assign a role configured as a supervisor role to include someone here.'}
-                  </p>
-                </div>
-              )}
-              <Pagination
-                page={currentPage}
-                pageSize={pageSize}
-                totalItems={filteredRows.length}
-                pageSizes={PAGE_SIZES}
-                onChange={({ page: nextPage, pageSize: nextPageSize }) => {
-                  setPage(nextPage);
-                  setPageSize(nextPageSize);
-                }}
-              />
-            </TableContainer>
-          )}
-        </DataTable>
+        <section aria-label="Key figures" className="staffing-metrics">
+          <Metric
+            label="Below minimum"
+            value={below}
+            detail={below ? 'Not signed up for enough open days' : 'Everyone is signed up for the minimum'}
+            {...tile('status', 'missing')}
+          />
+          <Metric
+            label="Lab rules not signed"
+            value={unsigned}
+            detail="Current version missing"
+            {...tile('labRules', 'outdated')}
+          />
+          <Metric
+            label="Ready for supervisor"
+            value={ready}
+            detail={`Trainees with ${requirements.traineeOpenDaysForPromotion}+ open days`}
+            {...tile('status', 'ready')}
+          />
+          <Metric
+            label="No profile picture"
+            value={noPhoto}
+            detail="Profile picture missing"
+            {...tile('photo', 'missing')}
+          />
+        </section>
+
+        <StaffingTable
+          rows={visible}
+          minimum={requirements.minOpenDaysPerSemester}
+          traineeThreshold={requirements.traineeOpenDaysForPromotion}
+          search={search}
+          filters={filters}
+          page={page}
+          pageSize={pageSize}
+          canOpenPeople={canOpenPeople}
+          promoteBlockedReason={promoteBlockedReason}
+          hasAnyRows={supervisors.length > 0}
+          onSearch={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          onFilters={applyFilters}
+          onPage={(nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          }}
+          onPromote={(row) => {
+            setPromoted(null);
+            setPromoting(row);
+          }}
+        />
       </section>
+      <PromoteDialog
+        member={promoting}
+        threshold={requirements.traineeOpenDaysForPromotion}
+        onClose={() => setPromoting(null)}
+        onPromoted={setPromoted}
+      />
     </PageShell>
   );
 }
