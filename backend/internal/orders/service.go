@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -29,6 +30,8 @@ type Service struct {
 	pool     *pgxpool.Pool
 	jobs     *machinelogbook.Service
 	delivery InvoiceDelivery
+	// delivering holds the requests whose wiRef mail is being sent, so two sends never overlap.
+	delivering sync.Map
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {

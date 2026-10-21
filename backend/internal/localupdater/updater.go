@@ -87,6 +87,8 @@ type Updater struct {
 	// handled holds the requests of this run, so a result that could not be written never leads to
 	// a second attempt.
 	handled map[uuid.UUID]struct{}
+	// rejected remembers, per component, the request file that was answered as invalid, so it is answered once.
+	rejected map[Component]string
 }
 
 // New validates config.
@@ -111,11 +113,12 @@ func New(config Config, runner Runner, logger *slog.Logger) (*Updater, error) {
 		return nil, errors.New("the project directory must be a clean absolute path")
 	}
 	return &Updater{
-		config:  config,
-		runner:  runner,
-		logger:  logger,
-		now:     func() time.Time { return time.Now().UTC() },
-		handled: map[uuid.UUID]struct{}{},
+		config:   config,
+		runner:   runner,
+		logger:   logger,
+		now:      func() time.Time { return time.Now().UTC() },
+		handled:  map[uuid.UUID]struct{}{},
+		rejected: map[Component]string{},
 	}, nil
 }
 
@@ -164,6 +167,9 @@ func (u *Updater) Poll(ctx context.Context) {
 		dir := u.dir(component)
 		var request Request
 		if err := readJSON(filepath.Join(dir, requestFile), &request); err != nil {
+			if u.rejectInvalidRequest(component, err) {
+				return
+			}
 			continue
 		}
 		var last Result
@@ -180,6 +186,33 @@ func (u *Updater) Poll(ctx context.Context) {
 		}
 		return
 	}
+}
+
+// rejectInvalidRequest answers a request file that exists but cannot be read (not a regular file, too large,
+// malformed) as failed, once per file. It reports whether it wrote a result.
+func (u *Updater) rejectInvalidRequest(component Component, readErr error) bool {
+	if errors.Is(readErr, os.ErrNotExist) {
+		return false
+	}
+	dir := u.dir(component)
+	info, err := os.Lstat(filepath.Join(dir, requestFile))
+	if err != nil {
+		return false
+	}
+	fingerprint := fmt.Sprintf("%v|%d|%d", info.Mode(), info.Size(), info.ModTime().UnixNano())
+	if u.rejected[component] == fingerprint {
+		return false
+	}
+	u.rejected[component] = fingerprint
+	u.logger.Warn("update failed", "component", string(component), "reason", ReasonInvalidRequest)
+	// The request carries no usable ID, so the result gets a fresh one that no service waits for.
+	result := Result{
+		RequestID: uuid.New(), Status: StatusFailed, Reason: ReasonInvalidRequest, UpdatedAt: u.now(),
+	}
+	if err := writeJSON(dir, resultFile, result, 0o644); err != nil {
+		u.logger.Error("update result could not be written", "component", string(component), "error", err.Error())
+	}
+	return true
 }
 
 func (u *Updater) handle(ctx context.Context, component Component, request Request) Result {

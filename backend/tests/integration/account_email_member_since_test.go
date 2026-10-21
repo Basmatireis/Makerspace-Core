@@ -372,6 +372,9 @@ func TestAccountEmailMigrationBackfill(t *testing.T) {
 	taken := account(str("login@example.test"), nil, "2026-01-11T10:00:00Z")
 	unicode := account(str("jürgen@example.test"), nil, "2026-01-12T10:00:00Z")
 	noEmail := account(nil, nil, "2026-01-13T10:00:00Z")
+	spaced := account(str("with space@example.test"), nil, "2026-01-15T10:00:00Z")
+	noAt := account(str("not-an-address"), nil, "2026-01-16T10:00:00Z")
+	twoAts := account(str("a@b@example.test"), nil, "2026-01-17T10:00:00Z")
 
 	applyMigrationFiles(t, pool, []string{migration})
 
@@ -407,6 +410,11 @@ func TestAccountEmailMigrationBackfill(t *testing.T) {
 	}
 	if loginOf(unicode.account) != "" || loginOf(noEmail.account) != "" {
 		t.Fatal("non-ASCII and missing emails must not get a login identity")
+	}
+	for name, implausible := range map[string]seeded{"spaced": spaced, "no @": noAt, "two @": twoAts} {
+		if loginOf(implausible.account) != "" {
+			t.Fatalf("%s address got a login identity %q", name, loginOf(implausible.account))
+		}
 	}
 	var memberSince time.Time
 	if err := pool.QueryRow(ctx, `SELECT member_since FROM people WHERE id=$1`, withLogin.person).Scan(&memberSince); err != nil {

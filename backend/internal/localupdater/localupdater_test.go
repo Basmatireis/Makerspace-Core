@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -386,5 +387,57 @@ func TestProjectDirectoryMapsTheHostPathOntoTheMount(t *testing.T) {
 	output = `[{"Type":"bind","Source":"` + occupied + `","Destination":"` + mount + `"}]`
 	if _, err = ProjectDirectory(t.Context(), inspectRunner{output}, "0123456789ab", mount); err == nil {
 		t.Fatal("an existing directory at the host path must fail")
+	}
+}
+
+func TestUpdaterAnswersAnUnreadableRequestFileOnceAsFailed(t *testing.T) {
+	dir := func(h *updaterHarness) string {
+		return filepath.Join(h.updater.config.ExchangeRoot, "printer-connector")
+	}
+	cases := map[string]func(t *testing.T, h *updaterHarness){
+		"symlink": func(t *testing.T, h *updaterHarness) {
+			target := filepath.Join(t.TempDir(), "target.json")
+			valid, _ := json.Marshal(Request{RequestID: uuid.Must(uuid.NewV7()), Version: "0.8.3"})
+			if err := os.WriteFile(target, valid, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, filepath.Join(dir(h), requestFile)); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"fifo": func(t *testing.T, h *updaterHarness) {
+			if err := syscall.Mkfifo(filepath.Join(dir(h), requestFile), 0o600); err != nil {
+				t.Skip("no FIFOs here")
+			}
+		},
+		"too large": func(t *testing.T, h *updaterHarness) {
+			if err := os.WriteFile(filepath.Join(dir(h), requestFile), []byte(strings.Repeat(" ", 5000)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"malformed": func(t *testing.T, h *updaterHarness) {
+			if err := os.WriteFile(filepath.Join(dir(h), requestFile), []byte("{nope"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	for name, plant := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newUpdaterHarness(t, "MAKERSPACE_VERSION=0.8.2\n")
+			h.updater.Poll(t.Context())
+			plant(t, h)
+			h.updater.Poll(t.Context())
+			first := h.exchange.Result()
+			if first == nil || first.Status != StatusFailed || first.Reason != ReasonInvalidRequest {
+				t.Fatalf("result: %+v", first)
+			}
+			h.updater.Poll(t.Context())
+			if again := h.exchange.Result(); again == nil || again.RequestID != first.RequestID {
+				t.Fatalf("the invalid file was answered again: %+v", again)
+			}
+			if len(h.runner.calls) != 0 {
+				t.Fatalf("commands ran: %v", h.runner.calls)
+			}
+		})
 	}
 }

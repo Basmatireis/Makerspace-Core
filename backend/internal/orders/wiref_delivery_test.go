@@ -262,3 +262,50 @@ func TestForwardingSendsOneMailWithPDFToTheConfiguredRecipient(t *testing.T) {
 		t.Fatalf("resend %v %+v mails=%d", err, resent.WiRefDelivery, len(box.sent))
 	}
 }
+
+// blockingDelivery waits inside Deliver until released, then reports whether the context was still usable.
+type blockingDelivery struct {
+	entered chan struct{}
+	release chan struct{}
+	ctxErr  error
+}
+
+func (d *blockingDelivery) Deliver(ctx context.Context, _ invoicing.Document) invoicing.Outcome {
+	d.entered <- struct{}{}
+	<-d.release
+	d.ctxErr = ctx.Err()
+	return invoicing.Outcome{Status: invoicing.DeliverySent}
+}
+
+func TestResendRefusesAnOverlappingSendAndSurvivesAClientDisconnect(t *testing.T) {
+	f := newFixture(t)
+	a := f.actors(t)
+	r := submittedRequest(t, f, a, "10")
+	f.s.WithInvoiceDelivery(&recordingDelivery{pool: f.pool, outcome: invoicing.Outcome{Status: invoicing.DeliveryFailed, FailureCode: invoicing.FailureSendFailed}})
+	issued := f.ok(t, a.approver, r, "forward", nil)
+
+	blocking := &blockingDelivery{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	f.s.WithInvoiceDelivery(blocking)
+	clientCtx, disconnect := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		_, err := f.s.ResendToWiRef(clientCtx, a.approver, issued.ID, nil)
+		done <- err
+	}()
+	<-blocking.entered
+	_, err := f.s.ResendToWiRef(t.Context(), a.approver, issued.ID, nil)
+	wantCode(t, err, "wiref_delivery_in_progress")
+
+	disconnect()
+	close(blocking.release)
+	if err = <-done; err != nil {
+		t.Fatalf("resend after disconnect: %v", err)
+	}
+	if blocking.ctxErr != nil {
+		t.Fatalf("the send was cancelled with the client: %v", blocking.ctxErr)
+	}
+	reloaded, err := f.s.GetRequest(t.Context(), a.approver, issued.ID)
+	if err != nil || reloaded.WiRefDelivery == nil || reloaded.WiRefDelivery.Status != "sent" {
+		t.Fatalf("outcome not recorded: %v %+v", err, reloaded.WiRefDelivery)
+	}
+}

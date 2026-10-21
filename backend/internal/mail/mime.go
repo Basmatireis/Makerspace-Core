@@ -15,7 +15,8 @@ import (
 // renderMIME builds the RFC 5322 message. The plain-text part is always present. An HTML body makes
 // it multipart/alternative; attachments wrap everything in multipart/mixed.
 func renderMIME(fromName, fromAddress string, message Message) (string, error) {
-	if _, err := netmail.ParseAddress(message.To); err != nil || hasHeaderBreak(message.Subject) {
+	if parsed, err := netmail.ParseAddress(message.To); err != nil || parsed.Address != message.To ||
+		hasHeaderBreak(message.Subject) {
 		return "", fmt.Errorf("invalid mail message")
 	}
 	for _, cc := range message.Cc {

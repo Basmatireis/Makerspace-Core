@@ -112,6 +112,7 @@ func TestRenderMixedWithAttachment(t *testing.T) {
 func TestRenderRejectsHeaderInjection(t *testing.T) {
 	cases := []Message{
 		{To: "a@example.test", Subject: "x\r\nBcc: evil@example.test", Text: "t"},
+		{To: "Name <a@example.test>", Subject: "x", Text: "t"},
 		{To: "a@example.test\r\nBcc: evil@example.test", Subject: "x", Text: "t"},
 		{To: "not an address", Subject: "x", Text: "t"},
 		{To: "a@example.test", Subject: "x", Text: "t",

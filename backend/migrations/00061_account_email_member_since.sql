@@ -16,7 +16,7 @@ JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 WHERE a.person_id = p.id AND p.email IS DISTINCT FROM i.identifier_display;
 
 -- 2. Accounts without a login email adopt the person's email as login email unless another login identity
--- already uses it. Only ASCII addresses are backfilled so lower() matches the application's normalization
+-- already uses it. Only plausible ASCII addresses (no whitespace, one '@', both parts non-empty) are backfilled so lower() matches the application's normalization
 -- exactly (security.NormalizeEmail is trim + lowercase). Two accounts whose persons share an email: the older
 -- account wins. Accounts left without a login email (no or non-ASCII email, collision) stay as they are;
 -- the person detail page warns about them.
@@ -27,7 +27,9 @@ FROM (
     FROM accounts a
     JOIN people p ON p.id = a.person_id
     WHERE p.email IS NOT NULL
-      AND p.email ~ '^[ -~]+$'
+      AND p.email ~ '^[!-~]+@[!-~]+$'
+      AND p.email !~ '@.*@'
+      AND p.email = btrim(p.email)
       AND NOT EXISTS (SELECT 1 FROM auth_identities i WHERE i.account_id = a.id AND i.kind = 'password')
       AND NOT EXISTS (
           SELECT 1 FROM auth_identities i

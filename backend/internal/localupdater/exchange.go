@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -195,13 +196,31 @@ func (e Exchange) Submit(request Request) error {
 	return writeJSON(e.dir, requestFile, request, 0o644)
 }
 
+var errNotRegular = errors.New("exchange file is not a regular file")
+
 func readJSON(path string, target any) error {
+	// The exchange directory is writable by other users: only a regular file is ever opened, never a symlink,
+	// FIFO or device (O_NONBLOCK keeps a swapped-in FIFO from blocking the open).
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errNotRegular
+	}
 	//nolint:gosec // the path is a fixed file name inside the configured exchange directory
-	file, err := os.Open(path)
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = file.Close() }()
+	opened, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
+		return errNotRegular
+	}
 	data, err := io.ReadAll(io.LimitReader(file, maxFileSize+1))
 	if err != nil {
 		return err

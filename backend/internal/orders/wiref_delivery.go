@@ -14,6 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// deliveryTimeout bounds the mail and the recording of its outcome after the client's request context is detached.
+const deliveryTimeout = 60 * time.Second
+
 // InvoiceDelivery hands an approved invoice request to the university accounting office (wiRef). It is a real
 // module seam: the invoicing package renders and mails, tests replace it.
 type InvoiceDelivery interface {
@@ -103,6 +106,17 @@ func (s *Service) sendAndRecord(
 	r ExternalInvoiceRequest,
 	requestID *uuid.UUID,
 ) (ExternalInvoiceRequest, error) {
+	if _, busy := s.delivering.LoadOrStore(r.ID, struct{}{}); busy {
+		return r, apperror.Conflicting(
+			"wiref_delivery_in_progress",
+			"The request is being sent to wiRef right now",
+		)
+	}
+	defer s.delivering.Delete(r.ID)
+	// The mail may already be on its way when the client disconnects: sending and recording must not be cancelled
+	// with the request, but they are bounded.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deliveryTimeout)
+	defer cancel()
 	outcome := s.delivery.Deliver(ctx, invoiceDocument(r))
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
