@@ -1251,6 +1251,84 @@ func (q *Queries) ListActiveAssignments(ctx context.Context, connectorID uuid.UU
 	return items, nil
 }
 
+const listActiveSpoolsByNFCTags = `-- name: ListActiveSpoolsByNFCTags :many
+SELECT lower(i.value)::text AS tag_uid, s.id AS spool_id, s.display_id
+FROM filament_spool_identifiers i JOIN filament_spools s ON s.id=i.spool_id
+WHERE i.kind='nfc' AND i.retired_at IS NULL AND lower(i.value)=ANY($1::text[])
+`
+
+type ListActiveSpoolsByNFCTagsRow struct {
+	TagUid    string
+	SpoolID   uuid.UUID
+	DisplayID string
+}
+
+// tag_uids must be lower case; the match is case-insensitive like LockActiveSpoolByNFCTag.
+func (q *Queries) ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveSpoolsByNFCTags, tagUids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveSpoolsByNFCTagsRow{}
+	for rows.Next() {
+		var i ListActiveSpoolsByNFCTagsRow
+		if err := rows.Scan(&i.TagUid, &i.SpoolID, &i.DisplayID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listConfiguredSlotsByExternalIDs = `-- name: ListConfiguredSlotsByExternalIDs :many
+SELECT u.machine_id, u.external_identifier AS input_unit_external_id, s.external_identifier AS slot_external_id,
+       s.id AS slot_id, s.name AS slot_name, u.name AS input_unit_name
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=ANY($1::uuid[]) AND u.enabled AND s.status='available'
+  AND u.external_identifier IS NOT NULL AND s.external_identifier IS NOT NULL
+`
+
+type ListConfiguredSlotsByExternalIDsRow struct {
+	MachineID           uuid.UUID
+	InputUnitExternalID *string
+	SlotExternalID      *string
+	SlotID              uuid.UUID
+	SlotName            string
+	InputUnitName       string
+}
+
+// Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
+func (q *Queries) ListConfiguredSlotsByExternalIDs(ctx context.Context, machineIds []uuid.UUID) ([]ListConfiguredSlotsByExternalIDsRow, error) {
+	rows, err := q.db.Query(ctx, listConfiguredSlotsByExternalIDs, machineIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConfiguredSlotsByExternalIDsRow{}
+	for rows.Next() {
+		var i ListConfiguredSlotsByExternalIDsRow
+		if err := rows.Scan(
+			&i.MachineID,
+			&i.InputUnitExternalID,
+			&i.SlotExternalID,
+			&i.SlotID,
+			&i.SlotName,
+			&i.InputUnitName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConnectorAssignments = `-- name: ListConnectorAssignments :many
 SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, m.name AS machine_name
 FROM printer_connector_assignments a JOIN machines m ON m.id=a.machine_id
@@ -1409,6 +1487,48 @@ func (q *Queries) ListConnectors(ctx context.Context) ([]PrinterConnector, error
 			&i.UpdatedAt,
 			&i.EventsClearedAt,
 			&i.EventsClearedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnabledPrinterLiveStatuses = `-- name: ListEnabledPrinterLiveStatuses :many
+SELECT s.machine_id, m.name AS machine_name, s.observed_at, s.snapshot
+FROM printer_live_statuses s
+JOIN printer_connector_assignments a ON a.id=s.assignment_id
+JOIN machines m ON m.id=s.machine_id
+WHERE a.ended_at IS NULL AND a.enabled
+ORDER BY m.name, s.machine_id
+`
+
+type ListEnabledPrinterLiveStatusesRow struct {
+	MachineID   uuid.UUID
+	MachineName string
+	ObservedAt  time.Time
+	Snapshot    []byte
+}
+
+// Newest snapshots of the assignments that are still collecting (not ended, enabled).
+func (q *Queries) ListEnabledPrinterLiveStatuses(ctx context.Context) ([]ListEnabledPrinterLiveStatusesRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledPrinterLiveStatuses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledPrinterLiveStatusesRow{}
+	for rows.Next() {
+		var i ListEnabledPrinterLiveStatusesRow
+		if err := rows.Scan(
+			&i.MachineID,
+			&i.MachineName,
+			&i.ObservedAt,
+			&i.Snapshot,
 		); err != nil {
 			return nil, err
 		}

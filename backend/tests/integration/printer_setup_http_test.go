@@ -32,7 +32,7 @@ const liveStatusBody = `{"protocolVersion":1,"configurationVersion":%d,"observed
 "temperatures":{"extruders":[{"extruderId":0,"side":"right","currentC":219.0,"targetC":220.0},{"extruderId":1,"side":"left","currentC":31.0,"targetC":null}],"bedC":59.6,"bedTargetC":60.0,"chamberC":null},
 "nozzles":[{"extruderId":0,"side":"right","diameterMm":0.4,"type":"HS01"},{"extruderId":1,"side":null,"diameterMm":null,"type":null}],
 "units":[{"externalId":"0","kind":"ams","label":"AMS 0","humidityPercent":32,"temperatureC":32.4,"trays":[
-  {"externalId":"0","materialType":"PETG","subBrand":null,"colorHex":"FFF144","remainPercent":55,"rfid":true,"empty":false},
+  {"externalId":"0","materialType":"PETG","subBrand":null,"colorHex":"FFF144","remainPercent":55,"rfid":true,"tagUid":"E2C92C29AABB","empty":false},
   {"externalId":"1","materialType":null,"subBrand":null,"colorHex":null,"remainPercent":null,"rfid":false,"empty":true}]},
  {"externalId":"254","kind":"external","label":"External spool 254","humidityPercent":null,"temperatureC":null,"trays":[
   {"externalId":"254","materialType":"PLA","subBrand":null,"colorHex":"FFFFFF","remainPercent":null,"rfid":false,"empty":false}]}],
@@ -194,6 +194,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	readerClient, readerCSRF := member("reader", "machines.read")
 	managerClient, managerCSRF := member("manager", "machines.read", "machines.manage")
 	nobodyClient, nobodyCSRF := member("nobody", "machine_jobs.read")
+	tagReaderClient, _ := member("tagreader", "machines.read", "inventory.read")
 
 	var accountID, personID uuid.UUID
 	if err = pool.QueryRow(
@@ -419,6 +420,25 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		live.Status.WifiSignalDbm.MustGet() != -39 ||
 		len(live.Status.Errors) != 1 {
 		t.Fatalf("live status = %+v", live)
+	}
+
+	// The detected spool tags need machines.read and inventory.read together.
+	tagsPath := server.URL + "/api/v1/printers/detected-spool-tags"
+	response = doJSON(t, readerClient, http.MethodGet, tagsPath, "", "", nil)
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSON(t, tagReaderClient, http.MethodGet, tagsPath, "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	var tags openapi.DetectedSpoolTagList
+	decodeResponse(t, response, &tags)
+	if len(tags.Items) != 1 {
+		t.Fatalf("detected tags = %+v", tags)
+	}
+	tag := tags.Items[0]
+	if tag.MachineId != machine.ID || tag.TagUid != "E2C92C29AABB" || tag.UnitExternalId != "0" ||
+		tag.TrayExternalId != "0" || tag.SlotName.MustGet() != "Slot 1" || tag.InputUnitName.MustGet() != "AMS 2 Pro" ||
+		tag.MaterialType.MustGet() != "PETG" || tag.Spool.IsSpecified() && !tag.Spool.IsNull() {
+		t.Fatalf("detected tag = %+v", tag)
 	}
 }
 

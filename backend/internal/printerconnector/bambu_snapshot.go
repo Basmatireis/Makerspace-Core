@@ -143,6 +143,9 @@ func bambuLiveTray(ref bambuTrayRef, existBits string) liveTray {
 		Empty:        empty,
 	}
 	if !empty {
+		if tag := boundedText(bambuTagUID(tray), 255); tag != nil {
+			result.TagUID = tag
+		}
 		result.ColorHex = bambuColorHex(stringAt(tray, "tray_color"))
 		// remain is a percentage; -1 and 0 mean the printer does not know.
 		if remain, ok := boundedInt(tray["remain"], 1, 100); ok {

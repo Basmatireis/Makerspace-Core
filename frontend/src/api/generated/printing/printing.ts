@@ -22,6 +22,7 @@ import type {
   ConfigurePrinterRequest,
   CreatePrinterInputUnitRequest,
   CreatePrinterSlotRequest,
+  DetectedSpoolTagList,
   MountSpoolRequest,
   PrinterInputUnit,
   PrinterLiveStatus,
@@ -107,6 +108,30 @@ export const getGetPrinterLiveStatusUrl = (machineId: UUIDv7,) => {
 export const getPrinterLiveStatus = async (machineId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterLiveStatus> => {
 
   return apiFetch<PrinterLiveStatus>(getGetPrinterLiveStatusUrl(machineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListDetectedSpoolTagsUrl = () => {
+
+
+
+
+  return `/api/v1/printers/detected-spool-tags`
+}
+
+/**
+ * Every RFID/NFC tag UID in the latest live status of each printer with an active connector assignment, so staff can link a loaded spool's tag without typing it. A tag that is an active identifier of a spool names that spool. Needs machines.read and inventory.read.
+ * @summary Spool tags the printers currently report in their slots
+ */
+export const listDetectedSpoolTags = async ( options?: Parameters<typeof apiFetch>[1]): Promise<DetectedSpoolTagList> => {
+
+  return apiFetch<DetectedSpoolTagList>(getListDetectedSpoolTagsUrl(),
   {
     ...options,
     method: 'GET'

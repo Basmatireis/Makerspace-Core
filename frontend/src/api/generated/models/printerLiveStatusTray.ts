@@ -48,5 +48,12 @@ export interface PrinterLiveStatusTray {
      */
   remainPercent: number | null;
   rfid: boolean;
+  /**
+     * UID of the spool's RFID/NFC tag as the printer read it. Absent from connectors before 0.8.1.
+     * @minLength 1
+     * @maxLength 255
+     * @nullable
+     */
+  tagUid?: string | null;
   empty: boolean;
 }

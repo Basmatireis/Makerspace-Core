@@ -5209,6 +5209,31 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /pricing/quote:
+    get:
+      tags: [Pricing]
+      operationId: getPriceQuote
+      summary: Price a machine run or an amount of an inventory article for every active pricing group
+      description: >-
+        Read-only lookup. A machine with hours prices the runtime with the machine type's runtime rate; an article with a
+        quantity prices it with the material rate of its material type and unit, and with its sale price when it has one.
+        Machine and article can be combined into one run. Amounts use the same rates and rounding as job pricing
+        (total rounded to cents). Needs pricing.read, plus machines.read for a machine and inventory.read for an article.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: hours, in: query, description: Runtime in hours; requires machineId., schema: {$ref: "#/components/schemas/Decimal"}}
+        - {name: materialId, in: query, description: Inventory article., schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: quantity, in: query, description: Quantity in the article's unit; requires materialId., schema: {$ref: "#/components/schemas/Decimal"}}
+      responses:
+        "200": {description: Prices per pricing group., content: {application/json: {schema: {$ref: "#/components/schemas/PriceQuote"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /pricing-role-groups:
     get:
       tags: [Pricing]
@@ -5389,6 +5414,23 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMaterialRequest"}}}}
       responses:
         "200": {description: Material updated., content: {application/json: {schema: {$ref: "#/components/schemas/Material"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Inventory]
+      operationId: deleteMaterial
+      summary: Delete an article that nothing uses yet
+      description: >-
+        Requires `inventory.manage`. Permanently deletes an article that has no ledger entries, spool fills, run or job
+        usages and order items. A used article answers 409 material_in_use with the uses in `details`; deactivate it instead.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Article deleted.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -5803,6 +5845,22 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printers/detected-spool-tags:
+    get:
+      tags: [Printing]
+      operationId: listDetectedSpoolTags
+      summary: Spool tags the printers currently report in their slots
+      description: >-
+        Every RFID/NFC tag UID in the latest live status of each printer with an active connector assignment, so staff
+        can link a loaded spool's tag without typing it. A tag that is an active identifier of a spool names that spool.
+        Needs machines.read and inventory.read.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Detected tags., content: {application/json: {schema: {$ref: "#/components/schemas/DetectedSpoolTagList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machines/{machineId}/printer/setup:
     parameters:
       - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -6022,6 +6080,29 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteMachineJobRequest"}}}}
       responses:
         "204": {description: Job deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/reprice:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Jobs]
+      operationId: repriceMachineJob
+      summary: Recalculate the job price from the current rates
+      description: >-
+        Captures a new pricing snapshot (reason manual_reprice) from the current rules of the active snapshot's pricing
+        group, or of the group resolved as on creation when the job has no snapshot or that group is inactive, and
+        recalculates the price. The price adjustment is re-applied. Needs machine_jobs.edit. Order charges keep their
+        price until they are refreshed from the job.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Job repriced., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -12318,6 +12399,53 @@ components:
         active: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
 
+    PriceQuote:
+      type: object
+      additionalProperties: false
+      required: [machine, material, hours, quantity, saleAmount, groups]
+      properties:
+        machine: {allOf: [{$ref: "#/components/schemas/PriceQuoteMachine"}], nullable: true}
+        material: {allOf: [{$ref: "#/components/schemas/PriceQuoteMaterial"}], nullable: true}
+        hours: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        saleAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Quantity times the article's sale price; the same for every group.}
+        groups: {type: array, items: {$ref: "#/components/schemas/PriceQuoteGroup"}, description: "Active pricing groups, the default group first, then by name."}
+
+    PriceQuoteMachine:
+      type: object
+      additionalProperties: false
+      required: [id, name, machineTypeName]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        machineTypeName: {type: string}
+
+    PriceQuoteMaterial:
+      type: object
+      additionalProperties: false
+      required: [id, name, unit, materialTypeName, salePrice]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        materialTypeName: {type: string, nullable: true}
+        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+
+    PriceQuoteGroup:
+      type: object
+      additionalProperties: false
+      required: [pricingGroupId, name, isDefault, machineRate, machineAmount, materialRate, materialAmount, total, complete]
+      properties:
+        pricingGroupId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        isDefault: {type: boolean}
+        machineRate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Runtime rate per hour; null without a machine or without an active rate.}
+        machineAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
+        materialRate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Material rate per unit; null without an article or without an active rate.}
+        materialAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
+        total: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Machine and material together; null when a requested part has no rate.}
+        complete: {type: boolean, description: Every requested part has an active rate in this group.}
+
     PricingGroup:
       type: object
       additionalProperties: false
@@ -12434,6 +12562,7 @@ components:
         stockState: {$ref: "#/components/schemas/StockState"}
         inventoryVersion: {$ref: "#/components/schemas/Version"}
         recentConsumption: {$ref: "#/components/schemas/Decimal"}
+        deletable: {type: boolean, description: "True while nothing uses the article yet (no ledger entries, spool fills, run or job usages, order items), so deleteMaterial would succeed."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -13117,6 +13246,7 @@ components:
         colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true, description: "RRGGBB without alpha."}
         remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         rfid: {type: boolean}
+        tagUid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "UID of the spool's RFID/NFC tag as the printer read it. Absent from connectors before 0.8.1."}
         empty: {type: boolean}
 
     PrinterLiveStatusUnit:
@@ -13151,7 +13281,7 @@ components:
     PrinterLiveStatusSnapshot:
       type: object
       additionalProperties: false
-      description: "Normalized printer state. It never contains addresses, serial numbers, camera, or network identifiers."
+      description: "Normalized printer state. It never contains addresses, serial numbers, camera, or network identifiers; only the tag UIDs of loaded filament spools."
       required: [state, job, temperatures, nozzles, units, activeTray, errors, firmwareVersion, wifiSignalDbm]
       properties:
         state: {$ref: "#/components/schemas/PrinterLiveStatusState"}
@@ -13163,6 +13293,42 @@ components:
         errors: {type: array, maxItems: 64, items: {$ref: "#/components/schemas/PrinterLiveStatusError"}}
         firmwareVersion: {type: string, maxLength: 80, nullable: true}
         wifiSignalDbm: {type: integer, minimum: -150, maximum: 0, nullable: true}
+
+    DetectedSpoolTag:
+      type: object
+      additionalProperties: false
+      required: [machineId, machineName, unitExternalId, unitLabel, trayExternalId, slotId, slotName, inputUnitName, tagUid, materialType, subBrand, colorHex, remainPercent, observedAt, spool]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        unitExternalId: {type: string}
+        unitLabel: {type: string, description: Label of the input unit as the printer reports it.}
+        trayExternalId: {type: string}
+        slotId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The configured printer slot this tray maps to, if any."}
+        slotName: {type: string, nullable: true}
+        inputUnitName: {type: string, nullable: true}
+        tagUid: {type: string, minLength: 1, maxLength: 255}
+        materialType: {type: string, nullable: true}
+        subBrand: {type: string, nullable: true}
+        colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true}
+        remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        observedAt: {type: string, format: date-time}
+        spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: The spool whose open fill already carries this tag as an NFC identifier.}
+
+    DetectedSpoolTagSpool:
+      type: object
+      additionalProperties: false
+      required: [id, displayId]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+
+    DetectedSpoolTagList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/DetectedSpoolTag"}}
 
     PrinterLiveStatusReport:
       type: object
@@ -15023,11 +15189,18 @@ components:
             -
               type: "string"
           nullable: true
+        orderItemId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+          description: "The order item that charges this job; refreshOrderItem updates it from the job."
         sourceChanged:
           type: "boolean"
       required:
         - "orderId"
         - "orderReference"
+        - "orderItemId"
         - "sourceChanged"
     PostSessionDestination:
       type: string

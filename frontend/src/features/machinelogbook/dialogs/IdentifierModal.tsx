@@ -4,6 +4,7 @@ import { InlineNotification, Modal, Select, SelectItem, Stack, TextInput } from 
 import { useMutation } from '@tanstack/react-query';
 import { addFilamentSpoolIdentifier } from '../../../api/generated/filament-spools/filament-spools';
 import type { FilamentSpool, FilamentSpoolIdentifierKind } from '../../../api/generated/models';
+import { DetectedTagPicker } from '../components/DetectedTagPicker';
 import { identifierKey, identifierKinds, identifierLabel } from '../components/spoolShared';
 import { useNotify } from '../shared/toasts';
 import { errorCode, spoolErrorMessage, useRefreshInventory } from '../spoolData';
@@ -32,6 +33,8 @@ export function IdentifierModal({
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<Values>({ defaultValues: { kind: 'nfc', value: '' } });
   const resetForm = useLatestCallback(() => {
@@ -42,6 +45,7 @@ export function IdentifierModal({
     if (open) resetForm();
   }, [open, resetForm]);
   const pending = mutation.isPending;
+  const kind = watch('kind');
 
   const submit = handleSubmit(async (values) => {
     try {
@@ -107,6 +111,14 @@ export function IdentifierModal({
               <SelectItem key={kind.id} value={kind.id} text={kind.label} />
             ))}
           </Select>
+          {kind === 'nfc' && (
+            <DetectedTagPicker
+              id="identifier-detected-tag"
+              open={open}
+              spoolId={spool.id}
+              onPick={(tagUid) => setValue('value', tagUid, { shouldValidate: true, shouldDirty: true })}
+            />
+          )}
           <TextInput
             id="identifier-value"
             labelText="Value"

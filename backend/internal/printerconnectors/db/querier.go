@@ -52,9 +52,15 @@ type Querier interface {
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
 	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
+	// tag_uids must be lower case; the match is case-insensitive like LockActiveSpoolByNFCTag.
+	ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error)
+	// Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
+	ListConfiguredSlotsByExternalIDs(ctx context.Context, machineIds []uuid.UUID) ([]ListConfiguredSlotsByExternalIDsRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
 	ListConnectorEvents(ctx context.Context, arg ListConnectorEventsParams) ([]ListConnectorEventsRow, error)
 	ListConnectors(ctx context.Context) ([]PrinterConnector, error)
+	// Newest snapshots of the assignments that are still collecting (not ended, enabled).
+	ListEnabledPrinterLiveStatuses(ctx context.Context) ([]ListEnabledPrinterLiveStatusesRow, error)
 	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)

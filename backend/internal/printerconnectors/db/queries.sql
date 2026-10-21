@@ -294,6 +294,29 @@ WHERE printer_live_statuses.observed_at <= EXCLUDED.observed_at;
 SELECT s.* FROM printer_live_statuses s JOIN printer_connector_assignments a ON a.id=s.assignment_id
 WHERE s.machine_id=sqlc.arg(machine_id) AND a.ended_at IS NULL;
 
+-- name: ListEnabledPrinterLiveStatuses :many
+-- Newest snapshots of the assignments that are still collecting (not ended, enabled).
+SELECT s.machine_id, m.name AS machine_name, s.observed_at, s.snapshot
+FROM printer_live_statuses s
+JOIN printer_connector_assignments a ON a.id=s.assignment_id
+JOIN machines m ON m.id=s.machine_id
+WHERE a.ended_at IS NULL AND a.enabled
+ORDER BY m.name, s.machine_id;
+
+-- name: ListConfiguredSlotsByExternalIDs :many
+-- Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
+SELECT u.machine_id, u.external_identifier AS input_unit_external_id, s.external_identifier AS slot_external_id,
+       s.id AS slot_id, s.name AS slot_name, u.name AS input_unit_name
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=ANY(sqlc.arg(machine_ids)::uuid[]) AND u.enabled AND s.status='available'
+  AND u.external_identifier IS NOT NULL AND s.external_identifier IS NOT NULL;
+
+-- name: ListActiveSpoolsByNFCTags :many
+-- tag_uids must be lower case; the match is case-insensitive like LockActiveSpoolByNFCTag.
+SELECT lower(i.value)::text AS tag_uid, s.id AS spool_id, s.display_id
+FROM filament_spool_identifiers i JOIN filament_spools s ON s.id=i.spool_id
+WHERE i.kind='nfc' AND i.retired_at IS NULL AND lower(i.value)=ANY(sqlc.arg(tag_uids)::text[]);
+
 -- name: GetAccountDisplayName :one
 SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
 FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=sqlc.arg(id);

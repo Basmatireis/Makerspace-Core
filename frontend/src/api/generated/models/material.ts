@@ -76,6 +76,8 @@ export interface Material {
   stockState: StockState;
   inventoryVersion: Version;
   recentConsumption: Decimal;
+  /** True while nothing uses the article yet (no ledger entries, spool fills, run or job usages, order items), so deleteMaterial would succeed. */
+  deletable?: boolean;
   version: Version;
   createdAt: string;
   updatedAt: string;

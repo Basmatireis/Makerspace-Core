@@ -20,7 +20,7 @@ import {
   listFilamentSpools,
 } from '../../api/generated/filament-spools/filament-spools';
 import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
-import { getPrinterProfile } from '../../api/generated/printing/printing';
+import { getPrinterProfile, listDetectedSpoolTags } from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
 import type {
   GetMachineLogbookStatisticsParams,
@@ -46,6 +46,7 @@ export const machineLogbookKeys = {
   spools: (params: ListFilamentSpoolsParams) => [...machineLogbookKeys.all, 'spools', params] as const,
   spool: (id: string) => [...machineLogbookKeys.all, 'spool', id] as const,
   spoolTransactions: (id: string, page: number) => [...machineLogbookKeys.all, 'spool-transactions', id, page] as const,
+  detectedSpoolTags: () => [...machineLogbookKeys.all, 'detected-spool-tags'] as const,
   printer: (machineId: string) => [...machineLogbookKeys.all, 'printer', machineId] as const,
   workItems: (params: ListMachineLogbookWorkItemsParams) => [...machineLogbookKeys.all, 'work-items', params] as const,
   machineActivity: () => [...machineLogbookKeys.all, 'machine-activity'] as const,
@@ -88,6 +89,11 @@ export const spoolTransactionsQuery = (id: string, page: number) =>
   });
 export const printerQuery = (machineId: string) =>
   queryOptions({ queryKey: machineLogbookKeys.printer(machineId), queryFn: () => getPrinterProfile(machineId) });
+export const detectedSpoolTagsQuery = () =>
+  queryOptions({
+    queryKey: machineLogbookKeys.detectedSpoolTags(),
+    queryFn: ({ signal }) => listDetectedSpoolTags({ signal }),
+  });
 export const workItemsQuery = (params: ListMachineLogbookWorkItemsParams) =>
   queryOptions({
     queryKey: machineLogbookKeys.workItems(params),

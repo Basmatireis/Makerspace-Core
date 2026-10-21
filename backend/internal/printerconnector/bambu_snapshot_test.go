@@ -110,6 +110,9 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		first.Empty {
 		t.Fatalf("tray 0 = %+v", first)
 	}
+	if first.TagUID == nil || *first.TagUID != "0123456789ABCDEF" {
+		t.Fatalf("tray 0 tag = %v", first.TagUID)
+	}
 	second := ams.Trays[1]
 	if *second.MaterialType != "PLA" || second.RemainPercent != nil || second.RFID || second.Empty ||
 		second.SubBrand != nil {
@@ -146,7 +149,6 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		"AA:BB",
 		"00MREAL123",
 		"rtsp",
-		"0123456789ABCDEF",
 		"tray_uuid",
 		"3232235826",
 	} {
@@ -655,5 +657,37 @@ func TestHeartbeatWithNewerRevisionFetchesTheConfigurationImmediately(t *testing
 	}
 	if configurationFetches.Load() != 1 {
 		t.Fatalf("fetches=%d", configurationFetches.Load())
+	}
+}
+
+func TestBuildBambuLiveSnapshotReportsRealTagUIDOnly(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	document := decodeDocument(
+		t,
+		`{"print":{"gcode_state":"IDLE","ams":{"tray_exist_bits":"7","ams":[{"id":"0","tray":[`+
+			`{"id":"0","tray_type":"PLA","tag_uid":"  E2C92C29AABB  "},`+
+			`{"id":"1","tray_type":"PLA","tag_uid":"0000000000000000"},`+
+			`{"id":"2","tray_type":"PLA"},`+
+			`{"id":"3","tag_uid":"E2C92C29CCDD"}]}]}}}`,
+	)
+	snapshot := buildBambuLiveSnapshot(document, map[string]time.Time{}, now)
+	trays := snapshot.Units[0].Trays
+	if trays[0].TagUID == nil || *trays[0].TagUID != "E2C92C29AABB" || !trays[0].RFID {
+		t.Fatalf("tray with a tag = %+v", trays[0])
+	}
+	if trays[1].TagUID != nil || trays[2].TagUID != nil {
+		t.Fatalf("zero or missing tag must not be reported: %+v %+v", trays[1], trays[2])
+	}
+	if !trays[3].Empty || trays[3].TagUID != nil {
+		t.Fatalf("empty tray must not carry a tag: %+v", trays[3])
+	}
+	encoded, err := json.Marshal(trays[1])
+	if err != nil || strings.Contains(string(encoded), "tagUid") {
+		t.Fatalf("tagUid must be omitted without a tag: %s %v", encoded, err)
+	}
+	encoded, err = json.Marshal(trays[0])
+	if err != nil || !strings.Contains(string(encoded), `"tagUid":"E2C92C29AABB"`) {
+		t.Fatalf("tagUid missing from the wire format: %s %v", encoded, err)
 	}
 }

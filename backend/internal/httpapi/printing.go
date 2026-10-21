@@ -330,3 +330,44 @@ func (s *Server) GetPrinterLiveStatus(
 		Status:       snapshot,
 	}, nil
 }
+
+func (s *Server) ListDetectedSpoolTags(
+	ctx context.Context,
+	_ openapi.ListDetectedSpoolTagsRequestObject,
+) (openapi.ListDetectedSpoolTagsResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	tags, e := s.printerConnectors.ListDetectedSpoolTags(ctx, p)
+	if e != nil {
+		return nil, e
+	}
+	items := make([]openapi.DetectedSpoolTag, 0, len(tags))
+	for _, tag := range tags {
+		item := openapi.DetectedSpoolTag{
+			MachineId:      tag.MachineID,
+			MachineName:    tag.MachineName,
+			UnitExternalId: tag.UnitExternalID,
+			UnitLabel:      tag.UnitLabel,
+			TrayExternalId: tag.TrayExternalID,
+			SlotId:         nullableUUIDValue(tag.SlotID),
+			SlotName:       nullableString(tag.SlotName),
+			InputUnitName:  nullableString(tag.InputUnitName),
+			TagUid:         tag.TagUID,
+			MaterialType:   nullableString(tag.MaterialType),
+			SubBrand:       nullableString(tag.SubBrand),
+			ColorHex:       nullableString(tag.ColorHex),
+			RemainPercent:  nullableInt(tag.RemainPercent),
+			ObservedAt:     tag.ObservedAt,
+			Spool:          nullable.NewNullNullable[openapi.DetectedSpoolTagSpool](),
+		}
+		if tag.Spool != nil {
+			item.Spool = nullable.NewNullableWithValue(
+				openapi.DetectedSpoolTagSpool{Id: tag.Spool.ID, DisplayId: tag.Spool.DisplayID},
+			)
+		}
+		items = append(items, item)
+	}
+	return openapi.ListDetectedSpoolTags200JSONResponse{Items: items}, nil
+}

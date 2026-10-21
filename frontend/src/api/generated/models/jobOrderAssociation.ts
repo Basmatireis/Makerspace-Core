@@ -23,5 +23,7 @@ import type { UUIDv7 } from './uUIDv7';
 export interface JobOrderAssociation {
   orderId: UUIDv7 | null;
   orderReference: string | null;
+  /** The order item that charges this job; refreshOrderItem updates it from the job. */
+  orderItemId: UUIDv7 | null;
   sourceChanged: boolean;
 }

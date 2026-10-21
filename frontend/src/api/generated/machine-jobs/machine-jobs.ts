@@ -270,6 +270,45 @@ return apiFetch<void>(getDeleteMachineJobUrl(machineJobId),
 );}
 
 
+export const getRepriceMachineJobUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-jobs/${machineJobId}/reprice`
+}
+
+/**
+ * Captures a new pricing snapshot (reason manual_reprice) from the current rules of the active snapshot's pricing group, or of the group resolved as on creation when the job has no snapshot or that group is inactive, and recalculates the price. The price adjustment is re-applied. Needs machine_jobs.edit. Order charges keep their price until they are refreshed from the job.
+ * @summary Recalculate the job price from the current rates
+ */
+export const repriceMachineJob = async (machineJobId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MachineJob>(getRepriceMachineJobUrl(machineJobId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
 export const getSetMachineJobPriceAdjustmentUrl = (machineJobId: UUIDv7,) => {
 
 

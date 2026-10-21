@@ -73,7 +73,9 @@ type liveTray struct {
 	ColorHex      *string `json:"colorHex"`
 	RemainPercent *int    `json:"remainPercent"`
 	RFID          bool    `json:"rfid"`
-	Empty         bool    `json:"empty"`
+	// TagUID is omitted for empty trays and unreadable tags, so snapshots of older connectors stay valid.
+	TagUID *string `json:"tagUid,omitempty"`
+	Empty  bool    `json:"empty"`
 }
 
 type liveUnit struct {

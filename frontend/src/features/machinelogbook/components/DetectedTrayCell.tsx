@@ -1,7 +1,7 @@
-import { Tag } from '@carbon/react';
+import { CodeSnippet, Tag } from '@carbon/react';
 import type { PrinterLiveStatusTray } from '../../../api/generated/models';
 
-/** Live content of a printer slot as the printer reports it (detected, never entered by staff): colour swatch, material, remaining percent and an RFID tag. */
+/** Live content of a printer slot as the printer reports it (detected, never entered by staff): colour swatch, material, remaining percent, an RFID tag and, when reported, its copyable tag UID. */
 export function DetectedTrayCell({
   tray,
   unknownLabel = 'Not detected',
@@ -25,6 +25,11 @@ export function DetectedTrayCell({
         <Tag size="sm" type="blue">
           RFID
         </Tag>
+      )}
+      {tray.tagUid && (
+        <CodeSnippet type="inline" aria-label="Copy tag UID" feedback="Copied" className="mj-inline-mono">
+          {tray.tagUid}
+        </CodeSnippet>
       )}
     </span>
   );

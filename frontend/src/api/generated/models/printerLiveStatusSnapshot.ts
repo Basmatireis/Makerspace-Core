@@ -27,7 +27,7 @@ import type { PrinterLiveStatusTemperatures } from './printerLiveStatusTemperatu
 import type { PrinterLiveStatusUnit } from './printerLiveStatusUnit';
 
 /**
- * Normalized printer state. It never contains addresses, serial numbers, camera, or network identifiers.
+ * Normalized printer state. It never contains addresses, serial numbers, camera, or network identifiers; only the tag UIDs of loaded filament spools.
  */
 export interface PrinterLiveStatusSnapshot {
   state: PrinterLiveStatusState;

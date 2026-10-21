@@ -21,6 +21,8 @@
 import type {
   CreatePricingGroupRequest,
   CreatePricingRuleRequest,
+  GetPriceQuoteParams,
+  PriceQuote,
   PricingGroup,
   PricingGroupList,
   PricingRule,
@@ -204,6 +206,37 @@ return apiFetch<PricingRule>(getUpdatePricingRuleUrl(pricingRuleId),
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(updatePricingRuleRequest)
+  }
+);}
+
+
+export const getGetPriceQuoteUrl = (params?: GetPriceQuoteParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/pricing/quote?${stringifiedParams}` : `/api/v1/pricing/quote`
+}
+
+/**
+ * Read-only lookup. A machine with hours prices the runtime with the machine type's runtime rate; an article with a quantity prices it with the material rate of its material type and unit, and with its sale price when it has one. Machine and article can be combined into one run. Amounts use the same rates and rounding as job pricing (total rounded to cents). Needs pricing.read, plus machines.read for a machine and inventory.read for an article.
+ * @summary Price a machine run or an amount of an inventory article for every active pricing group
+ */
+export const getPriceQuote = async (params?: GetPriceQuoteParams, options?: Parameters<typeof apiFetch>[1]): Promise<PriceQuote> => {
+
+  return apiFetch<PriceQuote>(getGetPriceQuoteUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

@@ -15,14 +15,29 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
+import { DetectedTagPicker } from '../../components/DetectedTagPicker';
 import { leftoverSummary } from '../../components/LeftoverFields';
 import { formatGrams } from '../../components/inventoryShared';
 import { identifierKinds, identifierLabel } from '../../components/spoolShared';
 import { type ChangeFilamentWizard, blankTag } from './useChangeFilamentWizard';
 
 export function TagsStep({ wizard, spool }: { wizard: ChangeFilamentWizard; spool: FilamentSpool }) {
-  const { fields, append, remove, values, leftover, material, net, stock, taken, review, errors, control, register } =
-    wizard;
+  const {
+    fields,
+    append,
+    remove,
+    values,
+    leftover,
+    material,
+    net,
+    stock,
+    taken,
+    review,
+    errors,
+    control,
+    register,
+    setValue,
+  } = wizard;
 
   return (
     <Stack gap={6}>
@@ -60,6 +75,15 @@ export function TagsStep({ wizard, spool }: { wizard: ChangeFilamentWizard; spoo
                   <SelectItem key={kind.id} value={kind.id} text={kind.label} />
                 ))}
               </Select>
+              {values.added[index]?.kind === 'nfc' && (
+                <DetectedTagPicker
+                  id={`refill-tag-detected-${index}`}
+                  spoolId={spool.id}
+                  onPick={(tagUid) =>
+                    setValue(`added.${index}.value`, tagUid, { shouldValidate: true, shouldDirty: true })
+                  }
+                />
+              )}
               <TextInput
                 id={`refill-tag-value-${index}`}
                 labelText="Value"
