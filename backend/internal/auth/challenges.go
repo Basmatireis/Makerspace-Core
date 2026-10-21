@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
@@ -39,7 +41,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 	if normalizeErr != nil || !allowed || !emailAllowed {
 		return nil
 	}
-	target, err := authdb.New(s.pool).FindPasswordChallengeTarget(ctx, normalized)
+	target, err := authdb.New(s.pool).FindPasswordIdentityTarget(ctx, normalized)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && authorization.AccountStatus(target.Status) != authorization.AccountEnabled) {
 		return nil
 	}
@@ -96,7 +98,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 		return err
 	}
 	deliveryErr := s.notifier.SendPasswordReset(ctx, *target.DeliveryAddress, code, expiresAt)
-	s.recordChallengeDelivery(ctx, challenge.ID, deliveryErr)
+	s.recordChallengeDelivery(ctx, challenge.ID, requestID, deliveryErr)
 	return nil
 }
 
@@ -427,7 +429,7 @@ func (s *Service) RequestOwnEmailVerification(
 		return err
 	}
 	deliveryErr := s.notifier.SendEmailVerification(ctx, *target.DeliveryAddress, code, expiresAt)
-	s.recordChallengeDelivery(ctx, challenge.ID, deliveryErr)
+	s.recordChallengeDelivery(ctx, challenge.ID, requestID, deliveryErr)
 	if deliveryErr != nil {
 		return apperror.New(
 			http.StatusServiceUnavailable,
@@ -586,13 +588,21 @@ func (s *Service) consumeChallengeLimit(ctx context.Context, action, value strin
 	return err == nil && allowed != nil && *allowed, err
 }
 
-func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, deliveryErr error) {
+func (s *Service) recordChallengeDelivery(ctx context.Context, id uuid.UUID, requestID *uuid.UUID, deliveryErr error) {
 	status := DeliverySent
 	var failureCode *string
 	if deliveryErr != nil {
 		status = DeliveryFailed
 		code := "provider_error"
+		if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+			code = "mail_disabled"
+		}
 		failureCode = &code
+		attrs := []any{"challenge_id", id.String(), "failure_code", code}
+		if requestID != nil {
+			attrs = append(attrs, "request_id", requestID.String())
+		}
+		slog.WarnContext(ctx, "challenge delivery failed", attrs...)
 	}
 	_ = authdb.New(s.pool).
 		SetAuthChallengeDelivery(

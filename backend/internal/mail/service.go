@@ -24,7 +24,19 @@ var ErrDisabled = errors.New("mail delivery is disabled")
 
 const passwordPurpose = "mail.smtp.password" //nolint:gosec // key-derivation purpose label, not a credential
 
-type Message struct{ To, Subject, Text string }
+// Message is one outgoing email. Text is always sent; HTML is optional and, when present, sent as
+// the alternative representation. Attachments make the message multipart/mixed.
+type Message struct {
+	To, Subject, Text, HTML string
+	Attachments             []Attachment
+}
+
+// Attachment is a file delivered with a message.
+type Attachment struct {
+	Name        string
+	ContentType string
+	Data        []byte
+}
 type Provider interface {
 	Send(context.Context, Message) error
 }

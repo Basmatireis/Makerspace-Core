@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 )
 
@@ -50,6 +51,21 @@ func TestTransactionalMessagesUseConfiguredApplicationName(t *testing.T) {
 	if strings.Contains(mail.message.Subject, "Makerspace") || strings.Contains(mail.message.Text, "Makerspace") {
 		t.Fatalf("legacy organization name leaked into message: %#v", mail.message)
 	}
+	for _, body := range []string{mail.message.Text, mail.message.HTML} {
+		link := "https://portal.example.test/reset-password#email=member%40example.test&amp;code=ABC23456"
+		if body == mail.message.Text {
+			link = "https://portal.example.test/reset-password#email=member%40example.test&code=ABC23456"
+		}
+		if !strings.Contains(body, link) || !strings.Contains(body, "ABC23456") {
+			t.Fatalf("reset link with fragment or code missing: %s", body)
+		}
+		if strings.Contains(body, "reset-password?") {
+			t.Fatalf("code must never be in the query string: %s", body)
+		}
+	}
+	if mail.message.HTML == "" {
+		t.Fatal("HTML part missing")
+	}
 	if !strings.Contains(mail.message.Text, "03.10.2026 14:00") {
 		t.Fatalf("Vienna date and time format missing from message: %#v", mail.message)
 	}
@@ -67,7 +83,8 @@ func TestSecurityNoticeReplacesLegacyMessageName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if mail.message.Subject != "Open Workshop Portal PIN configured" ||
-		mail.message.Text != "Your Open Workshop Portal PIN changed." {
+		!strings.Contains(mail.message.Text, "Your Open Workshop Portal PIN changed.") ||
+		!strings.Contains(mail.message.HTML, "Your Open Workshop Portal PIN changed.") {
 		t.Fatalf("unexpected security notice: %#v", mail.message)
 	}
 }
@@ -113,5 +130,35 @@ func TestSurveyInvitationUsesPublicLinkAndPrivacyCopy(t *testing.T) {
 		if !strings.Contains(mail.message.Text, expected) {
 			t.Fatalf("survey message missing %q: %#v", expected, mail.message)
 		}
+	}
+}
+
+type brandedNames struct{ fixedName }
+
+func (brandedNames) EmailIdentity(context.Context) branding.EmailIdentity {
+	return branding.EmailIdentity{
+		ApplicationName: "Open Workshop Portal", OrganizationName: "Workshop Club", PrimaryColor: "#8a3ffc",
+		LogoPath: "/api/v1/public/branding/assets/logo/abc", ImprintURL: "/legal/imprint", ImprintInternal: true,
+		PrivacyURL: "https://example.test/privacy",
+	}
+}
+
+func TestBrandedMessagesUseBrandingConfiguration(t *testing.T) {
+	mail := &recordingMail{}
+	service := NewService(mail, brandedNames{fixedName("Open Workshop Portal")})
+	if err := service.SendEmailVerification(context.Background(), "m@example.test", "ABC23456", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		`src="https://portal.example.test/api/v1/public/branding/assets/logo/abc"`,
+		"#8a3ffc", "Workshop Club", `href="https://portal.example.test/legal/imprint"`, `href="https://example.test/privacy"`,
+		"https://portal.example.test/verify-email#email=m%40example.test&amp;code=ABC23456",
+	} {
+		if !strings.Contains(mail.message.HTML, expected) {
+			t.Fatalf("HTML missing %q: %s", expected, mail.message.HTML)
+		}
+	}
+	if !strings.Contains(mail.message.Text, "Imprint: https://portal.example.test/legal/imprint") {
+		t.Fatalf("text footer missing legal link: %s", mail.message.Text)
 	}
 }

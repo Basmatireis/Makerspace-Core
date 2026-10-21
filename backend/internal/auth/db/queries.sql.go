@@ -499,34 +499,6 @@ func (q *Queries) FindPINLogin(ctx context.Context, identifierNormalized string)
 	return i, err
 }
 
-const findPasswordChallengeTarget = `-- name: FindPasswordChallengeTarget :one
-SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
-FROM auth_identities i
-JOIN accounts a ON a.id = i.account_id
-JOIN password_credentials pc ON pc.auth_identity_id = i.id
-WHERE i.kind = 'password' AND i.identifier_normalized = $1::text
-  AND i.disabled_at IS NULL
-`
-
-type FindPasswordChallengeTargetRow struct {
-	AccountID       uuid.UUID
-	Status          string
-	AuthIdentityID  uuid.UUID
-	DeliveryAddress *string
-}
-
-func (q *Queries) FindPasswordChallengeTarget(ctx context.Context, identifierNormalized string) (FindPasswordChallengeTargetRow, error) {
-	row := q.db.QueryRow(ctx, findPasswordChallengeTarget, identifierNormalized)
-	var i FindPasswordChallengeTargetRow
-	err := row.Scan(
-		&i.AccountID,
-		&i.Status,
-		&i.AuthIdentityID,
-		&i.DeliveryAddress,
-	)
-	return i, err
-}
-
 const findPasswordIdentityTarget = `-- name: FindPasswordIdentityTarget :one
 SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
 FROM auth_identities i

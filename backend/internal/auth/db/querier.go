@@ -30,7 +30,6 @@ type Querier interface {
 	EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error
 	FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error)
 	FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error)
-	FindPasswordChallengeTarget(ctx context.Context, identifierNormalized string) (FindPasswordChallengeTargetRow, error)
 	FindPasswordIdentityTarget(ctx context.Context, identifierNormalized string) (FindPasswordIdentityTargetRow, error)
 	FindPasswordResetAccountByDigest(ctx context.Context, tokenDigest []byte) (uuid.UUID, error)
 	GetAccountForAuthentication(ctx context.Context, id uuid.UUID) (GetAccountForAuthenticationRow, error)

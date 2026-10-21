@@ -175,14 +175,6 @@ ON CONFLICT (action, key_digest) DO UPDATE SET
     updated_at = now()
 RETURNING blocked_until IS NULL OR blocked_until <= now() AS allowed;
 
--- name: FindPasswordChallengeTarget :one
-SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
-FROM auth_identities i
-JOIN accounts a ON a.id = i.account_id
-JOIN password_credentials pc ON pc.auth_identity_id = i.id
-WHERE i.kind = 'password' AND i.identifier_normalized = sqlc.arg(identifier_normalized)::text
-  AND i.disabled_at IS NULL;
-
 -- name: FindPasswordIdentityTarget :one
 SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
 FROM auth_identities i

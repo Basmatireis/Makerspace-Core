@@ -745,3 +745,41 @@ func validation(reason string) *apperror.Error {
 	err.Details["reason"] = reason
 	return err
 }
+
+// EmailIdentity is the subset of the branding configuration transactional emails need. Paths are
+// relative to the public application base URL; empty values mean "not configured".
+type EmailIdentity struct {
+	ApplicationName, OrganizationName, PrimaryColor string
+	LogoPath                                        string
+	ImprintURL, PrivacyURL                          string
+	ImprintInternal, PrivacyInternal                bool
+}
+
+// EmailIdentity returns the branding used by email layouts. SVG logos are omitted because most
+// email clients do not render them.
+func (s *Service) EmailIdentity(ctx context.Context) EmailIdentity {
+	config, err := s.get(ctx)
+	if err != nil {
+		return EmailIdentity{ApplicationName: s.ApplicationName(ctx)}
+	}
+	identity := EmailIdentity{
+		ApplicationName:  config.Identity.ApplicationName,
+		OrganizationName: config.Identity.LegalOrganizationName,
+		PrimaryColor:     config.Colors.Primary,
+	}
+	if logo, ok := config.Assets[Logo]; ok && logo.URL != nil &&
+		(logo.ContentType == nil || *logo.ContentType != "image/svg+xml") {
+		identity.LogoPath = *logo.URL
+	}
+	identity.ImprintURL, identity.ImprintInternal = legalLink(config.Imprint, LegalImprint)
+	identity.PrivacyURL, identity.PrivacyInternal = legalLink(config.Privacy, LegalPrivacy)
+	return identity
+}
+
+// legalLink returns the external URL, or the internal application path, of a legal page.
+func legalLink(legal Legal, kind LegalKind) (link string, internal bool) {
+	if legal.Mode == LegalExternal {
+		return legal.ExternalURL, false
+	}
+	return "/legal/" + string(kind), true
+}

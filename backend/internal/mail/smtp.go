@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	netmail "net/mail"
 	"net/smtp"
 	"strconv"
 	"strings"
@@ -33,13 +32,13 @@ func NewSMTPProvider(config SMTPConfig) (*SMTPProvider, error) {
 }
 
 func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
-	if _, err := netmail.ParseAddress(message.To); err != nil || hasHeaderBreak(message.Subject) {
-		return fmt.Errorf("invalid mail message")
+	rendered, err := renderMIME(p.config.FromName, p.config.FromAddress, message)
+	if err != nil {
+		return err
 	}
 	address := net.JoinHostPort(p.config.Host, strconv.Itoa(p.config.Port))
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var connection net.Conn
-	var err error
 	if p.config.TLSMode == TLSImplicit {
 		connection, err = (&tls.Dialer{
 			NetDialer: dialer,
@@ -89,7 +88,7 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return fmt.Errorf("open SMTP body: %w", err)
 	}
-	if _, err = io.Copy(w, bufio.NewReader(strings.NewReader(p.render(message)))); err != nil {
+	if _, err = io.Copy(w, bufio.NewReader(strings.NewReader(rendered))); err != nil {
 		_ = w.Close()
 		return fmt.Errorf("write SMTP body: %w", err)
 	}
@@ -97,14 +96,6 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 		return fmt.Errorf("finish SMTP body: %w", err)
 	}
 	return client.Quit()
-}
-
-func (p *SMTPProvider) render(message Message) string {
-	from := (&netmail.Address{Name: p.config.FromName, Address: p.config.FromAddress}).String()
-	to := (&netmail.Address{Address: message.To}).String()
-	body := strings.ReplaceAll(strings.ReplaceAll(message.Text, "\r\n", "\n"), "\n", "\r\n")
-	return "From: " + from + "\r\nTo: " + to + "\r\nSubject: " + message.Subject + "\r\n" +
-		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" + body + "\r\n"
 }
 
 func hasHeaderBreak(value string) bool { return strings.ContainsAny(value, "\r\n") }
