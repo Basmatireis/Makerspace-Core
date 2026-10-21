@@ -64,6 +64,7 @@ const (
 	AvailabilityFull              RequirementAvailability = "full"
 	AvailabilityAuthenticatedOnly RequirementAvailability = "authenticated_only"
 	AvailabilityNotOpen           RequirementAvailability = "not_open"
+	AvailabilityClosed            RequirementAvailability = "closed"
 )
 
 // ReadinessCode names a requirement for confirming, publishing or opening helper signup that is not met yet.
@@ -79,6 +80,7 @@ const (
 	ReadinessPublicPageOff        ReadinessCode = "public_page_off"
 	ReadinessSignupDisabled       ReadinessCode = "signup_disabled"
 	ReadinessNoPublicOpenShift    ReadinessCode = "no_public_open_shift"
+	ReadinessSignupPeriodOver     ReadinessCode = "signup_period_over"
 )
 
 // PublicPageState is whether the public event page is reachable.

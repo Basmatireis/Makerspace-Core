@@ -24,9 +24,9 @@ draft ⇄ confirmed → completed
 - **Completed and cancelled** are final and set `closedAt`. Details, sessions, shifts, positions and assignments become read-only; tasks and files stay editable. Personal data of signups is erased by the admin cleanup command once the event has been closed for longer than `EVENT_SIGNUP_RETENTION`.
 - **Delete** works only for a draft that never had an assignment (also a cancelled one).
 - **Public page.** Publishing needs a draft or confirmed event with an owner, a public title and a public scheduled session or public shift. A completed or cancelled event stays public until someone unpublishes it; it cannot be published again. The public link can be rotated while the event is open.
-- **Signup** — public and in the app — opens only for **confirmed** events. A position takes signups when the shift is open, its session is not cancelled, the shift has not ended and the optional signup window is open; public signup additionally needs the public page, the public-signup switch and a public shift.
+- **Signup** — public and in the app — opens only for **confirmed** events. A position takes signups when the shift is open, its session is not cancelled, the shift has not ended and the optional signup window is open; public signup additionally needs the public page, the public-signup switch and a public shift. On the public page a place shows `not_open` before signup starts (or while it is switched off) and `closed` once its shift has ended or stopped taking signups.
 
-`GET /events/{id}` returns the derived `goLive` readiness so clients do not repeat these rules: the public page (`off`/`live`) and what publishing still needs, public helper signup (`off`, `open`, `opens_at` with `opensAt`, `closed`) and what it still needs, a shift summary (accepting / total / not public) and what confirming still needs, as `EventReadinessCode` values.
+`GET /events/{id}` returns the derived `goLive` readiness so clients do not repeat these rules: the public page (`off`/`live`) and what publishing still needs, public helper signup (`off`, `open`, `opens_at` with `opensAt`, `closed`) and what it still needs (`signup_period_over` when every public open shift has ended or its signup window has closed), a shift summary (accepting / total / not public) and what confirming still needs, as `EventReadinessCode` values.
 
 ## Permissions
 

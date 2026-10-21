@@ -89,6 +89,10 @@ export const READINESS: Record<EventReadinessCode, { text: string; fix: FixTarge
   public_page_off: { text: 'The public page is live', fix: 'page' },
   signup_disabled: { text: 'Helper signup is switched on', fix: 'signup' },
   no_public_open_shift: { text: 'At least one public shift is open with a position', fix: 'programme' },
+  signup_period_over: {
+    text: 'A public shift has not ended yet and its signup window is open',
+    fix: 'programme',
+  },
 };
 
 export type Check = { code: EventReadinessCode; label: string; ok: boolean; fix: FixTarget };
@@ -111,6 +115,7 @@ export const SIGNUP_REQUIREMENTS: EventReadinessCode[] = [
   'event_not_confirmed',
   'public_page_off',
   'no_public_open_shift',
+  'signup_period_over',
 ];
 
 export function signupTag(goLive: EventGoLive): { label: string; type: 'green' | 'gray' | 'blue' } {
@@ -229,13 +234,16 @@ export function previewPublicEvent(
     shifts: shifts
       .filter((shift) => shift.isPublic && shift.status !== 'cancelled')
       .map((shift) => {
+        const over =
+          shift.status === 'closed' ||
+          shift.linkedSessionStatus === 'cancelled' ||
+          Date.parse(shift.endsAt) <= now ||
+          (!!shift.signupClosesAt && Date.parse(shift.signupClosesAt) <= now);
         const effective =
           signupEnabled &&
           shift.status === 'open' &&
-          shift.linkedSessionStatus !== 'cancelled' &&
-          Date.parse(shift.endsAt) > now &&
-          (!shift.signupOpensAt || Date.parse(shift.signupOpensAt) <= now) &&
-          (!shift.signupClosesAt || Date.parse(shift.signupClosesAt) > now);
+          !over &&
+          (!shift.signupOpensAt || Date.parse(shift.signupOpensAt) <= now);
         return {
           id: shift.id,
           sessionId: shift.sessionId ?? null,
@@ -247,7 +255,7 @@ export function previewPublicEvent(
             const remaining = requirement.requiredCount - requirement.filledCount;
             let availability: PublicEventRequirementAvailability = remaining <= 0 ? 'full' : 'available';
             if (remaining > 0 && requirement.eligibilityMode === 'roles') availability = 'authenticated_only';
-            if (!effective) availability = 'not_open';
+            if (!effective) availability = signupEnabled && over ? 'closed' : 'not_open';
             return {
               id: requirement.id,
               name: requirement.name,
@@ -284,6 +292,8 @@ export function availabilityOf(
   switch (requirement.availability) {
     case 'full':
       return { label: 'Full', type: 'gray', canSignUp: false };
+    case 'closed':
+      return { label: 'Signup closed', type: 'gray', canSignUp: false };
     case 'not_open':
       return {
         label: 'Not open yet',

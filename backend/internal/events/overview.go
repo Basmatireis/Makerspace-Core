@@ -316,6 +316,9 @@ func deriveGoLive(facts eventFacts, now time.Time) GoLive {
 	}
 	if !hasEligibleShift {
 		result.HelperSignupUnmet = append(result.HelperSignupUnmet, ReadinessNoPublicOpenShift)
+	} else if status == EventStatusConfirmed && !signupOpenNow && opensAt == nil {
+		// Every public open shift has ended or its signup window has closed.
+		result.HelperSignupUnmet = append(result.HelperSignupUnmet, ReadinessSignupPeriodOver)
 	}
 	switch {
 	case !signupSwitchedOn:
