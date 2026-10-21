@@ -35,7 +35,8 @@ export const getGetPersonalDashboardUrl = () => {
 /**
  * Always scoped to the session's person. A section is omitted when the principal may not see it or has nothing
  * to show: `staffing` needs a staffing level and `open_days.read`; open-day entries of `comingUp` need
- * `open_days.read`; `statistics` needs a staffing level or `open_days.signup`.
+ * `open_days.read`; `statistics` needs a staffing level or `open_days.signup`, and its `jobs` part
+ * `machine_jobs.read`; `balance` and `recentOrders` need `orders.read`; `recentJobs` needs `machine_jobs.read`.
  * Lab Rules status stays on `GET /laborordnung/status/me`.
  * @summary Read the signed-in person's dashboard
  */

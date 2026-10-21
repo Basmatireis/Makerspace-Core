@@ -1250,6 +1250,66 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 	return items, nil
 }
 
+const listOwnPayableOrderIDs = `-- name: ListOwnPayableOrderIDs :many
+SELECT o.id FROM orders o
+WHERE o.customer_person_id = $1 AND o.status = 'finalized'
+  AND NOT EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled')
+  AND o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+      - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) > 0
+ORDER BY o.created_at DESC, o.id DESC
+`
+
+// The person's finalized orders with an outstanding amount that no active external invoice request covers.
+func (q *Queries) ListOwnPayableOrderIDs(ctx context.Context, personID *uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOwnPayableOrderIDs, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnRecentOrderIDs = `-- name: ListOwnRecentOrderIDs :many
+SELECT id FROM orders WHERE customer_person_id = $1 AND status IN ('finalized', 'reversed')
+ORDER BY created_at DESC, id DESC LIMIT $2
+`
+
+type ListOwnRecentOrderIDsParams struct {
+	PersonID  *uuid.UUID
+	PageLimit int32
+}
+
+func (q *Queries) ListOwnRecentOrderIDs(ctx context.Context, arg ListOwnRecentOrderIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOwnRecentOrderIDs, arg.PersonID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPayments = `-- name: ListPayments :many
 SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id FROM payments WHERE ($1::text='' OR method=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3) ORDER BY occurred_at DESC,id DESC LIMIT $5 OFFSET $4
 `

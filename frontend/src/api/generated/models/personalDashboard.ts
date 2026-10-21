@@ -19,8 +19,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ComingUpItem } from './comingUpItem';
+import type { PersonalBalance } from './personalBalance';
 import type { PersonalDashboardPerson } from './personalDashboardPerson';
 import type { PersonalDashboardStaffing } from './personalDashboardStaffing';
+import type { PersonalOrder } from './personalOrder';
+import type { PersonalRecentJob } from './personalRecentJob';
 import type { PersonalStatistics } from './personalStatistics';
 
 export interface PersonalDashboard {
@@ -29,4 +32,15 @@ export interface PersonalDashboard {
   /** Upcoming open-day assignments and active event shifts, chronological. */
   comingUp?: ComingUpItem[];
   statistics?: PersonalStatistics;
+  balance?: PersonalBalance;
+  /**
+     * The last five jobs the person is the customer or the operator of, newest first.
+     * @maxItems 5
+     */
+  recentJobs?: PersonalRecentJob[];
+  /**
+     * The last five finalized or reversed orders of the person as customer, newest first.
+     * @maxItems 5
+     */
+  recentOrders?: PersonalOrder[];
 }

@@ -55,6 +55,9 @@ type Querier interface {
 	ListCashMovements(ctx context.Context, arg ListCashMovementsParams) ([]CashMovement, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
+	// The person's finalized orders with an outstanding amount that no active external invoice request covers.
+	ListOwnPayableOrderIDs(ctx context.Context, personID *uuid.UUID) ([]uuid.UUID, error)
+	ListOwnRecentOrderIDs(ctx context.Context, arg ListOwnRecentOrderIDsParams) ([]uuid.UUID, error)
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
 	ListRequests(ctx context.Context, arg ListRequestsParams) ([]ExternalInvoiceRequest, error)
 	LockCashRegister(ctx context.Context) error

@@ -110,6 +110,10 @@ type Querier interface {
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
 	GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationPricingGroup(ctx context.Context, organizationID uuid.UUID) (PricingGroup, error)
+	// The machine with most of the person's jobs; ties go to the one used last.
+	GetOwnFavouriteMachine(ctx context.Context, personID *uuid.UUID) (GetOwnFavouriteMachineRow, error)
+	// All-time figures of the jobs the person is the customer of; jobs without a run do not count.
+	GetOwnJobStatistics(ctx context.Context, personID *uuid.UUID) (GetOwnJobStatisticsRow, error)
 	// The active group of the person's highest-priority mapped role (larger priority wins).
 	GetPersonRolePricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error)
 	GetPricingGroup(ctx context.Context, id uuid.UUID) (PricingGroup, error)
@@ -165,6 +169,13 @@ type Querier interface {
 	ListMaterialsOutsideProcess(ctx context.Context, arg ListMaterialsOutsideProcessParams) ([]ListMaterialsOutsideProcessRow, error)
 	ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error)
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
+	// The person's jobs per calendar month (UTC, by first run start) from from_time's month up to now's month.
+	ListOwnJobsPerMonth(ctx context.Context, arg ListOwnJobsPerMonthParams) ([]ListOwnJobsPerMonthRow, error)
+	// The latest jobs the person is the customer or the operator of. Order details only for their own jobs.
+	ListOwnRecentJobs(ctx context.Context, arg ListOwnRecentJobsParams) ([]ListOwnRecentJobsRow, error)
+	// The person's own ended jobs that are priced completely, cost something and are on no order: what they still owe
+	// for jobs. The same conditions as the not_on_order billing state of the work table.
+	ListOwnUnbilledJobs(ctx context.Context, personID *uuid.UUID) ([]ListOwnUnbilledJobsRow, error)
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error)
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)

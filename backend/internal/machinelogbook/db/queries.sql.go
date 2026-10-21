@@ -2576,6 +2576,70 @@ func (q *Queries) GetOrganizationPricingGroup(ctx context.Context, organizationI
 	return i, err
 }
 
+const getOwnFavouriteMachine = `-- name: GetOwnFavouriteMachine :one
+SELECT m.name, count(*)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machines m ON m.id = j.machine_id
+WHERE j.customer_person_id = $1 AND j.deleted_at IS NULL
+GROUP BY m.id, m.name
+ORDER BY count(*) DESC, max(s.started_at) DESC, m.id
+LIMIT 1
+`
+
+type GetOwnFavouriteMachineRow struct {
+	Name string
+	Jobs int64
+}
+
+// The machine with most of the person's jobs; ties go to the one used last.
+func (q *Queries) GetOwnFavouriteMachine(ctx context.Context, personID *uuid.UUID) (GetOwnFavouriteMachineRow, error) {
+	row := q.db.QueryRow(ctx, getOwnFavouriteMachine, personID)
+	var i GetOwnFavouriteMachineRow
+	err := row.Scan(&i.Name, &i.Jobs)
+	return i, err
+}
+
+const getOwnJobStatistics = `-- name: GetOwnJobStatistics :one
+WITH own AS (
+    SELECT j.id, s.runtime_seconds,
+           CASE WHEN s.running THEN 'unknown' ELSE COALESCE(j.outcome_override, s.derived_outcome, 'unknown') END AS outcome
+    FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+    WHERE j.customer_person_id = $1 AND j.deleted_at IS NULL
+)
+SELECT count(*)::bigint AS jobs,
+       count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
+       count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
+       COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
+       COALESCE((SELECT sum(u.quantity) FROM machine_run_usages u
+                 JOIN machine_runs r ON r.id = u.run_id AND r.state IS DISTINCT FROM 'replaced'
+                 LEFT JOIN materials mat ON mat.id = u.material_id
+                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND COALESCE(mat.unit, 'g') = 'g'), 0)::float8 AS material_grams
+FROM own
+`
+
+type GetOwnJobStatisticsRow struct {
+	Jobs           int64
+	SuccessfulJobs int64
+	FinishedJobs   int64
+	MachineSeconds int64
+	MaterialGrams  float64
+}
+
+// All-time figures of the jobs the person is the customer of; jobs without a run do not count.
+func (q *Queries) GetOwnJobStatistics(ctx context.Context, personID *uuid.UUID) (GetOwnJobStatisticsRow, error) {
+	row := q.db.QueryRow(ctx, getOwnJobStatistics, personID)
+	var i GetOwnJobStatisticsRow
+	err := row.Scan(
+		&i.Jobs,
+		&i.SuccessfulJobs,
+		&i.FinishedJobs,
+		&i.MachineSeconds,
+		&i.MaterialGrams,
+	)
+	return i, err
+}
+
 const getPersonRolePricingGroup = `-- name: GetPersonRolePricingGroup :one
 SELECT pg.id, pg.name, pg.description, pg.active, pg.is_default, pg.version, pg.created_at, pg.updated_at FROM person_roles pr
 JOIN role_pricing_groups rpg ON rpg.role_id = pr.role_id
@@ -4912,6 +4976,187 @@ func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsPa
 			&i.PricingGroupName,
 			&i.PricingGroupAssignmentVersion,
 			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnJobsPerMonth = `-- name: ListOwnJobsPerMonth :many
+WITH months AS (
+    SELECT generate_series(date_trunc('month', $1::timestamptz AT TIME ZONE 'UTC'),
+                           date_trunc('month', $2::timestamptz AT TIME ZONE 'UTC'),
+                           interval '1 month') AS month_start
+), own AS (
+    SELECT date_trunc('month', s.started_at AT TIME ZONE 'UTC') AS month_start
+    FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+    WHERE j.customer_person_id = $3 AND j.deleted_at IS NULL
+      AND s.started_at >= $1::timestamptz
+)
+SELECT to_char(mo.month_start, 'YYYY-MM')::text AS month, count(own.month_start)::bigint AS jobs
+FROM months mo LEFT JOIN own ON own.month_start = mo.month_start
+GROUP BY mo.month_start
+ORDER BY mo.month_start
+`
+
+type ListOwnJobsPerMonthParams struct {
+	FromTime time.Time
+	Now      time.Time
+	PersonID *uuid.UUID
+}
+
+type ListOwnJobsPerMonthRow struct {
+	Month string
+	Jobs  int64
+}
+
+// The person's jobs per calendar month (UTC, by first run start) from from_time's month up to now's month.
+func (q *Queries) ListOwnJobsPerMonth(ctx context.Context, arg ListOwnJobsPerMonthParams) ([]ListOwnJobsPerMonthRow, error) {
+	rows, err := q.db.Query(ctx, listOwnJobsPerMonth, arg.FromTime, arg.Now, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnJobsPerMonthRow{}
+	for rows.Next() {
+		var i ListOwnJobsPerMonthRow
+		if err := rows.Scan(&i.Month, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnRecentJobs = `-- name: ListOwnRecentJobs :many
+SELECT j.id, j.display_id,
+       COALESCE(j.title, (SELECT r.file_name FROM machine_runs r WHERE r.job_id = j.id AND r.file_name IS NOT NULL
+                          ORDER BY COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC LIMIT 1), j.display_id)::text AS title,
+       m.name AS machine_name, s.started_at, s.ended_at,
+       (CASE WHEN s.job_id IS NULL THEN 'planned'
+             WHEN s.running THEN 'running'
+             ELSE COALESCE(j.outcome_override, NULLIF(s.derived_outcome, 'unknown'), 'needs_outcome') END)::text AS status,
+       j.effective_price,
+       (j.customer_person_id IS NOT DISTINCT FROM $1::uuid)::boolean AS own,
+       (CASE WHEN oc.machine_job_id IS NOT NULL THEN
+                (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+             WHEN j.pricing_status = 'pending' THEN 'pending'
+             WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
+             ELSE 'not_on_order' END)::text AS billing_state,
+       oo.reference AS order_reference
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+LEFT JOIN order_job_claims oc ON oc.machine_job_id = j.id
+LEFT JOIN order_items oi ON oi.id = oc.order_item_id
+LEFT JOIN orders oo ON oo.id = oi.order_id
+WHERE j.deleted_at IS NULL
+  AND (j.customer_person_id = $1::uuid OR j.operator_person_id = $1::uuid)
+ORDER BY COALESCE(s.started_at, j.created_at) DESC, j.id DESC
+LIMIT $2
+`
+
+type ListOwnRecentJobsParams struct {
+	PersonID  uuid.UUID
+	PageLimit int32
+}
+
+type ListOwnRecentJobsRow struct {
+	ID             uuid.UUID
+	DisplayID      string
+	Title          string
+	MachineName    string
+	StartedAt      interface{}
+	EndedAt        interface{}
+	Status         string
+	EffectivePrice pgtype.Numeric
+	Own            bool
+	BillingState   string
+	OrderReference *string
+}
+
+// The latest jobs the person is the customer or the operator of. Order details only for their own jobs.
+func (q *Queries) ListOwnRecentJobs(ctx context.Context, arg ListOwnRecentJobsParams) ([]ListOwnRecentJobsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnRecentJobs, arg.PersonID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnRecentJobsRow{}
+	for rows.Next() {
+		var i ListOwnRecentJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Title,
+			&i.MachineName,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Status,
+			&i.EffectivePrice,
+			&i.Own,
+			&i.BillingState,
+			&i.OrderReference,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnUnbilledJobs = `-- name: ListOwnUnbilledJobs :many
+SELECT j.id, j.display_id,
+       COALESCE(j.title, (SELECT r.file_name FROM machine_runs r WHERE r.job_id = j.id AND r.file_name IS NOT NULL
+                          ORDER BY COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC LIMIT 1), j.display_id)::text AS title,
+       m.name AS machine_name, s.started_at, j.effective_price::numeric AS price
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+JOIN machine_job_run_summaries s ON s.job_id = j.id AND NOT s.running
+WHERE j.customer_person_id = $1 AND j.deleted_at IS NULL
+  AND j.pricing_status = 'complete' AND j.active_pricing_snapshot_id IS NOT NULL AND j.effective_price > 0
+  AND NOT EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+ORDER BY s.started_at DESC, j.id DESC
+`
+
+type ListOwnUnbilledJobsRow struct {
+	ID          uuid.UUID
+	DisplayID   string
+	Title       string
+	MachineName string
+	StartedAt   interface{}
+	Price       pgtype.Numeric
+}
+
+// The person's own ended jobs that are priced completely, cost something and are on no order: what they still owe
+// for jobs. The same conditions as the not_on_order billing state of the work table.
+func (q *Queries) ListOwnUnbilledJobs(ctx context.Context, personID *uuid.UUID) ([]ListOwnUnbilledJobsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnUnbilledJobs, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnUnbilledJobsRow{}
+	for rows.Next() {
+		var i ListOwnUnbilledJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Title,
+			&i.MachineName,
+			&i.StartedAt,
+			&i.Price,
 		); err != nil {
 			return nil, err
 		}

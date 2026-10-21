@@ -1471,3 +1471,92 @@ LIMIT 50;
 
 -- name: CountActivePricingRulesOfMaterialType :one
 SELECT count(*) FROM pricing_rules WHERE material_type_id = sqlc.arg(id) AND active;
+
+-- name: ListOwnUnbilledJobs :many
+-- The person's own ended jobs that are priced completely, cost something and are on no order: what they still owe
+-- for jobs. The same conditions as the not_on_order billing state of the work table.
+SELECT j.id, j.display_id,
+       COALESCE(j.title, (SELECT r.file_name FROM machine_runs r WHERE r.job_id = j.id AND r.file_name IS NOT NULL
+                          ORDER BY COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC LIMIT 1), j.display_id)::text AS title,
+       m.name AS machine_name, s.started_at, j.effective_price::numeric AS price
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+JOIN machine_job_run_summaries s ON s.job_id = j.id AND NOT s.running
+WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+  AND j.pricing_status = 'complete' AND j.active_pricing_snapshot_id IS NOT NULL AND j.effective_price > 0
+  AND NOT EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+ORDER BY s.started_at DESC, j.id DESC;
+
+-- name: ListOwnRecentJobs :many
+-- The latest jobs the person is the customer or the operator of. Order details only for their own jobs.
+SELECT j.id, j.display_id,
+       COALESCE(j.title, (SELECT r.file_name FROM machine_runs r WHERE r.job_id = j.id AND r.file_name IS NOT NULL
+                          ORDER BY COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC LIMIT 1), j.display_id)::text AS title,
+       m.name AS machine_name, s.started_at, s.ended_at,
+       (CASE WHEN s.job_id IS NULL THEN 'planned'
+             WHEN s.running THEN 'running'
+             ELSE COALESCE(j.outcome_override, NULLIF(s.derived_outcome, 'unknown'), 'needs_outcome') END)::text AS status,
+       j.effective_price,
+       (j.customer_person_id IS NOT DISTINCT FROM sqlc.arg(person_id)::uuid)::boolean AS own,
+       (CASE WHEN oc.machine_job_id IS NOT NULL THEN
+                (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+             WHEN j.pricing_status = 'pending' THEN 'pending'
+             WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
+             ELSE 'not_on_order' END)::text AS billing_state,
+       oo.reference AS order_reference
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+LEFT JOIN order_job_claims oc ON oc.machine_job_id = j.id
+LEFT JOIN order_items oi ON oi.id = oc.order_item_id
+LEFT JOIN orders oo ON oo.id = oi.order_id
+WHERE j.deleted_at IS NULL
+  AND (j.customer_person_id = sqlc.arg(person_id)::uuid OR j.operator_person_id = sqlc.arg(person_id)::uuid)
+ORDER BY COALESCE(s.started_at, j.created_at) DESC, j.id DESC
+LIMIT sqlc.arg(page_limit);
+
+-- name: GetOwnJobStatistics :one
+-- All-time figures of the jobs the person is the customer of; jobs without a run do not count.
+WITH own AS (
+    SELECT j.id, s.runtime_seconds,
+           CASE WHEN s.running THEN 'unknown' ELSE COALESCE(j.outcome_override, s.derived_outcome, 'unknown') END AS outcome
+    FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+    WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+)
+SELECT count(*)::bigint AS jobs,
+       count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
+       count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
+       COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
+       COALESCE((SELECT sum(u.quantity) FROM machine_run_usages u
+                 JOIN machine_runs r ON r.id = u.run_id AND r.state IS DISTINCT FROM 'replaced'
+                 LEFT JOIN materials mat ON mat.id = u.material_id
+                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND COALESCE(mat.unit, 'g') = 'g'), 0)::float8 AS material_grams
+FROM own;
+
+-- name: GetOwnFavouriteMachine :one
+-- The machine with most of the person's jobs; ties go to the one used last.
+SELECT m.name, count(*)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machines m ON m.id = j.machine_id
+WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+GROUP BY m.id, m.name
+ORDER BY count(*) DESC, max(s.started_at) DESC, m.id
+LIMIT 1;
+
+-- name: ListOwnJobsPerMonth :many
+-- The person's jobs per calendar month (UTC, by first run start) from from_time's month up to now's month.
+WITH months AS (
+    SELECT generate_series(date_trunc('month', sqlc.arg(from_time)::timestamptz AT TIME ZONE 'UTC'),
+                           date_trunc('month', sqlc.arg(now)::timestamptz AT TIME ZONE 'UTC'),
+                           interval '1 month') AS month_start
+), own AS (
+    SELECT date_trunc('month', s.started_at AT TIME ZONE 'UTC') AS month_start
+    FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+    WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+      AND s.started_at >= sqlc.arg(from_time)::timestamptz
+)
+SELECT to_char(mo.month_start, 'YYYY-MM')::text AS month, count(own.month_start)::bigint AS jobs
+FROM months mo LEFT JOIN own ON own.month_start = mo.month_start
+GROUP BY mo.month_start
+ORDER BY mo.month_start;

@@ -264,3 +264,44 @@ func TestPersonalDashboardStatisticsUseScheduledDurationsOfEndedAssignments(t *t
 		t.Fatalf("statistics = %+v, want 2 open days / 7.5 h and 1 shift / 1.5 h", statistics)
 	}
 }
+
+func TestPersonalDashboardFinanceSectionsFollowPermissions(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	treasurer := e.person("treasurer", e.role("Order readers", nil, authorization.OrdersRead).ID)
+	operator := e.person("operator", e.role("Job readers", nil, authorization.MachineJobsRead).ID)
+	member := e.person("member", e.role("Members", level(roles.StaffingSupervisor), authorization.MachineJobsRead).ID)
+	guest := e.person("finance-guest", e.role("Finance guests", nil).ID)
+
+	view, err := e.dashboard.Get(ctx, treasurer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// D3: the balance is shown also when nothing is owed.
+	if view.Balance == nil || view.Balance.Total != "0.00" || view.Balance.UnpaidOrdersTotal != "0.00" ||
+		view.Balance.UnbilledJobsTotal != "0.00" || view.RecentOrders == nil || view.RecentJobs != nil {
+		t.Fatalf("orders.read view = %+v", view)
+	}
+	view, err = e.dashboard.Get(ctx, operator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Balance != nil || view.RecentOrders != nil || view.RecentJobs == nil || view.Statistics != nil {
+		t.Fatalf("machine_jobs.read view = %+v", view)
+	}
+	view, err = e.dashboard.Get(ctx, member)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Statistics == nil || view.Statistics.Jobs == nil || len(view.Statistics.Jobs.JobsPerMonth) != 12 ||
+		view.Balance != nil {
+		t.Fatalf("member view = %+v", view)
+	}
+	view, err = e.dashboard.Get(ctx, guest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Balance != nil || view.RecentOrders != nil || view.RecentJobs != nil || view.Statistics != nil {
+		t.Fatalf("guest view = %+v", view)
+	}
+}

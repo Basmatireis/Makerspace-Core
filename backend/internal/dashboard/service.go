@@ -9,11 +9,14 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	dashboarddb "github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 )
 
 // OpenPlaceWindow is how far ahead the dashboard looks for an open place to point the person at.
@@ -73,14 +76,29 @@ type Statistics struct {
 	EventShifts     int
 	EventShiftHours float64
 	MemberSince     time.Time
+	// Jobs is nil when the principal may not read machine jobs.
+	Jobs *machinelogbook.OwnJobStatistics
+}
+
+// Balance is what the person owes: unpaid own orders and own priced jobs that are on no order yet. Totals are
+// decimal strings in EUR with two places.
+type Balance struct {
+	UnpaidOrders      []orders.OwnOrder
+	UnbilledJobs      []machinelogbook.OwnUnbilledJob
+	UnpaidOrdersTotal string
+	UnbilledJobsTotal string
+	Total             string
 }
 
 // Dashboard sections are nil when the principal may not see them.
 type Dashboard struct {
-	Person     Person
-	Staffing   *Staffing
-	ComingUp   []ComingUpItem
-	Statistics *Statistics
+	Person       Person
+	Staffing     *Staffing
+	ComingUp     []ComingUpItem
+	Statistics   *Statistics
+	Balance      *Balance
+	RecentJobs   []machinelogbook.OwnRecentJob
+	RecentOrders []orders.OwnOrder
 }
 
 type Service struct {
@@ -88,6 +106,8 @@ type Service struct {
 	staffing *staffing.Service
 	opendays *opendays.Service
 	events   *events.Service
+	orders   *orders.Service
+	jobs     *machinelogbook.Service
 }
 
 func NewService(
@@ -95,8 +115,17 @@ func NewService(
 	staffingService *staffing.Service,
 	openDaysService *opendays.Service,
 	eventsService *events.Service,
+	ordersService *orders.Service,
+	jobsService *machinelogbook.Service,
 ) *Service {
-	return &Service{pool: pool, staffing: staffingService, opendays: openDaysService, events: eventsService}
+	return &Service{
+		pool:     pool,
+		staffing: staffingService,
+		opendays: openDaysService,
+		events:   eventsService,
+		orders:   ordersService,
+		jobs:     jobsService,
+	}
 }
 
 // Get builds the dashboard of the principal's own person.
@@ -161,7 +190,53 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 		}
 		result.Statistics = statistics
 	}
+	if err = s.finance(ctx, principal, &result); err != nil {
+		return Dashboard{}, err
+	}
 	return result, nil
+}
+
+// finance fills the balance, recent orders and recent jobs the principal may see.
+func (s *Service) finance(ctx context.Context, principal authorization.Principal, result *Dashboard) error {
+	if principal.Has(authorization.OrdersRead) {
+		unpaid, err := s.orders.OwnPayableOrders(ctx, principal)
+		if err != nil {
+			return err
+		}
+		unbilled, err := s.jobs.OwnUnbilledJobs(ctx, principal)
+		if err != nil {
+			return err
+		}
+		ordersTotal, jobsTotal := decimal.Zero, decimal.Zero
+		for _, order := range unpaid {
+			outstanding, err := decimal.NewFromString(order.OutstandingAmount)
+			if err != nil {
+				return err
+			}
+			ordersTotal = ordersTotal.Add(outstanding)
+		}
+		for _, job := range unbilled {
+			jobsTotal = jobsTotal.Add(job.Price)
+		}
+		result.Balance = &Balance{
+			UnpaidOrders:      unpaid,
+			UnbilledJobs:      unbilled,
+			UnpaidOrdersTotal: ordersTotal.StringFixed(2),
+			UnbilledJobsTotal: jobsTotal.StringFixed(2),
+			Total:             ordersTotal.Add(jobsTotal).StringFixed(2),
+		}
+		if result.RecentOrders, err = s.orders.OwnRecentOrders(ctx, principal); err != nil {
+			return err
+		}
+	}
+	if principal.Has(authorization.MachineJobsRead) {
+		jobs, err := s.jobs.OwnRecentJobs(ctx, principal)
+		if err != nil {
+			return err
+		}
+		result.RecentJobs = jobs
+	}
+	return nil
 }
 
 func (s *Service) staffingSection(
@@ -222,10 +297,18 @@ func (s *Service) statistics(
 	if err != nil {
 		return nil, err
 	}
-	return &Statistics{
+	result := &Statistics{
 		OpenDaysStaffed: days, OpenDayHours: hours(dayDuration),
 		EventShifts: shifts, EventShiftHours: hours(shiftDuration), MemberSince: memberSince,
-	}, nil
+	}
+	if principal.Has(authorization.MachineJobsRead) {
+		jobs, err := s.jobs.OwnStatistics(ctx, principal)
+		if err != nil {
+			return nil, err
+		}
+		result.Jobs = &jobs
+	}
+	return result, nil
 }
 
 // hours rounds a duration to tenths of an hour.

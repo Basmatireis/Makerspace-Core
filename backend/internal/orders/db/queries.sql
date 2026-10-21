@@ -169,3 +169,14 @@ FROM payments WHERE method='cash' AND (sqlc.narg(to_time)::timestamptz IS NULL O
 -- name: CashMovementFigures :one
 SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
 FROM cash_movements WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
+-- name: ListOwnPayableOrderIDs :many
+-- The person's finalized orders with an outstanding amount that no active external invoice request covers.
+SELECT o.id FROM orders o
+WHERE o.customer_person_id = sqlc.arg(person_id) AND o.status = 'finalized'
+  AND NOT EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled')
+  AND o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+      - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) > 0
+ORDER BY o.created_at DESC, o.id DESC;
+-- name: ListOwnRecentOrderIDs :many
+SELECT id FROM orders WHERE customer_person_id = sqlc.arg(person_id) AND status IN ('finalized', 'reversed')
+ORDER BY created_at DESC, id DESC LIMIT sqlc.arg(page_limit);

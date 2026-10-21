@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PersonalJobStatistics } from './personalJobStatistics';
 
 /**
  * All-time figures from scheduled durations of ended assignments.
@@ -32,4 +33,5 @@ export interface PersonalStatistics {
   /** @minimum 0 */
   eventShiftHours: number;
   memberSince: string;
+  jobs?: PersonalJobStatistics;
 }

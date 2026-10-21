@@ -138,6 +138,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
+	ordersService := orders.NewService(pool, machineLogbook)
 	return &Server{
 		pool:              pool,
 		config:            cfg,
@@ -158,10 +159,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
 		streamingGateways: streamingGatewayService,
-		orders:            orders.NewService(pool, machineLogbook),
+		orders:            ordersService,
 		supervisors:       supervisors.NewService(pool, staffingService),
 		staffing:          staffingService,
-		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService),
+		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),
 		oidc:              oidcService,
 		scim:              scimservice.NewService(pool),
 		visitor:           visitor.NewService(pool, cfg, fileService, labRulesService, notifier),

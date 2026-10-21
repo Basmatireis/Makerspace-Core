@@ -14,7 +14,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -71,7 +73,15 @@ func newStaffingEnv(t *testing.T) *staffingEnv {
 		events:    eventService,
 		now:       time.Now().UTC(),
 	}
-	env.dashboard = dashboard.NewService(pool, staffingService, openDaysService, eventService)
+	jobs := machinelogbook.NewService(pool)
+	env.dashboard = dashboard.NewService(
+		pool,
+		staffingService,
+		openDaysService,
+		eventService,
+		orders.NewService(pool, jobs),
+		jobs,
+	)
 	// One semester around today: a non-draft period containing the current date.
 	env.period = env.newPeriod("Current semester", "staffing", env.now.AddDate(0, 0, -60), env.now.AddDate(0, 0, 60))
 	return env

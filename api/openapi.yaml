@@ -2864,7 +2864,8 @@ paths:
       description: |
         Always scoped to the session's person. A section is omitted when the principal may not see it or has nothing
         to show: `staffing` needs a staffing level and `open_days.read`; open-day entries of `comingUp` need
-        `open_days.read`; `statistics` needs a staffing level or `open_days.signup`.
+        `open_days.read`; `statistics` needs a staffing level or `open_days.signup`, and its `jobs` part
+        `machine_jobs.read`; `balance` and `recentOrders` need `orders.read`; `recentJobs` needs `machine_jobs.read`.
         Lab Rules status stays on `GET /laborordnung/status/me`.
       security: [{sessionCookie: []}]
       responses:
@@ -8994,6 +8995,17 @@ components:
           items: {$ref: "#/components/schemas/ComingUpItem"}
           description: Upcoming open-day assignments and active event shifts, chronological.
         statistics: {$ref: "#/components/schemas/PersonalStatistics"}
+        balance: {$ref: "#/components/schemas/PersonalBalance"}
+        recentJobs:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/PersonalRecentJob"}
+          description: The last five jobs the person is the customer or the operator of, newest first.
+        recentOrders:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/PersonalOrder"}
+          description: The last five finalized or reversed orders of the person as customer, newest first.
     PersonalDashboardPerson:
       type: object
       additionalProperties: false
@@ -9074,6 +9086,116 @@ components:
         eventShifts: {type: integer, minimum: 0}
         eventShiftHours: {type: number, format: double, minimum: 0}
         memberSince: {type: string, format: date-time}
+        jobs: {$ref: "#/components/schemas/PersonalJobStatistics"}
+    PersonalJobStatistics:
+      type: object
+      additionalProperties: false
+      required: [jobs, successfulJobs, finishedJobs, successRate, materialGrams, machineSeconds, favouriteMachine, jobsPerMonth]
+      description: |
+        All-time figures of the jobs the person is the customer of. Jobs without a run are not counted.
+        Material is the active usage in grams of their runs; machine time is the duration of their runs.
+      properties:
+        jobs: {type: integer, minimum: 0}
+        successfulJobs: {type: integer, minimum: 0}
+        finishedJobs: {type: integer, minimum: 0, description: "Jobs with a known outcome."}
+        successRate:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+          description: Successful jobs of the finished jobs in percent, rounded; null without finished jobs.
+        materialGrams: {type: number, format: double, minimum: 0}
+        machineSeconds: {type: integer, format: int64, minimum: 0}
+        favouriteMachine:
+          allOf: [{$ref: "#/components/schemas/PersonalFavouriteMachine"}]
+          nullable: true
+        jobsPerMonth:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items: {$ref: "#/components/schemas/PersonalJobMonth"}
+          description: The last twelve calendar months (UTC), oldest first, including the current one.
+    PersonalFavouriteMachine:
+      type: object
+      additionalProperties: false
+      required: [name, jobs]
+      description: The machine with the most of the person's jobs.
+      properties:
+        name: {type: string}
+        jobs: {type: integer, minimum: 1}
+    PersonalJobMonth:
+      type: object
+      additionalProperties: false
+      required: [month, jobs]
+      properties:
+        month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$", example: "2026-10"}
+        jobs: {type: integer, minimum: 0}
+    PersonalBalance:
+      type: object
+      additionalProperties: false
+      required: [unpaidOrders, unbilledJobs, unpaidOrdersTotal, unbilledJobsTotal, total]
+      description: |
+        What the person owes: their finalized orders with an outstanding amount that are not covered by an external
+        (wiRef) invoice request, and their own completely priced, ended jobs with a price that are on no order yet.
+        Always present for principals with `orders.read`, also when everything is settled.
+      properties:
+        unpaidOrders:
+          type: array
+          items: {$ref: "#/components/schemas/PersonalOrder"}
+        unbilledJobs:
+          type: array
+          items: {$ref: "#/components/schemas/PersonalUnbilledJob"}
+        unpaidOrdersTotal: {$ref: "#/components/schemas/Money"}
+        unbilledJobsTotal: {$ref: "#/components/schemas/Money"}
+        total: {$ref: "#/components/schemas/Money"}
+    PersonalOrder:
+      type: object
+      additionalProperties: false
+      required: [id, reference, status, createdAt, itemSummary, itemCount, netCharge, outstandingAmount, settlementState, invoiced, payable]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string}
+        status: {type: string, enum: [finalized, reversed]}
+        createdAt: {type: string, format: date-time}
+        itemSummary: {type: string, description: "Description of the first item."}
+        itemCount: {type: integer, minimum: 0}
+        netCharge: {$ref: "#/components/schemas/Money"}
+        outstandingAmount: {$ref: "#/components/schemas/Money"}
+        settlementState: {type: string, enum: [unpaid, partially_paid, paid, no_payment_due]}
+        invoiced: {type: boolean, description: "An external (wiRef) invoice request covers the order."}
+        payable: {type: boolean, description: "The person can pay the outstanding amount with `POST /me/payments`."}
+    PersonalUnbilledJob:
+      type: object
+      additionalProperties: false
+      required: [id, displayId, title, machineName, startedAt, price]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+        title: {type: string}
+        machineName: {type: string}
+        startedAt: {type: string, format: date-time}
+        price: {$ref: "#/components/schemas/Money"}
+    PersonalRecentJob:
+      type: object
+      additionalProperties: false
+      required: [id, displayId, title, machineName, startedAt, endedAt, status, price, own, billingState, orderReference]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+        title: {type: string}
+        machineName: {type: string}
+        startedAt: {type: string, format: date-time, nullable: true}
+        endedAt: {type: string, format: date-time, nullable: true}
+        status: {$ref: "#/components/schemas/WorkItemStatus"}
+        price:
+          allOf: [{$ref: "#/components/schemas/Money"}]
+          nullable: true
+        own: {type: boolean, description: "The person is the customer; otherwise they ran the job for someone else."}
+        billingState:
+          allOf: [{$ref: "#/components/schemas/JobBillingState"}]
+          nullable: true
+          description: Own jobs only.
+        orderReference: {type: string, nullable: true, description: "Own jobs on an order only."}
 
     SupervisorTotals:
       type: object
