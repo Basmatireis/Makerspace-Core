@@ -1121,4 +1121,113 @@ describe('Job detail page', () => {
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
     expect(await screen.findByText('This job does not exist')).toBeInTheDocument();
   });
+
+  describe('recalculating and refreshing the charge', () => {
+    const incomplete = () => jobFixture({ pricingStatus: 'incomplete', calculatedPrice: null, effectivePrice: null });
+    const orderId = '0192f6f8-743e-7c77-a349-cd07c3e8a999';
+    const itemId = '0192f6f8-743e-7c77-a349-cd07c3e8a998';
+    const charged = (sourceChanged: boolean) =>
+      http.get(`*/api/v1/machine-jobs/${jobId}/order-association`, () =>
+        HttpResponse.json({ orderId, orderReference: 'O-2026-0004', orderItemId: itemId, sourceChanged }),
+      );
+    const order = http.get(`*/api/v1/orders/${orderId}`, () => HttpResponse.json({ id: orderId, version: 7 }));
+
+    it('recalculates an incomplete job from the notification and shows the new price', async () => {
+      let repriced: VersionRequest | undefined;
+      let current = incomplete();
+      server.use(
+        as(...editor),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(current)),
+        noUnassignedRuns,
+        http.post(`*/api/v1/machine-jobs/${jobId}/reprice`, async ({ request }) => {
+          repriced = (await request.json()) as VersionRequest;
+          current = jobFixture({ calculatedPrice: '42.00', effectivePrice: '42.00' });
+          return HttpResponse.json(current);
+        }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      expect((await screen.findAllByText('Price incomplete', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
+      await user.click(screen.getAllByRole('button', { name: 'Recalculate price' })[0]);
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Partner')).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Recalculate price' }));
+      await waitFor(() => expect(repriced).toEqual({ expectedVersion: 3 }));
+      expect(await screen.findByText('Price recalculated')).toBeInTheDocument();
+      expect((await screen.findAllByText('€42.00')).length).toBeGreaterThan(0);
+    });
+
+    it('hides the recalculation without the edit permission', async () => {
+      server.use(
+        as(PermissionId.machine_jobsread),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(incomplete())),
+      );
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      expect((await screen.findAllByText('Price incomplete', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('button', { name: 'Recalculate price' })).not.toBeInTheDocument();
+    });
+
+    it('refreshes the order charge of a changed job', async () => {
+      let command: unknown;
+      server.use(
+        as(...editor, PermissionId.ordersread, PermissionId.orderswrite),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        noUnassignedRuns,
+        charged(true),
+        order,
+        http.post(`*/api/v1/orders/${orderId}/items/${itemId}/refresh`, async ({ request }) => {
+          command = await request.json();
+          return HttpResponse.json({ id: orderId, version: 8 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      const button = await screen.findByRole('button', { name: 'Refresh order charge' }, { timeout: 5000 });
+      await waitFor(() => expect(button).toBeEnabled());
+      await user.click(button);
+      await waitFor(() => expect(command).toMatchObject({ expectedVersion: 7, operationKey: expect.any(String) }));
+      expect(await screen.findByText('Order charge refreshed')).toBeInTheDocument();
+    });
+
+    it('shows the backend message and keeps the charge when the order cannot be edited', async () => {
+      server.use(
+        as(...editor, PermissionId.ordersread, PermissionId.orderswrite),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        noUnassignedRuns,
+        charged(true),
+        order,
+        http.post(`*/api/v1/orders/${orderId}/items/${itemId}/refresh`, () =>
+          HttpResponse.json(
+            { code: 'order_not_editable', message: 'The order is no longer a draft.' },
+            { status: 422 },
+          ),
+        ),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      const button = await screen.findByRole('button', { name: 'Refresh order charge' }, { timeout: 5000 });
+      await waitFor(() => expect(button).toBeEnabled());
+      await user.click(button);
+      expect(await screen.findByText(/The order is no longer a draft\./)).toBeInTheDocument();
+      expect(screen.getAllByText(/the charge keeps its price/).length).toBeGreaterThan(0);
+    });
+
+    it('offers no charge refresh when the job is unchanged or the permission is missing', async () => {
+      server.use(
+        as(...editor, PermissionId.ordersread),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        noUnassignedRuns,
+        charged(true),
+      );
+      const { unmount } = renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      expect(await screen.findByText('Changed after charge', {}, { timeout: 5000 })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Refresh order charge' })).not.toBeInTheDocument();
+      unmount();
+      server.use(as(...editor, PermissionId.ordersread, PermissionId.orderswrite), charged(false));
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      expect((await screen.findAllByText('O-2026-0004', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Changed after charge')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Refresh order charge' })).not.toBeInTheDocument();
+    });
+  });
 });

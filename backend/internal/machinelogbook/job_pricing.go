@@ -677,3 +677,92 @@ func (s *Service) ChargeSource(
 	}
 	return job, nil
 }
+
+// RepriceMachineJob captures a fresh pricing snapshot from the current rules of the group the job is
+// priced with, so changed or newly added rates take effect. The active snapshot's group is kept; a job
+// without a snapshot, or whose group was deactivated, falls back to the group resolved as on creation.
+// Running jobs and jobs charged on an order are allowed: the version advances, so the order shows the
+// charge as outdated until it is refreshed.
+func (s *Service) RepriceMachineJob(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (MachineJob, error) {
+	if err := require(p, authorization.MachineJobsEdit); err != nil {
+		return MachineJob{}, err
+	}
+	if expectedVersion < 1 {
+		return MachineJob{}, apperror.Invalid("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := machinelogbookdb.New(tx)
+	job, err := q.GetMachineJobForUpdate(ctx, id)
+	if err != nil {
+		return MachineJob{}, noRows(err)
+	}
+	if job.Version != expectedVersion {
+		return MachineJob{}, apperror.StaleWrite
+	}
+	group, found, err := activeSnapshotGroup(ctx, q, job)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	if !found {
+		group, err = resolvePricingGroup(ctx, q, job.CustomerPersonID, job.CustomerOrganizationID, nil)
+		if err != nil {
+			return MachineJob{}, err
+		}
+	}
+	if _, err = s.capturePricingSnapshot(ctx, q, p, job, group, SnapshotManualReprice); err != nil {
+		return MachineJob{}, err
+	}
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"machine_job.repriced",
+		"machine_job",
+		id,
+		requestID,
+		[]string{"pricing"},
+	); err != nil {
+		return MachineJob{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MachineJob{}, err
+	}
+	return s.loadJob(ctx, id)
+}
+
+// activeSnapshotGroup returns the pricing group of the job's active snapshot when it still exists and is
+// active.
+func activeSnapshotGroup(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	job machinelogbookdb.MachineJob,
+) (machinelogbookdb.PricingGroup, bool, error) {
+	if job.ActivePricingSnapshotID == nil {
+		return machinelogbookdb.PricingGroup{}, false, nil
+	}
+	snapshot, err := q.GetPricingSnapshot(ctx, *job.ActivePricingSnapshotID)
+	if err != nil {
+		return machinelogbookdb.PricingGroup{}, false, err
+	}
+	if snapshot.PricingGroupID == nil {
+		return machinelogbookdb.PricingGroup{}, false, nil
+	}
+	group, err := q.GetPricingGroup(ctx, *snapshot.PricingGroupID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return group, false, nil
+	}
+	if err != nil {
+		return group, false, err
+	}
+	return group, group.Active, nil
+}

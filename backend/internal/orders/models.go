@@ -304,6 +304,7 @@ type ExternalInvoiceRequest struct {
 
 type JobOrderAssociation struct {
 	OrderID        *uuid.UUID `json:"orderId"`
+	OrderItemID    *uuid.UUID `json:"orderItemId"`
 	OrderReference *string    `json:"orderReference"`
 	SourceChanged  bool       `json:"sourceChanged"`
 }

@@ -36,4 +36,4 @@ export function statusNow(job: MachineJob, now: number): JobRowStatus {
 export const runsNeedingOutcome = (job: MachineJob, now: number) =>
   activeRuns(job).filter((run) => !run.outcome && !isRunLive(run, now));
 
-export type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | 'delete' | null;
+export type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | 'delete' | 'reprice' | null;

@@ -1,10 +1,12 @@
 import { RefLink } from '../../../app/RefLink';
-import { Accordion, AccordionItem, InlineNotification, Tag, Tile } from '@carbon/react';
+import { Accordion, AccordionItem, Button, Tag, Tile } from '@carbon/react';
+import { Renew } from '@carbon/icons-react';
 import type { JobOrderAssociation, MachineJob, MaterialUnit } from '../../../api/generated/models';
 import { unitText } from '../processConfig';
 import { formatDateTime, formatMoney } from '../shared/format';
 import { adjustmentSummary, BillingTag } from '../shared/status';
 import { jobBilling } from './jobDetailShared';
+import { RefreshChargeNotice } from './RefreshChargeNotice';
 
 export function PriceBillingTile({
   job,
@@ -13,6 +15,7 @@ export function PriceBillingTile({
   adjustmentDifference,
   association,
   canReadOrders,
+  onReprice,
 }: {
   job: MachineJob;
   price: number | null;
@@ -20,6 +23,8 @@ export function PriceBillingTile({
   adjustmentDifference: number | null;
   association: { isError: boolean; data: JobOrderAssociation | undefined };
   canReadOrders: boolean;
+  /** Set for people who may edit the job; opens the recalculation dialog. */
+  onReprice?: () => void;
 }) {
   return (
     <Tile>
@@ -29,6 +34,11 @@ export function PriceBillingTile({
         <BillingTag billing={jobBilling(job, association.data)} />
         {job.pricingStatus === 'pending' && <span className="mj-secondary">Price pending</span>}
       </div>
+      {onReprice && (
+        <Button kind="ghost" size="sm" renderIcon={Renew} onClick={onReprice}>
+          Recalculate price
+        </Button>
+      )}
       <dl className="mj-price-details">
         <div>
           <dt>Calculated</dt>
@@ -106,15 +116,7 @@ export function PriceBillingTile({
               <p>
                 <RefLink kind="order" reference={association.data.orderReference ?? ''} id={association.data.orderId} />
               </p>
-              {association.data.sourceChanged && (
-                <InlineNotification
-                  kind="warning"
-                  lowContrast
-                  hideCloseButton
-                  title="Changed after charge"
-                  subtitle="This job changed after it was charged. The order amount has not been updated."
-                />
-              )}
+              {association.data.sourceChanged && <RefreshChargeNotice association={association.data} />}
             </>
           ) : association.data ? (
             <p className="mj-secondary">Not on an order.</p>

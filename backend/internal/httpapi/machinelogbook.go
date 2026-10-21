@@ -517,3 +517,27 @@ func (s *Server) DeleteMachineJob(
 	}
 	return openapi.DeleteMachineJob204Response{}, nil
 }
+
+func (s *Server) RepriceMachineJob(
+	ctx context.Context,
+	r openapi.RepriceMachineJobRequestObject,
+) (openapi.RepriceMachineJobResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.RepriceMachineJob(
+		ctx,
+		p,
+		r.MachineJobId,
+		r.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RepriceMachineJob200JSONResponse(mlJobDTO(item)), nil
+}

@@ -3,6 +3,7 @@ import { RefLink } from '../../app/RefLink';
 import {
   Button,
   DataTable,
+  ActionableNotification,
   InlineNotification,
   OverflowMenu,
   OverflowMenuItem,
@@ -32,6 +33,7 @@ import { AttachRunModal } from './dialogs/AttachRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { jobOrderQuery, unassignedRunsParams } from './dialogs/jobFormHelpers';
 import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
+import { RepriceJobModal } from './dialogs/RepriceJobModal';
 import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { jobQuery, machineLogbookKeys, runsQuery } from './queries';
@@ -231,12 +233,15 @@ function JobDetail({ job }: { job: MachineJob }) {
             />
           ))}
         {job.pricingStatus === 'incomplete' && (
-          <InlineNotification
+          <ActionableNotification
             kind="error"
             lowContrast
             hideCloseButton
+            inline
             title="Price incomplete"
             subtitle={`No pricing rate for ${missingRules.map((rule) => rule.label).join(', ') || 'this job'}${canOverride ? '. You can set the price manually.' : '.'}`}
+            actionButtonLabel={canEdit ? 'Recalculate price' : undefined}
+            onActionButtonClick={() => open('reprice')}
           />
         )}
         <Tile>
@@ -404,6 +409,7 @@ function JobDetail({ job }: { job: MachineJob }) {
             adjustmentDifference={adjustmentDifference}
             association={association}
             canReadOrders={canReadOrders}
+            onReprice={canEdit ? () => open('reprice') : undefined}
           />
         </div>
       </div>
@@ -473,6 +479,7 @@ function JobDetail({ job }: { job: MachineJob }) {
             ` Because it is the only run, ${job.displayId} gets a manual run with the same start, end and outcome, but without material.`}
         </p>
       </DestructiveActionDialog>
+      <RepriceJobModal open={dialog === 'reprice'} onClose={close} job={job} />
       <PriceAdjustmentModal open={dialog === 'override'} onClose={close} job={job} />
       <DestructiveActionDialog
         open={dialog === 'clear'}

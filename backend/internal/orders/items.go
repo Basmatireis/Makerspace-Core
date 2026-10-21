@@ -350,6 +350,7 @@ func (s *Service) JobAssociation(
 	}
 	return JobOrderAssociation{
 		OrderID:        &r.OrderID,
+		OrderItemID:    &r.OrderItemID,
 		OrderReference: &r.Reference,
 		SourceChanged:  r.SourceJobVersion != nil && r.CurrentJobVersion != *r.SourceJobVersion,
 	}, nil

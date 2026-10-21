@@ -496,11 +496,12 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (OrderItem, er
 }
 
 const getJobClaim = `-- name: GetJobClaim :one
-SELECT o.id AS order_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
+SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
 `
 
 type GetJobClaimRow struct {
 	OrderID           uuid.UUID
+	OrderItemID       uuid.UUID
 	Reference         string
 	SourceJobVersion  *int64
 	CurrentJobVersion int64
@@ -511,6 +512,7 @@ func (q *Queries) GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJ
 	var i GetJobClaimRow
 	err := row.Scan(
 		&i.OrderID,
+		&i.OrderItemID,
 		&i.Reference,
 		&i.SourceJobVersion,
 		&i.CurrentJobVersion,

@@ -60,7 +60,7 @@ DELETE FROM order_job_claims WHERE order_item_id=$1;
 -- name: ReleaseOrderClaims :exec
 DELETE FROM order_job_claims WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id=$1);
 -- name: GetJobClaim :one
-SELECT o.id AS order_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1;
+SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1;
 -- name: InsertAdjustment :exec
 INSERT INTO order_adjustments(id,reference,order_id,order_reference,kind,currency,amount,reason,actor_account_id) VALUES($1,$2,$3,$4,'full_reversal','EUR',$5,$6,$7);
 -- name: InsertAdjustmentItems :exec
