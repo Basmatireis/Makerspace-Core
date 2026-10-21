@@ -10,9 +10,21 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - New permissions `events.signup` and `events.read_assignments`. The migration grants `events.signup` to every role with `open_days.signup` and `events.read_assignments` to every role with `open_days.read_assignments`, `events.staffing.manage` or `events.assign`. Review roles that should not let members join event shifts.
 - `events.read` alone no longer shows draft events; drafts need `events.manage`, `events.staffing.manage` or `events.assign`.
 - API: the `start-planning`, `return-to-planning` and `archive` event actions and the per-position endpoints under `/events/{id}/shifts/{shiftId}/requirements` are gone; positions are saved with their shift. `GET /events` is paged (`scope`, `search`, `ownerPersonId`, `page`, `pageSize`). Tasks use `important` instead of `priority`.
+- Migration 00061: every account now has one email. For a person with an account, the person's email mirrors the account's login email. Accounts without a login email adopt their person's email when no other login uses it (plain ASCII addresses only; on a collision the older account wins). Accounts left without one are flagged on the person page with "Set login email". The migration also adds `people.member_since`, filled from the person's creation date.
+- Migration 00062 moves connector runtime entries (`printer_event.ingested`, `printer_slot.spool_auto_mounted`/`_unmounted`, `machine_run.recorded`, `machine_job.recorded_run_updated`) from the last 30 days out of the audit log into the new per-connector activity log and deletes the older ones. Admin actions on connectors stay audited. It also adds update request columns for connectors and gateways.
+- Migration 00063 adds the wiRef delivery settings and per-request delivery records.
+- New permissions `invoicing.settings.manage`, `configuration.export` and `configuration.import`; existing roles do not get them (master does).
+- API: `CreateAccountRequest.loginEmail` is required. `PATCH /people/{id}` rejects an email change for a person with an account (422 `email_managed_by_account`); use `PUT /accounts/{id}/login-email`. `memberSince` on the dashboard and supervisors is now a `date`, and `Person` has an editable `memberSince` (needs `people.update.all`).
+- Update Core before the printer connector and streaming gateway. Web updates need the optional `updater` sidecar (Compose profile `updater`, Docker socket = root on that host, see `docs/hosting.md`); without it, update as before.
+- Settings moved: OpenID Connect and SCIM are one page, Session policies and Managed devices are one page, printer connectors moved from the Machines page to Settings → Local services. Old links redirect.
 
 ### Added
 
+- **wiRef delivery.** When an invoice request is approved and forwarded, Core emails it to the wiRef address set in Settings → Invoicing, as a branded mail with a PDF attachment, after the approval is committed. Subject, intro and closing of mail and PDF are editable with placeholders (`{{organisation}}`, `{{anforderungsnummer}}`, `{{summe}}`, …) and optional fields can be switched off; preview, sample PDF and test mail included. The invoice request shows the delivery status and can be resent (`external_invoice_requests.approve`).
+- **Configuration export and import.** Settings → Export & import downloads roles, device types and session policies, the machine catalog, inventory articles, pricing, open-day requirements, lab rules, surveys, visitor enrollment, branding and mail settings (never secrets) as one JSON file. Importing previews every change first; Overwrite makes each chosen section match the file (entries still in use are deactivated or kept), Insert only adds what is missing. The import runs in one transaction. See `docs/configuration-transfer.md`.
+- **Updates from the web UI.** Settings → Local services → Versions and updates shows each connector's and gateway's version next to Core's and updates them to Core's version through the optional updater sidecar.
+- **Connector activity log.** Connector diagnostics have an Activity log tab with the runtime events that used to fill the audit log (kept 30 days, at most 10,000 per connector).
+- **Member since.** People have a "member since" date, used by the dashboard and the supervisors list. Administrators can edit it, independently of when the account was created.
 - **Members join event shifts in the app.** With `events.signup` members see a helper view of each confirmed event and join or leave open places themselves; the same capacity, role, signup-window and overlap rules apply. Names of co-helpers need `events.read_assignments`.
 - **Go-live readiness.** Events report whether the public page and helper signup are live and what is still missing.
 - **Events screens redesigned.** `/events` pages events into Upcoming, Drafts and Past with search and an owner filter; organizers see status, public page, signup, staffing and overdue tasks, helpers see open places and their own shifts. An event opens as a participant view (programme by day, Join, a confirmed Leave) and organizers switch to an edit mode (`?mode=edit`) with Overview and next steps, a Go live panel, Programme with a positions editor, Helpers by shift and by helper, Tasks, a Public page tab with a live preview of the real page, and Files. Creating an event also creates its first session.
@@ -23,11 +35,22 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- One email per account: person pages show a single Email field. For account holders it is the login email.
+- System mails (password reset, invitations, PIN setup, email verification, security notices, surveys) are branded HTML with a plain-text part, using the configured name, colour, logo and legal links.
+- Reset, invitation and verification links carry the code, so it no longer has to be copied from the mail. The page reads it once and removes it from the address bar.
+- Printer connectors and streaming gateways are managed together in Settings → Local services.
+- Settings redesign: grouped overview (Access & identity, Lab operations, Communication & appearance, Sales & invoicing, Local services, Data), single sign-on (OIDC + SCIM) and devices & sessions on one page each, and a consistent frame for every settings screen. The Pricing tile is gone; pricing stays under Sales & payments.
 - Events have four statuses: Draft, Confirmed, Completed, Cancelled. Helper signup (public and in the app) opens only for confirmed events; a public page can go live from a draft. Completed and cancelled events keep tasks and files editable.
 - Event lists are scoped by date (upcoming, drafts, past), sorted by start and paged.
 - Shifts are saved together with their positions in one request.
 - Tasks are open or done with an Important flag and can be filtered by assignee, overdue and done.
 - Toolchain and dependency updates, no behavior change. Go 1.26 to 1.27.3 (including golangci-lint 2.15.0), Alpine 3.24.2, Node 24 to 26 and nginx-unprivileged 1.31.6 in the images, and the pending backend, frontend and desktop-terminal packages. Frontend majors: TypeScript 7, ESLint 10, eslint-plugin-react-hooks 7, eslint-plugin-react-refresh 0.5, msw 3, @testing-library/jest-dom 7 and @types/node 26. typescript-eslint does not support TypeScript 7 yet, so linting runs against the side-by-side TypeScript 6 package.
+
+### Fixed
+
+- Self-service password reset sent no email to accounts that had a login email but had never set a password (for example invited, SSO- or PIN-first accounts). Failed deliveries are now logged (challenge and request IDs only).
+- Dropdowns in dialogs (for example Assign role) were cut off by the dialog and showed only one option at a time.
+- Order drafts can be finalized again without taking payment; the total stays outstanding and can be paid later.
 
 ## [0.8.2] - 2026-10-21
 
