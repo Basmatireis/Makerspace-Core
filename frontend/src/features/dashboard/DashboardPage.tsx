@@ -87,6 +87,7 @@ export function DashboardPage() {
   return (
     <PageShell
       title={`${greeting(now)}, ${data.person.firstName}`}
+      breadcrumbs={[{ label: 'Dashboard' }]}
       description={description}
       width="wide"
       actions={
