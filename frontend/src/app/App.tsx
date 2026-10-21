@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { PermissionId } from '../api/generated/models';
-import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
@@ -15,6 +14,7 @@ import {
   ActivityPage,
   AttendancePage,
   BrandingLegalSettingsPage,
+  DashboardPage,
   EmailVerificationPage,
   EventCreatePage,
   EventDetailPage,

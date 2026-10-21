@@ -21,7 +21,7 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/dashboard');
 
     const dashboardHeading = await screen.findByRole('heading', { name: 'Dashboard' });
-    expect(dashboardHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
+    expect(dashboardHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'wide');
     expect(document.querySelector('.app-header__logo')).toHaveAttribute('src', '/brand/htumkr-symbol.png');
     expect(document.querySelector('.header-account__name')).toHaveTextContent('Ada Lovelace');
     expect(document.querySelector('.cds--header__action img.person-avatar')).toHaveAttribute(

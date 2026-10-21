@@ -1,0 +1,223 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/progress-bar';
+@use '@carbon/styles/scss/theme' as theme;
+
+// Layout glue for the personal dashboard. Sections sit in named grid areas so further sections (balance, jobs,
+// orders, charts) can be added without reshuffling the page.
+
+.db-grid {
+  display: grid;
+  // Rows of areas without a section collapse to nothing, so spacing comes from the areas' own margins.
+  column-gap: $spacing-05;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    'next semester'
+    'stats stats'
+    'coming coming';
+}
+
+.db-grid--solo {
+  grid-template-areas:
+    'next next'
+    'stats stats'
+    'coming coming';
+}
+
+.db-grid > * {
+  margin-block-end: $spacing-05;
+}
+
+.db-area-next {
+  grid-area: next;
+}
+
+.db-area-semester {
+  grid-area: semester;
+}
+
+.db-area-stats {
+  grid-area: stats;
+}
+
+.db-area-coming {
+  grid-area: coming;
+}
+
+.db-notices {
+  display: grid;
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+}
+
+// Every tile has the same structure: eyebrow, main value, explanation, at most one info box and one action row
+// pinned to the bottom so actions line up across a row.
+.db-tile.cds--tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: $spacing-04;
+}
+
+// Carbon notifications have a minimum width; inside a narrow tile they have to shrink with it.
+.db-tile .cds--inline-notification,
+.db-tile .cds--actionable-notification {
+  min-inline-size: 0;
+  max-inline-size: none;
+  inline-size: 100%;
+  margin: 0;
+}
+
+.db-tile__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+
+.db-tile__title {
+  @include type-style('productive-heading-04');
+}
+
+.db-tile__meta {
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.db-tile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-block-start: auto;
+  padding-block-start: $spacing-03;
+}
+
+.db-countdown {
+  color: theme.$support-info;
+  @include type-style('productive-heading-03');
+}
+
+.db-value {
+  @include type-style('productive-heading-05');
+}
+
+.db-value__of {
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.db-status {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.db-status--title {
+  @include type-style('productive-heading-04');
+}
+
+.db-status svg {
+  flex: none;
+}
+
+.db-status--ok svg {
+  fill: theme.$support-success;
+}
+
+.db-status--warning svg {
+  fill: theme.$support-warning;
+}
+
+.db-section-title {
+  margin-block-end: $spacing-04;
+  @include type-style('productive-heading-03');
+}
+
+.db-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-05;
+}
+
+.db-stat.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+}
+
+.db-stat__icon {
+  color: theme.$icon-secondary;
+}
+
+.db-stat__value {
+  @include type-style('productive-heading-04');
+}
+
+.db-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.db-stat__detail {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.db-panel.cds--contained-list {
+  background: theme.$layer-01;
+}
+
+.db-panel .cds--contained-list__header {
+  background: theme.$layer-01;
+}
+
+.db-panel .cds--contained-list-item__content {
+  min-inline-size: 0;
+}
+
+.db-panel .cds--contained-list-item__action {
+  inset-block: 0;
+  display: flex;
+  align-items: center;
+}
+
+.db-panel__empty {
+  padding: $spacing-05;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.db-item {
+  display: grid;
+  gap: $spacing-01;
+}
+
+.db-item__title {
+  @include type-style('body-compact-01');
+}
+
+.db-item__meta {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+// Carbon's breakpoints: md 42rem, lg 66rem.
+@media (max-width: 65.98rem) {
+  .db-grid,
+  .db-grid--solo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'next'
+      'semester'
+      'stats'
+      'coming';
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .db-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: $spacing-03;
+  }
+}

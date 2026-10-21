@@ -228,3 +228,6 @@ export const SessionPoliciesPage = lazy(() =>
 export const SurveyAdminPage = lazy(() =>
   import('../features/surveys/SurveyAdminPage').then(({ SurveyAdminPage }) => ({ default: SurveyAdminPage })),
 );
+export const DashboardPage = lazy(() =>
+  import('../features/dashboard/DashboardPage').then(({ DashboardPage }) => ({ default: DashboardPage })),
+);
