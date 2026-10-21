@@ -24,9 +24,9 @@ import { dateInAppTimeZone, instantToZonedDateTimeValue, timeInAppTimeZone } fro
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
-import { FieldRow, FormSection, FormSections } from '../components/FormSection';
+import { FieldRow, FormSection, FormSections, OvernightHint } from '../components/FormSection';
 import { eventMutationMessage } from '../errors';
-import { fmtDay, toInstant, toISO } from '../format';
+import { endDayOf, fmtDay, overnightHint, toInstant, toISO } from '../format';
 import { eventRolesQueryOptions, invalidateEvents } from '../queries';
 import { shiftBody } from '../requestBodies';
 
@@ -128,7 +128,7 @@ export function ShiftDialog({
         name: value.name.trim(),
         description: value.description.trim() || null,
         startsAt: toInstant(value.date, value.start),
-        endsAt: toInstant(value.endDate, value.end),
+        endsAt: toInstant(endDayOf(value.date, value.start, value.end, value.endDate), value.end),
         signupOpensAt: value.limited && value.opensAt ? toISO(value.opensAt) : null,
         signupClosesAt: value.limited && value.closesAt ? toISO(value.closesAt) : null,
         isPublic: value.isPublic,
@@ -267,10 +267,12 @@ export function ShiftDialog({
                 {...form.register('end', {
                   required: true,
                   pattern: CLOCK,
-                  validate: (value, all) => `${all.endDate}T${value}` > `${all.date}T${all.start}`,
+                  validate: (value, all) =>
+                    `${endDayOf(all.date, all.start, value, all.endDate)}T${value}` > `${all.date}T${all.start}`,
                 })}
               />
             </FieldRow>
+            <OvernightHint text={overnightHint(values.date, values.start, values.end, values.endDate)} />
             {values.endDate !== values.date && (
               <Controller
                 name="endDate"

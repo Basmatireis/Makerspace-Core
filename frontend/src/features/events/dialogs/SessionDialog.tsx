@@ -8,9 +8,9 @@ import { dateInAppTimeZone, timeInAppTimeZone } from '../../../app/dateTime';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
-import { FieldRow, FormSection, FormSections } from '../components/FormSection';
+import { FieldRow, FormSection, FormSections, OvernightHint } from '../components/FormSection';
 import { eventMutationMessage } from '../errors';
-import { toInstant } from '../format';
+import { endDayOf, overnightHint, toInstant } from '../format';
 import { invalidateEvents } from '../queries';
 import { sessionBody } from '../requestBodies';
 
@@ -64,7 +64,7 @@ export function SessionDialog({
         location: value.location.trim() || null,
         description: value.description.trim() || null,
         startsAt: toInstant(value.date, value.start),
-        endsAt: toInstant(value.endDate, value.end),
+        endsAt: toInstant(endDayOf(value.date, value.start, value.end, value.endDate), value.end),
         isPublic: value.isPublic,
       };
       return session
@@ -167,10 +167,13 @@ export function SessionDialog({
                 {...form.register('end', {
                   required: true,
                   pattern: CLOCK,
-                  validate: (value, values) => `${values.endDate}T${value}` > `${values.date}T${values.start}`,
+                  validate: (value, values) =>
+                    `${endDayOf(values.date, values.start, value, values.endDate)}T${value}` >
+                    `${values.date}T${values.start}`,
                 })}
               />
             </FieldRow>
+            <OvernightHint text={overnightHint(date, form.watch('start'), form.watch('end'), endDate)} />
             {endDate !== date && (
               <Controller
                 name="endDate"
