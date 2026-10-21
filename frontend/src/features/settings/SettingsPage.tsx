@@ -12,6 +12,7 @@ import {
   Timer,
   QuestionAnswering,
   VideoChat,
+  Migrate,
 } from '@carbon/icons-react';
 import type { ComponentProps, ComponentType } from 'react';
 import { Link } from 'react-router-dom';
@@ -48,6 +49,10 @@ export function SettingsPage() {
   const canManageLocalServices = hasPermission(currentUser, PermissionId.local_servicesmanage);
   const canManageOpenDays = hasPermission(currentUser, PermissionId.open_daysmanage);
   const canConfigureMachineLogbook = hasPermission(currentUser, PermissionId.pricingread);
+  const canTransferConfiguration = hasAnyPermission(currentUser, [
+    PermissionId.configurationexport,
+    PermissionId.configurationimport,
+  ]);
 
   return (
     <PageShell title="Settings" description="Administration tools available to your account.">
@@ -203,6 +208,19 @@ export function SettingsPage() {
                 <div>
                   <h2>Local services</h2>
                   <p>Streaming gateways and printer cameras for digital signage.</p>
+                </div>
+              </Stack>
+            </ClickableTile>
+          </Column>
+        )}
+        {canTransferConfiguration && (
+          <Column sm={4} md={4} lg={5}>
+            <ClickableTile as={Link} to="/settings/configuration-transfer" className="settings-tile">
+              <Stack gap={5}>
+                <Migrate size={32} />
+                <div>
+                  <h2>Export &amp; import</h2>
+                  <p>Move roles, machines, pricing and settings between instances as a file.</p>
                 </div>
               </Stack>
             </ClickableTile>

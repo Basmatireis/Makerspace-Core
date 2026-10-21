@@ -29,6 +29,7 @@ import {
   LaborordnungPage,
   LegalPage,
   LocalServicesPage,
+  ConfigurationTransferPage,
   MachineDetailPage,
   MachineLogbookLayout,
   MachineLogbookOverviewPage,
@@ -417,6 +418,14 @@ export function App() {
                   ]}
                 >
                   <LaborordnungPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/configuration-transfer"
+              element={
+                <PermissionRoute anyOf={[PermissionId.configurationexport, PermissionId.configurationimport]}>
+                  <ConfigurationTransferPage />
                 </PermissionRoute>
               }
             />

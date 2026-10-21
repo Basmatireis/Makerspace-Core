@@ -75,6 +75,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `signage.publish` | Publish a signage display. |
 | `signage.override` | Start, edit and stop announcements (live, never published). |
 | `local_services.manage` | Manage streaming gateways and camera assignments; issue enrollment secrets; rotate the stream ticket key; list the machines that can be given a camera (`GET /local-services/camera-candidates`, which deliberately does not need `machines.read`). |
+| `configuration.export`, `configuration.import` | Download configuration sections as a file, or preview and import such a file. Each section additionally needs its own read permission (export) or read and manage permissions (import); see [Configuration export and import](configuration-transfer.md). |
 
 ## Device-scoped grants
 
