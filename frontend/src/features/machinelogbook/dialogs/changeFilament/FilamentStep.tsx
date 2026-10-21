@@ -1,7 +1,17 @@
 import { Controller } from 'react-hook-form';
-import { InlineNotification, RadioButton, RadioButtonGroup, Select, SelectItem, Stack, TextInput } from '@carbon/react';
+import {
+  Button,
+  InlineNotification,
+  RadioButton,
+  RadioButtonGroup,
+  Select,
+  SelectItem,
+  Stack,
+  TextInput,
+} from '@carbon/react';
 import { DecimalField } from '../../../../app/DecimalField';
 import { decimalNumber, decimalText, decimalValidator } from '../../../../app/decimalInput';
+import { NewFilamentArticle } from '../../components/NewFilamentArticle';
 import { formatGrams } from '../../components/inventoryShared';
 import { type ChangeFilamentWizard } from './useChangeFilamentWizard';
 
@@ -21,7 +31,10 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
     control,
     register,
     setValue,
+    newArticle,
+    chooseNewArticle,
   } = wizard;
+  const adding = values.newArticle;
 
   return (
     <Stack gap={6}>
@@ -34,24 +47,39 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
           subtitle={`${name} has no filament. The new fill is fill ${nextFill}.`}
         />
       )}
-      <Select
-        id="refill-material"
-        labelText="Filament"
-        invalid={Boolean(errors.materialId)}
-        invalidText={errors.materialId?.message}
-        {...register('materialId', {
-          required: 'Choose a filament.',
-          onChange: (event) => {
-            const next = filaments.find((item) => item.id === event.target.value);
-            if (next?.packageSize != null) setValue('netWeight', decimalText(next.packageSize));
-          },
-        })}
-      >
-        <SelectItem value="" text="Choose a filament" />
-        {filaments.map((item) => (
-          <SelectItem key={item.id} value={item.id} text={item.name} />
-        ))}
-      </Select>
+      {adding ? (
+        <NewFilamentArticle
+          idPrefix="refill-article"
+          created={newArticle.created}
+          onUseExisting={() => chooseNewArticle(false)}
+        />
+      ) : (
+        <>
+          <Select
+            id="refill-material"
+            labelText="Filament"
+            invalid={Boolean(errors.materialId)}
+            invalidText={errors.materialId?.message}
+            {...register('materialId', {
+              required: 'Choose a filament.',
+              onChange: (event) => {
+                const next = filaments.find((item) => item.id === event.target.value);
+                if (next?.packageSize != null) setValue('netWeight', decimalText(next.packageSize));
+              },
+            })}
+          >
+            <SelectItem value="" text="Choose a filament" />
+            {filaments.map((item) => (
+              <SelectItem key={item.id} value={item.id} text={item.name} />
+            ))}
+          </Select>
+          {canPurchase && (
+            <Button kind="ghost" size="sm" onClick={() => chooseNewArticle(true)}>
+              Add new filament
+            </Button>
+          )}
+        </>
+      )}
       <Controller
         control={control}
         name="netWeight"
@@ -82,32 +110,34 @@ export function FilamentStep({ wizard }: { wizard: ChangeFilamentWizard }) {
           />
         )}
       />
-      <Controller
-        control={control}
-        name="source"
-        render={({ field }) => (
-          <RadioButtonGroup
-            legendText="Where does the filament come from?"
-            name="refill-source"
-            orientation="vertical"
-            valueSelected={field.value}
-            helperText={sourceHelper}
-            onChange={(value) => field.onChange(value)}
-          >
-            <RadioButton
-              id="refill-source-stock"
-              value="loose_stock"
-              labelText={`From loose stock${material ? ` (${formatGrams(stock.loose)} available)` : ''}`}
-            />
-            <RadioButton
-              id="refill-source-purchase"
-              value="purchase"
-              disabled={!canPurchase}
-              labelText={canPurchase ? 'New purchase' : 'New purchase (needs the inventory.manage permission)'}
-            />
-          </RadioButtonGroup>
-        )}
-      />
+      {!adding && (
+        <Controller
+          control={control}
+          name="source"
+          render={({ field }) => (
+            <RadioButtonGroup
+              legendText="Where does the filament come from?"
+              name="refill-source"
+              orientation="vertical"
+              valueSelected={field.value}
+              helperText={sourceHelper}
+              onChange={(value) => field.onChange(value)}
+            >
+              <RadioButton
+                id="refill-source-stock"
+                value="loose_stock"
+                labelText={`From loose stock${material ? ` (${formatGrams(stock.loose)} available)` : ''}`}
+              />
+              <RadioButton
+                id="refill-source-purchase"
+                value="purchase"
+                disabled={!canPurchase}
+                labelText={canPurchase ? 'New purchase' : 'New purchase (needs the inventory.manage permission)'}
+              />
+            </RadioButtonGroup>
+          )}
+        />
+      )}
       {values.source === 'purchase' && (
         <>
           <Controller

@@ -16,7 +16,10 @@ import {
   toLeftoverInput,
   type LeftoverValues,
 } from '../../components/LeftoverFields';
+import { blankArticle, previewName, type ArticleValues } from '../../components/ArticleFields';
+import { useNewFilamentArticle } from '../../components/useNewFilamentArticle';
 import { formatGrams, toDecimal, TransactionKindTag } from '../../components/inventoryShared';
+import { materialTypesQuery } from '../../inventoryQueries';
 import {
   identifierKey,
   identifierLabel,
@@ -35,6 +38,9 @@ import { useLatestCallback } from '../../../../app/useLatestCallback';
 export type Values = LeftoverValues & {
   spoolId: string;
   materialId: string;
+  /** Fill with a filament article that is created on save instead of an existing one. */
+  newArticle: boolean;
+  article: ArticleValues;
   netWeight: string;
   source: FilamentNewFillInputSource;
   price: string;
@@ -55,7 +61,7 @@ export const LABELS: Record<StepKey, string> = {
 export const STEP_FIELDS: Record<StepKey, (keyof Values)[]> = {
   spool: ['spoolId'],
   leftover: ['grossWeight', 'tareWeight'],
-  filament: ['materialId', 'netWeight', 'price', 'source'],
+  filament: ['materialId', 'article', 'netWeight', 'price', 'source'],
   tags: [],
 };
 
@@ -99,6 +105,7 @@ export function useChangeFilamentWizard({
   const narrow = useNarrow();
   const can = useCan();
   const [step, setStep] = useState(0);
+  const newArticle = useNewFilamentArticle();
   const canPurchase = can('inventory.manage');
   const spoolList = useQuery({ ...allSpoolsQuery({ kind: 'reusable', lifecycle: 'active' }), enabled: open });
   const materialList = useQuery({ ...filamentMaterialsQuery(), enabled: open });
@@ -114,6 +121,8 @@ export function useChangeFilamentWizard({
       ...leftoverDefaults(spool),
       spoolId: spool?.id ?? '',
       materialId: material?.id ?? '',
+      newArticle: false,
+      article: blankArticle('filament'),
       netWeight: material?.packageSize != null ? decimalText(material.packageSize) : '1000',
       source: 'loose_stock',
       price: '',
@@ -146,12 +155,13 @@ export function useChangeFilamentWizard({
 
   const mutation = useMutation({
     mutationFn: async (data: Values) => {
-      if (!spool || !material) throw new Error('spool or material missing');
+      const target = data.newArticle ? await newArticle.ensure(data.article) : material;
+      if (!spool || !target) throw new Error('spool or material missing');
       const version = refillOnly ? spool.version : await saveTareWeight(spool, data);
       return changeFilamentSpoolFill(spool.id, {
         leftover: refillOnly ? null : toLeftoverInput(spool, data),
         fill: {
-          materialId: material.id,
+          materialId: target.id,
           manufacturer: data.manufacturer.trim() || null,
           productName: data.product.trim() || null,
           netWeightG: toDecimal(decimalNumber(data.netWeight) ?? 0),
@@ -176,6 +186,7 @@ export function useChangeFilamentWizard({
   const resetWizard = useLatestCallback(() => {
     reset(defaults(preselected));
     mutation.reset();
+    newArticle.reset();
     setStep(preselected ? 1 : 0);
   });
   useEffect(() => {
@@ -203,6 +214,19 @@ export function useChangeFilamentWizard({
   const leftover = spool && !refillOnly ? resolveLeftover(spool, values) : null;
   const material = filaments.find((item) => item.id === values.materialId);
   const net = decimalNumber(values.netWeight) ?? 0;
+  const typeName = (useQuery({ ...materialTypesQuery(), enabled: open && values.newArticle }).data ?? []).find(
+    (item) => item.id === values.article.materialTypeId,
+  )?.name;
+  /** The chosen article, or the one that is about to be (or has just been) created. */
+  const materialName = values.newArticle
+    ? (newArticle.created?.name ?? (previewName(values.article, 'filament', typeName) || 'New filament article'))
+    : material?.name;
+  const chooseNewArticle = (enabled: boolean) => {
+    setValue('newArticle', enabled);
+    setValue('materialId', '');
+    // A new article has no stock, so the fill is a purchase.
+    setValue('source', enabled ? 'purchase' : 'loose_stock');
+  };
 
   // Loose stock after the old fill has been closed: a returned leftover joins it, corrections and disposals leave the material.
   const stockAfterClose = (materialId: string) => {
@@ -285,11 +309,11 @@ export function useChangeFilamentWizard({
     {
       key: 'open',
       change: `Start fill ${nextFill}`,
-      detail: material
-        ? `${material.name}, ${formatGrams(net)}${[values.manufacturer, values.product].filter((item) => item.trim()).length ? `, ${[values.manufacturer, values.product].filter((item) => item.trim()).join(' ')}` : ''}`
+      detail: materialName
+        ? `${materialName}, ${formatGrams(net)}${[values.manufacturer, values.product].filter((item) => item.trim()).length ? `, ${[values.manufacturer, values.product].filter((item) => item.trim()).join(' ')}` : ''}`
         : 'No material chosen',
     },
-    ...(material
+    ...(materialName
       ? [
           {
             key: 'open-entry',
@@ -322,7 +346,7 @@ export function useChangeFilamentWizard({
   };
 
   const submit = handleSubmit(async (data) => {
-    if (!spool || !material) return;
+    if (!spool || !(material || data.newArticle)) return;
     let result: FilamentSpool;
     try {
       result = await mutation.mutateAsync(data);
@@ -331,7 +355,10 @@ export function useChangeFilamentWizard({
       return;
     }
     await refresh();
-    notify({ kind: 'success', title: `${spool.displayId} refilled with ${material.name} (fill ${result.fillNumber})` });
+    notify({
+      kind: 'success',
+      title: `${spool.displayId} refilled with ${result.materialName ?? materialName} (fill ${result.fillNumber})`,
+    });
     onClose();
   });
 
@@ -361,6 +388,9 @@ export function useChangeFilamentWizard({
     chooseSpool,
     leftover,
     material,
+    materialName,
+    newArticle,
+    chooseNewArticle,
     net,
     stockAfterClose,
     stock,
