@@ -3,7 +3,8 @@
 #   test-service-compose.sh PACKAGE_SCRIPT PROJECT_NAME EXPECTED_SERVICES(comma-separated) with-certs|no-certs
 # Packages the bundle as version 0.0.0, checks its contents, and validates that Compose renders it
 # with the shipped .env.example plus a sample enrollment secret: pinned image tags, hardened
-# containers, no host networking, and only the intended published ports.
+# containers, no host networking, only the intended published ports, and the Docker socket only in
+# the optional updater (profile "updater").
 
 set -eu
 
@@ -57,6 +58,23 @@ cp "$deployment_directory/.env.example" "$deployment_directory/.env"
     test -z "$(printf '%s\n' "$rendered" | grep -E 'network_mode: host|privileged: true' || true)"
     printf '%s\n' "$rendered" | grep -F "makerspace-core-service-smoke-" | grep -F ":$version" >/dev/null
     printf '%s\n' "$rendered" | grep -F 'no-new-privileges:true' >/dev/null
+    # Without the updater profile no container gets the Docker socket.
+    test -z "$(printf '%s\n' "$rendered" | grep -F 'docker.sock' || true)"
+    test "$(COMPOSE_PROFILES=updater docker compose config --services | sort)" = "$(printf '%s\nupdater\n' "$expected_services" | sort)"
+    for service in $expected_services; do
+        test -z "$(COMPOSE_PROFILES=updater docker compose config "$service" | grep -F 'docker.sock' || true)"
+    done
+    updater=$(COMPOSE_PROFILES=updater docker compose config updater)
+    printf '%s\n' "$updater" | grep -F 'target: /var/run/docker.sock' >/dev/null
+    printf '%s\n' "$updater" | grep -F 'network_mode: none' >/dev/null
+    printf '%s\n' "$updater" | grep -F "makerspace-core-service-smoke-local-updater:$version" >/dev/null
+    # The updater never recreates itself, and recreates only services of this bundle.
+    updater_services=$(printf '%s\n' "$updater" | sed -n 's/^ *UPDATER_SERVICES: *//p' | tr ',' '\n' | sort)
+    test -n "$updater_services"
+    test -z "$(printf '%s\n' "$updater_services" | grep -Fx updater || true)"
+    for service in $updater_services; do
+        printf '%s\n' "$expected_services" | grep -Fx "$service" >/dev/null
+    done
     if [ "$with_certs" = no-certs ]; then
         test -z "$(printf '%s\n' "$rendered" | grep -E 'published:' || true)"
         printf '%s\n' "$rendered" | grep -F 'read_only: true' >/dev/null

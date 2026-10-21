@@ -394,3 +394,48 @@ FOR UPDATE OF s;
 SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
 FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
 WHERE f.spool_id=sqlc.arg(spool_id) AND f.closed_at IS NULL;
+
+-- name: InsertConnectorActivity :exec
+INSERT INTO printer_connector_activity (id, connector_id, machine_id, kind, resource_id, event_kind, changed_fields)
+VALUES (sqlc.arg(id), sqlc.arg(connector_id), sqlc.narg(machine_id), sqlc.arg(kind), sqlc.narg(resource_id),
+    sqlc.narg(event_kind), sqlc.arg(changed_fields)::text[]);
+
+-- name: CountConnectorActivity :one
+SELECT count(*)::bigint FROM printer_connector_activity WHERE connector_id=sqlc.arg(connector_id);
+
+-- name: ListConnectorActivity :many
+-- Newest first, with the display names of the machine and of the resource while they exist.
+SELECT a.id, a.kind, a.machine_id, m.name AS machine_name, a.resource_id, a.event_kind, a.changed_fields, a.occurred_at,
+    r.display_id AS run_display_id, j.display_id AS job_display_id, s.name AS slot_name
+FROM printer_connector_activity a
+LEFT JOIN machines m ON m.id=a.machine_id
+LEFT JOIN machine_runs r ON a.kind='run_recorded' AND r.id=a.resource_id AND r.deleted_at IS NULL
+LEFT JOIN machine_jobs j ON a.kind='job_run_updated' AND j.id=a.resource_id AND j.deleted_at IS NULL
+LEFT JOIN printer_slots s ON a.kind IN ('spool_auto_mounted', 'spool_auto_unmounted') AND s.id=a.resource_id
+WHERE a.connector_id=sqlc.arg(connector_id)
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: PruneConnectorActivity :exec
+-- Keeps the newest keep_count entries of the connector that are not older than cutoff.
+DELETE FROM printer_connector_activity a
+WHERE a.connector_id=sqlc.arg(connector_id)
+  AND (a.occurred_at < sqlc.arg(cutoff)::timestamptz
+    OR (a.occurred_at, a.id) < (
+        SELECT o.occurred_at, o.id FROM printer_connector_activity o
+        WHERE o.connector_id=sqlc.arg(connector_id)
+        ORDER BY o.occurred_at DESC, o.id DESC
+        OFFSET sqlc.arg(keep_count)::int - 1 LIMIT 1));
+
+-- name: RequestConnectorUpdate :one
+UPDATE printer_connectors SET update_request_id=sqlc.arg(request_id), update_target_version=sqlc.arg(target_version),
+    update_requested_at=now(), update_status='requested', update_status_reason=NULL, update_status_at=now()
+WHERE id=sqlc.arg(id) RETURNING *;
+
+-- name: SetConnectorUpdaterAvailable :exec
+UPDATE printer_connectors SET updater_available=sqlc.arg(available) WHERE id=sqlc.arg(id) AND updater_available <> sqlc.arg(available);
+
+-- name: SetConnectorUpdateStatus :one
+UPDATE printer_connectors SET update_status=sqlc.arg(status), update_status_reason=sqlc.narg(reason), update_status_at=now()
+WHERE id=sqlc.arg(id) AND update_request_id=sqlc.arg(request_id) AND update_status IN ('requested', 'in_progress')
+RETURNING *;

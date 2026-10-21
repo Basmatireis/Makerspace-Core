@@ -84,7 +84,7 @@ describe('Connectors tab', () => {
         HttpResponse.json({ items: [] }),
       ),
     );
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const table = await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     expect(within(table).getByText('Disconnected')).toBeInTheDocument();
     expect(within(table).getByText('Connected')).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('Connectors tab', () => {
   it('hides management actions without printer_connectors.manage and credentials.manage', async () => {
     setup(READ, { connectors: [connectorOf({ lifecycle: 'pending' })] });
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     expect(screen.queryByRole('button', { name: 'Add connector' })).not.toBeInTheDocument();
     await user.click(iconButton('Actions for Print room agent'));
@@ -150,7 +150,7 @@ describe('Connectors tab', () => {
       ),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Print room agent'));
     await user.click(await menuItem('New enrollment secret'));
@@ -182,7 +182,7 @@ describe('Connectors tab', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Print room agent'));
     await user.click(await menuItem('Revoke'));
@@ -209,7 +209,7 @@ describe('Deleting connectors', () => {
         }),
       );
       const user = userEvent.setup();
-      renderPage('/machine-logbook/machines?tab=connectors');
+      renderPage('/settings/local-services?tab=connectors');
       await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
       await user.click(iconButton('Actions for Print room agent'));
       expect(
@@ -231,7 +231,7 @@ describe('Deleting connectors', () => {
   it('offers Delete next to Revoke for a connector that is not revoked', async () => {
     setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Print room agent'));
     expect(await menuItem('Revoke')).toBeInTheDocument();
@@ -258,7 +258,7 @@ describe('Deleting connectors', () => {
       ),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Old agent'));
     await menuItem('Diagnostics');
@@ -292,7 +292,7 @@ describe('Connector diagnostics', () => {
       assignments: [assignmentOf({ runtimeState: 'degraded', runtimeErrorCode: 'TLS_SERIAL_MISMATCH' })],
     });
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     expect(await within(dialog).findByText('Connector needs attention')).toBeInTheDocument();
     expect(within(dialog).getAllByText(/does not match the configured serial number/i).length).toBeGreaterThan(0);
@@ -359,7 +359,7 @@ describe('Connector diagnostics', () => {
       ),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
 
@@ -393,7 +393,7 @@ describe('Connector diagnostics', () => {
       events: [],
     });
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
     expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
@@ -407,7 +407,7 @@ describe('Connector diagnostics', () => {
       events: [],
     });
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
 
@@ -438,7 +438,7 @@ describe('Connector diagnostics', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await user.click(within(dialog).getByRole('button', { name: 'Clear events' }));
     const confirm = await screen.findByRole('dialog', { name: 'Clear events?' });
@@ -450,7 +450,7 @@ describe('Connector diagnostics', () => {
   it('hides Clear events without printer_connectors.manage', async () => {
     setup(READ);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await within(dialog).findByText('Events that need review');
     expect(within(dialog).queryByRole('button', { name: 'Clear events' })).not.toBeInTheDocument();
@@ -468,12 +468,53 @@ describe('Connector diagnostics', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await waitFor(() => expect(params).toContain(null));
     await user.click(await within(dialog).findByRole('button', { name: 'Show cleared events' }));
     await waitFor(() => expect(params).toContain('true'));
     expect(within(dialog).getByRole('button', { name: 'Hide cleared events' })).toBeInTheDocument();
+  });
+
+  it('pages through the activity log of automatic changes', async () => {
+    setup(READ);
+    const pages: (string | null)[] = [];
+    server.use(
+      http.get(`*/api/v1/printer-connectors/${connectorId}/activity`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        pages.push(page);
+        return HttpResponse.json({
+          items: [
+            {
+              id: page === '2' ? '0192f6f8-743e-7c77-a349-cd07c3e8a951' : '0192f6f8-743e-7c77-a349-cd07c3e8a950',
+              kind: page === '2' ? 'spool_auto_mounted' : 'run_recorded',
+              occurredAt: '2026-10-11T12:00:00Z',
+              machineId: printerId,
+              machineName: 'Bambu H2D',
+              resourceId: '0192f6f8-743e-7c77-a349-cd07c3e8a960',
+              resourceLabel: page === '2' ? 'AMS 1 slot 2' : 'R-2026-000042',
+              eventKind: null,
+              changedFields: page === '2' ? [] : ['outcome', 'usages'],
+            },
+          ],
+          page: Number(page),
+          pageSize: 25,
+          total: 30,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage('/settings/local-services?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    expect(pages).toHaveLength(0);
+    await user.click(within(dialog).getByRole('tab', { name: 'Activity log' }));
+    const table = await within(dialog).findByRole('table', { name: 'Connector activity log' });
+    expect(within(table).getByText('Run updated')).toBeInTheDocument();
+    expect(within(table).getByText('R-2026-000042 · outcome, material usage')).toBeInTheDocument();
+    // Carbon names the pagination buttons only through a tooltip that jsdom does not compute.
+    await user.click(dialog.querySelector('.cds--pagination__button--forward') as HTMLElement);
+    expect(await within(dialog).findByText('Spool mounted automatically')).toBeInTheDocument();
+    expect(pages).toEqual(['1', '2']);
   });
 
   it('adds newly received events without crashing the open diagnostics table', async () => {
@@ -495,7 +536,7 @@ describe('Connector diagnostics', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=connectors');
+    renderPage('/settings/local-services?tab=connectors');
     const dialog = await openDiagnostics(user);
     await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
     expect(await within(dialog).findByText(/unknown material/)).toBeInTheDocument();

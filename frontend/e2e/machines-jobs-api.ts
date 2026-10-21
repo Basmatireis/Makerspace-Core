@@ -27,6 +27,7 @@ export const ids = {
   typePrinter: id(10),
   typeLaser: id(11),
   bambu: id(20),
+  connector: id(25),
   laser: id(21),
   saw: id(22),
   prusa: id(23),
@@ -1088,6 +1089,43 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
         version: 1,
         updatedAt: '2026-10-21T00:00:00Z',
       });
+    // Settings, Local services: one connector that runs an older release with the updater sidecar.
+    if (path === '/api/v1/printer-connectors' && method === 'GET')
+      return ok(route, {
+        coreVersion: '0.8.3',
+        items: [
+          {
+            id: ids.connector,
+            name: 'Bambu LAN',
+            locationLabel: 'Print room',
+            lifecycle: 'active',
+            configurationRevision: 2,
+            appliedConfigurationRevision: 2,
+            softwareVersion: '0.8.2',
+            protocolVersion: 1,
+            healthState: 'connected',
+            healthSummary: null,
+            pendingEventCount: 0,
+            quarantinedEventCount: 0,
+            lastHeartbeatAt: minutes(-1),
+            enrolledAt: created,
+            disabledAt: null,
+            revokedAt: null,
+            eventsClearedAt: null,
+            eventsClearedByName: null,
+            updaterAvailable: true,
+            update: null,
+            version: 3,
+            createdAt: created,
+            updatedAt: created,
+          },
+        ],
+      });
+    if (path.match(/^\/api\/v1\/printer-connectors\/[^/]+\/assignments$/) && method === 'GET')
+      return ok(route, { items: [] });
+    if (path === '/api/v1/streaming-gateways' && method === 'GET')
+      return ok(route, { items: [], coreVersion: '0.8.3' });
+    if (path === '/api/v1/local-services/cameras' && method === 'GET') return ok(route, { items: [] });
     if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/setup$/) && method === 'PUT')
       return ok(route, { ...world.printerProfile, version: world.printerProfile.version + 1 });
     if ((match = path.match(/^\/api\/v1\/machines\/([^/]+)\/printer$/))) {

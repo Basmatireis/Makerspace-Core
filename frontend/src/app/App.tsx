@@ -433,7 +433,7 @@ export function App() {
             <Route
               path="settings/local-services"
               element={
-                <PermissionRoute allOf={[PermissionId.local_servicesmanage]}>
+                <PermissionRoute anyOf={[PermissionId.local_servicesmanage, PermissionId.printer_connectorsread]}>
                   <LocalServicesPage />
                 </PermissionRoute>
               }
@@ -464,7 +464,7 @@ export function App() {
             />
             <Route
               path="settings/printer-connectors"
-              element={<Navigate to="/machine-logbook/machines?tab=connectors" replace />}
+              element={<Navigate to={machineLogbookPaths.connectors()} replace />}
             />
             <Route
               path="settings/visitor-enrollment"

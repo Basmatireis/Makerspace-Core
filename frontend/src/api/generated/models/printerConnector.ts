@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdate } from './localServiceUpdate';
 import type { PrinterConnectorHealthState } from './printerConnectorHealthState';
 import type { PrinterConnectorLifecycle } from './printerConnectorLifecycle';
 import type { UUIDv7 } from './uUIDv7';
@@ -80,6 +81,9 @@ export interface PrinterConnector {
      * @nullable
      */
   eventsClearedByName: string | null;
+  /** The connector's last heartbeat reported a running updater sidecar. */
+  updaterAvailable: boolean;
+  update: LocalServiceUpdate | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

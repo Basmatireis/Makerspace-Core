@@ -22,4 +22,9 @@ import type { StreamingGateway } from './streamingGateway';
 
 export interface StreamingGatewayList {
   items: StreamingGateway[];
+  /**
+     * Core's own version, the only one gateways can be updated to; "dev" for development builds.
+     * @maxLength 80
+     */
+  coreVersion: string;
 }

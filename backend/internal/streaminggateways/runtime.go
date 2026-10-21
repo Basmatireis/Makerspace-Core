@@ -66,6 +66,7 @@ func (s *Service) Configuration(ctx context.Context, gateway Context) (Configura
 		PublicHost:       row.PublicHost,
 		TicketPublicKeys: keys,
 		Cameras:          []ConfigCamera{},
+		Update:           updateOffer(row),
 	}
 	if gateway.Lifecycle == LifecycleDisabled {
 		return result, nil
@@ -179,6 +180,9 @@ func (s *Service) Heartbeat(ctx context.Context, gateway Context, input Heartbea
 		return Gateway{}, apperror.New(http.StatusForbidden, "streaming_gateway_inactive", "Gateway is not active")
 	}
 	if err != nil {
+		return Gateway{}, err
+	}
+	if row, err = recordUpdaterReport(ctx, q, row, input.Updater); err != nil {
 		return Gateway{}, err
 	}
 	assigned, err := q.ListGatewayCameraMachines(ctx, gateway.ID)

@@ -23,6 +23,7 @@ import type {
   CreateStreamingCameraRequest,
   CreateStreamingGatewayRequest,
   EnrollStreamingGatewayRequest,
+  RequestLocalServiceUpdateRequest,
   RotateStreamingGatewayCredentialRequest,
   StreamTicketKeyRotation,
   StreamingCamera,
@@ -258,6 +259,45 @@ return apiFetch<StreamingGateway>(getRevokeStreamingGatewayUrl(streamingGatewayI
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRequestStreamingGatewayUpdateUrl = (streamingGatewayId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/streaming-gateways/${streamingGatewayId}/update`
+}
+
+/**
+ * Needs local_services.manage. The gateway must be active, report an updater sidecar and run an older release; targetVersion must equal Core's version. The gateway hands the request to its updater with its next configuration poll and reports the outcome in later heartbeats. Audited as an update request.
+ * @summary Ask the gateway's updater to install Core's version
+ */
+export const requestStreamingGatewayUpdate = async (streamingGatewayId: UUIDv7,
+    requestLocalServiceUpdateRequest: RequestLocalServiceUpdateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<StreamingGateway> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<StreamingGateway>(getRequestStreamingGatewayUpdateUrl(streamingGatewayId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestLocalServiceUpdateRequest)
   }
 );}
 

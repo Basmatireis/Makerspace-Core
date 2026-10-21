@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
@@ -40,7 +41,7 @@ func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	return NewRuntime(store, client, dir, enrollment, slog.New(slog.NewTextHandler(logs, nil))), &tokens
+	return NewRuntime(store, client, dir, enrollment, localupdater.Exchange{}, slog.New(slog.NewTextHandler(logs, nil))), &tokens
 }
 
 func TestEnrollmentUsesTheTrimmedEnvironmentSecret(t *testing.T) {
@@ -76,7 +77,7 @@ func TestEnrollmentWithoutAnySecretExplainsWhatToDo(t *testing.T) {
 	runtime, tokens := newEnrollmentRuntime(t, Enrollment{}, io.Discard)
 	_, err := runtime.ensureIdentity(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "CONNECTOR_ENROLLMENT_SECRET") ||
-		!strings.Contains(err.Error(), "Machines > Connectors") {
+		!strings.Contains(err.Error(), "Settings > Local services > Printer connectors") {
 		t.Fatalf("expected an actionable error, got %v", err)
 	}
 	if len(*tokens) != 0 {

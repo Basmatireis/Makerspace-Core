@@ -1135,6 +1135,24 @@ type PrinterConnector struct {
 	UpdatedAt                    time.Time
 	EventsClearedAt              pgtype.Timestamptz
 	EventsClearedBy              *uuid.UUID
+	UpdaterAvailable             bool
+	UpdateRequestID              *uuid.UUID
+	UpdateTargetVersion          *string
+	UpdateRequestedAt            pgtype.Timestamptz
+	UpdateStatus                 *string
+	UpdateStatusReason           *string
+	UpdateStatusAt               pgtype.Timestamptz
+}
+
+type PrinterConnectorActivity struct {
+	ID            uuid.UUID
+	ConnectorID   uuid.UUID
+	MachineID     *uuid.UUID
+	Kind          string
+	ResourceID    *uuid.UUID
+	EventKind     *string
+	ChangedFields []string
+	OccurredAt    time.Time
 }
 
 type PrinterConnectorAssignment struct {
@@ -1622,6 +1640,13 @@ type StreamingGateway struct {
 	Version                      int64
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
+	UpdaterAvailable             bool
+	UpdateRequestID              *uuid.UUID
+	UpdateTargetVersion          *string
+	UpdateRequestedAt            pgtype.Timestamptz
+	UpdateStatus                 *string
+	UpdateStatusReason           *string
+	UpdateStatusAt               pgtype.Timestamptz
 }
 
 type StreamingGatewayCredential struct {

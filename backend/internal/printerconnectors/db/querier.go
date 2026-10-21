@@ -21,6 +21,7 @@ type Querier interface {
 	ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error)
 	CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
+	CountConnectorActivity(ctx context.Context, connectorID uuid.UUID) (int64, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
 	CreateCredential(ctx context.Context, arg CreateCredentialParams) (PrinterConnectorCredential, error)
@@ -49,6 +50,7 @@ type Querier interface {
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
+	InsertConnectorActivity(ctx context.Context, arg InsertConnectorActivityParams) error
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
 	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
@@ -57,6 +59,8 @@ type Querier interface {
 	ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error)
 	// Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
 	ListConfiguredSlotsByExternalIDs(ctx context.Context, machineIds []uuid.UUID) ([]ListConfiguredSlotsByExternalIDsRow, error)
+	// Newest first, with the display names of the machine and of the resource while they exist.
+	ListConnectorActivity(ctx context.Context, arg ListConnectorActivityParams) ([]ListConnectorActivityRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
 	ListConnectorEvents(ctx context.Context, arg ListConnectorEventsParams) ([]ListConnectorEventsRow, error)
 	ListConnectors(ctx context.Context) ([]PrinterConnector, error)
@@ -71,14 +75,19 @@ type Querier interface {
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
 	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
+	// Keeps the newest keep_count entries of the connector that are not older than cutoff.
+	PruneConnectorActivity(ctx context.Context, arg PruneConnectorActivityParams) error
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
 	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
+	RequestConnectorUpdate(ctx context.Context, arg RequestConnectorUpdateParams) (PrinterConnector, error)
 	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
 	RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error
+	SetConnectorUpdateStatus(ctx context.Context, arg SetConnectorUpdateStatusParams) (PrinterConnector, error)
+	SetConnectorUpdaterAvailable(ctx context.Context, arg SetConnectorUpdaterAvailableParams) error
 	SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error)
 	// Runs still shown as running when their connector is deleted can never be finished by it.
 	SettleRunsOfConnector(ctx context.Context, connectorID uuid.UUID) error

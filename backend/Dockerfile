@@ -46,12 +46,13 @@ RUN go mod download
 
 FROM dependencies AS build
 
+ARG VERSION=dev
 ARG TARGETOS
 ARG TARGETARCH
 COPY backend/ ./
 COPY api/ /workspace/api/
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/platform/buildinfo.Version=${VERSION}" -o /out/api ./cmd/api \
     && GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/admin ./cmd/admin
 
 FROM alpine:3.24.2 AS final

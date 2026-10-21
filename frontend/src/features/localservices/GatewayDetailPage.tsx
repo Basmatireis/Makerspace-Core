@@ -454,7 +454,7 @@ function AssignCameraModal({
           id="camera-machine"
           labelText="Machine"
           value={machineId}
-          helperText="Only printers with an active Bambu H2D or X1 Carbon assignment (Machines, Connectors) can stream."
+          helperText="Only printers with an active Bambu H2D or X1 Carbon assignment (Settings, Local services, Printer connectors) can stream."
           onChange={(event) => {
             setMachineId(event.target.value);
             assign.reset();

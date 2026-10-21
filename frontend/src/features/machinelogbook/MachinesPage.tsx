@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Button, Link as CarbonLink } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import type { Machine, MachineAvailability, MachineCurrentItem } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
 import { SectionSwitcher } from '../../app/SectionSwitcher';
-import { ConnectorsTab } from './components/ConnectorsTab';
 import { MachineTypesTab } from './components/MachineTypesTab';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { machineActivityQuery, machinesQuery } from './queries';
@@ -43,8 +42,8 @@ const connectorOptions: Option[] = [
   { id: 'issue', label: 'Issue' },
   { id: 'none', label: 'None' },
 ];
-type TabKey = 'machines' | 'connectors' | 'types';
-const tabLabels: Record<TabKey, string> = { machines: 'Machines', connectors: 'Connectors', types: 'Machine types' };
+type TabKey = 'machines' | 'types';
+const tabLabels: Record<TabKey, string> = { machines: 'Machines', types: 'Machine types' };
 
 function ActivityText({ row }: { row: Row }) {
   if (row.current) {
@@ -123,7 +122,7 @@ export function MachinesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const url = useUrlState('');
   const [params, setParams] = useSearchParams();
-  const tabs: TabKey[] = can('printer_connectors.read') ? ['machines', 'connectors', 'types'] : ['machines', 'types'];
+  const tabs: TabKey[] = ['machines', 'types'];
   const requestedTab = params.get('tab') as TabKey | null;
   const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
   const selectTab = (id: string) =>
@@ -198,6 +197,8 @@ export function MachinesPage() {
       (connectorIds.length === 0 || connectorIds.includes(row.connectorState)),
   );
 
+  // The Connectors tab moved to Settings, Local services; old links still arrive here.
+  if (params.get('tab') === 'connectors') return <Navigate to={machineLogbookPaths.connectors()} replace />;
   return (
     <PageShell
       title="Machines"
@@ -249,7 +250,6 @@ export function MachinesPage() {
           />
         </QueryBoundary>
       )}
-      {tab === 'connectors' && <ConnectorsTab switcher={switcher} />}
       {tab === 'types' && <MachineTypesTab switcher={switcher} />}
       {canManage && formOpen && <MachineSetupWizard open onClose={() => setFormOpen(false)} />}
     </PageShell>

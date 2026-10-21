@@ -15,6 +15,17 @@ func printerConnectorDTO(value printerconnectors.Connector) openapi.PrinterConne
 	if value.HealthState != nil {
 		health = nullable.NewNullableWithValue(openapi.PrinterConnectorHealthState(*value.HealthState))
 	}
+	update := nullable.NewNullNullable[openapi.LocalServiceUpdate]()
+	if state := value.Update; state != nil {
+		update = localServiceUpdateDTO(
+			state.RequestID,
+			state.TargetVersion,
+			state.RequestedAt,
+			state.Status,
+			state.Reason,
+			state.StatusAt,
+		)
+	}
 	return openapi.PrinterConnector{
 		Id:                    value.ID,
 		Name:                  value.Name,
@@ -32,6 +43,7 @@ func printerConnectorDTO(value printerconnectors.Connector) openapi.PrinterConne
 		EnrolledAt: nullableValue(
 			value.EnrolledAt,
 		), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt),
+		UpdaterAvailable: value.UpdaterAvailable, Update: update,
 		Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
@@ -100,7 +112,7 @@ func (s *Server) ListPrinterConnectors(
 	for _, item := range items {
 		result = append(result, printerConnectorDTO(item))
 	}
-	return openapi.ListPrinterConnectors200JSONResponse{Items: result}, nil
+	return openapi.ListPrinterConnectors200JSONResponse{Items: result, CoreVersion: s.config.Version}, nil
 }
 
 func (s *Server) CreatePrinterConnector(
@@ -438,6 +450,7 @@ func (s *Server) GetPrinterConnectorConfiguration(
 			Revision:        configuration.Revision,
 			ProtocolVersion: configuration.ProtocolVersion,
 			Assignments:     assignments,
+			Update:          updateOfferDTO(configuration.Update),
 		},
 		Headers: openapi.GetPrinterConnectorConfiguration200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
@@ -478,6 +491,7 @@ func (s *Server) ReportPrinterConnectorHeartbeat(
 			PendingEventCount:            request.Body.PendingEventCount,
 			QuarantinedEventCount:        request.Body.QuarantinedEventCount,
 			Assignments:                  health,
+			Updater:                      updaterReportFrom(request.Body.Updater),
 		},
 	)
 	if err != nil {
@@ -630,4 +644,82 @@ func (s *Server) ClearPrinterConnectorEvents(
 		return nil, err
 	}
 	return openapi.ClearPrinterConnectorEvents200JSONResponse(printerConnectorDTO(item)), nil
+}
+
+func printerConnectorActivityDTO(value printerconnectors.Activity) openapi.PrinterConnectorActivity {
+	var eventKind *string
+	if value.EventKind != nil {
+		kind := string(*value.EventKind)
+		eventKind = &kind
+	}
+	fields := value.ChangedFields
+	if fields == nil {
+		fields = []string{}
+	}
+	return openapi.PrinterConnectorActivity{
+		Id:            value.ID,
+		Kind:          openapi.PrinterConnectorActivityKind(value.Kind),
+		OccurredAt:    value.OccurredAt,
+		MachineId:     nullableUUIDValue(value.MachineID),
+		MachineName:   nullableString(value.MachineName),
+		ResourceId:    nullableUUIDValue(value.ResourceID),
+		ResourceLabel: nullableString(value.ResourceLabel),
+		EventKind:     nullableString(eventKind),
+		ChangedFields: fields,
+	}
+}
+
+func (s *Server) ListPrinterConnectorActivity(
+	ctx context.Context,
+	request openapi.ListPrinterConnectorActivityRequestObject,
+) (openapi.ListPrinterConnectorActivityResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, err := s.printerConnectors.ListActivity(
+		ctx,
+		principal,
+		request.PrinterConnectorId,
+		defaultInt(request.Params.Page, 1),
+		defaultInt(request.Params.PageSize, 25),
+	)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.PrinterConnectorActivity, 0, len(page.Items))
+	for _, item := range page.Items {
+		items = append(items, printerConnectorActivityDTO(item))
+	}
+	return openapi.ListPrinterConnectorActivity200JSONResponse{
+		Items:    items,
+		Page:     page.Page,
+		PageSize: page.PageSize,
+		Total:    page.Total,
+	}, nil
+}
+
+func (s *Server) RequestPrinterConnectorUpdate(
+	ctx context.Context,
+	request openapi.RequestPrinterConnectorUpdateRequestObject,
+) (openapi.RequestPrinterConnectorUpdateResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.printerConnectors.RequestUpdate(
+		ctx,
+		principal,
+		request.PrinterConnectorId,
+		request.Body.TargetVersion,
+		s.config.Version,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RequestPrinterConnectorUpdate200JSONResponse(printerConnectorDTO(item)), nil
 }

@@ -58,12 +58,15 @@ type Querier interface {
 	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	RecordGatewayHeartbeat(ctx context.Context, arg RecordGatewayHeartbeatParams) (StreamingGateway, error)
 	ReenrollGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error)
+	RequestGatewayUpdate(ctx context.Context, arg RequestGatewayUpdateParams) (StreamingGateway, error)
 	RetireActiveTicketKey(ctx context.Context, retiredAt pgtype.Timestamptz) error
 	RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (StreamingGateway, error)
 	RevokeGatewayCredentials(ctx context.Context, gatewayID uuid.UUID) error
 	// Enrollment and credentials -----------------------------------------------------------------------------------
 	RevokeOpenGatewayEnrollments(ctx context.Context, gatewayID uuid.UUID) error
 	RevokeRetiringGatewayCredentials(ctx context.Context, gatewayID uuid.UUID) error
+	SetGatewayUpdateStatus(ctx context.Context, arg SetGatewayUpdateStatusParams) (StreamingGateway, error)
+	SetGatewayUpdaterAvailable(ctx context.Context, arg SetGatewayUpdaterAvailableParams) error
 	TouchGatewayCredential(ctx context.Context, id uuid.UUID) error
 	UpdateCameraEnabled(ctx context.Context, arg UpdateCameraEnabledParams) (StreamingCamera, error)
 	UpdateGateway(ctx context.Context, arg UpdateGatewayParams) (StreamingGateway, error)

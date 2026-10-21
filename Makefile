@@ -138,11 +138,12 @@ check-frontend: ## Run the dependency audit, lint, type checking, tests, and a p
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
 	docker compose run --rm --no-deps -e CI=true frontend pnpm build
 
-build: ## Build the backend, frontend, printer connector and streaming gateway production images.
+build: ## Build the backend, frontend, printer connector, streaming gateway and local updater production images.
 	docker build --target final -f backend/Dockerfile .
 	docker build --target final -f frontend/Dockerfile .
 	docker build --target final -f printer-connector/Dockerfile .
 	docker build --target final -f streaming-gateway/Dockerfile .
+	docker build --target final -f local-updater/Dockerfile .
 
 build-desktop: ## Build the native desktop application and platform installer.
 	cd desktop-terminal && pnpm install --frozen-lockfile

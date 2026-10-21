@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -280,23 +281,21 @@ func (h *runHarness) finish(t *testing.T, runID uuid.UUID, state string, ended t
 }
 
 // apply runs the logbook's reaction to a connector event in its own transaction.
-func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind RunEventKind) {
+func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind RunEventKind) RecordedRunChange {
 	t.Helper()
 	tx, err := h.pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(t.Context())
-	if err = h.s.ApplyRecordedRunEvent(
-		t.Context(),
-		tx,
-		RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: string(kind)},
-	); err != nil {
+	change, err := h.s.ApplyRecordedRunEvent(t.Context(), tx, RecordedRunEvent{RunID: runID, Kind: string(kind)})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	return change
 }
 
 func (h *runHarness) attach(t *testing.T, runID uuid.UUID, job MachineJob, replace bool) MachineJob {
@@ -477,7 +476,7 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	ended := h.now.Truncate(time.Second).Add(-10 * time.Minute)
 	h.finish(t, runID, "finished", ended)
 	h.report(t, runID, h.machine.ID, "100", 1, h.spool.ID)
-	h.apply(t, runID, "terminal_outcome")
+	change := h.apply(t, runID, "terminal_outcome")
 	settled, err := h.s.GetJob(ctx, h.p, job.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -500,16 +499,20 @@ func TestConnectorEventsSettleOutcomeUsageAndJob(t *testing.T) {
 	if got := h.quantity(t, h.material.ID); got != "900" {
 		t.Fatalf("spool material quantity = %s", got)
 	}
-	var actorType string
-	var metadata string
+	// The change is reported to the connector's activity log, not audited.
+	if change.RunID != runID || !slices.Contains(change.RunFields, "outcome") ||
+		!slices.Contains(change.RunFields, "usages") || change.JobID == nil || *change.JobID != job.ID ||
+		!slices.Contains(change.JobFields, "effectivePrice") {
+		t.Fatalf("reported change: %+v", change)
+	}
+	var audited int
 	if err = h.pool.QueryRow(
 		ctx,
-		`SELECT actor_type, metadata::text FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1`,
+		`SELECT count(*) FROM audit_events WHERE resource_id IN ($1, $2) AND actor_type = 'system'`,
 		job.ID,
-	).Scan(&actorType, &metadata); err != nil ||
-		actorType != "system" ||
-		!strings.Contains(metadata, h.connectorID.String()) {
-		t.Fatalf("connector audit: %q %q %v", actorType, metadata, err)
+		runID,
+	).Scan(&audited); err != nil || audited != 0 {
+		t.Fatalf("automatic run changes were audited: %d %v", audited, err)
 	}
 	// A repeated event does not consume twice.
 	h.apply(t, runID, "consumption_report")

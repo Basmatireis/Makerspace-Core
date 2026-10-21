@@ -29,6 +29,8 @@ const gateway = (patch: Partial<StreamingGateway> = {}): StreamingGateway => ({
   disabledAt: null,
   revokedAt: null,
   credentialExpiresAt: '2027-01-17T08:00:00Z',
+  updaterAvailable: false,
+  update: null,
   version: 4,
   createdAt: stamp,
   updatedAt: stamp,
@@ -58,7 +60,7 @@ const camera = (patch: Partial<StreamingCamera> = {}): StreamingCamera => ({
 function setup(permissions: PermissionId[], { gateways = [gateway()], cameras = [camera()] } = {}) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
-    http.get('*/api/v1/streaming-gateways', () => HttpResponse.json({ items: gateways })),
+    http.get('*/api/v1/streaming-gateways', () => HttpResponse.json({ items: gateways, coreVersion: '0.8.3' })),
     http.get('*/api/v1/streaming-gateways/:id', ({ params }) => {
       const found = gateways.find((item) => item.id === params.id);
       return found
@@ -78,7 +80,7 @@ function setup(permissions: PermissionId[], { gateways = [gateway()], cameras = 
 }
 
 describe('Local services', () => {
-  it('is reachable only with local_services.manage', async () => {
+  it('is reachable only with local_services.manage or printer_connectors.read', async () => {
     setup([PermissionId.machinesread, PermissionId.rolesread]);
     renderRoute(<App />, '/settings/local-services');
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Local services' })).not.toBeInTheDocument());
@@ -98,10 +100,11 @@ describe('Local services', () => {
     expect(within(table).getByRole('columnheader', { name: 'Credential expires' })).toBeInTheDocument();
     expect(within(row).getByText(formatDateTime('2027-01-17T08:00:00Z'))).toBeInTheDocument();
     await waitFor(() => expect(within(row).getByText('1')).toBeInTheDocument());
-    expect(screen.getByRole('link', { name: /Open Machines, Connectors/ })).toHaveAttribute(
-      'href',
-      '/machine-logbook/machines?tab=connectors',
-    );
+    // Without printer_connectors.read there is no connectors tab.
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Streaming gateways',
+      'Versions and updates',
+    ]);
   });
 
   it('shows the enrollment secret once after adding a gateway', async () => {
@@ -273,16 +276,113 @@ describe('Local services', () => {
     await screen.findByRole('table', { name: 'Streaming gateways' });
     const menuItem = (label: string) =>
       screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
-    await user.click(await screen.findByRole('button', { name: 'Actions for Second gateway' }));
+    // Inside Carbon Tabs jsdom does not resolve the tooltip that names the overflow menu button.
+    await user.click(
+      (await screen.findByText('Actions for Second gateway', { selector: '.cds--tooltip-content' }))
+        .closest('.cds--popover-container')!
+        .querySelector('button') as HTMLElement,
+    );
     expect(await menuItem('New enrollment secret')).toBeInTheDocument();
     await user.click(await menuItem('Delete'));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete gateway' }));
     await waitFor(() => expect(deleted).toEqual({ expectedVersion: 4 }));
 
-    await user.click(await screen.findByRole('button', { name: 'Actions for Print room gateway' }));
+    await user.click(
+      (await screen.findByText('Actions for Print room gateway', { selector: '.cds--tooltip-content' }))
+        .closest('.cds--popover-container')!
+        .querySelector('button') as HTMLElement,
+    );
     await user.click(await menuItem('New enrollment secret'));
     expect(await screen.findByText(secret)).toBeInTheDocument();
     expect(screen.getByText(/STREAM_ENROLLMENT_SECRET=T+/)).toBeInTheDocument();
+  });
+
+  it('lists versions, offers an update with confirmation and explains manual updates without the updater', async () => {
+    const withUpdater = gateway({ softwareVersion: '0.8.2', updaterAvailable: true });
+    const manual = gateway({
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a705',
+      name: 'Hall gateway',
+      softwareVersion: '0.8.1',
+    });
+    const current = gateway({
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a706',
+      name: 'Current gateway',
+      softwareVersion: '0.8.3',
+    });
+    setup([PermissionId.local_servicesmanage], { gateways: [withUpdater, manual, current] });
+    let requested: unknown;
+    server.use(
+      http.post(`*/api/v1/streaming-gateways/${gatewayId}/update`, async ({ request }) => {
+        requested = await request.json();
+        return HttpResponse.json(
+          gateway({
+            ...withUpdater,
+            update: {
+              requestId: '0192f6f8-743e-7c77-a349-cd07c3e8a707',
+              targetVersion: '0.8.3',
+              status: 'requested',
+              reason: null,
+              requestedAt: stamp,
+              statusAt: stamp,
+            },
+          }),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/local-services?tab=updates');
+    const table = await screen.findByRole('table', { name: 'Versions and updates' });
+    expect(screen.getByText('0.8.3', { selector: 'strong' })).toBeInTheDocument();
+    const updatable = within(table).getByRole('row', { name: /Print room gateway/ });
+    expect(within(updatable).getByText('Update available')).toBeInTheDocument();
+    const hall = within(table).getByRole('row', { name: /Hall gateway/ });
+    expect(within(hall).getByText('No updater on this host: update it by hand.')).toBeInTheDocument();
+    expect(within(hall).queryByRole('button')).not.toBeInTheDocument();
+    expect(
+      within(within(table).getByRole('row', { name: /Current gateway/ })).getByText('Up to date'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/MAKERSPACE_VERSION=0\.8\.3/)).toBeInTheDocument();
+
+    await user.click(within(updatable).getByRole('button', { name: 'Update to 0.8.3' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Update Print room gateway to 0.8.3?' });
+    expect(requested).toBeUndefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Update' }));
+    await waitFor(() => expect(requested).toEqual({ targetVersion: '0.8.3' }));
+  });
+
+  it('shows printer connectors to connector readers without gateway access and without update actions', async () => {
+    setup([PermissionId.printer_connectorsread]);
+    server.use(
+      http.get('*/api/v1/printer-connectors', () =>
+        HttpResponse.json({
+          coreVersion: '0.8.3',
+          items: [
+            {
+              ...gateway(),
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a708',
+              name: 'Print room agent',
+              locationLabel: null,
+              pendingEventCount: 0,
+              quarantinedEventCount: 0,
+              eventsClearedAt: null,
+              eventsClearedByName: null,
+              softwareVersion: '0.8.2',
+              updaterAvailable: true,
+            },
+          ],
+        }),
+      ),
+      http.get('*/api/v1/printer-connectors/:id/assignments', () => HttpResponse.json({ items: [] })),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/local-services');
+    expect(await screen.findByRole('tab', { name: 'Printer connectors', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Streaming gateways' })).not.toBeInTheDocument();
+    await screen.findByRole('table', { name: 'Printer connectors' });
+    await user.click(screen.getByRole('tab', { name: 'Versions and updates' }));
+    const table = await screen.findByRole('table', { name: 'Versions and updates' });
+    expect(within(table).getByText('Update available')).toBeInTheDocument();
+    expect(within(table).queryByRole('button')).not.toBeInTheDocument();
   });
 });

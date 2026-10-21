@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/google/uuid"
@@ -35,6 +36,11 @@ type Runtime struct {
 
 	now             func() time.Time
 	lastRejectedLog time.Time
+
+	// exchange hands Core's update requests to the bundle's updater sidecar; updateSupported is true
+	// once Core's configuration showed that it accepts the updater report.
+	exchange        localupdater.Exchange
+	updateSupported bool
 }
 
 // Configuration and heartbeat are polled every 10 seconds so a change in Core
@@ -72,12 +78,20 @@ func (e Enrollment) Resolve() (string, error) {
 
 func (e Enrollment) configured() bool { return strings.TrimSpace(e.Secret) != "" || e.File != "" }
 
-func NewRuntime(store *Store, client *Client, dataDir string, enrollment Enrollment, logger *slog.Logger) *Runtime {
+func NewRuntime(
+	store *Store,
+	client *Client,
+	dataDir string,
+	enrollment Enrollment,
+	exchange localupdater.Exchange,
+	logger *slog.Logger,
+) *Runtime {
 	return &Runtime{
 		store:      store,
 		client:     client,
 		dataDir:    dataDir,
 		enrollment: enrollment,
+		exchange:   exchange,
 		logger:     logger,
 		adapters:   map[uuid.UUID]context.CancelFunc{},
 		health:     map[uuid.UUID]AssignmentHealth{},
@@ -199,7 +213,7 @@ func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
 	}
 	if enrollment == "" {
 		return Identity{}, errors.New(
-			"not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Machines > Connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again",
+			"not enrolled and CONNECTOR_ENROLLMENT_SECRET is not set: in Makerspace Core open Settings > Local services > Printer connectors, create a connector, copy its one-time enrollment secret into CONNECTOR_ENROLLMENT_SECRET in the .env file next to compose.yaml, then start the connector again",
 		)
 	}
 	value, err := r.client.Enroll(ctx, enrollment, *identity, Version)
@@ -281,6 +295,8 @@ func (r *Runtime) syncConfiguration(ctx context.Context, identity Identity) erro
 	if err != nil {
 		return err
 	}
+	r.offerUpdate(value.Update)
+	value.Update = localupdater.Offer{}
 	r.mu.Lock()
 	unchanged := r.revision == value.Revision
 	r.mu.Unlock()
@@ -292,6 +308,19 @@ func (r *Runtime) syncConfiguration(ctx context.Context, identity Identity) erro
 	}
 	r.apply(ctx, value)
 	return r.writeHealth("healthy")
+}
+
+// offerUpdate passes an open update request from Core to the updater sidecar, if one runs.
+func (r *Runtime) offerUpdate(offer localupdater.Offer) {
+	r.mu.Lock()
+	r.updateSupported = offer.Present
+	r.mu.Unlock()
+	if offer.Request == nil {
+		return
+	}
+	if err := r.exchange.Submit(*offer.Request); err != nil {
+		r.logger.Warn("update request not handed to the updater", "error", err.Error())
+	}
 }
 
 func (r *Runtime) apply(parent context.Context, value Configuration) {
@@ -643,7 +672,13 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 		}
 	}
 	revision := r.revision
+	supported := r.updateSupported
 	r.mu.Unlock()
+	var updater *localupdater.Report
+	if supported {
+		report := r.exchange.Report()
+		updater = &report
+	}
 	coreRevision, err := r.client.Heartbeat(
 		ctx,
 		identity.CredentialSecret,
@@ -655,6 +690,7 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 			PendingEventCount:            pending,
 			QuarantinedEventCount:        quarantined,
 			Assignments:                  health,
+			Updater:                      updater,
 		},
 	)
 	if err != nil {

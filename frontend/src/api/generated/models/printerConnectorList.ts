@@ -22,4 +22,9 @@ import type { PrinterConnector } from './printerConnector';
 
 export interface PrinterConnectorList {
   items: PrinterConnector[];
+  /**
+     * Core's own version, the only one connectors can be updated to; "dev" for development builds.
+     * @maxLength 80
+     */
+  coreVersion: string;
 }

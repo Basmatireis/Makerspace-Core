@@ -39,6 +39,20 @@ UPDATE streaming_gateways SET software_version = sqlc.arg(software_version), pro
     health_summary = sqlc.narg(health_summary), last_heartbeat_at = now()
 WHERE id = sqlc.arg(id) AND lifecycle = 'active' RETURNING *;
 
+-- name: RequestGatewayUpdate :one
+UPDATE streaming_gateways SET update_request_id = sqlc.arg(request_id), update_target_version = sqlc.arg(target_version),
+    update_requested_at = now(), update_status = 'requested', update_status_reason = NULL, update_status_at = now()
+WHERE id = sqlc.arg(id) RETURNING *;
+
+-- name: SetGatewayUpdaterAvailable :exec
+UPDATE streaming_gateways SET updater_available = sqlc.arg(available)
+WHERE id = sqlc.arg(id) AND updater_available <> sqlc.arg(available);
+
+-- name: SetGatewayUpdateStatus :one
+UPDATE streaming_gateways SET update_status = sqlc.arg(status), update_status_reason = sqlc.narg(reason), update_status_at = now()
+WHERE id = sqlc.arg(id) AND update_request_id = sqlc.arg(request_id) AND update_status IN ('requested', 'in_progress')
+RETURNING *;
+
 -- Enrollment and credentials -----------------------------------------------------------------------------------
 
 -- name: RevokeOpenGatewayEnrollments :exec

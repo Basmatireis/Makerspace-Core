@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdateOffer } from './localServiceUpdateOffer';
 import type { PrinterConnectorRuntimeAssignment } from './printerConnectorRuntimeAssignment';
 
 export interface PrinterConnectorConfiguration {
@@ -26,4 +27,6 @@ export interface PrinterConnectorConfiguration {
   /** @minimum 1 */
   protocolVersion: number;
   assignments: PrinterConnectorRuntimeAssignment[];
+  /** The open update request for the connector's updater. The field's presence tells a connector that Core accepts the updater field in heartbeats. */
+  update: LocalServiceUpdateOffer | null;
 }

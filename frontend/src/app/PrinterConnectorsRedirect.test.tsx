@@ -8,7 +8,7 @@ import { server } from '../test/server';
 import { App } from './App';
 
 describe('printer connector settings route', () => {
-  it('redirects the old printer connector settings page to the Connectors tab of Machines', async () => {
+  it('redirects the old printer connector settings page to Settings, Local services', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.machinesread, PermissionId.printer_connectorsread])),
@@ -20,9 +20,9 @@ describe('printer connector settings route', () => {
     const { router } = renderRoute(<App />, '/settings/printer-connectors');
 
     expect(
-      await screen.findByRole('tab', { name: 'Connectors', selected: true }, { timeout: 5000 }),
+      await screen.findByRole('tab', { name: 'Printer connectors', selected: true }, { timeout: 5000 }),
     ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/machine-logbook/machines');
+    expect(router.state.location.pathname).toBe('/settings/local-services');
     expect(router.state.location.search).toBe('?tab=connectors');
   });
 });

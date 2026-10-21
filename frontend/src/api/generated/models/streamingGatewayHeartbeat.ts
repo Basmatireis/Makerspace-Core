@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdaterReport } from './localServiceUpdaterReport';
 import type { StreamingGatewayCameraHealth } from './streamingGatewayCameraHealth';
 import type { StreamingGatewayHeartbeatHealthState } from './streamingGatewayHeartbeatHealthState';
 
@@ -39,4 +40,5 @@ export interface StreamingGatewayHeartbeat {
   healthSummary: string | null;
   /** @maxItems 100 */
   cameras: StreamingGatewayCameraHealth[];
+  updater?: LocalServiceUpdaterReport;
 }
