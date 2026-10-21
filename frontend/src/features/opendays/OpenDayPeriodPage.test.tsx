@@ -711,8 +711,9 @@ describe('Open Day table and calendar filters', () => {
     await waitFor(() =>
       expect(within(dateTimeFilters).getByRole('option', { name: 'Friday' })).toHaveAttribute('aria-checked', 'true'),
     );
+    // The table re-renders after the filter state; on slow runners that lands after the option is checked.
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3));
     let table = screen.getByRole('table');
-    expect(within(table).getAllByRole('row')).toHaveLength(3);
     expect(within(table).getByText(timeRange(traineeVacancy, 'Europe/Vienna'))).toBeInTheDocument();
 
     await user.click(startTime);
@@ -720,7 +721,7 @@ describe('Open Day table and calendar filters', () => {
     await waitFor(() =>
       expect(within(dateTimeFilters).getByRole('option', { name: '08:00' })).toHaveAttribute('aria-checked', 'true'),
     );
-    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2));
     await user.click(within(dateTimeFilters).getByRole('option', { name: '14:00' }));
     await waitFor(() =>
       expect(within(dateTimeFilters).getByRole('option', { name: '14:00' })).toHaveAttribute('aria-checked', 'true'),
