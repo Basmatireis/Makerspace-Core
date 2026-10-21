@@ -986,6 +986,7 @@ type Payment struct {
 	ExternalSource           string
 	ExternalReference        string
 	ExternalInvoiceRequestID *uuid.UUID
+	SplitPart                int16
 }
 
 type PaymentAllocation struct {

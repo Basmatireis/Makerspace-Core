@@ -921,3 +921,29 @@ func (s *Server) CreateCashMovement(
 	}
 	return openapi.CreateCashMovement201JSONResponse(dto), nil
 }
+
+func (s *Server) PayOwnBalance(
+	ctx context.Context,
+	r openapi.PayOwnBalanceRequestObject,
+) (openapi.PayOwnBalanceResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := mapFinancialJSON[orders.OwnPaymentInput](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.PayOwn(ctx, p, input, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.OwnPaymentResult](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.PayOwnBalance201JSONResponse(dto), nil
+}

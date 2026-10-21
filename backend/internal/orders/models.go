@@ -48,6 +48,8 @@ type PaymentInput struct {
 	OccurredAt        time.Time     `json:"occurredAt"`
 	ExternalSource    string        `json:"externalSource,omitempty"`
 	ExternalReference string        `json:"externalReference,omitempty"`
+	// splitPart numbers the receipts one payment entry is split into when it settles several orders; 0 means 1.
+	splitPart int16
 }
 
 type PaymentReversalInput struct {

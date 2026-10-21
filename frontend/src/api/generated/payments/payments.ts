@@ -30,6 +30,8 @@ import type {
   Order,
   OrderPayment,
   OrderPaymentPage,
+  OwnPaymentRequest,
+  OwnPaymentResult,
   PaymentReconciliation,
   RecordOrderPayment,
   ReversePaymentCommand,
@@ -37,6 +39,54 @@ import type {
 } from '../models';
 
 import { apiFetch } from '../../http-client';
+
+export const getPayOwnBalanceUrl = () => {
+
+
+
+
+  return `/api/v1/me/payments`
+}
+
+/**
+ * Always scoped to the session's person; every order must have them as customer and every job must be theirs.
+ * Selected orders are paid in full. Selected jobs are put on one new finalized order for the person, which is
+ * paid in full too. Everything happens in one transaction and is recorded under the person, with the same
+ * order and payment audit events as at the sales counter. A cash or card entry that spans several orders is
+ * recorded as one receipt per order; a card slip's parts share its terminal reference.
+ * Needs `orders.read`, `payments.read` and `payments.record`; jobs additionally need `orders.write` and
+ * `orders.finalize`. `expectedTotal` is the total the person saw: when the server computes another total the
+ * request fails with 409 `payment_total_changed`. Orders that are not the person's unpaid orders (including
+ * orders covered by an external invoice request) fail with 409 `order_not_payable`, jobs that are not their
+ * priced jobs waiting for an order with 409 `job_not_payable`. The payments must add up to the total exactly
+ * (422 `payment_total_mismatch`).
+ * @summary Pay the signed-in person's own unpaid orders and jobs
+ */
+export const payOwnBalance = async (ownPaymentRequest: OwnPaymentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OwnPaymentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<OwnPaymentResult>(getPayOwnBalanceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ownPaymentRequest)
+  }
+);}
+
 
 export const getListOrderPaymentsUrl = (params?: ListOrderPaymentsParams,) => {
   const normalizedParams = new URLSearchParams();

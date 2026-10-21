@@ -64,6 +64,9 @@ type Querier interface {
 	LockOperation(ctx context.Context, operationKey string) error
 	LockOrder(ctx context.Context, id uuid.UUID) (Order, error)
 	LockOrganizationRequirements(ctx context.Context, id uuid.UUID) error
+	// Locks those of the given jobs that the person owes as customer: priced completely, with a price and on no order.
+	// Ascending id order, as finalization locks jobs.
+	LockOwnPayableJobs(ctx context.Context, arg LockOwnPayableJobsParams) ([]LockOwnPayableJobsRow, error)
 	LockPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	LockRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	NextAdjustmentReference(ctx context.Context) (int64, error)
@@ -71,6 +74,8 @@ type Querier interface {
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)
 	NextRequestReference(ctx context.Context) (int64, error)
+	// What one payment operation allocated, per order.
+	OperationAllocations(ctx context.Context, operationID uuid.UUID) ([]OperationAllocationsRow, error)
 	PaymentAllocations(ctx context.Context, paymentID *uuid.UUID) ([]PaymentAllocation, error)
 	PaymentReversalExists(ctx context.Context, reversesPaymentID *uuid.UUID) (bool, error)
 	ReconciliationTotals(ctx context.Context, arg ReconciliationTotalsParams) ([]ReconciliationTotalsRow, error)

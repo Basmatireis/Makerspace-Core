@@ -601,6 +601,7 @@ func (s *Service) settleByInvoice(
 			ExternalSource:           "wiRef",
 			ExternalReference:        r.Reference,
 			ExternalInvoiceRequestID: &r.ID,
+			SplitPart:                1,
 		},
 	)
 	if err != nil {
@@ -660,6 +661,7 @@ func (s *Service) reverseInvoiceSettlement(
 				ExternalSource:           original.ExternalSource,
 				ExternalReference:        externalReference,
 				ExternalInvoiceRequestID: original.ExternalInvoiceRequestID,
+				SplitPart:                original.SplitPart,
 			},
 		)
 		if err != nil {

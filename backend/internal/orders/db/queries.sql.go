@@ -14,7 +14,7 @@ import (
 )
 
 const activeReceipts = `-- name: ActiveReceipts :many
-SELECT p.id, p.reference, p.entry_kind, p.method, p.amount, p.currency, p.occurred_at, p.recorded_at, p.actor_account_id, p.reverses_payment_id, p.reversed_payment_reference, p.reversal_reason_kind, p.reason, p.external_source, p.external_reference, p.external_invoice_request_id FROM payments p JOIN payment_allocations a ON a.payment_id=p.id WHERE a.order_id=$1 GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.id
+SELECT p.id, p.reference, p.entry_kind, p.method, p.amount, p.currency, p.occurred_at, p.recorded_at, p.actor_account_id, p.reverses_payment_id, p.reversed_payment_reference, p.reversal_reason_kind, p.reason, p.external_source, p.external_reference, p.external_invoice_request_id, p.split_part FROM payments p JOIN payment_allocations a ON a.payment_id=p.id WHERE a.order_id=$1 GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.id
 `
 
 func (q *Queries) ActiveReceipts(ctx context.Context, orderID *uuid.UUID) ([]Payment, error) {
@@ -43,6 +43,7 @@ func (q *Queries) ActiveReceipts(ctx context.Context, orderID *uuid.UUID) ([]Pay
 			&i.ExternalSource,
 			&i.ExternalReference,
 			&i.ExternalInvoiceRequestID,
+			&i.SplitPart,
 		); err != nil {
 			return nil, err
 		}
@@ -78,7 +79,7 @@ func (q *Queries) ActiveRequest(ctx context.Context, orderID *uuid.UUID) (Extern
 }
 
 const activeRequestReceipts = `-- name: ActiveRequestReceipts :many
-SELECT p.id, p.reference, p.entry_kind, p.method, p.amount, p.currency, p.occurred_at, p.recorded_at, p.actor_account_id, p.reverses_payment_id, p.reversed_payment_reference, p.reversal_reason_kind, p.reason, p.external_source, p.external_reference, p.external_invoice_request_id FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
+SELECT p.id, p.reference, p.entry_kind, p.method, p.amount, p.currency, p.occurred_at, p.recorded_at, p.actor_account_id, p.reverses_payment_id, p.reversed_payment_reference, p.reversal_reason_kind, p.reason, p.external_source, p.external_reference, p.external_invoice_request_id, p.split_part FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
 WHERE a.order_id=$1 AND p.method='external' AND p.external_invoice_request_id=$2 AND p.entry_kind='receipt'
 GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.id
 `
@@ -114,6 +115,7 @@ func (q *Queries) ActiveRequestReceipts(ctx context.Context, arg ActiveRequestRe
 			&i.ExternalSource,
 			&i.ExternalReference,
 			&i.ExternalInvoiceRequestID,
+			&i.SplitPart,
 		); err != nil {
 			return nil, err
 		}
@@ -591,7 +593,7 @@ func (q *Queries) GetOrganization(ctx context.Context, id uuid.UUID) (GetOrganiz
 }
 
 const getPayment = `-- name: GetPayment :one
-SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id FROM payments WHERE id=$1
+SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id, split_part FROM payments WHERE id=$1
 `
 
 func (q *Queries) GetPayment(ctx context.Context, id uuid.UUID) (Payment, error) {
@@ -614,6 +616,7 @@ func (q *Queries) GetPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 		&i.ExternalSource,
 		&i.ExternalReference,
 		&i.ExternalInvoiceRequestID,
+		&i.SplitPart,
 	)
 	return i, err
 }
@@ -896,8 +899,8 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 }
 
 const insertPayment = `-- name: InsertPayment :one
-INSERT INTO payments(id,reference,entry_kind,method,amount,currency,occurred_at,actor_account_id,reverses_payment_id,reversed_payment_reference,reversal_reason_kind,reason,external_source,external_reference,external_invoice_request_id)
-VALUES($1,$2,$3,$4,$5,'EUR',$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id
+INSERT INTO payments(id,reference,entry_kind,method,amount,currency,occurred_at,actor_account_id,reverses_payment_id,reversed_payment_reference,reversal_reason_kind,reason,external_source,external_reference,external_invoice_request_id,split_part)
+VALUES($1,$2,$3,$4,$5,'EUR',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id, split_part
 `
 
 type InsertPaymentParams struct {
@@ -915,6 +918,7 @@ type InsertPaymentParams struct {
 	ExternalSource           string
 	ExternalReference        string
 	ExternalInvoiceRequestID *uuid.UUID
+	SplitPart                int16
 }
 
 func (q *Queries) InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error) {
@@ -933,6 +937,7 @@ func (q *Queries) InsertPayment(ctx context.Context, arg InsertPaymentParams) (P
 		arg.ExternalSource,
 		arg.ExternalReference,
 		arg.ExternalInvoiceRequestID,
+		arg.SplitPart,
 	)
 	var i Payment
 	err := row.Scan(
@@ -952,6 +957,7 @@ func (q *Queries) InsertPayment(ctx context.Context, arg InsertPaymentParams) (P
 		&i.ExternalSource,
 		&i.ExternalReference,
 		&i.ExternalInvoiceRequestID,
+		&i.SplitPart,
 	)
 	return i, err
 }
@@ -1311,7 +1317,7 @@ func (q *Queries) ListOwnRecentOrderIDs(ctx context.Context, arg ListOwnRecentOr
 }
 
 const listPayments = `-- name: ListPayments :many
-SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id FROM payments WHERE ($1::text='' OR method=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3) ORDER BY occurred_at DESC,id DESC LIMIT $5 OFFSET $4
+SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id, split_part FROM payments WHERE ($1::text='' OR method=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3) ORDER BY occurred_at DESC,id DESC LIMIT $5 OFFSET $4
 `
 
 type ListPaymentsParams struct {
@@ -1354,6 +1360,7 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 			&i.ExternalSource,
 			&i.ExternalReference,
 			&i.ExternalInvoiceRequestID,
+			&i.SplitPart,
 		); err != nil {
 			return nil, err
 		}
@@ -1472,8 +1479,49 @@ func (q *Queries) LockOrganizationRequirements(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const lockOwnPayableJobs = `-- name: LockOwnPayableJobs :many
+SELECT j.id, j.version FROM machine_jobs j
+WHERE j.id = ANY($1::uuid[]) AND j.customer_person_id = $2 AND j.deleted_at IS NULL
+  AND j.pricing_status = 'complete' AND j.active_pricing_snapshot_id IS NOT NULL AND j.effective_price > 0
+  AND NOT EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+ORDER BY j.id
+FOR UPDATE OF j
+`
+
+type LockOwnPayableJobsParams struct {
+	JobIds   []uuid.UUID
+	PersonID *uuid.UUID
+}
+
+type LockOwnPayableJobsRow struct {
+	ID      uuid.UUID
+	Version int64
+}
+
+// Locks those of the given jobs that the person owes as customer: priced completely, with a price and on no order.
+// Ascending id order, as finalization locks jobs.
+func (q *Queries) LockOwnPayableJobs(ctx context.Context, arg LockOwnPayableJobsParams) ([]LockOwnPayableJobsRow, error) {
+	rows, err := q.db.Query(ctx, lockOwnPayableJobs, arg.JobIds, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockOwnPayableJobsRow{}
+	for rows.Next() {
+		var i LockOwnPayableJobsRow
+		if err := rows.Scan(&i.ID, &i.Version); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockPayment = `-- name: LockPayment :one
-SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id FROM payments WHERE id=$1 FOR UPDATE
+SELECT id, reference, entry_kind, method, amount, currency, occurred_at, recorded_at, actor_account_id, reverses_payment_id, reversed_payment_reference, reversal_reason_kind, reason, external_source, external_reference, external_invoice_request_id, split_part FROM payments WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockPayment(ctx context.Context, id uuid.UUID) (Payment, error) {
@@ -1496,6 +1544,7 @@ func (q *Queries) LockPayment(ctx context.Context, id uuid.UUID) (Payment, error
 		&i.ExternalSource,
 		&i.ExternalReference,
 		&i.ExternalInvoiceRequestID,
+		&i.SplitPart,
 	)
 	return i, err
 }
@@ -1576,6 +1625,39 @@ func (q *Queries) NextRequestReference(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const operationAllocations = `-- name: OperationAllocations :many
+SELECT order_id, order_reference, sum(amount)::numeric AS amount FROM payment_allocations
+WHERE operation_id = $1 AND order_id IS NOT NULL
+GROUP BY order_id, order_reference ORDER BY order_reference
+`
+
+type OperationAllocationsRow struct {
+	OrderID        *uuid.UUID
+	OrderReference string
+	Amount         pgtype.Numeric
+}
+
+// What one payment operation allocated, per order.
+func (q *Queries) OperationAllocations(ctx context.Context, operationID uuid.UUID) ([]OperationAllocationsRow, error) {
+	rows, err := q.db.Query(ctx, operationAllocations, operationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OperationAllocationsRow{}
+	for rows.Next() {
+		var i OperationAllocationsRow
+		if err := rows.Scan(&i.OrderID, &i.OrderReference, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const paymentAllocations = `-- name: PaymentAllocations :many

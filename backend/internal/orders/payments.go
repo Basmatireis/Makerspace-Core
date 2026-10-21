@@ -140,6 +140,7 @@ func (s *Service) receipt(
 			ActorAccountID:    &p.AccountID,
 			ExternalSource:    strings.TrimSpace(input.ExternalSource),
 			ExternalReference: strings.TrimSpace(input.ExternalReference),
+			SplitPart:         max(input.splitPart, 1),
 		},
 	)
 	if err != nil {
@@ -257,6 +258,7 @@ func (s *Service) reverseReceipt(
 			ExternalSource:           original.ExternalSource,
 			ExternalReference:        input.ExternalReference,
 			ExternalInvoiceRequestID: original.ExternalInvoiceRequestID,
+			SplitPart:                original.SplitPart,
 		},
 	)
 	if PaymentMethod(original.Method) == PaymentCard && input.ExternalReference == "" {

@@ -76,8 +76,8 @@ SELECT * FROM payment_allocations WHERE payment_id=$1 ORDER BY created_at,id;
 -- name: ActiveReceipts :many
 SELECT p.* FROM payments p JOIN payment_allocations a ON a.payment_id=p.id WHERE a.order_id=$1 GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.id;
 -- name: InsertPayment :one
-INSERT INTO payments(id,reference,entry_kind,method,amount,currency,occurred_at,actor_account_id,reverses_payment_id,reversed_payment_reference,reversal_reason_kind,reason,external_source,external_reference,external_invoice_request_id)
-VALUES($1,$2,$3,$4,$5,'EUR',$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *;
+INSERT INTO payments(id,reference,entry_kind,method,amount,currency,occurred_at,actor_account_id,reverses_payment_id,reversed_payment_reference,reversal_reason_kind,reason,external_source,external_reference,external_invoice_request_id,split_part)
+VALUES($1,$2,$3,$4,$5,'EUR',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *;
 -- name: GetPayment :one
 SELECT * FROM payments WHERE id=$1;
 -- name: LockPayment :one
@@ -180,3 +180,17 @@ ORDER BY o.created_at DESC, o.id DESC;
 -- name: ListOwnRecentOrderIDs :many
 SELECT id FROM orders WHERE customer_person_id = sqlc.arg(person_id) AND status IN ('finalized', 'reversed')
 ORDER BY created_at DESC, id DESC LIMIT sqlc.arg(page_limit);
+-- name: LockOwnPayableJobs :many
+-- Locks those of the given jobs that the person owes as customer: priced completely, with a price and on no order.
+-- Ascending id order, as finalization locks jobs.
+SELECT j.id, j.version FROM machine_jobs j
+WHERE j.id = ANY(sqlc.arg(job_ids)::uuid[]) AND j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+  AND j.pricing_status = 'complete' AND j.active_pricing_snapshot_id IS NOT NULL AND j.effective_price > 0
+  AND NOT EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+ORDER BY j.id
+FOR UPDATE OF j;
+-- name: OperationAllocations :many
+-- What one payment operation allocated, per order.
+SELECT order_id, order_reference, sum(amount)::numeric AS amount FROM payment_allocations
+WHERE operation_id = sqlc.arg(operation_id) AND order_id IS NOT NULL
+GROUP BY order_id, order_reference ORDER BY order_reference;
