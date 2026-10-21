@@ -26,12 +26,13 @@ import (
 )
 
 type Service struct {
-	pool *pgxpool.Pool
-	jobs *machinelogbook.Service
+	pool     *pgxpool.Pool
+	jobs     *machinelogbook.Service
+	delivery InvoiceDelivery
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {
-	return &Service{pool, jobs}
+	return &Service{pool: pool, jobs: jobs}
 }
 func require(p authorization.Principal, perms ...authorization.Permission) error {
 	for _, v := range perms {

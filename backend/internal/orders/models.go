@@ -298,8 +298,16 @@ type ExternalInvoiceRequest struct {
 	ItemSummary                   []OrderItem           `json:"itemSummary"`
 	Events                        []InvoiceRequestEvent `json:"events"`
 	SupersedesRequestID           *uuid.UUID            `json:"supersedesRequestId"`
+	WiRefDelivery                 *WiRefDelivery        `json:"wirefDelivery"`
 	Version                       int64                 `json:"version"`
 	CreatedAt                     time.Time             `json:"createdAt"`
+}
+
+// WiRefDelivery records whether the approved request reached the accounting office.
+type WiRefDelivery struct {
+	Status      string    `json:"status"`
+	AttemptedAt time.Time `json:"attemptedAt"`
+	FailureCode string    `json:"failureCode"`
 }
 
 type JobOrderAssociation struct {

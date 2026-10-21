@@ -27,10 +27,177 @@ import type {
   ListExternalInvoiceRequestsParams,
   ReturnInvoiceRequestCommand,
   UUIDv7,
-  UpdateInvoiceRequest
+  UpdateInvoiceRequest,
+  UpdateWiRefDeliverySettingsRequest,
+  WiRefDeliverySettings,
+  WiRefMailPreview,
+  WiRefTemplateFields,
+  WiRefTestMailResult
 } from '../models';
 
 import { apiFetch } from '../../http-client';
+
+export const getGetWiRefDeliverySettingsUrl = () => {
+
+
+
+
+  return `/api/v1/invoicing/wiref-settings`
+}
+
+/**
+ * Requires invoicing.settings.manage. The recipient, the mail and PDF templates, the optional-field toggles and the placeholders the templates may use.
+ * @summary Read the wiRef delivery settings
+ */
+export const getWiRefDeliverySettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WiRefDeliverySettings> => {
+
+  return apiFetch<WiRefDeliverySettings>(getGetWiRefDeliverySettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateWiRefDeliverySettingsUrl = () => {
+
+
+
+
+  return `/api/v1/invoicing/wiref-settings`
+}
+
+/**
+ * Requires invoicing.settings.manage. Templates may only use the documented placeholders; unknown ones are rejected with 422. Sending needs a valid recipient address.
+ * @summary Replace the wiRef delivery settings
+ */
+export const updateWiRefDeliverySettings = async (updateWiRefDeliverySettingsRequest: UpdateWiRefDeliverySettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WiRefDeliverySettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<WiRefDeliverySettings>(getUpdateWiRefDeliverySettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateWiRefDeliverySettingsRequest)
+  }
+);}
+
+
+export const getPreviewWiRefDeliveryMailUrl = () => {
+
+
+
+
+  return `/api/v1/invoicing/wiref-settings/preview`
+}
+
+/**
+ * Requires invoicing.settings.manage. Renders the given, possibly unsaved templates with fictitious invoice data. Nothing is sent.
+ * @summary Render the wiRef mail with sample data
+ */
+export const previewWiRefDeliveryMail = async (wiRefTemplateFields: WiRefTemplateFields, options?: Parameters<typeof apiFetch>[1]): Promise<WiRefMailPreview> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<WiRefMailPreview>(getPreviewWiRefDeliveryMailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(wiRefTemplateFields)
+  }
+);}
+
+
+export const getPreviewWiRefDeliveryPdfUrl = () => {
+
+
+
+
+  return `/api/v1/invoicing/wiref-settings/preview-pdf`
+}
+
+/**
+ * Requires invoicing.settings.manage. Renders the given, possibly unsaved templates with fictitious invoice data.
+ * @summary Render the wiRef PDF with sample data
+ */
+export const previewWiRefDeliveryPdf = async (wiRefTemplateFields: WiRefTemplateFields, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Blob>(getPreviewWiRefDeliveryPdfUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(wiRefTemplateFields)
+  }
+);}
+
+
+export const getSendWiRefDeliveryTestMailUrl = () => {
+
+
+
+
+  return `/api/v1/invoicing/wiref-settings/test-mail`
+}
+
+/**
+ * Requires invoicing.settings.manage. Sends the saved templates with fictitious invoice data to the saved recipient and CC addresses. The subject is marked as a test.
+ * @summary Send the sample mail to the configured recipient
+ */
+export const sendWiRefDeliveryTestMail = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WiRefTestMailResult> => {
+
+  return apiFetch<WiRefTestMailResult>(getSendWiRefDeliveryTestMailUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
 
 export const getCreateExternalInvoiceRequestUrl = (orderId: UUIDv7,) => {
 
@@ -232,7 +399,7 @@ export const getForwardExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 }
 
 /**
- * Requires external_invoice_requests.approve. Issues a request that awaits approval once its readiness checklist is complete. The wiRef invoice number is optional. In the same transaction a payment of method external settles the order's open balance, so the order becomes paid.
+ * Requires external_invoice_requests.approve. Issues a request that awaits approval once its readiness checklist is complete. The wiRef invoice number is optional. In the same transaction a payment of method external settles the order's open balance, so the order becomes paid. After the transaction commits, the invoice information is mailed to the configured wiRef address as HTML with a PDF attachment; the outcome is the request's wirefDelivery and never fails the forwarding.
  * @summary Mark an invoice request as forwarded to wiRef
  */
 export const forwardExternalInvoiceRequest = async (requestId: UUIDv7,
@@ -258,6 +425,30 @@ return apiFetch<ExternalInvoiceRequest>(getForwardExternalInvoiceRequestUrl(requ
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(forwardInvoiceRequestCommand)
+  }
+);}
+
+
+export const getResendExternalInvoiceRequestToWiRefUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/external-invoice-requests/${requestId}/resend-to-wiref`
+}
+
+/**
+ * Requires external_invoice_requests.approve. Only issued requests can be sent again. The delivery status of the request is updated; the request version does not change.
+ * @summary Send an issued invoice request to wiRef again
+ */
+export const resendExternalInvoiceRequestToWiRef = async (requestId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
+
+  return apiFetch<ExternalInvoiceRequest>(getResendExternalInvoiceRequestToWiRefUrl(requestId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

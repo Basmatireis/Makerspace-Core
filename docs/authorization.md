@@ -54,6 +54,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Person-role transfer separately requires `people.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
 | `branding.manage` | Configure the installation-wide organization identity, brand colors and assets, and imprint/privacy delivery. |
+| `invoicing.settings.manage` | Configure the wiRef recipient, the mail and PDF templates and the optional-field toggles, preview them and send a test mail. Not granted to existing Roles during migration; `master` receives it through the registry. |
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
 | `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs, work items, prints, and current machine activity, or create confirmed manual jobs and jobs from prints. |
 | `machine_jobs.edit` | Correct operational jobs, cancel runs, and link or unlink prints independently of Order state. |

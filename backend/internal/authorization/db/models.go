@@ -293,6 +293,13 @@ type ExternalInvoiceRequest struct {
 	CreatedAt           time.Time
 }
 
+type ExternalInvoiceRequestDelivery struct {
+	RequestID   uuid.UUID
+	Status      string
+	AttemptedAt time.Time
+	FailureCode string
+}
+
 type ExternalInvoiceRequestDetail struct {
 	RequestID                     uuid.UUID
 	RecipientKind                 string
@@ -1779,4 +1786,25 @@ type VisitorEnrollmentContext struct {
 
 type VisitorEnrollmentDeviceType struct {
 	DeviceTypeID uuid.UUID
+}
+
+type WirefDeliverySetting struct {
+	Singleton              bool
+	Enabled                bool
+	RecipientEmail         string
+	CcEmails               []string
+	MailSubject            string
+	MailIntro              string
+	MailClosing            string
+	PdfTitle               string
+	PdfIntro               string
+	PdfClosing             string
+	ShowContactPerson      bool
+	ShowApprover           bool
+	ShowPurchaseOrder      bool
+	ShowServicePeriod      bool
+	ShowServiceDescription bool
+	Version                int64
+	UpdatedByAccountID     *uuid.UUID
+	UpdatedAt              time.Time
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
@@ -61,6 +62,7 @@ type Server struct {
 	files             *files.Service
 	laborordnung      *laborordnung.Service
 	orders            *orders.Service
+	invoicing         *invoicing.Service
 	machineLogbook    *machinelogbook.Service
 	printArtifacts    *printartifacts.Service
 	printing          *printing.Service
@@ -138,7 +140,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
-	ordersService := orders.NewService(pool, machineLogbook)
+	invoicingService := invoicing.NewService(pool, notifier, brandingService)
+	ordersService := orders.NewService(pool, machineLogbook).WithInvoiceDelivery(invoicingService)
 	return &Server{
 		pool:              pool,
 		config:            cfg,
@@ -160,6 +163,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printerConnectors: printerConnectorService,
 		streamingGateways: streamingGatewayService,
 		orders:            ordersService,
+		invoicing:         invoicingService,
 		supervisors:       supervisors.NewService(pool, staffingService),
 		staffing:          staffingService,
 		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),

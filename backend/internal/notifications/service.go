@@ -153,6 +153,11 @@ func (s *Service) RenderBranded(ctx context.Context, content Content) (text, htm
 	return RenderBranded(s.branding(ctx), content)
 }
 
+// Branding returns the layout branding that SendBranded applies, for documents rendered alongside a mail.
+func (s *Service) Branding(ctx context.Context) Branding {
+	return sanitizeBranding(s.branding(ctx))
+}
+
 // SendBranded sends a branded multipart email, optionally with attachments.
 func (s *Service) SendBranded(
 	ctx context.Context,
@@ -160,10 +165,24 @@ func (s *Service) SendBranded(
 	content Content,
 	attachments ...mailservice.Attachment,
 ) error {
+	return s.SendBrandedCC(ctx, to, nil, subject, content, attachments...)
+}
+
+// SendBrandedCC is SendBranded with carbon-copy recipients.
+func (s *Service) SendBrandedCC(
+	ctx context.Context,
+	to string,
+	cc []string,
+	subject string,
+	content Content,
+	attachments ...mailservice.Attachment,
+) error {
 	text, htmlBody := s.RenderBranded(ctx, content)
 	return s.mail.Send(
 		ctx,
-		mailservice.Message{To: to, Subject: subject, Text: text, HTML: htmlBody, Attachments: attachments},
+		mailservice.Message{
+			To: to, Cc: cc, Subject: subject, Text: text, HTML: htmlBody, Attachments: attachments,
+		},
 	)
 }
 

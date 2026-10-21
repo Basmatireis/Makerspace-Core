@@ -783,3 +783,33 @@ func legalLink(legal Legal, kind LegalKind) (link string, internal bool) {
 	}
 	return "/legal/" + string(kind), true
 }
+
+// maxPDFLogoBytes bounds the logo read for PDF documents; uploads are limited to MaxAssetBytes anyway.
+const maxPDFLogoBytes = 2 << 20
+
+// RasterLogo returns the uploaded logo when it is a PNG or JPEG image. The bundled default logo is a frontend
+// asset and SVG logos cannot be drawn into a PDF, so documents then show the names only.
+func (s *Service) RasterLogo(ctx context.Context) (data []byte, contentType string, ok bool) {
+	config, err := s.get(ctx)
+	if err != nil {
+		return nil, "", false
+	}
+	logo, found := config.Assets[Logo]
+	if !found || logo.Mode != AssetCustom || logo.URL == nil || logo.ContentType == nil {
+		return nil, "", false
+	}
+	if *logo.ContentType != "image/png" && *logo.ContentType != "image/jpeg" {
+		return nil, "", false
+	}
+	digest := (*logo.URL)[strings.LastIndex(*logo.URL, "/")+1:]
+	asset, err := s.OpenPublicAsset(ctx, Logo, digest)
+	if err != nil {
+		return nil, "", false
+	}
+	defer func() { _ = asset.Reader.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(asset.Reader, maxPDFLogoBytes+1))
+	if err != nil || len(raw) > maxPDFLogoBytes {
+		return nil, "", false
+	}
+	return raw, *logo.ContentType, true
+}

@@ -3154,6 +3154,77 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /invoicing/wiref-settings:
+    get:
+      tags: ["External Invoicing"]
+      operationId: getWiRefDeliverySettings
+      summary: Read the wiRef delivery settings
+      description: "Requires invoicing.settings.manage. The recipient, the mail and PDF templates, the optional-field toggles and the placeholders the templates may use."
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: wiRef delivery settings., content: {application/json: {schema: {$ref: "#/components/schemas/WiRefDeliverySettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: ["External Invoicing"]
+      operationId: updateWiRefDeliverySettings
+      summary: Replace the wiRef delivery settings
+      description: "Requires invoicing.settings.manage. Templates may only use the documented placeholders; unknown ones are rejected with 422. Sending needs a valid recipient address."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWiRefDeliverySettingsRequest"}}}}
+      responses:
+        "200": {description: Updated wiRef delivery settings., content: {application/json: {schema: {$ref: "#/components/schemas/WiRefDeliverySettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /invoicing/wiref-settings/preview:
+    post:
+      tags: ["External Invoicing"]
+      operationId: previewWiRefDeliveryMail
+      summary: Render the wiRef mail with sample data
+      description: "Requires invoicing.settings.manage. Renders the given, possibly unsaved templates with fictitious invoice data. Nothing is sent."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WiRefTemplateFields"}}}}
+      responses:
+        "200": {description: Rendered sample mail., content: {application/json: {schema: {$ref: "#/components/schemas/WiRefMailPreview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /invoicing/wiref-settings/preview-pdf:
+    post:
+      tags: ["External Invoicing"]
+      operationId: previewWiRefDeliveryPdf
+      summary: Render the wiRef PDF with sample data
+      description: "Requires invoicing.settings.manage. Renders the given, possibly unsaved templates with fictitious invoice data."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WiRefTemplateFields"}}}}
+      responses:
+        "200":
+          description: Sample PDF.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /invoicing/wiref-settings/test-mail:
+    post:
+      tags: ["External Invoicing"]
+      operationId: sendWiRefDeliveryTestMail
+      summary: Send the sample mail to the configured recipient
+      description: "Requires invoicing.settings.manage. Sends the saved templates with fictitious invoice data to the saved recipient and CC addresses. The subject is marked as a test."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Delivery outcome., content: {application/json: {schema: {$ref: "#/components/schemas/WiRefTestMailResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /mail/configuration:
     get:
       tags: [Mail]
@@ -7632,7 +7703,7 @@ paths:
       tags: ["External Invoicing"]
       operationId: forwardExternalInvoiceRequest
       summary: Mark an invoice request as forwarded to wiRef
-      description: "Requires external_invoice_requests.approve. Issues a request that awaits approval once its readiness checklist is complete. The wiRef invoice number is optional. In the same transaction a payment of method external settles the order\u0027s open balance, so the order becomes paid."
+      description: "Requires external_invoice_requests.approve. Issues a request that awaits approval once its readiness checklist is complete. The wiRef invoice number is optional. In the same transaction a payment of method external settles the order\u0027s open balance, so the order becomes paid. After the transaction commits, the invoice information is mailed to the configured wiRef address as HTML with a PDF attachment; the outcome is the request's wirefDelivery and never fails the forwarding."
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ForwardInvoiceRequestCommand"}}}}
       responses:
@@ -7642,6 +7713,22 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+  /external-invoice-requests/{requestId}/resend-to-wiref:
+    post:
+      tags: ["External Invoicing"]
+      operationId: resendExternalInvoiceRequestToWiRef
+      summary: Send an issued invoice request to wiRef again
+      description: "Requires external_invoice_requests.approve. Only issued requests can be sent again. The delivery status of the request is updated; the request version does not change."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Request with the new delivery status., content: {application/json: {schema: {$ref: "#/components/schemas/ExternalInvoiceRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
     parameters:
       - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -8635,6 +8722,7 @@ components:
         - oidc.manage
         - scim.manage
         - mail.manage
+        - invoicing.settings.manage
         - branding.manage
         - machines.read
         - machines.manage
@@ -9757,6 +9845,96 @@ components:
         baseUrl: {type: string}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
+
+    WiRefTemplateFields:
+      type: object
+      additionalProperties: false
+      required: [mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription]
+      properties:
+        mailSubject: {type: string, minLength: 1, maxLength: 200}
+        mailIntro: {type: string, maxLength: 2000}
+        mailClosing: {type: string, maxLength: 2000}
+        pdfTitle: {type: string, minLength: 1, maxLength: 200}
+        pdfIntro: {type: string, maxLength: 2000}
+        pdfClosing: {type: string, maxLength: 2000}
+        showContactPerson: {type: boolean}
+        showApprover: {type: boolean}
+        showPurchaseOrder: {type: boolean}
+        showServicePeriod: {type: boolean}
+        showServiceDescription: {type: boolean}
+    WiRefPlaceholder:
+      type: object
+      additionalProperties: false
+      required: [token, description]
+      properties:
+        token: {type: string, description: "The text to write into a template, for example {{organisation}}."}
+        description: {type: string}
+    WiRefDeliverySettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, recipientEmail, ccEmails, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, placeholders, version, updatedAt]
+      properties:
+        enabled: {type: boolean}
+        recipientEmail: {type: string, maxLength: 254}
+        ccEmails: {type: array, maxItems: 5, items: {type: string, maxLength: 254}}
+        mailSubject: {type: string, minLength: 1, maxLength: 200}
+        mailIntro: {type: string, maxLength: 2000}
+        mailClosing: {type: string, maxLength: 2000}
+        pdfTitle: {type: string, minLength: 1, maxLength: 200}
+        pdfIntro: {type: string, maxLength: 2000}
+        pdfClosing: {type: string, maxLength: 2000}
+        showContactPerson: {type: boolean}
+        showApprover: {type: boolean}
+        showPurchaseOrder: {type: boolean}
+        showServicePeriod: {type: boolean}
+        showServiceDescription: {type: boolean}
+        placeholders: {type: array, items: {$ref: "#/components/schemas/WiRefPlaceholder"}}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+    UpdateWiRefDeliverySettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, recipientEmail, ccEmails, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, expectedVersion]
+      properties:
+        enabled: {type: boolean, description: "Sending needs a valid recipientEmail."}
+        recipientEmail: {type: string, maxLength: 254}
+        ccEmails: {type: array, maxItems: 5, items: {type: string, maxLength: 254}}
+        mailSubject: {type: string, minLength: 1, maxLength: 200}
+        mailIntro: {type: string, maxLength: 2000}
+        mailClosing: {type: string, maxLength: 2000}
+        pdfTitle: {type: string, minLength: 1, maxLength: 200}
+        pdfIntro: {type: string, maxLength: 2000}
+        pdfClosing: {type: string, maxLength: 2000}
+        showContactPerson: {type: boolean}
+        showApprover: {type: boolean}
+        showPurchaseOrder: {type: boolean}
+        showServicePeriod: {type: boolean}
+        showServiceDescription: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    WiRefMailPreview:
+      type: object
+      additionalProperties: false
+      required: [subject, text, html]
+      properties:
+        subject: {type: string}
+        text: {type: string}
+        html: {type: string, description: "Complete HTML document; show it in a sandboxed frame."}
+    WiRefTestMailResult:
+      type: object
+      additionalProperties: false
+      required: [status, failureCode]
+      properties:
+        status: {type: string, enum: [sent, failed]}
+        failureCode: {type: string, description: "Empty when sent. mail_disabled, send_failed or render_failed otherwise."}
+    WiRefDelivery:
+      type: object
+      additionalProperties: false
+      required: [status, attemptedAt, failureCode]
+      description: "Whether the approved request reached the accounting office. not_configured means the wiRef settings were incomplete or disabled when it was forwarded."
+      properties:
+        status: {type: string, enum: [not_configured, sent, failed]}
+        attemptedAt: {type: string, format: date-time}
+        failureCode: {type: string, description: "Empty unless status is failed: mail_disabled, send_failed or render_failed."}
 
     BrandingIdentity:
       type: object
@@ -15380,6 +15558,12 @@ components:
             -
               $ref: "#/components/schemas/UUIDv7"
           nullable: true
+        wirefDelivery:
+          allOf:
+            -
+              $ref: "#/components/schemas/WiRefDelivery"
+          nullable: true
+          description: "Set once the request was forwarded to wiRef."
         version:
           $ref: "#/components/schemas/Version"
         createdAt:

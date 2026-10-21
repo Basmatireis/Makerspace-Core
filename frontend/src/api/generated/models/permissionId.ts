@@ -89,6 +89,7 @@ export const PermissionId = {
   oidcmanage: 'oidc.manage',
   scimmanage: 'scim.manage',
   mailmanage: 'mail.manage',
+  invoicingsettingsmanage: 'invoicing.settings.manage',
   brandingmanage: 'branding.manage',
   machinesread: 'machines.read',
   machinesmanage: 'machines.manage',
