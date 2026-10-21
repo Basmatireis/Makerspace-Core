@@ -8,8 +8,6 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { announcementFixture, displayFixture, ids, mockSignage, previewFixture, ruleFixture } from './testFixtures';
 
-const HEAVY_PAGE_TEST_TIMEOUT = 90_000;
-
 const route = `/signage/displays/${ids.display}`;
 const pending = [
   { kind: 'scene' as const, name: 'Open days poster', change: 'modified' as const },
@@ -121,45 +119,36 @@ describe('Display detail', () => {
     expect(await screen.findByText(/Display reports: rule 1/)).toBeInTheDocument();
   });
 
-  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
-  it(
-    'reorders rules with the display version and refreshes on a stale write',
-    { timeout: HEAVY_PAGE_TEST_TIMEOUT },
-    async () => {
-      const rules = [
-        ruleFixture(),
-        ruleFixture({
-          id: ids.rule2,
-          position: 1,
-          conditionKind: 'live_data_unavailable',
-          timeFrom: null,
-          timeTo: null,
-          weekdays: [],
-        }),
-      ];
-      mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], rules });
-      const bodies: unknown[] = [];
-      let attempts = 0;
-      server.use(
-        http.put('*/api/v1/signage/displays/:id/rule-order', async ({ request }) => {
-          bodies.push(await request.json());
-          attempts += 1;
-          return attempts === 1
-            ? HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 })
-            : HttpResponse.json({ items: [rules[1], rules[0]], displayVersion: 6 });
-        }),
-      );
-      renderRoute(<App />, route);
-      expect(await screen.findByText('Mon–Fri 08:00–10:00')).toBeInTheDocument();
-      // Role queries over this large DOM take seconds in jsdom; the tooltip text finds the same button cheaply.
-      const down = (await screen.findAllByText('Move down', { selector: '.cds--tooltip-content' }))[0]
-        .closest('.cds--popover-container')!
-        .querySelector('button')!;
-      fireEvent.click(down);
-      await waitFor(() => expect(bodies).toEqual([{ expectedVersion: 5, ruleIds: [ids.rule2, ids.rule] }]));
-      expect(await screen.findByText('The rules were changed somewhere else')).toBeInTheDocument();
-    },
-  );
+  it('reorders rules with the display version and refreshes on a stale write', async () => {
+    const rules = [
+      ruleFixture(),
+      ruleFixture({
+        id: ids.rule2,
+        position: 1,
+        conditionKind: 'live_data_unavailable',
+        timeFrom: null,
+        timeTo: null,
+        weekdays: [],
+      }),
+    ];
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()], rules });
+    const bodies: unknown[] = [];
+    let attempts = 0;
+    server.use(
+      http.put('*/api/v1/signage/displays/:id/rule-order', async ({ request }) => {
+        bodies.push(await request.json());
+        attempts += 1;
+        return attempts === 1
+          ? HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 })
+          : HttpResponse.json({ items: [rules[1], rules[0]], displayVersion: 6 });
+      }),
+    );
+    renderRoute(<App />, route);
+    expect(await screen.findByText('Mon–Fri 08:00–10:00')).toBeInTheDocument();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Move down' }))[0]);
+    await waitFor(() => expect(bodies).toEqual([{ expectedVersion: 5, ruleIds: [ids.rule2, ids.rule] }]));
+    expect(await screen.findByText('The rules were changed somewhere else')).toBeInTheDocument();
+  });
 
   it('hides rule editing without signage.manage', async () => {
     mockSignage([PermissionId.signageread], { displays: [displayFixture()], rules: [ruleFixture()] });
@@ -170,8 +159,7 @@ describe('Display detail', () => {
     expect(screen.getByText('Enabled')).toBeInTheDocument();
   });
 
-  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
-  it('adds a machine rule with the display version', { timeout: HEAVY_PAGE_TEST_TIMEOUT }, async () => {
+  it('adds a machine rule with the display version', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
       displays: [displayFixture()],
       machines: [{ id: ids.machine, name: 'H2D', kind: 'Printer', hasCamera: false }],
@@ -222,13 +210,7 @@ describe('Display detail', () => {
     );
     renderRoute(<App />, route);
     const user = userEvent.setup();
-    await user.click(
-      (
-        await screen.findByText('Display actions', {
-          selector: '.cds--overflow-menu__icon title, .cds--tooltip-content',
-        })
-      ).closest('button') ?? (await screen.findByRole('button', { name: /Display actions/ })),
-    );
+    await user.click(await screen.findByRole('button', { name: /Display actions/ }));
     const item = (label: string) =>
       screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
     expect(

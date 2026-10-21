@@ -8,8 +8,6 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { announcementFixture, ids, mockSignage, playlistFixture, sceneFixture, templateFixture } from './testFixtures';
 
-const HEAVY_PAGE_TEST_TIMEOUT = 90_000;
-
 describe('Content page', () => {
   it('shows scene tiles and playlists read-only with signage.read', async () => {
     mockSignage([PermissionId.signageread], {
@@ -134,40 +132,35 @@ describe('Content page', () => {
     await waitFor(() => expect(sent).toEqual({ expectedVersion: 4 }));
   });
 
-  // Renders the whole page with its live preview in jsdom, which takes 10-25 s locally and more on CI runners.
-  it(
-    'edits a template: unknown placeholder warning, variable menu and live preview',
-    { timeout: HEAVY_PAGE_TEST_TIMEOUT },
-    async () => {
-      mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
-      let body: Record<string, unknown> | undefined;
-      server.use(
-        http.put('*/api/v1/signage/announcement-templates/:id', async ({ request }) => {
-          body = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json(templateFixture({ version: 5 }));
-        }),
-      );
-      renderRoute(<App />, '/signage/content?section=announcements');
-      const user = userEvent.setup();
-      await user.click(await screen.findByRole('link', { name: 'Closed' }));
-      const dialog = await screen.findByRole('dialog');
-      // The preview renders the title with the sample value of the choice field.
-      expect(within(dialog).getByText('Closed today – Holiday')).toBeInTheDocument();
-      const title = within(dialog).getByLabelText('Title');
-      fireEvent.change(title, { target: { value: 'Out {oops}' } });
-      expect(await within(dialog).findByText('Unknown variable {oops}. It is shown as typed.')).toBeInTheDocument();
-      await user.click(within(dialog).getByRole('button', { name: 'Save template' }));
-      await waitFor(() =>
-        expect(body).toMatchObject({
-          expectedVersion: 4,
-          name: 'Closed',
-          tone: 'warning',
-          title: 'Out {oops}',
-          fields: [
-            { key: 'reason', label: 'Reason', type: 'choice', required: true, options: ['Holiday', 'Maintenance'] },
-          ],
-        }),
-      );
-    },
-  );
+  it('edits a template: unknown placeholder warning, variable menu and live preview', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.put('*/api/v1/signage/announcement-templates/:id', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(templateFixture({ version: 5 }));
+      }),
+    );
+    renderRoute(<App />, '/signage/content?section=announcements');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('link', { name: 'Closed' }));
+    const dialog = await screen.findByRole('dialog');
+    // The preview renders the title with the sample value of the choice field.
+    expect(within(dialog).getByText('Closed today – Holiday')).toBeInTheDocument();
+    const title = within(dialog).getByLabelText('Title');
+    fireEvent.change(title, { target: { value: 'Out {oops}' } });
+    expect(await within(dialog).findByText('Unknown variable {oops}. It is shown as typed.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save template' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        expectedVersion: 4,
+        name: 'Closed',
+        tone: 'warning',
+        title: 'Out {oops}',
+        fields: [
+          { key: 'reason', label: 'Reason', type: 'choice', required: true, options: ['Holiday', 'Maintenance'] },
+        ],
+      }),
+    );
+  });
 });
