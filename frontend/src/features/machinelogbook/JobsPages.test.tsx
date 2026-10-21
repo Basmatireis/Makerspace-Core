@@ -20,7 +20,7 @@ vi.mock('@carbon/charts-react', () => ({
 const { machine: machineId, material: materialId, job: jobId, organization: organizationId, operator: operatorId, recordedRun: recordedRunId, manualRun: manualRunId } = ids;
 
 const material: Material = {
-  id: materialId, name: 'PLA Black', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '500', quantity: '8420', assignedQuantity: '0', unassignedQuantity: '8420',
+  id: materialId, name: 'PLA Black', kind: 'filament', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '500', quantity: '8420', assignedQuantity: '0', unassignedQuantity: '8420',
   averageUnitCost: '0.018', inventoryValue: '151.56', stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '2140', version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-09-15T11:26:00Z',
 };
 

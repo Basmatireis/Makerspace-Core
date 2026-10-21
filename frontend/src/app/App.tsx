@@ -167,9 +167,9 @@ export function App() {
 			<Route path="inventory/spools/:spoolId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><FilamentSpoolDetailPage /></PermissionRoute>} />
 			<Route path="statistics" element={<PermissionRoute allOf={[PermissionId.statisticsread]}><StatisticsPage /></PermissionRoute>} />
 			{/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
-			<Route path="inventory/materials" element={<Navigate to="/machine-logbook/inventory?tab=materials" replace />} />
+			<Route path="inventory/materials" element={<Navigate to="/machine-logbook/inventory?tab=filament" replace />} />
 			<Route path="inventory/spools" element={<Navigate to="/machine-logbook/inventory?tab=spools" replace />} />
-			<Route path="inventory/products" element={<Navigate to="/machine-logbook/inventory?tab=products" replace />} />
+			<Route path="inventory/products" element={<Navigate to="/machine-logbook/inventory?tab=filament" replace />} />
 			<Route path="inventory/:materialId" element={<IdRedirect param="materialId" to={machineLogbookPaths.material} />} />
 			<Route path="spools" element={<Navigate to="/machine-logbook/inventory?tab=spools" replace />} />
 			<Route path="spools/:spoolId" element={<IdRedirect param="spoolId" to={machineLogbookPaths.spool} />} />

@@ -632,14 +632,7 @@ func (s *seeder) createOrgsAndPricing() {
 		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g, 0, nil)
 		check("assign pg", err)
 	}
-	for _, c := range s.custs {
-		switch c.cat {
-		case "staff":
-			assign(c, staff)
-		case "external":
-			assign(c, ext)
-		}
-	}
+	// People are priced through their roles; only organizations get a group.
 	// Reused organizations keep their pricing group.
 	for key, g := range map[string]uuid.UUID{"chair": staff, "fs": students, "startup": ext} {
 		if newOrgs[key] {

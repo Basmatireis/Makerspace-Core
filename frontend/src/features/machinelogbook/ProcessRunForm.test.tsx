@@ -14,9 +14,9 @@ import { ToastProvider } from './shared/toasts';
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: ['machine_jobs.edit', 'machines.read', 'inventory.read'] }) }));
 
 const now = '2026-09-15T11:26:00Z';
-const typeOf = (id: string, name: string, unit: MaterialType['unit'], processes: MachineProcess[], active = true): MaterialType => ({ id, name, unit, processes, active, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: now, updatedAt: now });
+const typeOf = (id: string, name: string, unit: MaterialType['unit'], processes: MachineProcess[], active = true): MaterialType => ({ id, name, kind: processes.includes('fdm_printing') ? 'filament' : 'consumable', unit, processes, active, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: now, updatedAt: now });
 const materialOf = (id: string, name: string, materialTypeId: string, unit: Material['unit'], overrides: Partial<Material> = {}): Material => ({
-  id, name, materialTypeId, materialTypeName: name, unit, active: true, quantity: '100', assignedQuantity: '0', unassignedQuantity: '100', averageUnitCost: '1', inventoryValue: '100', stockState: 'in_stock',
+  id, name, kind: unit === 'g' ? 'filament' : 'consumable', materialTypeId, materialTypeName: name, unit, active: true, quantity: '100', assignedQuantity: '0', unassignedQuantity: '100', averageUnitCost: '1', inventoryValue: '100', stockState: 'in_stock',
   inventoryVersion: 1, recentConsumption: '0', version: 1, createdAt: now, updatedAt: now, ...overrides,
 });
 const t = (n: number) => `0192f6f8-743e-7c77-a349-cd07c3e8e0${String(n).padStart(2, '0')}`;

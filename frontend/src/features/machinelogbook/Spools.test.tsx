@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type {
-  ChangeFilamentSpoolFillRequest, CleanUpFilamentSpoolsRequest, CreateFilamentSpoolRequest, FilamentProduct, FilamentSpool, FinishFilamentSpoolRequest, Material,
+  ChangeFilamentSpoolFillRequest, CleanUpFilamentSpoolsRequest, CreateFilamentSpoolRequest, FilamentSpool, FinishFilamentSpoolRequest, Material,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { renderRoute, testQueryClient } from '../../test/render';
@@ -26,25 +26,18 @@ const BOTH = [PermissionId.inventoryread, PermissionId.filament_spoolsmanage, Pe
 
 const id = (n: number) => `0192f6f8-743e-7c77-a349-cd07c3e8b${String(n).padStart(3, '0')}`;
 const materialId = id(1);
-const productId = id(2);
-const otherProductId = id(3);
 const nfcId = id(10);
 const barcodeId = id(11);
 
 const material: Material = {
-  id: materialId, name: 'PLA Black', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: null, quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
+  id: materialId, name: 'PLA Black', kind: 'filament', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: null, quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
   filamentDiameterMm: '1.75', averageUnitCost: '0.02', inventoryValue: '100', stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '0', version: 3,
   createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z',
 };
 
-const product = (overrides: Partial<FilamentProduct> = {}): FilamentProduct => ({
-  id: productId, manufacturer: 'Bambu Lab', name: 'PLA Basic Black', materialId, materialName: 'PLA Black', netWeightG: '1000', defaultPrice: '19.9', packaging: 'refill',
-  notes: null, active: true, inUseCount: 1, version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z', ...overrides,
-});
-
 const spool = (overrides: Partial<FilamentSpool> = {}): FilamentSpool => ({
   id: id(20), displayId: 'S-2026-000001', kind: 'reusable', label: 'Bambu spool 01', status: 'loaded', fillNumber: 3, fillId: id(30), filledAt: '2026-10-02T08:00:00Z', archivedAt: null,
-  materialId, materialName: 'PLA Black', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', productId, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black',
+  materialId, materialName: 'PLA Black', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', manufacturer: 'Bambu Lab', productName: 'PLA Basic Black',
   initialNetWeightG: '1000', remainingQuantity: '600', tareWeightG: '200', acquiredOn: '2026-09-01', acquisitionReference: null, storageLocation: 'Shelf A', notes: null, lifecycle: 'active', mounted: false,
   identifiers: [
     { id: nfcId, kind: 'nfc', value: '04AA11', createdAt: '2026-10-02T08:00:00Z' },
@@ -57,11 +50,10 @@ const mountedOn = { machineId: id(40), machineName: 'Bambu H2D #1', inputUnitNam
 
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
 
-function useCatalog(spools: FilamentSpool[] = [spool()], products: FilamentProduct[] = [product()]) {
+function useCatalog(spools: FilamentSpool[] = [spool()]) {
   server.use(
     http.get('*/api/v1/filament-spools', () => HttpResponse.json(page(spools))),
     http.get('*/api/v1/materials', () => HttpResponse.json({ ...page([material]), totalInventoryValue: '100' })),
-    http.get('*/api/v1/filament-products', () => HttpResponse.json(page(products))),
   );
 }
 
@@ -88,7 +80,7 @@ describe('Change filament', () => {
     expect(within(dialog).getByText('Leftover 650 g (system expected 600 g, difference +50 g recorded as correction).')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
 
-    // New filament: the spool's current refill product is preselected.
+    // New filament: the spool's current filament is preselected.
     expect(await within(dialog).findByLabelText('Net weight of the new filament (g)')).toHaveValue('1000');
     expect(within(dialog).getByText(/Moves 1,000 g from loose stock to this spool\. The material total stays 5,050 g\. 5,050 g of loose stock is available\./)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
@@ -104,7 +96,7 @@ describe('Change filament', () => {
     await waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({
       leftover: { basis: 'weighed', grossWeightG: '850', disposition: 'returned_to_stock' },
-      fill: { productId, materialId, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black', netWeightG: '1000', source: 'loose_stock', totalPrice: null, supplier: null },
+      fill: { materialId, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black', netWeightG: '1000', source: 'loose_stock', totalPrice: null, supplier: null },
       keepIdentifierIds: [barcodeId], newIdentifiers: [{ kind: 'nfc', value: '04BB22' }],
       occurredAt: expect.any(String), expectedVersion: 5,
     });
@@ -141,7 +133,7 @@ describe('Change filament', () => {
   it('skips the leftover step for a spool that needs a refill and sends no leftover', async () => {
     auth.permissions = BOTH;
     const empty = spool({
-      status: 'needs_refill', fillId: null, filledAt: null, materialId: null, materialName: null, productId: null, manufacturer: null, productName: null,
+      status: 'needs_refill', fillId: null, filledAt: null, materialId: null, materialName: null, manufacturer: null, productName: null,
       initialNetWeightG: null, remainingQuantity: '0', identifiers: [], fillNumber: 2,
     });
     useCatalog([empty]);
@@ -154,19 +146,18 @@ describe('Change filament', () => {
     expect(within(dialog).queryByText('Leftover')).not.toBeInTheDocument();
     expect(within(dialog).getByText('New filament')).toBeInTheDocument();
     expect(await within(dialog).findByText('Needs refill')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('combobox', { name: 'Product' }));
-    await user.click(await screen.findByText('Bambu Lab · PLA Basic Black · 1,000 g'));
+    await user.selectOptions(within(dialog).getByLabelText('Filament'), materialId);
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({ leftover: null, fill: { productId, materialId, netWeightG: '1000', source: 'loose_stock' }, keepIdentifierIds: [], newIdentifiers: [], expectedVersion: 5 });
+    expect(body).toMatchObject({ leftover: null, fill: { materialId, netWeightG: '1000', source: 'loose_stock' }, keepIdentifierIds: [], newIdentifiers: [], expectedVersion: 5 });
   });
 
   it('shows the backend reason when the fill is rejected and stays open', async () => {
     auth.permissions = BOTH;
     useCatalog();
-    server.use(http.post(`*/api/v1/filament-spools/${id(20)}/fills`, () => HttpResponse.json({ code: 'product_inactive', message: 'The product is inactive' }, { status: 422 })));
+    server.use(http.post(`*/api/v1/filament-spools/${id(20)}/fills`, () => HttpResponse.json({ code: 'insufficient_loose_stock', message: 'Not enough loose stock' }, { status: 409 })));
     const user = userEvent.setup();
     const onClose = vi.fn();
     renderModal(<ChangeFilamentModal open onClose={onClose} spool={spool()} />);
@@ -174,7 +165,7 @@ describe('Change filament', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText('This product is no longer active. Choose another product or select Not in catalog.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('There is not enough loose stock for this. Check the available amount and try again.')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });
@@ -269,7 +260,7 @@ function useDetail(item: FilamentSpool) {
 
 describe('Spool detail', () => {
   const closedFill = {
-    id: id(31), fillNumber: 2, materialId, materialName: 'PLA Black', productId: otherProductId, manufacturer: 'Prusament', productName: 'PLA Galaxy Black', initialNetWeightG: '1000', usedG: '940',
+    id: id(31), fillNumber: 2, materialId, materialName: 'PLA Black', manufacturer: 'Prusament', productName: 'PLA Galaxy Black', initialNetWeightG: '1000', usedG: '940',
     leftoverG: '60', leftoverOutcome: 'returned_to_stock' as const, filledAt: '2026-09-01T08:00:00Z', closedAt: '2026-10-02T08:00:00Z',
     identifiers: [{ id: id(12), kind: 'nfc' as const, value: '04OLD1', createdAt: '2026-09-01T08:00:00Z' }],
   };
@@ -295,7 +286,7 @@ describe('Spool detail', () => {
 
   it('offers Fill spool for a spool that needs a refill', async () => {
     auth.permissions = BOTH;
-    const item = spool({ status: 'needs_refill', fillId: null, filledAt: null, materialId: null, materialName: null, productId: null, manufacturer: null, productName: null, initialNetWeightG: null, remainingQuantity: '0', identifiers: [] });
+    const item = spool({ status: 'needs_refill', fillId: null, filledAt: null, materialId: null, materialName: null, manufacturer: null, productName: null, initialNetWeightG: null, remainingQuantity: '0', identifiers: [] });
     useCatalog([item]);
     server.use(
       http.get(`*/api/v1/filament-spools/${item.id}`, () => HttpResponse.json(item)),
@@ -485,9 +476,9 @@ describe('Register spool', () => {
     const user = userEvent.setup();
     renderModal(<SpoolFormModal open onClose={vi.fn()} />);
     const dialog = await openDialog();
-    expect(within(dialog).getByLabelText(/With a first fill/)).toBeChecked();
+    expect(within(dialog).getByLabelText(/With filament from loose stock/)).toBeChecked();
     await user.click(within(dialog).getByLabelText(/Register empty and fill later/));
-    expect(within(dialog).queryByLabelText('Initial net weight (g)')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Net weight (g)')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Stock source')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
 
@@ -508,7 +499,7 @@ describe('Register spool', () => {
     expect(within(dialog).queryByLabelText(/Register empty and fill later/)).not.toBeInTheDocument();
   });
 
-  it('sends the supplier with a bought spool', async () => {
+  it('registers a spool from loose stock of the chosen filament', async () => {
     auth.permissions = BOTH;
     useCatalog();
     let body: CreateFilamentSpoolRequest | undefined;
@@ -516,13 +507,11 @@ describe('Register spool', () => {
     const user = userEvent.setup();
     renderModal(<SpoolFormModal open onClose={vi.fn()} initialMaterialId={materialId} />);
     const dialog = await openDialog();
-    await user.click(within(dialog).getByLabelText('Not in catalog'));
-    await user.click(within(dialog).getByLabelText('Bought as a spool'));
-    await user.type(within(dialog).getByLabelText('Total purchase price in EUR'), '24');
-    await user.type(within(dialog).getByLabelText('Supplier (optional)'), 'Filament Shop');
+    await user.type(within(dialog).getByLabelText('Manufacturer (optional)'), 'Bambu Lab');
     await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
 
     await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({ stockMode: 'new_acquisition', materialId, totalPrice: '24', supplier: 'Filament Shop', expectedInventoryVersion: 7 });
+    expect(body).toMatchObject({ stockMode: 'existing_stock', materialId, initialNetWeightG: '1000', manufacturer: 'Bambu Lab', expectedInventoryVersion: 7 });
+    expect(body).not.toHaveProperty('totalPrice');
   });
 });

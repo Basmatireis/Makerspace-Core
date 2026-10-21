@@ -7,23 +7,21 @@ import {
 import { Add, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { changeFilamentSpoolFill } from '../../../api/generated/filament-spools/filament-spools';
-import type { FilamentNewFillInputSource, FilamentProduct, FilamentSpool, FilamentSpoolIdentifierKind, InventoryTransactionKind } from '../../../api/generated/models';
+import type { FilamentNewFillInputSource, FilamentSpool, FilamentSpoolIdentifierKind, InventoryTransactionKind } from '../../../api/generated/models';
 import { ErrorState, InlineLoadingState } from '../../../app/PageState';
 import { DecimalField } from '../../../app/DecimalField';
 import { decimalNumber, decimalText, decimalValidator } from '../../../app/decimalInput';
 import { LeftoverFields, leftoverDefaults, leftoverSummary, resolveLeftover, saveTareWeight, toLeftoverInput, type LeftoverValues } from '../components/LeftoverFields';
-import { ProductPicker } from '../components/ProductPicker';
 import { formatGrams, toDecimal, TransactionKindTag } from '../components/inventoryShared';
 import { identifierKey, identifierKinds, identifierLabel, initialOf, needsRefill, remainingOf, spoolNameText, toNumber } from '../components/spoolShared';
 import { closeMaterialDelta, planClose } from '../fillPlan';
 import { formatDateTime } from '../shared/format';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
-import { activeProductsQuery, allSpoolsQuery, filamentMaterialsQuery, spoolErrorMessage, useRefreshInventory } from '../spoolData';
+import { allSpoolsQuery, filamentMaterialsQuery, spoolErrorMessage, useRefreshInventory } from '../spoolData';
 
 type Values = LeftoverValues & {
   spoolId: string;
-  productId: string; manual: boolean;
   materialId: string; netWeight: string; source: FilamentNewFillInputSource; price: string; supplier: string; manufacturer: string; product: string;
   keep: Record<string, boolean>;
   added: { kind: FilamentSpoolIdentifierKind; value: string }[];
@@ -32,7 +30,7 @@ type Values = LeftoverValues & {
 type StepKey = 'spool' | 'leftover' | 'filament' | 'tags';
 const LABELS: Record<StepKey, string> = { spool: 'Spool', leftover: 'Leftover', filament: 'New filament', tags: 'Tags' };
 const STEP_FIELDS: Record<StepKey, (keyof Values)[]> = {
-  spool: ['spoolId'], leftover: ['grossWeight', 'tareWeight'], filament: ['productId', 'materialId', 'netWeight', 'price', 'source'], tags: [],
+  spool: ['spoolId'], leftover: ['grossWeight', 'tareWeight'], filament: ['materialId', 'netWeight', 'price', 'source'], tags: [],
 };
 
 const blankTag = (): Values['added'][number] => ({ kind: 'nfc', value: '' });
@@ -68,28 +66,22 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
   const canPurchase = can('inventory.manage');
   const spoolList = useQuery({ ...allSpoolsQuery({ kind: 'reusable', lifecycle: 'active' }), enabled: open });
   const materialList = useQuery({ ...filamentMaterialsQuery(), enabled: open });
-  const productList = useQuery({ ...activeProductsQuery(), enabled: open });
-  const ready = spoolList.isSuccess && materialList.isSuccess && productList.isSuccess;
-  const loadFailed = spoolList.isError || materialList.isError || productList.isError;
+  const ready = spoolList.isSuccess && materialList.isSuccess;
+  const loadFailed = spoolList.isError || materialList.isError;
   const choices = spoolList.data ?? [];
   const filaments = (materialList.data ?? []).filter((material) => material.active);
-  const products = (productList.data ?? []).filter((product) => filaments.some((item) => item.id === product.materialId));
-  /**
-   * Refilling the same filament is the common case, so the spool's current product is preselected — but only a
-   * refill product, because a reusable spool is refilled from refills, not from filament sold on its own spool.
-   */
+  /** Refilling the same filament is the common case, so the spool's current filament is preselected. */
   const defaults = (spool: FilamentSpool | undefined): Values => {
     const filled = Boolean(spool && !needsRefill(spool) && filaments.some((item) => item.id === spool.materialId));
-    const current = filled ? products.find((item) => item.id === spool?.productId) : undefined;
-    const product = current?.active && current.packaging === 'refill' ? current : undefined;
+    const material = filled ? filaments.find((item) => item.id === spool?.materialId) : undefined;
     return {
-      ...leftoverDefaults(spool), spoolId: spool?.id ?? '', productId: product?.id ?? '', manual: filled && !current,
-      materialId: product?.materialId ?? (filled && spool ? spool.materialId ?? '' : ''), netWeight: product ? decimalText(product.netWeightG) : '1000', source: 'loose_stock', price: '', supplier: '',
-      manufacturer: product?.manufacturer ?? (filled ? spool?.manufacturer ?? '' : ''), product: product?.name ?? (filled ? spool?.productName ?? '' : ''), keep: keepDefaults(spool), added: [blankTag()],
+      ...leftoverDefaults(spool), spoolId: spool?.id ?? '',
+      materialId: material?.id ?? '', netWeight: material?.packageSize != null ? decimalText(material.packageSize) : '1000', source: 'loose_stock', price: '', supplier: '',
+      manufacturer: filled ? spool?.manufacturer ?? '' : '', product: filled ? spool?.productName ?? '' : '', keep: keepDefaults(spool), added: [blankTag()],
     };
   };
   const form = useForm<Values>({ defaultValues: defaults(preselected) });
-  const { control, register, handleSubmit, reset, setValue, getValues, trigger, clearErrors, formState: { errors } } = form;
+  const { control, register, handleSubmit, reset, setValue, getValues, trigger, formState: { errors } } = form;
   const { fields, append, remove } = useFieldArray({ control, name: 'added' });
   const values = form.watch();
   const spool = preselected && preselected.id === values.spoolId ? preselected : choices.find((item) => item.id === values.spoolId);
@@ -105,7 +97,7 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
       return changeFilamentSpoolFill(spool.id, {
         leftover: refillOnly ? null : toLeftoverInput(spool, data),
         fill: {
-          productId: data.manual ? null : data.productId || null, materialId: material.id, manufacturer: data.manufacturer.trim() || null, productName: data.product.trim() || null,
+          materialId: material.id, manufacturer: data.manufacturer.trim() || null, productName: data.product.trim() || null,
           netWeightG: toDecimal(decimalNumber(data.netWeight) ?? 0), source: data.source, totalPrice: data.source === 'purchase' && decimalNumber(data.price) !== null ? toDecimal(decimalNumber(data.price) ?? 0) : null, supplier: data.supplier.trim() || null,
         },
         keepIdentifierIds: spool.identifiers.filter((item) => data.keep[item.id]).map((item) => item.id),
@@ -127,27 +119,11 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
   const chooseSpool = (next: FilamentSpool | null) => {
     setValue('spoolId', next?.id ?? '', { shouldValidate: Boolean(next) });
     const fresh = defaults(next ?? undefined);
-    for (const key of ['leftoverBasis', 'grossWeight', 'tareWeight', 'leftoverOutcome', 'productId', 'manual', 'materialId', 'netWeight', 'manufacturer', 'product', 'keep'] as const) setValue(key, fresh[key]);
-  };
-
-  const chooseProduct = (product: FilamentProduct | null) => {
-    setValue('productId', product?.id ?? '', { shouldValidate: Boolean(product) });
-    if (!product) return;
-    setValue('materialId', product.materialId, { shouldValidate: true });
-    setValue('netWeight', decimalText(product.netWeightG));
-    setValue('manufacturer', product.manufacturer);
-    setValue('product', product.name);
-    // The price only applies to a new purchase; it stays editable.
-    setValue('price', product.defaultPrice != null ? decimalText(product.defaultPrice) : '');
-  };
-  const setManual = (next: boolean) => {
-    setValue('manual', next);
-    if (next) { setValue('productId', ''); clearErrors('productId'); }
+    for (const key of ['leftoverBasis', 'grossWeight', 'tareWeight', 'leftoverOutcome', 'materialId', 'netWeight', 'manufacturer', 'product', 'keep'] as const) setValue(key, fresh[key]);
   };
 
   const leftover = spool && !refillOnly ? resolveLeftover(spool, values) : null;
   const material = filaments.find((item) => item.id === values.materialId);
-  const selectedProduct = products.find((item) => item.id === values.productId);
   const net = decimalNumber(values.netWeight) ?? 0;
 
   // Loose stock after the old fill has been closed: a returned leftover joins it, corrections and disposals leave the material.
@@ -236,8 +212,8 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
               </ProgressIndicator>
 
               {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={spoolErrorMessage(mutation.error)} />}
-              {loadFailed && <ErrorState message="Spools, materials and products could not be loaded." onRetry={() => { void spoolList.refetch(); void materialList.refetch(); void productList.refetch(); }} />}
-              {!ready && !loadFailed && <InlineLoadingState label="Loading spools and products" />}
+              {loadFailed && <ErrorState message="Spools and filament could not be loaded." onRetry={() => { void spoolList.refetch(); void materialList.refetch(); }} />}
+              {!ready && !loadFailed && <InlineLoadingState label="Loading spools and filament" />}
 
               {ready && current === 'spool' && (
                 <Controller
@@ -272,32 +248,13 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
               {ready && current === 'filament' && (
                 <Stack gap={6}>
                   {refillOnly && <InlineNotification kind="info" lowContrast hideCloseButton title="Needs refill" subtitle={`${name} has no filament. The new fill is fill ${nextFill}.`} />}
-                  <Controller
-                    control={control} name="productId" rules={{ validate: (value, form) => form.manual || Boolean(value) || 'Choose a product, or select Not in catalog.' }}
-                    render={({ fieldState }) => (
-                      <ProductPicker
-                        id="refill-product-picker" products={products} productId={values.productId} manual={values.manual}
-                        onProduct={chooseProduct} onManual={setManual} invalid={fieldState.invalid} invalidText={fieldState.error?.message}
-                      />
-                    )}
-                  />
-                  {spool?.kind === 'reusable' && selectedProduct?.packaging === 'spool' && (
-                    <InlineNotification
-                      kind="info" lowContrast hideCloseButton title="Single-use packaging"
-                      subtitle={`${selectedProduct.manufacturer} ${selectedProduct.name} comes on its own spool. Loading it onto reusable ${spool.displayId} means rewinding it onto this spool.`}
-                    />
-                  )}
-                  {selectedProduct ? (
-                    <TextInput id="refill-material-product" labelText="Material" readOnly value={material?.name ?? selectedProduct.materialName} helperText="Set by the product." />
-                  ) : (
-                    <Select
-                      id="refill-material" labelText="Material" invalid={Boolean(errors.materialId)} invalidText={errors.materialId?.message}
-                      {...register('materialId', { required: 'Choose a material.' })}
-                    >
-                      <SelectItem value="" text="Choose a material" />
-                      {filaments.map((item) => <SelectItem key={item.id} value={item.id} text={item.name} />)}
-                    </Select>
-                  )}
+                  <Select
+                    id="refill-material" labelText="Filament" invalid={Boolean(errors.materialId)} invalidText={errors.materialId?.message}
+                    {...register('materialId', { required: 'Choose a filament.', onChange: (event) => { const next = filaments.find((item) => item.id === event.target.value); if (next?.packageSize != null) setValue('netWeight', decimalText(next.packageSize)); } })}
+                  >
+                    <SelectItem value="" text="Choose a filament" />
+                    {filaments.map((item) => <SelectItem key={item.id} value={item.id} text={item.name} />)}
+                  </Select>
                   <Controller
                     control={control} name="netWeight"
                     rules={{
@@ -338,8 +295,8 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
                       <TextInput id="refill-supplier" labelText="Supplier (optional)" autoComplete="off" {...register('supplier')} />
                     </>
                   )}
-                  {values.manual && <TextInput id="refill-manufacturer" labelText="Manufacturer (optional)" autoComplete="off" {...register('manufacturer')} />}
-                  {values.manual && <TextInput id="refill-product" labelText="Product (optional)" autoComplete="off" {...register('product')} />}
+                  <TextInput id="refill-manufacturer" labelText="Manufacturer (optional)" helperText="Defaults to the manufacturer of the article." autoComplete="off" {...register('manufacturer')} />
+                  <TextInput id="refill-product" labelText="Product name (optional)" autoComplete="off" {...register('product')} />
                 </Stack>
               )}
 

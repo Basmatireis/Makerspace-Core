@@ -1,6 +1,5 @@
 import { queryOptions, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../api/http-client';
-import { listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { listFilamentSpoolTransactions, listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
 import { listMaterials } from '../../api/generated/inventory/inventory';
 import type { FilamentSpool, ListFilamentSpoolsParams, UpdateFilamentSpoolRequest } from '../../api/generated/models';
@@ -9,7 +8,7 @@ import { machineLogbookKeys } from './queries';
 
 const PAGE_SIZE = 100;
 
-/** Loads every page of a list endpoint; spool, product and ledger lists are small enough to sort and filter in the table. */
+/** Loads every page of a list endpoint; spool and ledger lists are small enough to sort and filter in the table. */
 export async function fetchAllPages<T>(load: (page: number) => Promise<{ items: T[]; total: number }>): Promise<T[]> {
   const items: T[] = [];
   for (let page = 1; ; page += 1) {
@@ -36,13 +35,7 @@ export const allSpoolTransactionsQuery = (spoolId: string) => queryOptions({
 /** Filament materials with their stock split (quantity, assigned to spools, loose) and inventory version. */
 export const filamentMaterialsQuery = () => queryOptions({
   queryKey: [...machineLogbookKeys.all, 'filament-materials'] as const,
-  queryFn: async ({ signal }) => (await fetchAllPages((page) => listMaterials({ page, pageSize: PAGE_SIZE }, { signal }))).filter(isFilament),
-});
-
-/** Active catalog products for the pickers. */
-export const activeProductsQuery = () => queryOptions({
-  queryKey: [...machineLogbookKeys.all, 'products-active'] as const,
-  queryFn: ({ signal }) => fetchAllPages((page) => listFilamentProducts({ page, pageSize: PAGE_SIZE }, { signal })),
+  queryFn: async ({ signal }) => (await fetchAllPages((page) => listMaterials({ kind: 'filament', page, pageSize: PAGE_SIZE }, { signal }))).filter(isFilament),
 });
 
 /**
@@ -68,7 +61,8 @@ const messages: Record<string, string> = {
   disposition_required: 'Choose what happens to the leftover.',
   insufficient_loose_stock: 'There is not enough loose stock for this. Check the available amount and try again.',
   insufficient_unassigned_stock: 'There is not enough loose stock for this. Check the available amount and try again.',
-  product_inactive: 'This product is no longer active. Choose another product or select Not in catalog.',
+  material_name_conflict: 'An article with this name already exists.',
+  insufficient_stock: 'There is not enough stock for this.',
   identifier_in_use: 'One of these identifiers is already assigned to a spool.',
   spool_not_reusable: 'Only reusable spools can be refilled.',
   spool_archived: 'This spool is archived. Restore it first.',

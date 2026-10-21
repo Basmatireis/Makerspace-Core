@@ -173,7 +173,7 @@ The OpenAPI resource groups are:
 - **/filament-spools** (fills, finish, cleanup), **/inventory/receipts** and **/inventory/suggestions**
 - **/machine-logbook/overview**, **/machine-logbook/work-items**, **/machine-logbook/machine-activity**, **/machine-logbook/statistics**
 
-The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, material detail, and spool detail are sub-pages of Jobs and Inventory.  Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
+The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, article detail, and spool detail are sub-pages of Jobs and Inventory (the Inventory page has the tabs Filament, Consumables, Parts and Spools; see [Inventory UI](filament-printing.md#inventory-ui)). The former tab names `materials`, `material-types` and `products` open the Filament tab.  Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
 
 ## Verification
 

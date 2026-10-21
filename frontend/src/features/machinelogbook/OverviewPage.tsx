@@ -12,7 +12,7 @@ import { JobFormModal } from './dialogs/JobFormModal';
 import { machineActivityQuery, machinesQuery, overviewQuery } from './queries';
 import { formatDecimal } from './formatting';
 import { formatRelative, formatTime } from './shared/format';
-import { machineLogbookPaths } from './shared/paths';
+import { inventoryTabForKind, machineLogbookPaths } from './shared/paths';
 import { AvailabilityTag, ConnectorIssueTag, connectorIssue, currentItemName, JobRowStatusTag, workItemName } from './shared/status';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
@@ -166,7 +166,7 @@ export function MachineLogbookOverviewPage() {
           {showLowStock && (
             <ContainedList label="Stock" kind="on-page" className="mj-overview__panel">
               <ContainedListItem
-                action={<Button as={Link} to={`${machineLogbookPaths.inventory('materials')}&stock=low_stock`} kind="ghost" size="sm" renderIcon={ArrowRight}>Restock</Button>}
+                action={<Button as={Link} to={`${machineLogbookPaths.inventory(lowStock ? inventoryTabForKind(lowStock.kind) : 'filament')}&stock=low_stock`} kind="ghost" size="sm" renderIcon={ArrowRight}>Restock</Button>}
               >
                 {data.lowStockItems === 1 && lowStock ? `Low stock · ${lowStock.name} ${formatDecimal(lowStock.quantity)} ${lowStock.unit}` : 'Materials low on stock'}
               </ContainedListItem>

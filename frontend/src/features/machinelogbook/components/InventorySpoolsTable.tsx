@@ -76,23 +76,19 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
   const statusIds = url.list('status');
   const mountedIds = url.list('mounted');
   const kindIds = url.list('kind');
-  const productIds = url.list('product');
   const manufacturerIds = url.list('manufacturer');
   const showArchived = url.get('archived') === '1';
 
-  // A spool's product is its snapshot text (catalog products and fills recorded by hand), so the filter matches on that.
-  const productOptions: Option[] = [...new Set(spools.map((spool) => spool.productName).filter((name): name is string => Boolean(name)))].sort().map((name) => ({ id: name, label: name }));
   const manufacturerOptions: Option[] = [...new Set(spools.map((spool) => spool.manufacturer).filter((name): name is string => Boolean(name)))].sort().map((name) => ({ id: name, label: name }));
 
   const rows = useMemo(() => spools.filter((spool) => (
     (showArchived || spool.status !== 'archived')
     && (kindIds.length === 0 || kindIds.includes(spool.kind))
     && (materialIds.length === 0 || materialIds.includes(spool.materialId ?? ''))
-    && (productIds.length === 0 || productIds.includes(spool.productName ?? ''))
     && (manufacturerIds.length === 0 || manufacturerIds.includes(spool.manufacturer ?? ''))
     && (statusIds.length === 0 || statusIds.some((id) => matchesStatus(spool, id)))
     && (mountedIds.length === 0 || mountedIds.includes(spool.mounted ? 'mounted' : 'free'))
-  )), [spools, showArchived, kindIds.join(','), materialIds.join(','), productIds.join(','), manufacturerIds.join(','), statusIds.join(','), mountedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  )), [spools, showArchived, kindIds.join(','), materialIds.join(','), manufacturerIds.join(','), statusIds.join(','), mountedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns: Column<FilamentSpool>[] = [
     {
@@ -102,7 +98,7 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
           <CarbonLink as={Link} to={machineLogbookPaths.spool(spool.id)}>{spool.displayId}</CarbonLink>
           {spool.label && <span className="mj-secondary">{spool.label}</span>}
           {needsRefill(spool) && <span className="mj-secondary">Waiting for a refill</span>}
-          {!needsRefill(spool) && <span className="mj-secondary mj-show-narrow">{spoolTitle(spool) || 'No product recorded'}</span>}
+          {!needsRefill(spool) && <span className="mj-secondary mj-show-narrow">{spoolTitle(spool) || 'No manufacturer recorded'}</span>}
           <span className="mj-secondary mj-show-narrow">{kindLabel(spool.kind)}</span>
           {!fixedMaterial && spool.materialName && <span className="mj-secondary mj-show-narrow">{spool.materialName}</span>}
           <span className="mj-secondary mj-show-narrow">{[spool.storageLocation, spool.mounted ? `Mounted${spool.mountedOn ? ` on ${mountText(spool.mountedOn)}` : ''}` : null].filter(Boolean).join(' · ')}</span>
@@ -110,15 +106,7 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
       ),
     },
     { key: 'kind', header: 'Type', narrow: true, sortValue: (spool) => spool.kind, render: (spool) => <KindTag kind={spool.kind} size="sm" /> },
-    {
-      key: 'product', header: 'Product', narrow: true, sortValue: (spool) => `${spool.productName ?? ''} ${spool.manufacturer ?? ''}`.trim(),
-      render: (spool) => spool.productName || spool.manufacturer ? (
-        <div className="mj-cell-stack">
-          <span>{spool.productName ?? spool.manufacturer}</span>
-          {spool.productName && spool.manufacturer && <span className="mj-secondary">{spool.manufacturer}</span>}
-        </div>
-      ) : '—',
-    },
+    { key: 'manufacturer', header: 'Manufacturer', narrow: true, sortValue: (spool) => spool.manufacturer ?? '', render: (spool) => spool.manufacturer || '—' },
     ...(fixedMaterial ? [] : [{ key: 'material', header: 'Material', narrow: true, sortValue: (spool: FilamentSpool) => spool.materialName ?? '', render: (spool: FilamentSpool) => spool.materialName || '—' } satisfies Column<FilamentSpool>]),
     {
       key: 'remaining', header: 'Remaining', sortValue: (spool) => remainingOf(spool), firstDirection: 'DESC',
@@ -148,7 +136,6 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
       ) : <Button kind="primary" size="lg" onClick={onRegister}>Register spool</Button>) : undefined}
       filterCategories={[
         ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
-        { key: 'product', label: 'Product', options: productOptions },
         { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
         { key: 'kind', label: 'Type', options: kindOptions },
         { key: 'status', label: 'Status', options: statusOptions },

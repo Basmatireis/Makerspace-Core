@@ -3,20 +3,20 @@ import { useForm } from 'react-hook-form';
 import { InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { consumeFilamentSpool, correctFilamentSpoolStock } from '../../../api/generated/filament-spools/filament-spools';
-import { addMaterialPurchase, correctMaterialStock, recordMaterialConsumption } from '../../../api/generated/inventory/inventory';
+import { correctMaterialStock, recordMaterialConsumption } from '../../../api/generated/inventory/inventory';
 import type { FilamentSpool, InventoryAdjustmentReason, Material } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
-import { formatQuantity, parseDecimal, toDecimal, toMoney, unitLabel } from '../components/inventoryShared';
+import { formatQuantity, parseDecimal, toDecimal, unitLabel } from '../components/inventoryShared';
 import { machineLogbookKeys } from '../queries';
 import { useNotify } from '../shared/toasts';
 
-export type MovementMode = 'purchase' | 'consumption' | 'correction' | 'disposal';
+/** Purchases are booked with Receive stock; this dialog handles the other movements. */
+export type MovementMode = 'consumption' | 'correction' | 'disposal';
 
-type Values = { quantity: string; price: string; supplier: string; unitCost: string; reason: InventoryAdjustmentReason; note: string };
-const EMPTY: Values = { quantity: '', price: '', supplier: '', unitCost: '', reason: 'inventory_count', note: '' };
+type Values = { quantity: string; unitCost: string; reason: InventoryAdjustmentReason; note: string };
+const EMPTY: Values = { quantity: '', unitCost: '', reason: 'inventory_count', note: '' };
 
 const copy: Record<MovementMode, { title: string; submit: string; done: string; quantity: string }> = {
-  purchase: { title: 'Add stock', submit: 'Add stock', done: 'Stock added', quantity: 'Quantity received' },
   consumption: { title: 'Record consumption', submit: 'Record consumption', done: 'Consumption recorded', quantity: 'Quantity used' },
   correction: { title: 'Correct stock', submit: 'Correct stock', done: 'Stock corrected', quantity: 'Physical quantity' },
   disposal: { title: 'Record disposal', submit: 'Record disposal', done: 'Disposal recorded', quantity: 'Quantity discarded' },
@@ -63,9 +63,6 @@ export function StockMovementModal({ open, onClose, mode, material, spool }: { o
       const note = values.note.trim() || null;
       const occurredAt = new Date().toISOString();
       const expectedInventoryVersion = material.inventoryVersion;
-      if (mode === 'purchase') {
-        return addMaterialPurchase(material.id, { quantity, totalPrice: toMoney(parseDecimal(values.price) ?? 0), occurredAt, supplier: values.supplier.trim() || null, note, expectedInventoryVersion });
-      }
       if (mode === 'correction') {
         const acquisitionUnitCost = needsUnitCost ? toDecimal(parseDecimal(values.unitCost) ?? 0) : null;
         return spool
@@ -89,7 +86,7 @@ export function StockMovementModal({ open, onClose, mode, material, spool }: { o
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (open) { reset(EMPTY); save.reset(); } }, [open, mode]);
   const pending = save.isPending;
-  const after = typed == null ? null : mode === 'purchase' ? current + typed : mode === 'correction' ? typed : current - typed;
+  const after = typed == null ? null : mode === 'correction' ? typed : current - typed;
   const noteRequired = mode === 'disposal';
   const submit = handleSubmit((values) => { save.mutate(values); });
 
@@ -110,16 +107,6 @@ export function StockMovementModal({ open, onClose, mode, material, spool }: { o
             id="movement-quantity" labelText={`${text.quantity} (${unitLabel(material.unit)})`} inputMode="decimal" autoComplete="off"
             invalid={Boolean(errors.quantity)} invalidText={errors.quantity?.message} {...register('quantity', { validate: validateQuantity })}
           />
-          {mode === 'purchase' && (
-            <>
-              <TextInput
-                id="movement-price" labelText="Total price in EUR" helperText="Updates the average acquisition cost." inputMode="decimal" autoComplete="off"
-                invalid={Boolean(errors.price)} invalidText={errors.price?.message}
-                {...register('price', { validate: (value) => ((parseDecimal(value) ?? -1) >= 0) || 'Enter an amount of zero or more.' })}
-              />
-              <TextInput id="movement-supplier" labelText="Supplier (optional)" autoComplete="off" {...register('supplier')} />
-            </>
-          )}
           {mode === 'correction' && (
             <Select id="movement-reason" labelText="Reason" {...register('reason')}>
               {correctionReasons.map((item) => <SelectItem key={item.id} value={item.id} text={item.label} />)}

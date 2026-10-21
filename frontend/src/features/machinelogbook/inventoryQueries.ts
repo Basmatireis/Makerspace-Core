@@ -1,7 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
-import { listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
-import { listMaterials, listMaterialTransactions, listMaterialTypes } from '../../api/generated/inventory/inventory';
+import { listInventorySuggestions, listMaterials, listMaterialTransactions, listMaterialTypes } from '../../api/generated/inventory/inventory';
 import { machineLogbookKeys } from './queries';
 
 const PAGE_SIZE = 100;
@@ -26,16 +25,25 @@ export const materialTypesQuery = () => queryOptions({
   select: (data) => data.items,
 });
 
-/** Every material, active and inactive. */
+/** Every article, active and inactive, with the total inventory value of the whole inventory. */
 export const allMaterialsQuery = () => queryOptions({
   queryKey: key('materials', 'all'),
-  queryFn: () => fetchAll((page) => listMaterials({ page, pageSize: PAGE_SIZE })),
+  queryFn: async () => {
+    let totalInventoryValue = '0';
+    const items = await fetchAll(async (page) => {
+      const result = await listMaterials({ page, pageSize: PAGE_SIZE });
+      totalInventoryValue = result.totalInventoryValue;
+      return result;
+    });
+    return { items, totalInventoryValue };
+  },
 });
 
-/** Every filament product, active and inactive. */
-export const allProductsQuery = () => queryOptions({
-  queryKey: key('products', 'all'),
-  queryFn: () => fetchAll((page) => listFilamentProducts({ includeInactive: true, page, pageSize: PAGE_SIZE })),
+/** Suggestions for variants (of one type), manufacturers, suppliers and storage locations from earlier entries. */
+export const suggestionsQuery = (materialTypeId?: string) => queryOptions({
+  queryKey: key('suggestions', materialTypeId ?? 'all'),
+  queryFn: ({ signal }) => listInventorySuggestions(materialTypeId ? { materialTypeId } : undefined, { signal }),
+  staleTime: 60_000,
 });
 
 /** The whole ledger of one material, newest handling happens in the table. */

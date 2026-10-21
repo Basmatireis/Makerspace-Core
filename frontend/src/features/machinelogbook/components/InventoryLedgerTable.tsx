@@ -40,6 +40,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
       ...(showSpool ? (tx.kind === 'spool_transfer' ? [spoolLink('from', from(tx)), spoolLink('to', to(tx))] : [spoolLink('spool', own(tx))]) : []),
       showFill && tx.spoolDisplayId && tx.fillNumber && <span key="fill">Fill {tx.fillNumber} · {materialNames?.get(tx.materialId) ?? 'Material'}</span>,
       tx.supplier && <span key="supplier">{tx.supplier}</span>,
+      tx.reference && <span key="reference">{tx.reference}</span>,
     ].filter(Boolean);
     return parts.length ? <div className="mj-cell-stack">{parts}</div> : '—';
   };
@@ -82,10 +83,10 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
   return (
     <DirectoryTable
       id={id} label="Ledger" columns={columns} rows={rows} totalCount={transactions.length}
-      searchText={(tx) => [tx.actorName, tx.note, tx.supplier, tx.machineJobDisplayId, ...spoolTexts(tx)].filter(Boolean).join(' ')}
+      searchText={(tx) => [tx.actorName, tx.note, tx.supplier, tx.reference, tx.machineJobDisplayId, ...spoolTexts(tx)].filter(Boolean).join(' ')}
       defaultSort={{ key: 'date', direction: 'DESC' }}
       filterCategories={[{ key: 'type', label: 'Type', options: transactionKindOptions }]}
-      empty={{ title: 'No movements yet', description: 'Purchases, consumption, corrections and disposals appear here.' }}
+      empty={{ title: 'No movements yet', description: 'Purchases, sales, consumption, corrections and disposals appear here.' }}
     />
   );
 }
