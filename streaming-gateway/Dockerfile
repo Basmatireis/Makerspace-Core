@@ -18,7 +18,7 @@ COPY backend/ ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateway.Version=${VERSION}" -o /out/streaming-gateway ./cmd/streaming-gateway
 
-FROM alpine:3.24.1 AS final
+FROM alpine:3.24.2 AS final
 
 # The numeric ids are fixed because the go2rtc container reads the configuration file this process
 # writes into the shared volume and has to run as the same user (see local-services/compose.yaml).
