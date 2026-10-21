@@ -47,7 +47,8 @@ export function usePersonDetailActions({
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { passwordIdentity, pinIdentity, canEditMatriculation, canReadRoles } = access;
+  const { passwordIdentity, pinIdentity, canEditMatriculation, canEditMemberSince, canEditLoginEmail, canReadRoles } =
+    access;
   const [editingPerson, setEditingPerson] = useState(false);
   const [loginEmailModalOpen, setLoginEmailModalOpen] = useState(false);
   const [assignRoleOpen, setAssignRoleOpen] = useState(false);
@@ -77,11 +78,13 @@ export function usePersonDetailActions({
       email: person.email ?? '',
       phone: person.phone ?? '',
       matriculationNumber: person.matriculationNumber ?? '',
+      memberSince: person.memberSince,
     },
   });
-  const accountCreateForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: '' } });
+  // The person's email doubles as the default login email of a new account.
+  const accountCreateForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: person.email ?? '' } });
   const accountEmailForm = useForm<AccountEmailForm>({
-    defaultValues: { loginEmail: passwordIdentity?.displayIdentifier ?? '' },
+    defaultValues: { loginEmail: passwordIdentity?.displayIdentifier ?? person.email ?? '' },
   });
   const accountPasswordForm = useForm<AccountPasswordForm>({ defaultValues: { newPassword: '', confirmPassword: '' } });
   const accountPINForm = useForm<AccountPINForm>({
@@ -89,8 +92,8 @@ export function usePersonDetailActions({
   });
 
   useEffect(() => {
-    accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' });
-  }, [passwordIdentity?.displayIdentifier, accountEmailForm]);
+    accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? person.email ?? '' });
+  }, [passwordIdentity?.displayIdentifier, person.email, accountEmailForm]);
 
   useEffect(() => {
     accountPINForm.reset({ loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' });
@@ -99,11 +102,24 @@ export function usePersonDetailActions({
   const refresh = async () => {
     await refreshPersonData(queryClient, person.id);
   };
+  // An account holder's email is the login email: it is saved through the login-email operation and never through
+  // the plain person update. That operation runs first (a rejected address then saves nothing) and raises the
+  // person's version by one because it mirrors the address into the person.
   const personMutation = useMutation({
-    mutationFn: (request: UpdatePersonRequest) => updatePerson(person.id, request),
-    onSuccess: async (updated) => {
-      queryClient.setQueryData(peopleKeys.detail(person.id), updated);
+    mutationFn: async ({ request, loginEmail }: { request: UpdatePersonRequest; loginEmail: string | null }) => {
+      if (loginEmail && account) {
+        await updateAccountLoginEmail(account.id, { loginEmail, expectedVersion: account.version });
+      }
+      const hasFieldChanges = Object.keys(request).length > 1;
+      const updated = hasFieldChanges
+        ? await updatePerson(person.id, { ...request, expectedVersion: request.expectedVersion + (loginEmail ? 1 : 0) })
+        : null;
+      return { updated, loginEmailChanged: Boolean(loginEmail) };
+    },
+    onSuccess: async ({ updated, loginEmailChanged }) => {
+      if (updated && !loginEmailChanged) queryClient.setQueryData(peopleKeys.detail(person.id), updated);
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
+      if (loginEmailChanged) await refresh();
       setEditingPerson(false);
     },
   });
@@ -111,13 +127,12 @@ export function usePersonDetailActions({
     mutationFn: ({ loginEmail }: AccountEmailForm) => {
       const normalizedLoginEmail = loginEmail.trim();
       return createPersonAccount(person.id, {
-        loginEmail: normalizedLoginEmail || null,
+        loginEmail: normalizedLoginEmail,
         expectedVersion: person.version,
       });
     },
     onSuccess: async () => {
       setCreateAccountOpen(false);
-      accountCreateForm.reset({ loginEmail: '' });
       await refresh();
     },
   });
@@ -214,9 +229,15 @@ export function usePersonDetailActions({
 
   const submitPerson = personForm.handleSubmit(async (values) => {
     try {
-      await personMutation.mutateAsync(
-        toPersonPatch(values, personForm.formState.dirtyFields, person.version, canEditMatriculation),
-      );
+      const { dirtyFields } = personForm.formState;
+      const request = toPersonPatch(values, dirtyFields, person.version, canEditMatriculation, {
+        includeEmail: !account,
+        canWriteMemberSince: canEditMemberSince,
+      });
+      const newEmail = values.email.trim();
+      const loginEmail =
+        account && dirtyFields.email && canEditLoginEmail && newEmail !== person.email ? newEmail : null;
+      await personMutation.mutateAsync({ request, loginEmail });
     } catch {
       /* rendered below */
     }

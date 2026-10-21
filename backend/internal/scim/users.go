@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/mail"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/dates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -41,11 +42,12 @@ func (s *Service) CreateUser(
 	if _, err := queries.CreateProvisionedPerson(
 		ctx,
 		scimdb.CreateProvisionedPersonParams{
-			ID:        personID,
-			FirstName: input.GivenName,
-			LastName:  input.FamilyName,
-			Email:     email,
-			Phone:     phone,
+			ID:          personID,
+			FirstName:   input.GivenName,
+			LastName:    input.FamilyName,
+			Email:       email,
+			Phone:       phone,
+			MemberSince: dates.TodayUTC(),
 		},
 	); err != nil {
 		return User{}, protocolDatabaseError(err)
@@ -59,6 +61,10 @@ func (s *Service) CreateUser(
 		scimdb.CreateProvisionedAccountParams{ID: accountID, PersonID: personID, Status: status},
 	); err != nil {
 		return User{}, protocolDatabaseError(err)
+	}
+	// The primary email is the account's login email (one email per account).
+	if err := setProvisionedLoginEmail(ctx, tx, accountID, email); err != nil {
+		return User{}, err
 	}
 	if connector.OIDCProviderID != nil {
 		if connector.Issuer == nil || input.ExternalID == nil {
@@ -230,6 +236,15 @@ func (s *Service) ReplaceUser(
 				ID:        current.PersonID,
 			},
 		); err != nil {
+			return User{}, err
+		}
+		if email != nil {
+			err = setProvisionedLoginEmail(ctx, tx, current.AccountID, email)
+		} else {
+			// A SCIM user without an email keeps the account's login email as its single email.
+			err = accounts.SyncPersonEmailFromLoginEmail(ctx, tx, current.AccountID)
+		}
+		if err != nil {
 			return User{}, err
 		}
 	}
@@ -419,15 +434,15 @@ func normalizeUser(input UserInput, requireExternalID bool) (UserInput, *string,
 	phoneValue := primaryValue(input.PhoneNumbers)
 	var email, phone *string
 	if emailValue != "" {
-		parsed, err := mail.ParseAddress(emailValue)
-		if err != nil || parsed.Address != emailValue {
+		display, _, err := security.NormalizeEmail(emailValue)
+		if err != nil {
 			return UserInput{}, nil, nil, &ProtocolError{
 				Status:   400,
 				SCIMType: "invalidValue",
 				Detail:   "The primary email is invalid",
 			}
 		}
-		email = &emailValue
+		email = &display
 	}
 	if phoneValue != "" {
 		if len(phoneValue) > 64 {
@@ -492,4 +507,20 @@ func userFromJSON(id uuid.UUID, data []byte, version int64, createdAt, updatedAt
 		return User{}, fmt.Errorf("decode SCIM provisioning metadata: %w", err)
 	}
 	return User{ID: id, Input: input, Version: version, CreatedAt: createdAt, UpdatedAt: updatedAt}, nil
+}
+
+// setProvisionedLoginEmail makes the primary email the account's login email. A nil email leaves the account
+// without one (phone-only user).
+func setProvisionedLoginEmail(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, email *string) error {
+	if email == nil {
+		return nil
+	}
+	display, normalized, err := security.NormalizeEmail(*email)
+	if err != nil {
+		return &ProtocolError{Status: 400, SCIMType: "invalidValue", Detail: "The primary email is invalid"}
+	}
+	if err := accounts.SetProvisionedLoginEmail(ctx, tx, accountID, display, normalized, false); err != nil {
+		return protocolDatabaseError(err)
+	}
+	return nil
 }

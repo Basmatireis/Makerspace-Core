@@ -55,8 +55,8 @@ UPDATE scim_connector_tokens SET last_used_at=now()
 WHERE token_digest=sqlc.arg(token_digest) AND (last_used_at IS NULL OR last_used_at < now()-interval '5 minutes');
 
 -- name: CreateProvisionedPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone))
+INSERT INTO people (id, first_name, last_name, email, phone, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateProvisionedAccount :one

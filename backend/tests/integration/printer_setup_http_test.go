@@ -60,7 +60,6 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Setup",
 			LastName:     "Admin",
-			ContactEmail: "setup-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},

@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/dates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -695,11 +697,12 @@ func (s *Service) Complete(
 			if _, err := queries.CreateJITPerson(
 				ctx,
 				oidcdb.CreateJITPersonParams{
-					ID:        personID,
-					FirstName: firstName,
-					LastName:  lastName,
-					Email:     email,
-					Phone:     phone,
+					ID:          personID,
+					FirstName:   firstName,
+					LastName:    lastName,
+					Email:       email,
+					Phone:       phone,
+					MemberSince: dates.TodayUTC(),
 				},
 			); err != nil {
 				return Completion{}, translateWriteError(err)
@@ -709,6 +712,14 @@ func (s *Service) Complete(
 				oidcdb.CreateJITAccountParams{ID: accountID, PersonID: personID},
 			); err != nil {
 				return Completion{}, err
+			}
+			// The verified email claim is the account's login email, unless another account already uses it.
+			if email != nil {
+				if display, normalized, normalizeErr := security.NormalizeEmail(*email); normalizeErr == nil {
+					if _, err := accounts.TrySetProvisionedLoginEmail(ctx, tx, accountID, display, normalized, true); err != nil {
+						return Completion{}, err
+					}
+				}
 			}
 			if _, err := queries.CreateOIDCIdentity(
 				ctx,

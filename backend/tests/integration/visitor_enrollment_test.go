@@ -29,8 +29,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	cfg := integrationConfig(t)
 
 	masterAccountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "Visitor", LastName: "Administrator", ContactEmail: "visitor-admin@example.test",
-		LoginEmail: "visitor-admin-login@example.test", Password: bootstrapPassword,
+		FirstName: "Visitor", LastName: "Administrator", LoginEmail: "visitor-admin-login@example.test", Password: bootstrapPassword,
 	})
 	if err != nil {
 		t.Fatal(err)

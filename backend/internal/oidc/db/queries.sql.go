@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const bumpAccountVersion = `-- name: BumpAccountVersion :exec
@@ -100,17 +101,18 @@ func (q *Queries) CreateJITAccount(ctx context.Context, arg CreateJITAccountPara
 }
 
 const createJITPerson = `-- name: CreateJITPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+INSERT INTO people (id, first_name, last_name, email, phone, member_since)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type CreateJITPersonParams struct {
-	ID        uuid.UUID
-	FirstName string
-	LastName  string
-	Email     *string
-	Phone     *string
+	ID          uuid.UUID
+	FirstName   string
+	LastName    string
+	Email       *string
+	Phone       *string
+	MemberSince pgtype.Date
 }
 
 func (q *Queries) CreateJITPerson(ctx context.Context, arg CreateJITPersonParams) (Person, error) {
@@ -120,6 +122,7 @@ func (q *Queries) CreateJITPerson(ctx context.Context, arg CreateJITPersonParams
 		arg.LastName,
 		arg.Email,
 		arg.Phone,
+		arg.MemberSince,
 	)
 	var i Person
 	err := row.Scan(
@@ -135,6 +138,7 @@ func (q *Queries) CreateJITPerson(ctx context.Context, arg CreateJITPersonParams
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }

@@ -43,11 +43,10 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	if _, err = admin.NewService(pool).BootstrapMaster(
 		ctx,
 		admin.BootstrapInput{
-			FirstName:    "Del",
-			LastName:     "Admin",
-			ContactEmail: "del-contact@example.test",
-			LoginEmail:   adminLogin,
-			Password:     adminPassword,
+			FirstName:  "Del",
+			LastName:   "Admin",
+			LoginEmail: adminLogin,
+			Password:   adminPassword,
 		},
 	); err != nil {
 		t.Fatal(err)

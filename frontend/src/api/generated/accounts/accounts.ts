@@ -40,7 +40,7 @@ export const getCreatePersonAccountUrl = (personId: string,) => {
 }
 
 /**
- * Requires `accounts.create`. New accounts are active by default. If `loginEmail` is supplied, a password authentication identity is created without a password.
+ * Requires `accounts.create`. New accounts are active by default. Every account has a login email, so `loginEmail` is required; a password authentication identity is created without a password and the person's email becomes this address (the person's version increases when it changed).
  * @summary Create an account for a person
  */
 export const createPersonAccount = async (personId: string,
@@ -225,8 +225,12 @@ export const getUpdateAccountLoginEmailUrl = (accountId: string,) => {
 }
 
 /**
- * Requires `accounts.login_email.update`; creates a missing password identity and never reads or changes the Person contact email.
- * @summary Add or replace an account's password login identifier
+ * Requires `accounts.login_email.update`. The login email is the person's only email: it creates a missing
+ * password identity (accounts provisioned without an email, shown with `loginEmail: null`), replaces an
+ * existing one and mirrors it into the person's `email` in the same transaction (the person's version
+ * increases). Another account already using the address yields 409. Changing the address revokes the
+ * account's sessions and outstanding password reset tokens and challenges.
+ * @summary Change the email of a person with an account
  */
 export const updateAccountLoginEmail = async (accountId: string,
     updateLoginEmailRequest: UpdateLoginEmailRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Account> => {

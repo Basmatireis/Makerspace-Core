@@ -40,7 +40,6 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Runs",
 			LastName:     "Admin",
-			ContactEmail: "orgs-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},

@@ -41,11 +41,10 @@ func run() error {
 	defer pool.Close()
 
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName:    "E2E",
-		LastName:     "Administrator",
-		ContactEmail: "e2e-master-contact@example.test",
-		LoginEmail:   "e2e-master@example.test",
-		Password:     "E2E master workshop passphrase 42",
+		FirstName:  "E2E",
+		LastName:   "Administrator",
+		LoginEmail: "e2e-master@example.test",
+		Password:   "E2E master workshop passphrase 42",
 	})
 	if err != nil {
 		return err

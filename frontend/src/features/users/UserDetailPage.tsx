@@ -195,6 +195,11 @@ function UserDetailContent({ person }: { person: Person }) {
       canEditPerson={canEditPerson}
       canReadMatriculation={canReadMatriculation}
       canEditMatriculation={canEditMatriculation}
+      canEditMemberSince={access.canEditMemberSince}
+      hasAccount={Boolean(account)}
+      emailLocked={Boolean(account) && !canEditLoginEmail}
+      missingLoginEmail={access.missingLoginEmail}
+      canSetLoginEmail={canEditLoginEmail}
     />
   );
   const accountAccessSection = (
@@ -299,10 +304,7 @@ function UserDetailContent({ person }: { person: Person }) {
               {canEditPerson && !editingPerson && <MenuItem label="Edit person" onClick={startEditingPerson} />}
               {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && <MenuItemDivider />}
               {canEditLoginEmail && (
-                <MenuItem
-                  label={passwordIdentity ? 'Change password login email' : 'Add password login'}
-                  onClick={startEditingAccount}
-                />
+                <MenuItem label={passwordIdentity ? 'Change email' : 'Set login email'} onClick={startEditingAccount} />
               )}
               {canCreateAccount && (
                 <MenuItem

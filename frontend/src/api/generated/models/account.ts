@@ -31,10 +31,7 @@ export interface Account {
   personId: UUIDv7;
   status: AccountStatus;
   passwordStatus: PasswordStatus;
-  /**
-     * Compatibility view of the local password identifier; use authIdentities.
-     * @deprecated
-     */
+  /** The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one. */
   loginEmail: Email | null;
   provisioningSource: AccountProvisioningSource;
   /** @nullable */

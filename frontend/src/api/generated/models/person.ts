@@ -37,6 +37,7 @@ export interface Person {
      * @maxLength 100
      */
   lastName: string;
+  /** The person's only email. For a person with an account this is the account's login email. */
   email?: Email | null;
   /**
      * @minLength 1
@@ -64,6 +65,8 @@ export interface Person {
   roles: RoleSummary[];
   /** Omitted without `accounts.read`; null means this person has no account. */
   account?: AccountSummary | null;
+  /** Day the person joined the makerspace. Defaults to the creation day; only `people.update.all` may change it. */
+  memberSince: string;
   createdAt: string;
   updatedAt: string;
   version: Version;

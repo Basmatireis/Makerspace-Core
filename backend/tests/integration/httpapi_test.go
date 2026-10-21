@@ -34,8 +34,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		memberPassword = "HTTP member workshop password 62"
 	)
 	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
-		FirstName: "HTTP", LastName: "Administrator", ContactEmail: "http-contact@example.test",
-		LoginEmail: adminLogin, Password: adminPassword,
+		FirstName: "HTTP", LastName: "Administrator", LoginEmail: adminLogin, Password: adminPassword,
 	}); err != nil {
 		t.Fatal(err)
 	}

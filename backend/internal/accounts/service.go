@@ -173,39 +173,12 @@ func (s *Service) Create(
 	expectedPersonVersion int64,
 	requestID *uuid.UUID,
 ) (Account, error) {
-	return s.create(ctx, principal, personID, &loginEmail, expectedPersonVersion, requestID)
-}
-
-func (s *Service) CreateWithoutIdentity(
-	ctx context.Context,
-	principal authorization.Principal,
-	personID uuid.UUID,
-	expectedPersonVersion int64,
-	requestID *uuid.UUID,
-) (Account, error) {
-	return s.create(ctx, principal, personID, nil, expectedPersonVersion, requestID)
-}
-
-func (s *Service) create(
-	ctx context.Context,
-	principal authorization.Principal,
-	personID uuid.UUID,
-	loginEmail *string,
-	expectedPersonVersion int64,
-	requestID *uuid.UUID,
-) (Account, error) {
 	if !principal.Has(authorization.AccountsCreate) {
 		return Account{}, apperror.PermissionDenied
 	}
-	var display, normalized string
-	var err error
-	if loginEmail != nil {
-		display, normalized, err = security.NormalizeEmail(*loginEmail)
-	}
+	display, normalized, err := security.NormalizeEmail(loginEmail)
 	if err != nil || expectedPersonVersion < 1 {
-		return Account{}, apperror.InvalidField(
-			"loginEmail must be valid when supplied and expectedVersion is required",
-		)
+		return Account{}, apperror.InvalidField("loginEmail must be valid and expectedVersion is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -230,18 +203,20 @@ func (s *Service) create(
 	); err != nil {
 		return Account{}, databaseError(err)
 	}
-	if loginEmail != nil {
-		if _, err := queries.CreateAuthIdentity(
-			ctx,
-			accountsdb.CreateAuthIdentityParams{
-				ID:                   ids.New(),
-				AccountID:            accountID,
-				IdentifierDisplay:    display,
-				IdentifierNormalized: normalized,
-			},
-		); err != nil {
-			return Account{}, databaseError(err)
-		}
+	if _, err := queries.CreateAuthIdentity(
+		ctx,
+		accountsdb.CreateAuthIdentityParams{
+			ID:                   ids.New(),
+			AccountID:            accountID,
+			IdentifierDisplay:    display,
+			IdentifierNormalized: normalized,
+		},
+	); err != nil {
+		return Account{}, databaseError(err)
+	}
+	// The person's email is the login email from now on.
+	if err := queries.SetPersonEmail(ctx, accountsdb.SetPersonEmailParams{PersonID: personID, Email: display}); err != nil {
+		return Account{}, err
 	}
 	actor := principal.AccountID
 	if err := audit.Write(

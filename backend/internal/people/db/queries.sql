@@ -1,10 +1,16 @@
 -- name: CreatePerson :one
-INSERT INTO people (id, first_name, last_name, email, phone, matriculation_number, photo_reference)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.narg(matriculation_number), sqlc.narg(photo_reference))
+INSERT INTO people (id, first_name, last_name, email, phone, matriculation_number, photo_reference, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.narg(matriculation_number), sqlc.narg(photo_reference), sqlc.arg(member_since))
 RETURNING *;
 
 -- name: GetPerson :one
 SELECT * FROM people WHERE id = sqlc.arg(id);
+
+-- name: GetPersonForUpdate :one
+SELECT * FROM people WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: PersonHasAccount :one
+SELECT EXISTS (SELECT 1 FROM accounts WHERE person_id = sqlc.arg(person_id));
 
 -- name: GetPersonForDeletion :one
 SELECT * FROM people WHERE id = sqlc.arg(id) FOR UPDATE;
@@ -145,6 +151,7 @@ UPDATE people
 SET first_name = sqlc.arg(first_name), last_name = sqlc.arg(last_name),
     email = sqlc.narg(email), phone = sqlc.narg(phone),
     matriculation_number = sqlc.narg(matriculation_number), photo_reference = sqlc.narg(photo_reference),
+    member_since = sqlc.arg(member_since),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;

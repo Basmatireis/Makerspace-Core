@@ -35,7 +35,7 @@ func TestRepriceMachineJobOverHTTP(t *testing.T) {
 		adminLogin    = "reprice-admin@example.test"
 		adminPassword = "Reprice admin password 52"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Reprice", LastName: "Admin", ContactEmail: "reprice-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Reprice", LastName: "Admin", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)

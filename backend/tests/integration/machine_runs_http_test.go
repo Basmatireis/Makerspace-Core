@@ -40,7 +40,6 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Runs",
 			LastName:     "Admin",
-			ContactEmail: "runs-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},

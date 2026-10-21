@@ -38,7 +38,6 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Runs",
 			LastName:     "Admin",
-			ContactEmail: "types-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},

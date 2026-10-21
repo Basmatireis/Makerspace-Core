@@ -238,11 +238,7 @@ func promptBootstrap() (admin.BootstrapInput, error) {
 	if err != nil {
 		return admin.BootstrapInput{}, err
 	}
-	contactEmail, err := promptLine(reader, "Contact email: ")
-	if err != nil {
-		return admin.BootstrapInput{}, err
-	}
-	loginEmail, err := promptLine(reader, "Login email: ")
+	loginEmail, err := promptLine(reader, "Email (used to log in): ")
 	if err != nil {
 		return admin.BootstrapInput{}, err
 	}
@@ -251,11 +247,10 @@ func promptBootstrap() (admin.BootstrapInput, error) {
 		return admin.BootstrapInput{}, err
 	}
 	return admin.BootstrapInput{
-		FirstName:    first,
-		LastName:     last,
-		ContactEmail: contactEmail,
-		LoginEmail:   loginEmail,
-		Password:     password,
+		FirstName:  first,
+		LastName:   last,
+		LoginEmail: loginEmail,
+		Password:   password,
 	}, nil
 }
 

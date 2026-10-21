@@ -40,6 +40,12 @@ func (s *Service) UpdateLoginEmail(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
+	// The person row is locked first (people before accounts) because the login email is mirrored into it.
+	if _, err := queries.LockPersonForAccountMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+		return Account{}, apperror.NotFound
+	} else if err != nil {
+		return Account{}, err
+	}
 	current, err := loadAccountForMutation(ctx, queries, id)
 	if err != nil {
 		return Account{}, err
@@ -47,20 +53,16 @@ func (s *Service) UpdateLoginEmail(
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	_, identityErr := queries.GetPasswordIdentityForAccountForUpdate(ctx, id)
-	if errors.Is(identityErr, pgx.ErrNoRows) {
-		if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{
-			ID: ids.New(), AccountID: id,
-			IdentifierDisplay: display, IdentifierNormalized: normalized,
-		}); err != nil {
-			return Account{}, databaseError(err)
-		}
-	} else if identityErr != nil {
-		return Account{}, identityErr
-	} else if _, err := queries.UpdateLoginEmail(ctx, accountsdb.UpdateLoginEmailParams{
-		AccountID: id, IdentifierDisplay: display, IdentifierNormalized: normalized,
+	if _, err := queries.GetPasswordIdentityForAccountForUpdate(ctx, id); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return Account{}, err
+	}
+	if _, err := queries.UpsertPasswordIdentity(ctx, accountsdb.UpsertPasswordIdentityParams{
+		ID: ids.New(), AccountID: id, IdentifierDisplay: display, IdentifierNormalized: normalized,
 	}); err != nil {
 		return Account{}, databaseError(err)
+	}
+	if err := queries.SyncPersonEmailFromLoginEmail(ctx, id); err != nil {
+		return Account{}, err
 	}
 	if err := queries.DeletePasswordResetForAccount(ctx, id); err != nil {
 		return Account{}, err

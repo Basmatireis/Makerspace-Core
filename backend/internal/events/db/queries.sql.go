@@ -889,7 +889,7 @@ func (q *Queries) FindEventPeople(ctx context.Context, arg FindEventPeopleParams
 
 const findEventPeopleByExactContact = `-- name: FindEventPeopleByExactContact :many
 WITH normalized_people AS (
-    SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source,
+    SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source, p.member_since,
            lower(btrim(p.email)) AS normalized_email,
            CASE
                WHEN regexp_replace(p.phone, '[^0-9+]', '', 'g') LIKE '00%'

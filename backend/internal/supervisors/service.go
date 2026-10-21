@@ -93,7 +93,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 			LaborordnungState: person.LaborordnungState,
 			Counts:            personCounts,
 			Standing:          staffing.StatusFor(kind, personCounts, requirements),
-			MemberSince:       person.MemberSince,
+			MemberSince:       person.MemberSince.Time,
 		}
 		if last, ok := lastStaffed[person.PersonID]; ok {
 			row.LastOpenDayAt = &last

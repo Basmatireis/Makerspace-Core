@@ -29,27 +29,26 @@ export function useBatchPeopleActions({
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const batchCreateAccounts = useMutation({
     mutationFn: async (members: Person[]) => {
-      const eligible = members.filter((member) => member.account === null);
-      const results = await Promise.allSettled(
-        eligible.map((person) =>
-          createPersonAccount(person.id, {
-            expectedVersion: person.version,
-          }),
-        ),
+      // Every account needs a login email: the person's own email is used, so people without one are skipped.
+      const withoutAccount = members.filter((member) => member.account === null);
+      const eligible = withoutAccount.flatMap((member) =>
+        member.email ? [{ id: member.id, loginEmail: member.email, expectedVersion: member.version }] : [],
       );
+      const results = await Promise.allSettled(eligible.map(({ id, ...request }) => createPersonAccount(id, request)));
       return {
         created: results.filter((result) => result.status === 'fulfilled').length,
         failed: results.filter((result) => result.status === 'rejected').length,
-        skipped: members.length - eligible.length,
+        skipped: members.length - withoutAccount.length,
+        withoutEmail: withoutAccount.length - eligible.length,
       };
     },
-    onSuccess: async ({ created, failed, skipped }) => {
+    onSuccess: async ({ created, failed, skipped, withoutEmail }) => {
       setBatchAction(null);
       setBatchMembers([]);
       setBatchResult({
         kind: failed === 0 ? 'success' : 'warning',
         title: failed === 0 ? 'Accounts created' : 'Some accounts were not created',
-        subtitle: `${created} created${skipped ? `; ${skipped} skipped because an account already exists` : ''}${failed ? `; ${failed} could not be created` : ''}.`,
+        subtitle: `${created} created${skipped ? `; ${skipped} skipped because an account already exists` : ''}${withoutEmail ? `; ${withoutEmail} skipped because they have no email` : ''}${failed ? `; ${failed} could not be created` : ''}.`,
       });
       await onChanged();
     },

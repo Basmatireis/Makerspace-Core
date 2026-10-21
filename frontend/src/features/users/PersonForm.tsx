@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- form component and DTO mappers intentionally share one contract */
 import { Column, Grid, TextInput } from '@carbon/react';
+import { Controller } from 'react-hook-form';
 import type { FieldNamesMarkedBoolean, UseFormReturn } from 'react-hook-form';
+import { DateInput } from '../../app/DateInput';
 import type { CreatePersonRequest, UpdatePersonRequest } from '../../api/generated/models';
 
 export type PersonFormValues = {
@@ -9,15 +11,32 @@ export type PersonFormValues = {
   email: string;
   phone: string;
   matriculationNumber: string;
+  /** Day the person joined (YYYY-MM-DD). Only part of the edit form; empty on creation. */
+  memberSince: string;
 };
 
 type PersonFieldsProps = {
   form: UseFormReturn<PersonFormValues>;
   showMatriculation: boolean;
   editMatriculation: boolean;
+  /** The person has an account: the email is the login email and must not be cleared. */
+  hasAccount?: boolean;
+  /** The email cannot be changed by the current user (account holder without `accounts.login_email.update`). */
+  emailLocked?: boolean;
+  /** Show the member-since date; `editMemberSince` allows changing it. */
+  showMemberSince?: boolean;
+  editMemberSince?: boolean;
 };
 
-export function PersonFields({ form, showMatriculation, editMatriculation }: PersonFieldsProps) {
+export function PersonFields({
+  form,
+  showMatriculation,
+  editMatriculation,
+  hasAccount = false,
+  emailLocked = false,
+  showMemberSince = false,
+  editMemberSince = false,
+}: PersonFieldsProps) {
   const {
     register,
     formState: { errors },
@@ -56,12 +75,22 @@ export function PersonFields({ form, showMatriculation, editMatriculation }: Per
         <TextInput
           id="person-email"
           type="email"
-          labelText="Contact email"
+          labelText="Email"
+          disabled={emailLocked}
+          helperText={
+            emailLocked
+              ? 'You do not have permission to change the email of an account.'
+              : hasAccount
+                ? 'Also the address this person logs in with.'
+                : undefined
+          }
           invalid={Boolean(errors.email)}
           invalidText={errors.email?.message}
           {...register('email', {
             maxLength: { value: 254, message: 'Use at most 254 characters.' },
-            validate: contactValidation,
+            validate: hasAccount
+              ? (value) => Boolean(value.trim()) || 'An account needs an email address.'
+              : contactValidation,
           })}
         />
       </Column>
@@ -78,6 +107,28 @@ export function PersonFields({ form, showMatriculation, editMatriculation }: Per
           })}
         />
       </Column>
+      {showMemberSince && (
+        <Column sm={4} md={4} lg={8}>
+          {editMemberSince ? (
+            <Controller
+              control={form.control}
+              name="memberSince"
+              rules={{ required: 'Enter the day this person joined.' }}
+              render={({ field }) => (
+                <DateInput
+                  id="person-member-since"
+                  labelText="Member since"
+                  value={field.value}
+                  onChange={field.onChange}
+                  invalid={Boolean(errors.memberSince)}
+                  invalidText={errors.memberSince?.message}
+                  required
+                />
+              )}
+            />
+          ) : null}
+        </Column>
+      )}
       {showMatriculation && (
         <Column sm={4} md={4} lg={8}>
           <TextInput
@@ -112,19 +163,29 @@ export function toPersonCreate(values: PersonFormValues, canWriteMatriculation: 
   };
 }
 
+export type PersonPatchOptions = {
+  /** Include the email: false for account holders, whose email changes through the login-email operation. */
+  includeEmail?: boolean;
+  canWriteMemberSince?: boolean;
+};
+
 export function toPersonPatch(
   values: PersonFormValues,
   dirtyFields: Partial<Readonly<FieldNamesMarkedBoolean<PersonFormValues>>>,
   expectedVersion: number,
   canWriteMatriculation: boolean,
+  { includeEmail = true, canWriteMemberSince = false }: PersonPatchOptions = {},
 ): UpdatePersonRequest {
   const request: UpdatePersonRequest = { expectedVersion };
   if (dirtyFields.firstName) request.firstName = values.firstName.trim();
   if (dirtyFields.lastName) request.lastName = values.lastName.trim();
-  if (dirtyFields.email) request.email = optional(values.email);
+  if (dirtyFields.email && includeEmail) request.email = optional(values.email);
   if (dirtyFields.phone) request.phone = optional(values.phone);
   if (dirtyFields.matriculationNumber && canWriteMatriculation) {
     request.matriculationNumber = optional(values.matriculationNumber);
+  }
+  if (dirtyFields.memberSince && canWriteMemberSince && values.memberSince) {
+    request.memberSince = values.memberSince;
   }
   return request;
 }

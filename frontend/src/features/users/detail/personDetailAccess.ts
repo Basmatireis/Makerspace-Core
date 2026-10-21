@@ -12,6 +12,7 @@ export function getPersonDetailAccess(
   const canReadMatriculation = hasPermission(currentUser, PermissionId.peoplereadmatriculation);
   const canEditMatriculation =
     canReadMatriculation && hasPermission(currentUser, PermissionId.peopleupdatematriculation);
+  const canEditMemberSince = hasPermission(currentUser, PermissionId.peopleupdateall);
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const canAssignRoles = hasPermission(currentUser, PermissionId.peoplerolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
@@ -40,6 +41,8 @@ export function getPersonDetailAccess(
   const pinIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin');
   const oidcIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc') ?? [];
   const hasUsableAuthenticationMethod = account?.authIdentities.some((identity) => identity.usable) ?? false;
+  // Accounts provisioned without an email (phone-only visitors, older accounts) need one set by an administrator.
+  const missingLoginEmail = Boolean(account) && !passwordIdentity;
   const canIssuePasswordReset =
     Boolean(passwordIdentity) &&
     account?.passwordStatus === 'active' &&
@@ -72,6 +75,7 @@ export function getPersonDetailAccess(
     canEditPerson,
     canReadMatriculation,
     canEditMatriculation,
+    canEditMemberSince,
     canReadAccounts,
     canReadRoles,
     canReadMakerspaceStatus,
@@ -79,6 +83,7 @@ export function getPersonDetailAccess(
     canRemoveProfileImage,
     canEditProfileImage,
     canEditLoginEmail,
+    missingLoginEmail,
     canCreateAccount,
     canDeletePerson,
     canDisableAccount,

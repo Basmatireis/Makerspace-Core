@@ -43,10 +43,15 @@ type Querier interface {
 	RestorePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
+	// Mirrors the login email into the person row (people.email is the single readable email of an account holder).
+	SetPersonEmail(ctx context.Context, arg SetPersonEmailParams) error
+	SyncPersonEmailFromLoginEmail(ctx context.Context, accountID uuid.UUID) error
 	UpdateAccountStatus(ctx context.Context, arg UpdateAccountStatusParams) (Account, error)
-	UpdateLoginEmail(ctx context.Context, arg UpdateLoginEmailParams) (AuthIdentity, error)
 	UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error)
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
+	// Creates or replaces the account's login email. A changed address resets verification to the supplied value;
+	// an unchanged address keeps its verification. A login email held by another account raises a unique violation.
+	UpsertPasswordIdentity(ctx context.Context, arg UpsertPasswordIdentityParams) (AuthIdentity, error)
 	VerifyPasswordIdentity(ctx context.Context, id uuid.UUID) error
 }
 

@@ -8,6 +8,7 @@ const values: PersonFormValues = {
   email: ' ada@example.test ',
   phone: '',
   matriculationNumber: ' 01234567 ',
+  memberSince: '2025-02-03',
 };
 
 describe('person request mapping', () => {

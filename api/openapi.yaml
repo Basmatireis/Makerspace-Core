@@ -600,8 +600,15 @@ paths:
       description: |
         Requires the applicable `people.update.self` or `people.update.all`
         permission. Sending `matriculationNumber` additionally requires
-        `people.update.matriculation`. Omitted fields are unchanged; nullable
-        fields sent as `null` are cleared.
+        `people.update.matriculation`, and sending `memberSince` requires
+        `people.update.all` even for the caller's own person. Omitted fields are
+        unchanged; nullable fields sent as `null` are cleared.
+
+        A person with an account has exactly one email, the account's login
+        email. Sending a different `email` (including `null`) for such a person
+        is rejected with 422 `email_managed_by_account`; change it with
+        `updateAccountLoginEmail` instead. Resending the current value is
+        accepted.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -679,7 +686,7 @@ paths:
       tags: [Accounts]
       operationId: createPersonAccount
       summary: Create an account for a person
-      description: Requires `accounts.create`. New accounts are active by default. If `loginEmail` is supplied, a password authentication identity is created without a password.
+      description: Requires `accounts.create`. New accounts are active by default. Every account has a login email, so `loginEmail` is required; a password authentication identity is created without a password and the person's email becomes this address (the person's version increases when it changed).
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -956,8 +963,13 @@ paths:
     put:
       tags: [Accounts]
       operationId: updateAccountLoginEmail
-      summary: Add or replace an account's password login identifier
-      description: Requires `accounts.login_email.update`; creates a missing password identity and never reads or changes the Person contact email.
+      summary: Change the email of a person with an account
+      description: |
+        Requires `accounts.login_email.update`. The login email is the person's only email: it creates a missing
+        password identity (accounts provisioned without an email, shown with `loginEmail: null`), replaces an
+        existing one and mirrors it into the person's `email` in the same transaction (the person's version
+        increases). Another account already using the address yields 409. Changing the address revokes the
+        account's sessions and outstanding password reset tokens and challenges.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -8899,7 +8911,7 @@ components:
     Person:
       type: object
       additionalProperties: false
-      required: [id, firstName, lastName, roles, createdAt, updatedAt, version]
+      required: [id, firstName, lastName, roles, memberSince, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -8915,6 +8927,7 @@ components:
           allOf:
             - $ref: "#/components/schemas/Email"
           nullable: true
+          description: The person's only email. For a person with an account this is the account's login email.
         phone:
           type: string
           minLength: 1
@@ -8948,6 +8961,10 @@ components:
             - $ref: "#/components/schemas/AccountSummary"
           nullable: true
           description: Omitted without `accounts.read`; null means this person has no account.
+        memberSince:
+          type: string
+          format: date
+          description: Day the person joined the makerspace. Defaults to the creation day; only `people.update.all` may change it.
         createdAt:
           type: string
           format: date-time
@@ -9178,7 +9195,7 @@ components:
           format: date-time
           nullable: true
           description: Start of the last open day the person staffed in any semester.
-        memberSince: {type: string, format: date-time}
+        memberSince: {type: string, format: date}
     PersonalDashboard:
       type: object
       additionalProperties: false
@@ -9208,7 +9225,7 @@ components:
       required: [firstName, memberSince]
       properties:
         firstName: {type: string}
-        memberSince: {type: string, format: date-time}
+        memberSince: {type: string, format: date}
     PersonalDashboardStaffing:
       type: object
       additionalProperties: false
@@ -9281,7 +9298,7 @@ components:
         openDayHours: {type: number, format: double, minimum: 0}
         eventShifts: {type: integer, minimum: 0}
         eventShiftHours: {type: number, format: double, minimum: 0}
-        memberSince: {type: string, format: date-time}
+        memberSince: {type: string, format: date}
         jobs: {$ref: "#/components/schemas/PersonalJobStatistics"}
     OwnPaymentRequest:
       type: object
@@ -9522,7 +9539,7 @@ components:
       type: object
       additionalProperties: false
       required: [expectedVersion]
-      description: At least one update field must be present and a contact method must remain afterward.
+      description: At least one update field must be present and a contact method must remain afterward. `email` of a person with an account cannot be changed here (see `updatePerson`).
       properties:
         expectedVersion:
           $ref: "#/components/schemas/Version"
@@ -9548,6 +9565,10 @@ components:
           minLength: 1
           maxLength: 64
           nullable: true
+        memberSince:
+          type: string
+          format: date
+          description: Requires `people.update.all`. Must not lie in the future; cannot be cleared.
 
     PersonPage:
       type: object
@@ -9600,8 +9621,7 @@ components:
         loginEmail:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
-          deprecated: true
-          description: Compatibility view of the local password identifier; use authIdentities.
+          description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -9631,8 +9651,7 @@ components:
         loginEmail:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
-          deprecated: true
-          description: Compatibility view of the local password identifier; use authIdentities.
+          description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -9655,12 +9674,12 @@ components:
     CreateAccountRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion]
+      required: [loginEmail, expectedVersion]
+      description: The login email becomes the person's email.
       properties:
         loginEmail:
-          allOf: [{$ref: "#/components/schemas/Email"}]
-          nullable: true
-          description: Optional login email. Omit or send null to create the Account without a password authentication identity.
+          $ref: "#/components/schemas/Email"
+
         expectedVersion:
           allOf:
             - $ref: "#/components/schemas/Version"

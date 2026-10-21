@@ -22,7 +22,6 @@ func TestDatabaseMailConfigurationAndManualPasswordResetLink(t *testing.T) {
 			admin.BootstrapInput{
 				FirstName:    "Mail",
 				LastName:     "Administrator",
-				ContactEmail: "mail-admin@example.test",
 				LoginEmail:   "mail-login@example.test",
 				Password:     bootstrapPassword,
 			},

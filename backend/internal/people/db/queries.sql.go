@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const acquireMasterInvariantLock = `-- name: AcquireMasterInvariantLock :exec
@@ -44,7 +45,7 @@ func (q *Queries) AssignPersonRole(ctx context.Context, arg AssignPersonRolePara
 const bumpPersonVersion = `-- name: BumpPersonVersion :one
 UPDATE people SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type BumpPersonVersionParams struct {
@@ -68,6 +69,7 @@ func (q *Queries) BumpPersonVersion(ctx context.Context, arg BumpPersonVersionPa
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }
@@ -185,9 +187,9 @@ func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64
 }
 
 const createPerson = `-- name: CreatePerson :one
-INSERT INTO people (id, first_name, last_name, email, phone, matriculation_number, photo_reference)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+INSERT INTO people (id, first_name, last_name, email, phone, matriculation_number, photo_reference, member_since)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type CreatePersonParams struct {
@@ -198,6 +200,7 @@ type CreatePersonParams struct {
 	Phone               *string
 	MatriculationNumber *string
 	PhotoReference      *string
+	MemberSince         pgtype.Date
 }
 
 func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error) {
@@ -209,6 +212,7 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 		arg.Phone,
 		arg.MatriculationNumber,
 		arg.PhotoReference,
+		arg.MemberSince,
 	)
 	var i Person
 	err := row.Scan(
@@ -224,6 +228,7 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }
@@ -289,7 +294,7 @@ func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
 }
 
 const getPerson = `-- name: GetPerson :one
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people WHERE id = $1
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since FROM people WHERE id = $1
 `
 
 func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (Person, error) {
@@ -308,12 +313,13 @@ func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (Person, error) {
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }
 
 const getPersonForDeletion = `-- name: GetPersonForDeletion :one
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people WHERE id = $1 FOR UPDATE
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since FROM people WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Person, error) {
@@ -332,6 +338,32 @@ func (q *Queries) GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Perso
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
+	)
+	return i, err
+}
+
+const getPersonForUpdate = `-- name: GetPersonForUpdate :one
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since FROM people WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetPersonForUpdate(ctx context.Context, id uuid.UUID) (Person, error) {
+	row := q.db.QueryRow(ctx, getPersonForUpdate, id)
+	var i Person
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.MatriculationNumber,
+		&i.PhotoReference,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }
@@ -457,7 +489,7 @@ WITH current_laborordnung_version AS (
     ORDER BY effective_at DESC, id DESC
     LIMIT 1
 )
-SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source
+SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source, p.member_since
 FROM people p
 LEFT JOIN accounts a ON a.person_id = p.id
 LEFT JOIN current_laborordnung_version current_laborordnung ON true
@@ -555,6 +587,7 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 			&i.UpdatedAt,
 			&i.ProfileImageFileID,
 			&i.ProfileImageSource,
+			&i.MemberSince,
 		); err != nil {
 			return nil, err
 		}
@@ -724,6 +757,17 @@ func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []
 	return items, nil
 }
 
+const personHasAccount = `-- name: PersonHasAccount :one
+SELECT EXISTS (SELECT 1 FROM accounts WHERE person_id = $1)
+`
+
+func (q *Queries) PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, personHasAccount, personID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const personHasSCIMProvisioning = `-- name: PersonHasSCIMProvisioning :one
 SELECT EXISTS (SELECT 1 FROM scim_users WHERE person_id = $1)
 `
@@ -774,7 +818,7 @@ SET profile_image_file_id = $1,
     version = version + 1,
     updated_at = now()
 WHERE id = $3 AND version = $4
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type SetProfileImageParams struct {
@@ -805,6 +849,7 @@ func (q *Queries) SetProfileImage(ctx context.Context, arg SetProfileImageParams
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }
@@ -814,9 +859,10 @@ UPDATE people
 SET first_name = $1, last_name = $2,
     email = $3, phone = $4,
     matriculation_number = $5, photo_reference = $6,
+    member_since = $7,
     version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+WHERE id = $8 AND version = $9
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
 type UpdatePersonParams struct {
@@ -826,6 +872,7 @@ type UpdatePersonParams struct {
 	Phone               *string
 	MatriculationNumber *string
 	PhotoReference      *string
+	MemberSince         pgtype.Date
 	ID                  uuid.UUID
 	ExpectedVersion     int64
 }
@@ -838,6 +885,7 @@ func (q *Queries) UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Per
 		arg.Phone,
 		arg.MatriculationNumber,
 		arg.PhotoReference,
+		arg.MemberSince,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -855,6 +903,7 @@ func (q *Queries) UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Per
 		&i.UpdatedAt,
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
+		&i.MemberSince,
 	)
 	return i, err
 }

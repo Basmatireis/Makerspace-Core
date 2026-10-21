@@ -12,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/dates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -410,6 +412,7 @@ func (s *Service) Submit(
 			Email:              clean.Email,
 			Phone:              clean.Phone,
 			ProfileImageFileID: &stored.ID,
+			MemberSince:        dates.TodayUTC(),
 		},
 	); err != nil {
 		return SubmissionResult{}, databaseError(err)
@@ -422,6 +425,15 @@ func (s *Service) Submit(
 		return SubmissionResult{}, databaseError(err)
 	}
 	var challengeID *uuid.UUID
+	if clean.Email != nil && !slices.Contains(clean.AuthMethods, MethodPassword) {
+		// The visitor's email is the account's login email even when they enrol with a PIN only (a password
+		// can be set later). Another account already using the address leaves this account without one.
+		if display, normalized, normalizeErr := security.NormalizeEmail(*clean.Email); normalizeErr == nil {
+			if _, err := accounts.TrySetProvisionedLoginEmail(ctx, tx, accountID, display, normalized, false); err != nil {
+				return SubmissionResult{}, err
+			}
+		}
+	}
 	if slices.Contains(clean.AuthMethods, MethodPassword) {
 		display, normalized, _ := security.NormalizeEmail(*clean.Email)
 		identity, err := queries.CreateVisitorPasswordIdentity(

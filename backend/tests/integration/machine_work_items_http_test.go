@@ -44,7 +44,6 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Work",
 			LastName:     "Admin",
-			ContactEmail: "work-items-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},

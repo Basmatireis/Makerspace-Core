@@ -66,12 +66,30 @@ INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifie
 VALUES (sqlc.arg(id), sqlc.arg(account_id), 'password', sqlc.arg(identifier_display)::text, sqlc.arg(identifier_normalized)::text)
 RETURNING *;
 
--- name: UpdateLoginEmail :one
-UPDATE auth_identities SET identifier_display = sqlc.arg(identifier_display)::text,
-    identifier_normalized = sqlc.arg(identifier_normalized)::text,
-    verified_at = CASE WHEN identifier_normalized = sqlc.arg(identifier_normalized)::text THEN verified_at ELSE NULL END,
+-- name: UpsertPasswordIdentity :one
+-- Creates or replaces the account's login email. A changed address resets verification to the supplied value;
+-- an unchanged address keeps its verification. A login email held by another account raises a unique violation.
+INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), 'password', sqlc.arg(identifier_display)::text,
+        sqlc.arg(identifier_normalized)::text, sqlc.narg(verified_at))
+ON CONFLICT (account_id) WHERE kind = 'password' DO UPDATE
+SET identifier_display = EXCLUDED.identifier_display,
+    identifier_normalized = EXCLUDED.identifier_normalized,
+    verified_at = CASE WHEN auth_identities.identifier_normalized = EXCLUDED.identifier_normalized
+                       THEN auth_identities.verified_at ELSE EXCLUDED.verified_at END,
     updated_at = now()
-WHERE account_id = sqlc.arg(account_id) AND kind = 'password' RETURNING *;
+RETURNING *;
+
+-- name: SetPersonEmail :exec
+-- Mirrors the login email into the person row (people.email is the single readable email of an account holder).
+UPDATE people SET email = sqlc.arg(email)::text, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(person_id) AND email IS DISTINCT FROM sqlc.arg(email)::text;
+
+-- name: SyncPersonEmailFromLoginEmail :exec
+UPDATE people p SET email = i.identifier_display, version = p.version + 1, updated_at = now()
+FROM accounts a
+JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+WHERE a.id = sqlc.arg(account_id) AND p.id = a.person_id AND p.email IS DISTINCT FROM i.identifier_display;
 
 -- name: GetIdentityByAccount :one
 SELECT * FROM auth_identities WHERE account_id = sqlc.arg(account_id) AND kind = 'password';

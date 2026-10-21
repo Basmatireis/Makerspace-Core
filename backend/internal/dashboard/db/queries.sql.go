@@ -7,23 +7,23 @@ package dashboarddb
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getOwnDashboardPerson = `-- name: GetOwnDashboardPerson :one
-SELECT first_name, created_at FROM people WHERE id = $1
+SELECT first_name, member_since FROM people WHERE id = $1
 `
 
 type GetOwnDashboardPersonRow struct {
-	FirstName string
-	CreatedAt time.Time
+	FirstName   string
+	MemberSince pgtype.Date
 }
 
 func (q *Queries) GetOwnDashboardPerson(ctx context.Context, id uuid.UUID) (GetOwnDashboardPersonRow, error) {
 	row := q.db.QueryRow(ctx, getOwnDashboardPerson, id)
 	var i GetOwnDashboardPersonRow
-	err := row.Scan(&i.FirstName, &i.CreatedAt)
+	err := row.Scan(&i.FirstName, &i.MemberSince)
 	return i, err
 }

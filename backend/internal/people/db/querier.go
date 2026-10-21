@@ -23,6 +23,7 @@ type Querier interface {
 	GetMasterRole(ctx context.Context) (Role, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (Person, error)
 	GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Person, error)
+	GetPersonForUpdate(ctx context.Context, id uuid.UUID) (Person, error)
 	GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfileImageRow, error)
 	// Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
 	GetPromotionSupervisorRole(ctx context.Context) (*uuid.UUID, error)
@@ -34,6 +35,7 @@ type Querier interface {
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
 	ListPersonStaffingRoles(ctx context.Context, personID uuid.UUID) ([]ListPersonStaffingRolesRow, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
+	PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonHasSCIMProvisioning(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error)
 	RemovePersonRole(ctx context.Context, arg RemovePersonRoleParams) (int64, error)

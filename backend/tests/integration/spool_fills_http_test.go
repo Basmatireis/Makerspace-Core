@@ -36,7 +36,7 @@ func TestFilamentSpoolFillsCleanupOverHTTP(t *testing.T) {
 		adminLogin    = "spool-fills-admin@example.test"
 		adminPassword = "Spool fills admin password 51"
 	)
-	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Spool", LastName: "Admin", ContactEmail: "spool-fills-contact@example.test", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
+	if _, err = admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{FirstName: "Spool", LastName: "Admin", LoginEmail: adminLogin, Password: adminPassword}); err != nil {
 		t.Fatal(err)
 	}
 	baseURL, err := url.Parse(origin)

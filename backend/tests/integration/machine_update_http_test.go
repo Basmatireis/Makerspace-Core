@@ -42,7 +42,6 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		admin.BootstrapInput{
 			FirstName:    "Mdel",
 			LastName:     "Admin",
-			ContactEmail: "mdel-contact@example.test",
 			LoginEmail:   adminLogin,
 			Password:     adminPassword,
 		},
