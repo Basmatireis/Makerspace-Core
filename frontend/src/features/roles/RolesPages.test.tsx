@@ -376,6 +376,35 @@ describe('Roles and permissions matrix', () => {
     );
   });
 
+  it('sets and clears the open day staffing level of a role', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
+    const role = roleFixture({ staffingLevel: 'supervisor' });
+    const submitted: UpdateRoleRequest[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.patch('*/api/v1/roles/:roleId', async ({ request }) => {
+        const body = (await request.json()) as UpdateRoleRequest;
+        submitted.push(body);
+        return HttpResponse.json({ ...role, ...body, version: role.version + submitted.length });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/roles/${role.id}`);
+
+    const dialog = await screen.findByRole('dialog');
+    const level = within(dialog).getByLabelText('Open day staffing');
+    expect(level).toHaveValue('supervisor');
+    expect(
+      within(level)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['None', 'Supervisor', 'Trainee']);
+    await user.selectOptions(level, 'trainee');
+    await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+    await waitFor(() => expect(submitted[0]).toEqual(expect.objectContaining({ staffingLevel: 'trainee' })));
+  });
+
   it('disables rule choices outside the administrator delegation envelope', async () => {
     const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
     actor.delegablePermissionGrants = [

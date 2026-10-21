@@ -231,3 +231,8 @@ export const SurveyAdminPage = lazy(() =>
 export const DashboardPage = lazy(() =>
   import('../features/dashboard/DashboardPage').then(({ DashboardPage }) => ({ default: DashboardPage })),
 );
+export const OpenDayRequirementsPage = lazy(() =>
+  import('../features/opendays/OpenDayRequirementsPage').then(({ OpenDayRequirementsPage }) => ({
+    default: OpenDayRequirementsPage,
+  })),
+);

@@ -8,6 +8,7 @@ import {
   IbmCloudKeyProtect,
   Email,
   PaintBrush,
+  Calendar,
   Timer,
   QuestionAnswering,
   VideoChat,
@@ -45,6 +46,7 @@ export function SettingsPage() {
   const canManageMail = hasAnyPermission(currentUser, [PermissionId.mailmanage]);
   const canManageBranding = hasAnyPermission(currentUser, [PermissionId.brandingmanage]);
   const canManageLocalServices = hasPermission(currentUser, PermissionId.local_servicesmanage);
+  const canManageOpenDays = hasPermission(currentUser, PermissionId.open_daysmanage);
   const canConfigureMachineLogbook = hasPermission(currentUser, PermissionId.pricingread);
 
   return (
@@ -58,6 +60,19 @@ export function SettingsPage() {
                 <div>
                   <h2>Roles</h2>
                   <p>Configure reusable permission sets for accounts.</p>
+                </div>
+              </Stack>
+            </ClickableTile>
+          </Column>
+        )}
+        {canManageOpenDays && (
+          <Column sm={4} md={4} lg={5}>
+            <ClickableTile as={Link} to="/settings/open-days" className="settings-tile">
+              <Stack gap={5}>
+                <Calendar size={32} />
+                <div>
+                  <h2>Open day requirements</h2>
+                  <p>Set how many open days supervisors and trainees staff per semester.</p>
                 </div>
               </Stack>
             </ClickableTile>

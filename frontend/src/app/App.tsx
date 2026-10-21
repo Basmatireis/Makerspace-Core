@@ -57,6 +57,7 @@ import {
   RolesPage,
   RunDetailPage,
   SCIMConnectorsPage,
+  OpenDayRequirementsPage,
   SalesOverviewPage,
   SessionPoliciesPage,
   SettingsPage,
@@ -378,6 +379,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.managed_devicesread]}>
                   <ManagedDevicesPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/open-days"
+              element={
+                <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
+                  <OpenDayRequirementsPage />
                 </PermissionRoute>
               }
             />
