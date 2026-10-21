@@ -191,7 +191,7 @@ function PermissionRow({
         className={`roles-access-control__option${active ? ' roles-access-control__option--active' : ''}`}
         aria-label={
           active
-            ? `${editable ? 'Edit' : 'View'} ${presentation.label} for ${role.name}: ${summary}`
+            ? `${editable ? 'Edit' : 'View'} ${presentation.label} for ${role.name}: ${summary}, ${label}`
             : `Set ${presentation.label} for ${role.name} to ${label}`
         }
         aria-pressed={active}
