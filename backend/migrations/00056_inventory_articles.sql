@@ -1,5 +1,5 @@
 -- +goose Up
--- Inventory articles (docs/plans/inventory-redesign.md). Materials become
+-- Inventory articles (docs/machine-logbook.md). Materials become
 -- articles of a kind (filament, consumable, part) that comes from their
 -- material type; variant, manufacturer, sale price, package size, storage
 -- location and notes move onto the article. The filament product catalog is
