@@ -1130,14 +1130,8 @@ func TestSpoolListFiltersAndStatus(t *testing.T) {
 	) {
 		t.Fatalf("invalid status: %v", err)
 	}
-	withMaterial, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{MaterialID: &m.ID, Page: 1, PageSize: 100})
-	if err != nil || len(withMaterial) != 2 {
-		t.Fatalf(
-			"material filter matches only spools with an open fill of that material: %d %v",
-			len(withMaterial),
-			err,
-		)
-	}
+	// Finished spools without an open fill still belong to the material of their last fill.
+	check("material", SpoolFilters{MaterialID: &m.ID}, reusable.ID, single.ID, waiting.ID, gone.ID)
 }
 
 func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
