@@ -7,6 +7,7 @@ import {
   UserMultiple,
   IbmCloudKeyProtect,
   Email,
+  Receipt,
   PaintBrush,
   Calendar,
   Timer,
@@ -44,6 +45,7 @@ export function SettingsPage() {
   const canManageSCIM = hasAnyPermission(currentUser, [PermissionId.scimmanage]);
   const canManageVisitorEnrollment = hasAnyPermission(currentUser, [PermissionId.visitor_enrollmentmanage]);
   const canManageMail = hasAnyPermission(currentUser, [PermissionId.mailmanage]);
+  const canManageInvoicing = hasPermission(currentUser, PermissionId.invoicingsettingsmanage);
   const canManageBranding = hasAnyPermission(currentUser, [PermissionId.brandingmanage]);
   const canManageLocalServices = hasPermission(currentUser, PermissionId.local_servicesmanage);
   const canManageOpenDays = hasPermission(currentUser, PermissionId.open_daysmanage);
@@ -177,6 +179,19 @@ export function SettingsPage() {
                 <div>
                   <h2>Email delivery</h2>
                   <p>Configure SMTP, sender identity, and recovery-link delivery.</p>
+                </div>
+              </Stack>
+            </ClickableTile>
+          </Column>
+        )}
+        {canManageInvoicing && (
+          <Column sm={4} md={4} lg={5}>
+            <ClickableTile as={Link} to="/settings/invoicing" className="settings-tile">
+              <Stack gap={5}>
+                <Receipt size={32} />
+                <div>
+                  <h2>Sales &amp; invoicing</h2>
+                  <p>Configure the mail and PDF that hand approved invoice requests to wiRef.</p>
                 </div>
               </Stack>
             </ClickableTile>

@@ -24,6 +24,7 @@ import {
   GatewayDetailPage,
   InventoryPage,
   InvitationPage,
+  InvoicingSettingsPage,
   JobDetailPage,
   JobsPage,
   LaborordnungPage,
@@ -469,6 +470,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.mailmanage]}>
                   <MailSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/invoicing"
+              element={
+                <PermissionRoute allOf={[PermissionId.invoicingsettingsmanage]}>
+                  <InvoicingSettingsPage />
                 </PermissionRoute>
               }
             />

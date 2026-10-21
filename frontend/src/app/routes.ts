@@ -154,6 +154,11 @@ export const VisitorEnrollmentSettingsPage = lazy(() =>
     default: VisitorEnrollmentSettingsPage,
   })),
 );
+export const InvoicingSettingsPage = lazy(() =>
+  import('../features/invoicing/InvoicingSettingsPage').then(({ InvoicingSettingsPage }) => ({
+    default: InvoicingSettingsPage,
+  })),
+);
 export const MailSettingsPage = lazy(() =>
   import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })),
 );

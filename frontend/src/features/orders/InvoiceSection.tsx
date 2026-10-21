@@ -47,6 +47,7 @@ import { toRecipientValues, toRequestDetails, type RecipientValues } from './rec
 import { RequestDialog, type RequestDialogKind } from './RequestDialogs';
 import { RequestInvoiceModal } from './RequestInvoiceModal';
 import { RequestStateTag } from './status';
+import { WiRefDeliveryStatus } from './WiRefDeliveryStatus';
 
 function Frozen({ request }: { request: ExternalInvoiceRequest }) {
   const details = request.details;
@@ -416,6 +417,7 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
             subtitle={`${order.reference} counts as paid: the invoice settles the balance. The customer pays wiRef by bank transfer outside Core.`}
           />
         )}
+        <WiRefDeliveryStatus request={request} />
         {awaiting && !canApprove && (
           <InlineNotification
             kind="info"
@@ -431,7 +433,7 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
             lowContrast
             hideCloseButton
             title="Approval needed"
-            subtitle="Check the data and correct it here if needed. Then copy it to wiRef and mark the request as forwarded, or return it with a comment."
+            subtitle="Check the data and correct it here if needed. Forwarding mails the data to wiRef as PDF. Or return the request with a comment."
           />
         )}
         {!canManage && !canApprove && (
