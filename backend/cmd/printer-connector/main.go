@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/logging"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector"
 )
@@ -52,6 +53,10 @@ func run() error {
 			Secret: os.Getenv("CONNECTOR_ENROLLMENT_SECRET"),
 			File:   os.Getenv("CONNECTOR_ENROLLMENT_SECRET_FILE"),
 		},
+		localupdater.NewExchange(
+			env("UPDATER_EXCHANGE_DIR", localupdater.DefaultExchangeRoot),
+			localupdater.ComponentPrinterConnector,
+		),
 		logger,
 	)
 	return runtime.Run(ctx)

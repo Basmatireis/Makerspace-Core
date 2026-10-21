@@ -29,6 +29,8 @@ const gateway = (patch: Partial<StreamingGateway> = {}): StreamingGateway => ({
   disabledAt: null,
   revokedAt: null,
   credentialExpiresAt: '2027-01-17T08:00:00Z',
+  updaterAvailable: false,
+  update: null,
   version: 4,
   createdAt: stamp,
   updatedAt: stamp,

@@ -10,9 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/buildinfo"
 )
 
 type Config struct {
+	// Version is Core's release (buildinfo.Version), not configurable; tests set it directly.
+	Version            string
 	DatabaseURL        string
 	HTTPAddr           string
 	HTTPTrustedProxies []netip.Prefix
@@ -194,6 +198,7 @@ func Load() (Config, error) {
 	}
 
 	return Config{
+		Version:                    buildinfo.Version,
 		DatabaseURL:                strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		HTTPAddr:                   envOr("HTTP_ADDR", ":8080"),
 		HTTPTrustedProxies:         trustedProxies,

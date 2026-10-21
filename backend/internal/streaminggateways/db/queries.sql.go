@@ -1240,6 +1240,50 @@ func (q *Queries) ReenrollGateway(ctx context.Context, id uuid.UUID) (StreamingG
 	return i, err
 }
 
+const requestGatewayUpdate = `-- name: RequestGatewayUpdate :one
+UPDATE streaming_gateways SET update_request_id = $1, update_target_version = $2,
+    update_requested_at = now(), update_status = 'requested', update_status_reason = NULL, update_status_at = now()
+WHERE id = $3 RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
+`
+
+type RequestGatewayUpdateParams struct {
+	RequestID     *uuid.UUID
+	TargetVersion *string
+	ID            uuid.UUID
+}
+
+func (q *Queries) RequestGatewayUpdate(ctx context.Context, arg RequestGatewayUpdateParams) (StreamingGateway, error) {
+	row := q.db.QueryRow(ctx, requestGatewayUpdate, arg.RequestID, arg.TargetVersion, arg.ID)
+	var i StreamingGateway
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PublicHost,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
+	)
+	return i, err
+}
+
 const retireActiveTicketKey = `-- name: RetireActiveTicketKey :exec
 UPDATE signage_ticket_keys SET state = 'retired', retired_at = $1 WHERE state = 'active'
 `
@@ -1321,6 +1365,71 @@ WHERE gateway_id = $1 AND state = 'retiring'
 
 func (q *Queries) RevokeRetiringGatewayCredentials(ctx context.Context, gatewayID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRetiringGatewayCredentials, gatewayID)
+	return err
+}
+
+const setGatewayUpdateStatus = `-- name: SetGatewayUpdateStatus :one
+UPDATE streaming_gateways SET update_status = $1, update_status_reason = $2, update_status_at = now()
+WHERE id = $3 AND update_request_id = $4 AND update_status IN ('requested', 'in_progress')
+RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
+`
+
+type SetGatewayUpdateStatusParams struct {
+	Status    *string
+	Reason    *string
+	ID        uuid.UUID
+	RequestID *uuid.UUID
+}
+
+func (q *Queries) SetGatewayUpdateStatus(ctx context.Context, arg SetGatewayUpdateStatusParams) (StreamingGateway, error) {
+	row := q.db.QueryRow(ctx, setGatewayUpdateStatus,
+		arg.Status,
+		arg.Reason,
+		arg.ID,
+		arg.RequestID,
+	)
+	var i StreamingGateway
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PublicHost,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
+	)
+	return i, err
+}
+
+const setGatewayUpdaterAvailable = `-- name: SetGatewayUpdaterAvailable :exec
+UPDATE streaming_gateways SET updater_available = $1
+WHERE id = $2 AND updater_available <> $1
+`
+
+type SetGatewayUpdaterAvailableParams struct {
+	Available bool
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetGatewayUpdaterAvailable(ctx context.Context, arg SetGatewayUpdaterAvailableParams) error {
+	_, err := q.db.Exec(ctx, setGatewayUpdaterAvailable, arg.Available, arg.ID)
 	return err
 }
 

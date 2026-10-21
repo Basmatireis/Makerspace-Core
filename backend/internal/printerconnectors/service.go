@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
@@ -62,6 +63,8 @@ type Connector struct {
 	LastHeartbeatAt, EnrolledAt, DisabledAt  *time.Time
 	RevokedAt, EventsClearedAt               *time.Time
 	EventsClearedByName                      *string
+	UpdaterAvailable                         bool
+	Update                                   *UpdateState
 	Version                                  int64
 	CreatedAt, UpdatedAt                     time.Time
 }
@@ -134,6 +137,8 @@ type Configuration struct {
 	Revision        int64
 	ProtocolVersion int
 	Assignments     []RuntimeAssignment
+	// Update is the open update request for the connector's updater, if any.
+	Update *localupdater.Request
 }
 
 type AssignmentHealth struct {
@@ -151,6 +156,8 @@ type Heartbeat struct {
 	HealthSummary                            *string
 	PendingEventCount, QuarantinedEventCount int64
 	Assignments                              []AssignmentHealth
+	// Updater is nil for connectors without updater support.
+	Updater *localupdater.Report
 }
 
 type EventInput struct {
@@ -309,7 +316,8 @@ func connectorFrom(row db.PrinterConnector) Connector {
 		), EnrolledAt: nullableTime(row.EnrolledAt), DisabledAt: nullableTime(row.DisabledAt),
 		RevokedAt: nullableTime(
 			row.RevokedAt,
-		), EventsClearedAt: nullableTime(row.EventsClearedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		), EventsClearedAt: nullableTime(row.EventsClearedAt), UpdaterAvailable: row.UpdaterAvailable,
+		Update: updateStateFrom(row), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func normalizeName(name string) (string, error) {

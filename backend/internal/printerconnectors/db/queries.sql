@@ -426,3 +426,16 @@ WHERE a.connector_id=sqlc.arg(connector_id)
         WHERE o.connector_id=sqlc.arg(connector_id)
         ORDER BY o.occurred_at DESC, o.id DESC
         OFFSET sqlc.arg(keep_count)::int - 1 LIMIT 1));
+
+-- name: RequestConnectorUpdate :one
+UPDATE printer_connectors SET update_request_id=sqlc.arg(request_id), update_target_version=sqlc.arg(target_version),
+    update_requested_at=now(), update_status='requested', update_status_reason=NULL, update_status_at=now()
+WHERE id=sqlc.arg(id) RETURNING *;
+
+-- name: SetConnectorUpdaterAvailable :exec
+UPDATE printer_connectors SET updater_available=sqlc.arg(available) WHERE id=sqlc.arg(id) AND updater_available <> sqlc.arg(available);
+
+-- name: SetConnectorUpdateStatus :one
+UPDATE printer_connectors SET update_status=sqlc.arg(status), update_status_reason=sqlc.narg(reason), update_status_at=now()
+WHERE id=sqlc.arg(id) AND update_request_id=sqlc.arg(request_id) AND update_status IN ('requested', 'in_progress')
+RETURNING *;

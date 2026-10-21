@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways/db"
@@ -75,6 +76,8 @@ type Gateway struct {
 	LastHeartbeatAt, EnrolledAt           *time.Time
 	DisabledAt, RevokedAt                 *time.Time
 	CredentialExpiresAt                   *time.Time
+	UpdaterAvailable                      bool
+	Update                                *UpdateState
 	Version                               int64
 	CreatedAt, UpdatedAt                  time.Time
 }
@@ -142,6 +145,8 @@ type Configuration struct {
 	PublicHost       string
 	TicketPublicKeys []TicketKey
 	Cameras          []ConfigCamera
+	// Update is the open update request for the gateway's updater, if any.
+	Update *localupdater.Request
 }
 
 // CameraHealth is a gateway's report about one camera.
@@ -162,6 +167,8 @@ type Heartbeat struct {
 	AppliedConfigurationRevision int64
 	HealthSummary                *string
 	Cameras                      []CameraHealth
+	// Updater is nil for gateways without updater support.
+	Updater *localupdater.Report
 }
 
 func requireManage(principal authorization.Principal) error {
@@ -201,6 +208,7 @@ func gatewayFrom(row db.StreamingGateway) Gateway {
 		HealthSummary:   row.HealthSummary,
 		LastHeartbeatAt: nullableTime(row.LastHeartbeatAt), EnrolledAt: nullableTime(row.EnrolledAt),
 		DisabledAt: nullableTime(row.DisabledAt), RevokedAt: nullableTime(row.RevokedAt),
+		UpdaterAvailable: row.UpdaterAvailable, Update: updateStateFrom(row),
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/google/uuid"
@@ -643,7 +644,7 @@ func TestHeartbeatWithNewerRevisionFetchesTheConfigurationImmediately(t *testing
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	runtime := NewRuntime(store, client, dir, Enrollment{}, discardLogger())
+	runtime := NewRuntime(store, client, dir, Enrollment{}, localupdater.Exchange{}, discardLogger())
 	runtime.revision = 4
 	if err = runtime.sendHeartbeat(context.Background(), Identity{CredentialSecret: "secret"}); err != nil {
 		t.Fatal(err)

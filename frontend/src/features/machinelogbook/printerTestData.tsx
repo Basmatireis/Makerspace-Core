@@ -112,6 +112,8 @@ export const connectorOf = (overrides: Partial<PrinterConnector> = {}): PrinterC
   revokedAt: null,
   eventsClearedAt: null,
   eventsClearedByName: null,
+  updaterAvailable: false,
+  update: null,
   version: 4,
   createdAt: now,
   updatedAt: now,

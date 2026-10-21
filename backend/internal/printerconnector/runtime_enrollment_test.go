@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
@@ -40,7 +41,7 @@ func newEnrollmentRuntime(t *testing.T, enrollment Enrollment, logs io.Writer) (
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	return NewRuntime(store, client, dir, enrollment, slog.New(slog.NewTextHandler(logs, nil))), &tokens
+	return NewRuntime(store, client, dir, enrollment, localupdater.Exchange{}, slog.New(slog.NewTextHandler(logs, nil))), &tokens
 }
 
 func TestEnrollmentUsesTheTrimmedEnvironmentSecret(t *testing.T) {

@@ -68,6 +68,17 @@ func streamingGatewayDTO(value streaminggateways.Gateway) openapi.StreamingGatew
 	if value.HealthState != nil {
 		health = nullable.NewNullableWithValue(openapi.StreamingGatewayHealthState(*value.HealthState))
 	}
+	update := nullable.NewNullNullable[openapi.LocalServiceUpdate]()
+	if state := value.Update; state != nil {
+		update = localServiceUpdateDTO(
+			state.RequestID,
+			state.TargetVersion,
+			state.RequestedAt,
+			state.Status,
+			state.Reason,
+			state.StatusAt,
+		)
+	}
 	return openapi.StreamingGateway{
 		Id:                    value.ID,
 		Name:                  value.Name,
@@ -84,6 +95,8 @@ func streamingGatewayDTO(value streaminggateways.Gateway) openapi.StreamingGatew
 		DisabledAt:          nullableValue(value.DisabledAt),
 		RevokedAt:           nullableValue(value.RevokedAt),
 		CredentialExpiresAt: nullableValue(value.CredentialExpiresAt),
+		UpdaterAvailable:    value.UpdaterAvailable,
+		Update:              update,
 		Version:             value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
@@ -137,7 +150,7 @@ func (s *Server) ListStreamingGateways(
 	for _, item := range items {
 		result = append(result, streamingGatewayDTO(item))
 	}
-	return openapi.ListStreamingGateways200JSONResponse{Items: result}, nil
+	return openapi.ListStreamingGateways200JSONResponse{Items: result, CoreVersion: s.config.Version}, nil
 }
 
 func (s *Server) CreateStreamingGateway(
@@ -484,6 +497,7 @@ func (s *Server) GetStreamingGatewayConfiguration(
 			Cameras:           cameras,
 			SessionEpoch:      configuration.SessionEpoch,
 			RevokedDisplayIds: revoked,
+			Update:            updateOfferDTO(configuration.Update),
 		},
 		Headers: openapi.GetStreamingGatewayConfiguration200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
@@ -528,6 +542,7 @@ func (s *Server) ReportStreamingGatewayHeartbeat(
 		HealthState: streaminggateways.HealthState(
 			request.Body.HealthState,
 		), HealthSummary: nullableStringPointer(request.Body.HealthSummary), Cameras: cameras,
+		Updater: updaterReportFrom(request.Body.Updater),
 	})
 	if err != nil {
 		return nil, err
@@ -597,4 +612,29 @@ func (s *Server) RotateStreamTicketKey(
 		Body:    openapi.StreamTicketKeyRotation{KeyId: rotation.KeyID, ActivatesAt: rotation.ActivatesAt},
 		Headers: openapi.RotateStreamTicketKey202ResponseHeaders{CacheControl: "no-store"},
 	}, nil
+}
+
+func (s *Server) RequestStreamingGatewayUpdate(
+	ctx context.Context,
+	request openapi.RequestStreamingGatewayUpdateRequestObject,
+) (openapi.RequestStreamingGatewayUpdateResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.streamingGateways.RequestUpdate(
+		ctx,
+		principal,
+		request.StreamingGatewayId,
+		request.Body.TargetVersion,
+		s.config.Version,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RequestStreamingGatewayUpdate200JSONResponse(streamingGatewayDTO(item)), nil
 }

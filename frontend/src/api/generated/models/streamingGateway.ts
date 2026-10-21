@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdate } from './localServiceUpdate';
 import type { StreamingGatewayHealthState } from './streamingGatewayHealthState';
 import type { StreamingGatewayLifecycle } from './streamingGatewayLifecycle';
 import type { UUIDv7 } from './uUIDv7';
@@ -71,6 +72,9 @@ export interface StreamingGateway {
      * @nullable
      */
   credentialExpiresAt: string | null;
+  /** The gateway's last heartbeat reported a running updater sidecar. */
+  updaterAvailable: boolean;
+  update: LocalServiceUpdate | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

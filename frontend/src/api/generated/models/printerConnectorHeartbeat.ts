@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdaterReport } from './localServiceUpdaterReport';
 import type { PrinterConnectorAssignmentHealth } from './printerConnectorAssignmentHealth';
 import type { PrinterConnectorHeartbeatHealthState } from './printerConnectorHeartbeatHealthState';
 
@@ -43,4 +44,5 @@ export interface PrinterConnectorHeartbeat {
   quarantinedEventCount: number;
   /** @maxItems 32 */
   assignments: PrinterConnectorAssignmentHealth[];
+  updater?: LocalServiceUpdaterReport;
 }

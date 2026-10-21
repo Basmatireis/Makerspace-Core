@@ -79,12 +79,15 @@ type Querier interface {
 	PruneConnectorActivity(ctx context.Context, arg PruneConnectorActivityParams) error
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
 	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
+	RequestConnectorUpdate(ctx context.Context, arg RequestConnectorUpdateParams) (PrinterConnector, error)
 	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
 	RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error
+	SetConnectorUpdateStatus(ctx context.Context, arg SetConnectorUpdateStatusParams) (PrinterConnector, error)
+	SetConnectorUpdaterAvailable(ctx context.Context, arg SetConnectorUpdaterAvailableParams) error
 	SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error)
 	// Runs still shown as running when their connector is deleted can never be finished by it.
 	SettleRunsOfConnector(ctx context.Context, connectorID uuid.UUID) error

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/google/uuid"
 )
 
@@ -50,6 +51,8 @@ type Configuration struct {
 	SessionEpoch int64 `json:"sessionEpoch"`
 	// RevokedDisplayIDs are displays whose tickets are refused.
 	RevokedDisplayIDs []uuid.UUID `json:"revokedDisplayIds"`
+	// Update is handed to the updater and never stored with the configuration.
+	Update localupdater.Offer `json:"update,omitzero"`
 }
 
 // CameraHealth is the per-camera part of a heartbeat.
@@ -71,6 +74,8 @@ type Heartbeat struct {
 	HealthState                  HealthState    `json:"healthState"`
 	HealthSummary                *string        `json:"healthSummary"`
 	Cameras                      []CameraHealth `json:"cameras"`
+	// Updater is sent only to a Core that announced support with the update field of its configuration.
+	Updater *localupdater.Report `json:"updater,omitempty"`
 }
 
 // CoreError is a non-2xx answer from Core.

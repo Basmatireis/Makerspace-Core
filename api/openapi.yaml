@@ -4280,6 +4280,27 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connectors/{printerConnectorId}/update:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: requestPrinterConnectorUpdate
+      summary: Ask the connector's updater to install Core's version
+      description: >-
+        Needs printer_connectors.manage. The connector must be active, report an updater sidecar and run an older release; targetVersion
+        must equal Core's version. The connector hands the request to its updater with its next configuration poll and
+        reports the outcome in later heartbeats. Audited as an update request.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestLocalServiceUpdateRequest"}}}}
+      responses:
+        "200": {description: The connector with its new update request., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-connectors/{printerConnectorId}/activity:
     parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
     get:
@@ -4518,6 +4539,27 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /streaming-gateways/{streamingGatewayId}/update:
+    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Local Services]
+      operationId: requestStreamingGatewayUpdate
+      summary: Ask the gateway's updater to install Core's version
+      description: >-
+        Needs local_services.manage. The gateway must be active, report an updater sidecar and run an older release; targetVersion
+        must equal Core's version. The gateway hands the request to its updater with its next configuration poll and
+        reports the outcome in later heartbeats. Audited as an update request.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestLocalServiceUpdateRequest"}}}}
+      responses:
+        "200": {description: The gateway with its new update request., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /streaming-gateways/{streamingGatewayId}/cameras:
@@ -11654,7 +11696,7 @@ components:
     PrinterConnector:
       type: object
       additionalProperties: false
-      required: [id, name, locationLabel, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, pendingEventCount, quarantinedEventCount, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, eventsClearedAt, eventsClearedByName, version, createdAt, updatedAt]
+      required: [id, name, locationLabel, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, pendingEventCount, quarantinedEventCount, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, eventsClearedAt, eventsClearedByName, updaterAvailable, update, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 120}
@@ -11674,6 +11716,8 @@ components:
         revokedAt: {type: string, format: date-time, nullable: true}
         eventsClearedAt: {type: string, format: date-time, nullable: true, description: Events received up to this time are hidden from the event lists unless includeCleared is set. They are never deleted.}
         eventsClearedByName: {type: string, maxLength: 200, nullable: true}
+        updaterAvailable: {type: boolean, description: "The connector's last heartbeat reported a running updater sidecar."}
+        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdate"}], nullable: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -11706,8 +11750,61 @@ components:
     PrinterConnectorList:
       type: object
       additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnector"}}}
+      required: [items, coreVersion]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PrinterConnector"}}
+        coreVersion: {type: string, maxLength: 80, description: "Core's own version, the only one connectors can be updated to; \"dev\" for development builds."}
+
+    LocalServiceUpdate:
+      type: object
+      additionalProperties: false
+      required: [requestId, targetVersion, status, reason, requestedAt, statusAt]
+      description: The latest update request of a connector or gateway. Who requested it is in the audit log.
+      properties:
+        requestId: {$ref: "#/components/schemas/UUIDv7"}
+        targetVersion: {$ref: "#/components/schemas/ReleaseVersion"}
+        status: {type: string, enum: [requested, in_progress, succeeded, failed]}
+        reason: {type: string, pattern: "^[a-z0-9_]{1,64}$", nullable: true, description: "Why it failed (for example pull_failed, downgrade_refused, interrupted), or already_installed."}
+        requestedAt: {type: string, format: date-time}
+        statusAt: {type: string, format: date-time}
+
+    ReleaseVersion:
+      type: string
+      pattern: "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$"
+      example: "0.8.3"
+
+    RequestLocalServiceUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [targetVersion]
+      properties:
+        targetVersion: {allOf: [{$ref: "#/components/schemas/ReleaseVersion"}], description: "Must be Core's version (coreVersion of the list)."}
+
+    LocalServiceUpdateOffer:
+      type: object
+      additionalProperties: false
+      required: [requestId, version]
+      properties:
+        requestId: {$ref: "#/components/schemas/UUIDv7"}
+        version: {$ref: "#/components/schemas/ReleaseVersion"}
+
+    LocalServiceUpdaterReport:
+      type: object
+      additionalProperties: false
+      required: [available, result]
+      properties:
+        available: {type: boolean, description: An updater sidecar wrote its presence file within the last two minutes.}
+        result: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdaterResult"}], nullable: true}
+
+    LocalServiceUpdaterResult:
+      type: object
+      additionalProperties: false
+      required: [requestId, status, reason]
+      description: The updater's answer to the request with requestId.
+      properties:
+        requestId: {$ref: "#/components/schemas/UUIDv7"}
+        status: {type: string, enum: [in_progress, succeeded, failed]}
+        reason: {type: string, pattern: "^[a-z0-9_]{1,64}$", nullable: true}
 
     CreatePrinterConnectorRequest:
       type: object
@@ -11966,11 +12063,12 @@ components:
     PrinterConnectorConfiguration:
       type: object
       additionalProperties: false
-      required: [revision, protocolVersion, assignments]
+      required: [revision, protocolVersion, assignments, update]
       properties:
         revision: {type: integer, format: int64, minimum: 1}
         protocolVersion: {type: integer, minimum: 1}
         assignments: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorRuntimeAssignment"}}
+        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdateOffer"}], nullable: true, description: "The open update request for the connector's updater. The field's presence tells a connector that Core accepts the updater field in heartbeats."}
 
     PrinterConnectorAssignmentHealth:
       type: object
@@ -11995,6 +12093,7 @@ components:
         pendingEventCount: {type: integer, format: int64, minimum: 0}
         quarantinedEventCount: {type: integer, format: int64, minimum: 0}
         assignments: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterConnectorAssignmentHealth"}}
+        updater: {$ref: "#/components/schemas/LocalServiceUpdaterReport"}
 
     PrinterConnectorEventInput:
       type: object
@@ -12063,7 +12162,7 @@ components:
     StreamingGateway:
       type: object
       additionalProperties: false
-      required: [id, name, publicHost, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, credentialExpiresAt, version, createdAt, updatedAt]
+      required: [id, name, publicHost, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, credentialExpiresAt, updaterAvailable, update, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 120}
@@ -12080,6 +12179,8 @@ components:
         disabledAt: {type: string, format: date-time, nullable: true}
         revokedAt: {type: string, format: date-time, nullable: true}
         credentialExpiresAt: {type: string, format: date-time, nullable: true, description: "When the gateway's current credential expires; null while the gateway has none (pending or revoked). The gateway rotates it on its own before then."}
+        updaterAvailable: {type: boolean, description: "The gateway's last heartbeat reported a running updater sidecar."}
+        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdate"}], nullable: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -12099,8 +12200,10 @@ components:
     StreamingGatewayList:
       type: object
       additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/StreamingGateway"}}}
+      required: [items, coreVersion]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/StreamingGateway"}}
+        coreVersion: {type: string, maxLength: 80, description: "Core's own version, the only one gateways can be updated to; \"dev\" for development builds."}
     CreateStreamingGatewayRequest:
       type: object
       additionalProperties: false
@@ -12222,7 +12325,7 @@ components:
     StreamingGatewayConfiguration:
       type: object
       additionalProperties: false
-      required: [revision, protocolVersion, publicHost, ticketPublicKeys, cameras, sessionEpoch, revokedDisplayIds]
+      required: [revision, protocolVersion, publicHost, ticketPublicKeys, cameras, sessionEpoch, revokedDisplayIds, update]
       properties:
         sessionEpoch: {type: integer, format: int64, minimum: 0, description: "Changes when running camera sessions must be dropped (display revoked or deleted, camera removed from a display, camera access outside switched off). The gateway restarts go2rtc when the value changes."}
         revokedDisplayIds: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Displays revoked or deleted within the last 24 hours; tickets for them are refused."}
@@ -12231,6 +12334,7 @@ components:
         publicHost: {type: string}
         ticketPublicKeys: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/StreamingGatewayTicketKey"}}
         cameras: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/StreamingGatewayConfigCamera"}}
+        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdateOffer"}], nullable: true, description: "The open update request for the gateway's updater. The field's presence tells a gateway that Core accepts the updater field in heartbeats."}
     StreamingGatewayCameraHealth:
       type: object
       additionalProperties: false
@@ -12254,6 +12358,7 @@ components:
         healthState: {type: string, enum: [connected, degraded]}
         healthSummary: {type: string, maxLength: 500, nullable: true}
         cameras: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/StreamingGatewayCameraHealth"}}
+        updater: {$ref: "#/components/schemas/LocalServiceUpdaterReport"}
 
     SCIMConnector:
       type: object

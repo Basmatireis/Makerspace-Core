@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/logging"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateway"
 )
@@ -85,6 +86,10 @@ func run() error {
 		KeyFile:            os.Getenv("STREAM_TLS_KEY_FILE"),
 		AllowedOrigin:      allowedOrigin,
 		ExpectedPublicHost: os.Getenv("STREAM_PUBLIC_HOST"),
+		Updates: localupdater.NewExchange(
+			env("UPDATER_EXCHANGE_DIR", localupdater.DefaultExchangeRoot),
+			localupdater.ComponentStreamingGateway,
+		),
 	}
 	selection, err := streaminggateway.SelectTLSMode(options.CertFile, options.KeyFile, options.ExpectedPublicHost,
 		os.Getenv("ACME_EMAIL"), os.Getenv("CLOUDFLARE_DNS_API_TOKEN"))

@@ -47,6 +47,7 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 		Revision:        row.ConfigurationRevision,
 		ProtocolVersion: 1,
 		Assignments:     make([]RuntimeAssignment, 0, len(assignments)),
+		Update:          updateOffer(row),
 	}
 	for _, a := range assignments {
 		secrets := map[string]string{}
@@ -138,6 +139,11 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	}
 	if err != nil {
 		return Connector{}, err
+	}
+	if input.Updater != nil || row.UpdaterAvailable || row.UpdateRequestID != nil {
+		if row, err = recordUpdaterReport(ctx, q, row, input.Updater); err != nil {
+			return Connector{}, err
+		}
 	}
 	if err = pruneActivity(ctx, q, connector.ID, time.Now().UTC()); err != nil {
 		return Connector{}, err

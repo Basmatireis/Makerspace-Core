@@ -39,6 +39,7 @@ import type {
   PrinterConnectorList,
   PrinterLiveStatusReport,
   PrinterObservedRunList,
+  RequestLocalServiceUpdateRequest,
   RotatePrinterConnectorCredentialRequest,
   UUIDv7,
   UpdatePrinterConnectorAssignmentRequest,
@@ -444,6 +445,45 @@ export const clearPrinterConnectorEvents = async (printerConnectorId: UUIDv7, op
     method: 'POST'
 
 
+  }
+);}
+
+
+export const getRequestPrinterConnectorUpdateUrl = (printerConnectorId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connectors/${printerConnectorId}/update`
+}
+
+/**
+ * Needs printer_connectors.manage. The connector must be active, report an updater sidecar and run an older release; targetVersion must equal Core's version. The connector hands the request to its updater with its next configuration poll and reports the outcome in later heartbeats. Audited as an update request.
+ * @summary Ask the connector's updater to install Core's version
+ */
+export const requestPrinterConnectorUpdate = async (printerConnectorId: UUIDv7,
+    requestLocalServiceUpdateRequest: RequestLocalServiceUpdateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterConnector> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PrinterConnector>(getRequestPrinterConnectorUpdateUrl(printerConnectorId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestLocalServiceUpdateRequest)
   }
 );}
 

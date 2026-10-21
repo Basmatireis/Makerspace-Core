@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LocalServiceUpdateOffer } from './localServiceUpdateOffer';
 import type { StreamingGatewayConfigCamera } from './streamingGatewayConfigCamera';
 import type { StreamingGatewayTicketKey } from './streamingGatewayTicketKey';
 import type { UUIDv7 } from './uUIDv7';
@@ -42,4 +43,6 @@ export interface StreamingGatewayConfiguration {
   ticketPublicKeys: StreamingGatewayTicketKey[];
   /** @maxItems 100 */
   cameras: StreamingGatewayConfigCamera[];
+  /** The open update request for the gateway's updater. The field's presence tells a gateway that Core accepts the updater field in heartbeats. */
+  update: LocalServiceUpdateOffer | null;
 }

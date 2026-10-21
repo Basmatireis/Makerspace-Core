@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/google/uuid"
 )
 
@@ -33,6 +34,8 @@ type Configuration struct {
 	Revision        int64               `json:"revision"`
 	ProtocolVersion int                 `json:"protocolVersion"`
 	Assignments     []RuntimeAssignment `json:"assignments"`
+	// Update is handed to the updater and never stored with the configuration.
+	Update localupdater.Offer `json:"update,omitzero"`
 }
 type AssignmentHealth struct {
 	AssignmentID                string      `json:"assignmentId"`
@@ -49,6 +52,8 @@ type Heartbeat struct {
 	PendingEventCount            int64              `json:"pendingEventCount"`
 	QuarantinedEventCount        int64              `json:"quarantinedEventCount"`
 	Assignments                  []AssignmentHealth `json:"assignments"`
+	// Updater is sent only to a Core that announced support with the update field of its configuration.
+	Updater *localupdater.Report `json:"updater,omitempty"`
 }
 type EventReceipt struct {
 	EventID     uuid.UUID     `json:"eventId"`

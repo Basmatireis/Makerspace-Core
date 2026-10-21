@@ -2121,6 +2121,54 @@ func (q *Queries) ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterC
 	return i, err
 }
 
+const requestConnectorUpdate = `-- name: RequestConnectorUpdate :one
+UPDATE printer_connectors SET update_request_id=$1, update_target_version=$2,
+    update_requested_at=now(), update_status='requested', update_status_reason=NULL, update_status_at=now()
+WHERE id=$3 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
+`
+
+type RequestConnectorUpdateParams struct {
+	RequestID     *uuid.UUID
+	TargetVersion *string
+	ID            uuid.UUID
+}
+
+func (q *Queries) RequestConnectorUpdate(ctx context.Context, arg RequestConnectorUpdateParams) (PrinterConnector, error) {
+	row := q.db.QueryRow(ctx, requestConnectorUpdate, arg.RequestID, arg.TargetVersion, arg.ID)
+	var i PrinterConnector
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.LocationLabel,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.PendingEventCount,
+		&i.QuarantinedEventCount,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
+	)
+	return i, err
+}
+
 const resolveErrorOccurrencesOfConnector = `-- name: ResolveErrorOccurrencesOfConnector :exec
 UPDATE printer_error_occurrences SET resolved_at=GREATEST(now(), last_observed_at), updated_at=now()
 WHERE resolved_at IS NULL
@@ -2231,6 +2279,74 @@ WHERE connector_id=$1 AND state='retiring'
 
 func (q *Queries) RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRetiringCredentials, connectorID)
+	return err
+}
+
+const setConnectorUpdateStatus = `-- name: SetConnectorUpdateStatus :one
+UPDATE printer_connectors SET update_status=$1, update_status_reason=$2, update_status_at=now()
+WHERE id=$3 AND update_request_id=$4 AND update_status IN ('requested', 'in_progress')
+RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
+`
+
+type SetConnectorUpdateStatusParams struct {
+	Status    *string
+	Reason    *string
+	ID        uuid.UUID
+	RequestID *uuid.UUID
+}
+
+func (q *Queries) SetConnectorUpdateStatus(ctx context.Context, arg SetConnectorUpdateStatusParams) (PrinterConnector, error) {
+	row := q.db.QueryRow(ctx, setConnectorUpdateStatus,
+		arg.Status,
+		arg.Reason,
+		arg.ID,
+		arg.RequestID,
+	)
+	var i PrinterConnector
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.LocationLabel,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.PendingEventCount,
+		&i.QuarantinedEventCount,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
+	)
+	return i, err
+}
+
+const setConnectorUpdaterAvailable = `-- name: SetConnectorUpdaterAvailable :exec
+UPDATE printer_connectors SET updater_available=$1 WHERE id=$2 AND updater_available <> $1
+`
+
+type SetConnectorUpdaterAvailableParams struct {
+	Available bool
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetConnectorUpdaterAvailable(ctx context.Context, arg SetConnectorUpdaterAvailableParams) error {
+	_, err := q.db.Exec(ctx, setConnectorUpdaterAvailable, arg.Available, arg.ID)
 	return err
 }
 

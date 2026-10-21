@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/google/uuid"
@@ -59,6 +60,8 @@ type Options struct {
 	AllowedOrigin string
 	// ExpectedPublicHost (STREAM_PUBLIC_HOST) is only compared with Core's publicHost to warn about a mismatch.
 	ExpectedPublicHost string
+	// Updates hands Core's update requests to the bundle's updater sidecar.
+	Updates localupdater.Exchange
 }
 
 // Gateway is the daemon's state machine.
@@ -82,6 +85,8 @@ type Gateway struct {
 	authFailures    int
 	lastSyncOK      time.Time
 	lastSyncError   string
+	// updateSupported is true once Core's configuration showed that it accepts the updater report.
+	updateSupported bool
 
 	lastRejectedLog time.Time
 
@@ -333,6 +338,16 @@ func (g *Gateway) Sync(ctx context.Context, identity Identity) error {
 	if configuration.ProtocolVersion != ProtocolVersion {
 		return fmt.Errorf("unsupported configuration protocol version %d", configuration.ProtocolVersion)
 	}
+	offer := configuration.Update
+	configuration.Update = localupdater.Offer{}
+	g.mu.Lock()
+	g.updateSupported = offer.Present
+	g.mu.Unlock()
+	if offer.Request != nil {
+		if submitErr := g.options.Updates.Submit(*offer.Request); submitErr != nil {
+			g.logger.Warn("update request not handed to the updater", "error", submitErr.Error())
+		}
+	}
 	if g.options.ExpectedPublicHost != "" &&
 		!strings.EqualFold(g.options.ExpectedPublicHost, configuration.PublicHost) {
 		g.logger.Warn("STREAM_PUBLIC_HOST differs from the public host configured in Core")
@@ -380,6 +395,7 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 		cameras = append(cameras, g.current.Cameras...)
 	}
 	revision, pending, syncError := g.appliedRevision, g.pendingRestart, g.lastSyncError
+	supported := g.updateSupported
 	g.mu.Unlock()
 	sort.Slice(cameras, func(i, j int) bool { return cameras[i].StreamName < cameras[j].StreamName })
 
@@ -390,6 +406,10 @@ func (g *Gateway) BuildHeartbeat(ctx context.Context) Heartbeat {
 		AppliedConfigurationRevision: revision,
 		HealthState:                  HealthConnected,
 		Cameras:                      []CameraHealth{},
+	}
+	if supported {
+		report := g.options.Updates.Report()
+		heartbeat.Updater = &report
 	}
 	var summary string
 	switch {
