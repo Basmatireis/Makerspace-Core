@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Form, InlineNotification, Link as CarbonLink, PasswordInput, Stack, TextInput } from '@carbon/react';
 import { ArrowLeft, Checkmark } from '@carbon/icons-react';
 import { useForm } from 'react-hook-form';
@@ -20,9 +20,16 @@ type FormValues = { email: string; code: string; newPassword: string; confirmPas
 type PINSetupValues = { code: string; loginName: string; pin: string; confirmPIN: string };
 type EmailVerificationValues = { email: string; code: string };
 
+// Emailed links carry the email address and one-time code in the URL fragment so they never reach
+// server logs. The fragment is captured once and removed from the address bar and history entry.
 function useChallengeParameters() {
   const [query] = useSearchParams();
-  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const [fragment] = useState(() => new URLSearchParams(window.location.hash.replace(/^#/, '')));
+  useEffect(() => {
+    if (window.location.hash) {
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    }
+  }, []);
   return {
     get(name: string) {
       return fragment.get(name) ?? query.get(name);
@@ -182,8 +189,10 @@ export function PINEnrollmentPage() {
 
 export function EmailVerificationPage() {
   usePageTitle('Verify email');
-  const [params] = useSearchParams();
-  const form = useForm<EmailVerificationValues>({ defaultValues: { email: params.get('email') ?? '', code: '' } });
+  const params = useChallengeParameters();
+  const form = useForm<EmailVerificationValues>({
+    defaultValues: { email: params.get('email') ?? '', code: params.get('code') ?? '' },
+  });
   const mutation = useSecretMutation((values: EmailVerificationValues) =>
     completeEmailVerification({ ...values, code: values.code.toUpperCase() }),
   );

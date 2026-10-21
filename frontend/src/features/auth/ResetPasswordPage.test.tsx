@@ -45,6 +45,24 @@ describe('password reset code handling', () => {
   });
 });
 
+describe('emailed links', () => {
+  it('prefill email and code from the fragment and remove it from the address bar', async () => {
+    window.history.replaceState(null, '', '/reset-password#email=member%40example.test&code=ABCD2345');
+    renderRoute(<ResetPasswordPage />, '/reset-password');
+    expect(screen.getByLabelText('Login email')).toHaveValue('member@example.test');
+    expect(await screen.findByLabelText('Reset code')).toHaveValue('ABCD2345');
+    await waitFor(() => expect(window.location.hash).toBe(''));
+    expect(window.location.pathname).toBe('/reset-password');
+  });
+
+  it('prefill the verification code from the fragment', async () => {
+    window.history.replaceState(null, '', '/verify-email#email=member%40example.test&code=ABCD2345');
+    renderRoute(<EmailVerificationPage />, '/verify-email');
+    expect(screen.getByLabelText('Verification code')).toHaveValue('ABCD2345');
+    await waitFor(() => expect(window.location.hash).toBe(''));
+  });
+});
+
 describe('standalone email verification', () => {
   it('normalizes the one-time code and clears secret mutation variables after completion', async () => {
     const completed = vi.fn();
