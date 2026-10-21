@@ -42,6 +42,9 @@ const (
 
 var allSlots = []Slot{Logo, CompactLogo, Favicon, ApplicationBackground, AuthenticationBackground}
 
+// Slots lists every asset slot in display order.
+func Slots() []Slot { return append([]Slot(nil), allSlots...) }
+
 var defaultAssetURLs = map[Slot]string{
 	Logo:                     "/brand/htumkr-symbol.png",
 	CompactLogo:              "/brand/htumkr-symbol.png",

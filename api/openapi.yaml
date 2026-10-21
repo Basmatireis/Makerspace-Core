@@ -49,6 +49,8 @@ tags:
   - name: Signage
   - name: Signage Player
   - name: Local Services
+  - name: Configuration Transfer
+    description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
 
 paths:
   /health/live:
@@ -2820,6 +2822,82 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /configuration-transfer/export:
+    get:
+      tags: [Configuration Transfer]
+      operationId: exportConfiguration
+      summary: Download the chosen configuration sections as a file
+      description: >-
+        Needs `configuration.export` and the read permission of every chosen section. Secrets (SMTP password, OIDC and
+        SCIM credentials, enrollment secrets, keys) are never part of the file.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
+      responses:
+        "200":
+          description: Configuration file (JSON).
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Content-Disposition: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /configuration-transfer/import/preview:
+    post:
+      tags: [Configuration Transfer]
+      operationId: previewConfigurationImport
+      summary: Report what importing the chosen sections of a file would change
+      description: >-
+        Needs `configuration.import` and the read and manage permissions of every chosen section. Runs the import in a
+        transaction that is always rolled back. The body is the configuration file.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {$ref: "#/components/parameters/ConfigurationImportMode"}
+        - {$ref: "#/components/parameters/ConfigurationImportSections"}
+      requestBody:
+        required: true
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "200": {description: Preview., content: {application/json: {schema: {$ref: "#/components/schemas/ConfigurationImportReport"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {description: The file exceeds 64 MiB., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /configuration-transfer/import/apply:
+    post:
+      tags: [Configuration Transfer]
+      operationId: applyConfigurationImport
+      summary: Import the chosen sections of a file in one transaction
+      description: >-
+        Same permissions as the preview. Answers 409 `configuration_changed` when the chosen sections changed since the
+        preview that returned `fingerprint`, and 409 `configuration_import_conflicts` when an entry conflicts; nothing
+        is changed then.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {$ref: "#/components/parameters/ConfigurationImportMode"}
+        - {$ref: "#/components/parameters/ConfigurationImportSections"}
+        - {name: fingerprint, in: query, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+      requestBody:
+        required: true
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "200": {description: Applied import., content: {application/json: {schema: {$ref: "#/components/schemas/ConfigurationImportReport"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {description: The file exceeds 64 MiB., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /laborordnung/versions:
@@ -8273,6 +8351,8 @@ components:
       description: One-assignment management credential stored only as a SHA-256 digest.
 
   parameters:
+    ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
+    ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
     BrandingAssetSlot:
       name: slot
       in: path
@@ -8674,6 +8754,69 @@ components:
         - signage.publish
         - signage.override
         - local_services.manage
+        - configuration.export
+        - configuration.import
+
+    ConfigurationSection:
+      type: string
+      enum: [deviceTypes, sessionPolicies, roles, machineTypes, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail]
+      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionMachineTypes, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail]
+
+    ConfigurationImportMode:
+      type: string
+      description: "`overwrite` makes each chosen section equal the file (entries missing from it are deleted, or deactivated or kept when in use); `insert` only creates entries that do not exist yet."
+      enum: [overwrite, insert]
+      x-enum-varnames: [ConfigurationImportModeOverwrite, ConfigurationImportModeInsert]
+
+    ConfigurationImportAction:
+      type: string
+      enum: [create, update, delete, deactivate, keep, skip, conflict]
+      x-enum-varnames: [ConfigurationImportActionCreate, ConfigurationImportActionUpdate, ConfigurationImportActionDelete, ConfigurationImportActionDeactivate, ConfigurationImportActionKeep, ConfigurationImportActionSkip, ConfigurationImportActionConflict]
+
+    ConfigurationImportItem:
+      type: object
+      additionalProperties: false
+      required: [name, action]
+      properties:
+        name: {type: string}
+        action: {$ref: "#/components/schemas/ConfigurationImportAction"}
+        reason: {type: string}
+        code: {type: string, description: Error code of a conflict.}
+
+    ConfigurationImportCounts:
+      type: object
+      additionalProperties: false
+      required: [create, update, delete, deactivate, keep, skip, conflict]
+      properties:
+        create: {type: integer}
+        update: {type: integer}
+        delete: {type: integer}
+        deactivate: {type: integer}
+        keep: {type: integer}
+        skip: {type: integer}
+        conflict: {type: integer}
+
+    ConfigurationSectionReport:
+      type: object
+      additionalProperties: false
+      required: [section, counts, items]
+      properties:
+        section: {$ref: "#/components/schemas/ConfigurationSection"}
+        counts: {$ref: "#/components/schemas/ConfigurationImportCounts"}
+        items: {type: array, items: {$ref: "#/components/schemas/ConfigurationImportItem"}}
+
+    ConfigurationImportReport:
+      type: object
+      additionalProperties: false
+      required: [mode, fingerprint, applied, appVersion, exportedAt, sections, warnings]
+      properties:
+        mode: {$ref: "#/components/schemas/ConfigurationImportMode"}
+        fingerprint: {type: string, description: Pass to the apply call to make sure nothing changed since this preview.}
+        applied: {type: boolean}
+        appVersion: {type: string, description: Release that wrote the file.}
+        exportedAt: {type: string, format: date-time}
+        sections: {type: array, items: {$ref: "#/components/schemas/ConfigurationSectionReport"}}
+        warnings: {type: array, items: {type: string}}
 
     HealthStatus:
       type: object
