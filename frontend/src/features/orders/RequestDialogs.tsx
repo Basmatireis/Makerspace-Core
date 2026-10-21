@@ -199,8 +199,9 @@ export function RequestDialog({
         }}
       >
         <p>
-          Copy the data below into wiRef. Makerspace Core does not send anything itself; marking the request as
-          forwarded records that you did, approves it and settles the open balance of the order: the order becomes paid.
+          Forwarding approves the request and settles the open balance of the order: the order becomes paid. The data
+          below is then mailed to the wiRef address from the settings, with a PDF attached. If that is not set up or
+          fails, the request shows it and you can copy the data into wiRef yourself.
         </p>
         <CodeSnippet
           type="multi"

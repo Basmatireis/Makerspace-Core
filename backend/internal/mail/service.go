@@ -28,7 +28,9 @@ const passwordPurpose = "mail.smtp.password" //nolint:gosec // key-derivation pu
 // the alternative representation. Attachments make the message multipart/mixed.
 type Message struct {
 	To, Subject, Text, HTML string
-	Attachments             []Attachment
+	// Cc recipients receive the same message; they appear in the Cc header.
+	Cc          []string
+	Attachments []Attachment
 }
 
 // Attachment is a file delivered with a message.

@@ -414,6 +414,17 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	if err = json.Unmarshal(d.ItemSummary, &v.ItemSummary); err != nil {
 		return v, err
 	}
+	delivery, err := q.GetRequestWiRefDelivery(ctx, id)
+	switch {
+	case err == nil:
+		v.WiRefDelivery = &WiRefDelivery{
+			Status:      delivery.Status,
+			AttemptedAt: delivery.AttemptedAt,
+			FailureCode: delivery.FailureCode,
+		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return v, err
+	}
 	events, err := q.RequestEvents(ctx, id)
 	if err != nil {
 		return v, err
@@ -992,5 +1003,12 @@ func (s *Service) RequestCommand(
 	if err != nil {
 		return v, err
 	}
-	return v, databaseError(tx.Commit(ctx))
+	if err = tx.Commit(ctx); err != nil {
+		return v, databaseError(err)
+	}
+	if action == InvoiceActionForward {
+		// The mail goes out only after the forwarding is durable; its outcome never undoes the forwarding.
+		return s.deliverIssued(ctx, p, v, requestID), nil
+	}
+	return v, nil
 }

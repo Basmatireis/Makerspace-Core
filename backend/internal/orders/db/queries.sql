@@ -194,3 +194,8 @@ FOR UPDATE OF j;
 SELECT order_id, order_reference, sum(amount)::numeric AS amount FROM payment_allocations
 WHERE operation_id = sqlc.arg(operation_id) AND order_id IS NOT NULL
 GROUP BY order_id, order_reference ORDER BY order_reference;
+-- name: SetRequestWiRefDelivery :exec
+INSERT INTO external_invoice_request_deliveries(request_id,status,attempted_at,failure_code) VALUES($1,$2,$3,$4)
+ON CONFLICT (request_id) DO UPDATE SET status=EXCLUDED.status,attempted_at=EXCLUDED.attempted_at,failure_code=EXCLUDED.failure_code;
+-- name: GetRequestWiRefDelivery :one
+SELECT status,attempted_at,failure_code FROM external_invoice_request_deliveries WHERE request_id=$1;

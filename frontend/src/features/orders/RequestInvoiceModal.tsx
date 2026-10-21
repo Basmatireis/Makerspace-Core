@@ -99,8 +99,8 @@ export function RequestInvoiceModal({ order, onClose }: { order: Order; onClose:
     >
       <Stack gap={5}>
         <p>
-          Core hands the data over once it is approved; the invoice itself is issued by wiRef. Check the recipient, then
-          request it.
+          Once an approver forwards the request, Core mails the data with a PDF to wiRef; the invoice itself is issued
+          by wiRef. Check the recipient, then request it.
         </p>
         <Tile>
           <h3 className="mj-section-title">Payment</h3>

@@ -41,6 +41,7 @@ type Querier interface {
 	GetPerson(ctx context.Context, id uuid.UUID) (GetPersonRow, error)
 	GetRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	GetRequestDetails(ctx context.Context, requestID uuid.UUID) (ExternalInvoiceRequestDetail, error)
+	GetRequestWiRefDelivery(ctx context.Context, requestID uuid.UUID) (GetRequestWiRefDeliveryRow, error)
 	GetRequirements(ctx context.Context, organizationID uuid.UUID) (OrganizationInvoicingRequirement, error)
 	InsertAdjustment(ctx context.Context, arg InsertAdjustmentParams) error
 	InsertAdjustmentItems(ctx context.Context, arg InsertAdjustmentItemsParams) error
@@ -87,6 +88,7 @@ type Querier interface {
 	SaveOperation(ctx context.Context, arg SaveOperationParams) error
 	SaveRequirements(ctx context.Context, arg SaveRequirementsParams) (OrganizationInvoicingRequirement, error)
 	SetRequestAlreadyPaid(ctx context.Context, arg SetRequestAlreadyPaidParams) error
+	SetRequestWiRefDelivery(ctx context.Context, arg SetRequestWiRefDeliveryParams) error
 	SumAllocations(ctx context.Context, orderID *uuid.UUID) (pgtype.Numeric, error)
 	SumCashCardAllocations(ctx context.Context, orderID *uuid.UUID) (pgtype.Numeric, error)
 	TransitionOrder(ctx context.Context, arg TransitionOrderParams) error

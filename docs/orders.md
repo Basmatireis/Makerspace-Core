@@ -58,7 +58,30 @@ An invoice can be requested whatever the payment status. The request records `al
 
 **Issued means paid.** In the same transaction as the forward transition, a payment of method `external` ("Invoice (wiRef)", source `wiRef`, reference = the request reference) is recorded and allocated to the Order for its open balance, so the Order is settled. If cash/card already covered the whole Order, no payment is created. Manually recording an `external` payment is refused with `409 invoice_settles_balance`; there is no bank-transfer recording. The settling payment is created on the strength of `external_invoice_requests.approve`.
 
-Confirming the external cancellation reverses the settling payment (a reversal with reason kind `external_correction`, carrying the confirmation reference and date) in the same transaction and reopens the balance. Because that returns money, it additionally requires `payments.read` and `payments.reverse` when such a payment exists. Before Order reversal/replacement, cancel the request this way. Externally controlled payments are never transferred internally to a replacement. Core does not send requests to wiRef or issue documents; staff perform those actions through their normal process and record the facts here.
+Confirming the external cancellation reverses the settling payment (a reversal with reason kind `external_correction`, carrying the confirmation reference and date) in the same transaction and reopens the balance. Because that returns money, it additionally requires `payments.read` and `payments.reverse` when such a payment exists. Before Order reversal/replacement, cancel the request this way. Externally controlled payments are never transferred internally to a replacement. Core does not issue invoices; wiRef does. Core mails the invoice data to wiRef when a request is forwarded (see below); the wiRef invoice number is still recorded by hand.
+
+### Delivery to wiRef
+
+When a request is forwarded (`submitted → issued`), Core mails the invoice information to the wiRef address configured under **Settings › Sales & invoicing** (permission `invoicing.settings.manage`; `master` has it through the registry, existing Roles do not). The mail is the shared branded HTML layout with a PDF attachment (`invoice-request-W-2026-000001.pdf`) that carries the same data: recipient, address, optional contact person, purchase order reference, service period and description, the line items with quantity, unit price and amount, the total (with already paid and amount to invoice when cash or card was received) and the approver.
+
+Sending happens **after** the forwarding transaction commits and holds no lock; a delivery problem never undoes the forwarding. The outcome is stored per request in `external_invoice_request_deliveries` and returned as `wirefDelivery` (`status` `not_configured`, `sent` or `failed`, `attemptedAt`, `failureCode`), with its own audit event `external_invoice_request.wiref_delivery_<status>`. `not_configured` means sending was switched off or had no address; the invoice section then links to the settings. Failure codes are `mail_disabled` (SMTP switched off), `send_failed`, `render_failed`; neither addresses nor message bodies are logged or stored. An approver (`external_invoice_requests.approve`) can **Resend to wiRef** for an issued request at any time, for example after a failure or once the settings are complete; the request version does not change.
+
+Settings: enabled flag, wiRef address, up to five CC addresses, mail subject, introduction and closing text, PDF title, introduction and closing text, and toggles for the optional fields (contact person, purchase order reference, service period, service description, approver). Recipient, address, items and totals are always included. Settings carry a version like the other settings (`409 stale_write`), every change is audited (`invoicing.wiref_settings_updated`), and a **test mail** with fictitious data goes to the saved addresses (subject prefixed `[TEST]`, available while sending is off). The settings screen previews the mail in a sandboxed frame and downloads a sample PDF; both render unsaved text.
+
+Texts may contain these placeholders and nothing else. Replacement is a single pass of plain string substitution over this whitelist (no template engine; a value that looks like a placeholder is not expanded again), mail HTML escapes every value, and unknown or malformed `{{...}}` is rejected on save with `422 wiref_template_invalid`. Placeholders of switched-off optional fields are empty.
+
+| Placeholder | Value |
+| --- | --- |
+| `{{organisation}}` | Recipient name |
+| `{{kontaktperson}}` | Contact person (empty when switched off) |
+| `{{bestellreferenz}}` | Purchase order reference (empty when switched off) |
+| `{{anforderungsnummer}}` | Invoice request number, `W-2026-000001` |
+| `{{auftragsnummer}}` | Order number |
+| `{{summe}}` | Amount to invoice in EUR (order total minus cash and card received), `EUR 1,234.50` |
+| `{{freigegeben_von}}` | Approver (empty when switched off) |
+| `{{datum}}` | Approval date, `DD.MM.YYYY` (Europe/Vienna) |
+
+The PDF is generated in pure Go with `github.com/go-pdf/fpdf` (MIT) using the built-in Helvetica font in cp1252, which covers German umlauts, ß and the euro sign; characters outside that set are replaced. The header shows the application and organization names and, when a PNG or JPEG logo was uploaded under Branding, the logo (the bundled default logo and SVG logos are omitted).
 
 Recipient details are stored separately from the request header and stay editable while the request is a draft or awaiting approval (the item summary and `alreadyPaid` never change after submission); they freeze when it is issued. The UI exposes the purchase order configuration on the organization page (Directory › Organizations). Organization address and contact are stored on the organization (see [Machine logbook](machine-logbook.md)) and prefill the recipient details.
 

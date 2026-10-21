@@ -81,8 +81,10 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 	if err := client.Mail(p.config.FromAddress); err != nil {
 		return fmt.Errorf("set SMTP sender: %w", err)
 	}
-	if err := client.Rcpt(message.To); err != nil {
-		return fmt.Errorf("set SMTP recipient: %w", err)
+	for _, recipient := range append([]string{message.To}, message.Cc...) {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("set SMTP recipient: %w", err)
+		}
 	}
 	w, err := client.Data()
 	if err != nil {

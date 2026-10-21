@@ -697,6 +697,23 @@ func (q *Queries) GetRequestDetails(ctx context.Context, requestID uuid.UUID) (E
 	return i, err
 }
 
+const getRequestWiRefDelivery = `-- name: GetRequestWiRefDelivery :one
+SELECT status,attempted_at,failure_code FROM external_invoice_request_deliveries WHERE request_id=$1
+`
+
+type GetRequestWiRefDeliveryRow struct {
+	Status      string
+	AttemptedAt time.Time
+	FailureCode string
+}
+
+func (q *Queries) GetRequestWiRefDelivery(ctx context.Context, requestID uuid.UUID) (GetRequestWiRefDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, getRequestWiRefDelivery, requestID)
+	var i GetRequestWiRefDeliveryRow
+	err := row.Scan(&i.Status, &i.AttemptedAt, &i.FailureCode)
+	return i, err
+}
+
 const getRequirements = `-- name: GetRequirements :one
 SELECT organization_id, require_purchase_order_reference, version, updated_at, updated_by_account_id FROM organization_invoicing_requirements WHERE organization_id=$1
 `
@@ -1902,6 +1919,28 @@ type SetRequestAlreadyPaidParams struct {
 
 func (q *Queries) SetRequestAlreadyPaid(ctx context.Context, arg SetRequestAlreadyPaidParams) error {
 	_, err := q.db.Exec(ctx, setRequestAlreadyPaid, arg.RequestID, arg.AlreadyPaid)
+	return err
+}
+
+const setRequestWiRefDelivery = `-- name: SetRequestWiRefDelivery :exec
+INSERT INTO external_invoice_request_deliveries(request_id,status,attempted_at,failure_code) VALUES($1,$2,$3,$4)
+ON CONFLICT (request_id) DO UPDATE SET status=EXCLUDED.status,attempted_at=EXCLUDED.attempted_at,failure_code=EXCLUDED.failure_code
+`
+
+type SetRequestWiRefDeliveryParams struct {
+	RequestID   uuid.UUID
+	Status      string
+	AttemptedAt time.Time
+	FailureCode string
+}
+
+func (q *Queries) SetRequestWiRefDelivery(ctx context.Context, arg SetRequestWiRefDeliveryParams) error {
+	_, err := q.db.Exec(ctx, setRequestWiRefDelivery,
+		arg.RequestID,
+		arg.Status,
+		arg.AttemptedAt,
+		arg.FailureCode,
+	)
 	return err
 }
 

@@ -27,6 +27,7 @@ import type { Money } from './money';
 import type { OrderItem } from './orderItem';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { WiRefDelivery } from './wiRefDelivery';
 
 export interface ExternalInvoiceRequest {
   id: UUIDv7;
@@ -46,6 +47,8 @@ export interface ExternalInvoiceRequest {
   itemSummary: OrderItem[];
   events: InvoiceRequestEvent[];
   supersedesRequestId: UUIDv7 | null;
+  /** Set once the request was forwarded to wiRef. */
+  wirefDelivery?: WiRefDelivery | null;
   version: Version;
   createdAt: string;
 }

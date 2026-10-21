@@ -94,6 +94,7 @@ const (
 	SCIMManage                         Permission = Permission(openapi.ScimManage)
 	MailManage                         Permission = Permission(openapi.MailManage)
 	BrandingManage                     Permission = Permission(openapi.BrandingManage)
+	InvoicingSettingsManage            Permission = Permission(openapi.InvoicingSettingsManage)
 	MachinesRead                       Permission = Permission(openapi.MachinesRead)
 	MachinesManage                     Permission = Permission(openapi.MachinesManage)
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
@@ -159,7 +160,7 @@ var registry = []Permission{
 	SurveysRead, SurveysManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
-	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
+	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
 	MachinesRead, MachinesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
@@ -257,6 +258,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	SCIMManage:                         "Manage SCIM connectors and one-time bearer tokens.",
 	MailManage:                         "Configure transactional SMTP delivery and sender identity.",
 	BrandingManage:                     "Manage public organization identity, branding, and legal notices.",
+	InvoicingSettingsManage:            "Configure the delivery of approved invoice requests to wiRef: recipient, mail and PDF templates.",
 	MachinesRead:                       "Read machine types, machines, and their operational metrics.",
 	MachinesManage:                     "Create and update machine types and machines.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",

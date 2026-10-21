@@ -1068,6 +1068,26 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/live-status$/)) return notFound(route);
     // No printer reports live status in this world, so no slot reads a spool tag either.
     if (path === '/api/v1/printers/detected-spool-tags' && method === 'GET') return ok(route, { items: [] });
+    if (path === '/api/v1/invoicing/wiref-settings' && method === 'GET')
+      return ok(route, {
+        enabled: false,
+        recipientEmail: '',
+        ccEmails: [],
+        mailSubject: 'Invoice request {{anforderungsnummer}} for {{organisation}}',
+        mailIntro: 'Please issue the invoice described below.',
+        mailClosing: 'This message was sent automatically.',
+        pdfTitle: 'Invoice request {{anforderungsnummer}}',
+        pdfIntro: 'Please invoice {{organisation}}.',
+        pdfClosing: 'Approved on {{datum}}.',
+        showContactPerson: true,
+        showApprover: true,
+        showPurchaseOrder: true,
+        showServicePeriod: true,
+        showServiceDescription: true,
+        placeholders: [{ token: '{{organisation}}', description: 'Name of the invoice recipient.' }],
+        version: 1,
+        updatedAt: '2026-10-21T00:00:00Z',
+      });
     if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/setup$/) && method === 'PUT')
       return ok(route, { ...world.printerProfile, version: world.printerProfile.version + 1 });
     if ((match = path.match(/^\/api\/v1\/machines\/([^/]+)\/printer$/))) {

@@ -32,3 +32,9 @@ The bundled common-password denylist is a curated subset inspired by the
 SecLists Passwords/Common-Credentials lists and is licensed under the MIT
 License. Its complete copyright, attribution, and license text are in
 backend/internal/security/COMMON_PASSWORDS_LICENSE.md.
+
+go-pdf/fpdf
+Copyright (c) 2021 The Go-PDF authors
+
+The backend generates the invoice PDF for wiRef with github.com/go-pdf/fpdf, licensed under the MIT License.
+It uses only the built-in core fonts; no font files are bundled.
