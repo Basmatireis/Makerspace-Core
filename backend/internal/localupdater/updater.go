@@ -48,7 +48,14 @@ func (DockerRunner) Run(ctx context.Context, dir string, args ...string) ([]byte
 	//nolint:gosec // fixed binary; arguments are validated service names and fixed subcommands
 	command := exec.CommandContext(ctx, "docker", args...)
 	command.Dir = dir
-	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "DOCKER_CONFIG=/tmp/docker-config"}
+	// PWD keeps the symlinked host path as the working directory; without it Compose would see the
+	// resolved mount point and bind ./certs from a path that does not exist on the host.
+	command.Env = []string{
+		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"HOME=/tmp",
+		"DOCKER_CONFIG=/tmp/docker-config",
+		"PWD=" + dir,
+	}
 	if host := os.Getenv("DOCKER_HOST"); strings.HasPrefix(host, "unix://") {
 		command.Env = append(command.Env, "DOCKER_HOST="+host)
 	}
@@ -235,7 +242,10 @@ func (u *Updater) handle(ctx context.Context, component Component, request Reque
 func (u *Updater) compose(ctx context.Context, timeout time.Duration, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	arguments := append(append([]string{"compose"}, args...), u.config.Services...)
+	arguments := append(
+		append([]string{"compose", "--project-directory", u.config.ProjectDir}, args...),
+		u.config.Services...,
+	)
 	output, err := u.runner.Run(ctx, u.config.ProjectDir, arguments...)
 	if len(output) > maxLogOutput {
 		output = output[len(output)-maxLogOutput:]

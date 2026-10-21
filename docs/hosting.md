@@ -76,7 +76,7 @@ General rules for all four stacks:
 
 - Download the matching bundle from the [GitHub Release](https://github.com/Basmatireis/Makerspace-Core/releases), extract it into its own empty directory, then `cp .env.example .env && chmod 600 .env` and fill in the values below.
 - Start and upgrade with `docker compose up -d` from that directory. The images are public; no registry login is needed.
-- Images are pinned to a release (never `latest`). Optional digest variables (`PRINTER_CONNECTOR_DIGEST`, `STREAMING_GATEWAY_DIGEST`: `@sha256:...`, read with `docker buildx imagetools inspect <image>:<version>`) pin the exact content as well. `MAKERSPACE_IMAGE_PREFIX` selects an approved registry mirror.
+- Images are pinned to a release (never `latest`). Optional digest variables (`PRINTER_CONNECTOR_DIGEST`, `STREAMING_GATEWAY_DIGEST`, `LOCAL_UPDATER_DIGEST`: `@sha256:...`, read with `docker buildx imagetools inspect <image>:<version>`) pin the exact content as well. `MAKERSPACE_IMAGE_PREFIX` selects an approved registry mirror.
 - Never commit a populated `.env`. It is git-ignored in this repository.
 
 ### Stack 1: Makerspace Core (`makerspace-core`)
@@ -112,7 +112,8 @@ Bundle: `makerspace-printer-connector-VERSION-compose.tar.gz`. Runs on a host in
 | `MAKERSPACE_VERSION` | release of the connector image (filled in by the bundle; **update it when you upgrade**) |
 | `CORE_URL` | public HTTPS URL of Core (required) |
 | `CONNECTOR_ENROLLMENT_SECRET` | one-time secret from Core (sensitive, first start only) |
-| `PRINTER_CONNECTOR_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
+| `PRINTER_CONNECTOR_DIGEST`, `LOCAL_UPDATER_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
+| `COMPOSE_PROFILES=updater`, `DOCKER_SOCKET` | optional: web UI updates, see [Upgrades](#updating-stacks-2-to-4-from-the-web-ui-optional-updater) |
 
 Re-enrolling: To connect a daemon to a different or newly created connector or gateway, put the new enrollment secret into `CONNECTOR_ENROLLMENT_SECRET` and restart. If the secret differs from the one used for the stored identity, the daemon enrolls with it and replaces its local identity. If Core rejects the new secret, the daemon keeps running with the old identity and logs an error. An unchanged secret is ignored and can be removed. For the gateway the variable is `STREAM_ENROLLMENT_SECRET`. **Moving to another host or recovering a lost data volume:** in Core open the entry (Machines > Connectors, or Settings > Local services) and choose **New enrollment secret**; this works for active and disabled entries and keeps the id, printer assignments and cameras. The running daemon keeps working until the new secret is used, then it is disconnected (it gets 401 and logs the error). Put the secret into the new host's `.env` and start; afterwards stop and remove the old installation. Revoked entries cannot be re-enrolled. To connect to a different entry, delete the old one or let it be revoked, create a new one and copy its secret.
 
@@ -133,7 +134,8 @@ Bundle: `makerspace-streaming-VERSION-compose.tar.gz` (`compose.yaml`, `.env.exa
 | `ACME_CA_DIR`, `ACME_DNS_RESOLVERS` | optional: ACME directory URL (default Let's Encrypt production; staging for tests) and resolvers for the DNS checks (default `1.1.1.1:53,1.0.0.1:53`) |
 | `STREAM_BIND_ADDRESS`, `STREAM_HTTPS_PORT` | optional: publish on one host address / another HTTPS port |
 | `STREAM_ALLOWED_ORIGIN` | optional: browser origin of the player when it differs from `CORE_URL` |
-| `STREAMING_GATEWAY_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
+| `STREAMING_GATEWAY_DIGEST`, `LOCAL_UPDATER_DIGEST`, `MAKERSPACE_IMAGE_PREFIX` | optional |
+| `COMPOSE_PROFILES=updater`, `DOCKER_SOCKET` | optional: web UI updates, see [Upgrades](#updating-stacks-2-to-4-from-the-web-ui-optional-updater) |
 
 **DNS, TLS and ports.** The player is served over HTTPS from Core, so the gateway must be HTTPS as well, with a certificate the display browsers trust. There are two ways; certificate files win when both are present.
 
@@ -192,6 +194,22 @@ Bundle: `makerspace-local-services-VERSION-compose.tar.gz` (`compose.yaml`, `.en
 | 2, 3, 4 | extract the new bundle, set `MAKERSPACE_VERSION` in your `.env` to the new version (the bundle's `.env.example` shows it), `docker compose up -d` |
 
 Release a Core version first, then upgrade the local services: the connector and the gateway speak a versioned protocol with Core. To roll back, use the older bundle and version.
+
+#### Updating stacks 2 to 4 from the web UI (optional updater)
+
+Each local-service bundle contains an optional `updater` service (image `-local-updater`, same release as the others). With it, **Settings > Local services** shows for every connector and gateway the running version, Core's version, an **Update available** tag and an **Update** button (`printer_connectors.manage` for connectors, `local_services.manage` for gateways). Without it the page says that the service has to be updated by hand and shows the commands above.
+
+**Security tradeoff.** The updater mounts the Docker socket. Access to the socket is root access to the host: whoever controls the updater container controls the machine. It is therefore off by default. Enable it only on a host that runs nothing but this bundle, and only if you accept that a compromise of the updater image or the Docker host means full control. The design keeps the exposure small:
+
+- The connector, the gateway and go2rtc stay read-only, without capabilities, and never see the socket. They hand Core's request to the updater as a small JSON file in the shared `updater_exchange` volume and read its result from there.
+- The updater has no network (`network_mode: none`; the Docker engine pulls the images), only the `CHOWN` and `DAC_OVERRIDE` capabilities (to replace `.env` and keep its owner) and `no-new-privileges`.
+- It installs only a release version (`MAJOR.MINOR.PATCH`) that is newer than `MAKERSPACE_VERSION` in `.env`; Core itself only offers its own version. Image names and the registry come from `compose.yaml` and `.env`, never from a request. It changes only `MAKERSPACE_VERSION`, comments out digest pins of the previous release (`PRINTER_CONNECTOR_DIGEST`, `STREAMING_GATEWAY_DIGEST`, `LOCAL_UPDATER_DIGEST`; pin the new digests again afterwards if you use pinning), then runs `docker compose pull` and `docker compose up -d --no-build` for the bundle's own services (`UPDATER_SERVICES` in `compose.yaml`). It runs Compose in the bundle directory with the bundle's `compose.yaml`, `compose.override.yaml` (if any) and `.env`, like you would.
+- Every request is handled at most once. A failed pull or start restores the previous `.env` (and starts the previous release again) and reports a short reason (`pull_failed`, `up_failed`, `downgrade_refused`, `env_invalid`, `interrupted`, ...) that Core shows; there are no automatic retries. Staff can ask again, which creates a new request.
+- The updater does not replace itself while it works; its own image follows with the next manual `docker compose up -d`. Changes to `compose.yaml` in a new release (new variables, services) are not applied by the updater: read the release notes and update by hand when they mention the bundle.
+
+To enable it, add `COMPOSE_PROFILES=updater` to `.env` (for rootless Docker also `DOCKER_SOCKET=/run/user/<uid>/docker.sock`) and run `docker compose up -d`. The connector or gateway reports the updater within a minute. To disable it again, remove the line and run `docker compose up -d --remove-orphans`.
+
+The request travels like this: staff click **Update to X.Y.Z** (`POST /printer-connectors/{id}/update` or `/streaming-gateways/{id}/update`, audited as `printer_connector.update_requested` / `streaming_gateway.update_requested`); Core stores the request (migration 00062) and returns it in the service's configuration; the service writes it into the exchange volume within one poll (10 s connector, 30 s gateway); the updater picks it up within 10 s and writes its result, which the service reports in its next heartbeats; Core shows *requested*, *in progress*, *succeeded* or *failed*. An update still in progress after 15 minutes can be requested again. In the local-services bundle one request updates both the connector and the gateway, because they share `MAKERSPACE_VERSION`.
 
 ### Backups and what is sensitive
 

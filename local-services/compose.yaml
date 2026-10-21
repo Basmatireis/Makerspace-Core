@@ -30,6 +30,8 @@ services:
       CONNECTOR_ALLOW_HTTP: "false"
     volumes:
       - printer_connector_data:/var/lib/makerspace-printer-connector
+      # Update requests for the optional updater below (unused without it).
+      - updater_exchange:/var/lib/makerspace-updater
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
     # Its own outbound network: nothing else shares it, so no other container can reach it.
@@ -87,6 +89,7 @@ services:
     volumes:
       - streaming_gateway_data:/var/lib/makerspace-streaming-gateway
       - go2rtc_config:/go2rtc-config
+      - updater_exchange:/var/lib/makerspace-updater
       # Optional (file mode): fullchain.pem and privkey.pem for STREAM_PUBLIC_HOST, readable for uid
       # 10001. A renewed certificate is picked up within about a minute without a restart. Without
       # these files (or without the directory) the gateway uses ACME mode.
@@ -152,6 +155,38 @@ services:
     cpus: 2.0
     stop_grace_period: 10s
 
+  # Optional updater sidecar: lets staff update this bundle to Core's version from Settings > Local
+  # services. It runs only with COMPOSE_PROFILES=updater in .env; without it, update by hand
+  # (docs/hosting.md). SECURITY: it mounts the Docker socket, which is root access to this host. It
+  # accepts only a newer release of this bundle's own images (image names come from this file and
+  # .env, never from Core), rewrites MAKERSPACE_VERSION in .env and recreates the services below.
+  # The other containers never get the socket; they hand requests over through updater_exchange.
+  updater:
+    profiles: [updater]
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-local-updater:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${LOCAL_UPDATER_DIGEST:-}
+    environment:
+      UPDATER_COMPONENTS: printer-connector,streaming-gateway
+      # Never list the updater itself: it would stop itself halfway. It is updated with the next
+      # manual `docker compose up -d`.
+      UPDATER_SERVICES: printer-connector,go2rtc-config-init,streaming-gateway
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      # This bundle directory (compose.yaml and .env); the updater writes .env.
+      - .:/deploy
+      - updater_exchange:/var/lib/makerspace-updater
+    # The engine pulls the images; the updater itself needs no network.
+    network_mode: none
+    cap_drop: [ALL]
+    # Read and replace .env as root while keeping its owner.
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    init: true
+
 networks:
   # Gateway <-> go2rtc API traffic. No outbound access.
   internal:
@@ -167,3 +202,4 @@ volumes:
   printer_connector_data:
   streaming_gateway_data:
   go2rtc_config:
+  updater_exchange:

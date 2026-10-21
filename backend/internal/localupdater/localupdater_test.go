@@ -99,10 +99,10 @@ func (f *fakeRunner) Run(_ context.Context, _ string, args ...string) ([]byte, e
 	f.calls = append(f.calls, args)
 	content, _ := os.ReadFile(f.envPath)
 	f.envSeen = append(f.envSeen, string(content))
-	if len(args) > 1 && args[1] == "pull" && f.failPull {
+	if len(args) > 3 && args[3] == "pull" && f.failPull {
 		return []byte("manifest unknown"), errors.New("exit status 1")
 	}
-	if len(args) > 1 && args[1] == "up" && f.failUp {
+	if len(args) > 3 && args[3] == "up" && f.failUp {
 		return nil, errors.New("exit status 1")
 	}
 	return nil, nil
@@ -210,7 +210,10 @@ func TestUpdaterInstallsANewerReleaseOnce(t *testing.T) {
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf(".env mode: %v %v", info.Mode(), err)
 	}
-	want := [][]string{{"compose", "pull", "connector"}, {"compose", "up", "-d", "--no-build", "connector"}}
+	want := [][]string{
+		{"compose", "--project-directory", h.project, "pull", "connector"},
+		{"compose", "--project-directory", h.project, "up", "-d", "--no-build", "connector"},
+	}
 	if len(h.runner.calls) != 2 || strings.Join(h.runner.calls[0], " ") != strings.Join(want[0], " ") ||
 		strings.Join(h.runner.calls[1], " ") != strings.Join(want[1], " ") {
 		t.Fatalf("calls: %v", h.runner.calls)
