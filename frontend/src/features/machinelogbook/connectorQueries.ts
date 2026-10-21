@@ -3,6 +3,7 @@ import type { PrinterConnector, PrinterConnectorAssignment } from '../../api/gen
 import { ApiError } from '../../api/http-client';
 import { getPrinterLiveStatus } from '../../api/generated/printing/printing';
 import {
+  listPrinterConnectorActivity,
   listPrinterConnectorAssignments,
   listPrinterConnectorEvents,
   listPrinterConnectors,
@@ -16,6 +17,8 @@ export const connectorKeys = {
   events: (connectorId: string, includeCleared = false) =>
     ['printer-connectors', connectorId, 'events', includeCleared] as const,
   runs: (connectorId: string) => ['printer-connectors', connectorId, 'observed-runs'] as const,
+  activity: (connectorId: string, page: number, pageSize: number) =>
+    ['printer-connectors', connectorId, 'activity', page, pageSize] as const,
 };
 
 export const connectorsQuery = () =>
@@ -30,6 +33,11 @@ export const connectorEventsQuery = (connectorId: string, includeCleared = false
     queryKey: connectorKeys.events(connectorId, includeCleared),
     queryFn: ({ signal }) =>
       listPrinterConnectorEvents(connectorId, includeCleared ? { includeCleared: true } : undefined, { signal }),
+  });
+export const connectorActivityQuery = (connectorId: string, page: number, pageSize: number) =>
+  queryOptions({
+    queryKey: connectorKeys.activity(connectorId, page, pageSize),
+    queryFn: ({ signal }) => listPrinterConnectorActivity(connectorId, { page, pageSize }, { signal }),
   });
 export const observedRunsQuery = (connectorId: string) =>
   queryOptions({

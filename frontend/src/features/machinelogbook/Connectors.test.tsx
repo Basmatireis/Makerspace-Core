@@ -476,6 +476,47 @@ describe('Connector diagnostics', () => {
     expect(within(dialog).getByRole('button', { name: 'Hide cleared events' })).toBeInTheDocument();
   });
 
+  it('pages through the activity log of automatic changes', async () => {
+    setup(READ);
+    const pages: (string | null)[] = [];
+    server.use(
+      http.get(`*/api/v1/printer-connectors/${connectorId}/activity`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page');
+        pages.push(page);
+        return HttpResponse.json({
+          items: [
+            {
+              id: page === '2' ? '0192f6f8-743e-7c77-a349-cd07c3e8a951' : '0192f6f8-743e-7c77-a349-cd07c3e8a950',
+              kind: page === '2' ? 'spool_auto_mounted' : 'run_recorded',
+              occurredAt: '2026-10-11T12:00:00Z',
+              machineId: printerId,
+              machineName: 'Bambu H2D',
+              resourceId: '0192f6f8-743e-7c77-a349-cd07c3e8a960',
+              resourceLabel: page === '2' ? 'AMS 1 slot 2' : 'R-2026-000042',
+              eventKind: null,
+              changedFields: page === '2' ? [] : ['outcome', 'usages'],
+            },
+          ],
+          page: Number(page),
+          pageSize: 25,
+          total: 30,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    expect(pages).toHaveLength(0);
+    await user.click(within(dialog).getByRole('tab', { name: 'Activity log' }));
+    const table = await within(dialog).findByRole('table', { name: 'Connector activity log' });
+    expect(within(table).getByText('Run updated')).toBeInTheDocument();
+    expect(within(table).getByText('R-2026-000042 · outcome, material usage')).toBeInTheDocument();
+    // Carbon names the pagination buttons only through a tooltip that jsdom does not compute.
+    await user.click(dialog.querySelector('.cds--pagination__button--forward') as HTMLElement);
+    expect(await within(dialog).findByText('Spool mounted automatically')).toBeInTheDocument();
+    expect(pages).toEqual(['1', '2']);
+  });
+
   it('adds newly received events without crashing the open diagnostics table', async () => {
     const initial = event({ applicationState: 'applied', applicationReason: null });
     const arrived = event({

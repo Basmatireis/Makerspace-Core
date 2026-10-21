@@ -31,6 +31,7 @@ import {
 import { ConnectorPanel } from './connectorDiagnostics/ConnectorPanel';
 import { PrinterPanel } from './connectorDiagnostics/PrinterPanel';
 import { EventsClearBar } from './connectorDiagnostics/EventsTable';
+import { ActivityTable } from './connectorDiagnostics/ActivityTable';
 
 export function DiagnosticsModal({ connector: opened, onClose }: { connector: PrinterConnector; onClose: () => void }) {
   const navigate = useNavigate();
@@ -56,7 +57,10 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
     return { assignment, live, stale, issue: printerIssue(assignment, live, stale) };
   });
   const allEvents = events.data?.items ?? [];
-  const selected = index > 0 ? views[index - 1] : undefined;
+  // Tabs: the connector, one per printer, then the activity log.
+  const activityIndex = views.length + 1;
+  const selectedIndex = Math.min(index, activityIndex);
+  const selected = selectedIndex > 0 && selectedIndex < activityIndex ? views[selectedIndex - 1] : undefined;
   return (
     <ComposedModal open size="lg" onClose={onClose} aria-label={`${connector.name} diagnostics`}>
       <ModalHeader
@@ -95,7 +99,7 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
           showCleared={showCleared}
           onToggle={() => setShowCleared((current) => !current)}
         />
-        <Tabs selectedIndex={Math.min(index, views.length)} onChange={({ selectedIndex }) => setIndex(selectedIndex)}>
+        <Tabs selectedIndex={selectedIndex} onChange={({ selectedIndex: next }) => setIndex(next)}>
           <TabList aria-label="Diagnostics sections" contained>
             <Tab>Connector</Tab>
             {views.map((view) => (
@@ -103,6 +107,7 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
                 {view.assignment.machineName}
               </Tab>
             ))}
+            <Tab>Activity log</Tab>
           </TabList>
           <TabPanels>
             <TabPanel>
@@ -124,6 +129,9 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
                 />
               </TabPanel>
             ))}
+            <TabPanel>
+              <ActivityTable connectorId={connector.id} active={selectedIndex === activityIndex} />
+            </TabPanel>
           </TabPanels>
         </Tabs>
       </ModalBody>
