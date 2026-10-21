@@ -18,8 +18,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { Event } from './event';
 
-export interface EventList {
-  items: Event[];
-}
+export type EventListScope = typeof EventListScope[keyof typeof EventListScope];
+
+
+export const EventListScope = {
+  upcoming: 'upcoming',
+  drafts: 'drafts',
+  past: 'past',
+} as const;

@@ -2359,9 +2359,22 @@ paths:
     get:
       tags: [Events]
       operationId: listEvents
+      description: |
+        Events by date. `upcoming`: confirmed events that have not ended (sorted by start, earliest first);
+        `drafts`: drafts, only for organizers (`events.manage`, `events.staffing.manage`, `events.assign`), empty for
+        everyone else; `past`: completed and cancelled events and confirmed events that have ended (latest first).
+        Without an organizer permission `past` lists only events in which the caller has an active assignment.
+        Each item carries `openPlaces` and the caller's own shifts in `myShifts`.
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: scope, in: query, schema: {$ref: "#/components/schemas/EventListScope"}}
+        - {name: search, in: query, description: "Case-insensitive match on internal name, public title and location.", schema: {type: string, maxLength: 200}}
+        - {name: ownerPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
-        "200": {description: Events visible to the caller., content: {application/json: {schema: {$ref: "#/components/schemas/EventList"}}}}
+        "200": {description: Events visible to the caller., content: {application/json: {schema: {$ref: "#/components/schemas/EventPage"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -2479,6 +2492,63 @@ paths:
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
+
+  /events/{eventId}/participation:
+    parameters: [{$ref: "#/components/parameters/EventId"}]
+    get:
+      tags: [Events]
+      operationId: getEventParticipation
+      description: |
+        The helper view of an event: the caller's own active assignments and every shift with status open or closed
+        and its positions, with fill counts and whether the caller can join. Co-helper names are included only with
+        `events.read_assignments`, `events.staffing.manage` or `events.assign`; contact details never. Overlap
+        conflicts are decided when joining.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Participant view., content: {application/json: {schema: {$ref: "#/components/schemas/EventParticipation"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId}/join:
+    parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}, {$ref: "#/components/parameters/EventRequirementId"}]
+    post:
+      tags: [Events]
+      operationId: joinEventPosition
+      description: |
+        Takes one place in a position for the caller's own Person (source `authenticated_self`, shown as Member).
+        Requires `events.signup`. 409 codes: `signup_not_open` (event not confirmed, shift draft, or signup window
+        not started), `signup_closed` (event closed, shift closed or cancelled, session cancelled, shift ended, or
+        window passed), `already_assigned` (already a place in this shift), `person_not_eligible`,
+        `requirement_full`, `assignment_conflict` (overlapping assignment; never overridden here).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: Joined., content: {application/json: {schema: {$ref: "#/components/schemas/EventMyAssignment"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /events/{eventId}/assignments/{eventAssignmentId}/leave:
+    parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventAssignmentId"}]
+    post:
+      tags: [Events]
+      operationId: leaveEventPosition
+      description: |
+        Gives up the caller's own active assignment. Requires `events.signup`; other people's assignments answer 404.
+        409 codes: `event_read_only` (event completed or cancelled), `shift_ended`, `conflict` (no longer active),
+        `stale_write`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Left.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /events/{eventId}/sessions:
     parameters: [{$ref: "#/components/parameters/EventId"}]
@@ -9851,7 +9921,7 @@ components:
     Event:
       type: object
       additionalProperties: false
-      required: [id, name, status, publicId, isPublic, publicSignupEnabled, hasBanner, version, createdAt, updatedAt, taskTotal, taskCompleted, tasksOverdue, filledCount, requiredCount, hasAssignmentHistory, goLive]
+      required: [id, name, status, publicId, isPublic, publicSignupEnabled, hasBanner, version, createdAt, updatedAt, taskTotal, taskCompleted, tasksOverdue, filledCount, requiredCount, openPlaces, hasAssignmentHistory, goLive, myShifts]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, maxLength: 200}
@@ -9876,6 +9946,11 @@ components:
         filledCount: {type: integer, format: int64, minimum: 0, description: "Active assignments on positions of shifts that are not cancelled, capped per position at its required count."}
         requiredCount: {type: integer, format: int64, minimum: 0, description: Places required by positions of shifts that are not cancelled.}
         hasAssignmentHistory: {type: boolean, description: True once any assignment (also a cancelled one) exists; such an event cannot be deleted.}
+        openPlaces: {type: integer, format: int64, minimum: 0, description: requiredCount minus filledCount.}
+        myShifts:
+          type: array
+          description: The caller's own active assignments in this event, by shift start.
+          items: {$ref: "#/components/schemas/EventMyAssignment"}
         goLive: {$ref: "#/components/schemas/EventGoLive"}
         nextDeadline: {type: string, format: date-time, nullable: true}
         nextScheduleAt: {type: string, format: date-time, nullable: true}
@@ -9937,11 +10012,99 @@ components:
           type: array
           description: Requirements for confirming the event that are not met.
           items: {$ref: "#/components/schemas/EventReadinessCode"}
-    EventList:
+    EventListScope:
+      type: string
+      enum: [upcoming, drafts, past]
+      default: upcoming
+    EventPage:
       type: object
       additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/Event"}}}
+      required: [items, page, pageSize, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Event"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
+    EventMyAssignment:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, shiftId, requirementId, shiftName, requirementName, startsAt, endsAt, shiftStatus, version, canLeave]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        shiftId: {$ref: "#/components/schemas/UUIDv7"}
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+        shiftName: {type: string, maxLength: 200}
+        requirementName: {type: string, maxLength: 200}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        shiftStatus: {$ref: "#/components/schemas/EventShiftStatus"}
+        version: {$ref: "#/components/schemas/Version"}
+        canLeave: {type: boolean, description: True when the event is not closed and the shift has not ended.}
+        leaveBlockedReason: {type: string, enum: [event_closed, shift_ended], nullable: true}
+    EventJoinReason:
+      type: string
+      description: |
+        Why the caller cannot join a position. `no_permission`: no `events.signup`; `closed`: event closed, shift
+        closed or cancelled, session cancelled, shift ended or signup window passed; `not_open`: event not confirmed or
+        shift still a draft; `opens_at`: signup window starts at `opensAt`; `already_joined`: the caller has a place in
+        this shift; `full`; `roles_only`: only members with one of `roleNames`.
+      enum: [no_permission, closed, not_open, opens_at, already_joined, full, roles_only]
+    EventParticipationHelper:
+      type: object
+      additionalProperties: false
+      required: [isMe]
+      properties:
+        displayName: {type: string, maxLength: 201, nullable: true, description: Null when the personal data was erased.}
+        isMe: {type: boolean}
+    EventParticipationPosition:
+      type: object
+      additionalProperties: false
+      required: [id, name, requiredCount, filledCount, joinable, roleNames]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        requiredCount: {type: integer, minimum: 1}
+        filledCount: {type: integer, minimum: 0}
+        myAssignmentId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        joinable: {type: boolean}
+        reason: {allOf: [{$ref: "#/components/schemas/EventJoinReason"}], nullable: true}
+        opensAt: {type: string, format: date-time, nullable: true}
+        roleNames: {type: array, description: Roles that may fill the position; empty when anyone may., items: {type: string, maxLength: 100}}
+        helpers:
+          type: array
+          nullable: true
+          description: Active helpers; null without permission to see names.
+          items: {$ref: "#/components/schemas/EventParticipationHelper"}
+    EventParticipationShift:
+      type: object
+      additionalProperties: false
+      required: [id, name, startsAt, endsAt, status, isPublic, positions]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        sessionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        name: {type: string, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/EventShiftStatus"}
+        isPublic: {type: boolean}
+        linkedSessionStatus: {allOf: [{$ref: "#/components/schemas/EventSessionStatus"}], nullable: true}
+        signupOpensAt: {type: string, format: date-time, nullable: true}
+        signupClosesAt: {type: string, format: date-time, nullable: true}
+        positions: {type: array, items: {$ref: "#/components/schemas/EventParticipationPosition"}}
+    EventParticipation:
+      type: object
+      additionalProperties: false
+      required: [eventId, status, canSignup, canSeeNames, myAssignments, sessions, shifts]
+      properties:
+        eventId: {$ref: "#/components/schemas/UUIDv7"}
+        status: {$ref: "#/components/schemas/EventStatus"}
+        canSignup: {type: boolean, description: The caller has `events.signup`.}
+        canSeeNames: {type: boolean, description: Co-helper names are included.}
+        myAssignments: {type: array, items: {$ref: "#/components/schemas/EventMyAssignment"}}
+        sessions: {type: array, items: {$ref: "#/components/schemas/EventSession"}}
+        shifts: {type: array, description: "Shifts with status open or closed, by start.", items: {$ref: "#/components/schemas/EventParticipationShift"}}
     CreateEventRequest:
       type: object
       additionalProperties: false

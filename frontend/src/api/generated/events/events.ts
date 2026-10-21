@@ -26,7 +26,9 @@ import type {
   EventAssignmentList,
   EventFile,
   EventFileList,
-  EventList,
+  EventMyAssignment,
+  EventPage,
+  EventParticipation,
   EventPersonOptionList,
   EventRequirement,
   EventRequirementInput,
@@ -47,6 +49,7 @@ import type {
   LinkEventAssignmentPersonRequest,
   ListEventPeopleParams,
   ListEventTasksParams,
+  ListEventsParams,
   MoveEventAssignmentRequest,
   UpdateEventFileRequest,
   UpdateEventRequest,
@@ -60,17 +63,31 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
-export const getListEventsUrl = () => {
+export const getListEventsUrl = (params?: ListEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/events`
+  return stringifiedParams.length > 0 ? `/api/v1/events?${stringifiedParams}` : `/api/v1/events`
 }
 
-export const listEvents = async ( options?: Parameters<typeof apiFetch>[1]): Promise<EventList> => {
+/**
+ * Events by date. `upcoming`: confirmed events that have not ended (sorted by start, earliest first);
+ * `drafts`: drafts, only for organizers (`events.manage`, `events.staffing.manage`, `events.assign`), empty for
+ * everyone else; `past`: completed and cancelled events and confirmed events that have ended (latest first).
+ * Without an organizer permission `past` lists only events in which the caller has an active assignment.
+ * Each item carries `openPlaces` and the caller's own shifts in `myShifts`.
+ */
+export const listEvents = async (params?: ListEventsParams, options?: Parameters<typeof apiFetch>[1]): Promise<EventPage> => {
 
-  return apiFetch<EventList>(getListEventsUrl(),
+  return apiFetch<EventPage>(getListEventsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -464,6 +481,105 @@ export const rotateEventPublicId = async (eventId: string,
     return headers;
   };
 return apiFetch<Event>(getRotateEventPublicIdUrl(eventId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getGetEventParticipationUrl = (eventId: string,) => {
+
+
+
+
+  return `/api/v1/events/${eventId}/participation`
+}
+
+/**
+ * The helper view of an event: the caller's own active assignments and every shift with status open or closed
+ * and its positions, with fill counts and whether the caller can join. Co-helper names are included only with
+ * `events.read_assignments`, `events.staffing.manage` or `events.assign`; contact details never. Overlap
+ * conflicts are decided when joining.
+ */
+export const getEventParticipation = async (eventId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventParticipation> => {
+
+  return apiFetch<EventParticipation>(getGetEventParticipationUrl(eventId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getJoinEventPositionUrl = (eventId: string,
+    eventShiftId: string,
+    eventRequirementId: string,) => {
+
+
+
+
+  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements/${eventRequirementId}/join`
+}
+
+/**
+ * Takes one place in a position for the caller's own Person (source `authenticated_self`, shown as Member).
+ * Requires `events.signup`. 409 codes: `signup_not_open` (event not confirmed, shift draft, or signup window
+ * not started), `signup_closed` (event closed, shift closed or cancelled, session cancelled, shift ended, or
+ * window passed), `already_assigned` (already a place in this shift), `person_not_eligible`,
+ * `requirement_full`, `assignment_conflict` (overlapping assignment; never overridden here).
+ */
+export const joinEventPosition = async (eventId: string,
+    eventShiftId: string,
+    eventRequirementId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventMyAssignment> => {
+
+  return apiFetch<EventMyAssignment>(getJoinEventPositionUrl(eventId,eventShiftId,eventRequirementId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getLeaveEventPositionUrl = (eventId: string,
+    eventAssignmentId: string,) => {
+
+
+
+
+  return `/api/v1/events/${eventId}/assignments/${eventAssignmentId}/leave`
+}
+
+/**
+ * Gives up the caller's own active assignment. Requires `events.signup`; other people's assignments answer 404.
+ * 409 codes: `event_read_only` (event completed or cancelled), `shift_ended`, `conflict` (no longer active),
+ * `stale_write`.
+ */
+export const leaveEventPosition = async (eventId: string,
+    eventAssignmentId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getLeaveEventPositionUrl(eventId,eventAssignmentId),
   {
     ...options,
     method: 'POST',

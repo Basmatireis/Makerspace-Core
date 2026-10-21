@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventGoLive } from './eventGoLive';
+import type { EventMyAssignment } from './eventMyAssignment';
 import type { EventStatus } from './eventStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -91,6 +92,13 @@ export interface Event {
   requiredCount: number;
   /** True once any assignment (also a cancelled one) exists; such an event cannot be deleted. */
   hasAssignmentHistory: boolean;
+  /**
+     * requiredCount minus filledCount.
+     * @minimum 0
+     */
+  openPlaces: number;
+  /** The caller's own active assignments in this event, by shift start. */
+  myShifts: EventMyAssignment[];
   goLive: EventGoLive;
   /** @nullable */
   nextDeadline?: string | null;

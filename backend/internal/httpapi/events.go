@@ -12,21 +12,39 @@ import (
 
 func (s *Server) ListEvents(
 	ctx context.Context,
-	_ openapi.ListEventsRequestObject,
+	r openapi.ListEventsRequestObject,
 ) (openapi.ListEventsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.events.List(ctx, p)
+	query := events.ListQuery{OwnerPersonID: r.Params.OwnerPersonId}
+	if r.Params.Scope != nil {
+		query.Scope = events.ListScope(*r.Params.Scope)
+	}
+	if r.Params.Search != nil {
+		query.Search = *r.Params.Search
+	}
+	if r.Params.Page != nil {
+		query.Page = *r.Params.Page
+	}
+	if r.Params.PageSize != nil {
+		query.PageSize = *r.Params.PageSize
+	}
+	page, err := s.events.List(ctx, p, query)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]openapi.Event, 0, len(items))
-	for _, item := range items {
+	result := make([]openapi.Event, 0, len(page.Items))
+	for _, item := range page.Items {
 		result = append(result, eventDTO(item))
 	}
-	return openapi.ListEvents200JSONResponse{Items: result}, nil
+	return openapi.ListEvents200JSONResponse{
+		Items:    result,
+		Page:     page.Page,
+		PageSize: page.PageSize,
+		Total:    page.Total,
+	}, nil
 }
 
 func (s *Server) CreateEvent(
@@ -276,6 +294,8 @@ func eventDTO(item events.Event) openapi.Event {
 		FilledCount:          item.FilledCount,
 		RequiredCount:        item.RequiredCount,
 		HasAssignmentHistory: item.HasAssignmentHistory,
+		OpenPlaces:           item.OpenPlaces,
+		MyShifts:             eventMyAssignmentDTOs(item.MyShifts),
 		GoLive:               eventGoLiveDTO(item.GoLive),
 		NextDeadline:         nullablePointer(item.NextDeadline, func(v time.Time) time.Time { return v }),
 		NextScheduleAt:       nullablePointer(item.NextScheduleAt, func(v time.Time) time.Time { return v }),

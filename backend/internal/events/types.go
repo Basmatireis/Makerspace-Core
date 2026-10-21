@@ -172,10 +172,13 @@ type Event struct {
 	FilledCount          int64
 	RequiredCount        int64
 	HasAssignmentHistory bool
+	OpenPlaces           int64
 	GoLive               GoLive
-	NextDeadline         *time.Time
-	NextScheduleAt       *time.Time
-	OwnerName            *string
+	// MyShifts are the requesting person's own active assignments.
+	MyShifts       []MyAssignment
+	NextDeadline   *time.Time
+	NextScheduleAt *time.Time
+	OwnerName      *string
 }
 
 type EventInput struct {
@@ -383,4 +386,108 @@ type PersonOption struct {
 	ID                  uuid.UUID
 	FirstName, LastName string
 	Email, Phone        *string
+}
+
+// ListScope selects which events a list shows; see ListEvents.
+type ListScope string
+
+const (
+	ListScopeUpcoming ListScope = "upcoming"
+	ListScopeDrafts   ListScope = "drafts"
+	ListScopePast     ListScope = "past"
+)
+
+// List paging limits shared with the HTTP layer.
+const (
+	DefaultListPageSize = 25
+	MaxListPageSize     = 100
+	maxSearchLength     = 200
+)
+
+// ListQuery filters and pages the event list.
+type ListQuery struct {
+	Scope         ListScope
+	Search        string
+	OwnerPersonID *uuid.UUID
+	Page          int
+	PageSize      int
+}
+
+// EventPage is one page of events and the number of matching events.
+type EventPage struct {
+	Items          []Event
+	Page, PageSize int
+	Total          int64
+}
+
+// LeaveBlock says why a helper cannot leave an own assignment.
+type LeaveBlock string
+
+const (
+	LeaveBlockEventClosed LeaveBlock = "event_closed"
+	LeaveBlockShiftEnded  LeaveBlock = "shift_ended"
+)
+
+// MyAssignment is one of the requesting person's own active assignments.
+type MyAssignment struct {
+	AssignmentID, ShiftID, RequirementID uuid.UUID
+	ShiftName, RequirementName           string
+	StartsAt, EndsAt                     time.Time
+	ShiftStatus                          ShiftStatus
+	Version                              int64
+	// LeaveBlocked is empty when the person may leave.
+	LeaveBlocked LeaveBlock
+}
+
+// JoinReason says why the requesting person cannot join a position.
+type JoinReason string
+
+const (
+	JoinReasonNoPermission  JoinReason = "no_permission"
+	JoinReasonClosed        JoinReason = "closed"
+	JoinReasonNotOpen       JoinReason = "not_open"
+	JoinReasonOpensAt       JoinReason = "opens_at"
+	JoinReasonAlreadyJoined JoinReason = "already_joined"
+	JoinReasonFull          JoinReason = "full"
+	JoinReasonRolesOnly     JoinReason = "roles_only"
+)
+
+// ParticipationHelper is a co-helper as members see them: a name only.
+type ParticipationHelper struct {
+	// DisplayName is nil when the personal data was erased.
+	DisplayName *string
+	IsMe        bool
+}
+
+// ParticipationPosition is a position as the participant view shows it.
+type ParticipationPosition struct {
+	ID                         uuid.UUID
+	Name                       string
+	Description                *string
+	RequiredCount, FilledCount int
+	MyAssignmentID             *uuid.UUID
+	Joinable                   bool
+	// Reason is empty when Joinable.
+	Reason    JoinReason
+	OpensAt   *time.Time
+	RoleNames []string
+	// Helpers is nil without permission to see names.
+	Helpers []ParticipationHelper
+}
+
+// ParticipationShift is a shift of the participant view with its positions.
+type ParticipationShift struct {
+	Shift
+	Positions []ParticipationPosition
+}
+
+// Participation is the helper view of one event.
+type Participation struct {
+	EventID       uuid.UUID
+	Status        EventStatus
+	CanSignup     bool
+	CanSeeNames   bool
+	MyAssignments []MyAssignment
+	Sessions      []Session
+	Shifts        []ParticipationShift
 }

@@ -88,14 +88,13 @@ func TestEventDraftsAreInvisibleToReadersWithoutOrganizerPermissions(t *testing.
 	}
 
 	for name, principal := range map[string]authorization.Principal{"read": reader, "read+signup": signup} {
-		listed, err := e.events.List(ctx, principal)
-		if err != nil {
-			t.Fatal(err)
+		drafts, err := e.events.List(ctx, principal, events.ListQuery{Scope: events.ListScopeDrafts})
+		if err != nil || drafts.Total != 0 || len(drafts.Items) != 0 {
+			t.Fatalf("%s draft list = %#v, err=%v", name, drafts, err)
 		}
-		for _, item := range listed {
-			if item.ID == draft.event.ID {
-				t.Fatalf("%s lists the draft", name)
-			}
+		upcoming, err := e.events.List(ctx, principal, events.ListQuery{})
+		if err != nil || upcoming.Total != 1 || upcoming.Items[0].ID != confirmed.event.ID {
+			t.Fatalf("%s upcoming list = %#v, err=%v", name, upcoming, err)
 		}
 		_, err = e.events.Get(ctx, principal, draft.event.ID)
 		expectNotFound(t, err, name+" get draft")
@@ -124,16 +123,9 @@ func TestEventDraftsAreInvisibleToReadersWithoutOrganizerPermissions(t *testing.
 		if _, err = e.events.ListShifts(ctx, principal, draft.event.ID); err != nil {
 			t.Fatalf("%s draft shifts: %v", name, err)
 		}
-		listed, err := e.events.List(ctx, principal)
-		if err != nil {
-			t.Fatal(err)
-		}
-		found := false
-		for _, item := range listed {
-			found = found || item.ID == draft.event.ID
-		}
-		if !found {
-			t.Fatalf("%s does not list the draft", name)
+		drafts, err := e.events.List(ctx, principal, events.ListQuery{Scope: events.ListScopeDrafts})
+		if err != nil || drafts.Total != 1 || drafts.Items[0].ID != draft.event.ID {
+			t.Fatalf("%s draft list = %#v, err=%v", name, drafts, err)
 		}
 	}
 	if _, err := e.events.Get(ctx, nobody, confirmed.event.ID); !errors.Is(err, apperror.PermissionDenied) {

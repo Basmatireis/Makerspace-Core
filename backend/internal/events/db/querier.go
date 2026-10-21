@@ -66,13 +66,18 @@ type Querier interface {
 	ListEventEligibilityRoles(ctx context.Context) ([]ListEventEligibilityRolesRow, error)
 	ListEventFileIDsForDelete(ctx context.Context, eventID uuid.UUID) ([]uuid.UUID, error)
 	ListEventFiles(ctx context.Context, eventID uuid.UUID) ([]ListEventFilesRow, error)
+	// Events of one list scope with their date range, filtered, sorted by start and paged. The range spans scheduled
+	// sessions and shifts that are not cancelled, or the whole programme when all of it was cancelled. Without
+	// organizer rights (helper_person_id set) drafts never match and past events need an active assignment of the person.
+	ListEventPage(ctx context.Context, arg ListEventPageParams) ([]ListEventPageRow, error)
 	ListEventRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error)
+	// Eligibility roles of the event's positions and whether the person holds each of them.
+	ListEventRequirementRoles(ctx context.Context, arg ListEventRequirementRolesParams) ([]ListEventRequirementRolesRow, error)
 	ListEventRequirements(ctx context.Context, eventID uuid.UUID) ([]ListEventRequirementsRow, error)
 	ListEventSessions(ctx context.Context, eventID uuid.UUID) ([]EventSession, error)
 	ListEventShifts(ctx context.Context, eventID uuid.UUID) ([]ListEventShiftsRow, error)
 	ListEventTaskLists(ctx context.Context, eventID uuid.UUID) ([]EventTaskList, error)
 	ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]EventTask, error)
-	ListEvents(ctx context.Context) ([]ListEventsRow, error)
 	ListExpiredEventAssignmentsForUpdate(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredEventAssignmentsForUpdateRow, error)
 	// assignee_person_id narrows to one assignee, overdue_before to open tasks due before that time.
 	ListFilteredEventTasks(ctx context.Context, arg ListFilteredEventTasksParams) ([]EventTask, error)
@@ -80,6 +85,7 @@ type Querier interface {
 	// are invisible to helpers, cancelled events do not take place). public_id is returned only for public events.
 	ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error)
 	ListOwnEventAssignments(ctx context.Context, arg ListOwnEventAssignmentsParams) ([]EventShiftAssignment, error)
+	ListOwnEventShiftAssignments(ctx context.Context, arg ListOwnEventShiftAssignmentsParams) ([]ListOwnEventShiftAssignmentsRow, error)
 	// One row per event: its next public scheduled session. Only already publicly visible events
 	// (published, with a public title) that are still draft or confirmed; returns nothing internal.
 	ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error)
@@ -87,6 +93,7 @@ type Querier interface {
 	LockPersonForEventAssignment(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MoveEventAssignment(ctx context.Context, arg MoveEventAssignmentParams) (EventShiftAssignment, error)
 	PersonEligibleForEventRequirement(ctx context.Context, arg PersonEligibleForEventRequirementParams) (*bool, error)
+	PersonHasActiveShiftAssignment(ctx context.Context, arg PersonHasActiveShiftAssignmentParams) (bool, error)
 	ReplaceEventRequirementRoles(ctx context.Context, requirementID uuid.UUID) error
 	RotateEventPublicID(ctx context.Context, arg RotateEventPublicIDParams) (Event, error)
 	ScrubEventAssignmentsForPerson(ctx context.Context, personID *uuid.UUID) ([]ScrubEventAssignmentsForPersonRow, error)

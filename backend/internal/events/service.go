@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -45,28 +46,63 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 	}, nil
 }
 
-func (s *Service) List(ctx context.Context, principal authorization.Principal) ([]Event, error) {
+// List pages the events of one scope. Organizers (canSeeDrafts) see every event of the scope; everyone else never
+// sees drafts and sees past events only when they helped at them.
+func (s *Service) List(ctx context.Context, principal authorization.Principal, query ListQuery) (EventPage, error) {
 	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
+		return EventPage{}, apperror.PermissionDenied
 	}
-	q := eventsdb.New(s.pool)
-	rows, err := q.ListEvents(ctx)
-	if err != nil {
-		return nil, err
+	switch query.Scope {
+	case "":
+		query.Scope = ListScopeUpcoming
+	case ListScopeUpcoming, ListScopeDrafts, ListScopePast:
+	default:
+		return EventPage{}, apperror.Invalid("scope must be upcoming, drafts, or past")
+	}
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.PageSize == 0 {
+		query.PageSize = DefaultListPageSize
+	}
+	if query.Page < 1 || query.PageSize < 1 || query.PageSize > MaxListPageSize {
+		return EventPage{}, apperror.Invalid("page must be positive and pageSize between 1 and 100")
+	}
+	query.Search = strings.TrimSpace(query.Search)
+	if len([]rune(query.Search)) > maxSearchLength {
+		return EventPage{}, apperror.Invalid("search is too long")
 	}
 	now := time.Now().UTC()
-	result := make([]Event, 0, len(rows))
-	for _, row := range rows {
-		if EventStatus(row.Event.Status) == EventStatusDraft && !canSeeDrafts(principal) {
-			continue
-		}
-		item, err := s.eventView(ctx, q, row.Event, now)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, item)
+	params := eventsdb.ListEventPageParams{
+		Scope:         string(query.Scope),
+		Now:           now,
+		OwnerPersonID: query.OwnerPersonID,
+		Search:        query.Search,
+		PageOffset:    int32((query.Page - 1) * query.PageSize),
+		PageLimit:     int32(query.PageSize),
 	}
-	return result, nil
+	if !canSeeDrafts(principal) {
+		params.HelperPersonID = &principal.PersonID
+	}
+	q := eventsdb.New(s.pool)
+	rows, err := q.ListEventPage(ctx, params)
+	if err != nil {
+		return EventPage{}, err
+	}
+	page := EventPage{Items: make([]Event, 0, len(rows)), Page: query.Page, PageSize: query.PageSize}
+	for _, row := range rows {
+		page.Total = row.Total
+		event, err := q.GetEvent(ctx, row.ID)
+		if err != nil {
+			return EventPage{}, err
+		}
+		item, err := s.eventView(ctx, q, event, principal.PersonID, now)
+		if err != nil {
+			return EventPage{}, err
+		}
+		page.Items = append(page.Items, item)
+	}
+	return page, nil
 }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Event, error) {
@@ -75,7 +111,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	if err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, q, row, time.Now().UTC())
+	return s.eventView(ctx, q, row, principal.PersonID, time.Now().UTC())
 }
 
 func (s *Service) Create(
@@ -142,7 +178,7 @@ func (s *Service) Create(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
+	return s.eventView(ctx, eventsdb.New(s.pool), row, principal.PersonID, time.Now().UTC())
 }
 
 func (s *Service) Update(
@@ -259,7 +295,7 @@ func (s *Service) Update(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
+	return s.eventView(ctx, eventsdb.New(s.pool), row, principal.PersonID, time.Now().UTC())
 }
 
 // lifecycleTransitions lists the allowed status changes. Completed and cancelled are final.
@@ -350,7 +386,7 @@ func (s *Service) Transition(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
+	return s.eventView(ctx, eventsdb.New(s.pool), row, principal.PersonID, time.Now().UTC())
 }
 
 func (s *Service) SetPublished(
@@ -422,7 +458,7 @@ func (s *Service) SetPublished(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
+	return s.eventView(ctx, eventsdb.New(s.pool), row, principal.PersonID, time.Now().UTC())
 }
 
 func (s *Service) RotatePublicID(
@@ -488,7 +524,7 @@ func (s *Service) RotatePublicID(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
+	return s.eventView(ctx, eventsdb.New(s.pool), row, principal.PersonID, time.Now().UTC())
 }
 
 func (s *Service) Delete(

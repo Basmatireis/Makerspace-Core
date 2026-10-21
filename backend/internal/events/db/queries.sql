@@ -6,13 +6,6 @@ INSERT INTO events (
     sqlc.narg(owner_person_id), sqlc.arg(public_id), sqlc.narg(created_by_account_id)
 ) RETURNING *;
 
--- name: ListEvents :many
-SELECT sqlc.embed(e),
-       p.first_name AS owner_first_name, p.last_name AS owner_last_name
-FROM events e
-LEFT JOIN people p ON p.id = e.owner_person_id
-ORDER BY e.updated_at DESC, e.id DESC;
-
 -- name: GetEvent :one
 SELECT * FROM events WHERE id = sqlc.arg(id);
 
@@ -506,3 +499,74 @@ SELECT count(*)::bigint AS shifts,
 FROM event_shift_assignments a
 JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
 WHERE a.person_id = sqlc.arg(person_id) AND a.status = 'active' AND s.ends_at <= sqlc.arg(now);
+
+-- name: ListEventPage :many
+-- Events of one list scope with their date range, filtered, sorted by start and paged. The range spans scheduled
+-- sessions and shifts that are not cancelled, or the whole programme when all of it was cancelled. Without
+-- organizer rights (helper_person_id set) drafts never match and past events need an active assignment of the person.
+WITH ranged AS (
+    SELECT e.id, e.name, e.status, e.owner_person_id, e.public_title, e.location,
+           COALESCE(live.starts_at, total.starts_at) AS range_starts_at,
+           COALESCE(live.ends_at, total.ends_at) AS range_ends_at
+    FROM events e
+    LEFT JOIN LATERAL (
+        SELECT min(p.starts_at) AS starts_at, max(p.ends_at) AS ends_at FROM (
+            SELECT es.starts_at, es.ends_at FROM event_sessions es WHERE es.event_id = e.id AND es.status = 'scheduled'
+            UNION ALL
+            SELECT sh.starts_at, sh.ends_at FROM event_shifts sh WHERE sh.event_id = e.id AND sh.status <> 'cancelled'
+        ) p
+    ) live ON true
+    LEFT JOIN LATERAL (
+        SELECT min(p.starts_at) AS starts_at, max(p.ends_at) AS ends_at FROM (
+            SELECT es.starts_at, es.ends_at FROM event_sessions es WHERE es.event_id = e.id
+            UNION ALL
+            SELECT sh.starts_at, sh.ends_at FROM event_shifts sh WHERE sh.event_id = e.id
+        ) p
+    ) total ON true
+)
+SELECT r.id, count(*) OVER ()::bigint AS total
+FROM ranged r
+WHERE CASE sqlc.arg(scope)::text
+        WHEN 'drafts' THEN r.status = 'draft' AND sqlc.narg(helper_person_id)::uuid IS NULL
+        WHEN 'past' THEN (r.status IN ('completed', 'cancelled')
+                          OR (r.status = 'confirmed' AND r.range_ends_at < sqlc.arg(now)::timestamptz))
+                         AND (sqlc.narg(helper_person_id)::uuid IS NULL OR EXISTS (
+                             SELECT 1 FROM event_shift_assignments a
+                             WHERE a.event_id = r.id AND a.person_id = sqlc.narg(helper_person_id)::uuid
+                               AND a.status = 'active'))
+        ELSE r.status = 'confirmed' AND (r.range_ends_at IS NULL OR r.range_ends_at >= sqlc.arg(now)::timestamptz)
+      END
+  AND (sqlc.narg(owner_person_id)::uuid IS NULL OR r.owner_person_id = sqlc.narg(owner_person_id)::uuid)
+  AND (sqlc.arg(search)::text = ''
+       OR lower(r.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(r.public_title, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(r.location, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+ORDER BY CASE WHEN sqlc.arg(scope)::text = 'past' THEN r.range_starts_at END DESC NULLS LAST,
+         CASE WHEN sqlc.arg(scope)::text <> 'past' THEN r.range_starts_at END ASC NULLS LAST,
+         lower(r.name), r.id
+LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: ListOwnEventShiftAssignments :many
+SELECT a.id, a.shift_id, a.requirement_id, a.version, sh.name AS shift_name, r.name AS requirement_name,
+       sh.starts_at, sh.ends_at, sh.status AS shift_status
+FROM event_shift_assignments a
+JOIN event_shifts sh ON sh.id = a.shift_id
+JOIN event_shift_requirements r ON r.id = a.requirement_id
+WHERE a.event_id = sqlc.arg(event_id) AND a.person_id = sqlc.arg(person_id) AND a.status = 'active'
+ORDER BY sh.starts_at, a.id;
+
+-- name: ListEventRequirementRoles :many
+-- Eligibility roles of the event's positions and whether the person holds each of them.
+SELECT rr.requirement_id, ro.name,
+       EXISTS (SELECT 1 FROM person_roles pr WHERE pr.role_id = ro.id AND pr.person_id = sqlc.arg(person_id)) AS held
+FROM event_shift_requirement_roles rr
+JOIN event_shift_requirements r ON r.id = rr.requirement_id
+JOIN roles ro ON ro.id = rr.role_id
+WHERE r.event_id = sqlc.arg(event_id)
+ORDER BY lower(ro.name), ro.id;
+
+-- name: PersonHasActiveShiftAssignment :one
+SELECT EXISTS (
+    SELECT 1 FROM event_shift_assignments
+    WHERE shift_id = sqlc.arg(shift_id) AND person_id = sqlc.arg(person_id) AND status = 'active'
+);

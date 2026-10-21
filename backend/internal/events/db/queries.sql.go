@@ -1881,6 +1881,96 @@ func (q *Queries) ListEventFiles(ctx context.Context, eventID uuid.UUID) ([]List
 	return items, nil
 }
 
+const listEventPage = `-- name: ListEventPage :many
+WITH ranged AS (
+    SELECT e.id, e.name, e.status, e.owner_person_id, e.public_title, e.location,
+           COALESCE(live.starts_at, total.starts_at) AS range_starts_at,
+           COALESCE(live.ends_at, total.ends_at) AS range_ends_at
+    FROM events e
+    LEFT JOIN LATERAL (
+        SELECT min(p.starts_at) AS starts_at, max(p.ends_at) AS ends_at FROM (
+            SELECT es.starts_at, es.ends_at FROM event_sessions es WHERE es.event_id = e.id AND es.status = 'scheduled'
+            UNION ALL
+            SELECT sh.starts_at, sh.ends_at FROM event_shifts sh WHERE sh.event_id = e.id AND sh.status <> 'cancelled'
+        ) p
+    ) live ON true
+    LEFT JOIN LATERAL (
+        SELECT min(p.starts_at) AS starts_at, max(p.ends_at) AS ends_at FROM (
+            SELECT es.starts_at, es.ends_at FROM event_sessions es WHERE es.event_id = e.id
+            UNION ALL
+            SELECT sh.starts_at, sh.ends_at FROM event_shifts sh WHERE sh.event_id = e.id
+        ) p
+    ) total ON true
+)
+SELECT r.id, count(*) OVER ()::bigint AS total
+FROM ranged r
+WHERE CASE $1::text
+        WHEN 'drafts' THEN r.status = 'draft' AND $2::uuid IS NULL
+        WHEN 'past' THEN (r.status IN ('completed', 'cancelled')
+                          OR (r.status = 'confirmed' AND r.range_ends_at < $3::timestamptz))
+                         AND ($2::uuid IS NULL OR EXISTS (
+                             SELECT 1 FROM event_shift_assignments a
+                             WHERE a.event_id = r.id AND a.person_id = $2::uuid
+                               AND a.status = 'active'))
+        ELSE r.status = 'confirmed' AND (r.range_ends_at IS NULL OR r.range_ends_at >= $3::timestamptz)
+      END
+  AND ($4::uuid IS NULL OR r.owner_person_id = $4::uuid)
+  AND ($5::text = ''
+       OR lower(r.name) LIKE '%' || lower($5::text) || '%'
+       OR lower(COALESCE(r.public_title, '')) LIKE '%' || lower($5::text) || '%'
+       OR lower(COALESCE(r.location, '')) LIKE '%' || lower($5::text) || '%')
+ORDER BY CASE WHEN $1::text = 'past' THEN r.range_starts_at END DESC NULLS LAST,
+         CASE WHEN $1::text <> 'past' THEN r.range_starts_at END ASC NULLS LAST,
+         lower(r.name), r.id
+LIMIT $7::int OFFSET $6::int
+`
+
+type ListEventPageParams struct {
+	Scope          string
+	HelperPersonID *uuid.UUID
+	Now            time.Time
+	OwnerPersonID  *uuid.UUID
+	Search         string
+	PageOffset     int32
+	PageLimit      int32
+}
+
+type ListEventPageRow struct {
+	ID    uuid.UUID
+	Total int64
+}
+
+// Events of one list scope with their date range, filtered, sorted by start and paged. The range spans scheduled
+// sessions and shifts that are not cancelled, or the whole programme when all of it was cancelled. Without
+// organizer rights (helper_person_id set) drafts never match and past events need an active assignment of the person.
+func (q *Queries) ListEventPage(ctx context.Context, arg ListEventPageParams) ([]ListEventPageRow, error) {
+	rows, err := q.db.Query(ctx, listEventPage,
+		arg.Scope,
+		arg.HelperPersonID,
+		arg.Now,
+		arg.OwnerPersonID,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEventPageRow{}
+	for rows.Next() {
+		var i ListEventPageRow
+		if err := rows.Scan(&i.ID, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEventRequirementRoleIDs = `-- name: ListEventRequirementRoleIDs :many
 SELECT role_id FROM event_shift_requirement_roles WHERE requirement_id = $1 ORDER BY role_id
 `
@@ -1898,6 +1988,48 @@ func (q *Queries) ListEventRequirementRoleIDs(ctx context.Context, requirementID
 			return nil, err
 		}
 		items = append(items, role_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventRequirementRoles = `-- name: ListEventRequirementRoles :many
+SELECT rr.requirement_id, ro.name,
+       EXISTS (SELECT 1 FROM person_roles pr WHERE pr.role_id = ro.id AND pr.person_id = $1) AS held
+FROM event_shift_requirement_roles rr
+JOIN event_shift_requirements r ON r.id = rr.requirement_id
+JOIN roles ro ON ro.id = rr.role_id
+WHERE r.event_id = $2
+ORDER BY lower(ro.name), ro.id
+`
+
+type ListEventRequirementRolesParams struct {
+	PersonID uuid.UUID
+	EventID  uuid.UUID
+}
+
+type ListEventRequirementRolesRow struct {
+	RequirementID uuid.UUID
+	Name          string
+	Held          bool
+}
+
+// Eligibility roles of the event's positions and whether the person holds each of them.
+func (q *Queries) ListEventRequirementRoles(ctx context.Context, arg ListEventRequirementRolesParams) ([]ListEventRequirementRolesRow, error) {
+	rows, err := q.db.Query(ctx, listEventRequirementRoles, arg.PersonID, arg.EventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEventRequirementRolesRow{}
+	for rows.Next() {
+		var i ListEventRequirementRolesRow
+		if err := rows.Scan(&i.RequirementID, &i.Name, &i.Held); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2134,60 +2266,6 @@ func (q *Queries) ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]Even
 	return items, nil
 }
 
-const listEvents = `-- name: ListEvents :many
-SELECT e.id, e.name, e.internal_description, e.location, e.owner_person_id, e.status, e.public_title, e.public_description, e.public_location, e.public_id, e.is_public, e.public_signup_enabled, e.closed_at, e.created_by_account_id, e.version, e.created_at, e.updated_at,
-       p.first_name AS owner_first_name, p.last_name AS owner_last_name
-FROM events e
-LEFT JOIN people p ON p.id = e.owner_person_id
-ORDER BY e.updated_at DESC, e.id DESC
-`
-
-type ListEventsRow struct {
-	Event          Event
-	OwnerFirstName *string
-	OwnerLastName  *string
-}
-
-func (q *Queries) ListEvents(ctx context.Context) ([]ListEventsRow, error) {
-	rows, err := q.db.Query(ctx, listEvents)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListEventsRow{}
-	for rows.Next() {
-		var i ListEventsRow
-		if err := rows.Scan(
-			&i.Event.ID,
-			&i.Event.Name,
-			&i.Event.InternalDescription,
-			&i.Event.Location,
-			&i.Event.OwnerPersonID,
-			&i.Event.Status,
-			&i.Event.PublicTitle,
-			&i.Event.PublicDescription,
-			&i.Event.PublicLocation,
-			&i.Event.PublicID,
-			&i.Event.IsPublic,
-			&i.Event.PublicSignupEnabled,
-			&i.Event.ClosedAt,
-			&i.Event.CreatedByAccountID,
-			&i.Event.Version,
-			&i.Event.CreatedAt,
-			&i.Event.UpdatedAt,
-			&i.OwnerFirstName,
-			&i.OwnerLastName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listExpiredEventAssignmentsForUpdate = `-- name: ListExpiredEventAssignmentsForUpdate :many
 SELECT a.id, a.event_id
 FROM event_shift_assignments a
@@ -2394,6 +2472,63 @@ func (q *Queries) ListOwnEventAssignments(ctx context.Context, arg ListOwnEventA
 	return items, nil
 }
 
+const listOwnEventShiftAssignments = `-- name: ListOwnEventShiftAssignments :many
+SELECT a.id, a.shift_id, a.requirement_id, a.version, sh.name AS shift_name, r.name AS requirement_name,
+       sh.starts_at, sh.ends_at, sh.status AS shift_status
+FROM event_shift_assignments a
+JOIN event_shifts sh ON sh.id = a.shift_id
+JOIN event_shift_requirements r ON r.id = a.requirement_id
+WHERE a.event_id = $1 AND a.person_id = $2 AND a.status = 'active'
+ORDER BY sh.starts_at, a.id
+`
+
+type ListOwnEventShiftAssignmentsParams struct {
+	EventID  uuid.UUID
+	PersonID *uuid.UUID
+}
+
+type ListOwnEventShiftAssignmentsRow struct {
+	ID              uuid.UUID
+	ShiftID         uuid.UUID
+	RequirementID   uuid.UUID
+	Version         int32
+	ShiftName       string
+	RequirementName string
+	StartsAt        time.Time
+	EndsAt          time.Time
+	ShiftStatus     string
+}
+
+func (q *Queries) ListOwnEventShiftAssignments(ctx context.Context, arg ListOwnEventShiftAssignmentsParams) ([]ListOwnEventShiftAssignmentsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnEventShiftAssignments, arg.EventID, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnEventShiftAssignmentsRow{}
+	for rows.Next() {
+		var i ListOwnEventShiftAssignmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ShiftID,
+			&i.RequirementID,
+			&i.Version,
+			&i.ShiftName,
+			&i.RequirementName,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.ShiftStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUpcomingPublicEventSessions = `-- name: ListUpcomingPublicEventSessions :many
 SELECT title, starts_at, location FROM (
     SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
@@ -2547,6 +2682,25 @@ func (q *Queries) PersonEligibleForEventRequirement(ctx context.Context, arg Per
 	var eligible *bool
 	err := row.Scan(&eligible)
 	return eligible, err
+}
+
+const personHasActiveShiftAssignment = `-- name: PersonHasActiveShiftAssignment :one
+SELECT EXISTS (
+    SELECT 1 FROM event_shift_assignments
+    WHERE shift_id = $1 AND person_id = $2 AND status = 'active'
+)
+`
+
+type PersonHasActiveShiftAssignmentParams struct {
+	ShiftID  uuid.UUID
+	PersonID *uuid.UUID
+}
+
+func (q *Queries) PersonHasActiveShiftAssignment(ctx context.Context, arg PersonHasActiveShiftAssignmentParams) (bool, error) {
+	row := q.db.QueryRow(ctx, personHasActiveShiftAssignment, arg.ShiftID, arg.PersonID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const replaceEventRequirementRoles = `-- name: ReplaceEventRequirementRoles :exec

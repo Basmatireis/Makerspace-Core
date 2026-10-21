@@ -29,6 +29,11 @@ func canViewPII(principal authorization.Principal) bool {
 	return principal.Has(authorization.EventsStaffingManage) || principal.Has(authorization.EventsAssign)
 }
 
+// canSeeHelperNames reports whether the principal may see who fills a place; contact details need canViewPII.
+func canSeeHelperNames(principal authorization.Principal) bool {
+	return principal.Has(authorization.EventsReadAssignments) || canViewPII(principal)
+}
+
 // visibleEvent loads an event the principal may read. A draft is reported as missing to everyone who does not plan
 // or staff events, so its existence does not leak.
 func visibleEvent(
@@ -80,8 +85,14 @@ func loadEventFacts(ctx context.Context, q *eventsdb.Queries, row eventsdb.Event
 	return facts, nil
 }
 
-// eventView builds the full event representation with its derived values.
-func (s *Service) eventView(ctx context.Context, q *eventsdb.Queries, row eventsdb.Event, now time.Time) (Event, error) {
+// eventView builds the full event representation with its derived values and the person's own shifts.
+func (s *Service) eventView(
+	ctx context.Context,
+	q *eventsdb.Queries,
+	row eventsdb.Event,
+	personID uuid.UUID,
+	now time.Time,
+) (Event, error) {
 	facts, err := loadEventFacts(ctx, q, row)
 	if err != nil {
 		return Event{}, err
@@ -96,6 +107,9 @@ func (s *Service) eventView(ctx context.Context, q *eventsdb.Queries, row events
 		return Event{}, err
 	}
 	item.HasAssignmentHistory = history > 0
+	if item.MyShifts, err = ownAssignments(ctx, q, row, personID, now); err != nil {
+		return Event{}, err
+	}
 	if row.OwnerPersonID != nil {
 		owner, err := q.GetEventPerson(ctx, *row.OwnerPersonID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -158,6 +172,7 @@ func applyFacts(item *Event, facts eventFacts, now time.Time) {
 		item.RequiredCount += int64(requirement.RequiredCount)
 		item.FilledCount += min(int64(requirement.RequiredCount), requirement.FilledCount)
 	}
+	item.OpenPlaces = item.RequiredCount - item.FilledCount
 	item.GoLive = deriveGoLive(facts, now)
 }
 
@@ -314,4 +329,52 @@ func deriveGoLive(facts eventFacts, now time.Time) GoLive {
 		result.HelperSignupState = HelperSignupClosed
 	}
 	return result
+}
+
+// ownAssignments lists the person's active assignments in the event and whether each may still be left.
+func ownAssignments(
+	ctx context.Context,
+	q *eventsdb.Queries,
+	event eventsdb.Event,
+	personID uuid.UUID,
+	now time.Time,
+) ([]MyAssignment, error) {
+	result := []MyAssignment{}
+	if personID == uuid.Nil {
+		return result, nil
+	}
+	rows, err := q.ListOwnEventShiftAssignments(
+		ctx,
+		eventsdb.ListOwnEventShiftAssignmentsParams{EventID: event.ID, PersonID: &personID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		item := MyAssignment{
+			AssignmentID:    row.ID,
+			ShiftID:         row.ShiftID,
+			RequirementID:   row.RequirementID,
+			ShiftName:       row.ShiftName,
+			RequirementName: row.RequirementName,
+			StartsAt:        row.StartsAt,
+			EndsAt:          row.EndsAt,
+			ShiftStatus:     ShiftStatus(row.ShiftStatus),
+			Version:         int64(row.Version),
+			LeaveBlocked:    leaveBlock(EventStatus(event.Status), row.EndsAt, now),
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+// leaveBlock applies the leave rule: helpers may leave until the event is closed or the shift has ended.
+func leaveBlock(status EventStatus, shiftEndsAt, now time.Time) LeaveBlock {
+	switch {
+	case status.Closed():
+		return LeaveBlockEventClosed
+	case !shiftEndsAt.After(now):
+		return LeaveBlockShiftEnded
+	}
+	return ""
 }

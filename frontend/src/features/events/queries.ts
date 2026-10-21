@@ -27,7 +27,7 @@ export const eventKeys = {
 };
 
 export const eventsQueryOptions = () =>
-  queryOptions({ queryKey: eventKeys.all, queryFn: ({ signal }) => listEvents({ signal }) });
+  queryOptions({ queryKey: eventKeys.all, queryFn: ({ signal }) => listEvents({ pageSize: 100 }, { signal }) });
 export const eventQueryOptions = (id: string) =>
   queryOptions({
     queryKey: eventKeys.detail(id),
