@@ -115,12 +115,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
         </TableCell>
         <TableCell className="ev-col-actions">
           {canManage && (
-            <OverflowMenu
-              flipped
-              size="sm"
-              aria-label={`Actions for task ${task.title}`}
-              iconDescription="Task actions"
-            >
+            <OverflowMenu flipped size="sm" iconDescription={`Actions for task ${task.title}`}>
               <OverflowMenuItem itemText="Edit" onClick={() => setDialog({ kind: 'task', task })} />
               <OverflowMenuItem
                 itemText="Delete"
@@ -202,12 +197,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
             actions={
               canManage &&
               list && (
-                <OverflowMenu
-                  flipped
-                  size="sm"
-                  aria-label={`Actions for list ${list.name}`}
-                  iconDescription="List actions"
-                >
+                <OverflowMenu flipped size="sm" iconDescription={`Actions for list ${list.name}`}>
                   <OverflowMenuItem itemText="Add task" onClick={() => setDialog({ kind: 'task', listId: list.id })} />
                   <OverflowMenuItem itemText="Rename" onClick={() => setDialog({ kind: 'list', list })} />
                   <OverflowMenuItem

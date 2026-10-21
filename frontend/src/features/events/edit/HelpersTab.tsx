@@ -123,12 +123,7 @@ export function HelpersTab({
     });
   const rowMenu = (entry: Entry) =>
     assignable && (
-      <OverflowMenu
-        flipped
-        size="sm"
-        aria-label={`Actions for ${nameOf(entry.helper)}`}
-        iconDescription="Helper actions"
-      >
+      <OverflowMenu flipped size="sm" iconDescription={`Actions for ${nameOf(entry.helper)}`}>
         <OverflowMenuItem
           itemText="Move"
           onClick={() =>

@@ -288,9 +288,7 @@ export function availabilityOf(
       return {
         label: 'Not open yet',
         type: 'blue',
-        note: signupEnabled
-          ? 'Signup is not open for this shift right now.'
-          : 'Helper signup is not open at the moment.',
+        note: signupEnabled ? 'Signup is not open for this shift right now.' : undefined,
         canSignUp: false,
       };
     case 'authenticated_only':

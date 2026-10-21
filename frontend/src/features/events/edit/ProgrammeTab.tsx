@@ -137,12 +137,7 @@ export function ProgrammeTab({
               </TableCell>
               <TableCell className="ev-col-actions">
                 {canShifts && !closed && (
-                  <OverflowMenu
-                    flipped
-                    size="sm"
-                    aria-label={`Actions for shift ${shift.name}`}
-                    iconDescription="Shift actions"
-                  >
+                  <OverflowMenu flipped size="sm" iconDescription={`Actions for shift ${shift.name}`}>
                     <OverflowMenuItem itemText="Edit" onClick={() => setDialog({ kind: 'shift', shift })} />
                     <OverflowMenuItem
                       itemText="Duplicate"
@@ -250,12 +245,7 @@ export function ProgrammeTab({
                   )}
                   <VisibilityTag isPublic={session.isPublic} />
                   {canSessions && !closed && (
-                    <OverflowMenu
-                      flipped
-                      size="sm"
-                      aria-label={`Actions for session ${sessionName(session)}`}
-                      iconDescription="Session actions"
-                    >
+                    <OverflowMenu flipped size="sm" iconDescription={`Actions for session ${sessionName(session)}`}>
                       <OverflowMenuItem itemText="Edit" onClick={() => setDialog({ kind: 'session', session })} />
                       <OverflowMenuItem
                         itemText={session.status === 'cancelled' ? 'Restore session' : 'Cancel session'}
