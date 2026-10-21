@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
@@ -57,6 +58,14 @@ var requestBodyLimits = map[string]int64{
 		http.MethodPost,
 		"/events/{eventId}/files",
 	): events.MaxFileBytes + 1,
+	routeKey(
+		http.MethodPost,
+		"/configuration-transfer/import/preview",
+	): configtransfer.MaxFileBytes + 1,
+	routeKey(
+		http.MethodPost,
+		"/configuration-transfer/import/apply",
+	): configtransfer.MaxFileBytes + 1,
 }
 
 // revalidatedRoutes may be cached by the browser but must be revalidated on every use. Every

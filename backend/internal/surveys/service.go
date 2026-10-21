@@ -19,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	surveysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/surveys/db"
 	"github.com/google/uuid"
@@ -165,15 +166,31 @@ func (s *Service) Create(
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
+	var id uuid.UUID
+	if err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		id, err = s.CreateTx(ctx, tx, p, input, requestID)
+		return err
+	}); err != nil {
+		return Survey{}, err
+	}
+	return s.Get(ctx, p, id)
+}
+
+// CreateTx is Create inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input Input,
+	requestID *uuid.UUID,
+) (uuid.UUID, error) {
+	if !p.Has(authorization.SurveysManage) {
+		return uuid.Nil, apperror.PermissionDenied
+	}
 	input, err := clean(input)
 	if err != nil {
-		return Survey{}, err
+		return uuid.Nil, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Survey{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	id, versionID := ids.New(), ids.New()
 	if _, err = q.CreateSurvey(
@@ -185,7 +202,7 @@ func (s *Service) Create(
 			Anonymous:   input.Anonymous,
 		},
 	); err != nil {
-		return Survey{}, err
+		return uuid.Nil, err
 	}
 	if _, err = q.CreateSurveyVersion(
 		ctx,
@@ -197,10 +214,10 @@ func (s *Service) Create(
 			Introduction: input.Introduction,
 		},
 	); err != nil {
-		return Survey{}, err
+		return uuid.Nil, err
 	}
 	if err = insertQuestions(ctx, q, versionID, input.Questions); err != nil {
-		return Survey{}, err
+		return uuid.Nil, err
 	}
 	actor := p.AccountID
 	if err = audit.Write(
@@ -214,12 +231,9 @@ func (s *Service) Create(
 			RequestID:      requestID,
 		},
 	); err != nil {
-		return Survey{}, err
+		return uuid.Nil, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Survey{}, err
-	}
-	return s.Get(ctx, p, id)
+	return id, nil
 }
 
 func insertQuestions(ctx context.Context, q *surveysdb.Queries, versionID uuid.UUID, inputs []QuestionInput) error {
@@ -267,32 +281,47 @@ func (s *Service) Update(
 	if !p.Has(authorization.SurveysManage) {
 		return Survey{}, apperror.PermissionDenied
 	}
+	if err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.UpdateTx(ctx, tx, p, id, input, requestID)
+	}); err != nil {
+		return Survey{}, err
+	}
+	return s.Get(ctx, p, id)
+}
+
+// UpdateTx is Update inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	input Input,
+	requestID *uuid.UUID,
+) error {
+	if !p.Has(authorization.SurveysManage) {
+		return apperror.PermissionDenied
+	}
 	input, err := clean(input)
 	if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if input.ExpectedVersion < 1 {
-		return Survey{}, apperror.InvalidField("expectedVersion must be positive")
+		return apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Survey{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	current, err := q.GetSurveyForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Survey{}, apperror.NotFound
+		return apperror.NotFound
 	}
 	if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if current.Version != input.ExpectedVersion || Status(current.Status) != StatusDraft {
-		return Survey{}, apperror.StaleWrite
+		return apperror.StaleWrite
 	}
 	version, err := q.GetLatestSurveyVersionForUpdate(ctx, id)
 	if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if _, err = q.UpdateSurveyDraft(
 		ctx,
@@ -307,21 +336,21 @@ func (s *Service) Update(
 		err,
 		pgx.ErrNoRows,
 	) {
-		return Survey{}, apperror.StaleWrite
+		return apperror.StaleWrite
 	} else if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if err = q.UpdateSurveyVersionDraft(
 		ctx,
 		surveysdb.UpdateSurveyVersionDraftParams{ID: version.ID, Title: input.Title, Introduction: input.Introduction},
 	); err != nil {
-		return Survey{}, err
+		return err
 	}
 	if err = q.DeleteSurveyQuestions(ctx, version.ID); err != nil {
-		return Survey{}, err
+		return err
 	}
 	if err = insertQuestions(ctx, q, version.ID, input.Questions); err != nil {
-		return Survey{}, err
+		return err
 	}
 	actor := p.AccountID
 	if err = audit.Write(
@@ -336,12 +365,9 @@ func (s *Service) Update(
 			ChangedFields:  []string{"name", "description", "anonymous", "title", "introduction", "questions"},
 		},
 	); err != nil {
-		return Survey{}, err
+		return err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Survey{}, err
-	}
-	return s.Get(ctx, p, id)
+	return nil
 }
 
 func (s *Service) Publish(
@@ -425,34 +451,52 @@ func (s *Service) Close(
 	if expected < 1 {
 		return Survey{}, apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
+	if err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.CloseTx(ctx, tx, p, id, expected, requestID)
+	}); err != nil {
 		return Survey{}, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	return s.Get(ctx, p, id)
+}
+
+// CloseTx is Close inside the caller's transaction; the configuration import uses it.
+func (s *Service) CloseTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
+	if !p.Has(authorization.SurveysManage) {
+		return apperror.PermissionDenied
+	}
+	if expected < 1 {
+		return apperror.InvalidField("expectedVersion must be positive")
+	}
 	q := surveysdb.New(tx)
 	current, err := q.GetSurveyForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Survey{}, apperror.NotFound
+		return apperror.NotFound
 	} else if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if current.Version != expected || Status(current.Status) != StatusPublished {
-		return Survey{}, apperror.StaleWrite
+		return apperror.StaleWrite
 	}
 	if _, err = q.CloseSurvey(ctx, surveysdb.CloseSurveyParams{ID: id, ExpectedVersion: expected}); errors.Is(
 		err,
 		pgx.ErrNoRows,
 	) {
-		return Survey{}, apperror.StaleWrite
+		return apperror.StaleWrite
 	} else if err != nil {
-		return Survey{}, err
+		return err
 	}
 	if err = q.DisableSurveyTriggers(ctx, id); err != nil {
-		return Survey{}, err
+		return err
 	}
 	if _, err = q.CancelSurveyInvitationsForSurvey(ctx, id); err != nil {
-		return Survey{}, err
+		return err
 	}
 	actor := p.AccountID
 	if err = audit.Write(
@@ -467,12 +511,9 @@ func (s *Service) Close(
 			ChangedFields:  []string{"status", "trigger"},
 		},
 	); err != nil {
-		return Survey{}, err
+		return err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Survey{}, err
-	}
-	return s.Get(ctx, p, id)
+	return nil
 }
 
 func (s *Service) UpdateTrigger(
@@ -487,14 +528,31 @@ func (s *Service) UpdateTrigger(
 	if !p.Has(authorization.SurveysManage) {
 		return Trigger{}, apperror.PermissionDenied
 	}
+	var result Trigger
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateTriggerTx(ctx, tx, p, surveyID, enabled, delay, cooldown, expected, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateTriggerTx is UpdateTrigger inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateTriggerTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	surveyID uuid.UUID,
+	enabled bool,
+	delay, cooldown int32,
+	expected int64,
+	requestID *uuid.UUID,
+) (Trigger, error) {
+	if !p.Has(authorization.SurveysManage) {
+		return Trigger{}, apperror.PermissionDenied
+	}
 	if delay < 0 || delay > 604800 || cooldown < 0 || cooldown > 3650 {
 		return Trigger{}, apperror.InvalidField("trigger values are invalid")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Trigger{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := surveysdb.New(tx)
 	survey, err := q.GetSurveyForUpdate(ctx, surveyID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -551,9 +609,6 @@ func (s *Service) UpdateTrigger(
 			RequestID:      requestID,
 		},
 	); err != nil {
-		return Trigger{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return Trigger{}, err
 	}
 	return triggerFromRow(row), nil

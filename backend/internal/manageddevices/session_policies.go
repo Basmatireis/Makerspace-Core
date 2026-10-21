@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -61,15 +62,32 @@ func (s *Service) CreateSessionPolicy(
 	if !principal.Has(authorization.SessionPoliciesManage) {
 		return SessionPolicy{}, apperror.PermissionDenied
 	}
+	if _, err := validateSessionPolicy(input); err != nil {
+		return SessionPolicy{}, err
+	}
+	var result SessionPolicy
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateSessionPolicyTx(ctx, tx, principal, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateSessionPolicyTx is CreateSessionPolicy inside the caller's transaction (used by the configuration import).
+func (s *Service) CreateSessionPolicyTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	input SessionPolicyInput,
+	requestID *uuid.UUID,
+) (SessionPolicy, error) {
+	if !principal.Has(authorization.SessionPoliciesManage) {
+		return SessionPolicy{}, apperror.PermissionDenied
+	}
 	input, err := validateSessionPolicy(input)
 	if err != nil {
 		return SessionPolicy{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return SessionPolicy{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
 	id := ids.New()
 	if input.IsDefault {
@@ -106,14 +124,37 @@ func (s *Service) CreateSessionPolicy(
 	); err != nil {
 		return SessionPolicy{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return SessionPolicy{}, err
-	}
 	return policyFromRow(row), nil
 }
 
 func (s *Service) UpdateSessionPolicy(
 	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	input SessionPolicyInput,
+	requestID *uuid.UUID,
+) (SessionPolicy, error) {
+	if !principal.Has(authorization.SessionPoliciesManage) {
+		return SessionPolicy{}, apperror.PermissionDenied
+	}
+	if _, err := validateSessionPolicy(input); err != nil {
+		return SessionPolicy{}, err
+	}
+	if input.ExpectedVersion < 1 {
+		return SessionPolicy{}, apperror.InvalidField("expectedVersion must be positive")
+	}
+	var result SessionPolicy
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateSessionPolicyTx(ctx, tx, principal, id, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateSessionPolicyTx is UpdateSessionPolicy inside the caller's transaction (used by the configuration import).
+func (s *Service) UpdateSessionPolicyTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	principal authorization.Principal,
 	id uuid.UUID,
 	input SessionPolicyInput,
@@ -129,11 +170,6 @@ func (s *Service) UpdateSessionPolicy(
 	if input.ExpectedVersion < 1 {
 		return SessionPolicy{}, apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return SessionPolicy{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
 	current, err := q.GetSessionPolicy(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -197,9 +233,6 @@ func (s *Service) UpdateSessionPolicy(
 			},
 		},
 	); err != nil {
-		return SessionPolicy{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return SessionPolicy{}, err
 	}
 	return policyFromRow(row), nil

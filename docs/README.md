@@ -5,6 +5,7 @@
 - [CI, releases, and container images](ci-cd.md)
 - [Authentication and sessions](authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](operations.md)
+- [Configuration export and import](configuration-transfer.md)
 - [Authorization](authorization.md)
 - [Managed devices](managed-devices.md)
 - [Device Bridge architecture](device-bridge.md)

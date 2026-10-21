@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
@@ -78,6 +79,7 @@ type Server struct {
 	signage           *signage.Service
 	attendance        *attendance.Service
 	surveys           *surveys.Service
+	configTransfer    *configtransfer.Service
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
@@ -142,6 +144,22 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	surveyService := surveys.NewService(pool, cfg, notifier)
 	invoicingService := invoicing.NewService(pool, notifier, brandingService)
 	ordersService := orders.NewService(pool, machineLogbook).WithInvoiceDelivery(invoicingService)
+	rolesService := roles.NewService(pool)
+	managedDevicesService := manageddevices.NewService(pool)
+	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
+	configTransferService := configtransfer.NewService(pool, configtransfer.Services{
+		Files:          fileService,
+		ManagedDevices: managedDevicesService,
+		Roles:          rolesService,
+		MachineLogbook: machineLogbook,
+		Printing:       printingService,
+		Staffing:       staffingService,
+		Visitor:        visitorService,
+		Branding:       brandingService,
+		LabRules:       labRulesService,
+		Surveys:        surveyService,
+		Mail:           mailer,
+	})
 	return &Server{
 		pool:              pool,
 		config:            cfg,
@@ -149,11 +167,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		people:            people.NewService(pool, fileService),
 		accounts:          accounts.NewService(pool, cfg, notifier),
 		permissions:       authorization.NewService(),
-		roles:             roles.NewService(pool),
+		roles:             rolesService,
 		audit:             audit.NewService(pool),
 		opendays:          openDaysService,
 		events:            eventService,
-		managedDevices:    manageddevices.NewService(pool),
+		managedDevices:    managedDevicesService,
 		mail:              mailer,
 		files:             fileService,
 		laborordnung:      labRulesService,
@@ -169,10 +187,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),
 		oidc:              oidcService,
 		scim:              scimservice.NewService(pool),
-		visitor:           visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
+		visitor:           visitorService,
 		branding:          brandingService,
 		signage:           signageService,
 		surveys:           surveyService,
+		configTransfer:    configTransferService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),

@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -55,15 +56,33 @@ func (s *Service) CreateType(
 	if !principal.Has(authorization.ManagedDevicesManage) {
 		return DeviceType{}, apperror.PermissionDenied
 	}
+	if _, _, err := validateType(name, description); err != nil {
+		return DeviceType{}, err
+	}
+	var result DeviceType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateTypeTx(ctx, tx, principal, name, description, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateTypeTx is CreateType inside the caller's transaction (used by the configuration import).
+func (s *Service) CreateTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	name string,
+	description *string,
+	requestID *uuid.UUID,
+) (DeviceType, error) {
+	if !principal.Has(authorization.ManagedDevicesManage) {
+		return DeviceType{}, apperror.PermissionDenied
+	}
 	name, description, err := validateType(name, description)
 	if err != nil {
 		return DeviceType{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return DeviceType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	row, err := manageddevicesdb.New(tx).
 		CreateDeviceType(
 			ctx,
@@ -87,14 +106,39 @@ func (s *Service) CreateType(
 	); err != nil {
 		return DeviceType{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return DeviceType{}, err
-	}
 	return typeFromRow(row), nil
 }
 
 func (s *Service) UpdateType(
 	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	name string,
+	description *string,
+	requestID *uuid.UUID,
+) (DeviceType, error) {
+	if !principal.Has(authorization.ManagedDevicesManage) {
+		return DeviceType{}, apperror.PermissionDenied
+	}
+	if _, _, err := validateType(name, description); err != nil {
+		return DeviceType{}, err
+	}
+	if version < 1 {
+		return DeviceType{}, apperror.InvalidField("expectedVersion must be positive")
+	}
+	var result DeviceType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateTypeTx(ctx, tx, principal, id, version, name, description, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateTypeTx is UpdateType inside the caller's transaction (used by the configuration import).
+func (s *Service) UpdateTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	principal authorization.Principal,
 	id uuid.UUID,
 	version int64,
@@ -112,11 +156,6 @@ func (s *Service) UpdateType(
 	if version < 1 {
 		return DeviceType{}, apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return DeviceType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
 	if _, err = q.GetDeviceTypeForMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return DeviceType{}, apperror.NotFound
@@ -148,9 +187,6 @@ func (s *Service) UpdateType(
 	); err != nil {
 		return DeviceType{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return DeviceType{}, err
-	}
 	return typeFromRow(row), nil
 }
 
@@ -167,18 +203,33 @@ func (s *Service) DeleteType(
 	if version < 1 {
 		return apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteTypeTx(ctx, tx, principal, id, version, requestID)
+	})
+}
+
+// DeleteTypeTx is DeleteType inside the caller's transaction (used by the configuration import).
+func (s *Service) DeleteTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	version int64,
+	requestID *uuid.UUID,
+) error {
+	if !principal.Has(authorization.ManagedDevicesManage) {
+		return apperror.PermissionDenied
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	if version < 1 {
+		return apperror.InvalidField("expectedVersion must be positive")
+	}
 	q := manageddevicesdb.New(tx)
-	if _, err = q.GetDeviceTypeForMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.GetDeviceTypeForMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	} else if err != nil {
 		return err
 	}
-	_, err = q.DeleteDeviceType(ctx, manageddevicesdb.DeleteDeviceTypeParams{ID: id, ExpectedVersion: version})
+	_, err := q.DeleteDeviceType(ctx, manageddevicesdb.DeleteDeviceTypeParams{ID: id, ExpectedVersion: version})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.StaleWrite
 	}
@@ -186,7 +237,7 @@ func (s *Service) DeleteType(
 		return databaseError(err)
 	}
 	actor := principal.AccountID
-	if err = audit.Write(
+	return audit.Write(
 		ctx,
 		tx,
 		audit.Event{
@@ -196,10 +247,7 @@ func (s *Service) DeleteType(
 			ResourceID:     &id,
 			RequestID:      requestID,
 		},
-	); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	)
 }
 
 func typeFromRow(row manageddevicesdb.DeviceType) DeviceType {

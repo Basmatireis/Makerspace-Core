@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -39,6 +40,25 @@ func (s *Service) CreateMachineType(
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
+	var result MachineType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateMachineTypeTx(ctx, tx, p, name, process, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateMachineTypeTx is CreateMachineType inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateMachineTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	name, process string,
+	requestID *uuid.UUID,
+) (MachineType, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return MachineType{}, err
+	}
 	name, err := validateName(name)
 	if err != nil {
 		return MachineType{}, err
@@ -46,11 +66,6 @@ func (s *Service) CreateMachineType(
 	if !validProcess(process) {
 		return MachineType{}, apperror.Invalid("invalid machine process")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	id := ids.New()
 	row, err := machinelogbookdb.New(tx).
 		CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
@@ -69,9 +84,6 @@ func (s *Service) CreateMachineType(
 	); err != nil {
 		return MachineType{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineType{}, err
-	}
 	return machineTypeFromRow(row), nil
 }
 
@@ -88,14 +100,32 @@ func (s *Service) UpdateMachineType(
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
+	var result MachineType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateMachineTypeTx(ctx, tx, p, id, expected, name, active, process, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateMachineTypeTx is UpdateMachineType inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateMachineTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name *string,
+	active *bool,
+	process *string,
+	requestID *uuid.UUID,
+) (MachineType, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return MachineType{}, err
+	}
 	if expected < 1 {
 		return MachineType{}, apperror.Invalid("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineTypeForUpdate(ctx, id)
 	if err != nil {
@@ -145,9 +175,6 @@ func (s *Service) UpdateMachineType(
 		requestID,
 		[]string{"name", "active", "process"},
 	); err != nil {
-		return MachineType{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return MachineType{}, err
 	}
 	return machineTypeFromRow(row), nil
@@ -223,7 +250,11 @@ func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id 
 }
 
 func (s *Service) loadMachine(ctx context.Context, id uuid.UUID) (Machine, error) {
-	row, err := machinelogbookdb.New(s.pool).GetMachine(ctx, id)
+	return loadMachineFrom(ctx, machinelogbookdb.New(s.pool), id)
+}
+
+func loadMachineFrom(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID) (Machine, error) {
+	row, err := q.GetMachine(ctx, id)
 	if err != nil {
 		return Machine{}, noRows(err)
 	}
@@ -284,6 +315,29 @@ func (s *Service) CreateMachine(
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Machine{}, err
 	}
+	var result Machine
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateMachineTx(ctx, tx, p, machineTypeID, name, status, external, automatic, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateMachineTx is CreateMachine inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateMachineTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	machineTypeID uuid.UUID,
+	name string,
+	status MachineStatus,
+	external *string,
+	automatic bool,
+	requestID *uuid.UUID,
+) (Machine, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return Machine{}, err
+	}
 	var err error
 	name, err = validateName(name)
 	if err != nil {
@@ -293,11 +347,6 @@ func (s *Service) CreateMachine(
 	if err = validateMachine(status, automatic, external); err != nil {
 		return Machine{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Machine{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	typeRow, err := q.GetMachineType(ctx, machineTypeID)
 	if err != nil {
@@ -333,14 +382,36 @@ func (s *Service) CreateMachine(
 	); err != nil {
 		return Machine{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Machine{}, err
-	}
-	return s.loadMachine(ctx, id)
+	return loadMachineFrom(ctx, q, id)
 }
 
 func (s *Service) UpdateMachine(
 	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	machineTypeID uuid.UUID,
+	name string,
+	status MachineStatus,
+	external *string,
+	automatic bool,
+	requestID *uuid.UUID,
+) (Machine, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return Machine{}, err
+	}
+	var result Machine
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateMachineTx(ctx, tx, p, id, expected, machineTypeID, name, status, external, automatic, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateMachineTx is UpdateMachine inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateMachineTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -366,11 +437,6 @@ func (s *Service) UpdateMachine(
 	if err = validateMachine(status, automatic, external); err != nil {
 		return Machine{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Machine{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineForUpdate(ctx, id)
 	if err != nil {
@@ -416,10 +482,7 @@ func (s *Service) UpdateMachine(
 	); err != nil {
 		return Machine{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Machine{}, err
-	}
-	return s.loadMachine(ctx, id)
+	return loadMachineFrom(ctx, q, id)
 }
 
 // DeleteMachine permanently deletes a machine that has no jobs or runs, with
@@ -435,14 +498,26 @@ func (s *Service) DeleteMachine(
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return err
 	}
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteMachineTx(ctx, tx, p, id, expected, requestID)
+	})
+}
+
+// DeleteMachineTx is DeleteMachine inside the caller's transaction; the configuration import uses it.
+func (s *Service) DeleteMachineTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return err
+	}
 	if expected < 1 {
 		return apperror.Invalid("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineForUpdate(ctx, id)
 	if err != nil {
@@ -502,5 +577,5 @@ func (s *Service) DeleteMachine(
 	if err = writeAudit(ctx, tx, p, "machine.deleted", "machine", id, requestID, nil); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

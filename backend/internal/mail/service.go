@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	maildb "github.com/Basmatireis/Makerspace-Core/backend/internal/mail/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -54,9 +55,12 @@ type Configuration struct {
 type ConfigurationInput struct {
 	Enabled                                                  bool
 	Host, Username, Password, FromAddress, FromName, BaseURL string
-	TLSMode                                                  TLSMode
-	Port                                                     int
-	ExpectedVersion                                          int64
+	// ClearPassword drops the stored SMTP password when no new one is given. The configuration import sets it when
+	// the server or username changes, so a stored password is never sent to a server it was not entered for.
+	ClearPassword   bool
+	TLSMode         TLSMode
+	Port            int
+	ExpectedVersion int64
 }
 type Service struct {
 	pool    *pgxpool.Pool
@@ -74,6 +78,11 @@ func NewService(pool *pgxpool.Pool, keys [][]byte) (*Service, error) {
 	}
 	return &Service{pool: pool, keyring: keyring}, nil
 }
+
+// EncryptionAvailable reports whether application encryption keys are configured, which storing an SMTP password
+// and enabling delivery require.
+func (s *Service) EncryptionAvailable() bool { return s.keyring != nil }
+
 func (s *Service) GetConfiguration(ctx context.Context, principal authorization.Principal) (Configuration, error) {
 	if !principal.Has(authorization.MailManage) {
 		return Configuration{}, apperror.PermissionDenied
@@ -87,6 +96,25 @@ func (s *Service) GetConfiguration(ctx context.Context, principal authorization.
 
 func (s *Service) UpdateConfiguration(
 	ctx context.Context,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (Configuration, error) {
+	if !principal.Has(authorization.MailManage) {
+		return Configuration{}, apperror.PermissionDenied
+	}
+	var result Configuration
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateConfigurationTx(ctx, tx, principal, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateConfigurationTx is UpdateConfiguration inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateConfigurationTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	principal authorization.Principal,
 	input ConfigurationInput,
 	requestID *uuid.UUID,
@@ -126,11 +154,6 @@ func (s *Service) UpdateConfiguration(
 			"Application encryption keys are required before storing an SMTP password",
 		)
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Configuration{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	queries := maildb.New(tx)
 	current, err := queries.GetConfigurationForUpdate(ctx)
 	if err != nil {
@@ -140,6 +163,9 @@ func (s *Service) UpdateConfiguration(
 		return Configuration{}, apperror.StaleWrite
 	}
 	ciphertext := current.EncryptedSmtpPassword
+	if input.ClearPassword {
+		ciphertext = nil
+	}
 	if input.Password != "" {
 		ciphertext, err = s.keyring.Encrypt([]byte(input.Password), passwordPurpose)
 		if err != nil {
@@ -197,9 +223,6 @@ func (s *Service) UpdateConfiguration(
 			},
 		},
 	); err != nil {
-		return Configuration{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Configuration{}, err
 	}
 	return configurationFromRow(row), nil

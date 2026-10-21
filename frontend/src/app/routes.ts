@@ -130,6 +130,11 @@ export const SettingsPage = lazy(() =>
 export const ManagedDevicesPage = lazy(() =>
   import('../features/devices/ManagedDevicesPage').then(({ ManagedDevicesPage }) => ({ default: ManagedDevicesPage })),
 );
+export const ConfigurationTransferPage = lazy(() =>
+  import('../features/configtransfer/ConfigurationTransferPage').then(({ ConfigurationTransferPage }) => ({
+    default: ConfigurationTransferPage,
+  })),
+);
 export const LocalServicesPage = lazy(() =>
   import('../features/localservices/LocalServicesPage').then(({ LocalServicesPage }) => ({
     default: LocalServicesPage,

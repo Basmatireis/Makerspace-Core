@@ -2235,3 +2235,52 @@ body.cds--body--with-modal-open .app-main > * {
     grid-template-columns: 1fr;
   }
 }
+
+// Settings › Export & import: export and import side by side on wide screens.
+.configuration-transfer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.configuration-transfer__panel {
+  min-width: 0;
+  padding: $spacing-06;
+}
+
+.configuration-transfer__heading {
+  @include type-style('heading-03');
+}
+
+.configuration-transfer__subheading {
+  @include type-style('heading-02');
+}
+
+.configuration-transfer__lead,
+.configuration-transfer__meta {
+  @include type-style('body-01');
+  color: theme.$text-secondary;
+  margin-top: $spacing-03;
+}
+
+.configuration-transfer__actions,
+.configuration-transfer__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  align-items: center;
+}
+
+.configuration-transfer__section-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  align-items: center;
+}
+
+@media (max-width: 65.98rem) {
+  .configuration-transfer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

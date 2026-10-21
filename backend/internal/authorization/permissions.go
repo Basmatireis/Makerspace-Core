@@ -121,6 +121,8 @@ const (
 	SignagePublish                     Permission = Permission(openapi.SignagePublish)
 	SignageOverride                    Permission = Permission(openapi.SignageOverride)
 	LocalServicesManage                Permission = Permission(openapi.LocalServicesManage)
+	ConfigurationExport                Permission = Permission(openapi.ConfigurationExport)
+	ConfigurationImport                Permission = Permission(openapi.ConfigurationImport)
 )
 
 type Definition struct {
@@ -167,6 +169,7 @@ var registry = []Permission{
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
+	ConfigurationExport, ConfigurationImport,
 }
 
 var known = func() map[Permission]struct{} {
@@ -285,6 +288,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	SignagePublish:                     "Publish a signage display so its player receives the current content.",
 	SignageOverride:                    "Start, edit, and stop signage announcements.",
 	LocalServicesManage:                "Manage local streaming gateways and camera assignments and issue their enrollment secrets.",
+	ConfigurationExport:                "Download configuration sections as a file; each section also needs its own read permission.",
+	ConfigurationImport:                "Preview and import configuration files; each section also needs its own read and manage permissions.",
 }
 
 type GrantScope string
