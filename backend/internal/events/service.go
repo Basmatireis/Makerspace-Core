@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -46,33 +45,24 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 	}, nil
 }
 
-func canRead(principal authorization.Principal) bool {
-	return principal.Has(authorization.EventsRead) || principal.Has(authorization.EventsManage) ||
-		principal.Has(authorization.EventsStaffingManage) ||
-		principal.Has(authorization.EventsAssign)
-}
-
-func canViewPII(principal authorization.Principal) bool {
-	return principal.Has(authorization.EventsStaffingManage) || principal.Has(authorization.EventsAssign)
-}
-
 func (s *Service) List(ctx context.Context, principal authorization.Principal) ([]Event, error) {
 	if !canRead(principal) {
 		return nil, apperror.PermissionDenied
 	}
-	rows, err := eventsdb.New(s.pool).ListEvents(ctx)
+	q := eventsdb.New(s.pool)
+	rows, err := q.ListEvents(ctx)
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().UTC()
 	result := make([]Event, 0, len(rows))
 	for _, row := range rows {
-		item, err := s.Get(ctx, principal, row.Event.ID)
+		if EventStatus(row.Event.Status) == EventStatusDraft && !canSeeDrafts(principal) {
+			continue
+		}
+		item, err := s.eventView(ctx, q, row.Event, now)
 		if err != nil {
 			return nil, err
-		}
-		if row.OwnerFirstName != nil && row.OwnerLastName != nil {
-			name := strings.TrimSpace(*row.OwnerFirstName + " " + *row.OwnerLastName)
-			item.OwnerName = &name
 		}
 		result = append(result, item)
 	}
@@ -80,78 +70,12 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal) (
 }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Event, error) {
-	if !canRead(principal) {
-		return Event{}, apperror.PermissionDenied
-	}
 	q := eventsdb.New(s.pool)
-	row, err := q.GetEvent(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Event{}, apperror.NotFound
-	}
+	row, err := visibleEvent(ctx, q, principal, id)
 	if err != nil {
 		return Event{}, err
 	}
-	item := eventFromRow(row)
-	sessions, err := q.ListEventSessions(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	shifts, err := q.ListEventShifts(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	for _, session := range sessions {
-		if SessionStatus(session.Status) == SessionStatusScheduled {
-			extendRange(&item, session.StartsAt, session.EndsAt)
-		}
-	}
-	if item.RangeStartsAt == nil {
-		for _, shift := range shifts {
-			if ShiftStatus(shift.Status) != ShiftStatusCancelled {
-				extendRange(&item, shift.StartsAt, shift.EndsAt)
-			}
-		}
-	}
-	summary, err := q.EventTaskSummary(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	item.TaskTotal, item.TaskCompleted = summary.Total, summary.Completed
-	tasks, err := q.ListEventTasks(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	for _, task := range tasks {
-		if TaskStatus(task.Status) != TaskStatusDone && TaskStatus(task.Status) != TaskStatusCancelled {
-			if due := pgTime(task.DueAt); due != nil {
-				setEarlier(&item.NextDeadline, *due)
-			}
-		}
-	}
-	requirements, err := q.ListEventRequirements(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	for _, req := range requirements {
-		item.RequiredCount += int64(req.RequiredCount)
-		item.FilledCount += req.FilledCount
-	}
-	now := time.Now().UTC()
-	for _, session := range sessions {
-		if SessionStatus(session.Status) == SessionStatusScheduled && session.StartsAt.After(now) {
-			setEarlier(&item.NextScheduleAt, session.StartsAt)
-		}
-	}
-	for _, shift := range shifts {
-		if ShiftStatus(shift.Status) != ShiftStatusCancelled && shift.StartsAt.After(now) {
-			setEarlier(&item.NextScheduleAt, shift.StartsAt)
-		}
-	}
-	item.HasBanner, err = q.EventBannerExists(ctx, id)
-	if err != nil {
-		return Event{}, err
-	}
-	return item, nil
+	return s.eventView(ctx, q, row, time.Now().UTC())
 }
 
 func (s *Service) Create(
@@ -218,7 +142,7 @@ func (s *Service) Create(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return eventFromRow(row), nil
+	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
 }
 
 func (s *Service) Update(
@@ -274,8 +198,8 @@ func (s *Service) Update(
 	if int64(current.Version) != input.ExpectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if status := EventStatus(current.Status); status == EventStatusCompleted || status == EventStatusCancelled || status == EventStatusArchived {
-		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if EventStatus(current.Status).Closed() {
+		return Event{}, eventReadOnly()
 	}
 	if input.PublicSignupEnabled {
 		facts, err := q.EventPublicationFacts(ctx, id)
@@ -335,16 +259,13 @@ func (s *Service) Update(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return eventFromRow(row), nil
+	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
 }
 
+// lifecycleTransitions lists the allowed status changes. Completed and cancelled are final.
 var lifecycleTransitions = map[EventStatus]map[EventStatus]bool{
-	EventStatusDraft: {EventStatusPlanning: true}, EventStatusPlanning: {EventStatusDraft: true, EventStatusConfirmed: true, EventStatusCancelled: true},
-	EventStatusConfirmed: {
-		EventStatusPlanning:  true,
-		EventStatusCompleted: true,
-		EventStatusCancelled: true,
-	}, EventStatusCompleted: {EventStatusArchived: true}, EventStatusCancelled: {EventStatusArchived: true},
+	EventStatusDraft:     {EventStatusConfirmed: true, EventStatusCancelled: true},
+	EventStatusConfirmed: {EventStatusDraft: true, EventStatusCompleted: true, EventStatusCancelled: true},
 }
 
 func (s *Service) Transition(
@@ -394,11 +315,8 @@ func (s *Service) Transition(
 		}
 	}
 	closedAt := pgtype.Timestamptz{}
-	if target == EventStatusCompleted || target == EventStatusCancelled {
+	if target.Closed() {
 		closedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
-	}
-	if target == EventStatusArchived {
-		closedAt = current.ClosedAt
 	}
 	row, err := q.TransitionEvent(
 		ctx,
@@ -432,7 +350,7 @@ func (s *Service) Transition(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return eventFromRow(row), nil
+	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
 }
 
 func (s *Service) SetPublished(
@@ -465,12 +383,9 @@ func (s *Service) SetPublished(
 	if int64(current.Version) != expectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if EventStatus(current.Status) == EventStatusArchived {
-		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
-	}
 	if published {
-		if EventStatus(current.Status) != EventStatusPlanning && EventStatus(current.Status) != EventStatusConfirmed {
-			return Event{}, apperror.Invalid("only planning or confirmed events can be published")
+		if EventStatus(current.Status).Closed() {
+			return Event{}, eventReadOnly()
 		}
 		facts, err := q.EventPublicationFacts(ctx, id)
 		if err != nil {
@@ -507,7 +422,7 @@ func (s *Service) SetPublished(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return eventFromRow(row), nil
+	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
 }
 
 func (s *Service) RotatePublicID(
@@ -543,8 +458,8 @@ func (s *Service) RotatePublicID(
 	if int64(current.Version) != expectedVersion {
 		return Event{}, apperror.StaleWrite
 	}
-	if status := EventStatus(current.Status); status == EventStatusCompleted || status == EventStatusCancelled || status == EventStatusArchived {
-		return Event{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if EventStatus(current.Status).Closed() {
+		return Event{}, eventReadOnly()
 	}
 	row, err := q.RotateEventPublicID(
 		ctx,
@@ -573,7 +488,7 @@ func (s *Service) RotatePublicID(
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
-	return eventFromRow(row), nil
+	return s.eventView(ctx, eventsdb.New(s.pool), row, time.Now().UTC())
 }
 
 func (s *Service) Delete(

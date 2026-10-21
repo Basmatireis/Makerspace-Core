@@ -113,7 +113,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planning, err := service.Transition(ctx, manager, event.ID, event.Version, "planning", nil)
+	planning, err := service.Transition(ctx, manager, event.ID, event.Version, "confirmed", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -785,11 +785,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 		t.Fatalf("scrubbed management token error = %v", err)
 	}
 
-	confirmed, err := service.Transition(ctx, manager, event.ID, published.Version, "confirmed", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	completed, err := service.Transition(ctx, manager, event.ID, confirmed.Version, "completed", nil)
+	completed, err := service.Transition(ctx, manager, event.ID, published.Version, "completed", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -854,40 +850,31 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 			t.Fatalf("audit data contains private value %q", secret)
 		}
 	}
-	archived, err := service.Transition(ctx, manager, event.ID, completed.Version, "archived", nil)
-	if err != nil || archived.IsPublic || !archived.PublicSignupEnabled {
-		t.Fatalf("archived event = %#v, err=%v", archived, err)
+	if _, err = service.Transition(ctx, manager, event.ID, completed.Version, "draft", nil); !apperror.IsCode(
+		err,
+		"invalid_event_transition",
+	) {
+		t.Fatalf("completed back to draft error = %v", err)
+	}
+	if _, err = service.RotatePublicID(ctx, manager, event.ID, completed.Version, nil); !apperror.IsCode(
+		err,
+		"event_read_only",
+	) {
+		t.Fatalf("completed public-ID rotation error = %v", err)
+	}
+	// A completed event stays public until someone unpublishes it; it cannot be published again.
+	unpublished, err := service.SetPublished(ctx, manager, event.ID, completed.Version, false, nil)
+	if err != nil || unpublished.IsPublic || unpublished.GoLive.PublicPageState != events.PublicPageOff {
+		t.Fatalf("unpublish completed event = %#v, err=%v", unpublished, err)
 	}
 	if _, err = service.GetPublic(ctx, event.PublicID); !errors.Is(err, apperror.NotFound) {
-		t.Fatalf("archived public lookup error = %v", err)
+		t.Fatalf("unpublished public lookup error = %v", err)
 	}
-	if _, err = service.SetPublished(ctx, manager, event.ID, archived.Version, false, nil); !apperror.IsCode(
+	if _, err = service.SetPublished(ctx, manager, event.ID, unpublished.Version, true, nil); !apperror.IsCode(
 		err,
 		"event_read_only",
 	) {
-		t.Fatalf("archived publication error = %v", err)
-	}
-	if _, err = service.RotatePublicID(ctx, manager, event.ID, archived.Version, nil); !apperror.IsCode(
-		err,
-		"event_read_only",
-	) {
-		t.Fatalf("archived public-ID rotation error = %v", err)
-	}
-	if _, err = service.UpdateFile(
-		ctx,
-		manager,
-		event.ID,
-		publicFile.ID,
-		publicFile.Version,
-		"public",
-		nil,
-		&postEventDescription,
-		nil,
-	); !apperror.IsCode(
-		err,
-		"event_read_only",
-	) {
-		t.Fatalf("archived file update error = %v", err)
+		t.Fatalf("republish completed event error = %v", err)
 	}
 }
 

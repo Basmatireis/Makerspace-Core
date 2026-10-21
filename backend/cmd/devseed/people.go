@@ -92,6 +92,7 @@ func (s *seeder) ensureRoles() {
 	}{
 		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
 			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
+			authorization.EventsRead, authorization.EventsSignup, authorization.EventsReadAssignments,
 			authorization.MachinesRead,
 			authorization.MachineJobsRead,
 			authorization.MachineJobsCreate,
@@ -101,6 +102,8 @@ func (s *seeder) ensureRoles() {
 		{"trainee", "Supervisor in training (created by devseed)", grants(
 			authorization.OpenDaysRead,
 			authorization.OpenDaysSignup,
+			authorization.EventsRead,
+			authorization.EventsSignup,
 			authorization.MachinesRead,
 			authorization.MachineJobsRead,
 			authorization.InventoryRead), ptr(roles.StaffingTrainee)},

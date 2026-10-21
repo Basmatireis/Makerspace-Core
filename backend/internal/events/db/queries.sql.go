@@ -450,13 +450,13 @@ func (q *Queries) CreateEventShift(ctx context.Context, arg CreateEventShiftPara
 
 const createEventTask = `-- name: CreateEventTask :one
 INSERT INTO event_tasks (
-    id, event_id, task_list_id, title, description, status, priority, assignee_person_id,
+    id, event_id, task_list_id, title, description, status, important, assignee_person_id,
     due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
     $10, $11, $12, $13
-) RETURNING id, event_id, task_list_id, title, description, status, priority, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at
+) RETURNING id, event_id, task_list_id, title, description, status, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at, important
 `
 
 type CreateEventTaskParams struct {
@@ -466,7 +466,7 @@ type CreateEventTaskParams struct {
 	Title                string
 	Description          *string
 	Status               string
-	Priority             string
+	Important            bool
 	AssigneePersonID     *uuid.UUID
 	DueAt                pgtype.Timestamptz
 	CompletedAt          pgtype.Timestamptz
@@ -483,7 +483,7 @@ func (q *Queries) CreateEventTask(ctx context.Context, arg CreateEventTaskParams
 		arg.Title,
 		arg.Description,
 		arg.Status,
-		arg.Priority,
+		arg.Important,
 		arg.AssigneePersonID,
 		arg.DueAt,
 		arg.CompletedAt,
@@ -499,7 +499,6 @@ func (q *Queries) CreateEventTask(ctx context.Context, arg CreateEventTaskParams
 		&i.Title,
 		&i.Description,
 		&i.Status,
-		&i.Priority,
 		&i.AssigneePersonID,
 		&i.DueAt,
 		&i.CompletedAt,
@@ -509,6 +508,7 @@ func (q *Queries) CreateEventTask(ctx context.Context, arg CreateEventTaskParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Important,
 	)
 	return i, err
 }
@@ -771,24 +771,6 @@ func (q *Queries) EventPublicationFacts(ctx context.Context, eventID uuid.UUID) 
 		&i.HasPublicShift,
 		&i.HasPublicRequirement,
 	)
-	return i, err
-}
-
-const eventTaskSummary = `-- name: EventTaskSummary :one
-SELECT count(*)::bigint AS total,
-       count(*) FILTER (WHERE status = 'done')::bigint AS completed
-FROM event_tasks WHERE event_id = $1
-`
-
-type EventTaskSummaryRow struct {
-	Total     int64
-	Completed int64
-}
-
-func (q *Queries) EventTaskSummary(ctx context.Context, eventID uuid.UUID) (EventTaskSummaryRow, error) {
-	row := q.db.QueryRow(ctx, eventTaskSummary, eventID)
-	var i EventTaskSummaryRow
-	err := row.Scan(&i.Total, &i.Completed)
 	return i, err
 }
 
@@ -1492,7 +1474,7 @@ func (q *Queries) GetEventShift(ctx context.Context, arg GetEventShiftParams) (G
 }
 
 const getEventTask = `-- name: GetEventTask :one
-SELECT id, event_id, task_list_id, title, description, status, priority, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at FROM event_tasks WHERE id = $1 AND event_id = $2
+SELECT id, event_id, task_list_id, title, description, status, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at, important FROM event_tasks WHERE id = $1 AND event_id = $2
 `
 
 type GetEventTaskParams struct {
@@ -1510,7 +1492,6 @@ func (q *Queries) GetEventTask(ctx context.Context, arg GetEventTaskParams) (Eve
 		&i.Title,
 		&i.Description,
 		&i.Status,
-		&i.Priority,
 		&i.AssigneePersonID,
 		&i.DueAt,
 		&i.CompletedAt,
@@ -1520,6 +1501,7 @@ func (q *Queries) GetEventTask(ctx context.Context, arg GetEventTaskParams) (Eve
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Important,
 	)
 	return i, err
 }
@@ -2112,7 +2094,7 @@ func (q *Queries) ListEventTaskLists(ctx context.Context, eventID uuid.UUID) ([]
 }
 
 const listEventTasks = `-- name: ListEventTasks :many
-SELECT id, event_id, task_list_id, title, description, status, priority, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at FROM event_tasks WHERE event_id = $1 ORDER BY task_list_id NULLS FIRST, sort_order, id
+SELECT id, event_id, task_list_id, title, description, status, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at, important FROM event_tasks WHERE event_id = $1 ORDER BY task_list_id NULLS FIRST, sort_order, id
 `
 
 func (q *Queries) ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]EventTask, error) {
@@ -2131,7 +2113,6 @@ func (q *Queries) ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]Even
 			&i.Title,
 			&i.Description,
 			&i.Status,
-			&i.Priority,
 			&i.AssigneePersonID,
 			&i.DueAt,
 			&i.CompletedAt,
@@ -2141,6 +2122,7 @@ func (q *Queries) ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]Even
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Important,
 		); err != nil {
 			return nil, err
 		}
@@ -2241,13 +2223,73 @@ func (q *Queries) ListExpiredEventAssignmentsForUpdate(ctx context.Context, cuto
 	return items, nil
 }
 
+const listFilteredEventTasks = `-- name: ListFilteredEventTasks :many
+SELECT id, event_id, task_list_id, title, description, status, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at, important FROM event_tasks
+WHERE event_id = $1
+  AND ($2::uuid IS NULL OR assignee_person_id = $2::uuid)
+  AND ($3::boolean OR status <> 'done')
+  AND ($4::timestamptz IS NULL
+       OR (status = 'open' AND due_at < $4::timestamptz))
+ORDER BY task_list_id NULLS FIRST, sort_order, id
+`
+
+type ListFilteredEventTasksParams struct {
+	EventID          uuid.UUID
+	AssigneePersonID *uuid.UUID
+	IncludeDone      bool
+	OverdueBefore    pgtype.Timestamptz
+}
+
+// assignee_person_id narrows to one assignee, overdue_before to open tasks due before that time.
+func (q *Queries) ListFilteredEventTasks(ctx context.Context, arg ListFilteredEventTasksParams) ([]EventTask, error) {
+	rows, err := q.db.Query(ctx, listFilteredEventTasks,
+		arg.EventID,
+		arg.AssigneePersonID,
+		arg.IncludeDone,
+		arg.OverdueBefore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EventTask{}
+	for rows.Next() {
+		var i EventTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.TaskListID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.AssigneePersonID,
+			&i.DueAt,
+			&i.CompletedAt,
+			&i.CompletedByAccountID,
+			&i.SortOrder,
+			&i.CreatedByAccountID,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Important,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnComingUpShifts = `-- name: ListOwnComingUpShifts :many
 SELECT a.id AS assignment_id, e.id AS event_id,
        COALESCE(CASE WHEN e.is_public THEN e.public_id END, '')::text AS public_id,
        COALESCE(e.public_title, e.name)::text AS event_title, s.name AS shift_name, s.starts_at, s.ends_at
 FROM event_shift_assignments a
 JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
-JOIN events e ON e.id = a.event_id AND e.status NOT IN ('cancelled', 'archived')
+JOIN events e ON e.id = a.event_id AND e.status IN ('confirmed', 'completed')
 WHERE a.person_id = $1 AND a.status = 'active' AND s.ends_at > $2
 ORDER BY s.starts_at, a.id
 `
@@ -2267,8 +2309,8 @@ type ListOwnComingUpShiftsRow struct {
 	EndsAt       time.Time
 }
 
-// Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
-// only for public events, otherwise empty.
+// Active shift assignments of the person on shifts that have not ended, across confirmed and completed events (drafts
+// are invisible to helpers, cancelled events do not take place). public_id is returned only for public events.
 func (q *Queries) ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error) {
 	rows, err := q.db.Query(ctx, listOwnComingUpShifts, arg.PersonID, arg.Now)
 	if err != nil {
@@ -2357,7 +2399,7 @@ SELECT title, starts_at, location FROM (
     SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
            COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
     FROM events e JOIN event_sessions es ON es.event_id = e.id
-    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('planning', 'confirmed')
+    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed')
       AND es.is_public AND es.status = 'scheduled' AND es.ends_at > $1::timestamptz
     ORDER BY e.id, es.starts_at
 ) upcoming
@@ -2377,7 +2419,7 @@ type ListUpcomingPublicEventSessionsRow struct {
 }
 
 // One row per event: its next public scheduled session. Only already publicly visible events
-// (published, with a public title) that are still planned or confirmed; returns nothing internal.
+// (published, with a public title) that are still draft or confirmed; returns nothing internal.
 func (q *Queries) ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error) {
 	rows, err := q.db.Query(ctx, listUpcomingPublicEventSessions, arg.Now, arg.RowLimit)
 	if err != nil {
@@ -2518,7 +2560,7 @@ func (q *Queries) ReplaceEventRequirementRoles(ctx context.Context, requirementI
 
 const rotateEventPublicID = `-- name: RotateEventPublicID :one
 UPDATE events SET public_id = $1, version = version + 1, updated_at = now()
-WHERE id = $2 AND version = $3 AND status NOT IN ('completed', 'cancelled', 'archived')
+WHERE id = $2 AND version = $3 AND status NOT IN ('completed', 'cancelled')
 RETURNING id, name, internal_description, location, owner_person_id, status, public_title, public_description, public_location, public_id, is_public, public_signup_enabled, closed_at, created_by_account_id, version, created_at, updated_at
 `
 
@@ -2630,7 +2672,6 @@ func (q *Queries) SetEventPublication(ctx context.Context, arg SetEventPublicati
 const transitionEvent = `-- name: TransitionEvent :one
 UPDATE events
 SET status = $1, closed_at = $2,
-    is_public = CASE WHEN $1::text = 'archived' THEN false ELSE is_public END,
     version = version + 1, updated_at = now()
 WHERE id = $3 AND version = $4
 RETURNING id, name, internal_description, location, owner_person_id, status, public_title, public_description, public_location, public_id, is_public, public_signup_enabled, closed_at, created_by_account_id, version, created_at, updated_at
@@ -2680,7 +2721,7 @@ SET name = $1, internal_description = $2,
     public_title = $5, public_description = $6,
     public_location = $7, public_signup_enabled = $8,
     version = version + 1, updated_at = now()
-WHERE id = $9 AND version = $10 AND status NOT IN ('completed', 'cancelled', 'archived')
+WHERE id = $9 AND version = $10 AND status NOT IN ('completed', 'cancelled')
 RETURNING id, name, internal_description, location, owner_person_id, status, public_title, public_description, public_location, public_id, is_public, public_signup_enabled, closed_at, created_by_account_id, version, created_at, updated_at
 `
 
@@ -2997,12 +3038,12 @@ func (q *Queries) UpdateEventShift(ctx context.Context, arg UpdateEventShiftPara
 const updateEventTask = `-- name: UpdateEventTask :one
 UPDATE event_tasks
 SET task_list_id = $1, title = $2, description = $3,
-    status = $4, priority = $5, assignee_person_id = $6,
+    status = $4, important = $5, assignee_person_id = $6,
     due_at = $7, completed_at = $8,
     completed_by_account_id = $9, sort_order = $10,
     version = version + 1, updated_at = now()
 WHERE id = $11 AND event_id = $12 AND version = $13
-RETURNING id, event_id, task_list_id, title, description, status, priority, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at
+RETURNING id, event_id, task_list_id, title, description, status, assignee_person_id, due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id, version, created_at, updated_at, important
 `
 
 type UpdateEventTaskParams struct {
@@ -3010,7 +3051,7 @@ type UpdateEventTaskParams struct {
 	Title                string
 	Description          *string
 	Status               string
-	Priority             string
+	Important            bool
 	AssigneePersonID     *uuid.UUID
 	DueAt                pgtype.Timestamptz
 	CompletedAt          pgtype.Timestamptz
@@ -3027,7 +3068,7 @@ func (q *Queries) UpdateEventTask(ctx context.Context, arg UpdateEventTaskParams
 		arg.Title,
 		arg.Description,
 		arg.Status,
-		arg.Priority,
+		arg.Important,
 		arg.AssigneePersonID,
 		arg.DueAt,
 		arg.CompletedAt,
@@ -3045,7 +3086,6 @@ func (q *Queries) UpdateEventTask(ctx context.Context, arg UpdateEventTaskParams
 		&i.Title,
 		&i.Description,
 		&i.Status,
-		&i.Priority,
 		&i.AssigneePersonID,
 		&i.DueAt,
 		&i.CompletedAt,
@@ -3055,6 +3095,7 @@ func (q *Queries) UpdateEventTask(ctx context.Context, arg UpdateEventTaskParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Important,
 	)
 	return i, err
 }

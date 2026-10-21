@@ -2382,6 +2382,7 @@ paths:
     get:
       tags: [Events]
       operationId: getEvent
+      description: Event with derived counts and `goLive` readiness. Drafts are visible only with `events.manage`, `events.staffing.manage` or `events.assign`; otherwise they answer 404.
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Event overview., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}
@@ -2405,6 +2406,7 @@ paths:
     delete:
       tags: [Events]
       operationId: deleteEvent
+      description: Deletes a draft without any assignment history (409 `event_not_deletable` / `event_has_assignment_history`). Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
@@ -2415,19 +2417,12 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /events/{eventId}/start-planning:
-    parameters: [{$ref: "#/components/parameters/EventId"}]
-    post: &eventAction
-      tags: [Events]
-      operationId: startEventPlanning
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
   /events/{eventId}/return-to-draft:
     parameters: [{$ref: "#/components/parameters/EventId"}]
     post:
       tags: [Events]
       operationId: returnEventToDraft
+      description: confirmed → draft. Helper signup stops until the event is confirmed again. Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2436,14 +2431,7 @@ paths:
     post:
       tags: [Events]
       operationId: confirmEvent
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
-  /events/{eventId}/return-to-planning:
-    parameters: [{$ref: "#/components/parameters/EventId"}]
-    post:
-      tags: [Events]
-      operationId: returnEventToPlanning
+      description: draft → confirmed. Needs an owner and at least one scheduled session or shift that is not cancelled (422 otherwise). Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2452,6 +2440,7 @@ paths:
     post:
       tags: [Events]
       operationId: completeEvent
+      description: confirmed → completed. Sets `closedAt`; the public page stays live until unpublished. Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2460,14 +2449,7 @@ paths:
     post:
       tags: [Events]
       operationId: cancelEvent
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
-  /events/{eventId}/archive:
-    parameters: [{$ref: "#/components/parameters/EventId"}]
-    post:
-      tags: [Events]
-      operationId: archiveEvent
+      description: draft or confirmed → cancelled. Sets `closedAt`. Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2476,6 +2458,7 @@ paths:
     post:
       tags: [Events]
       operationId: publishEvent
+      description: Turns the public page on. Allowed for draft and confirmed events with an owner, a public title and at least one public scheduled session or public shift that is not cancelled (422 otherwise). Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2484,6 +2467,7 @@ paths:
     post:
       tags: [Events]
       operationId: unpublishEvent
+      description: Turns the public page off; allowed in every status. Requires `events.manage`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses: {"200": {description: Event updated., content: {application/json: {schema: {$ref: "#/components/schemas/Event"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}
@@ -2551,7 +2535,7 @@ paths:
 
   /events/{eventId}/task-lists:
     parameters: [{$ref: "#/components/parameters/EventId"}]
-    get: {tags: [Events], operationId: listEventTaskLists, security: [{sessionCookie: []}], responses: {"200": {description: Task lists., content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskListList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get: {tags: [Events], operationId: listEventTaskLists, security: [{sessionCookie: []}], responses: {"200": {description: Task lists., content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskListList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     post: {tags: [Events], operationId: createEventTaskList, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskListInput"}}}}, responses: {"201": {description: Task list created., content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/task-lists/{eventTaskListId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventTaskListId"}]
@@ -2560,7 +2544,15 @@ paths:
 
   /events/{eventId}/tasks:
     parameters: [{$ref: "#/components/parameters/EventId"}]
-    get: {tags: [Events], operationId: listEventTasks, security: [{sessionCookie: []}], responses: {"200": {description: Tasks., content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskCollection"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get:
+      tags: [Events]
+      operationId: listEventTasks
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: mine, in: query, description: Only tasks assigned to the caller's Person., schema: {type: boolean, default: false}}
+        - {name: overdue, in: query, description: Only open tasks whose due time has passed., schema: {type: boolean, default: false}}
+        - {name: includeDone, in: query, description: Include done tasks., schema: {type: boolean, default: true}}
+      responses: {"200": {description: Tasks., content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskCollection"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}
     post: {tags: [Events], operationId: createEventTask, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventTaskInput"}}}}, responses: {"201": {description: Task created., content: {application/json: {schema: {$ref: "#/components/schemas/EventTask"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/tasks/{eventTaskId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventTaskId"}]
@@ -2569,7 +2561,7 @@ paths:
 
   /events/{eventId}/shifts:
     parameters: [{$ref: "#/components/parameters/EventId"}]
-    get: {tags: [Events], operationId: listEventShifts, security: [{sessionCookie: []}], responses: {"200": {description: Shifts., content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get: {tags: [Events], operationId: listEventShifts, security: [{sessionCookie: []}], responses: {"200": {description: Shifts., content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     post: {tags: [Events], operationId: createEventShift, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftInput"}}}}, responses: {"201": {description: Shift created., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/shifts/{eventShiftId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}]
@@ -2578,7 +2570,7 @@ paths:
 
   /events/{eventId}/shifts/{eventShiftId}/requirements:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}]
-    get: {tags: [Events], operationId: listEventShiftRequirements, security: [{sessionCookie: []}], responses: {"200": {description: Requirements., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirementList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get: {tags: [Events], operationId: listEventShiftRequirements, security: [{sessionCookie: []}], responses: {"200": {description: Requirements., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirementList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     post: {tags: [Events], operationId: createEventShiftRequirement, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirementInput"}}}}, responses: {"201": {description: Requirement created., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirement"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}, {$ref: "#/components/parameters/EventRequirementId"}]
@@ -2587,7 +2579,7 @@ paths:
 
   /events/{eventId}/assignments:
     parameters: [{$ref: "#/components/parameters/EventId"}]
-    get: {tags: [Events], operationId: listEventAssignments, security: [{sessionCookie: []}], responses: {"200": {description: Authorized assignment identities., content: {application/json: {schema: {$ref: "#/components/schemas/EventAssignmentList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get: {tags: [Events], operationId: listEventAssignments, security: [{sessionCookie: []}], responses: {"200": {description: Authorized assignment identities., content: {application/json: {schema: {$ref: "#/components/schemas/EventAssignmentList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     post: {tags: [Events], operationId: createEventAssignment, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventAssignmentInput"}}}}, responses: {"201": {description: Assignment created., content: {application/json: {schema: {$ref: "#/components/schemas/EventAssignment"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/assignments/{eventAssignmentId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventAssignmentId"}]
@@ -2614,7 +2606,7 @@ paths:
 
   /events/{eventId}/files:
     parameters: [{$ref: "#/components/parameters/EventId"}]
-    get: {tags: [Events], operationId: listEventFiles, security: [{sessionCookie: []}], responses: {"200": {description: Event files., content: {application/json: {schema: {$ref: "#/components/schemas/EventFileList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    get: {tags: [Events], operationId: listEventFiles, security: [{sessionCookie: []}], responses: {"200": {description: Event files., content: {application/json: {schema: {$ref: "#/components/schemas/EventFileList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     post:
       tags: [Events]
       operationId: uploadEventFile
@@ -8525,6 +8517,8 @@ components:
         - events.manage
         - events.staffing.manage
         - events.assign
+        - events.signup
+        - events.read_assignments
         - managed_devices.read
         - managed_devices.manage
         - session_policies.manage
@@ -9823,7 +9817,12 @@ components:
 
     EventStatus:
       type: string
-      enum: [draft, planning, confirmed, completed, cancelled, archived]
+      description: |
+        Lifecycle of an Event. `draft` is being planned and visible only to organizers (`events.manage`,
+        `events.staffing.manage`, `events.assign`); `confirmed` is visible to everyone with `events.read` and is the
+        only status that accepts helper signups; `completed` and `cancelled` are closed: details, programme and helpers
+        are read-only while tasks and files stay editable.
+      enum: [draft, confirmed, completed, cancelled]
     EventSessionStatus:
       type: string
       enum: [scheduled, cancelled]
@@ -9832,10 +9831,7 @@ components:
       enum: [draft, open, closed, cancelled]
     EventTaskStatus:
       type: string
-      enum: [open, in_progress, blocked, done, cancelled]
-    EventTaskPriority:
-      type: string
-      enum: [low, normal, high, urgent]
+      enum: [open, done]
     EventEligibilityMode:
       type: string
       enum: [anyone, roles]
@@ -9855,7 +9851,7 @@ components:
     Event:
       type: object
       additionalProperties: false
-      required: [id, name, status, publicId, isPublic, publicSignupEnabled, hasBanner, version, createdAt, updatedAt, taskTotal, taskCompleted, filledCount, requiredCount]
+      required: [id, name, status, publicId, isPublic, publicSignupEnabled, hasBanner, version, createdAt, updatedAt, taskTotal, taskCompleted, tasksOverdue, filledCount, requiredCount, hasAssignmentHistory, goLive]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, maxLength: 200}
@@ -9876,13 +9872,71 @@ components:
         rangeEndsAt: {type: string, format: date-time, nullable: true}
         taskTotal: {type: integer, format: int64, minimum: 0}
         taskCompleted: {type: integer, format: int64, minimum: 0}
-        filledCount: {type: integer, format: int64, minimum: 0}
-        requiredCount: {type: integer, format: int64, minimum: 0}
+        tasksOverdue: {type: integer, format: int64, minimum: 0, description: Open tasks whose due time has passed.}
+        filledCount: {type: integer, format: int64, minimum: 0, description: "Active assignments on positions of shifts that are not cancelled, capped per position at its required count."}
+        requiredCount: {type: integer, format: int64, minimum: 0, description: Places required by positions of shifts that are not cancelled.}
+        hasAssignmentHistory: {type: boolean, description: True once any assignment (also a cancelled one) exists; such an event cannot be deleted.}
+        goLive: {$ref: "#/components/schemas/EventGoLive"}
         nextDeadline: {type: string, format: date-time, nullable: true}
         nextScheduleAt: {type: string, format: date-time, nullable: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    EventReadinessCode:
+      type: string
+      description: |
+        A requirement that is not met yet. `event_closed`: the event is completed or cancelled;
+        `event_not_confirmed`: helper signup needs a confirmed event; `owner_missing`; `programme_missing`: no
+        scheduled session and no shift that is not cancelled; `public_title_missing`; `public_content_missing`: no public
+        scheduled session and no public shift that is not cancelled; `public_page_off`; `signup_disabled`: public signup
+        is switched off; `no_public_open_shift`: no public shift with status open, at least one position and no
+        cancelled session.
+      enum: [event_closed, event_not_confirmed, owner_missing, programme_missing, public_title_missing, public_content_missing, public_page_off, signup_disabled, no_public_open_shift]
+    EventGoLive:
+      type: object
+      additionalProperties: false
+      description: Derived readiness of an Event. The rules live in the server; the client only presents them.
+      required: [publicPage, helperSignup, shifts, confirmUnmet]
+      properties:
+        publicPage:
+          type: object
+          additionalProperties: false
+          required: [state, unmet]
+          properties:
+            state: {type: string, enum: ["off", live]}
+            unmet:
+              type: array
+              description: Requirements for publishing that are not met (also reported while live).
+              items: {$ref: "#/components/schemas/EventReadinessCode"}
+        helperSignup:
+          type: object
+          additionalProperties: false
+          required: [state, unmet]
+          properties:
+            state:
+              type: string
+              description: |
+                Public helper signup right now. `off`: public page or public signup switched off; `open`: at least
+                one public open shift with a position accepts signups now; `opens_at`: the earliest signup window
+                starts at `opensAt`; `closed`: switched on but nothing accepts signups (event not confirmed or closed,
+                no eligible shift, or all windows passed).
+              enum: ["off", open, opens_at, closed]
+            opensAt: {type: string, format: date-time, nullable: true}
+            unmet:
+              type: array
+              items: {$ref: "#/components/schemas/EventReadinessCode"}
+        shifts:
+          type: object
+          additionalProperties: false
+          required: [accepting, total, notPublic]
+          properties:
+            accepting: {type: integer, minimum: 0, description: Shifts accepting public signups now with at least one free place.}
+            total: {type: integer, minimum: 0, description: Shifts that are not cancelled.}
+            notPublic: {type: integer, minimum: 0, description: Shifts that are not cancelled and not public.}
+        confirmUnmet:
+          type: array
+          description: Requirements for confirming the event that are not met.
+          items: {$ref: "#/components/schemas/EventReadinessCode"}
     EventList:
       type: object
       additionalProperties: false
@@ -9991,26 +10045,26 @@ components:
     EventTaskInput:
       type: object
       additionalProperties: false
-      required: [title, status, priority, sortOrder]
+      required: [title, status, important, sortOrder]
       properties:
         taskListId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         title: {type: string, minLength: 1, maxLength: 300}
         description: {type: string, maxLength: 10000, nullable: true}
         status: {$ref: "#/components/schemas/EventTaskStatus"}
-        priority: {$ref: "#/components/schemas/EventTaskPriority"}
+        important: {type: boolean}
         assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         dueAt: {type: string, format: date-time, nullable: true}
         sortOrder: {type: integer, format: int32}
     UpdateEventTaskRequest:
       type: object
       additionalProperties: false
-      required: [title, status, priority, sortOrder, expectedVersion]
+      required: [title, status, important, sortOrder, expectedVersion]
       properties:
         taskListId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         title: {type: string, minLength: 1, maxLength: 300}
         description: {type: string, maxLength: 10000, nullable: true}
         status: {$ref: "#/components/schemas/EventTaskStatus"}
-        priority: {$ref: "#/components/schemas/EventTaskPriority"}
+        important: {type: boolean}
         assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         dueAt: {type: string, format: date-time, nullable: true}
         sortOrder: {type: integer, format: int32}

@@ -65,6 +65,8 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'events.manage': { group: 'Events', label: 'Manage events' },
   'events.staffing.manage': { group: 'Events', label: 'Manage event staffing' },
   'events.assign': { group: 'Events', label: 'Assign event helpers' },
+  'events.signup': { group: 'Events', label: 'Join and leave event shifts' },
+  'events.read_assignments': { group: 'Events', label: 'See event helper names' },
   'managed_devices.read': { group: 'Managed devices', label: 'View managed devices' },
   'managed_devices.manage': { group: 'Managed devices', label: 'Manage devices and types' },
   'laborordnung.read': { group: 'Lab Rules', label: 'View Lab Rules' },

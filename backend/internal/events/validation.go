@@ -97,6 +97,11 @@ func signupUnavailable() error {
 	return apperror.New(http.StatusConflict, "signup_unavailable", "Signup is unavailable")
 }
 
+// eventReadOnly reports a change to a completed or cancelled event outside its tasks and files.
+func eventReadOnly() error {
+	return apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+}
+
 func lockKeys(values ...*string) []int64 {
 	keys := make([]int64, 0, len(values))
 	seen := map[int64]struct{}{}

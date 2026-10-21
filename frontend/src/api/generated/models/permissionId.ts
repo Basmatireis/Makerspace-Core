@@ -65,6 +65,8 @@ export const PermissionId = {
   eventsmanage: 'events.manage',
   eventsstaffingmanage: 'events.staffing.manage',
   eventsassign: 'events.assign',
+  eventssignup: 'events.signup',
+  eventsread_assignments: 'events.read_assignments',
   managed_devicesread: 'managed_devices.read',
   managed_devicesmanage: 'managed_devices.manage',
   session_policiesmanage: 'session_policies.manage',

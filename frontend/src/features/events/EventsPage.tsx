@@ -47,11 +47,9 @@ const headers = [
 ];
 const statusOptions: Array<{ id: EventStatus; label: string }> = [
   { id: 'draft', label: 'Draft' },
-  { id: 'planning', label: 'Planning' },
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'completed', label: 'Completed' },
   { id: 'cancelled', label: 'Cancelled' },
-  { id: 'archived', label: 'Archived' },
 ];
 
 export type EventListState = {

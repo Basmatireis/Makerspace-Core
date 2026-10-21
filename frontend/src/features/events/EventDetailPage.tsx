@@ -82,8 +82,9 @@ export function EventDetailPage() {
     );
 
   const event = query.data;
-  const archived = event.status === 'archived';
-  const scheduleReadOnly = archived || event.status === 'completed' || event.status === 'cancelled';
+  // Closed events keep tasks and files editable; only the schedule and staffing become read-only.
+  const archived = false;
+  const scheduleReadOnly = event.status === 'completed' || event.status === 'cancelled';
 
   return (
     <Tabs

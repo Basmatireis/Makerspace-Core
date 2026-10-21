@@ -20,7 +20,7 @@ import (
 func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, error) {
 	q := eventsdb.New(s.pool)
 	event, err := q.GetEventByPublicID(ctx, publicID)
-	if errors.Is(err, pgx.ErrNoRows) || EventStatus(event.Status) == EventStatusArchived {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return PublicEvent{}, apperror.NotFound
 	}
 	if err != nil {
@@ -31,13 +31,14 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 	}
 	status := EventStatus(event.Status)
 	result := PublicEvent{
-		PublicID:            event.PublicID,
-		Title:               *event.PublicTitle,
-		Description:         event.PublicDescription,
-		Location:            event.PublicLocation,
-		Status:              status,
-		TimeZone:            s.cfg.MakerspaceTimeZone,
-		PublicSignupEnabled: event.PublicSignupEnabled && status != EventStatusCompleted && status != EventStatusCancelled,
+		PublicID:    event.PublicID,
+		Title:       *event.PublicTitle,
+		Description: event.PublicDescription,
+		Location:    event.PublicLocation,
+		Status:      status,
+		TimeZone:    s.cfg.MakerspaceTimeZone,
+		// Signups open only for confirmed events; drafts and closed events show their shifts as information.
+		PublicSignupEnabled: event.PublicSignupEnabled && status == EventStatusConfirmed,
 	}
 	sessions, err := q.ListEventSessions(ctx, event.ID)
 	if err != nil {
@@ -104,10 +105,15 @@ func (s *Service) GetPublic(ctx context.Context, publicID string) (PublicEvent, 
 			LinkedSessionStatus: optional.Convert[SessionStatus](row.SessionStatus),
 			Version:             int64(row.Version),
 		}
-		effective := ShiftStatus(row.Status) == ShiftStatusOpen && result.PublicSignupEnabled &&
-			(row.SessionStatus == nil || SessionStatus(*row.SessionStatus) != SessionStatusCancelled) &&
-			(!row.SignupOpensAt.Valid || !now.Before(row.SignupOpensAt.Time)) &&
-			(!row.SignupClosesAt.Valid || now.Before(row.SignupClosesAt.Time))
+		effective := result.PublicSignupEnabled && shiftSignupBlock(
+			status,
+			ShiftStatus(row.Status),
+			row.SessionStatus,
+			row.EndsAt,
+			pgTime(row.SignupOpensAt),
+			pgTime(row.SignupClosesAt),
+			now,
+		) == signupAllowed
 		items := byShift[row.ID]
 		if !effective {
 			for i := range items {
@@ -455,8 +461,8 @@ func (s *Service) updateAssignmentContact(
 	if err != nil {
 		return Assignment{}, err
 	}
-	if EventStatus(event.Status) == EventStatusArchived {
-		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if EventStatus(event.Status).Closed() {
+		return Assignment{}, eventReadOnly()
 	}
 	firstName, lastName := "", ""
 	if current.FirstNameSnapshot != nil {
@@ -601,8 +607,8 @@ func (s *Service) moveAssignment(
 	if err != nil {
 		return Assignment{}, err
 	}
-	if status := EventStatus(event.Status); status == EventStatusArchived || status == EventStatusCompleted || status == EventStatusCancelled {
-		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if EventStatus(event.Status).Closed() {
+		return Assignment{}, eventReadOnly()
 	}
 	requirementIDs := []uuid.UUID{current.RequirementID}
 	if destinationRequirementID != current.RequirementID {
@@ -808,8 +814,8 @@ func (s *Service) cancelAssignment(
 	if err != nil {
 		return Assignment{}, err
 	}
-	if EventStatus(event.Status) == EventStatusArchived {
-		return Assignment{}, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if EventStatus(event.Status).Closed() {
+		return Assignment{}, eventReadOnly()
 	}
 	var actor *uuid.UUID
 	actorType := audit.ActorUnknown

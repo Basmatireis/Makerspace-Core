@@ -207,7 +207,17 @@ func (s *Server) ListEventTasks(
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.events.ListTasks(ctx, p, r.EventId)
+	filter := events.TaskFilter{IncludeDone: true}
+	if r.Params.Mine != nil {
+		filter.Mine = *r.Params.Mine
+	}
+	if r.Params.Overdue != nil {
+		filter.Overdue = *r.Params.Overdue
+	}
+	if r.Params.IncludeDone != nil {
+		filter.IncludeDone = *r.Params.IncludeDone
+	}
+	items, err := s.events.ListTasks(ctx, p, r.EventId, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +262,7 @@ func (s *Server) UpdateEventTask(
 		Title:            r.Body.Title,
 		Description:      nullableStringPointer(r.Body.Description),
 		Status:           events.TaskStatus(r.Body.Status),
-		Priority:         events.TaskPriority(r.Body.Priority),
+		Important:        r.Body.Important,
 		AssigneePersonID: nullableUUID(r.Body.AssigneePersonId),
 		DueAt:            nullableTime(r.Body.DueAt),
 		SortOrder:        int(r.Body.SortOrder),
@@ -335,7 +345,7 @@ func eventTaskInput(v openapi.EventTaskInput, version int64) events.TaskInput {
 		Title:            v.Title,
 		Description:      nullableStringPointer(v.Description),
 		Status:           events.TaskStatus(v.Status),
-		Priority:         events.TaskPriority(v.Priority),
+		Important:        v.Important,
 		AssigneePersonID: nullableUUID(v.AssigneePersonId),
 		DueAt:            nullableTime(v.DueAt),
 		SortOrder:        int(v.SortOrder),
@@ -353,7 +363,7 @@ func eventTaskDTO(v events.Task) openapi.EventTask {
 		Title:       v.Title,
 		Description: nullablePointer[string](v.Description, func(x string) string { return x }),
 		Status:      openapi.EventTaskStatus(v.Status),
-		Priority:    openapi.EventTaskPriority(v.Priority),
+		Important:   v.Important,
 		AssigneePersonId: nullablePointer[openapi.UUIDv7](
 			v.AssigneePersonID,
 			func(x uuid.UUID) openapi.UUIDv7 { return x },

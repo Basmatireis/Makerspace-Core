@@ -12,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (s *Service) ListTaskLists(
@@ -19,10 +20,11 @@ func (s *Service) ListTaskLists(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) ([]TaskList, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return nil, err
 	}
-	rows, err := eventsdb.New(s.pool).ListEventTaskLists(ctx, eventID)
+	rows, err := q.ListEventTaskLists(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -223,11 +225,24 @@ func (s *Service) DeleteTaskList(
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ListTasks(ctx context.Context, principal authorization.Principal, eventID uuid.UUID) ([]Task, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
+func (s *Service) ListTasks(
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID uuid.UUID,
+	filter TaskFilter,
+) ([]Task, error) {
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return nil, err
 	}
-	rows, err := eventsdb.New(s.pool).ListEventTasks(ctx, eventID)
+	params := eventsdb.ListFilteredEventTasksParams{EventID: eventID, IncludeDone: filter.IncludeDone}
+	if filter.Mine {
+		params.AssigneePersonID = &principal.PersonID
+	}
+	if filter.Overdue {
+		params.OverdueBefore = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	}
+	rows, err := q.ListFilteredEventTasks(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +294,7 @@ func (s *Service) CreateTask(
 			Title:                input.Title,
 			Description:          input.Description,
 			Status:               string(input.Status),
-			Priority:             string(input.Priority),
+			Important:            input.Important,
 			AssigneePersonID:     input.AssigneePersonID,
 			DueAt:                toPGTime(input.DueAt),
 			CompletedAt:          toPGTime(completedAt),
@@ -304,7 +319,7 @@ func (s *Service) CreateTask(
 		"event_task",
 		id,
 		requestID,
-		[]string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"},
+		[]string{"taskListId", "title", "description", "status", "important", "assigneePersonId", "dueAt", "sortOrder"},
 		map[string]any{"eventId": eventID.String()},
 	); err != nil {
 		return Task{}, err
@@ -372,7 +387,7 @@ func (s *Service) UpdateTask(
 			Title:                input.Title,
 			Description:          input.Description,
 			Status:               string(input.Status),
-			Priority:             string(input.Priority),
+			Important:            input.Important,
 			AssigneePersonID:     input.AssigneePersonID,
 			DueAt:                toPGTime(input.DueAt),
 			CompletedAt:          toPGTime(completedAt),
@@ -395,7 +410,7 @@ func (s *Service) UpdateTask(
 		"event_task",
 		id,
 		requestID,
-		[]string{"taskListId", "title", "description", "status", "priority", "assigneePersonId", "dueAt", "sortOrder"},
+		[]string{"taskListId", "title", "description", "status", "important", "assigneePersonId", "dueAt", "sortOrder"},
 		map[string]any{"eventId": eventID.String()},
 	); err != nil {
 		return Task{}, err
@@ -474,18 +489,8 @@ func validateTaskInput(input TaskInput) (TaskInput, error) {
 	if input.Status == "" {
 		input.Status = TaskStatusOpen
 	}
-	switch input.Status {
-	case TaskStatusOpen, TaskStatusInProgress, TaskStatusBlocked, TaskStatusDone, TaskStatusCancelled:
-	default:
+	if input.Status != TaskStatusOpen && input.Status != TaskStatusDone {
 		return input, apperror.Invalid("task status is invalid")
-	}
-	if input.Priority == "" {
-		input.Priority = TaskPriorityNormal
-	}
-	switch input.Priority {
-	case TaskPriorityLow, TaskPriorityNormal, TaskPriorityHigh, TaskPriorityUrgent:
-	default:
-		return input, apperror.Invalid("task priority is invalid")
 	}
 	return input, nil
 }
@@ -509,7 +514,7 @@ func taskFromRow(row eventsdb.EventTask) Task {
 		Title:              row.Title,
 		Description:        row.Description,
 		Status:             TaskStatus(row.Status),
-		Priority:           TaskPriority(row.Priority),
+		Important:          row.Important,
 		AssigneePersonID:   row.AssigneePersonID,
 		DueAt:              pgTime(row.DueAt),
 		CompletedAt:        pgTime(row.CompletedAt),

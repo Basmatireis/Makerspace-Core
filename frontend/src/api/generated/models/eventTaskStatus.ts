@@ -24,8 +24,5 @@ export type EventTaskStatus = typeof EventTaskStatus[keyof typeof EventTaskStatu
 
 export const EventTaskStatus = {
   open: 'open',
-  in_progress: 'in_progress',
-  blocked: 'blocked',
   done: 'done',
-  cancelled: 'cancelled',
 } as const;

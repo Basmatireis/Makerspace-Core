@@ -31,7 +31,7 @@ import {
   listEventPeople,
   updateEventTask,
 } from '../../api/generated/events/events';
-import type { EventTask, EventTaskInput, EventTaskList } from '../../api/generated/models';
+import type { EventTask, EventTaskList } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { InlineLoadingState } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
@@ -63,7 +63,7 @@ export function EventPlanningPanel({
     enabled: canManage,
   });
   const [listName, setListName] = useState('');
-  const [task, setTask] = useState({ title: '', taskListId: '', dueAt: '', priority: 'normal' });
+  const [task, setTask] = useState({ title: '', taskListId: '', dueAt: '', important: false });
   const [selectedListId, setSelectedListId] = useState('all');
   const [showListForm, setShowListForm] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -78,13 +78,13 @@ export function EventPlanningPanel({
     editingTaskDirty ||
     editingListDirty ||
     (showListForm && listName) ||
-    (showTaskForm && (task.title || task.taskListId || task.dueAt || task.priority !== 'normal')),
+    (showTaskForm && (task.title || task.taskListId || task.dueAt || task.important)),
   );
   const guard = useUnsavedChanges({
     isDirty,
     onDiscard: () => {
       setListName('');
-      setTask({ title: '', taskListId: '', dueAt: '', priority: 'normal' });
+      setTask({ title: '', taskListId: '', dueAt: '', important: false });
       setShowListForm(false);
       setShowTaskForm(false);
       setEditingTask(null);
@@ -123,11 +123,11 @@ export function EventPlanningPanel({
         assigneePersonId: null,
         dueAt: task.dueAt ? toISO(task.dueAt) : null,
         status: 'open',
-        priority: task.priority as EventTaskInput['priority'],
+        important: task.important,
         sortOrder: (tasks.data?.items.length ?? 0) * 10,
       }),
     onSuccess: async () => {
-      setTask({ title: '', taskListId: '', dueAt: '', priority: 'normal' });
+      setTask({ title: '', taskListId: '', dueAt: '', important: false });
       setShowTaskForm(false);
       await refresh();
     },
@@ -139,7 +139,7 @@ export function EventPlanningPanel({
         title: item.title,
         description: item.description ?? null,
         status: item.status === 'done' ? 'open' : 'done',
-        priority: item.priority,
+        important: item.important,
         assigneePersonId: item.assigneePersonId ?? null,
         dueAt: item.dueAt ?? null,
         sortOrder: item.sortOrder,
@@ -426,16 +426,12 @@ export function EventPlanningPanel({
                     <SelectItem key={item.id} value={item.id} text={item.name} />
                   ))}
                 </Select>
-                <Select
-                  id="new-task-priority"
-                  labelText="Priority"
-                  value={task.priority}
-                  onChange={(e) => setTask({ ...task, priority: e.target.value })}
-                >
-                  {['low', 'normal', 'high', 'urgent'].map((value) => (
-                    <SelectItem key={value} value={value} text={value} />
-                  ))}
-                </Select>
+                <Checkbox
+                  id="new-task-important"
+                  labelText="Important"
+                  checked={task.important}
+                  onChange={(_, { checked }) => setTask({ ...task, important: checked })}
+                />
                 <TextInput
                   id="new-task-due"
                   type="datetime-local"

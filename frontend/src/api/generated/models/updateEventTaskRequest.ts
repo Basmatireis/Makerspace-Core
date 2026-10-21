@@ -18,7 +18,6 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { EventTaskPriority } from './eventTaskPriority';
 import type { EventTaskStatus } from './eventTaskStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -36,7 +35,7 @@ export interface UpdateEventTaskRequest {
      */
   description?: string | null;
   status: EventTaskStatus;
-  priority: EventTaskPriority;
+  important: boolean;
   assigneePersonId?: UUIDv7 | null;
   /** @nullable */
   dueAt?: string | null;

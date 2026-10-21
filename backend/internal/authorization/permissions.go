@@ -69,6 +69,8 @@ const (
 	EventsManage                       Permission = Permission(openapi.EventsManage)
 	EventsStaffingManage               Permission = Permission(openapi.EventsStaffingManage)
 	EventsAssign                       Permission = Permission(openapi.EventsAssign)
+	EventsSignup                       Permission = Permission(openapi.EventsSignup)
+	EventsReadAssignments              Permission = Permission(openapi.EventsReadAssignments)
 	ManagedDevicesRead                 Permission = Permission(openapi.ManagedDevicesRead)
 	ManagedDevicesManage               Permission = Permission(openapi.ManagedDevicesManage)
 	SessionPoliciesManage              Permission = Permission(openapi.SessionPoliciesManage)
@@ -151,7 +153,7 @@ var registry = []Permission{
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
-	EventsRead, EventsManage, EventsStaffingManage, EventsAssign,
+	EventsRead, EventsManage, EventsStaffingManage, EventsAssign, EventsSignup, EventsReadAssignments,
 	ManagedDevicesRead, ManagedDevicesManage, SessionPoliciesManage,
 	AttendanceRead, AttendanceAssist, AttendanceCorrect, AttendanceStatisticsRead,
 	SurveysRead, SurveysManage,
@@ -226,10 +228,12 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	OpenDaysSignup:                     "Sign up for and leave eligible Open Day assignments.",
 	OpenDaysAssign:                     "Assign and remove eligible people on Open Days.",
 	OpenDaysManage:                     "Manage Open Day periods, schedules, calendar context, and lifecycle.",
-	EventsRead:                         "Read internal Event details, planning data, files, and staffing counts.",
-	EventsManage:                       "Create and manage Events, lifecycle, publication, schedules, planning, and files.",
-	EventsStaffingManage:               "Manage Event shifts, staffing requirements, eligibility, and staffing identities.",
-	EventsAssign:                       "Create, move, cancel, link, and conflict-override Event assignments.",
+	EventsRead:                         "Read confirmed and past Events with their programme, planning data, files, and staffing counts; drafts need an organizer permission.",
+	EventsManage:                       "Create and manage Events including drafts, lifecycle, publication, schedules, planning, and files.",
+	EventsStaffingManage:               "Manage Event shifts, staffing requirements, eligibility, and staffing identities; see drafts.",
+	EventsAssign:                       "Create, move, cancel, link, and conflict-override Event assignments; see drafts.",
+	EventsSignup:                       "Join and leave open places in confirmed Events for yourself.",
+	EventsReadAssignments:              "Read the names (not contact details) of the helpers in each Event shift.",
 	ManagedDevicesRead:                 "Read managed devices and device types.",
 	ManagedDevicesManage:               "Create, edit, revoke, rotate, and delete managed devices and device types.",
 	SessionPoliciesManage:              "Create and change reusable server-enforced session policies.",

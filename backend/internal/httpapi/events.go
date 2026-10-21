@@ -129,21 +129,6 @@ func (s *Server) DeleteEvent(
 	return openapi.DeleteEvent204Response{}, nil
 }
 
-func (s *Server) StartEventPlanning(
-	ctx context.Context,
-	r openapi.StartEventPlanningRequestObject,
-) (openapi.StartEventPlanningResponseObject, error) {
-	p, b, err := eventActionInput(ctx, r.Body)
-	if err != nil {
-		return nil, err
-	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusPlanning, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.StartEventPlanning200JSONResponse(eventDTO(item)), nil
-}
-
 func (s *Server) ReturnEventToDraft(
 	ctx context.Context,
 	r openapi.ReturnEventToDraftRequestObject,
@@ -174,21 +159,6 @@ func (s *Server) ConfirmEvent(
 	return openapi.ConfirmEvent200JSONResponse(eventDTO(item)), nil
 }
 
-func (s *Server) ReturnEventToPlanning(
-	ctx context.Context,
-	r openapi.ReturnEventToPlanningRequestObject,
-) (openapi.ReturnEventToPlanningResponseObject, error) {
-	p, b, err := eventActionInput(ctx, r.Body)
-	if err != nil {
-		return nil, err
-	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusPlanning, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.ReturnEventToPlanning200JSONResponse(eventDTO(item)), nil
-}
-
 func (s *Server) CompleteEvent(
 	ctx context.Context,
 	r openapi.CompleteEventRequestObject,
@@ -217,21 +187,6 @@ func (s *Server) CancelEvent(
 		return nil, err
 	}
 	return openapi.CancelEvent200JSONResponse(eventDTO(item)), nil
-}
-
-func (s *Server) ArchiveEvent(
-	ctx context.Context,
-	r openapi.ArchiveEventRequestObject,
-) (openapi.ArchiveEventResponseObject, error) {
-	p, b, err := eventActionInput(ctx, r.Body)
-	if err != nil {
-		return nil, err
-	}
-	item, err := s.events.Transition(ctx, p, r.EventId, b.ExpectedVersion, events.EventStatusArchived, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.ArchiveEvent200JSONResponse(eventDTO(item)), nil
 }
 
 func (s *Server) PublishEvent(
@@ -303,26 +258,49 @@ func eventDTO(item events.Event) openapi.Event {
 			item.OwnerPersonID,
 			func(v uuid.UUID) openapi.UUIDv7 { return v },
 		),
-		OwnerName:           nullablePointer[string](item.OwnerName, func(v string) string { return v }),
-		Status:              openapi.EventStatus(item.Status),
-		PublicTitle:         nullablePointer[string](item.PublicTitle, func(v string) string { return v }),
-		PublicDescription:   nullablePointer[string](item.PublicDescription, func(v string) string { return v }),
-		PublicLocation:      nullablePointer[string](item.PublicLocation, func(v string) string { return v }),
-		PublicId:            item.PublicID,
-		IsPublic:            item.IsPublic,
-		PublicSignupEnabled: item.PublicSignupEnabled,
-		HasBanner:           item.HasBanner,
-		ClosedAt:            nullablePointer(item.ClosedAt, func(v time.Time) time.Time { return v }),
-		RangeStartsAt:       nullablePointer(item.RangeStartsAt, func(v time.Time) time.Time { return v }),
-		RangeEndsAt:         nullablePointer(item.RangeEndsAt, func(v time.Time) time.Time { return v }),
-		TaskTotal:           item.TaskTotal,
-		TaskCompleted:       item.TaskCompleted,
-		FilledCount:         item.FilledCount,
-		RequiredCount:       item.RequiredCount,
-		NextDeadline:        nullablePointer(item.NextDeadline, func(v time.Time) time.Time { return v }),
-		NextScheduleAt:      nullablePointer(item.NextScheduleAt, func(v time.Time) time.Time { return v }),
-		Version:             item.Version,
-		CreatedAt:           item.CreatedAt,
-		UpdatedAt:           item.UpdatedAt,
+		OwnerName:            nullablePointer[string](item.OwnerName, func(v string) string { return v }),
+		Status:               openapi.EventStatus(item.Status),
+		PublicTitle:          nullablePointer[string](item.PublicTitle, func(v string) string { return v }),
+		PublicDescription:    nullablePointer[string](item.PublicDescription, func(v string) string { return v }),
+		PublicLocation:       nullablePointer[string](item.PublicLocation, func(v string) string { return v }),
+		PublicId:             item.PublicID,
+		IsPublic:             item.IsPublic,
+		PublicSignupEnabled:  item.PublicSignupEnabled,
+		HasBanner:            item.HasBanner,
+		ClosedAt:             nullablePointer(item.ClosedAt, func(v time.Time) time.Time { return v }),
+		RangeStartsAt:        nullablePointer(item.RangeStartsAt, func(v time.Time) time.Time { return v }),
+		RangeEndsAt:          nullablePointer(item.RangeEndsAt, func(v time.Time) time.Time { return v }),
+		TaskTotal:            item.TaskTotal,
+		TaskCompleted:        item.TaskCompleted,
+		TasksOverdue:         item.TasksOverdue,
+		FilledCount:          item.FilledCount,
+		RequiredCount:        item.RequiredCount,
+		HasAssignmentHistory: item.HasAssignmentHistory,
+		GoLive:               eventGoLiveDTO(item.GoLive),
+		NextDeadline:         nullablePointer(item.NextDeadline, func(v time.Time) time.Time { return v }),
+		NextScheduleAt:       nullablePointer(item.NextScheduleAt, func(v time.Time) time.Time { return v }),
+		Version:              item.Version,
+		CreatedAt:            item.CreatedAt,
+		UpdatedAt:            item.UpdatedAt,
 	}
+}
+
+func eventGoLiveDTO(v events.GoLive) openapi.EventGoLive {
+	codes := func(values []events.ReadinessCode) []openapi.EventReadinessCode {
+		result := make([]openapi.EventReadinessCode, 0, len(values))
+		for _, value := range values {
+			result = append(result, openapi.EventReadinessCode(value))
+		}
+		return result
+	}
+	result := openapi.EventGoLive{ConfirmUnmet: codes(v.ConfirmUnmet)}
+	result.PublicPage.State = openapi.EventGoLivePublicPageState(v.PublicPageState)
+	result.PublicPage.Unmet = codes(v.PublicPageUnmet)
+	result.HelperSignup.State = openapi.EventGoLiveHelperSignupState(v.HelperSignupState)
+	result.HelperSignup.OpensAt = nullablePointer(v.HelperSignupOpens, func(x time.Time) time.Time { return x })
+	result.HelperSignup.Unmet = codes(v.HelperSignupUnmet)
+	result.Shifts.Accepting = v.ShiftsAccepting
+	result.Shifts.Total = v.ShiftsTotal
+	result.Shifts.NotPublic = v.ShiftsNotPublic
+	return result
 }

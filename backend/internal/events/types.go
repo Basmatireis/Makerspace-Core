@@ -6,17 +6,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// EventStatus is where an event stands in its lifecycle.
+// EventStatus is where an event stands in its lifecycle. Drafts are visible to organizers only; completed and
+// cancelled events are closed.
 type EventStatus string
 
 const (
 	EventStatusDraft     EventStatus = "draft"
-	EventStatusPlanning  EventStatus = "planning"
 	EventStatusConfirmed EventStatus = "confirmed"
 	EventStatusCompleted EventStatus = "completed"
 	EventStatusCancelled EventStatus = "cancelled"
-	EventStatusArchived  EventStatus = "archived"
 )
+
+// Closed reports whether the event is completed or cancelled: details, programme and helpers are read-only then.
+func (s EventStatus) Closed() bool {
+	return s == EventStatusCompleted || s == EventStatusCancelled
+}
 
 // SessionStatus is whether an event session takes place.
 type SessionStatus string
@@ -26,25 +30,12 @@ const (
 	SessionStatusCancelled SessionStatus = "cancelled"
 )
 
-// TaskStatus is how far an event task has progressed.
+// TaskStatus is whether an event task is still to do.
 type TaskStatus string
 
 const (
-	TaskStatusOpen       TaskStatus = "open"
-	TaskStatusInProgress TaskStatus = "in_progress"
-	TaskStatusBlocked    TaskStatus = "blocked"
-	TaskStatusDone       TaskStatus = "done"
-	TaskStatusCancelled  TaskStatus = "cancelled"
-)
-
-// TaskPriority is how urgent an event task is.
-type TaskPriority string
-
-const (
-	TaskPriorityLow    TaskPriority = "low"
-	TaskPriorityNormal TaskPriority = "normal"
-	TaskPriorityHigh   TaskPriority = "high"
-	TaskPriorityUrgent TaskPriority = "urgent"
+	TaskStatusOpen TaskStatus = "open"
+	TaskStatusDone TaskStatus = "done"
 )
 
 // ShiftStatus is whether a staffing shift accepts signups.
@@ -74,6 +65,52 @@ const (
 	AvailabilityAuthenticatedOnly RequirementAvailability = "authenticated_only"
 	AvailabilityNotOpen           RequirementAvailability = "not_open"
 )
+
+// ReadinessCode names a requirement for confirming, publishing or opening helper signup that is not met yet.
+type ReadinessCode string
+
+const (
+	ReadinessEventClosed          ReadinessCode = "event_closed"
+	ReadinessEventNotConfirmed    ReadinessCode = "event_not_confirmed"
+	ReadinessOwnerMissing         ReadinessCode = "owner_missing"
+	ReadinessProgrammeMissing     ReadinessCode = "programme_missing"
+	ReadinessPublicTitleMissing   ReadinessCode = "public_title_missing"
+	ReadinessPublicContentMissing ReadinessCode = "public_content_missing"
+	ReadinessPublicPageOff        ReadinessCode = "public_page_off"
+	ReadinessSignupDisabled       ReadinessCode = "signup_disabled"
+	ReadinessNoPublicOpenShift    ReadinessCode = "no_public_open_shift"
+)
+
+// PublicPageState is whether the public event page is reachable.
+type PublicPageState string
+
+const (
+	PublicPageOff  PublicPageState = "off"
+	PublicPageLive PublicPageState = "live"
+)
+
+// HelperSignupState is whether the public accepts helper signups right now.
+type HelperSignupState string
+
+const (
+	HelperSignupOff     HelperSignupState = "off"
+	HelperSignupOpen    HelperSignupState = "open"
+	HelperSignupOpensAt HelperSignupState = "opens_at"
+	HelperSignupClosed  HelperSignupState = "closed"
+)
+
+// GoLive is the derived readiness of an event for the public page and helper signup.
+type GoLive struct {
+	PublicPageState   PublicPageState
+	PublicPageUnmet   []ReadinessCode
+	HelperSignupState HelperSignupState
+	HelperSignupOpens *time.Time
+	HelperSignupUnmet []ReadinessCode
+	ShiftsAccepting   int
+	ShiftsTotal       int
+	ShiftsNotPublic   int
+	ConfirmUnmet      []ReadinessCode
+}
 
 // AssignmentStatus is whether a signup still counts.
 type AssignmentStatus string
@@ -110,32 +147,35 @@ const (
 )
 
 type Event struct {
-	ID                  uuid.UUID
-	Name                string
-	InternalDescription *string
-	Location            *string
-	OwnerPersonID       *uuid.UUID
-	Status              EventStatus
-	PublicTitle         *string
-	PublicDescription   *string
-	PublicLocation      *string
-	PublicID            string
-	IsPublic            bool
-	PublicSignupEnabled bool
-	HasBanner           bool
-	ClosedAt            *time.Time
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	RangeStartsAt       *time.Time
-	RangeEndsAt         *time.Time
-	TaskTotal           int64
-	TaskCompleted       int64
-	FilledCount         int64
-	RequiredCount       int64
-	NextDeadline        *time.Time
-	NextScheduleAt      *time.Time
-	OwnerName           *string
+	ID                   uuid.UUID
+	Name                 string
+	InternalDescription  *string
+	Location             *string
+	OwnerPersonID        *uuid.UUID
+	Status               EventStatus
+	PublicTitle          *string
+	PublicDescription    *string
+	PublicLocation       *string
+	PublicID             string
+	IsPublic             bool
+	PublicSignupEnabled  bool
+	HasBanner            bool
+	ClosedAt             *time.Time
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	RangeStartsAt        *time.Time
+	RangeEndsAt          *time.Time
+	TaskTotal            int64
+	TaskCompleted        int64
+	TasksOverdue         int64
+	FilledCount          int64
+	RequiredCount        int64
+	HasAssignmentHistory bool
+	GoLive               GoLive
+	NextDeadline         *time.Time
+	NextScheduleAt       *time.Time
+	OwnerName            *string
 }
 
 type EventInput struct {
@@ -191,7 +231,7 @@ type Task struct {
 	Title                string
 	Description          *string
 	Status               TaskStatus
-	Priority             TaskPriority
+	Important            bool
 	AssigneePersonID     *uuid.UUID
 	DueAt, CompletedAt   *time.Time
 	CompletedByAccount   *uuid.UUID
@@ -205,11 +245,16 @@ type TaskInput struct {
 	Title            string
 	Description      *string
 	Status           TaskStatus
-	Priority         TaskPriority
+	Important        bool
 	AssigneePersonID *uuid.UUID
 	DueAt            *time.Time
 	SortOrder        int
 	ExpectedVersion  int64
+}
+
+// TaskFilter narrows a task list. A zero filter excludes done tasks; callers that want them set IncludeDone.
+type TaskFilter struct {
+	Mine, Overdue, IncludeDone bool
 }
 
 type Shift struct {

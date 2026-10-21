@@ -15,9 +15,7 @@ const shiftId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const requirementId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
 const eventId = '0192f6f8-743e-7c77-a349-cd07c3e8b010';
 
-function eventFixture(
-  status: 'draft' | 'planning' | 'confirmed' | 'completed' | 'cancelled' | 'archived' = 'planning',
-) {
+function eventFixture(status: 'draft' | 'confirmed' | 'completed' | 'cancelled' = 'confirmed') {
   return {
     id: eventId,
     name: 'Autumn exhibition',
@@ -53,7 +51,7 @@ const publicEvent = {
   title: 'Public exhibition',
   description: 'What visitors may see.',
   location: 'Main workshop',
-  status: 'planning',
+  status: 'confirmed',
   timeZone: 'Europe/Vienna',
   publicSignupEnabled: true,
   hasBanner: true,
@@ -136,7 +134,7 @@ describe('Event pages', () => {
               location: 'Main workshop',
               ownerPersonId: null,
               ownerName: null,
-              status: 'planning',
+              status: 'confirmed',
               publicTitle: null,
               publicDescription: null,
               publicLocation: null,
@@ -246,7 +244,7 @@ describe('Event pages', () => {
           ]),
         ),
       ),
-      http.get(`*/api/v1/events/${eventId}`, () => HttpResponse.json(eventFixture('planning'))),
+      http.get(`*/api/v1/events/${eventId}`, () => HttpResponse.json(eventFixture('confirmed'))),
       http.get('*/api/v1/event-people', () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/events/${eventId}/files`, () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/events/${eventId}/sessions`, () => HttpResponse.json({ items: [] })),
@@ -270,7 +268,7 @@ describe('Event pages', () => {
   });
 
   it('guards a selected banner and keeps the Settings draft across the banner version refresh', async () => {
-    let currentEvent = eventFixture('planning');
+    let currentEvent = eventFixture('confirmed');
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.eventsread, PermissionId.eventsmanage])),
@@ -334,7 +332,7 @@ describe('Event pages', () => {
           ]),
         ),
       ),
-      http.get(`*/api/v1/events/${eventId}`, () => HttpResponse.json(eventFixture('planning'))),
+      http.get(`*/api/v1/events/${eventId}`, () => HttpResponse.json(eventFixture('confirmed'))),
       http.get(`*/api/v1/events/${eventId}/sessions`, () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/events/${eventId}/shifts`, () =>
         HttpResponse.json({

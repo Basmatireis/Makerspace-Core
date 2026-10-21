@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EventGoLive } from './eventGoLive';
 import type { EventStatus } from './eventStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -73,10 +74,24 @@ export interface Event {
   taskTotal: number;
   /** @minimum 0 */
   taskCompleted: number;
-  /** @minimum 0 */
+  /**
+     * Open tasks whose due time has passed.
+     * @minimum 0
+     */
+  tasksOverdue: number;
+  /**
+     * Active assignments on positions of shifts that are not cancelled, capped per position at its required count.
+     * @minimum 0
+     */
   filledCount: number;
-  /** @minimum 0 */
+  /**
+     * Places required by positions of shifts that are not cancelled.
+     * @minimum 0
+     */
   requiredCount: number;
+  /** True once any assignment (also a cancelled one) exists; such an event cannot be deleted. */
+  hasAssignmentHistory: boolean;
+  goLive: EventGoLive;
   /** @nullable */
   nextDeadline?: string | null;
   /** @nullable */

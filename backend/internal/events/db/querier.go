@@ -37,7 +37,6 @@ type Querier interface {
 	EraseEventAssignmentPersonalData(ctx context.Context, id uuid.UUID) (EventShiftAssignment, error)
 	EventBannerExists(ctx context.Context, eventID uuid.UUID) (bool, error)
 	EventPublicationFacts(ctx context.Context, eventID uuid.UUID) (EventPublicationFactsRow, error)
-	EventTaskSummary(ctx context.Context, eventID uuid.UUID) (EventTaskSummaryRow, error)
 	FindContactEventShiftConflicts(ctx context.Context, arg FindContactEventShiftConflictsParams) ([]FindContactEventShiftConflictsRow, error)
 	FindEventPeople(ctx context.Context, arg FindEventPeopleParams) ([]FindEventPeopleRow, error)
 	FindEventPeopleByExactContact(ctx context.Context, arg FindEventPeopleByExactContactParams) ([]FindEventPeopleByExactContactRow, error)
@@ -75,12 +74,14 @@ type Querier interface {
 	ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]EventTask, error)
 	ListEvents(ctx context.Context) ([]ListEventsRow, error)
 	ListExpiredEventAssignmentsForUpdate(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredEventAssignmentsForUpdateRow, error)
-	// Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
-	// only for public events, otherwise empty.
+	// assignee_person_id narrows to one assignee, overdue_before to open tasks due before that time.
+	ListFilteredEventTasks(ctx context.Context, arg ListFilteredEventTasksParams) ([]EventTask, error)
+	// Active shift assignments of the person on shifts that have not ended, across confirmed and completed events (drafts
+	// are invisible to helpers, cancelled events do not take place). public_id is returned only for public events.
 	ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error)
 	ListOwnEventAssignments(ctx context.Context, arg ListOwnEventAssignmentsParams) ([]EventShiftAssignment, error)
 	// One row per event: its next public scheduled session. Only already publicly visible events
-	// (published, with a public title) that are still planned or confirmed; returns nothing internal.
+	// (published, with a public title) that are still draft or confirmed; returns nothing internal.
 	ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error)
 	LockEventRequirement(ctx context.Context, id uuid.UUID) (EventShiftRequirement, error)
 	LockPersonForEventAssignment(ctx context.Context, id uuid.UUID) (uuid.UUID, error)

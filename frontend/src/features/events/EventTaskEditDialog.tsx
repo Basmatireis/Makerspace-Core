@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   ComposedModal,
   InlineNotification,
   ModalBody,
@@ -27,7 +28,7 @@ type TaskValues = {
   title: string;
   description: string;
   status: EventTask['status'];
-  priority: EventTask['priority'];
+  important: boolean;
   assigneePersonId: string;
   dueAt: string;
 };
@@ -49,7 +50,7 @@ export function TaskEditDialog({
       title: task.title,
       description: task.description ?? '',
       status: task.status,
-      priority: task.priority,
+      important: task.important,
       assigneePersonId: task.assigneePersonId ?? '',
       dueAt: task.dueAt ? instantToZonedDateTimeValue(task.dueAt) : '',
     },
@@ -61,7 +62,7 @@ export function TaskEditDialog({
         title: value.title,
         description: value.description || null,
         status: value.status,
-        priority: value.priority,
+        important: value.important,
         assigneePersonId: value.assigneePersonId || null,
         dueAt: value.dueAt ? toISO(value.dueAt) : null,
         sortOrder: task.sortOrder,
@@ -138,21 +139,22 @@ export function TaskEditDialog({
               control={form.control}
               render={({ field }) => (
                 <Select {...field} id={`${formId}-status`} labelText="Status">
-                  {['open', 'in_progress', 'blocked', 'done', 'cancelled'].map((value) => (
+                  {['open', 'done'].map((value) => (
                     <SelectItem key={value} value={value} text={value.replace('_', ' ')} />
                   ))}
                 </Select>
               )}
             />
             <Controller
-              name="priority"
+              name="important"
               control={form.control}
               render={({ field }) => (
-                <Select {...field} id={`${formId}-priority`} labelText="Priority">
-                  {['low', 'normal', 'high', 'urgent'].map((value) => (
-                    <SelectItem key={value} value={value} text={value} />
-                  ))}
-                </Select>
+                <Checkbox
+                  id={`${formId}-important`}
+                  labelText="Important"
+                  checked={field.value}
+                  onChange={(_, { checked }) => field.onChange(checked)}
+                />
               )}
             />
             <Controller

@@ -24,10 +24,10 @@ func (s *Service) ListRequirements(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) ([]Requirement, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
-	}
 	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return nil, err
+	}
 	rows, err := q.ListEventRequirements(ctx, eventID)
 	if err != nil {
 		return nil, err
@@ -292,7 +292,11 @@ func (s *Service) ListAssignments(
 	if !canViewPII(principal) {
 		return nil, apperror.PermissionDenied
 	}
-	rows, err := eventsdb.New(s.pool).ListEventAssignments(ctx, eventID)
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return nil, err
+	}
+	rows, err := q.ListEventAssignments(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -625,9 +629,8 @@ func (s *Service) createAssignment(
 	if err != nil {
 		return Assignment{}, nil, err
 	}
-	status := EventStatus(event.Status)
-	if !publicFlow && (status == EventStatusArchived || status == EventStatusCompleted || status == EventStatusCancelled) {
-		return Assignment{}, nil, apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if !publicFlow && EventStatus(event.Status).Closed() {
+		return Assignment{}, nil, eventReadOnly()
 	}
 	shift, req, err := lockAssignmentTarget(ctx, q, eventID, input.ShiftID, input.RequirementID)
 	if err != nil {
@@ -842,25 +845,23 @@ func lockAssignmentTarget(
 	}
 	return shift, req, err
 }
+
+// isEffectivePublicSignup reports whether the public may sign up for the shift right now, capacity aside.
 func isEffectivePublicSignup(event eventsdb.Event, shift eventsdb.GetEventShiftRow) bool {
-	now := time.Now().UTC()
-	status := EventStatus(event.Status)
-	if !event.IsPublic || !event.PublicSignupEnabled || (status != EventStatusPlanning && status != EventStatusConfirmed) ||
-		!shift.IsPublic ||
-		ShiftStatus(shift.Status) != ShiftStatusOpen {
+	if !event.IsPublic || !event.PublicSignupEnabled || !shift.IsPublic {
 		return false
 	}
-	if shift.SessionStatus != nil && SessionStatus(*shift.SessionStatus) == SessionStatusCancelled {
-		return false
-	}
-	if shift.SignupOpensAt.Valid && now.Before(shift.SignupOpensAt.Time) {
-		return false
-	}
-	if shift.SignupClosesAt.Valid && !now.Before(shift.SignupClosesAt.Time) {
-		return false
-	}
-	return true
+	return shiftSignupBlock(
+		EventStatus(event.Status),
+		ShiftStatus(shift.Status),
+		shift.SessionStatus,
+		shift.EndsAt,
+		pgTime(shift.SignupOpensAt),
+		pgTime(shift.SignupClosesAt),
+		time.Now().UTC(),
+	) == signupAllowed
 }
+
 func validateRequirementInput(input RequirementInput) (RequirementInput, error) {
 	var err error
 	input.Name, err = cleanRequired(input.Name, "name", 200)

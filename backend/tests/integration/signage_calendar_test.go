@@ -105,7 +105,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Events: seven public ones (planning), one unpublished, one past; each with its own session.
+	// Events: seven public ones (confirmed), one unpublished, one past; each with its own session.
 	owner := admin.PersonID
 	makeEvent := func(name, title string, hoursFromNow int, publish bool) {
 		t.Helper()
@@ -124,7 +124,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		planning, err := eventService.Transition(ctx, admin, event.ID, event.Version, "planning", nil)
+		planning, err := eventService.Transition(ctx, admin, event.ID, event.Version, "confirmed", nil)
 		if err != nil {
 			t.Fatal(err)
 		}

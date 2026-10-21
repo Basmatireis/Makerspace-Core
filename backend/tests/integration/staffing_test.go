@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,7 +49,12 @@ func newStaffingEnv(t *testing.T) *staffingEnv {
 	t.Helper()
 	pool := migratedPool(t)
 	account := seedAccount(t, pool, "staffing-master", true)
-	cfg := config.Config{MakerspaceTimeZone: "Europe/Vienna"}
+	baseURL, _ := url.Parse("https://makerspace.example.test")
+	cfg := config.Config{
+		MakerspaceTimeZone: "Europe/Vienna",
+		PublicBaseURL:      baseURL,
+		ChallengeHMACKey:   []byte("staffing-limiter-key"),
+	}
 	staffingService, err := staffing.NewService(pool, cfg)
 	if err != nil {
 		t.Fatal(err)

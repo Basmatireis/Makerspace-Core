@@ -19,12 +19,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type EventTaskPriority = typeof EventTaskPriority[keyof typeof EventTaskPriority];
-
-
-export const EventTaskPriority = {
-  low: 'low',
-  normal: 'normal',
-  high: 'high',
-  urgent: 'urgent',
-} as const;
+export type ListEventTasksParams = {
+/**
+ * Only tasks assigned to the caller's Person.
+ */
+mine?: boolean;
+/**
+ * Only open tasks whose due time has passed.
+ */
+overdue?: boolean;
+/**
+ * Include done tasks.
+ */
+includeDone?: boolean;
+};

@@ -49,7 +49,7 @@ export const eventTaskListsQueryOptions = (id: string) =>
 export const eventTasksQueryOptions = (id: string) =>
   queryOptions({
     queryKey: eventKeys.tasks(id),
-    queryFn: ({ signal }) => listEventTasks(id, { signal }),
+    queryFn: ({ signal }) => listEventTasks(id, undefined, { signal }),
     enabled: Boolean(id),
   });
 export const eventShiftsQueryOptions = (id: string) =>

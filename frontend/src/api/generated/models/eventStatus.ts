@@ -19,14 +19,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Lifecycle of an Event. `draft` is being planned and visible only to organizers (`events.manage`,
+ * `events.staffing.manage`, `events.assign`); `confirmed` is visible to everyone with `events.read` and is the
+ * only status that accepts helper signups; `completed` and `cancelled` are closed: details, programme and helpers
+ * are read-only while tasks and files stay editable.
+ */
 export type EventStatus = typeof EventStatus[keyof typeof EventStatus];
 
 
 export const EventStatus = {
   draft: 'draft',
-  planning: 'planning',
   confirmed: 'confirmed',
   completed: 'completed',
   cancelled: 'cancelled',
-  archived: 'archived',
 } as const;

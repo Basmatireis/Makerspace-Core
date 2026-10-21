@@ -46,6 +46,7 @@ import type {
   EventTaskListList,
   LinkEventAssignmentPersonRequest,
   ListEventPeopleParams,
+  ListEventTasksParams,
   MoveEventAssignmentRequest,
   UpdateEventFileRequest,
   UpdateEventRequest,
@@ -121,6 +122,9 @@ export const getGetEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}`
 }
 
+/**
+ * Event with derived counts and `goLive` readiness. Drafts are visible only with `events.manage`, `events.staffing.manage` or `events.assign`; otherwise they answer 404.
+ */
 export const getEvent = async (eventId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
   return apiFetch<Event>(getGetEventUrl(eventId),
@@ -176,6 +180,9 @@ export const getDeleteEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}`
 }
 
+/**
+ * Deletes a draft without any assignment history (409 `event_not_deletable` / `event_has_assignment_history`). Requires `events.manage`.
+ */
 export const deleteEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
@@ -203,41 +210,6 @@ return apiFetch<void>(getDeleteEventUrl(eventId),
 );}
 
 
-export const getStartEventPlanningUrl = (eventId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/start-planning`
-}
-
-export const startEventPlanning = async (eventId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Event>(getStartEventPlanningUrl(eventId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
-
 export const getReturnEventToDraftUrl = (eventId: string,) => {
 
 
@@ -246,6 +218,9 @@ export const getReturnEventToDraftUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/return-to-draft`
 }
 
+/**
+ * confirmed → draft. Helper signup stops until the event is confirmed again. Requires `events.manage`.
+ */
 export const returnEventToDraft = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -281,6 +256,9 @@ export const getConfirmEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/confirm`
 }
 
+/**
+ * draft → confirmed. Needs an owner and at least one scheduled session or shift that is not cancelled (422 otherwise). Requires `events.manage`.
+ */
 export const confirmEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -308,41 +286,6 @@ return apiFetch<Event>(getConfirmEventUrl(eventId),
 );}
 
 
-export const getReturnEventToPlanningUrl = (eventId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/return-to-planning`
-}
-
-export const returnEventToPlanning = async (eventId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Event>(getReturnEventToPlanningUrl(eventId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
-
 export const getCompleteEventUrl = (eventId: string,) => {
 
 
@@ -351,6 +294,9 @@ export const getCompleteEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/complete`
 }
 
+/**
+ * confirmed → completed. Sets `closedAt`; the public page stays live until unpublished. Requires `events.manage`.
+ */
 export const completeEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -386,6 +332,9 @@ export const getCancelEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/cancel`
 }
 
+/**
+ * draft or confirmed → cancelled. Sets `closedAt`. Requires `events.manage`.
+ */
 export const cancelEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -413,41 +362,6 @@ return apiFetch<Event>(getCancelEventUrl(eventId),
 );}
 
 
-export const getArchiveEventUrl = (eventId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/archive`
-}
-
-export const archiveEvent = async (eventId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Event>(getArchiveEventUrl(eventId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
-
 export const getPublishEventUrl = (eventId: string,) => {
 
 
@@ -456,6 +370,9 @@ export const getPublishEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/publish`
 }
 
+/**
+ * Turns the public page on. Allowed for draft and confirmed events with an owner, a public title and at least one public scheduled session or public shift that is not cancelled (422 otherwise). Requires `events.manage`.
+ */
 export const publishEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -491,6 +408,9 @@ export const getUnpublishEventUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/unpublish`
 }
 
+/**
+ * Turns the public page off; allowed in every status. Requires `events.manage`.
+ */
 export const unpublishEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Event> => {
 
@@ -811,17 +731,26 @@ return apiFetch<void>(getDeleteEventTaskListUrl(eventId,eventTaskListId),
 );}
 
 
-export const getListEventTasksUrl = (eventId: string,) => {
+export const getListEventTasksUrl = (eventId: string,
+    params?: ListEventTasksParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/events/${eventId}/tasks`
+  return stringifiedParams.length > 0 ? `/api/v1/events/${eventId}/tasks?${stringifiedParams}` : `/api/v1/events/${eventId}/tasks`
 }
 
-export const listEventTasks = async (eventId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventTaskCollection> => {
+export const listEventTasks = async (eventId: string,
+    params?: ListEventTasksParams, options?: Parameters<typeof apiFetch>[1]): Promise<EventTaskCollection> => {
 
-  return apiFetch<EventTaskCollection>(getListEventTasksUrl(eventId),
+  return apiFetch<EventTaskCollection>(getListEventTasksUrl(eventId,params),
   {
     ...options,
     method: 'GET'

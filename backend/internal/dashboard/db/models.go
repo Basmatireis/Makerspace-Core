@@ -256,7 +256,6 @@ type EventTask struct {
 	Title                string
 	Description          *string
 	Status               string
-	Priority             string
 	AssigneePersonID     *uuid.UUID
 	DueAt                pgtype.Timestamptz
 	CompletedAt          pgtype.Timestamptz
@@ -266,6 +265,7 @@ type EventTask struct {
 	Version              int32
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	Important            bool
 }
 
 type EventTaskList struct {

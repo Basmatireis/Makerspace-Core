@@ -16,7 +16,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  archiveEvent,
   cancelEvent,
   completeEvent,
   confirmEvent,
@@ -26,9 +25,7 @@ import {
   publishEvent,
   removeEventFile,
   returnEventToDraft,
-  returnEventToPlanning,
   rotateEventPublicId,
-  startEventPlanning,
   unpublishEvent,
   updateEvent,
 } from '../../api/generated/events/events';
@@ -230,20 +227,14 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
     mutationFn: async (name: string) => {
       const request = { expectedVersion: event.version };
       switch (name) {
-        case 'start':
-          return startEventPlanning(event.id, request);
         case 'draft':
           return returnEventToDraft(event.id, request);
         case 'confirm':
           return confirmEvent(event.id, request);
-        case 'planning':
-          return returnEventToPlanning(event.id, request);
         case 'complete':
           return completeEvent(event.id, request);
         case 'cancel':
           return cancelEvent(event.id, request);
-        case 'archive':
-          return archiveEvent(event.id, request);
         case 'publish':
           return publishEvent(event.id, request);
         case 'unpublish':
@@ -274,23 +265,19 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
         You can view this event, but settings require <code>events.manage</code>.
       </p>
     );
-  const archived = event.status === 'archived';
-  const metadataReadOnly = archived || event.status === 'completed' || event.status === 'cancelled';
+  const metadataReadOnly = event.status === 'completed' || event.status === 'cancelled';
   const lifecycle: Record<string, Array<[string, string]>> = {
-    draft: [['start', 'Start planning']],
-    planning: [
-      ['draft', 'Return to draft'],
+    draft: [
       ['confirm', 'Confirm'],
       ['cancel', 'Cancel'],
     ],
     confirmed: [
-      ['planning', 'Return to planning'],
+      ['draft', 'Return to draft'],
       ['complete', 'Complete'],
       ['cancel', 'Cancel'],
     ],
-    completed: [['archive', 'Archive']],
-    cancelled: [['archive', 'Archive']],
-    archived: [],
+    completed: [],
+    cancelled: [],
   };
   const publicUrl = `${window.location.origin}/events/public/${event.publicId}`;
   const versionChanged = formDirty && value.expectedVersion !== event.version;
@@ -387,7 +374,7 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
               </div>
               <EventBannerEditor
                 event={event}
-                disabled={archived}
+                disabled={false}
                 discardVersion={bannerDiscardVersion}
                 guardDialogOpen={guard.dialogOpen}
                 onDirtyChange={setBannerDirty}
@@ -450,7 +437,9 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
               </div>
               <Tag type={statusTagType(event.status)}>{event.status}</Tag>
             </div>
-            <p>Lifecycle changes control editing and signup effectiveness. Archived events are read-only.</p>
+            <p>
+              Lifecycle changes control editing and signup effectiveness. Helper signup opens only for confirmed events.
+            </p>
             <div className="button-cluster">
               {lifecycle[event.status].map(([name, label]) => (
                 <Button
@@ -458,9 +447,7 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
                   kind={name === 'cancel' ? 'danger--tertiary' : 'secondary'}
                   disabled={action.isPending || guard.dialogOpen}
                   onClick={() =>
-                    guard.requestDiscard(() =>
-                      name === 'cancel' || name === 'archive' ? setConfirmAction(name) : action.mutate(name),
-                    )
+                    guard.requestDiscard(() => (name === 'cancel' ? setConfirmAction(name) : action.mutate(name)))
                   }
                 >
                   {label}
@@ -491,7 +478,7 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
             </div>
             <div className="button-cluster">
               <Button
-                disabled={archived || (!event.isPublic && metadataReadOnly) || action.isPending || guard.dialogOpen}
+                disabled={(!event.isPublic && metadataReadOnly) || action.isPending || guard.dialogOpen}
                 onClick={() => guard.requestDiscard(() => action.mutate(event.isPublic ? 'unpublish' : 'publish'))}
               >
                 {event.isPublic ? 'Unpublish' : 'Publish'}
@@ -513,16 +500,8 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
       <UnsavedChangesDialog guard={guard} />
       <DestructiveActionDialog
         open={Boolean(confirmAction) && !guard.dialogOpen}
-        title={
-          confirmAction === 'cancel'
-            ? `Cancel ${event.name}?`
-            : confirmAction === 'archive'
-              ? `Archive ${event.name}?`
-              : 'Rotate public link?'
-        }
-        confirmLabel={
-          confirmAction === 'cancel' ? 'Cancel event' : confirmAction === 'archive' ? 'Archive event' : 'Rotate link'
-        }
+        title={confirmAction === 'cancel' ? `Cancel ${event.name}?` : 'Rotate public link?'}
+        confirmLabel={confirmAction === 'cancel' ? 'Cancel event' : 'Rotate link'}
         pending={action.isPending}
         error={action.isError ? String(action.error) : undefined}
         onClose={() => setConfirmAction(null)}
@@ -533,9 +512,7 @@ export function EventSettingsPanel({ event, canManage }: { event: Event; canMana
         <p>
           {confirmAction === 'cancel'
             ? 'The schedule and staffing become read-only, and active signup availability ends.'
-            : confirmAction === 'archive'
-              ? 'The event becomes fully read-only.'
-              : 'The current public link will stop working. Share the new private link with intended visitors.'}
+            : 'The current public link will stop working. Share the new private link with intended visitors.'}
         </p>
       </DestructiveActionDialog>
     </Stack>

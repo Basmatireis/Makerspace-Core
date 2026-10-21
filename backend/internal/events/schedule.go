@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -21,12 +20,7 @@ func (s *Service) ListSessions(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) ([]Session, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
-	}
-	if _, err := eventsdb.New(s.pool).GetEvent(ctx, eventID); errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperror.NotFound
-	} else if err != nil {
+	if _, err := visibleEvent(ctx, eventsdb.New(s.pool), principal, eventID); err != nil {
 		return nil, err
 	}
 	rows, err := eventsdb.New(s.pool).ListEventSessions(ctx, eventID)
@@ -238,12 +232,7 @@ func (s *Service) ListShifts(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) ([]Shift, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
-	}
-	if _, err := eventsdb.New(s.pool).GetEvent(ctx, eventID); errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperror.NotFound
-	} else if err != nil {
+	if _, err := visibleEvent(ctx, eventsdb.New(s.pool), principal, eventID); err != nil {
 		return nil, err
 	}
 	rows, err := eventsdb.New(s.pool).ListEventShifts(ctx, eventID)
@@ -563,9 +552,8 @@ func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid
 	if err != nil {
 		return err
 	}
-	status := EventStatus(row.Status)
-	if status == EventStatusArchived || (!postEventWork && (status == EventStatusCompleted || status == EventStatusCancelled)) {
-		return apperror.New(http.StatusConflict, "event_read_only", "Event is read-only")
+	if !postEventWork && EventStatus(row.Status).Closed() {
+		return eventReadOnly()
 	}
 	return nil
 }

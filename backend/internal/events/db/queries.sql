@@ -29,13 +29,12 @@ SET name = sqlc.arg(name), internal_description = sqlc.narg(internal_description
     public_title = sqlc.narg(public_title), public_description = sqlc.narg(public_description),
     public_location = sqlc.narg(public_location), public_signup_enabled = sqlc.arg(public_signup_enabled),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status NOT IN ('completed', 'cancelled', 'archived')
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status NOT IN ('completed', 'cancelled')
 RETURNING *;
 
 -- name: TransitionEvent :one
 UPDATE events
 SET status = sqlc.arg(status), closed_at = sqlc.narg(closed_at),
-    is_public = CASE WHEN sqlc.arg(status)::text = 'archived' THEN false ELSE is_public END,
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
@@ -49,7 +48,7 @@ RETURNING *;
 
 -- name: RotateEventPublicID :one
 UPDATE events SET public_id = sqlc.arg(public_id), version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status NOT IN ('completed', 'cancelled', 'archived')
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status NOT IN ('completed', 'cancelled')
 RETURNING *;
 
 -- name: CountEventAssignmentHistory :one
@@ -121,16 +120,26 @@ RETURNING id;
 
 -- name: CreateEventTask :one
 INSERT INTO event_tasks (
-    id, event_id, task_list_id, title, description, status, priority, assignee_person_id,
+    id, event_id, task_list_id, title, description, status, important, assignee_person_id,
     due_at, completed_at, completed_by_account_id, sort_order, created_by_account_id
 ) VALUES (
     sqlc.arg(id), sqlc.arg(event_id), sqlc.narg(task_list_id), sqlc.arg(title), sqlc.narg(description),
-    sqlc.arg(status), sqlc.arg(priority), sqlc.narg(assignee_person_id), sqlc.narg(due_at),
+    sqlc.arg(status), sqlc.arg(important), sqlc.narg(assignee_person_id), sqlc.narg(due_at),
     sqlc.narg(completed_at), sqlc.narg(completed_by_account_id), sqlc.arg(sort_order), sqlc.narg(created_by_account_id)
 ) RETURNING *;
 
 -- name: ListEventTasks :many
 SELECT * FROM event_tasks WHERE event_id = sqlc.arg(event_id) ORDER BY task_list_id NULLS FIRST, sort_order, id;
+
+-- name: ListFilteredEventTasks :many
+-- assignee_person_id narrows to one assignee, overdue_before to open tasks due before that time.
+SELECT * FROM event_tasks
+WHERE event_id = sqlc.arg(event_id)
+  AND (sqlc.narg(assignee_person_id)::uuid IS NULL OR assignee_person_id = sqlc.narg(assignee_person_id)::uuid)
+  AND (sqlc.arg(include_done)::boolean OR status <> 'done')
+  AND (sqlc.narg(overdue_before)::timestamptz IS NULL
+       OR (status = 'open' AND due_at < sqlc.narg(overdue_before)::timestamptz))
+ORDER BY task_list_id NULLS FIRST, sort_order, id;
 
 -- name: GetEventTask :one
 SELECT * FROM event_tasks WHERE id = sqlc.arg(id) AND event_id = sqlc.arg(event_id);
@@ -138,7 +147,7 @@ SELECT * FROM event_tasks WHERE id = sqlc.arg(id) AND event_id = sqlc.arg(event_
 -- name: UpdateEventTask :one
 UPDATE event_tasks
 SET task_list_id = sqlc.narg(task_list_id), title = sqlc.arg(title), description = sqlc.narg(description),
-    status = sqlc.arg(status), priority = sqlc.arg(priority), assignee_person_id = sqlc.narg(assignee_person_id),
+    status = sqlc.arg(status), important = sqlc.arg(important), assignee_person_id = sqlc.narg(assignee_person_id),
     due_at = sqlc.narg(due_at), completed_at = sqlc.narg(completed_at),
     completed_by_account_id = sqlc.narg(completed_by_account_id), sort_order = sqlc.arg(sort_order),
     version = version + 1, updated_at = now()
@@ -149,11 +158,6 @@ RETURNING *;
 DELETE FROM event_tasks
 WHERE id = sqlc.arg(id) AND event_id = sqlc.arg(event_id) AND version = sqlc.arg(expected_version)
 RETURNING id;
-
--- name: EventTaskSummary :one
-SELECT count(*)::bigint AS total,
-       count(*) FILTER (WHERE status = 'done')::bigint AS completed
-FROM event_tasks WHERE event_id = sqlc.arg(event_id);
 
 -- name: CreateEventShift :one
 INSERT INTO event_shifts (
@@ -471,12 +475,12 @@ RETURNING *;
 
 -- name: ListUpcomingPublicEventSessions :many
 -- One row per event: its next public scheduled session. Only already publicly visible events
--- (published, with a public title) that are still planned or confirmed; returns nothing internal.
+-- (published, with a public title) that are still draft or confirmed; returns nothing internal.
 SELECT title, starts_at, location FROM (
     SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
            COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
     FROM events e JOIN event_sessions es ON es.event_id = e.id
-    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('planning', 'confirmed')
+    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed')
       AND es.is_public AND es.status = 'scheduled' AND es.ends_at > sqlc.arg(now)::timestamptz
     ORDER BY e.id, es.starts_at
 ) upcoming
@@ -484,14 +488,14 @@ ORDER BY starts_at, title
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListOwnComingUpShifts :many
--- Active shift assignments of the person on shifts that have not ended, across all events. public_id is returned
--- only for public events, otherwise empty.
+-- Active shift assignments of the person on shifts that have not ended, across confirmed and completed events (drafts
+-- are invisible to helpers, cancelled events do not take place). public_id is returned only for public events.
 SELECT a.id AS assignment_id, e.id AS event_id,
        COALESCE(CASE WHEN e.is_public THEN e.public_id END, '')::text AS public_id,
        COALESCE(e.public_title, e.name)::text AS event_title, s.name AS shift_name, s.starts_at, s.ends_at
 FROM event_shift_assignments a
 JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
-JOIN events e ON e.id = a.event_id AND e.status NOT IN ('cancelled', 'archived')
+JOIN events e ON e.id = a.event_id AND e.status IN ('confirmed', 'completed')
 WHERE a.person_id = sqlc.arg(person_id) AND a.status = 'active' AND s.ends_at > sqlc.arg(now)
 ORDER BY s.starts_at, a.id;
 

@@ -38,10 +38,11 @@ func (s *Service) ListFiles(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) ([]EventFile, error) {
-	if !canRead(principal) {
-		return nil, apperror.PermissionDenied
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return nil, err
 	}
-	rows, err := eventsdb.New(s.pool).ListEventFiles(ctx, eventID)
+	rows, err := q.ListEventFiles(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -408,10 +409,11 @@ func (s *Service) OpenFile(
 	principal authorization.Principal,
 	eventID, id uuid.UUID,
 ) (EventFile, files.File, io.ReadCloser, error) {
-	if !canRead(principal) {
-		return EventFile{}, files.File{}, nil, apperror.PermissionDenied
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return EventFile{}, files.File{}, nil, err
 	}
-	row, err := eventsdb.New(s.pool).GetEventFile(ctx, eventsdb.GetEventFileParams{ID: id, EventID: eventID})
+	row, err := q.GetEventFile(ctx, eventsdb.GetEventFileParams{ID: id, EventID: eventID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EventFile{}, files.File{}, nil, apperror.NotFound
 	}
@@ -470,10 +472,11 @@ func (s *Service) OpenBanner(
 	principal authorization.Principal,
 	eventID uuid.UUID,
 ) (files.File, io.ReadCloser, error) {
-	if !canRead(principal) {
-		return files.File{}, nil, apperror.PermissionDenied
+	q := eventsdb.New(s.pool)
+	if _, err := visibleEvent(ctx, q, principal, eventID); err != nil {
+		return files.File{}, nil, err
 	}
-	row, err := eventsdb.New(s.pool).GetEventBanner(ctx, eventID)
+	row, err := q.GetEventBanner(ctx, eventID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return files.File{}, nil, apperror.NotFound
 	}
