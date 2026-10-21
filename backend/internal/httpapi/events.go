@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 )
 
 func (s *Server) ListEvents(
@@ -66,6 +67,7 @@ func (s *Server) CreateEvent(
 			InternalDescription: nullableStringPointer(r.Body.InternalDescription),
 			Location:            nullableStringPointer(r.Body.Location),
 			OwnerPersonID:       nullableUUID(r.Body.OwnerPersonId),
+			FirstSession:        eventFirstSessionInput(r.Body.FirstSession),
 		},
 		requestIDPointer(ctx),
 	)
@@ -323,4 +325,18 @@ func eventGoLiveDTO(v events.GoLive) openapi.EventGoLive {
 	result.Shifts.Total = v.ShiftsTotal
 	result.Shifts.NotPublic = v.ShiftsNotPublic
 	return result
+}
+
+func eventFirstSessionInput(value nullable.Nullable[openapi.EventFirstSessionInput]) *events.SessionInput {
+	if !value.IsSpecified() || value.IsNull() {
+		return nil
+	}
+	session := value.MustGet()
+	return &events.SessionInput{
+		Name:     nullableStringPointer(session.Name),
+		Location: nullableStringPointer(session.Location),
+		StartsAt: session.StartsAt,
+		EndsAt:   session.EndsAt,
+		IsPublic: session.IsPublic != nil && *session.IsPublic,
+	}
 }

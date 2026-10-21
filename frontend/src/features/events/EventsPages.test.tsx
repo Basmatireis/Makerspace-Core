@@ -359,7 +359,6 @@ describe('Event pages', () => {
       ),
       http.get(`*/api/v1/events/${eventId}/task-lists`, () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/events/${eventId}/tasks`, () => HttpResponse.json({ items: [] })),
-      http.get(`*/api/v1/events/${eventId}/shifts/${shiftId}/requirements`, () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/events/${eventId}/assignments`, () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/event-eligibility-roles', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/event-people', () => HttpResponse.json({ items: [] })),

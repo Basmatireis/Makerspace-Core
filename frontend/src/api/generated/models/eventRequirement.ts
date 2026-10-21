@@ -18,17 +18,34 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { EventRequirementInput } from './eventRequirementInput';
+import type { EventEligibilityMode } from './eventEligibilityMode';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
-export type EventRequirement = EventRequirementInput & {
+/**
+ * A position of a shift. `eligibleRoleIds` is empty for callers without staffing permissions.
+ */
+export interface EventRequirement {
   id: UUIDv7;
   eventId: UUIDv7;
   shiftId: UUIDv7;
+  /** @maxLength 200 */
+  name: string;
+  /**
+     * @maxLength 10000
+     * @nullable
+     */
+  description?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 1000
+     */
+  requiredCount: number;
   /** @minimum 0 */
   filledCount: number;
+  eligibilityMode: EventEligibilityMode;
+  eligibleRoleIds: UUIDv7[];
   version: Version;
   createdAt: string;
   updatedAt: string;
-};
+}

@@ -16,8 +16,8 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { updateEventShiftRequirement } from '../../api/generated/events/events';
-import type { EventRequirement, EventRole, UpdateEventRequirementRequest } from '../../api/generated/models';
+import type { EventRequirement, EventRole } from '../../api/generated/models';
+import { saveShiftPositions } from './positions';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { eventMutationMessage } from './errors';
 import { DialogProps } from './eventDialogProps';
@@ -53,14 +53,20 @@ export function RequirementEditDialog({
   const selectedRoles = form.watch('eligibleRoleIds');
   const mutation = useMutation({
     mutationFn: (value: RequirementValues) =>
-      updateEventShiftRequirement(eventId, requirement.shiftId, requirement.id, {
-        name: value.name,
-        description: value.description || null,
-        requiredCount: value.requiredCount,
-        eligibilityMode: value.eligibilityMode,
-        eligibleRoleIds: value.eligibilityMode === 'roles' ? value.eligibleRoleIds : [],
-        expectedVersion: requirement.version,
-      } satisfies UpdateEventRequirementRequest),
+      saveShiftPositions(eventId, requirement.shiftId, (positions) =>
+        positions.map((position) =>
+          position.id === requirement.id
+            ? {
+                id: requirement.id,
+                name: value.name,
+                description: value.description || null,
+                requiredCount: value.requiredCount,
+                eligibilityMode: value.eligibilityMode,
+                eligibleRoleIds: value.eligibilityMode === 'roles' ? value.eligibleRoleIds : [],
+              }
+            : position,
+        ),
+      ),
     onSuccess: onSaved,
   });
   useEffect(() => {

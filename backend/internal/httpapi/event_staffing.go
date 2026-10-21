@@ -67,6 +67,7 @@ func (s *Server) UpdateEventShift(
 		SignupClosesAt:  nullableTime(r.Body.SignupClosesAt),
 		IsPublic:        r.Body.IsPublic,
 		Status:          events.ShiftStatus(r.Body.Status),
+		Requirements:    eventPositionInputs(r.Body.Requirements),
 		ExpectedVersion: r.Body.ExpectedVersion,
 	}
 	item, err := s.events.UpdateShift(ctx, p, r.EventId, r.EventShiftId, input, requestIDPointer(ctx))
@@ -100,110 +101,81 @@ func (s *Server) DeleteEventShift(
 	return openapi.DeleteEventShift204Response{}, nil
 }
 
-func (s *Server) ListEventShiftRequirements(
+func (s *Server) DuplicateEventShift(
 	ctx context.Context,
-	r openapi.ListEventShiftRequirementsRequestObject,
-) (openapi.ListEventShiftRequirementsResponseObject, error) {
+	r openapi.DuplicateEventShiftRequestObject,
+) (openapi.DuplicateEventShiftResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.events.ListRequirements(ctx, p, r.EventId)
+	item, err := s.events.DuplicateShift(ctx, p, r.EventId, r.EventShiftId, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
-	result := []openapi.EventRequirement{}
-	for _, item := range items {
-		if item.ShiftID == r.EventShiftId {
-			result = append(result, eventRequirementDTO(item))
+	return openapi.DuplicateEventShift201JSONResponse(eventShiftDTO(item)), nil
+}
+
+func (s *Server) GetEventHelpers(
+	ctx context.Context,
+	r openapi.GetEventHelpersRequestObject,
+) (openapi.GetEventHelpersResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.events.Helpers(ctx, p, r.EventId)
+	if err != nil {
+		return nil, err
+	}
+	result := openapi.EventHelpers{
+		RequiredCount:           item.RequiredCount,
+		FilledCount:             item.FilledCount,
+		OpenPlaces:              item.OpenPlaces,
+		Helpers:                 make([]openapi.EventHelper, 0, len(item.Helpers)),
+		UnlinkedSignups:         make([]openapi.EventUnlinkedSignup, 0, len(item.UnlinkedSignups)),
+		OverriddenAssignmentIds: item.OverriddenAssignmentIDs,
+	}
+	text := func(x string) string { return x }
+	for _, helper := range item.Helpers {
+		dto := openapi.EventHelper{
+			Key:                helper.Key,
+			PersonId:           nullablePointer[openapi.UUIDv7](helper.PersonID, func(x uuid.UUID) openapi.UUIDv7 { return x }),
+			DisplayName:        nullablePointer[string](helper.DisplayName, text),
+			Email:              nullablePointer[string](helper.Email, text),
+			Phone:              nullablePointer[string](helper.Phone, text),
+			Sources:            make([]openapi.EventAssignmentSource, 0, len(helper.Sources)),
+			ConflictOverridden: helper.ConflictOverridden,
+			Shifts:             make([]openapi.EventHelperShift, 0, len(helper.Shifts)),
 		}
+		for _, source := range helper.Sources {
+			dto.Sources = append(dto.Sources, openapi.EventAssignmentSource(source))
+		}
+		for _, shift := range helper.Shifts {
+			dto.Shifts = append(dto.Shifts, openapi.EventHelperShift{
+				AssignmentId:       shift.AssignmentID,
+				ShiftId:            shift.ShiftID,
+				RequirementId:      shift.RequirementID,
+				ShiftName:          shift.ShiftName,
+				RequirementName:    shift.RequirementName,
+				StartsAt:           shift.StartsAt,
+				EndsAt:             shift.EndsAt,
+				Source:             openapi.EventAssignmentSource(shift.Source),
+				ConflictOverridden: shift.ConflictOverridden,
+				Version:            shift.Version,
+			})
+		}
+		result.Helpers = append(result.Helpers, dto)
 	}
-	return openapi.ListEventShiftRequirements200JSONResponse{Items: result}, nil
-}
-
-func (s *Server) CreateEventShiftRequirement(
-	ctx context.Context,
-	r openapi.CreateEventShiftRequirementRequestObject,
-) (openapi.CreateEventShiftRequirementResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
+	for _, unlinked := range item.UnlinkedSignups {
+		result.UnlinkedSignups = append(result.UnlinkedSignups, openapi.EventUnlinkedSignup{
+			AssignmentId: unlinked.AssignmentID,
+			Version:      unlinked.Version,
+			DisplayName:  nullablePointer[string](unlinked.DisplayName, text),
+			Suggestions:  eventPersonDTOs(unlinked.Suggestions),
+		})
 	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.events.CreateRequirement(
-		ctx,
-		p,
-		r.EventId,
-		r.EventShiftId,
-		eventRequirementInput(*r.Body, 0),
-		requestIDPointer(ctx),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.CreateEventShiftRequirement201JSONResponse(eventRequirementDTO(item)), nil
-}
-
-func (s *Server) UpdateEventShiftRequirement(
-	ctx context.Context,
-	r openapi.UpdateEventShiftRequirementRequestObject,
-) (openapi.UpdateEventShiftRequirementResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	roles := make([]uuid.UUID, len(r.Body.EligibleRoleIds))
-	copy(roles, r.Body.EligibleRoleIds)
-	item, err := s.events.UpdateRequirement(
-		ctx,
-		p,
-		r.EventId,
-		r.EventShiftId,
-		r.EventRequirementId,
-		events.RequirementInput{
-			Name:            r.Body.Name,
-			Description:     nullableStringPointer(r.Body.Description),
-			RequiredCount:   r.Body.RequiredCount,
-			EligibilityMode: events.EligibilityMode(r.Body.EligibilityMode),
-			EligibleRoleIDs: roles,
-			ExpectedVersion: r.Body.ExpectedVersion,
-		},
-		requestIDPointer(ctx),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.UpdateEventShiftRequirement200JSONResponse(eventRequirementDTO(item)), nil
-}
-
-func (s *Server) DeleteEventShiftRequirement(
-	ctx context.Context,
-	r openapi.DeleteEventShiftRequirementRequestObject,
-) (openapi.DeleteEventShiftRequirementResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	if err = s.events.DeleteRequirement(
-		ctx,
-		p,
-		r.EventId,
-		r.EventShiftId,
-		r.EventRequirementId,
-		r.Body.ExpectedVersion,
-		requestIDPointer(ctx),
-	); err != nil {
-		return nil, err
-	}
-	return openapi.DeleteEventShiftRequirement204Response{}, nil
+	return openapi.GetEventHelpers200JSONResponse(result), nil
 }
 
 func (s *Server) ListEventAssignments(
@@ -385,6 +357,7 @@ func eventShiftInput(v openapi.EventShiftInput, version int64) events.ShiftInput
 		SignupClosesAt:  nullableTime(v.SignupClosesAt),
 		IsPublic:        v.IsPublic,
 		Status:          events.ShiftStatus(v.Status),
+		Requirements:    eventPositionInputs(v.Requirements),
 		ExpectedVersion: version,
 	}
 }
@@ -408,22 +381,34 @@ func eventShiftDTO(v events.Shift) openapi.EventShift {
 			v.LinkedSessionStatus,
 			func(x events.SessionStatus) openapi.EventSessionStatus { return openapi.EventSessionStatus(x) },
 		),
-		Version:   v.Version,
-		CreatedAt: v.CreatedAt,
-		UpdatedAt: v.UpdatedAt,
+		Requirements: eventRequirementDTOs(v.Requirements),
+		Version:      v.Version,
+		CreatedAt:    v.CreatedAt,
+		UpdatedAt:    v.UpdatedAt,
 	}
 }
-func eventRequirementInput(v openapi.EventRequirementInput, version int64) events.RequirementInput {
-	roles := make([]uuid.UUID, len(v.EligibleRoleIds))
-	copy(roles, v.EligibleRoleIds)
-	return events.RequirementInput{
-		Name:            v.Name,
-		Description:     nullableStringPointer(v.Description),
-		RequiredCount:   v.RequiredCount,
-		EligibilityMode: events.EligibilityMode(v.EligibilityMode),
-		EligibleRoleIDs: roles,
-		ExpectedVersion: version,
+func eventPositionInputs(values []openapi.EventPositionInput) []events.RequirementInput {
+	result := make([]events.RequirementInput, 0, len(values))
+	for _, v := range values {
+		roles := make([]uuid.UUID, len(v.EligibleRoleIds))
+		copy(roles, v.EligibleRoleIds)
+		result = append(result, events.RequirementInput{
+			ID:              nullableUUID(v.Id),
+			Name:            v.Name,
+			Description:     nullableStringPointer(v.Description),
+			RequiredCount:   v.RequiredCount,
+			EligibilityMode: events.EligibilityMode(v.EligibilityMode),
+			EligibleRoleIDs: roles,
+		})
 	}
+	return result
+}
+func eventRequirementDTOs(values []events.Requirement) []openapi.EventRequirement {
+	result := make([]openapi.EventRequirement, 0, len(values))
+	for _, v := range values {
+		result = append(result, eventRequirementDTO(v))
+	}
+	return result
 }
 func eventRequirementDTO(v events.Requirement) openapi.EventRequirement {
 	roles := make([]openapi.UUIDv7, len(v.EligibleRoleIDs))

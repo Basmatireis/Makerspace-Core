@@ -102,7 +102,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	requirement, err := service.CreateRequirement(
+	requirement, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -347,7 +347,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	moveReq, err := service.CreateRequirement(
+	moveReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -421,7 +421,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	overlapReq, err := service.CreateRequirement(
+	overlapReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -498,7 +498,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restrictedReq, err := service.CreateRequirement(
+	restrictedReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -590,7 +590,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selfReq, err := service.CreateRequirement(
+	selfReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -638,7 +638,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capacityReq, err := service.CreateRequirement(
+	capacityReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,
@@ -712,7 +712,7 @@ func TestEventsLifecyclePublicPrivacyAssignmentsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cancellationReq, err := service.CreateRequirement(
+	cancellationReq, err := addPosition(service,
 		ctx,
 		manager,
 		event.ID,

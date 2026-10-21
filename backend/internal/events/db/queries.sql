@@ -570,3 +570,12 @@ SELECT EXISTS (
     SELECT 1 FROM event_shift_assignments
     WHERE shift_id = sqlc.arg(shift_id) AND person_id = sqlc.arg(person_id) AND status = 'active'
 );
+
+-- name: ListEventShiftRequirementsForUpdate :many
+SELECT * FROM event_shift_requirements
+WHERE shift_id = sqlc.arg(shift_id) AND event_id = sqlc.arg(event_id)
+ORDER BY id
+FOR UPDATE;
+
+-- name: CountEventRequirementAssignmentHistory :one
+SELECT count(*) FROM event_shift_assignments WHERE requirement_id = sqlc.arg(requirement_id);

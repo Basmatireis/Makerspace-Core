@@ -119,6 +119,7 @@ export function EventSchedulePanel({
         sessionId: null,
         isPublic: shift.isPublic,
         status: shift.status as EventShiftInput['status'],
+        requirements: [],
       }),
     onSuccess: async () => {
       setShift({ name: '', startsAt: '', endsAt: '', isPublic: false, status: 'draft' });

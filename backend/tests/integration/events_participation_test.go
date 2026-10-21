@@ -154,7 +154,7 @@ func TestEventJoinRulesRolesWindowsAndConflicts(t *testing.T) {
 	instructor := e.person("instructor", laser.ID)
 	helper := e.person("helper", helpers.ID)
 
-	restricted, err := e.events.CreateRequirement(ctx, e.master, second.event.ID, second.shift.ID, events.RequirementInput{
+	restricted, err := addPosition(e.events, ctx, e.master, second.event.ID, second.shift.ID, events.RequirementInput{
 		Name: "Instructor", RequiredCount: 1, EligibilityMode: events.EligibilityRoles,
 		EligibleRoleIDs: []uuid.UUID{laser.ID},
 	}, nil)
@@ -210,7 +210,7 @@ func TestEventJoinRulesRolesWindowsAndConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	later, err := e.events.CreateRequirement(ctx, e.master, first.event.ID, window.ID, events.RequirementInput{
+	later, err := addPosition(e.events, ctx, e.master, first.event.ID, window.ID, events.RequirementInput{
 		Name: "Helper", RequiredCount: 1,
 	}, nil)
 	if err != nil {

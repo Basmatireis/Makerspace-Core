@@ -18,25 +18,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { EventEligibilityMode } from './eventEligibilityMode';
-import type { UUIDv7 } from './uUIDv7';
 
-export interface EventRequirementInput {
+export interface EventFirstSessionInput {
   /**
-     * @minLength 1
      * @maxLength 200
-     */
-  name: string;
-  /**
-     * @maxLength 10000
      * @nullable
      */
-  description?: string | null;
+  name?: string | null;
   /**
-     * @minimum 1
-     * @maximum 1000
+     * @maxLength 500
+     * @nullable
      */
-  requiredCount: number;
-  eligibilityMode: EventEligibilityMode;
-  eligibleRoleIds: UUIDv7[];
+  location?: string | null;
+  startsAt: string;
+  endsAt: string;
+  isPublic?: boolean;
 }

@@ -4,6 +4,28 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00060 changes event data: `planning` events become `draft`, `archived` events become `completed` (closed date kept). Tasks `in progress` and `blocked` become open, cancelled tasks become done; priorities `high` and `urgent` become Important, the others are dropped.
+- New permissions `events.signup` and `events.read_assignments`. The migration grants `events.signup` to every role with `open_days.signup` and `events.read_assignments` to every role with `open_days.read_assignments`, `events.staffing.manage` or `events.assign`. Review roles that should not let members join event shifts.
+- `events.read` alone no longer shows draft events; drafts need `events.manage`, `events.staffing.manage` or `events.assign`.
+- API: the `start-planning`, `return-to-planning` and `archive` event actions and the per-position endpoints under `/events/{id}/shifts/{shiftId}/requirements` are gone; positions are saved with their shift. `GET /events` is paged (`scope`, `search`, `ownerPersonId`, `page`, `pageSize`). Tasks use `important` instead of `priority`.
+
+### Added
+
+- **Members join event shifts in the app.** With `events.signup` members see a helper view of each confirmed event and join or leave open places themselves; the same capacity, role, signup-window and overlap rules apply. Names of co-helpers need `events.read_assignments`.
+- **Go-live readiness.** Events report whether the public page and helper signup are live and what is still missing.
+- **Event helpers overview** grouped by helper, with unlinked public signups, suggested people and overridden overlaps.
+- Shifts can be duplicated; new events can be created with their first session.
+- Event documentation in `docs/events.md`.
+
+### Changed
+
+- Events have four statuses: Draft, Confirmed, Completed, Cancelled. Helper signup (public and in the app) opens only for confirmed events; a public page can go live from a draft. Completed and cancelled events keep tasks and files editable.
+- Event lists are scoped by date (upcoming, drafts, past), sorted by start and paged.
+- Shifts are saved together with their positions in one request.
+- Tasks are open or done with an Important flag and can be filtered by assignee, overdue and done.
+
 ## [0.8.2] - 2026-10-21
 
 ### Upgrade notes

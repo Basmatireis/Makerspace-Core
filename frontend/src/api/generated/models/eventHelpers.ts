@@ -18,27 +18,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { EventEligibilityMode } from './eventEligibilityMode';
+import type { EventHelper } from './eventHelper';
+import type { EventUnlinkedSignup } from './eventUnlinkedSignup';
 import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 
-export interface UpdateEventRequirementRequest {
-  /**
-     * @minLength 1
-     * @maxLength 200
-     */
-  name: string;
-  /**
-     * @maxLength 10000
-     * @nullable
-     */
-  description?: string | null;
-  /**
-     * @minimum 1
-     * @maximum 1000
-     */
+export interface EventHelpers {
+  /** @minimum 0 */
   requiredCount: number;
-  eligibilityMode: EventEligibilityMode;
-  eligibleRoleIds: UUIDv7[];
-  expectedVersion: Version;
+  /** @minimum 0 */
+  filledCount: number;
+  /** @minimum 0 */
+  openPlaces: number;
+  /** By display name. */
+  helpers: EventHelper[];
+  /** Active public signups not linked to a person (signups to review). */
+  unlinkedSignups: EventUnlinkedSignup[];
+  overriddenAssignmentIds: UUIDv7[];
 }

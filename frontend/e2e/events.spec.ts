@@ -88,7 +88,7 @@ function event() {
     location: 'Main workshop',
     ownerPersonId: personId,
     ownerName: 'Ada Lovelace',
-    status: 'planning',
+    status: 'confirmed',
     publicTitle: 'Open workshop exhibition',
     publicDescription: 'Meet the makers.',
     publicLocation: 'Main workshop',
@@ -117,7 +117,7 @@ function publicEvent() {
     title: 'Open workshop exhibition',
     description: 'Meet the makers.',
     location: 'Main workshop',
-    status: 'planning',
+    status: 'confirmed',
     timeZone: 'Europe/Vienna',
     publicSignupEnabled: true,
     hasBanner: false,
@@ -321,7 +321,7 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
             title: 'Prepare exhibits',
             description: null,
             status: taskStatus,
-            priority: 'high',
+            important: true,
             assigneePersonId: null,
             dueAt: '2026-10-30T12:00:00Z',
             completedAt: taskStatus === 'done' ? timestamp : null,
@@ -364,6 +364,22 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
             isPublic: true,
             status: 'open',
             linkedSessionStatus: null,
+            requirements: [
+              {
+                id: openRequirementId,
+                eventId,
+                shiftId,
+                name: 'Helper',
+                description: null,
+                requiredCount: 2,
+                filledCount: 1,
+                eligibilityMode: 'anyone',
+                eligibleRoleIds: [],
+                version: 1,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+            ],
             version: 1,
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -372,46 +388,13 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
       });
     if (path === `/api/v1/events/${eventId}/shifts/${shiftId}` && request.method() === 'PATCH') {
       shiftPatch = request.postDataJSON() as Record<string, unknown>;
+      const positions = (shiftPatch.requirements ?? []) as Array<Record<string, unknown>>;
+      if (positions.some((position) => position.requiredCount === 3)) requirementPatch = positions[0];
       return json(route, {
         ...shiftPatch,
         id: shiftId,
         eventId,
         linkedSessionStatus: null,
-        version: 2,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-    }
-    if (path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements`)
-      return json(route, {
-        items: [
-          {
-            id: openRequirementId,
-            eventId,
-            shiftId,
-            name: 'Helper',
-            description: null,
-            requiredCount: 2,
-            filledCount: 1,
-            eligibilityMode: 'anyone',
-            eligibleRoleIds: [],
-            version: 1,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          },
-        ],
-      });
-    if (
-      path === `/api/v1/events/${eventId}/shifts/${shiftId}/requirements/${openRequirementId}` &&
-      request.method() === 'PATCH'
-    ) {
-      requirementPatch = request.postDataJSON() as Record<string, unknown>;
-      return json(route, {
-        ...requirementPatch,
-        id: openRequirementId,
-        eventId,
-        shiftId,
-        filledCount: 1,
         version: 2,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -530,6 +513,16 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
       signupClosesAt: null,
       isPublic: true,
       status: 'open',
+      requirements: [
+        {
+          id: openRequirementId,
+          name: 'Helper',
+          description: null,
+          requiredCount: 2,
+          eligibilityMode: 'anyone',
+          eligibleRoleIds: [],
+        },
+      ],
       expectedVersion: 1,
     });
   await page.getByRole('tab', { name: 'Staffing' }).click();
@@ -542,12 +535,12 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await expect
     .poll(() => requirementPatch)
     .toEqual({
+      id: openRequirementId,
       name: 'Helper',
       description: null,
       requiredCount: 3,
       eligibilityMode: 'anyone',
       eligibleRoleIds: [],
-      expectedVersion: 1,
     });
   await page.getByRole('tab', { name: 'Planning' }).click();
   await page.getByLabel('Mark Prepare exhibits complete').evaluate((checkbox: HTMLInputElement) => checkbox.click());
@@ -558,7 +551,7 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
       title: 'Prepare exhibits',
       description: null,
       status: 'done',
-      priority: 'high',
+      important: true,
       assigneePersonId: null,
       dueAt: '2026-10-30T12:00:00Z',
       sortOrder: 0,

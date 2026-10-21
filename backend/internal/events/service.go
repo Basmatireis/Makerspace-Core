@@ -135,6 +135,15 @@ func (s *Service) Create(
 	if err != nil {
 		return Event{}, err
 	}
+	var firstSession *SessionInput
+	if input.FirstSession != nil {
+		session, err := validateSessionInput(*input.FirstSession)
+		if err != nil {
+			return Event{}, err
+		}
+		session.Status = SessionStatusScheduled
+		firstSession = &session
+	}
 	publicID, _, err := security.NewOpaqueToken()
 	if err != nil {
 		return Event{}, err
@@ -174,6 +183,11 @@ func (s *Service) Create(
 		nil,
 	); err != nil {
 		return Event{}, err
+	}
+	if firstSession != nil {
+		if _, err = insertSession(ctx, tx, eventsdb.New(tx), &actor, id, *firstSession, requestID); err != nil {
+			return Event{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err

@@ -18,11 +18,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EventPositionInput } from './eventPositionInput';
 import type { EventShiftStatus } from './eventShiftStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface UpdateEventShiftRequest {
+  /**
+     * The shift's positions. On update the complete list; see updateEventShift.
+     * @maxItems 50
+     */
+  requirements: EventPositionInput[];
   sessionId?: UUIDv7 | null;
   /**
      * @minLength 1

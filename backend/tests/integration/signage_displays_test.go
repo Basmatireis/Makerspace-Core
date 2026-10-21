@@ -1833,10 +1833,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 		  (uuidv7(), '01a00000-0000-7000-8000-000000000001', now() + interval '3 days', now() + interval '3 days 2 hours', 'scheduled', 'secret note'),
 		  (uuidv7(), '01a00000-0000-7000-8000-000000000001', now() + interval '1 day', now() + interval '1 day 2 hours', 'scheduled', NULL),
 		  (uuidv7(), '01a00000-0000-7000-8000-000000000002', now() + interval '2 days', now() + interval '2 days 2 hours', 'scheduled', NULL);
-		INSERT INTO events (id, name, internal_description, location, status, public_title, public_location, public_id, is_public) VALUES
-		  ('01a00000-0000-7000-8000-0000000000e1', 'Internal name', 'internal text', 'Internal room', 'confirmed', 'Public Workshop', 'Workshop floor', repeat('a', 43), true),
-		  ('01a00000-0000-7000-8000-0000000000e2', 'Hidden', 'x', NULL, 'confirmed', 'Hidden event', NULL, repeat('b', 43), false),
-		  ('01a00000-0000-7000-8000-0000000000e3', 'Closed', 'x', NULL, 'draft', 'Draft event', NULL, repeat('c', 43), true);
+		INSERT INTO events (id, name, internal_description, location, status, public_title, public_location, public_id, is_public, closed_at) VALUES
+		  ('01a00000-0000-7000-8000-0000000000e1', 'Internal name', 'internal text', 'Internal room', 'confirmed', 'Public Workshop', 'Workshop floor', repeat('a', 43), true, NULL),
+		  ('01a00000-0000-7000-8000-0000000000e2', 'Hidden', 'x', NULL, 'confirmed', 'Hidden event', NULL, repeat('b', 43), false, NULL),
+		  ('01a00000-0000-7000-8000-0000000000e3', 'Closed', 'x', NULL, 'cancelled', 'Cancelled event', NULL, repeat('c', 43), true, now());
 		INSERT INTO event_sessions (id, event_id, name, location, starts_at, ends_at, is_public, status) VALUES
 		  (uuidv7(), '01a00000-0000-7000-8000-0000000000e1', 'Session', NULL, now() + interval '2 days', now() + interval '2 days 2 hours', true, 'scheduled'),
 		  (uuidv7(), '01a00000-0000-7000-8000-0000000000e1', 'Later', NULL, now() + interval '5 days', now() + interval '5 days 2 hours', true, 'scheduled'),

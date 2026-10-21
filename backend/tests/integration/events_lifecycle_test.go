@@ -1,7 +1,9 @@
 package integration_test
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +41,7 @@ func (e *staffingEnv) newEventFixture(name string, start time.Time, places int) 
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	requirement, err := e.events.CreateRequirement(ctx, e.master, event.ID, shift.ID, events.RequirementInput{
+	requirement, err := addPosition(e.events, ctx, e.master, event.ID, shift.ID, events.RequirementInput{
 		Name: "Helper", RequiredCount: places,
 	}, nil)
 	if err != nil {
@@ -349,4 +351,47 @@ func containsCode(values []events.ReadinessCode, want events.ReadinessCode) bool
 		}
 	}
 	return false
+}
+
+// addPosition appends a position to a shift through the shift save and returns the saved position.
+func addPosition(
+	service *events.Service,
+	ctx context.Context,
+	principal authorization.Principal,
+	eventID, shiftID uuid.UUID,
+	input events.RequirementInput,
+	requestID *uuid.UUID,
+) (events.Requirement, error) {
+	shifts, err := service.ListShifts(ctx, principal, eventID)
+	if err != nil {
+		return events.Requirement{}, err
+	}
+	for _, shift := range shifts {
+		if shift.ID != shiftID {
+			continue
+		}
+		positions := make([]events.RequirementInput, 0, len(shift.Requirements)+1)
+		for _, existing := range shift.Requirements {
+			id := existing.ID
+			positions = append(positions, events.RequirementInput{
+				ID: &id, Name: existing.Name, Description: existing.Description, RequiredCount: existing.RequiredCount,
+				EligibilityMode: existing.EligibilityMode, EligibleRoleIDs: existing.EligibleRoleIDs,
+			})
+		}
+		saved, err := service.UpdateShift(ctx, principal, eventID, shiftID, events.ShiftInput{
+			SessionID: shift.SessionID, Name: shift.Name, Description: shift.Description, StartsAt: shift.StartsAt,
+			EndsAt: shift.EndsAt, SignupOpensAt: shift.SignupOpensAt, SignupClosesAt: shift.SignupClosesAt,
+			IsPublic: shift.IsPublic, Status: shift.Status, Requirements: append(positions, input),
+			ExpectedVersion: shift.Version,
+		}, requestID)
+		if err != nil {
+			return events.Requirement{}, err
+		}
+		for _, requirement := range saved.Requirements {
+			if strings.EqualFold(requirement.Name, input.Name) {
+				return requirement, nil
+			}
+		}
+	}
+	return events.Requirement{}, apperror.NotFound
 }

@@ -18,8 +18,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { EventRequirement } from './eventRequirement';
+import type { EventPersonOption } from './eventPersonOption';
+import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
-export interface EventRequirementList {
-  items: EventRequirement[];
+export interface EventUnlinkedSignup {
+  assignmentId: UUIDv7;
+  version: Version;
+  /**
+     * @maxLength 201
+     * @nullable
+     */
+  displayName?: string | null;
+  /** People with the same e-mail or phone; empty without `events.assign`. */
+  suggestions: EventPersonOption[];
 }

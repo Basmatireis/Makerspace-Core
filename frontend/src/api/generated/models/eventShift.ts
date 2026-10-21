@@ -18,16 +18,38 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EventRequirement } from './eventRequirement';
 import type { EventSessionStatus } from './eventSessionStatus';
-import type { EventShiftInput } from './eventShiftInput';
+import type { EventShiftStatus } from './eventShiftStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
-export type EventShift = EventShiftInput & ({
+export interface EventShift {
   id: UUIDv7;
   eventId: UUIDv7;
+  sessionId?: UUIDv7 | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @maxLength 10000
+     * @nullable
+     */
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  /** @nullable */
+  signupOpensAt?: string | null;
+  /** @nullable */
+  signupClosesAt?: string | null;
+  isPublic: boolean;
+  status: EventShiftStatus;
   linkedSessionStatus?: EventSessionStatus | null;
+  /** Positions by name. */
+  requirements: EventRequirement[];
   version: Version;
   createdAt: string;
   updatedAt: string;
-});
+}

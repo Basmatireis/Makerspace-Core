@@ -190,7 +190,9 @@ type EventInput struct {
 	PublicDescription   *string
 	PublicLocation      *string
 	PublicSignupEnabled bool
-	ExpectedVersion     int64
+	// FirstSession is created with a new event in the same transaction.
+	FirstSession    *SessionInput
+	ExpectedVersion int64
 }
 
 type Session struct {
@@ -270,6 +272,7 @@ type Shift struct {
 	IsPublic                      bool
 	Status                        ShiftStatus
 	LinkedSessionStatus           *SessionStatus
+	Requirements                  []Requirement
 	Version                       int64
 	CreatedAt, UpdatedAt          time.Time
 }
@@ -282,7 +285,10 @@ type ShiftInput struct {
 	SignupOpensAt, SignupClosesAt *time.Time
 	IsPublic                      bool
 	Status                        ShiftStatus
-	ExpectedVersion               int64
+	// Requirements is the complete list of positions; on update an entry with ID changes that position, one without
+	// creates a position and a position left out is deleted.
+	Requirements    []RequirementInput
+	ExpectedVersion int64
 }
 
 type Requirement struct {
@@ -299,6 +305,7 @@ type Requirement struct {
 }
 
 type RequirementInput struct {
+	ID              *uuid.UUID
 	Name            string
 	Description     *string
 	RequiredCount   int
@@ -490,4 +497,43 @@ type Participation struct {
 	MyAssignments []MyAssignment
 	Sessions      []Session
 	Shifts        []ParticipationShift
+}
+
+// HelperShift is one active assignment of a helper in the helpers overview.
+type HelperShift struct {
+	AssignmentID, ShiftID, RequirementID uuid.UUID
+	ShiftName, RequirementName           string
+	StartsAt, EndsAt                     time.Time
+	Source                               AssignmentSource
+	ConflictOverridden                   bool
+	Version                              int64
+}
+
+// Helper is one person (or one unlinked signup identity) with their shifts in an event.
+type Helper struct {
+	// Key is opaque and stable within one response; it never carries contact data.
+	Key         string
+	PersonID    *uuid.UUID
+	DisplayName *string
+	// Email and Phone are set only for principals that may see helper contact details.
+	Email, Phone       *string
+	Sources            []AssignmentSource
+	ConflictOverridden bool
+	Shifts             []HelperShift
+}
+
+// UnlinkedSignup is an active public signup without a person, with people that match its contact.
+type UnlinkedSignup struct {
+	AssignmentID uuid.UUID
+	Version      int64
+	DisplayName  *string
+	Suggestions  []PersonOption
+}
+
+// Helpers is the helpers overview of an event.
+type Helpers struct {
+	RequiredCount, FilledCount, OpenPlaces int64
+	Helpers                                []Helper
+	UnlinkedSignups                        []UnlinkedSignup
+	OverriddenAssignmentIDs                []uuid.UUID
 }

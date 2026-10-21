@@ -24,17 +24,14 @@ import {
 } from '@carbon/react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  cancelEventAssignment,
-  deleteEventShiftRequirement,
-  listEventEligibilityRoles,
-} from '../../api/generated/events/events';
+import { cancelEventAssignment, listEventEligibilityRoles } from '../../api/generated/events/events';
 import type { EventAssignment, EventRequirement, EventShift } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { EmptyState, ErrorState, InlineLoadingState } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { RequirementEditDialog } from './EventRequirementEditDialog';
+import { saveShiftPositions } from './positions';
 import { eventMutationMessage } from './errors';
 import { AssignHelperDialog, RequirementCreateDialog } from './EventStaffingDialogs';
 import { formatInstant } from './format';
@@ -161,7 +158,7 @@ export function EventStaffingPanel({
   };
   const removeRequirement = useMutation({
     mutationFn: (item: EventRequirement) =>
-      deleteEventShiftRequirement(eventId, item.shiftId, item.id, { expectedVersion: item.version }),
+      saveShiftPositions(eventId, item.shiftId, (positions) => positions.filter((position) => position.id !== item.id)),
     onSuccess: async (_, item) => {
       if (selectedId === item.id) setSelectedId(null);
       await finishDialog(item.shiftId);

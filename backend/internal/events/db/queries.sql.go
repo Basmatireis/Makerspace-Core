@@ -119,6 +119,17 @@ func (q *Queries) CountEventAssignmentHistory(ctx context.Context, eventID uuid.
 	return count, err
 }
 
+const countEventRequirementAssignmentHistory = `-- name: CountEventRequirementAssignmentHistory :one
+SELECT count(*) FROM event_shift_assignments WHERE requirement_id = $1
+`
+
+func (q *Queries) CountEventRequirementAssignmentHistory(ctx context.Context, requirementID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countEventRequirementAssignmentHistory, requirementID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countEventRequirementRoles = `-- name: CountEventRequirementRoles :one
 SELECT count(*) FROM event_shift_requirement_roles WHERE requirement_id = $1
 `
@@ -2116,6 +2127,49 @@ func (q *Queries) ListEventSessions(ctx context.Context, eventID uuid.UUID) ([]E
 			&i.EndsAt,
 			&i.IsPublic,
 			&i.Status,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventShiftRequirementsForUpdate = `-- name: ListEventShiftRequirementsForUpdate :many
+SELECT id, event_id, shift_id, name, description, required_count, eligibility_mode, version, created_at, updated_at FROM event_shift_requirements
+WHERE shift_id = $1 AND event_id = $2
+ORDER BY id
+FOR UPDATE
+`
+
+type ListEventShiftRequirementsForUpdateParams struct {
+	ShiftID uuid.UUID
+	EventID uuid.UUID
+}
+
+func (q *Queries) ListEventShiftRequirementsForUpdate(ctx context.Context, arg ListEventShiftRequirementsForUpdateParams) ([]EventShiftRequirement, error) {
+	rows, err := q.db.Query(ctx, listEventShiftRequirementsForUpdate, arg.ShiftID, arg.EventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EventShiftRequirement{}
+	for rows.Next() {
+		var i EventShiftRequirement
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventID,
+			&i.ShiftID,
+			&i.Name,
+			&i.Description,
+			&i.RequiredCount,
+			&i.EligibilityMode,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,

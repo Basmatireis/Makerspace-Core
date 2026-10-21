@@ -26,13 +26,11 @@ import type {
   EventAssignmentList,
   EventFile,
   EventFileList,
+  EventHelpers,
   EventMyAssignment,
   EventPage,
   EventParticipation,
   EventPersonOptionList,
-  EventRequirement,
-  EventRequirementInput,
-  EventRequirementList,
   EventRoleList,
   EventSession,
   EventSessionInput,
@@ -53,7 +51,6 @@ import type {
   MoveEventAssignmentRequest,
   UpdateEventFileRequest,
   UpdateEventRequest,
-  UpdateEventRequirementRequest,
   UpdateEventSessionRequest,
   UpdateEventShiftRequest,
   UpdateEventTaskListRequest,
@@ -1013,6 +1010,9 @@ export const getCreateEventShiftUrl = (eventId: string,) => {
   return `/api/v1/events/${eventId}/shifts`
 }
 
+/**
+ * Creates a shift with its positions in one transaction. Requires `events.staffing.manage`.
+ */
 export const createEventShift = async (eventId: string,
     eventShiftInput: EventShiftInput, options?: Parameters<typeof apiFetch>[1]): Promise<EventShift> => {
 
@@ -1049,6 +1049,9 @@ export const getUpdateEventShiftUrl = (eventId: string,
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}`
 }
 
+/**
+ * Saves a shift and its positions in one transaction. `requirements` is the complete list: an entry with `id` updates that position, one without creates a position, and a position left out is deleted. 409 `requirement_has_assignments` when a removed position has any assignment history, 409 `requirement_below_assignments` when `requiredCount` drops below the active assignments. Requires `events.staffing.manage`.
+ */
 export const updateEventShift = async (eventId: string,
     eventShiftId: string,
     updateEventShiftRequest: UpdateEventShiftRequest, options?: Parameters<typeof apiFetch>[1]): Promise<EventShift> => {
@@ -1114,139 +1117,53 @@ return apiFetch<void>(getDeleteEventShiftUrl(eventId,eventShiftId),
 );}
 
 
-export const getListEventShiftRequirementsUrl = (eventId: string,
+export const getDuplicateEventShiftUrl = (eventId: string,
     eventShiftId: string,) => {
 
 
 
 
-  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements`
+  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/duplicate`
 }
 
-export const listEventShiftRequirements = async (eventId: string,
-    eventShiftId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventRequirementList> => {
+/**
+ * Copies a shift with its positions and eligibility roles, without assignments, as a draft. Requires `events.staffing.manage`.
+ */
+export const duplicateEventShift = async (eventId: string,
+    eventShiftId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventShift> => {
 
-  return apiFetch<EventRequirementList>(getListEventShiftRequirementsUrl(eventId,eventShiftId),
+  return apiFetch<EventShift>(getDuplicateEventShiftUrl(eventId,eventShiftId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getGetEventHelpersUrl = (eventId: string,) => {
+
+
+
+
+  return `/api/v1/events/${eventId}/helpers`
+}
+
+/**
+ * Active helpers grouped by person (or, for unlinked signups, by e-mail, phone or name) with their shifts, plus
+ * staffing totals and items that need attention: unlinked public signups and overridden conflicts. Requires
+ * `events.read_assignments`, `events.staffing.manage` or `events.assign`. Contact details are included only
+ * with `events.staffing.manage` or `events.assign`; person-match suggestions only with `events.assign`.
+ */
+export const getEventHelpers = async (eventId: string, options?: Parameters<typeof apiFetch>[1]): Promise<EventHelpers> => {
+
+  return apiFetch<EventHelpers>(getGetEventHelpersUrl(eventId),
   {
     ...options,
     method: 'GET'
 
 
-  }
-);}
-
-
-export const getCreateEventShiftRequirementUrl = (eventId: string,
-    eventShiftId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements`
-}
-
-export const createEventShiftRequirement = async (eventId: string,
-    eventShiftId: string,
-    eventRequirementInput: EventRequirementInput, options?: Parameters<typeof apiFetch>[1]): Promise<EventRequirement> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<EventRequirement>(getCreateEventShiftRequirementUrl(eventId,eventShiftId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(eventRequirementInput)
-  }
-);}
-
-
-export const getUpdateEventShiftRequirementUrl = (eventId: string,
-    eventShiftId: string,
-    eventRequirementId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements/${eventRequirementId}`
-}
-
-export const updateEventShiftRequirement = async (eventId: string,
-    eventShiftId: string,
-    eventRequirementId: string,
-    updateEventRequirementRequest: UpdateEventRequirementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<EventRequirement> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<EventRequirement>(getUpdateEventShiftRequirementUrl(eventId,eventShiftId,eventRequirementId),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updateEventRequirementRequest)
-  }
-);}
-
-
-export const getDeleteEventShiftRequirementUrl = (eventId: string,
-    eventShiftId: string,
-    eventRequirementId: string,) => {
-
-
-
-
-  return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements/${eventRequirementId}`
-}
-
-export const deleteEventShiftRequirement = async (eventId: string,
-    eventShiftId: string,
-    eventRequirementId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteEventShiftRequirementUrl(eventId,eventShiftId,eventRequirementId),
-  {
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
   }
 );}
 

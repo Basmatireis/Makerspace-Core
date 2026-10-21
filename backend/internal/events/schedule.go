@@ -10,7 +10,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -57,36 +56,9 @@ func (s *Service) CreateSession(
 	if err := requireEventWritable(ctx, q, eventID, false); err != nil {
 		return Session{}, err
 	}
-	id := ids.New()
-	row, err := q.CreateEventSession(
-		ctx,
-		eventsdb.CreateEventSessionParams{
-			ID:          id,
-			EventID:     eventID,
-			Name:        input.Name,
-			Location:    input.Location,
-			Description: input.Description,
-			StartsAt:    input.StartsAt.UTC(),
-			EndsAt:      input.EndsAt.UTC(),
-			IsPublic:    input.IsPublic,
-			Status:      string(input.Status),
-		},
-	)
-	if err != nil {
-		return Session{}, databaseError(err)
-	}
 	actor := principal.AccountID
-	if err := eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_session.created",
-		"event_session",
-		id,
-		requestID,
-		[]string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"},
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
+	row, err := insertSession(ctx, tx, q, &actor, eventID, input, requestID)
+	if err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -227,186 +199,6 @@ func (s *Service) DeleteSession(
 	return tx.Commit(ctx)
 }
 
-func (s *Service) ListShifts(
-	ctx context.Context,
-	principal authorization.Principal,
-	eventID uuid.UUID,
-) ([]Shift, error) {
-	if _, err := visibleEvent(ctx, eventsdb.New(s.pool), principal, eventID); err != nil {
-		return nil, err
-	}
-	rows, err := eventsdb.New(s.pool).ListEventShifts(ctx, eventID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]Shift, 0, len(rows))
-	for _, row := range rows {
-		result = append(
-			result,
-			Shift{
-				ID:                  row.ID,
-				EventID:             row.EventID,
-				SessionID:           row.SessionID,
-				Name:                row.Name,
-				Description:         row.Description,
-				StartsAt:            row.StartsAt,
-				EndsAt:              row.EndsAt,
-				SignupOpensAt:       pgTime(row.SignupOpensAt),
-				SignupClosesAt:      pgTime(row.SignupClosesAt),
-				IsPublic:            row.IsPublic,
-				Status:              ShiftStatus(row.Status),
-				LinkedSessionStatus: optional.Convert[SessionStatus](row.SessionStatus),
-				Version:             int64(row.Version),
-				CreatedAt:           row.CreatedAt,
-				UpdatedAt:           row.UpdatedAt,
-			},
-		)
-	}
-	return result, nil
-}
-
-func (s *Service) CreateShift(
-	ctx context.Context,
-	principal authorization.Principal,
-	eventID uuid.UUID,
-	input ShiftInput,
-	requestID *uuid.UUID,
-) (Shift, error) {
-	if !principal.Has(authorization.EventsStaffingManage) {
-		return Shift{}, apperror.PermissionDenied
-	}
-	input, err := validateShiftInput(input)
-	if err != nil {
-		return Shift{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Shift{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := eventsdb.New(tx)
-	if err := requireEventWritable(ctx, q, eventID, false); err != nil {
-		return Shift{}, err
-	}
-	id := ids.New()
-	row, err := q.CreateEventShift(
-		ctx,
-		eventsdb.CreateEventShiftParams{
-			ID:             id,
-			EventID:        eventID,
-			SessionID:      input.SessionID,
-			Name:           input.Name,
-			Description:    input.Description,
-			StartsAt:       input.StartsAt.UTC(),
-			EndsAt:         input.EndsAt.UTC(),
-			SignupOpensAt:  toPGTime(input.SignupOpensAt),
-			SignupClosesAt: toPGTime(input.SignupClosesAt),
-			IsPublic:       input.IsPublic,
-			Status:         string(input.Status),
-		},
-	)
-	if err != nil {
-		return Shift{}, databaseError(err)
-	}
-	actor := principal.AccountID
-	if err := eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_shift.created",
-		"event_shift",
-		id,
-		requestID,
-		[]string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"},
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
-		return Shift{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Shift{}, err
-	}
-	return shiftFromRow(row), nil
-}
-
-func (s *Service) UpdateShift(
-	ctx context.Context,
-	principal authorization.Principal,
-	eventID, id uuid.UUID,
-	input ShiftInput,
-	requestID *uuid.UUID,
-) (Shift, error) {
-	if !principal.Has(authorization.EventsStaffingManage) {
-		return Shift{}, apperror.PermissionDenied
-	}
-	if err := validateVersion(input.ExpectedVersion); err != nil {
-		return Shift{}, err
-	}
-	input, err := validateShiftInput(input)
-	if err != nil {
-		return Shift{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Shift{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := eventsdb.New(tx)
-	if err := requireEventWritable(ctx, q, eventID, false); err != nil {
-		return Shift{}, err
-	}
-	current, err := q.GetEventShift(ctx, eventsdb.GetEventShiftParams{ID: id, EventID: eventID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Shift{}, apperror.NotFound
-	}
-	if err != nil {
-		return Shift{}, err
-	}
-	if int64(current.Version) != input.ExpectedVersion {
-		return Shift{}, apperror.StaleWrite
-	}
-	row, err := q.UpdateEventShift(
-		ctx,
-		eventsdb.UpdateEventShiftParams{
-			SessionID:       input.SessionID,
-			Name:            input.Name,
-			Description:     input.Description,
-			StartsAt:        input.StartsAt.UTC(),
-			EndsAt:          input.EndsAt.UTC(),
-			SignupOpensAt:   toPGTime(input.SignupOpensAt),
-			SignupClosesAt:  toPGTime(input.SignupClosesAt),
-			IsPublic:        input.IsPublic,
-			Status:          string(input.Status),
-			ID:              id,
-			EventID:         eventID,
-			ExpectedVersion: int32(input.ExpectedVersion),
-		},
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Shift{}, apperror.StaleWrite
-	}
-	if err != nil {
-		return Shift{}, databaseError(err)
-	}
-	actor := principal.AccountID
-	if err := eventAudit(
-		ctx,
-		tx,
-		&actor,
-		"event_shift.updated",
-		"event_shift",
-		id,
-		requestID,
-		[]string{"sessionId", "name", "description", "startsAt", "endsAt", "signupWindow", "isPublic", "status"},
-		map[string]any{"eventId": eventID.String()},
-	); err != nil {
-		return Shift{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Shift{}, err
-	}
-	return shiftFromRow(row), nil
-}
-
 func (s *Service) DeleteShift(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -506,6 +298,9 @@ func validateShiftInput(input ShiftInput) (ShiftInput, error) {
 	if input.SignupOpensAt != nil && input.SignupClosesAt != nil && !input.SignupClosesAt.After(*input.SignupOpensAt) {
 		return input, apperror.Invalid("signupClosesAt must be after signupOpensAt")
 	}
+	if input.Requirements, err = validateShiftPositions(input.Requirements); err != nil {
+		return input, err
+	}
 	return input, nil
 }
 
@@ -525,24 +320,6 @@ func sessionFromRow(row eventsdb.EventSession) Session {
 		UpdatedAt:   row.UpdatedAt,
 	}
 }
-func shiftFromRow(row eventsdb.EventShift) Shift {
-	return Shift{
-		ID:             row.ID,
-		EventID:        row.EventID,
-		SessionID:      row.SessionID,
-		Name:           row.Name,
-		Description:    row.Description,
-		StartsAt:       row.StartsAt,
-		EndsAt:         row.EndsAt,
-		SignupOpensAt:  pgTime(row.SignupOpensAt),
-		SignupClosesAt: pgTime(row.SignupClosesAt),
-		IsPublic:       row.IsPublic,
-		Status:         ShiftStatus(row.Status),
-		Version:        int64(row.Version),
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
-	}
-}
 
 func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid.UUID, postEventWork bool) error {
 	row, err := q.GetEventForUpdate(ctx, eventID)
@@ -559,3 +336,41 @@ func requireEventWritable(ctx context.Context, q *eventsdb.Queries, eventID uuid
 }
 
 var _ = time.Now
+
+// insertSession creates a validated session and its audit event inside the caller's transaction.
+func insertSession(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *eventsdb.Queries,
+	actor *uuid.UUID,
+	eventID uuid.UUID,
+	input SessionInput,
+	requestID *uuid.UUID,
+) (eventsdb.EventSession, error) {
+	id := ids.New()
+	row, err := q.CreateEventSession(ctx, eventsdb.CreateEventSessionParams{
+		ID:          id,
+		EventID:     eventID,
+		Name:        input.Name,
+		Location:    input.Location,
+		Description: input.Description,
+		StartsAt:    input.StartsAt.UTC(),
+		EndsAt:      input.EndsAt.UTC(),
+		IsPublic:    input.IsPublic,
+		Status:      string(input.Status),
+	})
+	if err != nil {
+		return row, databaseError(err)
+	}
+	return row, eventAudit(
+		ctx,
+		tx,
+		actor,
+		"event_session.created",
+		"event_session",
+		id,
+		requestID,
+		[]string{"name", "location", "description", "startsAt", "endsAt", "isPublic", "status"},
+		map[string]any{"eventId": eventID.String()},
+	)
+}

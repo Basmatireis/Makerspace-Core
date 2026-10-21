@@ -2632,20 +2632,44 @@ paths:
   /events/{eventId}/shifts:
     parameters: [{$ref: "#/components/parameters/EventId"}]
     get: {tags: [Events], operationId: listEventShifts, security: [{sessionCookie: []}], responses: {"200": {description: Shifts., content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
-    post: {tags: [Events], operationId: createEventShift, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftInput"}}}}, responses: {"201": {description: Shift created., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    post: {tags: [Events], operationId: createEventShift, description: "Creates a shift with its positions in one transaction. Requires `events.staffing.manage`.", security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventShiftInput"}}}}, responses: {"201": {description: Shift created., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
   /events/{eventId}/shifts/{eventShiftId}:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}]
-    patch: {tags: [Events], operationId: updateEventShift, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateEventShiftRequest"}}}}, responses: {"200": {description: Shift updated., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    patch: {tags: [Events], operationId: updateEventShift, description: "Saves a shift and its positions in one transaction. `requirements` is the complete list: an entry with `id` updates that position, one without creates a position, and a position left out is deleted. 409 `requirement_has_assignments` when a removed position has any assignment history, 409 `requirement_below_assignments` when `requiredCount` drops below the active assignments. Requires `events.staffing.manage`.", security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateEventShiftRequest"}}}}, responses: {"200": {description: Shift updated., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
     delete: {tags: [Events], operationId: deleteEventShift, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}, responses: {"204": {description: Shift deleted.}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
 
-  /events/{eventId}/shifts/{eventShiftId}/requirements:
+  /events/{eventId}/shifts/{eventShiftId}/duplicate:
     parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}]
-    get: {tags: [Events], operationId: listEventShiftRequirements, security: [{sessionCookie: []}], responses: {"200": {description: Requirements., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirementList"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
-    post: {tags: [Events], operationId: createEventShiftRequirement, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirementInput"}}}}, responses: {"201": {description: Requirement created., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirement"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
-  /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId}:
-    parameters: [{$ref: "#/components/parameters/EventId"}, {$ref: "#/components/parameters/EventShiftId"}, {$ref: "#/components/parameters/EventRequirementId"}]
-    patch: {tags: [Events], operationId: updateEventShiftRequirement, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateEventRequirementRequest"}}}}, responses: {"200": {description: Requirement updated., content: {application/json: {schema: {$ref: "#/components/schemas/EventRequirement"}}}}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "422": {$ref: "#/components/responses/UnprocessableEntity"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
-    delete: {tags: [Events], operationId: deleteEventShiftRequirement, security: [{sessionCookie: [], csrfHeader: []}], requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}, responses: {"204": {description: Requirement deleted.}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "500": {$ref: "#/components/responses/InternalServerError"}}}
+    post:
+      tags: [Events]
+      operationId: duplicateEventShift
+      description: Copies a shift with its positions and eligibility roles, without assignments, as a draft. Requires `events.staffing.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: Copy created., content: {application/json: {schema: {$ref: "#/components/schemas/EventShift"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /events/{eventId}/helpers:
+    parameters: [{$ref: "#/components/parameters/EventId"}]
+    get:
+      tags: [Events]
+      operationId: getEventHelpers
+      description: |
+        Active helpers grouped by person (or, for unlinked signups, by e-mail, phone or name) with their shifts, plus
+        staffing totals and items that need attention: unlinked public signups and overridden conflicts. Requires
+        `events.read_assignments`, `events.staffing.manage` or `events.assign`. Contact details are included only
+        with `events.staffing.manage` or `events.assign`; person-match suggestions only with `events.assign`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Helpers overview., content: {application/json: {schema: {$ref: "#/components/schemas/EventHelpers"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /events/{eventId}/assignments:
     parameters: [{$ref: "#/components/parameters/EventId"}]
@@ -10114,6 +10138,20 @@ components:
         internalDescription: {type: string, maxLength: 10000, nullable: true}
         location: {type: string, maxLength: 500, nullable: true}
         ownerPersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        firstSession:
+          allOf: [{$ref: "#/components/schemas/EventFirstSessionInput"}]
+          nullable: true
+          description: Creates the first programme session in the same transaction.
+    EventFirstSessionInput:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt]
+      properties:
+        name: {type: string, maxLength: 200, nullable: true}
+        location: {type: string, maxLength: 500, nullable: true}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        isPublic: {type: boolean, default: false}
     UpdateEventRequest:
       type: object
       additionalProperties: false
@@ -10254,7 +10292,7 @@ components:
     EventShiftInput:
       type: object
       additionalProperties: false
-      required: [name, startsAt, endsAt, isPublic, status]
+      required: [name, startsAt, endsAt, isPublic, status, requirements]
       properties:
         sessionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         name: {type: string, minLength: 1, maxLength: 200}
@@ -10265,11 +10303,21 @@ components:
         signupClosesAt: {type: string, format: date-time, nullable: true}
         isPublic: {type: boolean}
         status: {$ref: "#/components/schemas/EventShiftStatus"}
+        requirements:
+          type: array
+          maxItems: 50
+          description: The shift's positions. On update the complete list; see updateEventShift.
+          items: {$ref: "#/components/schemas/EventPositionInput"}
     UpdateEventShiftRequest:
       type: object
       additionalProperties: false
-      required: [name, startsAt, endsAt, isPublic, status, expectedVersion]
+      required: [name, startsAt, endsAt, isPublic, status, requirements, expectedVersion]
       properties:
+        requirements:
+          type: array
+          maxItems: 50
+          description: The shift's positions. On update the complete list; see updateEventShift.
+          items: {$ref: "#/components/schemas/EventPositionInput"}
         sessionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         name: {type: string, minLength: 1, maxLength: 200}
         description: {type: string, maxLength: 10000, nullable: true}
@@ -10281,62 +10329,61 @@ components:
         status: {$ref: "#/components/schemas/EventShiftStatus"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
     EventShift:
-      allOf:
-        - {$ref: "#/components/schemas/EventShiftInput"}
-        - type: object
-          required: [id, eventId, version, createdAt, updatedAt]
-          properties:
-            id: {$ref: "#/components/schemas/UUIDv7"}
-            eventId: {$ref: "#/components/schemas/UUIDv7"}
-            linkedSessionStatus: {allOf: [{$ref: "#/components/schemas/EventSessionStatus"}], nullable: true}
-            version: {$ref: "#/components/schemas/Version"}
-            createdAt: {type: string, format: date-time}
-            updatedAt: {type: string, format: date-time}
+      type: object
+      additionalProperties: false
+      required: [id, eventId, name, startsAt, endsAt, isPublic, status, requirements, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        eventId: {$ref: "#/components/schemas/UUIDv7"}
+        sessionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        signupOpensAt: {type: string, format: date-time, nullable: true}
+        signupClosesAt: {type: string, format: date-time, nullable: true}
+        isPublic: {type: boolean}
+        status: {$ref: "#/components/schemas/EventShiftStatus"}
+        linkedSessionStatus: {allOf: [{$ref: "#/components/schemas/EventSessionStatus"}], nullable: true}
+        requirements: {type: array, description: Positions by name., items: {$ref: "#/components/schemas/EventRequirement"}}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
     EventShiftList:
       type: object
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/EventShift"}}}
 
-    EventRequirementInput:
+    EventPositionInput:
       type: object
       additionalProperties: false
       required: [name, requiredCount, eligibilityMode, eligibleRoleIds]
       properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: An existing position of this shift; omit to create one.}
         name: {type: string, minLength: 1, maxLength: 200}
         description: {type: string, maxLength: 10000, nullable: true}
         requiredCount: {type: integer, minimum: 1, maximum: 1000}
         eligibilityMode: {$ref: "#/components/schemas/EventEligibilityMode"}
         eligibleRoleIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-    UpdateEventRequirementRequest:
-      type: object
-      additionalProperties: false
-      required: [name, requiredCount, eligibilityMode, eligibleRoleIds, expectedVersion]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 200}
-        description: {type: string, maxLength: 10000, nullable: true}
-        requiredCount: {type: integer, minimum: 1, maximum: 1000}
-        eligibilityMode: {$ref: "#/components/schemas/EventEligibilityMode"}
-        eligibleRoleIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
     EventRequirement:
-      allOf:
-        - {$ref: "#/components/schemas/EventRequirementInput"}
-        - type: object
-          required: [id, eventId, shiftId, filledCount, version, createdAt, updatedAt]
-          properties:
-            id: {$ref: "#/components/schemas/UUIDv7"}
-            eventId: {$ref: "#/components/schemas/UUIDv7"}
-            shiftId: {$ref: "#/components/schemas/UUIDv7"}
-            filledCount: {type: integer, minimum: 0}
-            version: {$ref: "#/components/schemas/Version"}
-            createdAt: {type: string, format: date-time}
-            updatedAt: {type: string, format: date-time}
-    EventRequirementList:
       type: object
       additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/EventRequirement"}}}
+      description: A position of a shift. `eligibleRoleIds` is empty for callers without staffing permissions.
+      required: [id, eventId, shiftId, name, requiredCount, filledCount, eligibilityMode, eligibleRoleIds, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        eventId: {$ref: "#/components/schemas/UUIDv7"}
+        shiftId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 200}
+        description: {type: string, maxLength: 10000, nullable: true}
+        requiredCount: {type: integer, minimum: 1, maximum: 1000}
+        filledCount: {type: integer, minimum: 0}
+        eligibilityMode: {$ref: "#/components/schemas/EventEligibilityMode"}
+        eligibleRoleIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
 
     EventAssignmentInput:
       type: object
@@ -10420,6 +10467,54 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/EventPersonOption"}}}
+    EventHelperShift:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, shiftId, requirementId, shiftName, requirementName, startsAt, endsAt, source, conflictOverridden, version]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        shiftId: {$ref: "#/components/schemas/UUIDv7"}
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+        shiftName: {type: string, maxLength: 200}
+        requirementName: {type: string, maxLength: 200}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        source: {$ref: "#/components/schemas/EventAssignmentSource"}
+        conflictOverridden: {type: boolean}
+        version: {$ref: "#/components/schemas/Version"}
+    EventHelper:
+      type: object
+      additionalProperties: false
+      required: [key, sources, conflictOverridden, shifts]
+      properties:
+        key: {type: string, maxLength: 300, description: Stable grouping key within this response.}
+        personId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        displayName: {type: string, maxLength: 201, nullable: true, description: Null when the personal data was erased.}
+        email: {type: string, maxLength: 254, nullable: true, description: Only with `events.staffing.manage` or `events.assign`.}
+        phone: {type: string, maxLength: 40, nullable: true, description: Only with `events.staffing.manage` or `events.assign`.}
+        sources: {type: array, items: {$ref: "#/components/schemas/EventAssignmentSource"}}
+        conflictOverridden: {type: boolean}
+        shifts: {type: array, items: {$ref: "#/components/schemas/EventHelperShift"}}
+    EventUnlinkedSignup:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, version, suggestions]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        version: {$ref: "#/components/schemas/Version"}
+        displayName: {type: string, maxLength: 201, nullable: true}
+        suggestions: {type: array, description: People with the same e-mail or phone; empty without `events.assign`., items: {$ref: "#/components/schemas/EventPersonOption"}}
+    EventHelpers:
+      type: object
+      additionalProperties: false
+      required: [requiredCount, filledCount, openPlaces, helpers, unlinkedSignups, overriddenAssignmentIds]
+      properties:
+        requiredCount: {type: integer, format: int64, minimum: 0}
+        filledCount: {type: integer, format: int64, minimum: 0}
+        openPlaces: {type: integer, format: int64, minimum: 0}
+        helpers: {type: array, description: By display name., items: {$ref: "#/components/schemas/EventHelper"}}
+        unlinkedSignups: {type: array, description: Active public signups not linked to a person (signups to review)., items: {$ref: "#/components/schemas/EventUnlinkedSignup"}}
+        overriddenAssignmentIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     EventFile:
       type: object

@@ -17,7 +17,7 @@ import {
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { createEventAssignment, createEventShiftRequirement, listEventPeople } from '../../api/generated/events/events';
+import { createEventAssignment, listEventPeople } from '../../api/generated/events/events';
 import type {
   EventAssignmentInput,
   EventPersonOption,
@@ -27,6 +27,7 @@ import type {
 } from '../../api/generated/models';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { eventMutationMessage } from './errors';
+import { saveShiftPositions } from './positions';
 
 type StaffingDialogProps = {
   eventId: string;
@@ -61,13 +62,16 @@ export function RequirementCreateDialog({
   const selectedRoles = form.watch('eligibleRoleIds');
   const mutation = useMutation({
     mutationFn: (value: RequirementValues) =>
-      createEventShiftRequirement(eventId, shift.id, {
-        name: value.name.trim(),
-        description: value.description || null,
-        requiredCount: value.requiredCount,
-        eligibilityMode: value.eligibilityMode,
-        eligibleRoleIds: value.eligibilityMode === 'roles' ? value.eligibleRoleIds : [],
-      }),
+      saveShiftPositions(eventId, shift.id, (positions) => [
+        ...positions,
+        {
+          name: value.name.trim(),
+          description: value.description || null,
+          requiredCount: value.requiredCount,
+          eligibilityMode: value.eligibilityMode,
+          eligibleRoleIds: value.eligibilityMode === 'roles' ? value.eligibleRoleIds : [],
+        },
+      ]),
     onSuccess: onSaved,
   });
   useEffect(() => {

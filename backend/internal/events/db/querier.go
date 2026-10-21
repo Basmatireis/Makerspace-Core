@@ -18,6 +18,7 @@ type Querier interface {
 	ClearOtherEventBanners(ctx context.Context, arg ClearOtherEventBannersParams) error
 	CountActiveEventRequirementAssignments(ctx context.Context, requirementID uuid.UUID) (int64, error)
 	CountEventAssignmentHistory(ctx context.Context, eventID uuid.UUID) (int64, error)
+	CountEventRequirementAssignmentHistory(ctx context.Context, requirementID uuid.UUID) (int64, error)
 	CountEventRequirementRoles(ctx context.Context, requirementID uuid.UUID) (int64, error)
 	CreateEvent(ctx context.Context, arg CreateEventParams) (Event, error)
 	CreateEventAssignment(ctx context.Context, arg CreateEventAssignmentParams) (EventShiftAssignment, error)
@@ -75,6 +76,7 @@ type Querier interface {
 	ListEventRequirementRoles(ctx context.Context, arg ListEventRequirementRolesParams) ([]ListEventRequirementRolesRow, error)
 	ListEventRequirements(ctx context.Context, eventID uuid.UUID) ([]ListEventRequirementsRow, error)
 	ListEventSessions(ctx context.Context, eventID uuid.UUID) ([]EventSession, error)
+	ListEventShiftRequirementsForUpdate(ctx context.Context, arg ListEventShiftRequirementsForUpdateParams) ([]EventShiftRequirement, error)
 	ListEventShifts(ctx context.Context, eventID uuid.UUID) ([]ListEventShiftsRow, error)
 	ListEventTaskLists(ctx context.Context, eventID uuid.UUID) ([]EventTaskList, error)
 	ListEventTasks(ctx context.Context, eventID uuid.UUID) ([]EventTask, error)

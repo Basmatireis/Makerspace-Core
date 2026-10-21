@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EventFirstSessionInput } from './eventFirstSessionInput';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface CreateEventRequest {
@@ -37,4 +38,6 @@ export interface CreateEventRequest {
      */
   location?: string | null;
   ownerPersonId?: UUIDv7 | null;
+  /** Creates the first programme session in the same transaction. */
+  firstSession?: EventFirstSessionInput | null;
 }

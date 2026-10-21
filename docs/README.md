@@ -12,6 +12,7 @@
 - [Android terminal](android-terminal.md)
 - [Terminal, attendance, session policies, and surveys](terminal-attendance-surveys.md)
 - [Semester staffing and the personal dashboard](staffing-and-dashboard.md)
+- [Events](events.md)
 - [Orders, payments, and invoicing requests](orders.md)
 - [Machine logbook, pricing, and inventory](machine-logbook.md)
 - [Filament spools and generic printer integration](filament-printing.md)

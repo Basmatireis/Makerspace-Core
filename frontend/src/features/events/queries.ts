@@ -4,7 +4,6 @@ import {
   listEventAssignments,
   listEventFiles,
   listEventSessions,
-  listEventShiftRequirements,
   listEventShifts,
   listEventTaskLists,
   listEventTasks,
@@ -61,7 +60,10 @@ export const eventShiftsQueryOptions = (id: string) =>
 export const eventRequirementsQueryOptions = (id: string, shiftId: string) =>
   queryOptions({
     queryKey: eventKeys.requirements(id, shiftId),
-    queryFn: ({ signal }) => listEventShiftRequirements(id, shiftId, { signal }),
+    // Positions arrive with their shift; this keeps the per-shift query shape for existing screens.
+    queryFn: async ({ signal }) => ({
+      items: (await listEventShifts(id, { signal })).items.find((shift) => shift.id === shiftId)?.requirements ?? [],
+    }),
     enabled: Boolean(id && shiftId),
   });
 export const eventAssignmentsQueryOptions = (id: string, enabled: boolean) =>

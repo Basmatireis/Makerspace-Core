@@ -21,6 +21,7 @@ import { instantToZonedDateTimeValue } from '../../app/dateTime';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { eventMutationMessage } from './errors';
 import { toISO } from './format';
+import { positionInput } from './positions';
 import { DialogProps } from './eventDialogProps';
 
 type ShiftValues = {
@@ -70,6 +71,7 @@ export function ShiftEditDialog({
         signupClosesAt: value.signupClosesAt ? toISO(value.signupClosesAt) : null,
         isPublic: value.isPublic,
         status: value.status,
+        requirements: shift.requirements.map(positionInput),
         expectedVersion: shift.version,
       } satisfies UpdateEventShiftRequest),
     onSuccess: onSaved,

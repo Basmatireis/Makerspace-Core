@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EventPositionInput } from './eventPositionInput';
 import type { EventShiftStatus } from './eventShiftStatus';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -41,4 +42,9 @@ export interface EventShiftInput {
   signupClosesAt?: string | null;
   isPublic: boolean;
   status: EventShiftStatus;
+  /**
+     * The shift's positions. On update the complete list; see updateEventShift.
+     * @maxItems 50
+     */
+  requirements: EventPositionInput[];
 }
