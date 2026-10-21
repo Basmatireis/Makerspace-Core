@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-22
+
 ### Upgrade notes
 
 - Migration 00060 changes event data: `planning` events become `draft`, `archived` events become `completed` (closed date kept). Tasks `in progress` and `blocked` become open, cancelled tasks become done; priorities `high` and `urgent` become Important, the others are dropped.
@@ -360,6 +362,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.3]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.7.2...v0.8.0
