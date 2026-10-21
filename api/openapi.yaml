@@ -4280,6 +4280,27 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connectors/{printerConnectorId}/activity:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterConnectorActivity
+      summary: List what the connector changed automatically, newest first
+      description: >-
+        Needs printer_connectors.read. Ingested events, spool auto-mounts and the recorded runs and jobs they changed.
+        These automatic changes are not in the audit log. Entries are kept for 30 days and at most 10000 per connector.
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200": {description: One page of the activity log., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorActivityPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-connector/enroll:
     post:
       tags: [Printer Connectors]
@@ -11656,6 +11677,31 @@ components:
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    PrinterConnectorActivity:
+      type: object
+      additionalProperties: false
+      required: [id, kind, occurredAt, machineId, machineName, resourceId, resourceLabel, eventKind, changedFields]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [event_ingested, spool_auto_mounted, spool_auto_unmounted, run_recorded, job_run_updated]}
+        occurredAt: {type: string, format: date-time}
+        machineId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        machineName: {type: string, maxLength: 150, nullable: true}
+        resourceId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The printer event, printer slot, machine run or machine job, depending on kind."}
+        resourceLabel: {type: string, maxLength: 120, nullable: true, description: "Slot name or run or job display ID while the resource exists."}
+        eventKind: {type: string, maxLength: 40, nullable: true, description: "Kind of the ingested event (event_ingested only)."}
+        changedFields: {type: array, maxItems: 16, items: {type: string, maxLength: 100}}
+
+    PrinterConnectorActivityPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorActivity"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
 
     PrinterConnectorList:
       type: object

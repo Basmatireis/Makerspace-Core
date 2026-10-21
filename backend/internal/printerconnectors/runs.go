@@ -15,7 +15,6 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -92,23 +91,12 @@ func reconcileBambuSlotObservation(
 		if err = q.CloseOpenMount(ctx, db.CloseOpenMountParams{UnmountedAt: unmountedAt, ID: mount.ID}); err != nil {
 			return err
 		}
-		return audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorType:     "system",
-				Source:        "system",
-				Action:        "printer_slot.spool_auto_unmounted",
-				ResourceType:  "printer_slot",
-				ResourceID:    &slotID,
-				ChangedFields: []string{"assignment", "spoolId"},
-				Metadata: map[string]any{
-					"connectorId":  connectorID.String(),
-					"assignmentId": assignmentID.String(),
-					"eventId":      eventID.String(),
-				},
-			},
-		)
+		return recordActivity(ctx, q, activityEntry{
+			connectorID: connectorID,
+			machineID:   &machineID,
+			kind:        ActivitySpoolAutoUnmounted,
+			resourceID:  &slotID,
+		})
 	}
 	if value.TagUID == "" {
 		return nil
@@ -188,23 +176,12 @@ func reconcileBambuSlotObservation(
 	}); err != nil {
 		return err
 	}
-	return audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Source:        "system",
-			Action:        "printer_slot.spool_auto_mounted",
-			ResourceType:  "printer_slot",
-			ResourceID:    &slotID,
-			ChangedFields: []string{"assignment", "spoolId"},
-			Metadata: map[string]any{
-				"connectorId":  connectorID.String(),
-				"assignmentId": assignmentID.String(),
-				"eventId":      eventID.String(),
-			},
-		},
-	)
+	return recordActivity(ctx, q, activityEntry{
+		connectorID: connectorID,
+		machineID:   &machineID,
+		kind:        ActivitySpoolAutoMounted,
+		resourceID:  &slotID,
+	})
 }
 
 func formatRunDisplayID(sequence int64, observedAt time.Time) string {

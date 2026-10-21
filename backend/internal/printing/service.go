@@ -713,7 +713,8 @@ func connectorEventFromRow(row printerconnectorsdb.PrinterEvent) PrinterEvent {
 
 // IngestConnectorEvent is the transaction-aware connector boundary. The caller
 // validates and locks connector ownership in the same transaction before using
-// this method, so event receipt, authorization, and audit cannot commit apart.
+// this method, so event receipt, authorization, and the connector's activity
+// log entry cannot commit apart. Ingested events are not audited.
 func (s *Service) IngestConnectorEvent(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -840,20 +841,6 @@ func (s *Service) IngestConnectorEvent(
 	)
 	if err != nil {
 		return PrinterEvent{}, false, dbError(err)
-	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "printer_event.ingested",
-			ResourceType:  "printer_event",
-			ResourceID:    &input.EventID,
-			ChangedFields: []string{"kind", "state"},
-			Source:        "http",
-		},
-	); err != nil {
-		return PrinterEvent{}, false, err
 	}
 	return connectorEventFromRow(row), true, nil
 }

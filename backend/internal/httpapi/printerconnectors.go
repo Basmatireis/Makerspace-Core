@@ -631,3 +631,56 @@ func (s *Server) ClearPrinterConnectorEvents(
 	}
 	return openapi.ClearPrinterConnectorEvents200JSONResponse(printerConnectorDTO(item)), nil
 }
+
+func printerConnectorActivityDTO(value printerconnectors.Activity) openapi.PrinterConnectorActivity {
+	var eventKind *string
+	if value.EventKind != nil {
+		kind := string(*value.EventKind)
+		eventKind = &kind
+	}
+	fields := value.ChangedFields
+	if fields == nil {
+		fields = []string{}
+	}
+	return openapi.PrinterConnectorActivity{
+		Id:            value.ID,
+		Kind:          openapi.PrinterConnectorActivityKind(value.Kind),
+		OccurredAt:    value.OccurredAt,
+		MachineId:     nullableUUIDValue(value.MachineID),
+		MachineName:   nullableString(value.MachineName),
+		ResourceId:    nullableUUIDValue(value.ResourceID),
+		ResourceLabel: nullableString(value.ResourceLabel),
+		EventKind:     nullableString(eventKind),
+		ChangedFields: fields,
+	}
+}
+
+func (s *Server) ListPrinterConnectorActivity(
+	ctx context.Context,
+	request openapi.ListPrinterConnectorActivityRequestObject,
+) (openapi.ListPrinterConnectorActivityResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, err := s.printerConnectors.ListActivity(
+		ctx,
+		principal,
+		request.PrinterConnectorId,
+		defaultInt(request.Params.Page, 1),
+		defaultInt(request.Params.PageSize, 25),
+	)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.PrinterConnectorActivity, 0, len(page.Items))
+	for _, item := range page.Items {
+		items = append(items, printerConnectorActivityDTO(item))
+	}
+	return openapi.ListPrinterConnectorActivity200JSONResponse{
+		Items:    items,
+		Page:     page.Page,
+		PageSize: page.PageSize,
+		Total:    page.Total,
+	}, nil
+}

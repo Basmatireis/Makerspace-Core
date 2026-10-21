@@ -22,9 +22,11 @@ import type {
   CreatePrinterConnectorAssignmentRequest,
   CreatePrinterConnectorRequest,
   EnrollPrinterConnectorRequest,
+  ListPrinterConnectorActivityParams,
   ListPrinterConnectorEventsParams,
   PrintArtifactUploadResult,
   PrinterConnector,
+  PrinterConnectorActivityPage,
   PrinterConnectorAssignment,
   PrinterConnectorAssignmentList,
   PrinterConnectorConfiguration,
@@ -440,6 +442,39 @@ export const clearPrinterConnectorEvents = async (printerConnectorId: UUIDv7, op
   {
     ...options,
     method: 'POST'
+
+
+  }
+);}
+
+
+export const getListPrinterConnectorActivityUrl = (printerConnectorId: UUIDv7,
+    params?: ListPrinterConnectorActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/printer-connectors/${printerConnectorId}/activity?${stringifiedParams}` : `/api/v1/printer-connectors/${printerConnectorId}/activity`
+}
+
+/**
+ * Needs printer_connectors.read. Ingested events, spool auto-mounts and the recorded runs and jobs they changed. These automatic changes are not in the audit log. Entries are kept for 30 days and at most 10000 per connector.
+ * @summary List what the connector changed automatically, newest first
+ */
+export const listPrinterConnectorActivity = async (printerConnectorId: UUIDv7,
+    params?: ListPrinterConnectorActivityParams, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterConnectorActivityPage> => {
+
+  return apiFetch<PrinterConnectorActivityPage>(getListPrinterConnectorActivityUrl(printerConnectorId,params),
+  {
+    ...options,
+    method: 'GET'
 
 
   }

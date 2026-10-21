@@ -6,7 +6,6 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -18,9 +17,20 @@ import (
 // recorded run. The connector's event ingest calls it in the transaction that
 // stored the event.
 type RecordedRunEvent struct {
-	RunID, ConnectorID uuid.UUID
+	RunID uuid.UUID
 	// Kind is the connector event kind; it is a RunEventKind value.
 	Kind string
+}
+
+// RecordedRunChange is what ApplyRecordedRunEvent changed. The connector
+// records it in its activity log; these automatic changes are not audited.
+type RecordedRunChange struct {
+	RunID uuid.UUID
+	// RunFields are the changed run fields; empty when the run did not change.
+	RunFields []string
+	// JobID is the run's job when the job was settled again; JobFields are its changed fields.
+	JobID     *uuid.UUID
+	JobFields []string
 }
 
 // ApplyRecordedRunEvent settles what a connector event implies for a recorded
@@ -36,17 +46,22 @@ type RecordedRunEvent struct {
 //     replaced. Consumption that inventory rules reject (no stock, spool not
 //     consumable) is skipped and left to staff;
 //   - when the run belongs to a job, the job is repriced. Final state and
-//     usage changes advance the job version and are audited; progress only
-//     refreshes the price of the running job.
-func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event RecordedRunEvent) error {
+//     usage changes advance the job version and are reported as changes;
+//     progress only refreshes the price of the running job.
+func (s *Service) ApplyRecordedRunEvent(
+	ctx context.Context,
+	tx pgx.Tx,
+	event RecordedRunEvent,
+) (RecordedRunChange, error) {
 	q := machinelogbookdb.New(tx)
 	// The job is locked before the run, like every job operation does.
 	run, lockedJob, err := LockRunChain(ctx, tx, event.RunID)
 	if err != nil {
-		return err
+		return RecordedRunChange{}, err
 	}
+	change := RecordedRunChange{RunID: run.ID}
 	if RunSource(run.Source) != RunSourceRecorded {
-		return nil
+		return change, nil
 	}
 	connector := authorization.Principal{}
 	var fields []string
@@ -56,57 +71,31 @@ func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event Re
 			run = updated
 			fields = append(fields, "outcome")
 		} else if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+			return RecordedRunChange{}, err
 		}
 	}
 	changed, err := s.consumeReportedUsage(ctx, tx, q, connector, run)
 	if err != nil {
-		return err
+		return RecordedRunChange{}, err
 	}
 	if changed {
 		fields = append(fields, "usages", "inventory")
 	}
-	metadata := map[string]any{"connectorId": event.ConnectorID.String()}
-	if len(fields) > 0 {
-		if err = audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorType:     "system",
-				Action:        "machine_run.recorded",
-				ResourceType:  "machine_run",
-				ResourceID:    &run.ID,
-				ChangedFields: fields,
-				Metadata:      metadata,
-			},
-		); err != nil {
-			return err
-		}
-	}
+	change.RunFields = fields
 	if run.JobID == nil {
-		return nil
+		return change, nil
 	}
 	job := *lockedJob
 	if len(fields) == 0 && RunEventKind(event.Kind) != RunEventTerminalOutcome {
 		_, err = s.refreshPriceKeepingVersion(ctx, q, job)
-		return err
+		return change, err
 	}
 	if _, err = s.settleJob(ctx, q, job.ID); err != nil {
-		return err
+		return RecordedRunChange{}, err
 	}
-	jobFields := append(append([]string{"runs"}, fields...), "calculatedPrice", "effectivePrice")
-	return audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorType:     "system",
-			Action:        "machine_job.recorded_run_updated",
-			ResourceType:  "machine_job",
-			ResourceID:    &job.ID,
-			ChangedFields: dedupe(jobFields),
-			Metadata:      metadata,
-		},
-	)
+	change.JobID = &job.ID
+	change.JobFields = dedupe(append(append([]string{"runs"}, fields...), "calculatedPrice", "effectivePrice"))
+	return change, nil
 }
 
 // consumeReportedUsage records the machine's reported consumption as the usage

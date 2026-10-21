@@ -139,6 +139,9 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	if err != nil {
 		return Connector{}, err
 	}
+	if err = pruneActivity(ctx, q, connector.ID, time.Now().UTC()); err != nil {
+		return Connector{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Connector{}, err
 	}
@@ -293,6 +296,19 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		code := "temporarily_unavailable"
 		return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 	}
+	if inserted {
+		eventKind := string(input.Kind)
+		if err = recordActivity(ctx, db.New(tx), activityEntry{
+			connectorID: connector.ID,
+			machineID:   &a.MachineID,
+			kind:        ActivityEventIngested,
+			resourceID:  &event.ID,
+			eventKind:   &eventKind,
+		}); err != nil {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
+		}
+	}
 	if inserted && input.RunID != nil && !runDeleted {
 		if err = applyPrintFacts(
 			ctx,
@@ -309,11 +325,15 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		}
 		// The recorded run's outcome, material usage and job price follow the
 		// event in the same transaction.
-		if err = s.logbook.ApplyRecordedRunEvent(
+		change, applyErr := s.logbook.ApplyRecordedRunEvent(
 			ctx,
 			tx,
-			machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: string(input.Kind)},
-		); err != nil {
+			machinelogbook.RecordedRunEvent{RunID: run.ID, Kind: string(input.Kind)},
+		)
+		if applyErr == nil {
+			applyErr = recordRunActivity(ctx, db.New(tx), connector.ID, a.MachineID, change)
+		}
+		if applyErr != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}

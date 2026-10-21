@@ -832,14 +832,20 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 	if settled.DurationSeconds != 1800 || settled.PricingStatus != "incomplete" {
 		t.Fatalf("job runtime %d pricing %s", settled.DurationSeconds, settled.PricingStatus)
 	}
-	var actorType string
+	// The automatic job and run changes are in the connector's activity log, not in the audit log.
+	var logged, audited int
 	if err = h.pool.QueryRow(
 		ctx,
-		`SELECT actor_type FROM audit_events WHERE action = 'machine_job.recorded_run_updated' AND resource_id = $1 ORDER BY occurred_at DESC LIMIT 1`,
+		`SELECT
+			(SELECT count(*) FROM printer_connector_activity WHERE connector_id = $1 AND machine_id = $2
+				AND ((kind = 'job_run_updated' AND resource_id = $3) OR (kind = 'run_recorded' AND resource_id = $4))),
+			(SELECT count(*) FROM audit_events WHERE resource_id IN ($3, $4) AND actor_type = 'system')`,
+		h.connector.ID,
+		h.machine.ID,
 		job.ID,
-	).Scan(&actorType); err != nil ||
-		actorType != "system" {
-		t.Fatalf("audit actor = %q err=%v", actorType, err)
+		runID,
+	).Scan(&logged, &audited); err != nil || logged < 2 || audited != 0 {
+		t.Fatalf("activity entries = %d, system audit events = %d, err=%v", logged, audited, err)
 	}
 	// A later report replaces the machine's usage without double counting.
 	h.report(

@@ -16,7 +16,7 @@ import (
 const activateGateway = `-- name: ActivateGateway :one
 UPDATE streaming_gateways SET lifecycle = 'active', enrolled_at = COALESCE(enrolled_at, now()),
     configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
-WHERE id = $1 AND lifecycle = 'pending' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id = $1 AND lifecycle = 'pending' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 func (q *Queries) ActivateGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error) {
@@ -40,6 +40,13 @@ func (q *Queries) ActivateGateway(ctx context.Context, id uuid.UUID) (StreamingG
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -73,7 +80,7 @@ func (q *Queries) ActiveBambuAssignmentForMachine(ctx context.Context, machineID
 }
 
 const authenticateGateway = `-- name: AuthenticateGateway :one
-SELECT g.id, g.name, g.public_host, g.lifecycle, g.configuration_revision, g.applied_configuration_revision, g.software_version, g.protocol_version, g.health_state, g.health_summary, g.last_heartbeat_at, g.enrolled_at, g.disabled_at, g.revoked_at, g.version, g.created_at, g.updated_at, cr.id AS credential_id
+SELECT g.id, g.name, g.public_host, g.lifecycle, g.configuration_revision, g.applied_configuration_revision, g.software_version, g.protocol_version, g.health_state, g.health_summary, g.last_heartbeat_at, g.enrolled_at, g.disabled_at, g.revoked_at, g.version, g.created_at, g.updated_at, g.updater_available, g.update_request_id, g.update_target_version, g.update_requested_at, g.update_status, g.update_status_reason, g.update_status_at, cr.id AS credential_id
 FROM streaming_gateway_credentials cr JOIN streaming_gateways g ON g.id = cr.gateway_id
 WHERE cr.token_digest = $1 AND cr.state IN ('current', 'retiring')
   AND cr.expires_at > now() AND (cr.retire_after IS NULL OR cr.retire_after > now())
@@ -98,6 +105,13 @@ type AuthenticateGatewayRow struct {
 	Version                      int64
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
+	UpdaterAvailable             bool
+	UpdateRequestID              *uuid.UUID
+	UpdateTargetVersion          *string
+	UpdateRequestedAt            pgtype.Timestamptz
+	UpdateStatus                 *string
+	UpdateStatusReason           *string
+	UpdateStatusAt               pgtype.Timestamptz
 	CredentialID                 uuid.UUID
 }
 
@@ -122,6 +136,13 @@ func (q *Queries) AuthenticateGateway(ctx context.Context, tokenDigest []byte) (
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 		&i.CredentialID,
 	)
 	return i, err
@@ -221,7 +242,7 @@ func (q *Queries) CreateCamera(ctx context.Context, arg CreateCameraParams) (Str
 const createGateway = `-- name: CreateGateway :one
 
 INSERT INTO streaming_gateways (id, name, public_host)
-VALUES ($1, $2, $3) RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+VALUES ($1, $2, $3) RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 type CreateGatewayParams struct {
@@ -252,6 +273,13 @@ func (q *Queries) CreateGateway(ctx context.Context, arg CreateGatewayParams) (S
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -516,7 +544,7 @@ func (q *Queries) GetCameraView(ctx context.Context, id uuid.UUID) (GetCameraVie
 }
 
 const getGateway = `-- name: GetGateway :one
-SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM streaming_gateways WHERE id = $1
+SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at FROM streaming_gateways WHERE id = $1
 `
 
 func (q *Queries) GetGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error) {
@@ -540,6 +568,13 @@ func (q *Queries) GetGateway(ctx context.Context, id uuid.UUID) (StreamingGatewa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -604,7 +639,7 @@ func (q *Queries) GetGatewayEnrollmentByDigestForUpdate(ctx context.Context, tok
 }
 
 const getGatewayForUpdate = `-- name: GetGatewayForUpdate :one
-SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM streaming_gateways WHERE id = $1 FOR UPDATE
+SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at FROM streaming_gateways WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetGatewayForUpdate(ctx context.Context, id uuid.UUID) (StreamingGateway, error) {
@@ -628,6 +663,13 @@ func (q *Queries) GetGatewayForUpdate(ctx context.Context, id uuid.UUID) (Stream
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -926,7 +968,7 @@ func (q *Queries) ListGatewayCredentialExpiries(ctx context.Context) ([]ListGate
 }
 
 const listGateways = `-- name: ListGateways :many
-SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM streaming_gateways ORDER BY lower(name), id
+SELECT id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at FROM streaming_gateways ORDER BY lower(name), id
 `
 
 func (q *Queries) ListGateways(ctx context.Context) ([]StreamingGateway, error) {
@@ -956,6 +998,13 @@ func (q *Queries) ListGateways(ctx context.Context) ([]StreamingGateway, error) 
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdaterAvailable,
+			&i.UpdateRequestID,
+			&i.UpdateTargetVersion,
+			&i.UpdateRequestedAt,
+			&i.UpdateStatus,
+			&i.UpdateStatusReason,
+			&i.UpdateStatusAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1103,7 +1152,7 @@ const recordGatewayHeartbeat = `-- name: RecordGatewayHeartbeat :one
 UPDATE streaming_gateways SET software_version = $1, protocol_version = $2,
     applied_configuration_revision = $3, health_state = $4,
     health_summary = $5, last_heartbeat_at = now()
-WHERE id = $6 AND lifecycle = 'active' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id = $6 AND lifecycle = 'active' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 type RecordGatewayHeartbeatParams struct {
@@ -1143,13 +1192,20 @@ func (q *Queries) RecordGatewayHeartbeat(ctx context.Context, arg RecordGatewayH
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
 
 const reenrollGateway = `-- name: ReenrollGateway :one
 UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
-WHERE id = $1 AND lifecycle IN ('active', 'disabled') RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id = $1 AND lifecycle IN ('active', 'disabled') RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 func (q *Queries) ReenrollGateway(ctx context.Context, id uuid.UUID) (StreamingGateway, error) {
@@ -1173,6 +1229,13 @@ func (q *Queries) ReenrollGateway(ctx context.Context, id uuid.UUID) (StreamingG
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -1189,7 +1252,7 @@ func (q *Queries) RetireActiveTicketKey(ctx context.Context, retiredAt pgtype.Ti
 const revokeGateway = `-- name: RevokeGateway :one
 UPDATE streaming_gateways SET lifecycle = 'revoked', revoked_at = now(), disabled_at = NULL,
     configuration_revision = configuration_revision + 1, version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND lifecycle <> 'revoked' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id = $1 AND version = $2 AND lifecycle <> 'revoked' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 type RevokeGatewayParams struct {
@@ -1218,6 +1281,13 @@ func (q *Queries) RevokeGateway(ctx context.Context, arg RevokeGatewayParams) (S
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
@@ -1300,7 +1370,7 @@ const updateGateway = `-- name: UpdateGateway :one
 UPDATE streaming_gateways SET name = $1, public_host = $2, lifecycle = $3,
     disabled_at = $4, configuration_revision = configuration_revision + 1,
     version = version + 1, updated_at = now()
-WHERE id = $5 AND version = $6 AND lifecycle <> 'revoked' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id = $5 AND version = $6 AND lifecycle <> 'revoked' RETURNING id, name, public_host, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, updater_available, update_request_id, update_target_version, update_requested_at, update_status, update_status_reason, update_status_at
 `
 
 type UpdateGatewayParams struct {
@@ -1340,6 +1410,13 @@ func (q *Queries) UpdateGateway(ctx context.Context, arg UpdateGatewayParams) (S
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UpdaterAvailable,
+		&i.UpdateRequestID,
+		&i.UpdateTargetVersion,
+		&i.UpdateRequestedAt,
+		&i.UpdateStatus,
+		&i.UpdateStatusReason,
+		&i.UpdateStatusAt,
 	)
 	return i, err
 }
