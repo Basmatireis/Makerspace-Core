@@ -214,7 +214,7 @@ describe('Display detail', () => {
     const dialog = await screen.findByRole('dialog');
     await user.selectOptions(within(dialog).getByLabelText('When'), 'machine_printing');
     await user.click(await within(dialog).findByRole('combobox', { name: /Machines/ }));
-    await user.click(await screen.findByRole('option', { name: 'H2D' }));
+    await user.click(await screen.findByLabelText('H2D', { selector: '[role="option"]' }));
     await user.click(within(dialog).getByRole('combobox', { name: 'Show' }));
     await user.click(await screen.findByRole('option', { name: 'Scene Open days poster' }));
     await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));

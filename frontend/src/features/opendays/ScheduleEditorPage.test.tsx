@@ -333,7 +333,7 @@ describe('schedule editor calendar context', () => {
     fireEvent.change(supervisorCount, { target: { value: '4' } });
     const supervisorRoles = within(createDialog).getByRole('combobox', { name: /^Eligible supervisor roles/ });
     await user.click(supervisorRoles);
-    await user.click(within(createDialog).getByRole('option', { name: 'Trainee' }));
+    await user.click(within(createDialog).getByLabelText('Trainee', { selector: '[role="option"]' }));
     expect(within(createDialog).getByRole('combobox', { name: /^Eligible trainee roles/ })).toBeInTheDocument();
     await user.click(within(createDialog).getByRole('button', { name: 'Create' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -526,8 +526,8 @@ describe('schedule editor calendar context', () => {
     expect(within(dialog).getByRole('button', { name: 'Apply to selected' })).toBeDisabled();
 
     await user.click(supervisorRoles);
-    await user.click(within(dialog).getByRole('option', { name: 'Supervisor' }));
-    await user.click(within(dialog).getByRole('option', { name: 'Trainee' }));
+    await user.click(within(dialog).getByLabelText('Supervisor', { selector: '[role="option"]' }));
+    await user.click(within(dialog).getByLabelText('Trainee', { selector: '[role="option"]' }));
     await user.click(within(dialog).getByRole('button', { name: 'Apply to selected' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
