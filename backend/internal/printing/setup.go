@@ -10,6 +10,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	printerconnectorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printing/db"
@@ -166,15 +167,34 @@ func (s *Service) SaveSetup(
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Profile{}, err
 	}
+	// Malformed input never opens a transaction.
+	if _, err := normalizeSetup(raw); err != nil {
+		return Profile{}, err
+	}
+	var result Profile
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.SaveSetupTx(ctx, tx, p, machineID, raw, requestID)
+		return err
+	})
+	return result, err
+}
+
+// SaveSetupTx is SaveSetup inside the caller's transaction; the configuration import uses it.
+func (s *Service) SaveSetupTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	machineID uuid.UUID,
+	raw SetupInput,
+	requestID *uuid.UUID,
+) (Profile, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return Profile{}, err
+	}
 	input, err := normalizeSetup(raw)
 	if err != nil {
 		return Profile{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Profile{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	if err = s.applySetup(ctx, tx, machineID, input); err != nil {
 		return Profile{}, err
 	}
@@ -192,9 +212,6 @@ func (s *Service) SaveSetup(
 	}
 	profile, err := loadProfile(ctx, db.New(tx), machineID)
 	if err != nil {
-		return Profile{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return Profile{}, err
 	}
 	return profile, nil

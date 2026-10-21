@@ -7,7 +7,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // MaterialUse names one kind of record that still points at an article.
@@ -50,14 +52,26 @@ func (s *Service) DeleteMaterial(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return err
 	}
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteMaterialTx(ctx, tx, p, id, expected, requestID)
+	})
+}
+
+// DeleteMaterialTx is DeleteMaterial inside the caller's transaction; the configuration import uses it.
+func (s *Service) DeleteMaterialTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return err
+	}
 	if expected < 1 {
 		return apperror.Invalid("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
@@ -83,7 +97,7 @@ func (s *Service) DeleteMaterial(
 	if err = writeAudit(ctx, tx, p, "material.deleted", "material", id, requestID, nil); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func materialInUse(uses []MaterialUse) error {

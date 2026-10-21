@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -354,6 +355,21 @@ func (s *Service) CreateMaterial(
 	return materialFromGet(row), nil
 }
 
+// CreateMaterialTx is CreateMaterial inside the caller's transaction; it returns the new article's ID. The
+// configuration import uses it.
+func (s *Service) CreateMaterialTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	in MaterialInput,
+	requestID *uuid.UUID,
+) (uuid.UUID, error) {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return uuid.Nil, err
+	}
+	return s.createMaterialTx(ctx, tx, p, in, requestID)
+}
+
 // createMaterialTx creates an article with its balance inside the caller's
 // transaction. The caller checked the permission.
 func (s *Service) createMaterialTx(
@@ -449,6 +465,26 @@ func (s *Service) UpdateMaterial(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
+	var result Material
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateMaterialTx(ctx, tx, p, id, in, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateMaterialTx is UpdateMaterial inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateMaterialTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	in MaterialInput,
+	requestID *uuid.UUID,
+) (Material, error) {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return Material{}, err
+	}
 	if in.ExpectedVersion < 1 {
 		return Material{}, apperror.Invalid("expectedVersion must be positive")
 	}
@@ -456,11 +492,6 @@ func (s *Service) UpdateMaterial(
 	if err != nil {
 		return Material{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Material{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialForUpdate(ctx, id)
 	if err != nil {
@@ -577,9 +608,6 @@ func (s *Service) UpdateMaterial(
 	}
 	row, err := q.GetMaterial(ctx, id)
 	if err != nil {
-		return Material{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return Material{}, err
 	}
 	return materialFromGet(row), nil

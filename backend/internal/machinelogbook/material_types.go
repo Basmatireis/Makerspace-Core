@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -217,6 +218,28 @@ func (s *Service) CreateMaterialType(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
+	var result MaterialType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateMaterialTypeTx(ctx, tx, p, name, kind, unit, processes, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateMaterialTypeTx is CreateMaterialType inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateMaterialTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processes []string,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return MaterialType{}, err
+	}
 	name, err := validateMaterialTypeName(name)
 	if err != nil {
 		return MaterialType{}, err
@@ -231,11 +254,6 @@ func (s *Service) CreateMaterialType(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MaterialType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	id := ids.New()
 	if _, err = q.CreateMaterialType(
@@ -263,9 +281,6 @@ func (s *Service) CreateMaterialType(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MaterialType{}, err
-	}
 	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes), nil
 }
 
@@ -276,6 +291,31 @@ func (s *Service) CreateMaterialType(
 // given list replaces them and must fit the kind.
 func (s *Service) UpdateMaterialType(
 	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processes []string,
+	active bool,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return MaterialType{}, err
+	}
+	var result MaterialType
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateMaterialTypeTx(ctx, tx, p, id, expected, name, kind, unit, processes, active, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateMaterialTypeTx is UpdateMaterialType inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateMaterialTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -302,11 +342,6 @@ func (s *Service) UpdateMaterialType(
 	if kind != "" && !validMaterialKind(kind) {
 		return MaterialType{}, apperror.Invalid("invalid material kind")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MaterialType{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialTypeForUpdate(ctx, id)
 	if err != nil {
@@ -391,9 +426,6 @@ func (s *Service) UpdateMaterialType(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MaterialType{}, err
-	}
 	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), stored[id]), nil
 }
 
@@ -438,14 +470,26 @@ func (s *Service) DeleteMaterialType(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return err
 	}
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteMaterialTypeTx(ctx, tx, p, id, expected, requestID)
+	})
+}
+
+// DeleteMaterialTypeTx is DeleteMaterialType inside the caller's transaction; the configuration import uses it.
+func (s *Service) DeleteMaterialTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
+	if err := require(p, authorization.InventoryManage); err != nil {
+		return err
+	}
 	if expected < 1 {
 		return apperror.Invalid("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMaterialTypeForUpdate(ctx, id)
 	if err != nil {
@@ -474,7 +518,7 @@ func (s *Service) DeleteMaterialType(
 	if err = writeAudit(ctx, tx, p, "material_type.deleted", "material_type", id, requestID, nil); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // resolveMaterialType loads the type a material or pricing rule points at and

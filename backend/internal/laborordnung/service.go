@@ -3,6 +3,7 @@ package laborordnung
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -18,6 +19,8 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	laborordnungdb "github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -89,16 +92,8 @@ func (s *Service) CreateVersion(
 	if err != nil {
 		return Version{}, err
 	}
-	if len(data) == 0 || len(data) > MaxPDFBytes {
-		return Version{}, apperror.New(
-			http.StatusRequestEntityTooLarge,
-			"laborordnung_pdf_too_large",
-			"Lab Rules PDF exceeds 25 MiB",
-		)
-	}
-	parsed, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil || parsed.NumPage() < 1 {
-		return Version{}, apperror.InvalidField("uploaded content is not a parseable PDF with at least one page")
+	if err = ValidatePDF(data); err != nil {
+		return Version{}, err
 	}
 	stored, err := s.files.StoreBytes(ctx, principal, filename, "application/pdf", data, requestID)
 	if err != nil {
@@ -144,6 +139,84 @@ func (s *Service) CreateVersion(
 	return versionFromRow(row), nil
 }
 
+// ValidatePDF checks that a Lab Rules PDF is within MaxPDFBytes and parses with at least one page.
+func ValidatePDF(data []byte) error {
+	if len(data) == 0 || len(data) > MaxPDFBytes {
+		return apperror.New(
+			http.StatusRequestEntityTooLarge,
+			"laborordnung_pdf_too_large",
+			"Lab Rules PDF exceeds 25 MiB",
+		)
+	}
+	parsed, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil || parsed.NumPage() < 1 {
+		return apperror.InvalidField("uploaded content is not a parseable PDF with at least one page")
+	}
+	return nil
+}
+
+// CreateVersionTx stores the PDF and creates a draft version inside the caller's transaction; the configuration
+// import uses it. The returned cleanup removes the stored blob and must run when the transaction does not commit.
+func (s *Service) CreateVersionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	revision, filename string,
+	data []byte,
+	requestID *uuid.UUID,
+) (Version, func(), error) {
+	noCleanup := func() {}
+	if !principal.Has(authorization.LaborordnungManage) {
+		return Version{}, noCleanup, apperror.PermissionDenied
+	}
+	revision = strings.TrimSpace(revision)
+	if revision == "" || len([]rune(revision)) > 100 {
+		return Version{}, noCleanup, apperror.InvalidField("human revision is required and limited to 100 characters")
+	}
+	if err := ValidatePDF(data); err != nil {
+		return Version{}, noCleanup, err
+	}
+	digest := sha256.Sum256(data)
+	stored, cleanup, err := s.files.StoreReaderInTransaction(
+		ctx,
+		tx,
+		principal,
+		filename,
+		"application/pdf",
+		bytes.NewReader(data),
+		storage.Metadata{Size: int64(len(data)), SHA256: digest},
+		requestID,
+	)
+	if err != nil {
+		return Version{}, noCleanup, err
+	}
+	id := ids.New()
+	actor := principal.AccountID
+	row, err := laborordnungdb.New(tx).CreateVersion(ctx, laborordnungdb.CreateVersionParams{
+		ID: id, HumanRevision: revision, PdfFileID: stored.ID, PdfSha256: stored.SHA256[:], CreatedByAccountID: &actor,
+	})
+	if err != nil {
+		cleanup()
+		return Version{}, noCleanup, err
+	}
+	if err := audit.Write(
+		ctx,
+		tx,
+		audit.Event{
+			ActorAccountID: &actor,
+			Action:         "laborordnung.version.created",
+			ResourceType:   "laborordnung_version",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  []string{"humanRevision", "pdfFileId"},
+		},
+	); err != nil {
+		cleanup()
+		return Version{}, noCleanup, err
+	}
+	return versionFromRow(row), cleanup, nil
+}
+
 func (s *Service) ListVersions(ctx context.Context, principal authorization.Principal) ([]Version, error) {
 	if !principal.Has(authorization.LaborordnungRead) && !principal.Has(authorization.LaborordnungManage) {
 		return nil, apperror.PermissionDenied
@@ -169,14 +242,29 @@ func (s *Service) Publish(
 	if !principal.Has(authorization.LaborordnungManage) {
 		return Version{}, apperror.PermissionDenied
 	}
+	var result Version
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.PublishTx(ctx, tx, principal, id, effectiveAt, requestID)
+		return err
+	})
+	return result, err
+}
+
+// PublishTx is Publish inside the caller's transaction; the configuration import uses it.
+func (s *Service) PublishTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	effectiveAt time.Time,
+	requestID *uuid.UUID,
+) (Version, error) {
+	if !principal.Has(authorization.LaborordnungManage) {
+		return Version{}, apperror.PermissionDenied
+	}
 	if effectiveAt.IsZero() {
 		return Version{}, apperror.InvalidField("effectiveAt is required")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Version{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	row, err := laborordnungdb.New(tx).
 		PublishVersion(
 			ctx,
@@ -208,9 +296,6 @@ func (s *Service) Publish(
 			ChangedFields:  []string{"status", "effectiveAt"},
 		},
 	); err != nil {
-		return Version{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Version{}, err
 	}
 	return versionFromRow(row), nil

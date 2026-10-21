@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	staffingdb "github.com/Basmatireis/Makerspace-Core/backend/internal/staffing/db"
 	"github.com/google/uuid"
@@ -64,6 +65,25 @@ func (s *Service) UpdateRequirements(
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Requirements{}, apperror.PermissionDenied
 	}
+	var result Requirements
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateRequirementsTx(ctx, tx, principal, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateRequirementsTx is UpdateRequirements inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateRequirementsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	input UpdateInput,
+	requestID *uuid.UUID,
+) (Requirements, error) {
+	if !principal.Has(authorization.OpenDaysManage) {
+		return Requirements{}, apperror.PermissionDenied
+	}
 	if input.ExpectedVersion < 1 {
 		return Requirements{}, apperror.InvalidField("expectedVersion must be positive")
 	}
@@ -73,11 +93,6 @@ func (s *Service) UpdateRequirements(
 	if input.TraineeOpenDaysForPromotion < 1 || input.TraineeOpenDaysForPromotion > MaxOpenDaysPerSemester {
 		return Requirements{}, apperror.InvalidField("trainee open days for promotion must be between 1 and 20")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Requirements{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	queries := staffingdb.New(tx)
 	// The role is locked before the settings row, the same order a role update takes.
 	if input.SupervisorRoleID != nil {
@@ -129,9 +144,6 @@ func (s *Service) UpdateRequirements(
 		RequestID:      requestID,
 		ChangedFields:  changed,
 	}); err != nil {
-		return Requirements{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Requirements{}, err
 	}
 	return requirementsFromRow(row), nil

@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -109,17 +110,33 @@ func (s *Service) CreatePricingGroup(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingGroup{}, err
 	}
+	var result PricingGroup
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreatePricingGroupTx(ctx, tx, p, name, description, isDefault, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreatePricingGroupTx is CreatePricingGroup inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreatePricingGroupTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	name string,
+	description *string,
+	isDefault bool,
+	requestID *uuid.UUID,
+) (PricingGroup, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingGroup{}, err
+	}
 	var err error
 	name, err = validateName(name)
 	if err != nil {
 		return PricingGroup{}, err
 	}
 	description = optional.Trimmed(description)
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return PricingGroup{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	id := ids.New()
 	if isDefault {
@@ -146,14 +163,34 @@ func (s *Service) CreatePricingGroup(
 	); err != nil {
 		return PricingGroup{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return PricingGroup{}, err
-	}
-	return s.pricingGroupFromRow(ctx, machinelogbookdb.New(s.pool), row)
+	return s.pricingGroupFromRow(ctx, q, row)
 }
 
 func (s *Service) UpdatePricingGroup(
 	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	description *string,
+	active, isDefault bool,
+	requestID *uuid.UUID,
+) (PricingGroup, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingGroup{}, err
+	}
+	var result PricingGroup
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdatePricingGroupTx(ctx, tx, p, id, expected, name, description, active, isDefault, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdatePricingGroupTx is UpdatePricingGroup inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdatePricingGroupTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -177,11 +214,6 @@ func (s *Service) UpdatePricingGroup(
 	if isDefault && !active {
 		return PricingGroup{}, apperror.Invalid("default pricing group must be active")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return PricingGroup{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetPricingGroupForUpdate(ctx, id)
 	if err != nil {
@@ -224,10 +256,7 @@ func (s *Service) UpdatePricingGroup(
 	); err != nil {
 		return PricingGroup{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return PricingGroup{}, err
-	}
-	return s.pricingGroupFromRow(ctx, machinelogbookdb.New(s.pool), row)
+	return s.pricingGroupFromRow(ctx, q, row)
 }
 
 // ruleTarget is what a pricing rule prices, resolved from its kind and selectors.
@@ -312,15 +341,33 @@ func (s *Service) CreatePricingRule(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
+	var result PricingRule
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreatePricingRuleTx(ctx, tx, p, groupID, kind, machineTypeID, materialTypeID, measure, rate, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreatePricingRuleTx is CreatePricingRule inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreatePricingRuleTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	groupID uuid.UUID,
+	kind PricingRuleKind,
+	machineTypeID, materialTypeID *uuid.UUID,
+	measure *string,
+	rate string,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingRule{}, err
+	}
 	numeric, err := numericFromString(rate, false)
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
 		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return PricingRule{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, true)
 	if err != nil {
@@ -363,14 +410,36 @@ func (s *Service) CreatePricingRule(
 	); err != nil {
 		return PricingRule{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return PricingRule{}, err
-	}
 	return pricingRuleFromRow(row, target.MaterialTypeName), nil
 }
 
 func (s *Service) UpdatePricingRule(
 	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	kind PricingRuleKind,
+	machineTypeID, materialTypeID *uuid.UUID,
+	measure *string,
+	rate string,
+	active bool,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingRule{}, err
+	}
+	var result PricingRule
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdatePricingRuleTx(ctx, tx, p, id, expected, kind, machineTypeID, materialTypeID, measure, rate, active, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdatePricingRuleTx is UpdatePricingRule inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdatePricingRuleTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -391,11 +460,6 @@ func (s *Service) UpdatePricingRule(
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
 		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return PricingRule{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetPricingRuleForUpdate(ctx, id)
 	if err != nil {
@@ -448,9 +512,6 @@ func (s *Service) UpdatePricingRule(
 		requestID,
 		[]string{"kind", "selector", "measure", "rate", "active"},
 	); err != nil {
-		return PricingRule{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return PricingRule{}, err
 	}
 	return pricingRuleFromRow(row, target.MaterialTypeName), nil
@@ -607,6 +668,25 @@ func (s *Service) SetRolePricingGroups(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return nil, err
 	}
+	var result []RolePricingGroup
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.SetRolePricingGroupsTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// SetRolePricingGroupsTx is SetRolePricingGroups inside the caller's transaction; the configuration import uses it.
+func (s *Service) SetRolePricingGroupsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input []RolePricingGroupInput,
+	requestID *uuid.UUID,
+) ([]RolePricingGroup, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return nil, err
+	}
 	if len(input) > 200 {
 		return nil, apperror.Invalid("at most 200 role mappings")
 	}
@@ -624,12 +704,8 @@ func (s *Service) SetRolePricingGroups(
 		}
 		roles[item.RoleID], priorities[item.Priority] = true, true
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
+	var err error
 	if err = q.LockRolePricingGroups(ctx); err != nil {
 		return nil, err
 	}
@@ -681,9 +757,6 @@ func (s *Service) SetRolePricingGroups(
 	}
 	items, err := listRolePricingGroups(ctx, q)
 	if err != nil {
-		return nil, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return items, nil

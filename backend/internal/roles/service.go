@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	rolesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/roles/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -78,6 +79,41 @@ func (s *Service) CreateWithBehaviors(
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
+	var result Role
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateWithBehaviorsTx(
+			ctx,
+			tx,
+			principal,
+			name,
+			description,
+			grants,
+			profileImageRequired,
+			laborordnungMode,
+			staffingLevel,
+			requestID,
+		)
+		return err
+	})
+	return result, err
+}
+
+// CreateWithBehaviorsTx is CreateWithBehaviors inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateWithBehaviorsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	name string,
+	description *string,
+	grants []authorization.PermissionGrant,
+	profileImageRequired bool,
+	laborordnungMode laborordnung.Mode,
+	staffingLevel *StaffingLevel,
+	requestID *uuid.UUID,
+) (Role, error) {
+	if !principal.Has(authorization.RolesManage) {
+		return Role{}, apperror.PermissionDenied
+	}
 	name = strings.TrimSpace(name)
 	description = optional.Trimmed(description)
 	if name == "" || len([]rune(name)) > 100 || strings.EqualFold(name, string(authorization.SystemKeyMaster)) {
@@ -96,11 +132,6 @@ func (s *Service) CreateWithBehaviors(
 	if err != nil {
 		return Role{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Role{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := rolesdb.New(tx)
 	id := ids.New()
 	row, err := q.CreateRole(
@@ -139,9 +170,6 @@ func (s *Service) CreateWithBehaviors(
 	if err != nil {
 		return Role{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return Role{}, err
-	}
 	return result, nil
 }
 
@@ -159,15 +187,34 @@ func (s *Service) ReplacePermissions(
 	if expectedVersion < 1 {
 		return Role{}, apperror.InvalidField("expectedVersion must be positive")
 	}
+	var result Role
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.ReplacePermissionsTx(ctx, tx, principal, id, expectedVersion, grants, requestID)
+		return err
+	})
+	return result, err
+}
+
+// ReplacePermissionsTx is ReplacePermissions inside the caller's transaction; the configuration import uses it.
+func (s *Service) ReplacePermissionsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	grants []authorization.PermissionGrant,
+	requestID *uuid.UUID,
+) (Role, error) {
+	if !principal.Has(authorization.RolesManage) {
+		return Role{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return Role{}, apperror.InvalidField("expectedVersion must be positive")
+	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
 		return Role{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Role{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := rolesdb.New(tx)
 	current, err := q.GetRoleForMutation(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -219,9 +266,6 @@ func (s *Service) ReplacePermissions(
 	}
 	result, err := fromRow(ctx, q, row)
 	if err != nil {
-		return Role{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return Role{}, err
 	}
 	return result, nil
@@ -458,11 +502,51 @@ func (s *Service) UpdateWithBehaviors(
 		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet) {
 		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Role{}, err
+	var result Role
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateWithBehaviorsTx(
+			ctx,
+			tx,
+			principal,
+			id,
+			expectedVersion,
+			name,
+			descriptionSet,
+			description,
+			profileImageRequired,
+			laborordnungMode,
+			staffingLevelSet,
+			staffingLevel,
+			requestID,
+		)
+		return err
+	})
+	return result, err
+}
+
+// UpdateWithBehaviorsTx is UpdateWithBehaviors inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateWithBehaviorsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	name *string,
+	descriptionSet bool,
+	description *string,
+	profileImageRequired *bool,
+	laborordnungMode *laborordnung.Mode,
+	staffingLevelSet bool,
+	staffingLevel *StaffingLevel,
+	requestID *uuid.UUID,
+) (Role, error) {
+	if !principal.Has(authorization.RolesManage) {
+		return Role{}, apperror.PermissionDenied
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	if expectedVersion < 1 ||
+		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet) {
+		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
+	}
 	queries := rolesdb.New(tx)
 	current, err := queries.GetRoleForMutation(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -556,9 +640,6 @@ func (s *Service) UpdateWithBehaviors(
 	if err != nil {
 		return Role{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return Role{}, err
-	}
 	return result, nil
 }
 
@@ -575,11 +656,26 @@ func (s *Service) Delete(
 	if expectedVersion < 1 {
 		return apperror.InvalidField("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteTx(ctx, tx, principal, id, expectedVersion, requestID)
+	})
+}
+
+// DeleteTx is Delete inside the caller's transaction; the configuration import uses it.
+func (s *Service) DeleteTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) error {
+	if !principal.Has(authorization.RolesManage) {
+		return apperror.PermissionDenied
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	if expectedVersion < 1 {
+		return apperror.InvalidField("expectedVersion must be positive")
+	}
 	queries := rolesdb.New(tx)
 	current, err := queries.GetRoleForMutation(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -616,7 +712,7 @@ func (s *Service) Delete(
 	} else if err != nil {
 		return databaseError(err)
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (Role, error) {

@@ -24,6 +24,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	visitordb "github.com/Basmatireis/Makerspace-Core/backend/internal/visitor/db"
 	"github.com/google/uuid"
@@ -143,6 +144,25 @@ func (s *Service) UpdateConfiguration(
 	if !principal.Has(authorization.VisitorEnrollmentManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
+	var result Configuration
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateConfigurationTx(ctx, tx, principal, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateConfigurationTx is UpdateConfiguration inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateConfigurationTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (Configuration, error) {
+	if !principal.Has(authorization.VisitorEnrollmentManage) {
+		return Configuration{}, apperror.PermissionDenied
+	}
 	methods, err := normalizeMethods(input.AllowedMethods)
 	if err != nil || input.ExpectedVersion < 1 ||
 		(input.Enabled && (input.InitialRoleID == nil || len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
@@ -154,11 +174,6 @@ func (s *Service) UpdateConfiguration(
 	if err != nil {
 		return Configuration{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Configuration{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	queries := visitordb.New(tx)
 	if input.InitialRoleID != nil {
 		if err := authorizeRole(ctx, queries, principal, *input.InitialRoleID); err != nil {
@@ -210,9 +225,6 @@ func (s *Service) UpdateConfiguration(
 			ChangedFields:  []string{"enabled", "initialRoleId", "deviceTypeIds", "allowedMethods"},
 		},
 	); err != nil {
-		return Configuration{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Configuration{}, err
 	}
 	return Configuration{

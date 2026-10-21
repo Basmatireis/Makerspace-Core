@@ -23,6 +23,7 @@ import (
 	brandingdb "github.com/Basmatireis/Makerspace-Core/backend/internal/branding/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -181,21 +182,42 @@ func (s *Service) Update(
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
-	if err := validateConfiguration(&input); err != nil {
+	var row brandingdb.BrandingConfiguration
+	if err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		row, err = s.UpdateTx(ctx, tx, principal, input, requestID)
+		return err
+	}); err != nil {
 		return Configuration{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
+	assets, err := s.get(ctx)
 	if err != nil {
 		return Configuration{}, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	assets.Version, assets.UpdatedAt = row.Version, row.UpdatedAt
+	return assets, nil
+}
+
+// UpdateTx is Update inside the caller's transaction; the configuration import uses it. It returns the stored row.
+func (s *Service) UpdateTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	input ConfigurationInput,
+	requestID *uuid.UUID,
+) (brandingdb.BrandingConfiguration, error) {
+	if !principal.Has(authorization.BrandingManage) {
+		return brandingdb.BrandingConfiguration{}, apperror.PermissionDenied
+	}
+	if err := validateConfiguration(&input); err != nil {
+		return brandingdb.BrandingConfiguration{}, err
+	}
 	queries := brandingdb.New(tx)
 	current, err := queries.GetConfigurationForUpdate(ctx)
 	if err != nil {
-		return Configuration{}, err
+		return brandingdb.BrandingConfiguration{}, err
 	}
 	if current.Version != input.ExpectedVersion {
-		return Configuration{}, apperror.StaleWrite
+		return brandingdb.BrandingConfiguration{}, apperror.StaleWrite
 	}
 	actor := principal.AccountID
 	row, err := queries.UpdateConfiguration(ctx, brandingdb.UpdateConfigurationParams{
@@ -212,10 +234,10 @@ func (s *Service) Update(
 		UpdatedByAccountID: &actor, ExpectedVersion: input.ExpectedVersion,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Configuration{}, apperror.StaleWrite
+		return brandingdb.BrandingConfiguration{}, apperror.StaleWrite
 	}
 	if err != nil {
-		return Configuration{}, err
+		return brandingdb.BrandingConfiguration{}, err
 	}
 	if err := audit.Write(
 		ctx,
@@ -228,17 +250,9 @@ func (s *Service) Update(
 			ChangedFields:  []string{"identity", "colors", "imprint", "privacy"},
 		},
 	); err != nil {
-		return Configuration{}, err
+		return brandingdb.BrandingConfiguration{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return Configuration{}, err
-	}
-	assets, err := s.get(ctx)
-	if err != nil {
-		return Configuration{}, err
-	}
-	assets.Version, assets.UpdatedAt = row.Version, row.UpdatedAt
-	return assets, nil
+	return row, nil
 }
 
 func (s *Service) PutAsset(
@@ -336,11 +350,36 @@ func (s *Service) mutateAsset(
 	if expectedVersion < 1 {
 		return nil, validation("expectedVersion must be positive")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
+	var oldFile *uuid.UUID
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		oldFile, err = s.SetAssetTx(ctx, tx, principal, slot, expectedVersion, mode, fileID, requestID)
+		return err
+	})
+	return oldFile, err
+}
+
+// SetAssetTx points a slot at a stored file (custom), removes it (none) or restores the default inside the
+// caller's transaction and returns the file the slot used before. The caller deletes that file after commit. The
+// configuration import uses it.
+func (s *Service) SetAssetTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	slot Slot,
+	expectedVersion int64,
+	mode AssetMode,
+	fileID *uuid.UUID,
+	requestID *uuid.UUID,
+) (*uuid.UUID, error) {
+	if !principal.Has(authorization.BrandingManage) {
+		return nil, apperror.PermissionDenied
+	}
+	if _, err := ParseSlot(string(slot)); err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	if expectedVersion < 1 {
+		return nil, validation("expectedVersion must be positive")
+	}
 	queries := brandingdb.New(tx)
 	current, err := queries.GetConfigurationForUpdate(ctx)
 	if err != nil {
@@ -408,9 +447,6 @@ func (s *Service) mutateAsset(
 			ChangedFields:  []string{string(slot)},
 		},
 	); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return oldFile, nil
@@ -549,6 +585,12 @@ const (
 	// MaxAssetBytes is the largest branding asset of any slot (background images).
 	MaxAssetBytes = 8 << 20
 )
+
+// ValidateAsset checks an uploaded asset against the slot's size, format and dimension limits and returns the bytes
+// to store (SVG is sanitized) with their content type.
+func ValidateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
+	return validateAsset(slot, reader)
+}
 
 func validateAsset(slot Slot, reader io.Reader) ([]byte, string, error) {
 	limit := int64(maxLogoAssetBytes)
