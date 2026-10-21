@@ -168,6 +168,32 @@ func (s *Service) UpdateSettings(
 	if !p.Has(authorization.InvoicingSettingsManage) {
 		return Settings{}, apperror.PermissionDenied
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Settings{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	settings, err := s.UpdateSettingsTx(ctx, tx, p, input, requestID)
+	if err != nil {
+		return Settings{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Settings{}, err
+	}
+	return settings, nil
+}
+
+// UpdateSettingsTx is UpdateSettings inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateSettingsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input SettingsInput,
+	requestID *uuid.UUID,
+) (Settings, error) {
+	if !p.Has(authorization.InvoicingSettingsManage) {
+		return Settings{}, apperror.PermissionDenied
+	}
 	if input.ExpectedVersion < 1 {
 		return Settings{}, invalidSettings("The settings version is required")
 	}
@@ -178,11 +204,6 @@ func (s *Service) UpdateSettings(
 	if err != nil {
 		return Settings{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Settings{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := invoicingdb.New(tx)
 	current, err := q.GetSettingsForUpdate(ctx)
 	if err != nil {
@@ -226,9 +247,6 @@ func (s *Service) UpdateSettings(
 			"pdfTitle", "pdfIntro", "pdfClosing", "fieldToggles",
 		},
 	}); err != nil {
-		return Settings{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return Settings{}, err
 	}
 	return settingsFromRow(row), nil

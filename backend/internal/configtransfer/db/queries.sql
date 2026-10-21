@@ -190,3 +190,8 @@ ORDER BY survey_id;
 SELECT enabled, smtp_host, smtp_port, smtp_tls_mode, smtp_username, from_address, from_name, base_url, version,
     (encrypted_smtp_password IS NOT NULL AND octet_length(encrypted_smtp_password) > 0)::boolean AS password_configured
 FROM mail_configuration;
+
+-- name: GetWirefDeliverySettings :one
+SELECT enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing,
+    show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version
+FROM wiref_delivery_settings WHERE singleton = true;

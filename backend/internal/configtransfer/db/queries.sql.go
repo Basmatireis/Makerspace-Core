@@ -166,6 +166,53 @@ func (q *Queries) GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVis
 	return i, err
 }
 
+const getWirefDeliverySettings = `-- name: GetWirefDeliverySettings :one
+SELECT enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing,
+    show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version
+FROM wiref_delivery_settings WHERE singleton = true
+`
+
+type GetWirefDeliverySettingsRow struct {
+	Enabled                bool
+	RecipientEmail         string
+	CcEmails               []string
+	MailSubject            string
+	MailIntro              string
+	MailClosing            string
+	PdfTitle               string
+	PdfIntro               string
+	PdfClosing             string
+	ShowContactPerson      bool
+	ShowApprover           bool
+	ShowPurchaseOrder      bool
+	ShowServicePeriod      bool
+	ShowServiceDescription bool
+	Version                int64
+}
+
+func (q *Queries) GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error) {
+	row := q.db.QueryRow(ctx, getWirefDeliverySettings)
+	var i GetWirefDeliverySettingsRow
+	err := row.Scan(
+		&i.Enabled,
+		&i.RecipientEmail,
+		&i.CcEmails,
+		&i.MailSubject,
+		&i.MailIntro,
+		&i.MailClosing,
+		&i.PdfTitle,
+		&i.PdfIntro,
+		&i.PdfClosing,
+		&i.ShowContactPerson,
+		&i.ShowApprover,
+		&i.ShowPurchaseOrder,
+		&i.ShowServicePeriod,
+		&i.ShowServiceDescription,
+		&i.Version,
+	)
+	return i, err
+}
+
 const listActivePricingRules = `-- name: ListActivePricingRules :many
 SELECT r.id, r.pricing_group_id, r.kind, mt.name AS machine_type_name, mat.name AS material_type_name,
     r.measure, r.rate, r.machine_type_id, r.material_type_id, r.version

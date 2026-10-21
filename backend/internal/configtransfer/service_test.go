@@ -16,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
@@ -75,6 +76,7 @@ func newEnv(t *testing.T) *env {
 		LabRules:       labRules,
 		Surveys:        surveys.NewService(pool, cfg, nil),
 		Mail:           mailer,
+		Invoicing:      invoicing.NewService(pool, nil, nil),
 	}
 	e := &env{t: t, ctx: t.Context(), pool: pool, svc: NewService(pool, services), s: services}
 	account, person := e.account("master")
@@ -242,6 +244,15 @@ func (e *env) seed() {
 		Enabled: true, Host: "smtp.example.test", Port: 587, TLSMode: mail.TLSStartTLS, Username: "mailer",
 		Password: smtpPassword, FromAddress: "lab@example.test", FromName: "Transfer Lab",
 		BaseURL: "https://lab.example.test", ExpectedVersion: 1,
+	}, nil))
+	must(e.s.Invoicing.UpdateSettings(ctx, p, invoicing.SettingsInput{
+		Templates: invoicing.Templates{
+			MailSubject: "Invoice request", MailIntro: "Hello", MailClosing: "Thanks",
+			PDFTitle: "Invoice request", PDFIntro: "Intro", PDFClosing: "Bye",
+			ShowContactPerson: true, ShowPurchaseOrder: true,
+		},
+		Enabled: true, RecipientEmail: "wiref@example.test", CCEmails: []string{"cc@example.test"},
+		ExpectedVersion: 1,
 	}, nil))
 }
 
@@ -665,4 +676,57 @@ func asAppError(err error, target **apperror.Error) bool {
 	value, ok := err.(*apperror.Error) //nolint:errorlint // the service returns the error unwrapped
 	*target = value
 	return ok
+}
+
+func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	data := e.export(e.master, SectionInvoicing)
+	keys := []SectionKey{SectionInvoicing}
+	if _, err := e.svc.Export(e.ctx, e.staff(authorization.ConfigurationExport), keys, nil); !apperror.IsCode(
+		err, "permission_denied") {
+		t.Fatalf("export without invoicing.settings.manage: %v", err)
+	}
+	must(e.svc.Export(e.ctx, e.staff(authorization.ConfigurationExport, authorization.InvoicingSettingsManage), keys, nil))
+	preview := func(p authorization.Principal, body []byte) (Report, error) {
+		return e.svc.Preview(e.ctx, p, ModeOverwrite, keys, bytes.NewReader(body))
+	}
+	if _, err := preview(e.staff(authorization.ConfigurationImport), data); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("import without invoicing.settings.manage: %v", err)
+	}
+	if _, err := preview(e.staff(authorization.InvoicingSettingsManage), data); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("import without configuration.import: %v", err)
+	}
+	importer := e.staff(authorization.ConfigurationImport, authorization.InvoicingSettingsManage)
+	if got := item(t, must(preview(importer, data)), SectionInvoicing, invoicingItem); got.Action != ActionSkip {
+		t.Fatalf("unchanged settings = %+v", got)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	invoicingSettings := parsed["sections"].(map[string]any)["invoicing"].(map[string]any)
+	invoicingSettings["mailSubject"] = "Hello {{unknown}}"
+	broken, _ := json.Marshal(parsed)
+	if _, err := preview(importer, broken); !apperror.IsCode(err, "configuration_file_invalid") {
+		t.Fatalf("unknown placeholder: %v", err)
+	}
+
+	invoicingSettings["mailSubject"] = "Changed"
+	changed, _ := json.Marshal(parsed)
+	report := must(e.svc.Apply(e.ctx, importer, ModeOverwrite, keys, must(preview(importer, changed)).Fingerprint,
+		bytes.NewReader(changed), nil))
+	if got := item(t, report, SectionInvoicing, invoicingItem); got.Action != ActionUpdate {
+		t.Fatalf("changed settings = %+v", got)
+	}
+	var subject string
+	if err := e.pool.QueryRow(e.ctx, `SELECT mail_subject FROM wiref_delivery_settings`).Scan(&subject); err != nil || subject != "Changed" {
+		t.Fatalf("subject = %q, %v", subject, err)
+	}
+	var audits int
+	if err := e.pool.QueryRow(e.ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'invoicing.wiref_settings_updated'`).Scan(&audits); err != nil || audits < 1 {
+		t.Fatalf("audit events = %d, %v", audits, err)
+	}
 }

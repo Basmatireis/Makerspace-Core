@@ -18,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	configtransferdb "github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
@@ -47,6 +48,7 @@ type Services struct {
 	LabRules       *laborordnung.Service
 	Surveys        *surveys.Service
 	Mail           *mail.Service
+	Invoicing      *invoicing.Service
 }
 
 type Service struct {

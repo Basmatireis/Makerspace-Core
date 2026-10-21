@@ -44,6 +44,7 @@ var registry = []section{
 	labRulesSection(),
 	surveysSection(),
 	mailSection(),
+	invoicingSection(),
 }
 
 func sectionByKey(key SectionKey) (section, bool) {

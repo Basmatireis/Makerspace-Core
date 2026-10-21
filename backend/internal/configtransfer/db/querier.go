@@ -20,6 +20,7 @@ type Querier interface {
 	GetMailConfiguration(ctx context.Context) (GetMailConfigurationRow, error)
 	GetOpenDayRequirements(ctx context.Context) (GetOpenDayRequirementsRow, error)
 	GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error)
+	GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error)
 	ListActivePricingRules(ctx context.Context) ([]ListActivePricingRulesRow, error)
 	ListBrandingAssetOverrides(ctx context.Context) ([]ListBrandingAssetOverridesRow, error)
 	// Read model of the configuration export and import. Every write goes through the owning feature's service, so

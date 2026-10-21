@@ -159,6 +159,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		LabRules:       labRulesService,
 		Surveys:        surveyService,
 		Mail:           mailer,
+		Invoicing:      invoicingService,
 	})
 	return &Server{
 		pool:              pool,

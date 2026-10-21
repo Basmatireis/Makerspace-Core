@@ -110,6 +110,13 @@ export const sectionDefinitions: SectionDefinition[] = [
     read: [PermissionId.mailmanage],
     manage: [PermissionId.mailmanage],
   },
+  {
+    key: 'invoicing',
+    label: 'Invoice delivery (wiRef)',
+    description: 'Recipient, CC addresses, mail and PDF templates and field toggles.',
+    read: [PermissionId.invoicingsettingsmanage],
+    manage: [PermissionId.invoicingsettingsmanage],
+  },
 ];
 
 export function sectionLabel(key: ConfigurationSection): string {

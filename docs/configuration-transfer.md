@@ -31,12 +31,13 @@ Entries are matched by natural key, never by ID; names compare case-insensitivel
 | `labRules`            | The Lab Rules version in force and later published versions, with their PDF (base64)                            | revision                                                                           | –                                    | kept: versions are immutable evidence                                                              |
 | `surveys`             | Definitions of draft and published surveys and their post-visit trigger timing (never responses or invitations) | name                                                                               | –                                    | published surveys are closed, others kept                                                          |
 | `mail`                | SMTP host, port, TLS mode, username, sender, base URL (never the password)                                      | single record                                                                      | –                                    | –                                                                                                  |
+| `invoicing`           | wiRef delivery: enabled, recipient, CC list, mail and PDF templates, field toggles                              | single record                                                                      | –                                    | –                                                                                                  |
 
 Not part of any section: people, accounts, credentials, sessions, jobs, runs, orders, payments, stock, spools, printer connectors, streaming gateways, signage, events, open-day calendars, OIDC providers and SCIM connectors.
 
 ## Modes
 
-- **Insert** creates only entries whose key does not exist; everything that exists stays untouched (including child entries such as the rules of an existing pricing group). Single-record sections (open-day requirements, visitor enrollment, branding, mail) always exist and are skipped.
+- **Insert** creates only entries whose key does not exist; everything that exists stays untouched (including child entries such as the rules of an existing pricing group). Single-record sections (open-day requirements, visitor enrollment, branding, mail, invoice delivery) always exist and are skipped.
 - **Overwrite** makes each chosen section equal the file: matching entries are updated, missing ones created, and entries not in the file deleted. An entry that is still referenced is deactivated when the entity supports it, otherwise kept; both are listed in the report with a reason. Only fields that differ are written, so unchanged entries cause no audit events or side effects (updating a session policy signs out its sessions).
 
 Notes:
@@ -45,6 +46,7 @@ Notes:
 - Imported surveys are drafts with a disabled trigger; publish them deliberately. A published or closed survey whose definition differs is kept with its definition (published surveys are immutable).
 - A machine without `printer` keeps any printer setup it has. Units and slots of the file are matched to existing ones by name, so mount history stays attached; removed units are disabled and removed slots retired like in the printer setup editor.
 - Lab Rules versions are created and published with their original effective time. A version with the same revision and a different PDF is a conflict in overwrite mode.
+- Invoicing: export and import need `invoicing.settings.manage`. Mail and PDF templates are checked with the same placeholder validation as the settings endpoint; an invalid template or address refuses the file or the entry.
 - Mail: the SMTP password never leaves an instance. When the import changes the host, port, TLS mode or username, a stored password is dropped so it is never sent to a server it was not entered for. Delivery stays disabled until a password is entered when a username is set, and when application encryption keys are missing.
 
 ## Preview, apply and conflicts

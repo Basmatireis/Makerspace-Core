@@ -37,4 +37,5 @@ export const ConfigurationSection = {
   ConfigurationSectionLabRules: 'labRules',
   ConfigurationSectionSurveys: 'surveys',
   ConfigurationSectionMail: 'mail',
+  ConfigurationSectionInvoicing: 'invoicing',
 } as const;

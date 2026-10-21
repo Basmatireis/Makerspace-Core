@@ -8,6 +8,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	configtransferdb "github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -22,6 +23,7 @@ const (
 	openDayRequirementsItem = "Open-day requirements"
 	visitorEnrollmentItem   = "Visitor enrollment"
 	mailItem                = "Mail delivery"
+	invoicingItem           = "wiRef invoice delivery"
 )
 
 type openDayRequirementsEntry struct {
@@ -311,6 +313,111 @@ func applyMail(r *run, entry *mailEntry) (func() error, error) {
 			ClearPassword:   clearPassword,
 			TLSMode:         mail.TLSMode(desired.TLSMode),
 			Port:            desired.Port,
+			ExpectedVersion: row.Version,
+		}, r.requestID)
+		return err
+	})
+	return nil, err
+}
+
+// Invoicing: the wiRef recipient, CC list, templates and field toggles. Templates use the placeholder validation of the
+// settings endpoint.
+
+type invoicingEntry struct {
+	Enabled                bool     `json:"enabled"`
+	RecipientEmail         string   `json:"recipientEmail"`
+	CCEmails               []string `json:"ccEmails"`
+	MailSubject            string   `json:"mailSubject"`
+	MailIntro              string   `json:"mailIntro"`
+	MailClosing            string   `json:"mailClosing"`
+	PDFTitle               string   `json:"pdfTitle"`
+	PDFIntro               string   `json:"pdfIntro"`
+	PDFClosing             string   `json:"pdfClosing"`
+	ShowContactPerson      bool     `json:"showContactPerson"`
+	ShowApprover           bool     `json:"showApprover"`
+	ShowPurchaseOrder      bool     `json:"showPurchaseOrder"`
+	ShowServicePeriod      bool     `json:"showServicePeriod"`
+	ShowServiceDescription bool     `json:"showServiceDescription"`
+}
+
+func invoicingSection() section {
+	return define(
+		SectionInvoicing,
+		permissions(authorization.InvoicingSettingsManage),
+		permissions(authorization.InvoicingSettingsManage),
+		exportInvoicing,
+		func(entry *invoicingEntry) error {
+			for _, field := range []*string{
+				&entry.RecipientEmail, &entry.MailSubject, &entry.MailIntro, &entry.MailClosing,
+				&entry.PDFTitle, &entry.PDFIntro, &entry.PDFClosing,
+			} {
+				*field = strings.TrimSpace(*field)
+			}
+			if entry.CCEmails == nil {
+				entry.CCEmails = []string{}
+			}
+			for i := range entry.CCEmails {
+				entry.CCEmails[i] = strings.TrimSpace(entry.CCEmails[i])
+			}
+			return invoicing.ValidateTemplates(entry.templates())
+		},
+		applyInvoicing,
+	)
+}
+
+func (e invoicingEntry) templates() invoicing.Templates {
+	return invoicing.Templates{
+		MailSubject: e.MailSubject, MailIntro: e.MailIntro, MailClosing: e.MailClosing,
+		PDFTitle: e.PDFTitle, PDFIntro: e.PDFIntro, PDFClosing: e.PDFClosing,
+		ShowContactPerson: e.ShowContactPerson, ShowApprover: e.ShowApprover, ShowPurchaseOrder: e.ShowPurchaseOrder,
+		ShowServicePeriod: e.ShowServicePeriod, ShowServiceDescription: e.ShowServiceDescription,
+	}
+}
+
+func exportInvoicing(ctx context.Context, q *configtransferdb.Queries) (invoicingEntry, error) {
+	row, err := q.GetWirefDeliverySettings(ctx)
+	if err != nil {
+		return invoicingEntry{}, err
+	}
+	return invoicingFromRow(row), nil
+}
+
+func invoicingFromRow(row configtransferdb.GetWirefDeliverySettingsRow) invoicingEntry {
+	cc := row.CcEmails
+	if cc == nil {
+		cc = []string{}
+	}
+	return invoicingEntry{
+		Enabled: row.Enabled, RecipientEmail: row.RecipientEmail, CCEmails: cc,
+		MailSubject: row.MailSubject, MailIntro: row.MailIntro, MailClosing: row.MailClosing,
+		PDFTitle: row.PdfTitle, PDFIntro: row.PdfIntro, PDFClosing: row.PdfClosing,
+		ShowContactPerson: row.ShowContactPerson, ShowApprover: row.ShowApprover,
+		ShowPurchaseOrder: row.ShowPurchaseOrder, ShowServicePeriod: row.ShowServicePeriod,
+		ShowServiceDescription: row.ShowServiceDescription,
+	}
+}
+
+func applyInvoicing(r *run, entry *invoicingEntry) (func() error, error) {
+	if r.mode == ModeInsert {
+		r.skip(invoicingItem, reasonSingleton)
+		return nil, nil
+	}
+	row, err := r.q.GetWirefDeliverySettings(r.ctx)
+	if err != nil {
+		return nil, err
+	}
+	current := invoicingFromRow(row)
+	if current.Enabled == entry.Enabled && current.RecipientEmail == entry.RecipientEmail &&
+		slices.Equal(current.CCEmails, entry.CCEmails) && current.templates() == entry.templates() {
+		r.skip(invoicingItem, reasonUnchanged)
+		return nil, nil
+	}
+	_, err = r.attempt(invoicingItem, ActionUpdate, "", func(tx pgx.Tx) error {
+		_, err := r.svc.Invoicing.UpdateSettingsTx(r.ctx, tx, r.p, invoicing.SettingsInput{
+			Templates:       entry.templates(),
+			Enabled:         entry.Enabled,
+			RecipientEmail:  entry.RecipientEmail,
+			CCEmails:        entry.CCEmails,
 			ExpectedVersion: row.Version,
 		}, r.requestID)
 		return err
