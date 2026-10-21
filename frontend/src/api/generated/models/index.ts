@@ -303,6 +303,7 @@ export * from './inventoryTransactionAdjustmentReason';
 export * from './inventoryTransactionFromSpoolId';
 export * from './inventoryTransactionKind';
 export * from './inventoryTransactionMachineJobId';
+export * from './inventoryTransactionOrderId';
 export * from './inventoryTransactionPage';
 export * from './inventoryTransactionSpoolId';
 export * from './inventoryTransactionToSpoolId';

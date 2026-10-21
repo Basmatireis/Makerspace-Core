@@ -25,7 +25,7 @@ const targets: Target[] = [
   { name: 'Machine detail, Jobs tab', path: `${base}/machines/${ids.bambu}?tab=jobs`, ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }) },
   { name: 'Machine detail, Printer setup tab', path: `${base}/machines/${ids.bambu}?tab=printer`, ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }) },
   { name: 'Machines, Machine types tab', path: `${base}/machines?tab=types`, ready: (page) => page.getByRole('table', { name: 'Machine types' }) },
-  { name: 'Inventory, Filament tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'PLA Black' }) },
+  { name: 'Inventory, Filament tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true }) },
   { name: 'Inventory, Spools tab', path: `${base}/inventory?tab=spools`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }) },
   { name: 'Inventory, Spools tab with archived spools', path: `${base}/inventory?tab=spools&spoolsarchived=1`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }) },
   { name: 'Inventory, Consumables tab', path: `${base}/inventory?tab=consumables`, ready: (page) => page.getByRole('table', { name: 'Consumables' }).getByRole('link', { name: 'Birch plywood' }) },
@@ -285,7 +285,7 @@ test.describe('read-only role', () => {
     await expect(page.locator('.cds--table-toolbar .cds--overflow-menu')).toHaveCount(0);
 
     await page.goto(`${base}/inventory`);
-    await expect(page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'PLA Black' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Filament' }).getByRole('link', { name: 'Black', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
   });
 

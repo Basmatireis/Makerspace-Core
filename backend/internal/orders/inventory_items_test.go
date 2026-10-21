@@ -440,3 +440,46 @@ func TestOrderSaleLedgerReferenceIsImmutable(t *testing.T) {
 		t.Fatal("purchase with order item accepted")
 	}
 }
+
+func TestLedgerShowsOrderAndConsumptionIncludesSales(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	material := f.article(t, strPtr("2"), "10", "20")
+	o := f.addArticle(t, f.emptyDraft(t), material, "3", "")
+	o, e := f.s.Command(ctx, f.p, o.ID, cmd(o), "finalize", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m, e := f.jobs.GetMaterial(ctx, f.p, material)
+	if e != nil || m.RecentConsumption != "3" {
+		t.Fatalf("sales count as consumption: %q %v", m.RecentConsumption, e)
+	}
+	if _, e = f.s.Command(ctx, f.p, o.ID, OrderCommand{OperationKey: newID(), ExpectedVersion: o.Version, Reason: "Returned"}, "reverse", nil); e != nil {
+		t.Fatal(e)
+	}
+	m, e = f.jobs.GetMaterial(ctx, f.p, material)
+	if e != nil || m.RecentConsumption != "0" {
+		t.Fatalf("reversal nets the sale out: %q %v", m.RecentConsumption, e)
+	}
+	items, _, e := f.jobs.ListMaterialTransactions(ctx, f.p, material, 1, 50)
+	if e != nil {
+		t.Fatal(e)
+	}
+	seen := map[string]bool{}
+	for _, tx := range items {
+		seen[tx.Kind] = true
+		switch tx.Kind {
+		case "order_sale", "order_sale_reversal":
+			if tx.OrderID == nil || *tx.OrderID != o.ID || tx.OrderReference == nil || *tx.OrderReference != o.Reference {
+				t.Fatalf("%s without its order: %+v", tx.Kind, tx)
+			}
+		default:
+			if tx.OrderID != nil || tx.OrderReference != nil {
+				t.Fatalf("%s must not carry an order: %+v", tx.Kind, tx)
+			}
+		}
+	}
+	if !seen["order_sale"] || !seen["order_sale_reversal"] || !seen["purchase"] {
+		t.Fatalf("ledger kinds: %v", seen)
+	}
+}

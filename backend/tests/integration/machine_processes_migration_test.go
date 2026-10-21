@@ -114,7 +114,7 @@ func TestMachineProcessMigrationMapsPrinterFlagAndMaterialTypes(t *testing.T) {
 			t.Fatalf("processes of %s = %q, want %q", typeID, got, want)
 		}
 	}
-	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_name = 'machine_types' AND column_name = 'printer'`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'machine_types' AND column_name = 'printer'`, 0)
 
 	// cm2, measures and measure rules exist now; the database enforces their shape.
 	cmType := id()

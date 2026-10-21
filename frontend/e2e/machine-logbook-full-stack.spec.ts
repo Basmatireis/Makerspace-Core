@@ -68,7 +68,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     }),
     'create machine',
   );
-  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g', processes: ['fdm_printing'] }), 'create material type');
+  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, kind: 'filament', unit: 'g', processes: ['fdm_printing'] }), 'create material type');
   let material = await parse<Material>(
     await post('/materials', {
       name: 'E2E PLA blue',

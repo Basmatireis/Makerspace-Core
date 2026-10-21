@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -304,6 +304,24 @@ describe('Article detail page', () => {
     expect(within(ledger).getByText('Order reversed')).toBeInTheDocument();
     expect(within(ledger).getByText('INV-2026-77')).toBeInTheDocument();
     expect(within(ledger).getByText('Würth')).toBeInTheDocument();
+  });
+
+  it('links the order of a sale in the ledger only with orders.read', async () => {
+    const sales = [
+      transaction({ id: ids.spool + 'g', materialId: ids.insert, kind: 'order_sale', quantityDelta: '-10', inventoryValueDelta: '-0.5', totalPurchasePrice: null, orderId: ids.spool, orderReference: 'O-2026-000012', occurredAt: '2026-09-13T10:00:00Z' }),
+    ];
+    auth.permissions = [PermissionId.inventoryread, PermissionId.ordersread];
+    serveMaterial(insert, sales);
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    let ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByRole('link', { name: 'O-2026-000012' })).toHaveAttribute('href', `/orders/${ids.spool}`);
+    cleanup();
+
+    auth.permissions = [PermissionId.inventoryread];
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByText('O-2026-000012')).toBeInTheDocument();
+    expect(within(ledger).queryByRole('link', { name: 'O-2026-000012' })).toBeNull();
   });
 
   it('labels the stock a machine run consumed and names the job it belongs to', async () => {

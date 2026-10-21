@@ -24,6 +24,7 @@ import type { Decimal } from './decimal';
 import type { InventoryTransactionTotalPurchasePrice } from './inventoryTransactionTotalPurchasePrice';
 import type { InventoryTransactionAdjustmentReason } from './inventoryTransactionAdjustmentReason';
 import type { InventoryTransactionMachineJobId } from './inventoryTransactionMachineJobId';
+import type { InventoryTransactionOrderId } from './inventoryTransactionOrderId';
 import type { InventoryTransactionSpoolId } from './inventoryTransactionSpoolId';
 import type { InventoryTransactionFromSpoolId } from './inventoryTransactionFromSpoolId';
 import type { InventoryTransactionToSpoolId } from './inventoryTransactionToSpoolId';
@@ -54,6 +55,16 @@ export interface InventoryTransaction {
   machineJobId?: InventoryTransactionMachineJobId;
   /** @nullable */
   machineJobDisplayId?: string | null;
+  /**
+   * Order of an order_sale or order_sale_reversal entry; null otherwise or once the order was deleted.
+   * @nullable
+   */
+  orderId?: InventoryTransactionOrderId;
+  /**
+   * Reference of that order (for example O-2026-000012). No customer data.
+   * @nullable
+   */
+  orderReference?: string | null;
   /**
    * Null once the spool was deleted; the snapshot stays.
    * @nullable

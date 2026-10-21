@@ -2142,7 +2142,8 @@ func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (Ma
 
 const getMaterial = `-- name: GetMaterial :one
 SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.sale_price, m.package_size, m.storage_location, m.notes, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
+        + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -3572,12 +3573,15 @@ func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid
 
 const listFilamentSpoolTransactions = `-- name: ListFilamentSpoolTransactions :many
 SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, t.order_item_id, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       o.id AS order_id, o.reference AS order_reference,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id=t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id=u.run_id
+LEFT JOIN order_items oi ON oi.id = t.order_item_id
+LEFT JOIN orders o ON o.id = oi.order_id
 LEFT JOIN machine_jobs j ON j.id=ur.job_id AND j.deleted_at IS NULL
 WHERE t.spool_id=$1 OR t.from_spool_id=$1 OR t.to_spool_id=$1
 ORDER BY t.occurred_at DESC, t.id DESC
@@ -3622,6 +3626,8 @@ type ListFilamentSpoolTransactionsRow struct {
 	OrderItemID         *uuid.UUID
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
+	OrderID             *uuid.UUID
+	OrderReference      *string
 	ActorFirstName      *string
 	ActorLastName       *string
 }
@@ -3667,6 +3673,8 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 			&i.OrderItemID,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
+			&i.OrderID,
+			&i.OrderReference,
 			&i.ActorFirstName,
 			&i.ActorLastName,
 		); err != nil {
@@ -3920,12 +3928,15 @@ func (q *Queries) ListInventorySupplierSuggestions(ctx context.Context) ([]strin
 
 const listInventoryTransactions = `-- name: ListInventoryTransactions :many
 SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.run_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, t.purchase_reference, t.order_item_id, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       o.id AS order_id, o.reference AS order_reference,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id = t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id = u.run_id
+LEFT JOIN order_items oi ON oi.id = t.order_item_id
+LEFT JOIN orders o ON o.id = oi.order_id
 LEFT JOIN machine_jobs j ON j.id = ur.job_id AND j.deleted_at IS NULL
 WHERE t.material_id = $1
 ORDER BY t.occurred_at DESC, t.id DESC
@@ -3970,6 +3981,8 @@ type ListInventoryTransactionsRow struct {
 	OrderItemID         *uuid.UUID
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
+	OrderID             *uuid.UUID
+	OrderReference      *string
 	ActorFirstName      *string
 	ActorLastName       *string
 }
@@ -4015,6 +4028,8 @@ func (q *Queries) ListInventoryTransactions(ctx context.Context, arg ListInvento
 			&i.OrderItemID,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
+			&i.OrderID,
+			&i.OrderReference,
 			&i.ActorFirstName,
 			&i.ActorLastName,
 		); err != nil {
@@ -4629,7 +4644,8 @@ func (q *Queries) ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow
 
 const listMaterials = `-- name: ListMaterials :many
 SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.sale_price, m.package_size, m.storage_location, m.notes, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
+        + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)

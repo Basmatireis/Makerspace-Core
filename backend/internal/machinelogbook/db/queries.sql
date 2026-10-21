@@ -320,7 +320,8 @@ DELETE FROM material_filament_properties WHERE material_id=sqlc.arg(material_id)
 
 -- name: GetMaterial :one
 SELECT m.*, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
+        + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -342,7 +343,8 @@ FOR UPDATE OF b, m;
 
 -- name: ListMaterials :many
 SELECT m.*, mt.name AS material_type_name, mt.kind AS material_kind, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
+        + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
            COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
@@ -409,12 +411,15 @@ SELECT EXISTS(SELECT 1 FROM inventory_transactions WHERE order_item_id = sqlc.ar
 
 -- name: ListInventoryTransactions :many
 SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       o.id AS order_id, o.reference AS order_reference,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id = t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id = u.run_id
+LEFT JOIN order_items oi ON oi.id = t.order_item_id
+LEFT JOIN orders o ON o.id = oi.order_id
 LEFT JOIN machine_jobs j ON j.id = ur.job_id AND j.deleted_at IS NULL
 WHERE t.material_id = sqlc.arg(material_id)
 ORDER BY t.occurred_at DESC, t.id DESC
@@ -627,12 +632,15 @@ RETURNING *;
 
 -- name: ListFilamentSpoolTransactions :many
 SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       o.id AS order_id, o.reference AS order_reference,
        pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
 LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id=t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id=u.run_id
+LEFT JOIN order_items oi ON oi.id = t.order_item_id
+LEFT JOIN orders o ON o.id = oi.order_id
 LEFT JOIN machine_jobs j ON j.id=ur.job_id AND j.deleted_at IS NULL
 WHERE t.spool_id=sqlc.arg(spool_id) OR t.from_spool_id=sqlc.arg(spool_id) OR t.to_spool_id=sqlc.arg(spool_id)
 ORDER BY t.occurred_at DESC, t.id DESC

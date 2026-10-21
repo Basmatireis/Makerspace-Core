@@ -191,6 +191,8 @@ type InventoryTransaction struct {
 	Supplier, Note, AdjustmentReason, Reference                   *string
 	MachineJobID                                                  *uuid.UUID
 	MachineJobDisplayID                                           *string
+	OrderID                                                       *uuid.UUID
+	OrderReference                                                *string
 	SpoolID, FromSpoolID, ToSpoolID                               *uuid.UUID
 	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID          *string
 	FillNumber, FromFillNumber, ToFillNumber                      *int32

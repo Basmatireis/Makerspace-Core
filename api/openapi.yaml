@@ -12146,6 +12146,8 @@ components:
         reference: {type: string, nullable: true, description: Order or invoice number of a purchase.}
         machineJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         machineJobDisplayId: {type: string, nullable: true}
+        orderId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Order of an order_sale or order_sale_reversal entry; null otherwise or once the order was deleted.}
+        orderReference: {type: string, nullable: true, description: Reference of that order (for example O-2026-000012). No customer data.}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null once the spool was deleted; the snapshot stays.}
         spoolDisplayId: {type: string, nullable: true}
         fillNumber: {type: integer, nullable: true}
