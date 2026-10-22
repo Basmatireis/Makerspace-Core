@@ -11,6 +11,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 ### Added
 
 - **Reply-To for the wiRef mail.** Settings → Invoicing has an optional reply-to address. Replies from the accounting office go there instead of to the sender address of the email delivery settings, which is often an unread sending account. It is included in configuration export and import.
+- **Detected spool tags when registering and editing spools.** Receive stock (new spool or reusable spool) and Register spool / Edit spool offer the NFC tags printers currently read, like Add identifier and Change filament. Register spool can set the NFC tag of the first fill; Edit spool adds a tag to the current fill. API: `CreateFilamentSpoolRequest` takes optional `identifiers` (not with `stockMode: empty`; a taken tag is refused with 409 `identifier_in_use`).
 
 ## [0.8.3] - 2026-10-22
 

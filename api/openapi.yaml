@@ -13872,6 +13872,11 @@ components:
         notes: {type: string, maxLength: 2000, nullable: true}
         occurredAt: {type: string, format: date-time}
         expectedInventoryVersion: {$ref: "#/components/schemas/Version"}
+        identifiers:
+          type: array
+          maxItems: 20
+          description: Tags the first fill (409 identifier_in_use when a tag is taken). Not valid with stockMode empty.
+          items: {$ref: "#/components/schemas/NewFilamentSpoolIdentifier"}
 
     UpdateFilamentSpoolRequest:
       type: object

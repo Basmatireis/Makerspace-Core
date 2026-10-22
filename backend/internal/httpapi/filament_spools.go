@@ -262,6 +262,18 @@ func (s *Server) CreateFilamentSpool(
 	if body.Kind != nil {
 		kind = string(*body.Kind)
 	}
+	var identifiers []machinelogbook.NewSpoolIdentifier
+	if body.Identifiers != nil {
+		for _, identifier := range *body.Identifiers {
+			identifiers = append(
+				identifiers,
+				machinelogbook.NewSpoolIdentifier{
+					Kind:  machinelogbook.IdentifierKind(identifier.Kind),
+					Value: identifier.Value,
+				},
+			)
+		}
+	}
 	item, e := s.machineLogbook.CreateFilamentSpool(
 		ctx,
 		p,
@@ -282,6 +294,7 @@ func (s *Server) CreateFilamentSpool(
 			Notes:                    nullableStringPointer(body.Notes),
 			OccurredAt:               body.OccurredAt,
 			ExpectedInventoryVersion: valueOrZero(body.ExpectedInventoryVersion),
+			Identifiers:              identifiers,
 		},
 		requestIDPointer(ctx),
 	)

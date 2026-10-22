@@ -13,19 +13,30 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { createFilamentSpool, updateFilamentSpool } from '../../../api/generated/filament-spools/filament-spools';
+import {
+  addFilamentSpoolIdentifier,
+  createFilamentSpool,
+  updateFilamentSpool,
+} from '../../../api/generated/filament-spools/filament-spools';
 import type { FilamentSpool, FilamentSpoolKind } from '../../../api/generated/models';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import { blankArticle, type ArticleValues } from '../components/ArticleFields';
+import { DetectedTagPicker } from '../components/DetectedTagPicker';
 import { NewFilamentArticle } from '../components/NewFilamentArticle';
 import { useNewFilamentArticle } from '../components/useNewFilamentArticle';
 import { formatGrams, parseDecimal, toDecimal, toMoney } from '../components/inventoryShared';
-import { hasOpenFill, toNumber } from '../components/spoolShared';
+import { hasOpenFill, identifierKey, toNumber } from '../components/spoolShared';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
-import { filamentMaterialsQuery, spoolErrorMessage, spoolUpdateBody, useRefreshInventory } from '../spoolData';
+import {
+  errorCode,
+  filamentMaterialsQuery,
+  spoolErrorMessage,
+  spoolUpdateBody,
+  useRefreshInventory,
+} from '../spoolData';
 
 type Values = {
   kind: FilamentSpoolKind;
@@ -45,11 +56,17 @@ type Values = {
   acquiredOn: string;
   reference: string;
   notes: string;
+  /** NFC tag of the current fill: tags a new spool, or is added to an edited one. */
+  nfcTag: string;
 };
 
 const nonNegative = (value: string) =>
   !value.trim() || (parseDecimal(value) ?? -1) >= 0 || 'Enter a number of zero or more.';
 const orNull = (value: string) => value.trim() || null;
+const nfcIdentifiers = (values: Values) => {
+  const tag = values.nfcTag.trim();
+  return tag ? [{ kind: 'nfc' as const, value: tag }] : undefined;
+};
 
 /**
  * Registers a physical spool that already exists: it takes its filament from loose stock, or stays empty for a
@@ -90,6 +107,7 @@ export function SpoolFormModal({
     acquiredOn: spool?.acquiredOn ?? dateInAppTimeZone(new Date()),
     reference: spool?.acquisitionReference ?? '',
     notes: spool?.notes ?? '',
+    nfcTag: '',
   });
   const form = useForm<Values>({ defaultValues: defaults() });
   const {
@@ -99,6 +117,7 @@ export function SpoolFormModal({
     reset,
     watch,
     setValue,
+    setError,
     formState: { errors },
   } = form;
   const adding = !spool && watch('newArticle');
@@ -108,6 +127,16 @@ export function SpoolFormModal({
     mutationFn: async (values: Values) => {
       const tare = parseDecimal(values.tare);
       if (spool) {
+        // The tag goes first: a refused tag leaves the spool unchanged, and a retry skips a tag already added.
+        const tag = values.nfcTag.trim();
+        if (
+          tag &&
+          hasOpenFill(spool) &&
+          !spool.identifiers.some(
+            (identifier) => identifierKey(identifier.kind, identifier.value) === identifierKey('nfc', tag),
+          )
+        )
+          await addFilamentSpoolIdentifier(spool.id, { kind: 'nfc', value: tag });
         return updateFilamentSpool(
           spool.id,
           spoolUpdateBody(spool, {
@@ -158,6 +187,7 @@ export function SpoolFormModal({
           notes: orNull(values.notes),
           occurredAt: new Date().toISOString(),
           expectedInventoryVersion: article.inventoryVersion,
+          identifiers: nfcIdentifiers(values),
         });
       }
       const material = choices.find((item) => item.id === values.materialId);
@@ -177,6 +207,7 @@ export function SpoolFormModal({
         notes: orNull(values.notes),
         occurredAt: new Date().toISOString(),
         expectedInventoryVersion: material.inventoryVersion,
+        identifiers: nfcIdentifiers(values),
       });
     },
   });
@@ -206,7 +237,9 @@ export function SpoolFormModal({
     let saved: FilamentSpool;
     try {
       saved = await mutation.mutateAsync(values);
-    } catch {
+    } catch (error) {
+      if (errorCode(error) === 'identifier_in_use')
+        setError('nfcTag', { message: 'This tag is already assigned to a spool.' });
       await refresh();
       return;
     }
@@ -251,7 +284,7 @@ export function SpoolFormModal({
                 a new filament article.
               </p>
             )}
-            {mutation.isError && (
+            {mutation.isError && errorCode(mutation.error) !== 'identifier_in_use' && (
               <InlineNotification
                 kind="error"
                 lowContrast
@@ -441,6 +474,30 @@ export function SpoolFormModal({
                 autoComplete="off"
                 maxLength={200}
                 {...register('product')}
+              />
+            )}
+            {showFill && (
+              <DetectedTagPicker
+                id="spool-detected-tag"
+                open={open}
+                spoolId={spool?.id}
+                onPick={(tagUid) => setValue('nfcTag', tagUid, { shouldValidate: true, shouldDirty: true })}
+              />
+            )}
+            {showFill && (
+              <TextInput
+                id="spool-nfc-tag"
+                labelText={spool ? 'Add NFC tag (optional)' : 'NFC tag (optional)'}
+                helperText={
+                  spool
+                    ? 'Adds a tag to the current fill. Existing identifiers are listed on the spool page.'
+                    : 'As read by the scanner, or pick a tag a printer detects.'
+                }
+                autoComplete="off"
+                maxLength={255}
+                invalid={Boolean(errors.nfcTag)}
+                invalidText={errors.nfcTag?.message}
+                {...register('nfcTag')}
               />
             )}
             <TextInput

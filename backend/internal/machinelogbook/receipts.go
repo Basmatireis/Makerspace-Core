@@ -388,23 +388,30 @@ func (s *Service) validateReceipt(in ReceiptInput) (validatedReceipt, error) {
 	if err = v.validatePlacement(pl); err != nil {
 		return v, err
 	}
-	if len(pl.Identifiers) > maxReceiptIdentifiers {
-		return v, apperror.Invalid("too many identifiers")
+	v.identifier, err = validateNewIdentifiers(pl.Identifiers)
+	return v, err
+}
+
+// validateNewIdentifiers trims the identifiers for a new fill and refuses invalid or repeated ones.
+func validateNewIdentifiers(in []NewSpoolIdentifier) ([]NewSpoolIdentifier, error) {
+	if len(in) > maxReceiptIdentifiers {
+		return nil, apperror.Invalid("too many identifiers")
 	}
+	var out []NewSpoolIdentifier
 	seen := map[string]bool{}
-	for _, identifier := range pl.Identifiers {
+	for _, identifier := range in {
 		value := strings.TrimSpace(identifier.Value)
 		if !validIdentifierKind(identifier.Kind) || value == "" || len(value) > 255 {
-			return v, apperror.Invalid("invalid spool identifier")
+			return nil, apperror.Invalid("invalid spool identifier")
 		}
 		key := string(identifier.Kind) + "/" + strings.ToLower(value)
 		if seen[key] {
-			return v, apperror.Conflicting("identifier_in_use", "An identifier is used twice")
+			return nil, apperror.Conflicting("identifier_in_use", "An identifier is used twice")
 		}
 		seen[key] = true
-		v.identifier = append(v.identifier, NewSpoolIdentifier{Kind: identifier.Kind, Value: value})
+		out = append(out, NewSpoolIdentifier{Kind: identifier.Kind, Value: value})
 	}
-	return v, nil
+	return out, nil
 }
 
 // validatePlacement checks the fields of a placement against its mode.

@@ -359,6 +359,8 @@ type FilamentSpoolInput struct {
 	AcquisitionReference, StorageLocation, Notes *string
 	OccurredAt                                   time.Time
 	ExpectedInventoryVersion                     int64
+	// Identifiers tag the first fill.
+	Identifiers []NewSpoolIdentifier
 }
 
 type FilamentSpoolUpdate struct {

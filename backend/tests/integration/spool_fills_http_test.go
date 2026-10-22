@@ -367,6 +367,35 @@ func TestFilamentSpoolFillsCleanupOverHTTP(t *testing.T) {
 		},
 		nil,
 	)
+	// A spool registered with a first fill can carry its NFC tag; an empty one cannot, and a taken tag is refused.
+	taggedEmpty := map[string]any{
+		"kind":        "reusable",
+		"stockMode":   "empty",
+		"occurredAt":  time.Now().UTC().Format(time.RFC3339),
+		"identifiers": []map[string]any{{"kind": "nfc", "value": "create-tag"}},
+	}
+	api(root, http.MethodPost, "/filament-spools", http.StatusUnprocessableEntity, taggedEmpty, nil)
+	materialVersion := func() int64 { m, _ := logbook.GetMaterial(ctx, master, material.ID); return m.InventoryVersion }
+	tagged := map[string]any{
+		"kind":                     "reusable",
+		"materialId":               material.ID,
+		"initialNetWeightG":        "50",
+		"stockMode":                "existing_stock",
+		"occurredAt":               time.Now().UTC().Format(time.RFC3339),
+		"expectedInventoryVersion": materialVersion(),
+		"identifiers":              []map[string]any{{"kind": "nfc", "value": " create-tag "}},
+	}
+	var created openapi.FilamentSpool
+	api(root, http.MethodPost, "/filament-spools", http.StatusCreated, tagged, &created)
+	if len(created.Identifiers) != 1 || created.Identifiers[0].Value != "create-tag" {
+		t.Fatalf("tagged spool: %+v", created.Identifiers)
+	}
+	tagged["expectedInventoryVersion"] = materialVersion()
+	tagged["identifiers"] = []map[string]any{{"kind": "nfc", "value": "CREATE-TAG"}}
+	api(root, http.MethodPost, "/filament-spools", http.StatusConflict, tagged, &problem)
+	if problem["code"] != "identifier_in_use" {
+		t.Fatalf("taken tag: %+v", problem)
+	}
 	var ledger openapi.InventoryTransactionPage
 	api(reader, http.MethodGet, "/filament-spools/"+spool.ID.String()+"/transactions", http.StatusOK, nil, &ledger)
 	if len(ledger.Items) == 0 {

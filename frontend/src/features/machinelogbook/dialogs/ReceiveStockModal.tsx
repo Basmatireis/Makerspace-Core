@@ -42,6 +42,7 @@ import {
   type WithArticle,
 } from '../components/ArticleFields';
 import { formatQuantity, toDecimal, toMoney, unitLabel } from '../components/inventoryShared';
+import { DetectedTagPicker } from '../components/DetectedTagPicker';
 import { identifierKinds, needsRefill, spoolNameText } from '../components/spoolShared';
 import { allMaterialsQuery, materialTypesQuery, suggestionsQuery } from '../inventoryQueries';
 import { machineLogbookPaths } from '../shared/paths';
@@ -644,6 +645,15 @@ export function ReceiveStockModal({
                         />
                       </div>
                     )}
+                    {((placement === 'new_spools' && single) || placement === 'reusable_spool') &&
+                      values.idKind === 'nfc' && (
+                        <DetectedTagPicker
+                          id="receive-detected-tag"
+                          open={open}
+                          spoolId={placement === 'reusable_spool' ? values.reusableSpoolId || undefined : undefined}
+                          onPick={(tagUid) => setValue('idValue', tagUid, { shouldDirty: true })}
+                        />
+                      )}
                   </Stack>
                 )}
               </fieldset>

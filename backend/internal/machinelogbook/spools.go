@@ -395,6 +395,12 @@ func (s *Service) CreateFilamentSpool(
 	if err != nil {
 		return FilamentSpool{}, err
 	}
+	if empty && len(input.Identifiers) > 0 {
+		return FilamentSpool{}, apperror.Invalid("identifiers need a first fill")
+	}
+	if input.Identifiers, err = validateNewIdentifiers(input.Identifiers); err != nil {
+		return FilamentSpool{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return FilamentSpool{}, err
@@ -512,6 +518,9 @@ func (s *Service) fillNewSpool(
 	)
 	if err != nil {
 		return databaseError(err)
+	}
+	if err = addFillIdentifiers(ctx, q, spool.ID, fill.ID, input.Identifiers); err != nil {
+		return err
 	}
 	ref := fillRef{
 		SpoolID:        spool.ID,

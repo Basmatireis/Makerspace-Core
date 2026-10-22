@@ -22,6 +22,7 @@ import type { CreateFilamentSpoolRequestStockMode } from './createFilamentSpoolR
 import type { Decimal } from './decimal';
 import type { FilamentSpoolKind } from './filamentSpoolKind';
 import type { Money } from './money';
+import type { NewFilamentSpoolIdentifier } from './newFilamentSpoolIdentifier';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -73,4 +74,9 @@ export interface CreateFilamentSpoolRequest {
   notes?: string | null;
   occurredAt: string;
   expectedInventoryVersion?: Version;
+  /**
+     * Tags the first fill (409 identifier_in_use when a tag is taken). Not valid with stockMode empty.
+     * @maxItems 20
+     */
+  identifiers?: NewFilamentSpoolIdentifier[];
 }

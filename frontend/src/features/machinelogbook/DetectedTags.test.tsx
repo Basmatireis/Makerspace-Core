@@ -3,12 +3,21 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { AddFilamentSpoolIdentifierRequest, DetectedSpoolTag, FilamentSpool } from '../../api/generated/models';
+import type {
+  AddFilamentSpoolIdentifierRequest,
+  CreateFilamentSpoolRequest,
+  DetectedSpoolTag,
+  FilamentSpool,
+  Material,
+  ReceiveInventoryStockRequest,
+} from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { DetectedTrayCell } from './components/DetectedTrayCell';
 import { IdentifierModal } from './dialogs/IdentifierModal';
+import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
+import { SpoolFormModal } from './dialogs/SpoolFormModal';
 import { TagsStep } from './dialogs/changeFilament/TagsStep';
 import { useChangeFilamentWizard } from './dialogs/changeFilament/useChangeFilamentWizard';
 import { ToastProvider } from './shared/toasts';
@@ -138,5 +147,157 @@ describe('Change filament tags step detected tags', () => {
     await user.click(await screen.findByRole('option', { name: /AABB0011/ }));
     expect(screen.getByLabelText('Value')).toHaveValue('AABB0011');
     expect(await screen.findByText(/Add NFC tag AABB0011/)).toBeInTheDocument();
+  });
+});
+
+const WITH_STOCK = [...BOTH, PermissionId.inventorymanage];
+
+const filament = {
+  id: id(30),
+  name: 'PLA Basic · White · Bambu Lab',
+  kind: 'filament',
+  materialTypeId: id(31),
+  materialTypeName: 'PLA',
+  unit: 'g',
+  active: true,
+  packageSize: '1000',
+  quantity: '2000',
+  assignedQuantity: '0',
+  unassignedQuantity: '2000',
+  inventoryVersion: 4,
+  version: 1,
+} as unknown as Material;
+
+const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
+
+function serveInventory() {
+  server.use(
+    http.get('*/api/v1/materials', () => HttpResponse.json({ ...page([filament]), totalInventoryValue: '0' })),
+    http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/inventory/suggestions', () =>
+      HttpResponse.json({ variants: [], manufacturers: [], suppliers: [], storageLocations: [] }),
+    ),
+    http.get('*/api/v1/filament-spools', () => HttpResponse.json(page([]))),
+  );
+}
+
+async function pickDetected(dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await within(dialog).findByRole('combobox', { name: /Detected in a printer/ }));
+  await user.click(await screen.findByRole('option', { name: /AABB0011/ }));
+}
+
+describe('Receive stock detected tags', () => {
+  it('fills the identifier of a new spool from a detected tag', async () => {
+    auth.permissions = WITH_STOCK;
+    useTags([detected()]);
+    serveInventory();
+    let body: ReceiveInventoryStockRequest | undefined;
+    server.use(
+      http.post('*/api/v1/inventory/receipts', async ({ request }) => {
+        body = (await request.json()) as ReceiveInventoryStockRequest;
+        return HttpResponse.json({ material: filament, spools: [], transactions: [] }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderUi(<ReceiveStockModal open onClose={vi.fn()} kind="filament" article={filament} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+    await user.type(within(dialog).getByLabelText('Total price in EUR'), '20');
+    await user.click(within(dialog).getByLabelText('On new spools (one per package)'));
+    await pickDetected(dialog, user);
+    expect(within(dialog).getByLabelText('Identifier value (optional)')).toHaveValue('AABB0011');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive stock' }));
+    await waitFor(() =>
+      expect(body?.placement).toMatchObject({
+        mode: 'new_spools',
+        identifiers: [{ kind: 'nfc', value: 'AABB0011' }],
+      }),
+    );
+  });
+});
+
+describe('Spool form detected tags', () => {
+  it('registers a spool with a detected tag on its first fill', async () => {
+    auth.permissions = WITH_STOCK;
+    useTags([detected()]);
+    serveInventory();
+    let body: CreateFilamentSpoolRequest | undefined;
+    server.use(
+      http.post('*/api/v1/filament-spools', async ({ request }) => {
+        body = (await request.json()) as CreateFilamentSpoolRequest;
+        return HttpResponse.json(spool, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderUi(<SpoolFormModal open onClose={vi.fn()} initialMaterialId={filament.id} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Register spool' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Register spool' })).toBeEnabled());
+    await pickDetected(dialog, user);
+    expect(within(dialog).getByLabelText('NFC tag (optional)')).toHaveValue('AABB0011');
+    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body).toMatchObject({
+      stockMode: 'existing_stock',
+      materialId: filament.id,
+      identifiers: [{ kind: 'nfc', value: 'AABB0011' }],
+    });
+  });
+
+  const loaded = {
+    ...spool,
+    fillId: id(21),
+    materialId: filament.id,
+    initialNetWeightG: '1000',
+    lifecycle: 'active',
+    identifiers: [],
+  } as unknown as FilamentSpool;
+
+  it('adds a detected tag to the current fill before saving an edited spool', async () => {
+    auth.permissions = WITH_STOCK;
+    useTags([detected()]);
+    serveInventory();
+    const calls: string[] = [];
+    let added: AddFilamentSpoolIdentifierRequest | undefined;
+    server.use(
+      http.post(`*/api/v1/filament-spools/${loaded.id}/identifiers`, async ({ request }) => {
+        calls.push('identifier');
+        added = (await request.json()) as AddFilamentSpoolIdentifierRequest;
+        return HttpResponse.json(loaded);
+      }),
+      http.patch(`*/api/v1/filament-spools/${loaded.id}`, () => {
+        calls.push('update');
+        return HttpResponse.json(loaded);
+      }),
+    );
+    const user = userEvent.setup();
+    renderUi(<SpoolFormModal open onClose={vi.fn()} spool={loaded} />);
+    const dialog = await screen.findByRole('dialog', { name: `Edit ${loaded.displayId}` });
+    await pickDetected(dialog, user);
+    await user.click(within(dialog).getByRole('button', { name: 'Save spool' }));
+    await waitFor(() => expect(calls).toEqual(['identifier', 'update']));
+    expect(added).toEqual({ kind: 'nfc', value: 'AABB0011' });
+  });
+
+  it('keeps the spool unchanged when the tag is already in use', async () => {
+    auth.permissions = WITH_STOCK;
+    useTags([]);
+    serveInventory();
+    let updated = false;
+    server.use(
+      http.post(`*/api/v1/filament-spools/${loaded.id}/identifiers`, () =>
+        HttpResponse.json({ code: 'identifier_in_use', message: 'In use' }, { status: 409 }),
+      ),
+      http.patch(`*/api/v1/filament-spools/${loaded.id}`, () => {
+        updated = true;
+        return HttpResponse.json(loaded);
+      }),
+    );
+    const user = userEvent.setup();
+    renderUi(<SpoolFormModal open onClose={vi.fn()} spool={loaded} />);
+    const dialog = await screen.findByRole('dialog', { name: `Edit ${loaded.displayId}` });
+    await user.type(within(dialog).getByLabelText('Add NFC tag (optional)'), 'TAKEN');
+    await user.click(within(dialog).getByRole('button', { name: 'Save spool' }));
+    expect(await within(dialog).findByText('This tag is already assigned to a spool.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Not saved')).not.toBeInTheDocument();
+    expect(updated).toBe(false);
   });
 });
