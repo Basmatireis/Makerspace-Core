@@ -221,7 +221,7 @@ describe('Add machine wizard for a printer', () => {
     expect(within(dialog).getByLabelText('New LAN access code (optional)')).toHaveValue('');
 
     // Step Spool inputs: the profile saved in step 1 is the base; a reported unit that is not set up can be added.
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
     expect(await within(dialog).findByDisplayValue('AMS 2 Pro')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add as input unit' }));
     expect(await within(dialog).findByDisplayValue('AMS HT')).toBeInTheDocument();
