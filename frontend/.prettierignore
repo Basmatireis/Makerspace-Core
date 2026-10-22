@@ -5,3 +5,4 @@ test-results
 node_modules
 src/api/generated
 pnpm-lock.yaml
+.pnpm-store
