@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-10-22
+
 ### Upgrade notes
 
 - Migration 00065 adds custom signage layouts, font assets and announcement body formats. Existing scenes, templates and publications keep working unchanged. API: `SignagePlayerManifest` has `customLayouts` and `layoutsVersion` 2, scenes carry `customLayoutId`, live data and `GET /signage/calendar` carry `calendar` and events `endsAt`, announcement templates and rendered messages carry `bodyFormat` and `bodyCss`. Republish displays to use the new features.
@@ -392,6 +394,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.5]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.1...v0.8.2
