@@ -240,8 +240,6 @@ export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, on
           columns.map((__, colIndex) => {
             const cell = { col: colIndex + 1, row: rowIndex + 1 };
             const zone = zoneAtCell(zones, cell.col, cell.row);
-            const zoneIndex = zone ? zones.indexOf(zone) : -1;
-            const origin = zone?.grid?.col === cell.col && zone.grid.row === cell.row;
             const inPreview =
               preview &&
               cell.col >= preview.col &&
@@ -250,8 +248,6 @@ export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, on
               cell.row < preview.row + preview.rowSpan;
             const classes = [
               'sg-grid-cell',
-              zone ? `sg-grid-cell--tint-${zoneIndex % TINTS}` : '',
-              zone && zone.id === selectedId ? 'sg-grid-cell--selected' : '',
               inPreview ? (previewBlocked ? 'sg-grid-cell--blocked' : 'sg-grid-cell--range') : '',
             ]
               .filter(Boolean)
@@ -261,6 +257,8 @@ export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, on
                 key={`${cell.col}-${cell.row}`}
                 type="button"
                 className={classes}
+                // Explicit positions: the zone boxes below are placed explicitly, which would push auto-placed cells away.
+                style={{ gridColumn: cell.col, gridRow: cell.row }}
                 aria-label={`Column ${cell.col}, row ${cell.row}${zone ? `, ${zone.label}` : ''}`}
                 aria-pressed={zone ? zone.id === selectedId : undefined}
                 onPointerDown={(event) => {
@@ -297,11 +295,32 @@ export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, on
                   commit(anchor, cell);
                   reset();
                 }}
-              >
-                {origin && zone && <span className="sg-grid-cell__label">{zone.label}</span>}
-              </button>
+              ></button>
             );
           }),
+        )}
+        {/* One box per zone over its cells, so a zone spanning several cells reads as one area; clicks go to the cells. */}
+        {zones.map((zone, index) =>
+          zone.grid ? (
+            <div
+              key={zone.id}
+              aria-hidden="true"
+              className={[
+                'sg-grid-zone',
+                `sg-grid-cell--tint-${index % TINTS}`,
+                zone.id === selectedId ? 'sg-grid-zone--selected' : '',
+                preview ? 'sg-grid-zone--faded' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={{
+                gridColumn: `${zone.grid.col} / span ${zone.grid.colSpan}`,
+                gridRow: `${zone.grid.row} / span ${zone.grid.rowSpan}`,
+              }}
+            >
+              <span className="sg-grid-cell__label">{zone.label}</span>
+            </div>
+          ) : null,
         )}
       </div>
       {notice && (

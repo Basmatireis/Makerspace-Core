@@ -181,8 +181,20 @@ textarea.sg-code {
 .sg-grid-cell--tint-5 {
   background: color-mix(in srgb, theme.$text-secondary 28%, theme.$background);
 }
-.sg-grid-cell--selected {
+.sg-grid-zone {
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: $spacing-02;
+  pointer-events: none;
+}
+.sg-grid-zone--selected {
   box-shadow: inset 0 0 0 3px theme.$border-interactive;
+}
+.sg-grid-zone--faded {
+  opacity: 0.35;
 }
 .sg-grid-cell--range {
   background: theme.$layer-accent-01;

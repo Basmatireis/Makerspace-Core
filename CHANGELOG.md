@@ -4,6 +4,19 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00065 adds custom signage layouts, font assets and announcement body formats. Existing scenes, templates and publications keep working unchanged. API: `SignagePlayerManifest` has `customLayouts` and `layoutsVersion` 2, scenes carry `customLayoutId`, live data and `GET /signage/calendar` carry `calendar` and events `endsAt`, announcement templates and rendered messages carry `bodyFormat` and `bodyCss`. Republish displays to use the new features.
+
+### Added
+
+- **Custom signage layouts.** Content → Layouts creates layouts as a grid (columns and rows with weights, zones drawn over cells) or with free rectangles (drag, resize, overlap, stacking order). Scenes can use them like built-in layouts; removing a zone warns which scenes lose a widget.
+- **Styling for every signage widget.** Text and background colours, background opacity, padding, corner radius, border, font size and family, alignment.
+- **Markdown and HTML/CSS in signage text.** Text widgets, open-day, event and agenda lists and announcement template bodies can be written in Markdown or HTML with CSS. Scripts and unsafe markup are removed; the CSS only affects its own box.
+- **Uploaded fonts.** WOFF2 fonts can be uploaded under Media and used in widget styles and CSS.
+- **List entry templates.** Open-day and event lists format each entry from one template with placeholders such as `{date}`, `{start}` and `{title}`; up to 20 entries.
+- **Agenda widget** listing open days and events together, and a **calendar widget** (month or weeks) showing public holidays, breaks, open days and events, each switchable with its own colour.
+
 ## [0.8.4] - 2026-10-22
 
 ### Upgrade notes
