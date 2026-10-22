@@ -36,6 +36,12 @@ describe('Signage navigation', () => {
     expect(screen.getByRole('link', { name: 'Media' })).not.toHaveAttribute('aria-current');
   });
 
+  it('keeps Content active on custom layout pages', () => {
+    renderNavigation([PermissionId.signageread], '/signage/layouts/some-layout');
+    expect(screen.getByRole('button', { name: 'Signage' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Content' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('marks Displays active on display pages', () => {
     renderNavigation([PermissionId.signageread], '/signage/displays/some-display');
     expect(screen.getByRole('link', { name: 'Displays' })).toHaveAttribute('aria-current', 'page');

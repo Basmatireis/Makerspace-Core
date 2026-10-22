@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Button,
+  CodeSnippet,
   InlineNotification,
   Link as CarbonLink,
   Modal,
@@ -15,7 +16,8 @@ import { Link } from 'react-router-dom';
 import type { SignageAsset, SignageScene } from '../../api/generated/models';
 import { deleteSignageAsset, renameSignageAsset } from '../../api/generated/signage/signage';
 import { DeleteDialog } from './components';
-import { errorMessage, formatBytes, formatDateTime, formatDuration } from './helpers';
+import { errorMessage, fontCss, formatBytes, formatDateTime, formatDuration } from './helpers';
+import { FontSample } from './FontSample';
 import { assetContentUrl } from './preview';
 import { signageKeys } from './queries';
 import { signagePaths } from './paths';
@@ -70,18 +72,35 @@ export function MediaDetailModal({
       size="md"
       passiveModal
       modalHeading={asset.name}
-      modalLabel={asset.kind === 'image' ? 'Image' : 'Video'}
+      modalLabel={asset.kind === 'image' ? 'Image' : asset.kind === 'font' ? 'Font' : 'Video'}
       onRequestClose={onClose}
     >
       <div className="sg-media-detail">
         {asset.kind === 'image' ? (
           <img className="sg-media-detail__image" src={url} alt="" />
+        ) : asset.kind === 'font' ? (
+          <div className="sg-font-detail">
+            <FontSample
+              asset={asset}
+              text="The quick brown fox jumps over the lazy dog"
+              className="sg-font-detail__sample"
+            />
+            <FontSample asset={asset} text="ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789" />
+          </div>
         ) : (
           <video className="sg-media-detail__image" src={url} controls muted preload="metadata" />
         )}
         <StructuredListWrapper isCondensed aria-label="Media details">
           <StructuredListBody>
-            {row('Dimensions', asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'Unknown')}
+            {asset.kind !== 'font' &&
+              row('Dimensions', asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'Unknown')}
+            {asset.kind === 'font' &&
+              row(
+                'Use in CSS',
+                <CodeSnippet type="inline" feedback="Copied">
+                  {fontCss(asset.name)}
+                </CodeSnippet>,
+              )}
             {asset.durationMs ? row('Duration', formatDuration(asset.durationMs)) : null}
             {row('Size', formatBytes(asset.sizeBytes))}
             {row('Format', asset.contentType)}

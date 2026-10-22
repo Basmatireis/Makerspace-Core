@@ -9,11 +9,14 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { QueryBoundary } from './components';
 import { formatBytes, formatDuration, pluralize } from './helpers';
+import { FontSample } from './FontSample';
 import { MediaDetailModal } from './MediaDetailModal';
 import { assetContentUrl } from './preview';
 import { assetsQuery, scenesQuery } from './queries';
 import { UploadMediaModal } from './UploadMediaModal';
 import { sceneAssetIds } from './widgets';
+
+const KIND_LABEL = { image: 'Image', video: 'Video', font: 'Font' } as const;
 
 export function MediaPage() {
   const canEdit = hasPermission(useCurrentUser(), PermissionId.signagecontentmanage);
@@ -59,6 +62,7 @@ export function MediaPage() {
             <SelectItem value="all" text="All types" />
             <SelectItem value="image" text="Image" />
             <SelectItem value="video" text="Video" />
+            <SelectItem value="font" text="Font" />
           </Select>
         </div>
         <QueryBoundary query={assets} label="media">
@@ -66,7 +70,9 @@ export function MediaPage() {
             <EmptyState
               title={items.length === 0 ? 'No media yet' : 'No media found'}
               description={
-                items.length === 0 ? 'Upload images and videos to use them in scenes.' : 'Try another search or type.'
+                items.length === 0
+                  ? 'Upload images, videos and fonts to use them in scenes.'
+                  : 'Try another search or type.'
               }
               action={items.length === 0 ? upload : undefined}
             />
@@ -87,6 +93,10 @@ export function MediaPage() {
                       alt=""
                       loading="lazy"
                     />
+                  ) : item.kind === 'font' ? (
+                    <div className="sg-media-tile__image sg-media-tile__image--font" aria-hidden="true">
+                      <FontSample asset={item} text="Aa" />
+                    </div>
                   ) : (
                     <div className="sg-media-tile__image sg-media-tile__image--video">
                       <VideoFilled size={32} aria-hidden="true" />
@@ -101,7 +111,7 @@ export function MediaPage() {
                     </span>
                     <div className="sg-inline">
                       <Tag size="sm" type="cool-gray">
-                        {item.kind === 'image' ? 'Image' : 'Video'}
+                        {KIND_LABEL[item.kind]}
                       </Tag>
                     </div>
                     {scenes.isSuccess && (

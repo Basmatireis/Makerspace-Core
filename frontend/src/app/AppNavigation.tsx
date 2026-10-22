@@ -204,6 +204,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
       active:
         pathname.startsWith('/signage/content') ||
         pathname.startsWith('/signage/scenes') ||
+        pathname.startsWith('/signage/layouts') ||
         pathname.startsWith('/signage/playlists'),
     });
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });

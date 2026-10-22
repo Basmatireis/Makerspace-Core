@@ -1,4 +1,4 @@
-import type { SignageTone } from '../../api/generated/models';
+import type { SignageRichTextFormat, SignageTone } from '../../api/generated/models';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
 import type { RenderData, RenderScene } from './render/types';
 
@@ -25,7 +25,11 @@ const SCENE: RenderScene = {
 };
 
 /** A rendered message in a landscape frame, drawn like a full-zone Announcement widget. */
-export function AnnouncementPreview({ message }: { message: { title: string; body: string; tone: SignageTone } }) {
+export function AnnouncementPreview({
+  message,
+}: {
+  message: { title: string; body: string; tone: SignageTone; bodyFormat?: SignageRichTextFormat; bodyCss?: string };
+}) {
   const data: RenderData = {
     now: 0,
     liveAvailable: true,

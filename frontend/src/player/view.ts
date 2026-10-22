@@ -50,7 +50,10 @@ export function holdResult(
 }
 
 /** Live data as the player keeps it between polls. */
-export type LiveSnapshot = Pick<SignagePlayerLive, 'machines' | 'announcements' | 'openDays' | 'events' | 'streams'> & {
+export type LiveSnapshot = Pick<
+  SignagePlayerLive,
+  'machines' | 'announcements' | 'openDays' | 'events' | 'calendar' | 'streams'
+> & {
   /** Server clock minus device clock in milliseconds, so announcement windows follow the server. */
   skewMs: number;
 };
@@ -74,6 +77,8 @@ export type ViewInput = {
   hold: Hold | null;
   camera: CameraSource;
   assetUrl: (assetId: string) => string | null;
+  /** Asset names, so fonts are registered under the name CSS uses. */
+  assetName?: (assetId: string) => string | null;
 };
 
 export const liveAvailable = (lastLiveAt: number | null, now: number) =>
@@ -100,6 +105,9 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
       tone: item.tone,
       title: item.title,
       body: item.body,
+      // Announcements restored from an older cache have no format.
+      bodyFormat: item.bodyFormat ?? 'plain',
+      bodyCss: item.bodyCss ?? '',
       startsAt: Date.parse(item.startsAt),
     }));
   const engineResult = resolvePlayback(manifest.defaultPlaylistId, manifest.rules as PlaybackRule[], {
@@ -135,7 +143,11 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
     announcements,
     openDays: live?.openDays ?? [],
     events: live?.events ?? [],
+    calendar: live?.calendar ?? null,
+    // A manifest cached before custom layouts has none.
+    customLayouts: manifest.customLayouts ?? [],
     assetUrl: input.assetUrl,
+    assetName: input.assetName,
     multiMode: result.multiMode,
     alternateSeconds: result.alternateSeconds,
     cameraView: (machine) => camera.view(machine),

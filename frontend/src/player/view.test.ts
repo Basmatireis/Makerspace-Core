@@ -177,6 +177,60 @@ describe('resolveView', () => {
     ).toBe('scene-a');
   });
 
+  it('hands layouts, calendar, asset names and announcement formats to the renderer', () => {
+    const calendar = { from: '2026-10-01', to: '2026-12-01', holidays: [], breaks: [], openDays: [], events: [] };
+    const customLayouts = [
+      { id: 'cl', name: 'L', mode: 'grid' as const, columns: [1], rows: [1], zones: [], version: 1 },
+    ];
+    const announcement = {
+      id: 'a1',
+      templateId: 't',
+      tone: 'info' as const,
+      title: 'T',
+      body: '**b**',
+      bodyFormat: 'markdown' as const,
+      bodyCss: 'p{}',
+      startsAt: new Date(0).toISOString(),
+      endsAt: null,
+    };
+    const { view } = resolveView({
+      ...base,
+      assetName: (id) => (id === 'f' ? 'Fira' : null),
+      manifest: manifest(1, { customLayouts }),
+      live: snapshot({ calendar, announcements: [announcement] }),
+      lastLiveAt: 1_000,
+      now: 1_000,
+    });
+    expect(view.data.customLayouts).toEqual(customLayouts);
+    expect(view.data.calendar).toEqual(calendar);
+    expect(view.data.assetName?.('f')).toBe('Fira');
+    expect(view.data.announcements[0]).toMatchObject({ bodyFormat: 'markdown', bodyCss: 'p{}', body: '**b**' });
+  });
+
+  it('copes with a manifest and announcements cached before custom layouts and rich text', () => {
+    const old = manifest(1);
+    delete (old as Partial<typeof old>).customLayouts;
+    const announcement = {
+      id: 'a1',
+      templateId: 't',
+      tone: 'info',
+      title: 'T',
+      body: 'b',
+      startsAt: new Date(0).toISOString(),
+      endsAt: null,
+    };
+    const { view } = resolveView({
+      ...base,
+      manifest: old,
+      live: snapshot({ announcements: [announcement as never] }),
+      lastLiveAt: 1_000,
+      now: 1_000,
+    });
+    expect(view.data.customLayouts).toEqual([]);
+    expect(view.data.calendar).toBeNull();
+    expect(view.data.announcements[0]).toMatchObject({ bodyFormat: 'plain', bodyCss: '' });
+  });
+
   it('drops announcements that ended, using the server clock', () => {
     const announcement = {
       id: 'a1',
@@ -184,6 +238,8 @@ describe('resolveView', () => {
       tone: 'info' as const,
       title: 'Closed',
       body: '',
+      bodyFormat: 'plain' as const,
+      bodyCss: '',
       startsAt: new Date(0).toISOString(),
       endsAt: new Date(10_000).toISOString(),
     };

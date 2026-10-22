@@ -1,5 +1,6 @@
 import { ApiError } from '../../api/http-client';
 import { signagePaths } from './paths';
+import { cssString } from './render/style';
 
 /** The address staff open on a screen to start the player: this app's origin plus the player path. */
 export const playerAddress = () => `${window.location.origin}${signagePaths.player}`;
@@ -147,3 +148,6 @@ export function resolutionOptions(
     ? [current, ...presets]
     : presets;
 }
+
+/** The CSS line that uses an uploaded font by its name in a widget's CSS. */
+export const fontCss = (name: string) => `font-family: ${cssString(name)};`;

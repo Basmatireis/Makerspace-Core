@@ -1,5 +1,7 @@
 import { useRef } from 'react';
 import {
+  Accordion,
+  AccordionItem,
   Button,
   Checkbox,
   ContainedList,
@@ -19,7 +21,12 @@ import {
 import { Add, ArrowDown, ArrowUp, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
-import type { SignageAnnouncementTemplate, SignageFieldType, SignageTone } from '../../api/generated/models';
+import type {
+  SignageAnnouncementTemplate,
+  SignageFieldType,
+  SignageRichTextFormat,
+  SignageTone,
+} from '../../api/generated/models';
 import {
   createSignageAnnouncementTemplate,
   updateSignageAnnouncementTemplate,
@@ -27,6 +34,8 @@ import {
 import { AnnouncementPreview } from './AnnouncementPreview';
 import { BUILT_IN_VARIABLES, fieldKeyFor, placeholdersIn, unknownPlaceholders } from './engine/announcements';
 import { errorMessage, isStaleWrite, pluralize } from './helpers';
+import { CodeArea, FormatSelect } from './RichTextFields';
+import { LIMITS } from './widgets';
 import { announcementsQuery, signageKeys } from './queries';
 import { renderSample, useMachineOptions, useMakerspaceTimeZone } from './preview';
 
@@ -57,7 +66,15 @@ type FieldValues = {
   options: string;
   locked: boolean;
 };
-type Values = { name: string; tone: SignageTone; title: string; body: string; fields: FieldValues[] };
+type Values = {
+  name: string;
+  tone: SignageTone;
+  title: string;
+  body: string;
+  bodyFormat: SignageRichTextFormat;
+  bodyCss: string;
+  fields: FieldValues[];
+};
 
 const toFieldValues = (template?: SignageAnnouncementTemplate): FieldValues[] =>
   (template?.fields ?? []).map((field) => ({ ...field, options: field.options.join('\n'), locked: true }));
@@ -85,6 +102,8 @@ export function AnnouncementTemplateModal({
       tone: template?.tone ?? 'info',
       title: template?.title ?? '',
       body: template?.body ?? '',
+      bodyFormat: template?.bodyFormat ?? 'plain',
+      bodyCss: template?.bodyCss ?? '',
       fields: toFieldValues(template),
     },
   });
@@ -98,6 +117,8 @@ export function AnnouncementTemplateModal({
 
   const title = watched.title ?? '';
   const body = watched.body ?? '';
+  const bodyFormat = watched.bodyFormat ?? 'plain';
+  const bodyCss = watched.bodyCss ?? '';
   const draftFields = (watched.fields ?? []).map((field) => ({
     key: field.key ?? '',
     label: field.label ?? '',
@@ -110,7 +131,7 @@ export function AnnouncementTemplateModal({
   const unknownTitle = unknownPlaceholders({ fields: draftFields, title, body: '' });
   const unknownBody = unknownPlaceholders({ fields: draftFields, title: '', body });
   const preview = renderSample(
-    { fields: draftFields, title, body, tone: watched.tone ?? 'info' },
+    { fields: draftFields, title, body, tone: watched.tone ?? 'info', bodyFormat, bodyCss },
     Object.fromEntries(machines.map((machine) => [machine.id, machine.name])),
     now,
     timeZone,
@@ -126,6 +147,8 @@ export function AnnouncementTemplateModal({
         tone: values.tone,
         title: values.title.trim(),
         body: values.body,
+        bodyFormat: values.bodyFormat,
+        bodyCss: values.bodyCss,
         fields: values.fields.map((field) => ({
           key: field.key,
           label: field.label.trim(),
@@ -425,9 +448,10 @@ export function AnnouncementTemplateModal({
                     bodyRef.current = node;
                     field.ref(node);
                   }}
+                  className={bodyFormat === 'plain' ? undefined : 'sg-code'}
                   labelText="Body (optional)"
-                  rows={3}
-                  maxLength={2000}
+                  rows={bodyFormat === 'plain' ? 3 : 6}
+                  maxLength={LIMITS.announcementBody}
                   value={field.value}
                   {...track('body')}
                   warn={unknownBody.length > 0}
@@ -437,6 +461,35 @@ export function AnnouncementTemplateModal({
                 />
               )}
             />
+          </div>
+
+          <div className="sg-stack">
+            <Controller
+              control={form.control}
+              name="bodyFormat"
+              render={({ field }) => (
+                <FormatSelect id="tpl-body-format" value={field.value} onChange={field.onChange} />
+              )}
+            />
+            <Accordion size="md" className="sg-style-accordion">
+              <AccordionItem title={bodyCss ? 'Body CSS (in use)' : 'Body CSS'}>
+                <Controller
+                  control={form.control}
+                  name="bodyCss"
+                  render={({ field }) => (
+                    <CodeArea
+                      id="tpl-body-css"
+                      label="CSS"
+                      rows={5}
+                      maxCount={LIMITS.css}
+                      helperText="Applies to the body inside the announcement. var(--u) is 1 % of the design width."
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              </AccordionItem>
+            </Accordion>
           </div>
 
           <div>

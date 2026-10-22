@@ -228,6 +228,59 @@ describe('PlayerRuntime offline cache', () => {
       runtime.stop();
     });
 
+    it('persists the live calendar like open days and restores it after an offline restart', async () => {
+      const { store } = env();
+      const calendar = {
+        from: '2026-09-24',
+        to: '2026-12-10',
+        holidays: [{ date: '2026-10-26', name: 'National Day' }],
+        breaks: [],
+        openDays: [],
+        events: [],
+      };
+      const customLayouts = [
+        {
+          id: 'cl-1',
+          name: 'Free',
+          mode: 'free' as const,
+          columns: [1],
+          rows: [1],
+          zones: [{ id: 'a', label: 'A', grid: null, rect: { x: 0, y: 0, width: 100, height: 100 } }],
+          version: 1,
+        },
+      ];
+      const online = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => ({ unchanged: false, manifest: manifest(1, { customLayouts }) }),
+          live: async () => live({ calendar }),
+        }),
+        store,
+      });
+      online.start();
+      await settle(5_000);
+      expect(online.getSnapshot().view?.data.calendar).toEqual(calendar);
+      online.stop();
+      expect((await store.loadLive())?.calendar).toEqual(calendar);
+
+      const offline = new PlayerRuntime({ api: offlineApi(), store });
+      offline.start();
+      await settle(5_000);
+      const data = offline.getSnapshot().view?.data;
+      expect(data?.calendar).toEqual(calendar);
+      expect(data?.customLayouts).toEqual(customLayouts);
+      offline.stop();
+    });
+
+    it('copes with live data saved before calendars existed', async () => {
+      const { store } = env();
+      await seed(store, 3_600_000); // saved without a calendar
+      const runtime = new PlayerRuntime({ api: offlineApi(), store });
+      runtime.start();
+      await settle(5_000);
+      expect(runtime.getSnapshot().view?.data.calendar).toBeNull();
+      runtime.stop();
+    });
+
     it('keeps announcements until endsAt while offline and marks machines unknown after 60 s', async () => {
       const { store } = env();
       let offline = false;

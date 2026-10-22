@@ -8,6 +8,7 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { displayFixture, ids, mockSignage, sceneFixture } from './testFixtures';
 import { draftError, toDraft } from './sceneDraft';
+import { gridLayoutFixture, layoutIds, mockCustomLayouts } from './layoutFixtures';
 
 const editor = `/signage/scenes/${ids.scene}`;
 
@@ -193,6 +194,7 @@ describe('Scene editor', () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], {
       scenes: [open],
       calendar: {
+        calendar: null,
         openDays: [
           {
             startsAt: soon.toISOString(),
@@ -200,7 +202,7 @@ describe('Scene editor', () => {
             status: 'scheduled',
           },
         ],
-        events: [{ title: 'Real repair cafe', startsAt: soon.toISOString(), location: null }],
+        events: [{ title: 'Real repair cafe', startsAt: soon.toISOString(), endsAt: null, location: null }],
       },
     });
     const first = renderRoute(<App />, editor);
@@ -322,5 +324,47 @@ describe('draftError', () => {
         },
       }),
     ).toBe('Zone Main: Choose a machine.');
+  });
+  it('lists the zones of a custom layout and widgets are chosen per custom zone', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], {
+      scenes: [
+        sceneFixture({
+          layoutId: 'custom',
+          customLayoutId: layoutIds.grid,
+          zones: { z1: { type: 'empty' }, z2: { type: 'empty' }, z3: { type: 'empty' } },
+        }),
+      ],
+    });
+    mockCustomLayouts([gridLayoutFixture()]);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    expect(await screen.findByText('Poster with side')).toBeInTheDocument();
+    expect(await screen.findByText('3 zones')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Top side' }));
+    expect(await screen.findByRole('heading', { name: 'Zone: Top side' })).toBeInTheDocument();
+  });
+
+  it('offers custom layouts when changing the layout and saves customLayoutId', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    mockCustomLayouts([gridLayoutFixture()]);
+    const bodies: Record<string, unknown>[] = [];
+    server.use(
+      http.put('*/api/v1/signage/scenes/:id', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        bodies.push(body);
+        return HttpResponse.json(sceneFixture({ version: 4 }));
+      }),
+    );
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Change layout' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(await within(dialog).findByText('Poster with side'));
+    await user.click(within(dialog).getByRole('button', { name: 'Change layout' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({ layoutId: 'custom', customLayoutId: layoutIds.grid });
+    // The header widget moves to the first custom zone; the others start empty.
+    expect(Object.keys(bodies[0].zones as object)).toEqual(['z1', 'z2', 'z3']);
+    expect((bodies[0].zones as Record<string, { type: string }>).z1.type).toBe('text');
   });
 });

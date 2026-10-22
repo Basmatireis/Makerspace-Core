@@ -146,4 +146,63 @@ describe('Media page', () => {
       `/signage/scenes/${ids.scene}`,
     );
   });
+  it('uploads a WOFF2 font with its content type, even when the system reports none', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let headers: Headers | undefined;
+    server.use(
+      http.post('*/api/v1/signage/assets', async ({ request }) => {
+        headers = request.headers;
+        return HttpResponse.json(assetFixture({ kind: 'font', name: 'Space.woff2' }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup({ applyAccept: false });
+    await user.click(await screen.findByRole('button', { name: 'Upload' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Fonts: WOFF2 up to 2 MB/)).toBeInTheDocument();
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.accept).toContain('font/woff2');
+    await user.upload(input, new File([new Uint8Array(64)], 'Space.woff2', { type: '' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
+    await waitFor(() => expect(headers).toBeDefined());
+    expect(headers?.get('x-file-content-type')).toBe('font/woff2');
+  });
+
+  it('rejects other font formats and fonts above 2 MB before uploading', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup({ applyAccept: false });
+    await user.click(await screen.findByRole('button', { name: 'Upload' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File(['x'], 'legacy.ttf', { type: 'font/ttf' }));
+    expect(await within(dialog).findByText('Use JPG, PNG, WebP, MP4 or WOFF2')).toBeInTheDocument();
+    const big = new File(['x'], 'huge.woff2', { type: 'font/woff2' });
+    Object.defineProperty(big, 'size', { value: 3 << 20 });
+    await user.upload(input, big);
+    expect(await within(dialog).findByText('Too large (limit 2.0 MB)')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
+  });
+
+  it('shows a font sample and the CSS to use it', async () => {
+    const font = assetFixture({
+      id: ids.video,
+      kind: 'font',
+      name: 'Space Grotesk',
+      contentType: 'font/woff2',
+      width: null,
+      height: null,
+    });
+    mockSignage([PermissionId.signageread], { assets: [font] });
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup();
+    const tile = await screen.findByRole('button', { name: 'Space Grotesk, details' });
+    expect(within(tile).getByText('Font')).toBeInTheDocument();
+    await user.click(tile);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Use in CSS')).toBeInTheDocument();
+    expect(within(dialog).getByText('font-family: "Space Grotesk";')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Dimensions')).not.toBeInTheDocument();
+    expect(document.head.querySelector('style[data-signage-fonts]')?.textContent).toContain('"Space Grotesk"');
+  });
 });

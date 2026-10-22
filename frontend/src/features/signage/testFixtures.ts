@@ -35,6 +35,7 @@ export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScen
   name: 'Open days poster',
   orientation: 'portrait',
   layoutId: 'stack3',
+  customLayoutId: null,
   backgroundColor: '#161616',
   backgroundAssetId: null,
   backgroundFit: 'cover',
@@ -67,6 +68,8 @@ export const templateFixture = (overrides: Partial<SignageAnnouncementTemplate> 
   tone: 'warning',
   title: 'Closed today – {reason}',
   body: 'We are back {ends}.',
+  bodyFormat: 'plain',
+  bodyCss: '',
   fields: [
     {
       key: 'reason',
@@ -108,7 +111,7 @@ export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}
   startsAt: stamp,
   endsAt: null,
   status: 'active',
-  rendered: { title: 'Closed today – Holiday', body: '', tone: 'warning' },
+  rendered: { title: 'Closed today – Holiday', body: '', bodyFormat: 'plain', bodyCss: '', tone: 'warning' },
   version: 1,
   createdAt: stamp,
   updatedAt: stamp,
@@ -170,14 +173,24 @@ export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): 
     display: { orientation: 'portrait', resolution: { width: 1080, height: 1920 }, visibleFromOutside: true },
     rules: [],
     defaultPlaylistId: ids.playlist,
-    layoutsVersion: 1,
+    layoutsVersion: 2,
+    customLayouts: [],
     scenes: [{ ...sceneFixture(), version: 3 }],
     playlists: [
       { id: ids.playlist, name: 'Ads', items: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }], version: 2 },
     ],
     assets: [],
   },
-  live: { serverTime: stamp, revision: 2, machines: [], announcements: [], openDays: [], events: [], streams: [] },
+  live: {
+    serverTime: stamp,
+    revision: 2,
+    machines: [],
+    announcements: [],
+    openDays: [],
+    events: [],
+    calendar: null,
+    streams: [],
+  },
   ...overrides,
 });
 
@@ -206,7 +219,7 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     displays = [],
     rules = [],
     preview = previewFixture(),
-    calendar = { openDays: [], events: [] },
+    calendar = { openDays: [], events: [], calendar: null },
   } = content;
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
@@ -227,6 +240,7 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),
     http.get('*/api/v1/signage/announcements', () => HttpResponse.json({ items: announcements })),
     http.get('*/api/v1/signage/machines', () => HttpResponse.json({ items: machines })),
+    http.get('*/api/v1/signage/custom-layouts', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/signage/calendar', () => HttpResponse.json(calendar)),
     http.get('*/api/v1/signage/displays', () => HttpResponse.json({ items: displays })),
     http.get('*/api/v1/signage/displays/:id', ({ params }) => {

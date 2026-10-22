@@ -7,7 +7,7 @@ import type {
 import { ASSET_CACHE, assetKey, LIVE_KEY, MANIFEST_KEY, STATE_CACHE } from './cacheKeys';
 
 // The offline cache. Only published signage content lives here (the manifest, its assets and the last announcements, open
-// days and events): the same things the display shows on the wall. Never credentials, tokens or machine status.
+// days, events and calendar): the same things the display shows on the wall. Never credentials, tokens or machine status.
 
 /** The device ran out of storage (or would). The old revision keeps playing. */
 export class CacheQuotaError extends Error {
@@ -24,6 +24,8 @@ export type PersistedLive = {
   announcements: SignagePlayerLiveAnnouncement[];
   openDays: SignagePlayerLive['openDays'];
   events: SignagePlayerLive['events'];
+  /** Absent in data saved by an older player. */
+  calendar?: SignagePlayerLive['calendar'];
 };
 
 export type StorageUse = { usedBytes: number; quotaBytes: number };

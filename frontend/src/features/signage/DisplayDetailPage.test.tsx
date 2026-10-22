@@ -111,6 +111,8 @@ describe('Display detail', () => {
             tone: 'warning',
             title: 'Closed today',
             body: '',
+            bodyFormat: 'plain',
+            bodyCss: '',
             startsAt: '2026-10-19T08:00:00Z',
             endsAt: null,
           },

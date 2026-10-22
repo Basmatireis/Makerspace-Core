@@ -2,6 +2,7 @@
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/breakpoint' as *;
 @use '@carbon/styles/scss/theme' as theme;
+@use './editors';
 
 // Digital signage admin. Carbon components carry the controls; this file holds layout glue only.
 // The scene renderer has its own plain CSS in render/render.css (shared with the player).

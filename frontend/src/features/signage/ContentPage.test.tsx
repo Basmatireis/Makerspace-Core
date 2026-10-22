@@ -148,6 +148,9 @@ describe('Content page', () => {
     // The preview renders the title with the sample value of the choice field.
     expect(within(dialog).getByText('Closed today – Holiday')).toBeInTheDocument();
     const title = within(dialog).getByLabelText('Title');
+    await user.selectOptions(within(dialog).getByLabelText('Format'), 'markdown');
+    await user.click(within(dialog).getByRole('button', { name: 'Body CSS' }));
+    fireEvent.change(within(dialog).getByLabelText('CSS'), { target: { value: 'p { color: red; }' } });
     fireEvent.change(title, { target: { value: 'Out {oops}' } });
     expect(await within(dialog).findByText('Unknown variable {oops}. It is shown as typed.')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Save template' }));
@@ -157,6 +160,8 @@ describe('Content page', () => {
         name: 'Closed',
         tone: 'warning',
         title: 'Out {oops}',
+        bodyFormat: 'markdown',
+        bodyCss: 'p { color: red; }',
         fields: [
           { key: 'reason', label: 'Reason', type: 'choice', required: true, options: ['Holiday', 'Maintenance'] },
         ],

@@ -1,12 +1,24 @@
 // TypeScript copy of backend/internal/signage/render.go for the admin preview. Go is authoritative; both run the shared
 // vectors in api/testdata/signage-announcement-render.json. Pure TS: no Carbon, no src/app imports (the player reuses it).
+// Placeholder values are escaped for the body's format (the title is plain text and stays unescaped).
+import { escapeForFormat, type RichTextFormat } from '../render/escape';
+
+export { escapeForFormat, escapeHtml, escapeMarkdown, type RichTextFormat } from '../render/escape';
 
 export type FieldType = 'text' | 'longtext' | 'time' | 'date' | 'datetime' | 'number' | 'choice' | 'machine';
 export type Tone = 'info' | 'warning' | 'critical' | 'neutral';
 
 /** The part of a template field the renderer and the editor need. */
 export type EngineField = { key: string; type: FieldType };
-export type EngineTemplate = { fields: EngineField[]; title: string; body: string; tone: Tone };
+export type EngineTemplate = {
+  fields: EngineField[];
+  title: string;
+  body: string;
+  /** Absent means plain. */
+  bodyFormat?: RichTextFormat;
+  bodyCss?: string;
+  tone: Tone;
+};
 export type AnnouncementTiming = { startsAt: Date; endsAt: Date | null };
 /** `timeZone` is the makerspace IANA time zone; `machines` maps a machine id to its name. */
 export type AnnouncementContext = {
@@ -16,7 +28,13 @@ export type AnnouncementContext = {
   location: string;
   machines: Record<string, string>;
 };
-export type RenderedMessage = { title: string; body: string; tone: Tone };
+export type RenderedMessage = {
+  title: string;
+  body: string;
+  bodyFormat: RichTextFormat;
+  bodyCss: string;
+  tone: Tone;
+};
 
 export const BUILT_IN_VARIABLES = [
   { key: 'ends_at', label: 'End time', sample: '14:30' },
@@ -148,7 +166,16 @@ export function renderAnnouncement(
   };
   for (const field of template.fields)
     lookup[field.key] = formatFieldValue(field, values[field.key] ?? '', now, context.machines);
-  const fill = (text: string) =>
-    text.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => (Object.hasOwn(lookup, key) ? lookup[key] : match));
-  return { title: fill(template.title), body: fill(template.body), tone: template.tone };
+  const bodyFormat = template.bodyFormat ?? 'plain';
+  const fill = (text: string, escape: (value: string) => string) =>
+    text.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) =>
+      Object.hasOwn(lookup, key) ? escape(lookup[key]) : match,
+    );
+  return {
+    title: fill(template.title, (value) => value),
+    body: fill(template.body, escapeForFormat(bodyFormat)),
+    bodyFormat,
+    bodyCss: template.bodyCss ?? '',
+    tone: template.tone,
+  };
 }

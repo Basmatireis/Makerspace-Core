@@ -14,7 +14,14 @@ import {
 } from '@carbon/react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import type { SignageAsset, SignageLayoutId, SignageOrientation, SignageScene } from '../../api/generated/models';
+import { useQuery } from '@tanstack/react-query';
+import type {
+  SignageAsset,
+  SignageCustomLayout,
+  SignageLayoutId,
+  SignageOrientation,
+  SignageScene,
+} from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import {
@@ -25,7 +32,10 @@ import {
   referenceLabel,
   type SignageReference,
 } from './helpers';
-import { LAYOUTS, layoutById } from './layouts';
+import type { PickedLayout } from './customLayoutModel';
+import { LayoutDiagram } from './LayoutDiagram';
+import { customLayoutsQuery } from './layoutQueries';
+import { LAYOUTS, resolveLayout } from './layouts';
 import { usePreviewData } from './preview';
 import { signageKeys } from './queries';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
@@ -72,6 +82,7 @@ export function SceneThumbnail({
     SignageScene,
     | 'orientation'
     | 'layoutId'
+    | 'customLayoutId'
     | 'backgroundColor'
     | 'backgroundAssetId'
     | 'backgroundFit'
@@ -82,64 +93,86 @@ export function SceneThumbnail({
   className?: string;
 }) {
   const data = usePreviewData('announcement', { now: THUMBNAIL_NOW, still: true });
+  // Only scenes on a custom layout need the list; the query is shared with the editors and cached.
+  const customLayouts = useQuery({ ...customLayoutsQuery(), enabled: scene.layoutId === 'custom' }).data?.items;
   return (
     <ScreenFrame orientation={scene.orientation} className={`sg-thumb${className ? ` ${className}` : ''}`}>
-      <SceneRenderer scene={scene} data={data} />
+      <SceneRenderer scene={scene} data={data} customLayouts={customLayouts} />
     </ScreenFrame>
   );
 }
 
+export type LayoutChoice = PickedLayout;
+
 /** Schematic drawing of a layout's zones. */
 export function LayoutSketch({
   layoutId,
+  customLayoutId = null,
+  customLayouts,
   orientation,
 }: {
   layoutId: SignageLayoutId;
+  customLayoutId?: string | null;
+  customLayouts?: readonly SignageCustomLayout[];
   orientation: SignageOrientation;
 }) {
-  const layout = layoutById(layoutId);
-  return (
-    <div
-      className={`sg-sketch sg-sketch--${orientation}`}
-      style={{ gridTemplateColumns: layout.columns, gridTemplateRows: layout.rows }}
-      aria-hidden="true"
-    >
-      {layout.zones.map((zone) => (
-        <span
-          key={zone.id}
-          className="sg-sketch__zone"
-          style={{ gridColumn: `${zone.col} / span ${zone.colSpan}`, gridRow: `${zone.row} / span ${zone.rowSpan}` }}
-        />
-      ))}
-    </div>
-  );
+  return <LayoutDiagram layout={resolveLayout(layoutId, customLayoutId, customLayouts)} orientation={orientation} />;
 }
+
+const choiceValue = (choice: LayoutChoice) =>
+  choice.customLayoutId ? `custom:${choice.customLayoutId}` : choice.layoutId;
 
 export function LayoutPicker({
   value,
   orientation,
+  customLayouts = [],
   onChange,
   legend = 'Layout',
 }: {
-  value: SignageLayoutId;
+  value: LayoutChoice;
   orientation: SignageOrientation;
-  onChange: (id: SignageLayoutId) => void;
+  /** Custom layouts offered after the built-in ones. */
+  customLayouts?: readonly SignageCustomLayout[];
+  onChange: (choice: LayoutChoice) => void;
   legend?: string;
 }) {
+  const choices: { choice: LayoutChoice; key: string; name: string; zones: number }[] = [
+    ...LAYOUTS.map((layout) => ({
+      choice: { layoutId: layout.id, customLayoutId: null },
+      key: layout.id,
+      name: layout.name,
+      zones: layout.zones.length,
+    })),
+    ...customLayouts.map((layout) => ({
+      choice: { layoutId: 'custom' as const, customLayoutId: layout.id },
+      key: `custom-${layout.id}`,
+      name: layout.name,
+      zones: layout.zones.length,
+    })),
+  ];
   return (
     <TileGroup
       legend={legend}
       name="scene-layout"
-      valueSelected={value}
-      onChange={(next) => onChange(String(next) as SignageLayoutId)}
+      valueSelected={choiceValue(value)}
+      onChange={(next) => {
+        const found = choices.find((item) => choiceValue(item.choice) === String(next));
+        if (found) onChange(found.choice);
+      }}
       className="sg-layout-picker"
     >
-      {LAYOUTS.map((layout) => (
-        <RadioTile key={layout.id} id={`layout-${layout.id}`} value={layout.id} className="sg-layout-tile">
-          <LayoutSketch layoutId={layout.id} orientation={orientation} />
-          <span className="sg-layout-tile__name">{layout.name}</span>
+      {choices.map((item) => (
+        <RadioTile key={item.key} id={`layout-${item.key}`} value={choiceValue(item.choice)} className="sg-layout-tile">
+          <LayoutSketch
+            layoutId={item.choice.layoutId}
+            customLayoutId={item.choice.customLayoutId}
+            customLayouts={customLayouts}
+            orientation={orientation}
+          />
+          <span className="sg-layout-tile__name">{item.name}</span>
           <span className="sg-secondary">
-            {layout.zones.length} {layout.zones.length === 1 ? 'zone' : 'zones'}
+            {item.zones} {item.zones === 1 ? 'zone' : 'zones'}
+            {item.choice.customLayoutId ? ' · custom' : ''}
           </span>
         </RadioTile>
       ))}
@@ -158,7 +191,7 @@ export function AssetPicker({
 }: {
   id: string;
   label: string;
-  kind: 'image' | 'video';
+  kind: 'image' | 'video' | 'font';
   assets: readonly SignageAsset[];
   value: string | null;
   onChange: (id: string | null) => void;
@@ -171,7 +204,7 @@ export function AssetPicker({
       autoAlign
       id={id}
       titleText={label}
-      placeholder={`Choose ${kind === 'image' ? 'an image' : 'a video'} from Media`}
+      placeholder={`Choose ${kind === 'image' ? 'an image' : kind === 'video' ? 'a video' : 'a font'} from Media`}
       items={items}
       itemToString={(item) => item?.name ?? ''}
       selectedItem={selected}

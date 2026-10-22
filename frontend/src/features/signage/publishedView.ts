@@ -67,11 +67,14 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
         tone: item.tone,
         title: item.title,
         body: item.body,
+        bodyFormat: item.bodyFormat,
+        bodyCss: item.bodyCss,
         startsAt: Date.parse(item.startsAt),
       })),
     ...extra,
   ];
   const digests = new Map(manifest.assets.map((asset) => [asset.id, asset.sha256]));
+  const assetNames = new Map(manifest.assets.map((asset) => [asset.id, asset.name]));
   const result = resolvePlayback(
     manifest.defaultPlaylistId,
     manifest.rules as PlaybackRule[],
@@ -90,10 +93,13 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
     announcements,
     openDays: preview.live.openDays,
     events: preview.live.events,
+    calendar: preview.live.calendar,
+    customLayouts: manifest.customLayouts,
     timeZone,
     multiMode: result.multiMode,
     alternateSeconds: result.alternateSeconds,
     assetUrl: (assetId) => (digests.has(assetId) ? assetContentUrl(assetId, digests.get(assetId)) : null),
+    assetName: (assetId) => assetNames.get(assetId) ?? null,
   };
   let scene: SignagePlayerScene | null = null;
   let targetName: string;

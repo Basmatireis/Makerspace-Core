@@ -18,7 +18,7 @@ import {
 import { TrashCan } from '@carbon/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { SignageLayoutId, SignageScene, SignageWidget, SignageZones } from '../../api/generated/models';
+import type { SignageCustomLayout, SignageScene, SignageWidget, SignageZones } from '../../api/generated/models';
 import { deleteSignageScene, updateSignageScene } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
@@ -29,9 +29,10 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { useCameraBlockedDisplays } from './displayHooks';
 import { ChangeLayoutModal } from './ChangeLayoutModal';
-import { AssetPicker, DeleteDialog, FitField, LayoutSketch } from './components';
+import { AssetPicker, DeleteDialog, FitField, LayoutSketch, type LayoutChoice } from './components';
 import { errorMessage, isStaleWrite, orientationLabel, pluralize } from './helpers';
-import { layoutById, remapZones } from './layouts';
+import { customLayoutsQuery } from './layoutQueries';
+import { layoutById, remapZones, resolveLayout } from './layouts';
 import { signagePaths } from './paths';
 import { PREVIEW_PRESETS, useMachineOptions, useNow, usePreviewData, type PreviewPresetId } from './preview';
 import { assetsQuery, sceneQuery, signageKeys, templatesQuery } from './queries';
@@ -55,6 +56,7 @@ const SAVE_TEXT: Record<SaveState, string> = {
 export function SceneEditorPage() {
   const { sceneId = '' } = useParams();
   const query = useQuery(sceneQuery(sceneId));
+  const layouts = useQuery(customLayoutsQuery());
   const crumbs = [{ label: 'Signage' }, { label: 'Content', to: signagePaths.content() }];
   if (query.isPending)
     return (
@@ -77,10 +79,34 @@ export function SceneEditorPage() {
       </PageShell>
     );
   }
-  return <Editor key={query.data.id} scene={query.data} crumbs={crumbs} />;
+  // A scene on a custom layout cannot show its zones before the layouts are known; others do not wait for them.
+  if (query.data.layoutId === 'custom' && layouts.isPending)
+    return (
+      <PageShell title={query.data.name} width="fluid" breadcrumbs={crumbs}>
+        <FullPageLoading label="Loading layout" />
+      </PageShell>
+    );
+  if (query.data.layoutId === 'custom' && layouts.isError)
+    return (
+      <PageShell title={query.data.name} width="fluid" breadcrumbs={crumbs}>
+        <ErrorState
+          message={errorMessage(layouts.error, 'The layouts could not be loaded.')}
+          onRetry={() => void layouts.refetch()}
+        />
+      </PageShell>
+    );
+  return <Editor key={query.data.id} scene={query.data} customLayouts={layouts.data?.items ?? []} crumbs={crumbs} />;
 }
 
-function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: string; to?: string }[] }) {
+function Editor({
+  scene,
+  customLayouts,
+  crumbs,
+}: {
+  scene: SignageScene;
+  customLayouts: readonly SignageCustomLayout[];
+  crumbs: { label: string; to?: string }[];
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canEdit = hasPermission(useCurrentUser(), PermissionId.signagecontentmanage);
@@ -93,7 +119,9 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [zoneId, setZoneId] = useState(() => layoutById(scene.layoutId).zones[0].id);
+  const [zoneId, setZoneId] = useState(
+    () => resolveLayout(scene.layoutId, scene.customLayoutId, customLayouts).zones[0].id,
+  );
   const [preset, setPreset] = useState<PreviewPresetId>('first');
   const [changingLayout, setChangingLayout] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -107,13 +135,18 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
   const timer = useRef<number | null>(null);
   const gone = useRef(false);
   const hold = useRef(false);
+  // The layout list can refresh while editing; saves read the latest one without changing identity.
+  const layoutsRef = useRef(customLayouts);
+  useEffect(() => {
+    layoutsRef.current = customLayouts;
+  });
 
   // Stable identity: the autosave timer and the leave-page effect call the latest save through this callback.
   const save = useCallback(
     async function saveScene(): Promise<void> {
       if (gone.current || hold.current || inFlight.current || revision.current === savedRevision.current) return;
       const current = latest.current;
-      const problem = draftError(current);
+      const problem = draftError(current, layoutsRef.current);
       if (problem) {
         setSaveState('invalid');
         setSaveMessage(problem);
@@ -177,7 +210,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
         !hold.current &&
         revision.current !== savedRevision.current &&
         !inFlight.current &&
-        draftError(latest.current) === null
+        draftError(latest.current, layoutsRef.current) === null
       ) {
         const current = latest.current;
         void updateSignageScene(scene.id, {
@@ -220,17 +253,26 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
     isDirty: saveState === 'invalid' || saveState === 'error' || saveState === 'conflict',
   });
 
-  const layout = layoutById(draft.layoutId);
+  const layout = resolveLayout(draft.layoutId, draft.customLayoutId, customLayouts);
+  const layoutName =
+    draft.layoutId === 'custom'
+      ? (customLayouts.find((item) => item.id === draft.customLayoutId)?.name ?? 'Custom layout')
+      : layoutById(draft.layoutId).name;
   const selectedId = layout.zones.some((zone) => zone.id === zoneId) ? zoneId : layout.zones[0].id;
   const zone = layout.zones.find((item) => item.id === selectedId)!;
   const widget: SignageWidget = draft.zones[selectedId] ?? { type: 'empty' };
   const setWidget = (next: SignageWidget) =>
     edit((current) => ({ ...current, zones: { ...current.zones, [selectedId]: next } }));
-  const changeLayout = (layoutId: SignageLayoutId) =>
+  const changeLayout = (choice: LayoutChoice) =>
     edit((current) => ({
       ...current,
-      layoutId,
-      zones: remapZones(current.zones, current.layoutId, layoutId) as SignageZones,
+      layoutId: choice.layoutId,
+      customLayoutId: choice.customLayoutId,
+      zones: remapZones(
+        current.zones,
+        resolveLayout(current.layoutId, current.customLayoutId, customLayouts),
+        resolveLayout(choice.layoutId, choice.customLayoutId, customLayouts),
+      ) as SignageZones,
     }));
   const colourValid = HEX_COLOR.test(draft.backgroundColor);
   const referencedMachineIds = sceneMachineIds(draft.zones);
@@ -302,9 +344,14 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
           <Tile>
             <h2 className="sg-section-title">Layout</h2>
             <div className="sg-editor__layout">
-              <LayoutSketch layoutId={draft.layoutId} orientation={scene.orientation} />
+              <LayoutSketch
+                layoutId={draft.layoutId}
+                customLayoutId={draft.customLayoutId}
+                customLayouts={customLayouts}
+                orientation={scene.orientation}
+              />
               <div className="sg-cell-stack">
-                <strong>{layout.name}</strong>
+                <strong>{layoutName}</strong>
                 <span className="sg-secondary">{pluralize(layout.zones.length, 'zone')}</span>
               </div>
             </div>
@@ -424,6 +471,7 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
               <SceneRenderer
                 scene={{ ...draft, orientation: scene.orientation }}
                 data={data}
+                customLayouts={customLayouts}
                 selectedZone={selectedId}
                 onSelectZone={setZoneId}
               />
@@ -481,7 +529,8 @@ function Editor({ scene, crumbs }: { scene: SignageScene; crumbs: { label: strin
       {changingLayout && (
         <ChangeLayoutModal
           sceneName={draft.name}
-          layoutId={draft.layoutId}
+          current={{ layoutId: draft.layoutId, customLayoutId: draft.customLayoutId }}
+          customLayouts={customLayouts}
           orientation={scene.orientation}
           onSave={changeLayout}
           onClose={() => setChangingLayout(false)}

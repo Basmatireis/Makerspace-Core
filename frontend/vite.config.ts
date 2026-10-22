@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
+import { playerShellFiles, type BuildManifest } from './src/player/shellFiles.ts';
 
 // The standalone signage player lives at /player/ (nginx serves player.html there); the dev and preview servers do the same.
 function playerRoute(): Plugin {
@@ -26,6 +27,7 @@ function playerRoute(): Plugin {
 // The player's service worker (src/player/sw.ts) is a third build entry with a stable file name, /player/sw.js. After the
 // build this fills in the hashed files of the player entry (from the build manifest) that the worker precaches, plus a
 // hash of that list: the worker file changes exactly when the player shell changes, which makes browsers update it.
+// Lazy chunks (the rich text renderer) are precached too: a display that starts offline must be able to load them.
 function playerServiceWorker(): Plugin {
   let outDir = 'dist';
   return {
@@ -37,20 +39,8 @@ function playerServiceWorker(): Plugin {
     closeBundle: {
       order: 'post',
       handler() {
-        const manifest = JSON.parse(readFileSync(resolve(outDir, '.vite/manifest.json'), 'utf8')) as Record<
-          string,
-          { file: string; imports?: string[]; css?: string[] }
-        >;
-        const files = new Set<string>();
-        const visit = (key: string) => {
-          const chunk = manifest[key];
-          if (!chunk || files.has(`/${chunk.file}`)) return;
-          files.add(`/${chunk.file}`);
-          chunk.css?.forEach((css) => files.add(`/${css}`));
-          chunk.imports?.forEach(visit);
-        };
-        visit('player.html');
-        const list = Array.from(files).sort();
+        const manifest = JSON.parse(readFileSync(resolve(outDir, '.vite/manifest.json'), 'utf8')) as BuildManifest;
+        const list = playerShellFiles(manifest);
         const version = createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 12);
         const path = resolve(outDir, 'player/sw.js');
         let code = readFileSync(path, 'utf8');

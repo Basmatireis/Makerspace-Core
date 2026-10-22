@@ -1,34 +1,39 @@
 import { InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack, TextInput } from '@carbon/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import type { SignageLayoutId, SignageOrientation } from '../../api/generated/models';
+import type { SignageOrientation } from '../../api/generated/models';
 import { createSignagePlaylist, createSignageScene } from '../../api/generated/signage/signage';
-import { LayoutPicker } from './components';
+import { LayoutPicker, type LayoutChoice } from './components';
 import { errorMessage } from './helpers';
-import { emptyZones } from './layouts';
+import { customLayoutsQuery } from './layoutQueries';
+import { emptyZones, resolveLayout } from './layouts';
 import { signagePaths } from './paths';
 import { signageKeys } from './queries';
 
-type SceneFields = { name: string; orientation: SignageOrientation; layoutId: SignageLayoutId };
+type SceneFields = { name: string; orientation: SignageOrientation; layout: LayoutChoice };
 
 /** New scenes start dark with an empty widget in every zone; everything else is edited in the scene editor. */
 export function NewSceneModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const form = useForm<SceneFields>({ defaultValues: { name: '', orientation: 'portrait', layoutId: 'stack3' } });
+  const form = useForm<SceneFields>({
+    defaultValues: { name: '', orientation: 'portrait', layout: { layoutId: 'stack3', customLayoutId: null } },
+  });
   const orientation = form.watch('orientation');
+  const customLayouts = useQuery(customLayoutsQuery()).data?.items ?? [];
   const mutation = useMutation({
     mutationFn: (values: SceneFields) =>
       createSignageScene({
         name: values.name.trim(),
         orientation: values.orientation,
-        layoutId: values.layoutId,
+        layoutId: values.layout.layoutId,
+        customLayoutId: values.layout.customLayoutId,
         backgroundColor: '#161616',
         backgroundFit: 'cover',
         backgroundDim: 30,
         theme: 'dark',
-        zones: emptyZones(values.layoutId),
+        zones: emptyZones(resolveLayout(values.layout.layoutId, values.layout.customLayoutId, customLayouts)),
       }),
     onSuccess: async (scene) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
@@ -79,9 +84,14 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
           />
           <Controller
             control={form.control}
-            name="layoutId"
+            name="layout"
             render={({ field }) => (
-              <LayoutPicker value={field.value} orientation={orientation} onChange={field.onChange} />
+              <LayoutPicker
+                value={field.value}
+                orientation={orientation}
+                customLayouts={customLayouts}
+                onChange={field.onChange}
+              />
             )}
           />
           {mutation.isError && (

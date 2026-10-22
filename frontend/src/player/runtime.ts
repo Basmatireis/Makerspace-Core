@@ -24,7 +24,7 @@ const MAX_BACKOFF_MS = 120_000;
 const ERROR_MEMORY_MS = 5 * 60_000;
 const FIRST_LIVE_GRACE_MS = 3_000;
 const PRELOAD_CONCURRENCY = 4;
-/** Persisted announcements, open days and events older than this are not shown after a restart. */
+/** Persisted announcements, open days, events and calendar older than this are not shown after a restart. */
 export const PERSISTED_LIVE_MAX_AGE_MS = 24 * 3_600_000;
 /** An unchanged live payload is written to storage at most this often (kind to SD cards). */
 const LIVE_SAVE_INTERVAL_MS = 5 * 60_000;
@@ -51,7 +51,12 @@ export type RuntimeDeps = {
   playerVersion?: string;
 };
 
-type Active = { manifest: SignagePlayerManifest; urls: Map<string, string> };
+type Active = { manifest: SignagePlayerManifest; urls: Map<string, string>; names: Map<string, string> };
+const activeOf = (manifest: SignagePlayerManifest): Active => ({
+  manifest,
+  urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])),
+  names: new Map(manifest.assets.map((asset) => [asset.id, asset.name])),
+});
 
 export class PlayerRuntime {
   private readonly api: PlayerApi;
@@ -155,7 +160,7 @@ export class PlayerRuntime {
     try {
       const manifest = await this.store.loadManifest();
       if (!manifest || !(await this.store.hasAll(manifest.assets))) return;
-      this.active = { manifest, urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])) };
+      this.active = activeOf(manifest);
       const saved = await this.store.loadLive();
       if (saved && this.now() - saved.savedAt <= PERSISTED_LIVE_MAX_AGE_MS) {
         // Machines are never restored: their status is only fresh when polled, so the view treats live data as unavailable.
@@ -164,6 +169,7 @@ export class PlayerRuntime {
           announcements: saved.announcements,
           openDays: saved.openDays,
           events: saved.events,
+          calendar: saved.calendar ?? null,
           streams: [],
           skewMs: saved.skewMs,
         };
@@ -288,6 +294,7 @@ export class PlayerRuntime {
       announcements: live.announcements,
       openDays: live.openDays,
       events: live.events,
+      calendar: live.calendar ?? null,
       streams: live.streams,
       skewMs: Date.parse(live.serverTime) - this.now() || 0,
     };
@@ -298,7 +305,7 @@ export class PlayerRuntime {
   /** Keeps the parts of live data that may outlive a restart (never machines). */
   private persistLive(live: LiveSnapshot) {
     if (!this.store) return;
-    const key = JSON.stringify([live.announcements, live.openDays, live.events]);
+    const key = JSON.stringify([live.announcements, live.openDays, live.events, live.calendar]);
     const now = this.now();
     if (this.savedLive && this.savedLive.key === key && now - this.savedLive.at < LIVE_SAVE_INTERVAL_MS) return;
     this.savedLive = { key, at: now };
@@ -308,6 +315,7 @@ export class PlayerRuntime {
       announcements: live.announcements,
       openDays: live.openDays,
       events: live.events,
+      calendar: live.calendar,
     };
     void this.store.saveLive(payload).catch(() => undefined);
   }
@@ -332,7 +340,7 @@ export class PlayerRuntime {
       const manifest = response.manifest;
       if (manifest.revision === this.active?.manifest.revision) return;
       await this.cacheRevision(manifest);
-      this.active = { manifest, urls: new Map(manifest.assets.map((asset) => [asset.id, asset.url])) };
+      this.active = activeOf(manifest);
       this.hold = null;
       this.manifestFailures = 0;
       this.manifestRetryAt = 0;
@@ -416,7 +424,7 @@ export class PlayerRuntime {
     let view: PlayerView | null = null;
     const gate = this.liveAttempted || now - this.startedAt >= FIRST_LIVE_GRACE_MS;
     if (this.active && gate && !this.revoked) {
-      const urls = this.active.urls;
+      const { urls, names } = this.active;
       const resolved = resolveView({
         manifest: this.active.manifest,
         live: this.live,
@@ -425,6 +433,7 @@ export class PlayerRuntime {
         hold: this.hold,
         camera: this.camera,
         assetUrl: (id) => urls.get(id) ?? null,
+        assetName: (id) => names.get(id) ?? null,
       });
       this.hold = resolved.hold;
       view = resolved.view;

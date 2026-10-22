@@ -1,11 +1,34 @@
-import type { SignageLayoutId, SignageWidget, SignageZones } from '../../api/generated/models';
+import type {
+  SignageCustomLayoutMode,
+  SignageCustomLayoutZone,
+  SignageLayoutId,
+  SignageWidget,
+  SignageZones,
+} from '../../api/generated/models';
 
-// Zone layouts: a CSS grid with named zones, one widget per zone. This is the single frontend definition, shared by the
-// admin pickers and the scene renderer (and later the player, which cannot call the authenticated layouts endpoint).
-// It must stay identical to backend/internal/signage/layouts.go; layouts.test.ts checks the ids against api/openapi.yaml.
+// Zone layouts: one widget per zone. Built-in layouts are CSS grids with named zones; custom layouts (a manifest entry or
+// an admin record) are either grids with `fr` track weights or free layouts with zones placed in percent. Everything is
+// resolved to one shape here, shared by the admin pickers, the scene renderer and the player (which cannot call the
+// authenticated layouts endpoint). The built-in part must stay identical to backend/internal/signage/layouts.go;
+// layouts.test.ts checks the ids against api/openapi.yaml.
 
 export type LayoutZone = { id: string; label: string; col: number; row: number; colSpan: number; rowSpan: number };
 export type Layout = { id: SignageLayoutId; name: string; columns: string; rows: string; zones: LayoutZone[] };
+
+/** A zone of a free layout: percentages of the screen. Array order is the stacking order (later on top). */
+export type FreeLayoutZone = { id: string; label: string; x: number; y: number; width: number; height: number };
+
+export type ResolvedLayout =
+  { kind: 'grid'; columns: string; rows: string; zones: LayoutZone[] } | { kind: 'free'; zones: FreeLayoutZone[] };
+
+/** The part of a custom layout the resolver reads (a manifest entry and an admin record both fit). */
+export type CustomLayoutShape = {
+  id: string;
+  mode: SignageCustomLayoutMode;
+  columns: readonly number[];
+  rows: readonly number[];
+  zones: readonly SignageCustomLayoutZone[];
+};
 
 const zone = (id: string, label: string, col: number, row: number, colSpan = 1, rowSpan = 1): LayoutZone => ({
   id,
@@ -99,18 +122,72 @@ export const LAYOUTS: readonly Layout[] = [
 /** Unknown ids (a newer backend) fall back to the first layout so a scene still renders. */
 export const layoutById = (id: string): Layout => LAYOUTS.find((layout) => layout.id === id) ?? LAYOUTS[0];
 
+const fr = (weights: readonly number[]) =>
+  weights.length > 0 ? weights.map((weight) => `${weight}fr`).join(' ') : '1fr';
+const gridOf = (layout: Layout): ResolvedLayout => ({
+  kind: 'grid',
+  columns: layout.columns,
+  rows: layout.rows,
+  zones: layout.zones,
+});
+
+/**
+ * Resolves a scene's layout to a grid or a free layout. `custom` looks the layout up in `customLayouts` (the manifest's
+ * or the admin list); an unknown id, a missing custom layout or a malformed zone falls back so a scene still renders.
+ */
+export function resolveLayout(
+  layoutId: string,
+  customLayoutId: string | null | undefined,
+  customLayouts: readonly CustomLayoutShape[] | undefined,
+): ResolvedLayout {
+  if (layoutId !== 'custom') return gridOf(layoutById(layoutId));
+  const custom = customLayoutId ? customLayouts?.find((item) => item.id === customLayoutId) : undefined;
+  if (!custom || custom.zones.length === 0) return gridOf(LAYOUTS[0]);
+  if (custom.mode === 'free') {
+    return {
+      kind: 'free',
+      zones: custom.zones.map((item) => ({
+        id: item.id,
+        label: item.label,
+        x: item.rect?.x ?? 0,
+        y: item.rect?.y ?? 0,
+        width: item.rect?.width ?? 100,
+        height: item.rect?.height ?? 100,
+      })),
+    };
+  }
+  return {
+    kind: 'grid',
+    columns: fr(custom.columns),
+    rows: fr(custom.rows),
+    zones: custom.zones.map((item) => ({
+      id: item.id,
+      label: item.label,
+      col: item.grid?.col ?? 1,
+      row: item.grid?.row ?? 1,
+      colSpan: item.grid?.colSpan ?? 1,
+      rowSpan: item.grid?.rowSpan ?? 1,
+    })),
+  };
+}
+
+/** A layout, given as a built-in id or as an already resolved layout. */
+export type LayoutRef = SignageLayoutId | ResolvedLayout;
+const resolved = (ref: LayoutRef): ResolvedLayout =>
+  typeof ref === 'string' ? resolveLayout(ref, null, undefined) : ref;
+
 const EMPTY: SignageWidget = { type: 'empty' };
 
 /** Changing the layout keeps widgets by position: zone n of the new layout takes the widget of zone n of the old one. */
-export function remapZones(zones: SignageZones, from: SignageLayoutId, to: SignageLayoutId): SignageZones {
-  const previous = layoutById(from).zones;
+export function remapZones(zones: SignageZones, from: LayoutRef, to: LayoutRef): SignageZones {
+  const previous = resolved(from).zones;
   const result: SignageZones = {};
-  layoutById(to).zones.forEach((next, index) => {
+  resolved(to).zones.forEach((next, index) => {
     result[next.id] = zones[previous[index]?.id ?? ''] ?? EMPTY;
   });
   return result;
 }
 
-export function emptyZones(layoutId: SignageLayoutId): SignageZones {
-  return Object.fromEntries(layoutById(layoutId).zones.map((item) => [item.id, EMPTY]));
+export function emptyZones(layout: LayoutRef): SignageZones {
+  return Object.fromEntries(resolved(layout).zones.map((item) => [item.id, EMPTY]));
 }

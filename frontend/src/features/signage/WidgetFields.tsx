@@ -11,7 +11,6 @@ import {
   RadioButtonGroup,
   Select,
   SelectItem,
-  TextArea,
   TextInput,
   Toggle,
 } from '@carbon/react';
@@ -20,18 +19,16 @@ import { Link } from 'react-router-dom';
 import type { SignageAnnouncementTemplate, SignageAsset, SignageWidget } from '../../api/generated/models';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { CalendarFields } from './CalendarFields';
 import { AssetPicker, FitField } from './components';
+import { ListFields } from './ListFields';
 import type { MachineOption } from './preview';
-import { widgetError } from './widgets';
+import { CodeArea, FormatSelect, RichTextAdvanced } from './RichTextFields';
+import { WidgetStyleFields } from './WidgetStyleFields';
+import { clampInt, formatOf, LIMITS, styleOf, widgetError, withRichText, withStyle } from './widgets';
 
 type Option = { id: string; label: string };
 type TextSize = 's' | 'm' | 'l' | 'xl';
-
-/** Typed numbers are applied once they are numbers (an emptied field keeps the last value) and kept within the limits. */
-const clamp = (value: unknown, min: number, max: number): number | null => {
-  const number = Number(value);
-  return value === '' || !Number.isFinite(number) ? null : Math.min(max, Math.max(min, Math.round(number)));
-};
 
 function SizeField({ id, value, onChange }: { id: string; value: TextSize; onChange: (size: TextSize) => void }) {
   return (
@@ -84,16 +81,27 @@ type Props = {
   onChange: (widget: SignageWidget) => void;
 };
 
-/** Widget-specific properties of the selected zone. Every change is applied (and autosaved) immediately. */
-export function WidgetFields({
-  widget,
-  assets,
-  templates,
-  machines,
-  machinesKnown = true,
-  outsideDisplays,
-  onChange,
-}: Props) {
+/** Widget-specific properties of the selected zone, then the common style. Every change is applied (and autosaved) immediately. */
+export function WidgetFields(props: Props) {
+  const { widget, assets, onChange } = props;
+  const error = widgetError(widget);
+  return (
+    <>
+      <TypeFields {...props} />
+      {error && widget.type !== 'qr' && widget.type !== 'text' && (
+        <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />
+      )}
+      <WidgetStyleFields
+        id={widget.type === 'announcement' ? 'wf-box-style' : 'wf-style'}
+        style={styleOf(widget)}
+        assets={assets}
+        onChange={(style) => onChange(withStyle(widget, style))}
+      />
+    </>
+  );
+}
+
+function TypeFields({ widget, assets, templates, machines, machinesKnown = true, outsideDisplays, onChange }: Props) {
   const error = widgetError(widget);
   const fieldError = error ? (
     <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />
@@ -198,7 +206,7 @@ export function WidgetFields({
             max={3600}
             value={widget.seconds}
             onChange={(_, { value }) => {
-              const next = clamp(value, 3, 3600);
+              const next = clampInt(value, 3, 3600);
               if (next !== null) onChange({ ...widget, seconds: next });
             }}
           />
@@ -208,14 +216,19 @@ export function WidgetFields({
     case 'text':
       return (
         <>
-          <TextArea
+          <CodeArea
             id="wf-text"
-            labelText="Text"
-            rows={4}
-            maxCount={1000}
-            enableCounter
+            label="Text"
+            rows={widget.format && widget.format !== 'plain' ? 8 : 4}
+            maxCount={LIMITS.text}
             value={widget.text}
-            onChange={(event) => onChange({ ...widget, text: event.target.value })}
+            invalidText={error?.startsWith('Text is limited') ? error : undefined}
+            onChange={(text) => onChange({ ...widget, text })}
+          />
+          <FormatSelect
+            id="wf-text-format"
+            value={formatOf(widget)}
+            onChange={(format) => onChange(withRichText(widget, { format }))}
           />
           <SizeField id="wf-size" value={widget.size} onChange={(size) => onChange({ ...widget, size })} />
           <RadioButtonGroup
@@ -228,6 +241,7 @@ export function WidgetFields({
             <RadioButton id="wf-align-center" value="center" labelText="Centre" />
             <RadioButton id="wf-align-end" value="end" labelText="Right" />
           </RadioButtonGroup>
+          <RichTextAdvanced id="wf-text" widget={widget} assets={assets} onChange={(next) => onChange(next)} />
           {fieldError}
         </>
       );
@@ -428,33 +442,11 @@ export function WidgetFields({
         </>
       );
     case 'open_days':
-      return (
-        <NumberInput
-          id="wf-open-days"
-          label="Show the next … open days"
-          min={1}
-          max={10}
-          value={widget.count}
-          onChange={(_, { value }) => {
-            const next = clamp(value, 1, 10);
-            if (next !== null) onChange({ ...widget, count: next });
-          }}
-        />
-      );
     case 'events':
-      return (
-        <NumberInput
-          id="wf-events"
-          label="Show the next … events"
-          min={1}
-          max={10}
-          value={widget.count}
-          onChange={(_, { value }) => {
-            const next = clamp(value, 1, 10);
-            if (next !== null) onChange({ ...widget, count: next });
-          }}
-        />
-      );
+    case 'agenda':
+      return <ListFields widget={widget} assets={assets} error={error} onChange={onChange} />;
+    case 'calendar':
+      return <CalendarFields widget={widget} onChange={onChange} />;
     case 'announcement':
       return (
         <>
@@ -519,7 +511,7 @@ export function WidgetFields({
               max={300}
               value={widget.rotateSeconds}
               onChange={(_, { value }) => {
-                const next = clamp(value, 3, 300);
+                const next = clampInt(value, 3, 300);
                 if (next !== null) onChange({ ...widget, rotateSeconds: next });
               }}
             />

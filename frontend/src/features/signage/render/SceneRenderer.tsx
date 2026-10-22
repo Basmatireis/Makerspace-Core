@@ -1,16 +1,23 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react';
 import type {
   SignageAnnouncementWidget,
   SignageCameraWidget,
   SignageStatusWidget,
+  SignageWidget,
 } from '../../../api/generated/models';
-import { layoutById } from '../layouts';
+import { resolveLayout, type CustomLayoutShape } from '../layouts';
+import { ListWidget } from './ListWidget';
 import { qrModules } from './qr';
+import { RichText } from './RichTextView';
+import { fontAssetIdsOf, registerFontFaces, styleTextAlign, widgetStyleOf, zoneBoxCss, type FontFace } from './style';
 import { isPrinting, type RenderData, type RenderMachine, type RenderScene, type SignageOrientation } from './types';
 import './render.css';
 
 // The one renderer behind preview frames, thumbnails, the editor canvas and (later) the player.
 // Sizes use the container-relative unit --u (1u = 1 % of the design width), so a scene looks the same at any scale.
+
+// Only scenes with a calendar need the widget; the player's initial JavaScript has a budget (its chunk is precached).
+const CalendarWidget = lazy(() => import('./CalendarWidget').then((module) => ({ default: module.CalendarWidget })));
 
 const TEXT_SIZE = { s: 3, m: 4.6, l: 7, xl: 10 } as const;
 const STATE_LABEL: Record<RenderMachine['state'], string> = {
@@ -28,8 +35,6 @@ const formatter = (timeZone: string | undefined, options: Intl.DateTimeFormatOpt
   new Intl.DateTimeFormat('en-GB', { timeZone, ...options });
 const clockTime = (instant: number | string, timeZone?: string) =>
   formatter(timeZone, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(instant));
-const shortDate = (instant: string, timeZone?: string) =>
-  formatter(timeZone, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(instant));
 
 function MediaImage({ url, fit, label }: { url: string | null; fit: 'contain' | 'cover'; label: string }) {
   if (!url) return <div className="sg-placeholder">{label}</div>;
@@ -250,11 +255,16 @@ function AnnouncementWidget({ widget, data }: { widget: SignageAnnouncementWidge
           <strong className="sg-ann__title" style={{ fontSize: `calc(var(--u) * ${unit})` }}>
             {item.title}
           </strong>
-          {item.body.trim() !== '' && (
-            <span className="sg-ann__body" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>
-              {item.body}
-            </span>
-          )}
+          {item.body.trim() !== '' &&
+            (item.bodyFormat && item.bodyFormat !== 'plain' ? (
+              <div className="sg-ann__body sg-ann__body--rich" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>
+                <RichText format={item.bodyFormat} text={item.body} css={item.bodyCss} />
+              </div>
+            ) : (
+              <span className="sg-ann__body" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>
+                {item.body}
+              </span>
+            ))}
         </div>
       ))}
     </div>
@@ -266,7 +276,7 @@ function WidgetView({
   data,
   orientation,
 }: {
-  widget: RenderScene['zones'][string];
+  widget: SignageWidget;
   data: RenderData;
   orientation: SignageOrientation;
 }) {
@@ -297,15 +307,23 @@ function WidgetView({
         </div>
       );
     }
-    case 'text':
+    case 'text': {
+      const style = {
+        fontSize: `calc(var(--u) * ${TEXT_SIZE[widget.size]})`,
+        textAlign: styleTextAlign(widget.style) ?? widget.align,
+      };
+      if (!widget.format || widget.format === 'plain')
+        return (
+          <div className="sg-text" style={style}>
+            {widget.text || ' '}
+          </div>
+        );
       return (
-        <div
-          className="sg-text"
-          style={{ fontSize: `calc(var(--u) * ${TEXT_SIZE[widget.size]})`, textAlign: widget.align }}
-        >
-          {widget.text || ' '}
+        <div className="sg-text sg-text--rich" style={style}>
+          <RichText format={widget.format} text={widget.text} css={widget.css} />
         </div>
       );
+    }
     case 'qr':
       return <QrCode url={widget.url} caption={widget.caption} />;
     case 'clock':
@@ -326,34 +344,14 @@ function WidgetView({
     case 'announcement':
       return <AnnouncementWidget widget={widget} data={data} />;
     case 'open_days':
-      return (
-        <div className="sg-list">
-          <strong className="sg-list__title">Next open days</strong>
-          {data.openDays.length === 0 && <span className="sg-list__empty">No open days planned</span>}
-          {data.openDays.slice(0, widget.count).map((entry) => (
-            <div key={entry.startsAt} className="sg-list__row">
-              <span>{shortDate(entry.startsAt, data.timeZone)}</span>
-              <span>
-                {clockTime(entry.startsAt, data.timeZone)}–{clockTime(entry.endsAt, data.timeZone)}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
     case 'events':
+    case 'agenda':
+      return <ListWidget widget={widget} data={data} />;
+    case 'calendar':
       return (
-        <div className="sg-list">
-          <strong className="sg-list__title">Upcoming events</strong>
-          {data.events.length === 0 && <span className="sg-list__empty">No events planned</span>}
-          {data.events.slice(0, widget.count).map((entry) => (
-            <div key={`${entry.startsAt}-${entry.title}`} className="sg-list__row">
-              <span>{entry.title}</span>
-              <span>
-                {shortDate(entry.startsAt, data.timeZone)} {clockTime(entry.startsAt, data.timeZone)}
-              </span>
-            </div>
-          ))}
-        </div>
+        <Suspense fallback={null}>
+          <CalendarWidget widget={widget} data={data} />
+        </Suspense>
       );
   }
 }
@@ -403,28 +401,81 @@ export type SceneRendererProps = {
   screenOrientation?: SignageOrientation;
   selectedZone?: string | null;
   onSelectZone?: (zoneId: string) => void;
+  /** Custom layouts for this scene; defaults to `data.customLayouts` (the editor passes its own list). */
+  customLayouts?: readonly CustomLayoutShape[];
 };
 
-export function SceneRenderer({ scene, data, screenOrientation, selectedZone, onSelectZone }: SceneRendererProps) {
+/** Font assets of every widget in the scene, named by their asset name (the @font-face family). */
+function sceneFonts(scene: RenderScene, data: RenderData): FontFace[] {
+  const fonts = new Map<string, FontFace>();
+  for (const widget of Object.values(scene.zones)) {
+    for (const id of fontAssetIdsOf(widget)) {
+      const family = data.assetName?.(id);
+      const url = data.assetUrl(id);
+      if (family && url) fonts.set(id, { family, url });
+    }
+  }
+  return [...fonts.values()];
+}
+
+export function SceneRenderer({
+  scene,
+  data,
+  screenOrientation,
+  selectedZone,
+  onSelectZone,
+  customLayouts,
+}: SceneRendererProps) {
+  // The fonts as a string, so the effect only runs when a family or URL changes (the data object is new every second).
+  const fontKey = JSON.stringify(scene ? sceneFonts(scene, data) : []);
+  useEffect(() => {
+    registerFontFaces(JSON.parse(fontKey) as FontFace[]);
+  }, [fontKey]);
   if (!scene) return <div className="sg-scene sg-scene--empty" />;
   const orientation = screenOrientation ?? scene.orientation;
-  const layout = layoutById(scene.layoutId);
+  const layout = resolveLayout(scene.layoutId, scene.customLayoutId, customLayouts ?? data.customLayouts);
+  const unit = orientation === 'portrait' ? '1cqw' : '0.5625cqw';
   const style = {
-    '--u': orientation === 'portrait' ? '1cqw' : '0.5625cqw',
+    '--u': unit,
+    // The unscaled unit: zone padding and borders keep their size when a widget scales its font.
+    '--sg-u': unit,
     background: sceneBackground(scene, data),
-    gridTemplateColumns: layout.columns,
-    gridTemplateRows: layout.rows,
+    ...(layout.kind === 'grid' ? { gridTemplateColumns: layout.columns, gridTemplateRows: layout.rows } : {}),
   } as CSSProperties;
   return (
-    <div className={`sg-scene sg-scene--${scene.theme}`} style={style}>
-      {layout.zones.map((zone) => {
+    <div
+      className={`sg-scene sg-scene--${scene.theme}${layout.kind === 'free' ? ' sg-scene--free' : ''}`}
+      style={style}
+    >
+      {layout.zones.map((zone, index) => {
         const widget = scene.zones[zone.id] ?? { type: 'empty' as const };
+        const widgetStyle = widgetStyleOf(widget);
+        const fontId = widgetStyle?.fontFamily === 'custom' ? widgetStyle.fontAssetId : null;
+        const placement: CSSProperties =
+          'col' in zone
+            ? { gridColumn: `${zone.col} / span ${zone.colSpan}`, gridRow: `${zone.row} / span ${zone.rowSpan}` }
+            : {
+                position: 'absolute',
+                insetInlineStart: `${zone.x}%`,
+                insetBlockStart: `${zone.y}%`,
+                inlineSize: `${zone.width}%`,
+                blockSize: `${zone.height}%`,
+                zIndex: index + 1,
+              };
+        const box = widgetStyle
+          ? zoneBoxCss(widgetStyle, fontId ? (data.assetName?.(fontId) ?? null) : null)
+          : undefined;
+        const className = [
+          'sg-zone',
+          `sg-zone--${widget.type}`,
+          widgetStyle ? 'sg-zone--styled' : '',
+          widgetStyle && widgetStyle.verticalAlign !== 'inherit' ? 'sg-zone--valign' : '',
+          selectedZone === zone.id ? 'sg-zone--selected' : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
         return (
-          <div
-            key={zone.id}
-            className={`sg-zone sg-zone--${widget.type}${selectedZone === zone.id ? ' sg-zone--selected' : ''}`}
-            style={{ gridColumn: `${zone.col} / span ${zone.colSpan}`, gridRow: `${zone.row} / span ${zone.rowSpan}` }}
-          >
+          <div key={zone.id} className={className} style={{ ...placement, ...box }}>
             <WidgetView widget={widget} data={data} orientation={orientation} />
             {onSelectZone && (
               <button

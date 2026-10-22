@@ -63,6 +63,7 @@ import {
   DevicesSessionsPage,
   SignageAnnouncementsPage,
   SignageContentPage,
+  SignageCustomLayoutEditorPage,
   SignageDisplayDetailPage,
   SignageDisplaysPage,
   SignageMediaPage,
@@ -362,6 +363,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.signageread]}>
                   <SignagePlaylistDetailPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/layouts/new"
+              element={
+                <PermissionRoute allOf={[PermissionId.signageread, PermissionId.signagecontentmanage]}>
+                  <SignageCustomLayoutEditorPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/layouts/:layoutId"
+              element={
+                <PermissionRoute allOf={[PermissionId.signageread]}>
+                  <SignageCustomLayoutEditorPage />
                 </PermissionRoute>
               }
             />

@@ -107,6 +107,11 @@ export const SignageSceneEditorPage = lazy(() =>
 export const SignagePlaylistDetailPage = lazy(() =>
   import('../features/signage/PlaylistDetailPage').then(({ PlaylistDetailPage }) => ({ default: PlaylistDetailPage })),
 );
+export const SignageCustomLayoutEditorPage = lazy(() =>
+  import('../features/signage/CustomLayoutEditorPage').then(({ CustomLayoutEditorPage }) => ({
+    default: CustomLayoutEditorPage,
+  })),
+);
 export const SignageMediaPage = lazy(() =>
   import('../features/signage/MediaPage').then(({ MediaPage }) => ({ default: MediaPage })),
 );

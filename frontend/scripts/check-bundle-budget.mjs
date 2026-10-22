@@ -19,21 +19,22 @@ for (const required of Object.keys(budgets)) {
   if (!entries.includes(required)) throw new Error(`Build manifest has no ${required} entry.`);
 }
 
-function graphOf(entry) {
+function graphOf(entry, { lazy = false } = {}) {
   const visited = new Set();
   const visit = (key) => {
     if (visited.has(key)) return;
-    if (!manifest[key]) throw new Error(`Missing static import in build manifest: ${key}`);
+    if (!manifest[key]) throw new Error(`Missing import in build manifest: ${key}`);
     visited.add(key);
     for (const dependency of manifest[key].imports ?? []) visit(dependency);
+    if (lazy) for (const dependency of manifest[key].dynamicImports ?? []) visit(dependency);
   };
   visit(entry);
   return visited;
 }
 
-/** Every JS and CSS file the entry loads statically. */
-function graphOfFiles(entry) {
-  return [...graphOf(entry)].flatMap((key) => [manifest[key].file, ...(manifest[key].css ?? [])]);
+/** Every JS and CSS file the entry loads statically, or (with `lazy`) also on demand. */
+function graphOfFiles(entry, options) {
+  return [...graphOf(entry, options)].flatMap((key) => [manifest[key].file, ...(manifest[key].css ?? [])]);
 }
 
 const compressedSize = (files) =>
@@ -70,7 +71,8 @@ if (/__PLAYER_SHELL_(FILES|VERSION)__/.test(workerSource))
   );
 if (/^\s*(import|export)\b/m.test(workerSource) || (worker.imports ?? []).length > 0)
   throw new Error('The player service worker must be self-contained (no imports).');
-for (const file of graphOfFiles('player.html')) {
+// Lazy chunks (the rich text renderer) are loaded on demand, so a display that starts offline needs them cached too.
+for (const file of graphOfFiles('player.html', { lazy: true })) {
   if (!workerSource.includes(`"/${file}"`)) throw new Error(`The player service worker does not precache /${file}.`);
 }
 const workerBytes = gzipSync(workerSource).length;

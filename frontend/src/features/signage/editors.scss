@@ -1,0 +1,303 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Admin editors added with custom layouts and rich text: widget style and rich text fields, fonts in Media, and the layout
+// editor. Carbon components carry the controls; this file holds layout glue and the two drawing surfaces (grid cells and
+// free rectangles), which Carbon has no equivalent for.
+
+// Rich text, style and placeholder fields ---------------------------------------------------------------------------------------------
+.sg-code textarea,
+textarea.sg-code {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  @include type-style('code-02');
+}
+.sg-code-field {
+  display: grid;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+.sg-placeholder-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.sg-style-accordion .cds--accordion__content {
+  padding-inline-end: $spacing-05;
+}
+.sg-fieldset {
+  display: grid;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sg-category-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: $spacing-04;
+}
+.sg-form-row.sg-form-row--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 41.98rem) {
+  .sg-form-row.sg-form-row--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sg-category-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// Media: fonts ------------------------------------------------------------------------------------------------------------------------
+.sg-media-tile__image--font {
+  display: grid;
+  place-items: center;
+  color: theme.$text-primary;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+.sg-font-detail {
+  display: grid;
+  gap: $spacing-03;
+  padding: $spacing-05;
+  background: theme.$layer-accent-01;
+  overflow-wrap: anywhere;
+}
+.sg-font-detail__sample {
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+
+// Custom layouts ----------------------------------------------------------------------------------------------------------------------
+.sg-layout-thumb {
+  inline-size: 5.5rem;
+  padding-block: $spacing-02;
+}
+.sg-layout-thumb .sg-sketch {
+  max-inline-size: none;
+}
+.sg-sketch--free {
+  position: relative;
+  display: block;
+}
+.sg-sketch--free .sg-sketch__zone {
+  position: absolute;
+  box-sizing: border-box;
+}
+.sg-layout-editor {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: $spacing-06;
+  align-items: start;
+  margin-block-end: $spacing-05;
+}
+.sg-layout-editor > * {
+  min-inline-size: 0;
+}
+@media (max-width: 65.98rem) {
+  .sg-layout-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sg-layout-readonly {
+  display: grid;
+  gap: $spacing-05;
+  max-inline-size: 36rem;
+}
+.sg-panel {
+  padding: $spacing-05;
+  background: theme.$layer-01;
+}
+.sg-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  margin-block-start: $spacing-05;
+}
+.sg-track-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.sg-track-row > .cds--form-item {
+  flex: 0 0 5.5rem;
+}
+
+.sg-grid-canvas {
+  display: grid;
+  gap: 2px;
+  inline-size: 100%;
+  box-sizing: border-box;
+  background: theme.$border-strong-01;
+  border: 2px solid theme.$border-strong-01;
+  touch-action: none;
+  user-select: none;
+}
+.sg-grid-canvas--landscape {
+  aspect-ratio: 16 / 9;
+}
+.sg-grid-canvas--portrait {
+  aspect-ratio: 9 / 16;
+  max-inline-size: 22rem;
+}
+.sg-grid-cell {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: 0;
+  padding: $spacing-02;
+  border: 0;
+  background: theme.$background;
+  color: theme.$text-primary;
+  cursor: crosshair;
+  text-align: start;
+  @include type-style('label-01');
+}
+.sg-grid-cell:focus-visible {
+  outline: 2px solid theme.$border-interactive;
+  outline-offset: -2px;
+}
+.sg-grid-cell--tint-0 {
+  background: color-mix(in srgb, theme.$support-info 28%, theme.$background);
+}
+.sg-grid-cell--tint-1 {
+  background: color-mix(in srgb, theme.$support-success 28%, theme.$background);
+}
+.sg-grid-cell--tint-2 {
+  background: color-mix(in srgb, theme.$border-interactive 28%, theme.$background);
+}
+.sg-grid-cell--tint-3 {
+  background: color-mix(in srgb, theme.$support-warning 28%, theme.$background);
+}
+.sg-grid-cell--tint-4 {
+  background: color-mix(in srgb, theme.$support-error 28%, theme.$background);
+}
+.sg-grid-cell--tint-5 {
+  background: color-mix(in srgb, theme.$text-secondary 28%, theme.$background);
+}
+.sg-grid-cell--selected {
+  box-shadow: inset 0 0 0 3px theme.$border-interactive;
+}
+.sg-grid-cell--range {
+  background: theme.$layer-accent-01;
+  box-shadow: inset 0 0 0 2px theme.$support-success;
+}
+.sg-grid-cell--blocked {
+  box-shadow: inset 0 0 0 2px theme.$support-error;
+}
+.sg-grid-cell__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sg-free-canvas {
+  position: relative;
+  inline-size: 100%;
+  box-sizing: border-box;
+  background: theme.$background;
+  border: 2px solid theme.$border-strong-01;
+  touch-action: none;
+  user-select: none;
+  overflow: hidden;
+}
+.sg-free-canvas--landscape {
+  aspect-ratio: 16 / 9;
+}
+.sg-free-canvas--portrait {
+  aspect-ratio: 9 / 16;
+  max-inline-size: 22rem;
+}
+.sg-free-zone {
+  position: absolute;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: $spacing-02;
+  border: 1px solid theme.$border-strong-01;
+  cursor: move;
+  color: theme.$text-primary;
+  @include type-style('label-01');
+}
+.sg-free-zone:focus-visible {
+  outline: 2px solid theme.$border-interactive;
+  outline-offset: -2px;
+}
+.sg-free-zone--selected {
+  box-shadow: inset 0 0 0 2px theme.$border-interactive;
+}
+.sg-free-zone--tint-0 {
+  background: color-mix(in srgb, theme.$support-info 28%, theme.$background);
+}
+.sg-free-zone--tint-1 {
+  background: color-mix(in srgb, theme.$support-success 28%, theme.$background);
+}
+.sg-free-zone--tint-2 {
+  background: color-mix(in srgb, theme.$border-interactive 28%, theme.$background);
+}
+.sg-free-zone--tint-3 {
+  background: color-mix(in srgb, theme.$support-warning 28%, theme.$background);
+}
+.sg-free-zone--tint-4 {
+  background: color-mix(in srgb, theme.$support-error 28%, theme.$background);
+}
+.sg-free-zone--tint-5 {
+  background: color-mix(in srgb, theme.$text-secondary 28%, theme.$background);
+}
+.sg-free-zone__label {
+  pointer-events: none;
+}
+.sg-free-handle {
+  position: absolute;
+  box-sizing: border-box;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  background: theme.$border-interactive;
+  border: 1px solid theme.$background;
+}
+.sg-free-handle--nw {
+  inset-block-start: -0.375rem;
+  inset-inline-start: -0.375rem;
+  cursor: nwse-resize;
+}
+.sg-free-handle--n {
+  inset-block-start: -0.375rem;
+  inset-inline-start: calc(50% - 0.375rem);
+  cursor: ns-resize;
+}
+.sg-free-handle--ne {
+  inset-block-start: -0.375rem;
+  inset-inline-end: -0.375rem;
+  cursor: nesw-resize;
+}
+.sg-free-handle--e {
+  inset-block-start: calc(50% - 0.375rem);
+  inset-inline-end: -0.375rem;
+  cursor: ew-resize;
+}
+.sg-free-handle--se {
+  inset-block-end: -0.375rem;
+  inset-inline-end: -0.375rem;
+  cursor: nwse-resize;
+}
+.sg-free-handle--s {
+  inset-block-end: -0.375rem;
+  inset-inline-start: calc(50% - 0.375rem);
+  cursor: ns-resize;
+}
+.sg-free-handle--sw {
+  inset-block-end: -0.375rem;
+  inset-inline-start: -0.375rem;
+  cursor: nesw-resize;
+}
+.sg-free-handle--w {
+  inset-block-start: calc(50% - 0.375rem);
+  inset-inline-start: -0.375rem;
+  cursor: ew-resize;
+}

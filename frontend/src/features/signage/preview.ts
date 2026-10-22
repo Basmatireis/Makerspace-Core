@@ -3,15 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { getDownloadSignageAssetUrl } from '../../api/generated/signage/signage';
-import type { SignageAnnouncementTemplate } from '../../api/generated/models';
+import type { SignageAnnouncementTemplate, SignagePlayerCalendar } from '../../api/generated/models';
 import { renderAnnouncement } from './engine/announcements';
 import type { RenderAnnouncement, RenderData, RenderMachine } from './render/types';
 import { publicConfigurationOptions } from '../branding/branding';
+import { customLayoutsQuery } from './layoutQueries';
 import { assetsQuery, calendarQuery, machinesQuery, templatesQuery } from './queries';
 
 // Data for the admin previews (editor canvas, thumbnails, playlist preview). Machine states and announcements are
-// simulated (the editor lets people check fallbacks by picking a "Preview as" situation); open days and events are the
-// real upcoming public ones, so an empty calendar shows the widgets' normal empty text.
+// simulated (the editor lets people check fallbacks by picking a "Preview as" situation); open days, events and the
+// calendar block are the real upcoming public ones, so an empty calendar shows the widgets' normal empty text.
 
 export type PreviewPresetId = 'idle' | 'first' | 'all' | 'camera' | 'stale' | 'announcement';
 export const PREVIEW_PRESETS: { id: PreviewPresetId; label: string }[] = [
@@ -95,7 +96,8 @@ export function sampleValues(fields: readonly SampleField[], now: Date): Record<
   return Object.fromEntries(fields.map((field) => [field.key, sample(field)]));
 }
 
-type TemplateLike = Pick<SignageAnnouncementTemplate, 'fields' | 'title' | 'body' | 'tone'>;
+type TemplateLike = Pick<SignageAnnouncementTemplate, 'fields' | 'title' | 'body' | 'tone'> &
+  Partial<Pick<SignageAnnouncementTemplate, 'bodyFormat' | 'bodyCss'>>;
 
 /** A template rendered with sample values, ending in two hours (display name and location are sample text too). */
 export function renderSample(
@@ -121,11 +123,15 @@ export type PreviewInput = {
   templates: readonly SignageAnnouncementTemplate[];
   /** Makerspace time zone for announcement times. */
   timeZone: string;
-  /** Known digests turn asset URLs into cacheable, content-addressed ones. */
-  assets?: readonly { id: string; sha256: string }[];
+  /** Known digests turn asset URLs into cacheable, content-addressed ones; names register custom fonts. */
+  assets?: readonly { id: string; sha256: string; name?: string }[];
   /** The real upcoming public open days and events. */
   openDays?: RenderData['openDays'];
   events?: RenderData['events'];
+  /** The calendar block with every category. */
+  calendar?: SignagePlayerCalendar | null;
+  /** The custom layouts scenes may use. */
+  customLayouts?: RenderData['customLayouts'];
   still?: boolean;
 };
 
@@ -139,6 +145,8 @@ export function buildPreviewData({
   assets = [],
   openDays = [],
   events = [],
+  calendar = null,
+  customLayouts = [],
   still,
 }: PreviewInput): RenderData {
   const ids = [...new Set([...machines.map((machine) => machine.id), ...referencedMachineIds])];
@@ -157,6 +165,7 @@ export function buildPreviewData({
   });
   const date = new Date(now);
   const digests = new Map(assets.map((asset) => [asset.id, asset.sha256]));
+  const assetNames = new Map(assets.map((asset) => [asset.id, asset.name ?? null]));
   let announcements: RenderAnnouncement[] = [];
   if (preset === 'announcement') {
     announcements = templates.slice(0, 3).map((template, index) => ({
@@ -173,6 +182,8 @@ export function buildPreviewData({
           tone: 'warning',
           title: 'Closed today',
           body: 'We are back tomorrow.',
+          bodyFormat: 'plain',
+          bodyCss: '',
           startsAt: now,
         },
       ];
@@ -189,7 +200,10 @@ export function buildPreviewData({
     announcements,
     openDays,
     events,
+    calendar,
+    customLayouts,
     assetUrl: (assetId) => assetContentUrl(assetId, digests.get(assetId)),
+    assetName: (assetId) => assetNames.get(assetId) ?? null,
     still,
   };
 }
@@ -208,6 +222,7 @@ export function usePreviewData(
     (permission) => hasPermission(user, permission),
   );
   const calendar = useQuery(calendarQuery(canRead)).data;
+  const customLayouts = useQuery({ ...customLayoutsQuery(), enabled: canRead }).data?.items;
   const { now, referencedMachineIds, still } = options;
   const referenced = referencedMachineIds?.join(',') ?? '';
   // Rebuilt only when an input changes: the preview data is handed to the renderer, which re-renders on a new object.
@@ -223,8 +238,10 @@ export function usePreviewData(
         assets,
         openDays: calendar?.openDays,
         events: calendar?.events,
+        calendar: calendar?.calendar,
+        customLayouts,
         still,
       }),
-    [preset, now, machines, referenced, templates, timeZone, assets, calendar, still],
+    [preset, now, machines, referenced, templates, timeZone, assets, calendar, customLayouts, still],
   );
 }

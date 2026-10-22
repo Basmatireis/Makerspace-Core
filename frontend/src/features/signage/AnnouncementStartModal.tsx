@@ -153,6 +153,8 @@ export function AnnouncementStartModal({
             tone: message.tone,
             title: message.title,
             body: message.body,
+            bodyFormat: message.bodyFormat,
+            bodyCss: message.bodyCss,
             startsAt: 0,
           },
         ]

@@ -18,6 +18,7 @@ export const scene = (id: string, patch: Partial<SignagePlayerScene> = {}): Sign
     backgroundAssetId: null,
     backgroundFit: 'cover',
     backgroundDim: 0,
+    customLayoutId: null,
     theme: 'dark',
     zones: { main: { type: 'text', text: id, size: 'm', align: 'start' } },
     version: 1,
@@ -52,7 +53,8 @@ export const manifest = (revision: number, patch: Partial<SignagePlayerManifest>
     { id: 'pl-default', name: 'Default', version: 1, items: [{ sceneId: 'scene-a', seconds: 10, transition: 'cut' }] },
   ],
   assets: [],
-  layoutsVersion: 1,
+  customLayouts: [],
+  layoutsVersion: 2,
   ...patch,
 });
 
@@ -63,6 +65,7 @@ export const live = (patch: Partial<SignagePlayerLive> = {}): SignagePlayerLive 
   announcements: [],
   openDays: [],
   events: [],
+  calendar: null,
   streams: [],
   ...patch,
 });

@@ -9,6 +9,9 @@ import { describe, expect, it } from 'vitest';
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = resolve(SRC, 'player/main.tsx');
 const ALLOWED_PACKAGES = new Set(['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client']);
+// The rich text renderer (marked, DOMPurify) is allowed as a lazy chunk only: the initial JavaScript budget cannot hold it.
+const LAZY_PACKAGES = new Set(['marked', 'dompurify']);
+const RICH_TEXT = 'features/signage/render/richText.ts';
 const ALLOWED_SHARED = [
   /^features\/signage\/engine\//,
   /^features\/signage\/render\//,
@@ -23,16 +26,17 @@ const resolveFile = (from: string, specifier: string): string | null => {
   return null;
 };
 
-function runtimeImports(source: string): string[] {
+function runtimeImports(source: string, includeDynamic: boolean): string[] {
   const specifiers: string[] = [];
   for (const match of source.matchAll(/^\s*(?:import|export)\s+(?!type\s)[^'"]*?from\s+['"]([^'"]+)['"]/gm))
     specifiers.push(match[1]);
   for (const match of source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) specifiers.push(match[1]);
-  for (const match of source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) specifiers.push(match[1]);
+  if (includeDynamic)
+    for (const match of source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) specifiers.push(match[1]);
   return specifiers;
 }
 
-function importGraph() {
+function importGraph(includeDynamic = true) {
   const files = new Set<string>();
   const packages = new Set<string>();
   const queue = [ENTRY];
@@ -40,7 +44,7 @@ function importGraph() {
     const file = queue.pop()!;
     if (files.has(file)) continue;
     files.add(file);
-    for (const specifier of runtimeImports(readFileSync(file, 'utf8'))) {
+    for (const specifier of runtimeImports(readFileSync(file, 'utf8'), includeDynamic)) {
       if (specifier.startsWith('.')) {
         const target = resolveFile(file, specifier);
         if (target === null) throw new Error(`Cannot resolve ${specifier} from ${relative(SRC, file)}`);
@@ -64,7 +68,14 @@ describe('player import graph', () => {
   });
 
   it('uses only React as a package: no Carbon, TanStack Query or React Router', () => {
-    expect(graph.packages.filter((name) => !ALLOWED_PACKAGES.has(name))).toEqual([]);
+    expect(graph.packages.filter((name) => !ALLOWED_PACKAGES.has(name) && !LAZY_PACKAGES.has(name))).toEqual([]);
+  });
+
+  it('loads the rich text renderer and its packages only on demand', () => {
+    expect(graph.files).toContain(RICH_TEXT);
+    const initial = importGraph(false);
+    expect(initial.files).not.toContain(RICH_TEXT);
+    expect(initial.packages.filter((name) => !ALLOWED_PACKAGES.has(name))).toEqual([]);
   });
 
   it('stays out of the application, the generated client and other features', () => {

@@ -4,24 +4,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { SignageAsset } from '../../api/generated/models';
 import { getUploadSignageAssetUrl } from '../../api/generated/signage/signage';
 import { apiFetch } from '../../api/http-client';
-import { errorMessage, formatBytes } from './helpers';
+import { errorMessage } from './helpers';
+import { contentTypeOf, FONT_TYPES, IMAGE_TYPES, validateUpload, VIDEO_TYPES } from './uploadValidation';
 import { readVideoMetadata } from './videoMetadata';
 import { signageKeys } from './queries';
 
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const VIDEO_TYPES = ['video/mp4'];
-const IMAGE_LIMIT = 20 << 20;
-const VIDEO_LIMIT = 200 << 20;
-
 type Picked = { id: number; file: File; error: string | null; status: 'edit' | 'uploading' | 'complete' };
 let nextId = 0;
-
-function validate(file: File): string | null {
-  const image = IMAGE_TYPES.includes(file.type);
-  if (!image && !VIDEO_TYPES.includes(file.type)) return 'Use JPG, PNG, WebP or MP4';
-  const limit = image ? IMAGE_LIMIT : VIDEO_LIMIT;
-  return file.size > limit ? `Too large (limit ${formatBytes(limit)})` : null;
-}
 
 /** Header values are ASCII-only, so the name travels percent-encoded as UTF-8 (the server stores at most 150 characters). */
 const encodedName = (name: string) =>
@@ -36,7 +25,7 @@ async function uploadFile(file: File): Promise<SignageAsset> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/octet-stream',
     'X-File-Name': encodedName(file.name),
-    'X-File-Content-Type': file.type,
+    'X-File-Content-Type': contentTypeOf(file),
   };
   if (VIDEO_TYPES.includes(file.type)) {
     const metadata = await readVideoMetadata(file);
@@ -58,7 +47,7 @@ export function UploadMediaModal({ onClose }: { onClose: () => void }) {
   const add = (files: File[]) =>
     setPicked((current) => [
       ...current,
-      ...files.map((file) => ({ id: (nextId += 1), file, error: validate(file), status: 'edit' as const })),
+      ...files.map((file) => ({ id: (nextId += 1), file, error: validateUpload(file), status: 'edit' as const })),
     ]);
 
   const upload = async () => {
@@ -99,7 +88,7 @@ export function UploadMediaModal({ onClose }: { onClose: () => void }) {
       <Stack gap={5}>
         <FileUploaderDropContainer
           labelText="Drag and drop files here or click to upload"
-          accept={[...IMAGE_TYPES, ...VIDEO_TYPES]}
+          accept={[...IMAGE_TYPES, ...VIDEO_TYPES, ...FONT_TYPES, '.woff2']}
           multiple
           name="signage-media"
           disabled={busy}
@@ -107,7 +96,7 @@ export function UploadMediaModal({ onClose }: { onClose: () => void }) {
         />
         <p className="sg-secondary">
           Images: JPG, PNG, WebP up to 20 MB and 8192 px per side. Videos: H.264 MP4 up to 200 MB. Videos are played as
-          uploaded.
+          uploaded. Fonts: WOFF2 up to 2 MB, for text widgets and CSS.
         </p>
         {picked.map((entry) => (
           <FileUploaderItem

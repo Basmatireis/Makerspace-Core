@@ -35,21 +35,35 @@
 .sg-zone {
   position: relative;
   display: flex;
+  box-sizing: border-box;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
+}
+/* Free custom layouts place their zones absolutely (percent rects, stacking order by index; see SceneRenderer). */
+.sg-scene--free {
+  display: block;
+}
+.sg-scene--free > .sg-zone {
+  position: absolute;
 }
 .sg-zone--text,
 .sg-zone--status,
 .sg-zone--clock,
 .sg-zone--open_days,
 .sg-zone--events,
+.sg-zone--agenda,
+.sg-zone--calendar,
 .sg-zone--qr {
   padding: calc(var(--u) * 2);
 }
 .sg-zone > * {
   flex: 1 1 auto;
   min-inline-size: 0;
+}
+/* A widget style with a vertical alignment sets --sg-valign on the zone (zoneBoxCss). */
+.sg-zone.sg-zone--valign > * {
+  align-self: var(--sg-valign);
 }
 .sg-media {
   display: block;
@@ -71,6 +85,19 @@
   font-weight: 600;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+.sg-text--rich {
+  white-space: normal;
+  font-weight: 400;
+  line-height: 1.3;
+}
+/* Rich text lives in a shadow root (RichText.tsx); the host only needs a box. */
+.sg-rich {
+  display: block;
+  min-inline-size: 0;
+}
+.sg-rich--plain {
+  white-space: pre-wrap;
 }
 .sg-center {
   display: flex;
@@ -163,6 +190,9 @@
 .sg-ann__body {
   white-space: pre-wrap;
   opacity: 0.92;
+}
+.sg-ann__body--rich {
+  white-space: normal;
 }
 .sg-ann--banner {
   flex: 1 1 auto;
@@ -302,6 +332,116 @@
 }
 .sg-list__empty {
   opacity: 0.7;
+}
+.sg-list__document {
+  line-height: 1.25;
+}
+
+/* Calendar widget: a Monday-first month grid or a number of weeks; entries are coloured by category. */
+.sg-cal {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.8);
+  min-block-size: 0;
+  font-size: calc(var(--u) * 1.5);
+}
+.sg-cal__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--u) * 2);
+}
+.sg-cal__title {
+  font-size: calc(var(--u) * 3.2);
+}
+.sg-cal__month {
+  font-size: calc(var(--u) * 2.6);
+  opacity: 0.85;
+}
+.sg-cal__grid {
+  display: grid;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  gap: calc(var(--u) * 0.25);
+}
+.sg-cal__weekday,
+.sg-cal__wk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--u) * 1.4);
+  opacity: 0.7;
+}
+.sg-cal__wk {
+  font-variant-numeric: tabular-nums;
+}
+.sg-cal__day {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.2);
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  padding: calc(var(--u) * 0.4);
+  background: rgba(127, 127, 127, 0.14);
+  outline: 1px solid transparent;
+}
+.sg-cal__day--weekend {
+  background: rgba(127, 127, 127, 0.08);
+}
+.sg-cal__day--outside {
+  opacity: 0.45;
+}
+.sg-cal__day--today {
+  outline: calc(var(--u) * 0.25) solid currentColor;
+  outline-offset: calc(var(--u) * -0.25);
+}
+.sg-cal__number {
+  font-size: calc(var(--u) * 1.8);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.sg-cal__entry {
+  display: block;
+  overflow: hidden;
+  padding: calc(var(--u) * 0.1) calc(var(--u) * 0.4);
+  border-inline-start: calc(var(--u) * 0.4) solid currentColor;
+  font-size: calc(var(--u) * 1.4);
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-cal__entry--cancelled {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.sg-cal__time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.sg-cal__more {
+  font-size: calc(var(--u) * 1.2);
+  opacity: 0.7;
+}
+.sg-cal__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--u) * 0.4) calc(var(--u) * 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: calc(var(--u) * 1.4);
+}
+.sg-cal__legend li {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.6);
+}
+.sg-cal__swatch {
+  display: inline-block;
+  inline-size: calc(var(--u) * 1.4);
+  block-size: calc(var(--u) * 1.4);
 }
 .sg-fade {
   inline-size: 100%;

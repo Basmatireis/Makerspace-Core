@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import type { SignageOrientation, SignageScene, SignageTone } from '../../../api/generated/models';
+import type {
+  SignageOrientation,
+  SignagePlayerCalendar,
+  SignageScene,
+  SignageTone,
+} from '../../../api/generated/models';
+import type { CustomLayoutShape } from '../layouts';
+import type { RichTextFormat } from './escape';
 
 // Data contract of the shared scene renderer. The renderer is plain React and plain CSS: no Carbon, no TanStack Query
 // and no imports from src/app, because the separate player app imports it too. Widgets get everything through props.
@@ -14,7 +21,10 @@ export type RenderScene = Pick<
   | 'backgroundDim'
   | 'theme'
   | 'zones'
->;
+> & {
+  /** Names the custom layout (in `RenderData.customLayouts`) when `layoutId` is `custom`. */
+  customLayoutId?: string | null;
+};
 
 export type MachineState = 'idle' | 'preparing' | 'printing' | 'paused' | 'finished' | 'failed' | 'unknown';
 
@@ -38,12 +48,16 @@ export type RenderAnnouncement = {
   templateId: string;
   tone: SignageTone;
   title: string;
+  /** Placeholder values are already escaped for `bodyFormat`. */
   body: string;
+  /** Absent means plain. */
+  bodyFormat?: RichTextFormat;
+  bodyCss?: string;
   startsAt: number;
 };
 
 export type RenderOpenDay = { startsAt: string; endsAt: string; status: string };
-export type RenderEvent = { title: string; startsAt: string; location: string | null };
+export type RenderEvent = { title: string; startsAt: string; endsAt?: string | null; location: string | null };
 
 export type RenderData = {
   /** Epoch milliseconds; drives clocks, slideshows, rotation. */
@@ -56,8 +70,14 @@ export type RenderData = {
   announcements: readonly RenderAnnouncement[];
   openDays: readonly RenderOpenDay[];
   events: readonly RenderEvent[];
+  /** Data of the calendar widget; null or absent renders the grid without entries. */
+  calendar?: SignagePlayerCalendar | null;
+  /** The custom layouts scenes may use (the manifest's, or the admin list). */
+  customLayouts?: readonly CustomLayoutShape[];
   /** Asset id to URL; null when the asset is unknown (it renders as a placeholder). */
   assetUrl: (assetId: string) => string | null;
+  /** Asset id to name; fonts are registered under their asset name, so CSS can use it as `font-family`. */
+  assetName?: (assetId: string) => string | null;
   /** The live picture of a machine's camera (the player's camera source); null keeps the neutral frame. */
   cameraView?: (machine: RenderMachine) => ReactNode;
   /** Overrides the camera widget's own "several machines print" setting when a rule decided it. */

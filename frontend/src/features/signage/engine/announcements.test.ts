@@ -1,6 +1,7 @@
 import vectorFile from '../../../../../api/testdata/signage-announcement-render.json';
 import { describe, expect, it } from 'vitest';
 import {
+  escapeForFormat,
   fieldKeyFor,
   placeholdersIn,
   renderAnnouncement,
@@ -14,6 +15,7 @@ type Vector = {
     fields: { key: string; type: EngineTemplate['fields'][number]['type'] }[];
     title: string;
     body: string;
+    bodyFormat?: EngineTemplate['bodyFormat'];
     tone: EngineTemplate['tone'];
   };
   values: Record<string, string>;
@@ -31,7 +33,7 @@ type Vector = {
 const vectors = vectorFile as unknown as { cases: Vector[] };
 
 describe('shared announcement render vectors', () => {
-  it('contains the full vector set', () => expect(vectors.cases.length).toBeGreaterThanOrEqual(10));
+  it('contains the full vector set', () => expect(vectors.cases.length).toBeGreaterThanOrEqual(15));
   it.each(vectors.cases.map((vector) => [vector.name, vector] as const))('%s', (_name, vector) => {
     const result = renderAnnouncement(
       vector.template,
@@ -45,7 +47,8 @@ describe('shared announcement render vectors', () => {
         machines: vector.machines,
       },
     );
-    expect(result).toEqual(vector.expected);
+    expect({ title: result.title, body: result.body, tone: result.tone }).toEqual(vector.expected);
+    expect(result.bodyFormat).toBe(vector.template.bodyFormat ?? 'plain');
   });
 });
 
@@ -76,5 +79,22 @@ describe('template helpers', () => {
     expect(fieldKeyFor('  ', [])).toBe('field');
     expect(fieldKeyFor('2nd floor', [])).toBe('nd_floor');
     expect(fieldKeyFor('x'.repeat(80), [])).toMatch(/^[a-z][a-z0-9_]{0,39}$/);
+  });
+});
+
+describe('placeholder escaping per body format', () => {
+  it('escapes html values', () => {
+    expect(escapeForFormat('html')(`<b>"Tom" & 'Jerry'</b>`)).toBe(
+      '&lt;b&gt;&quot;Tom&quot; &amp; &#39;Jerry&#39;&lt;/b&gt;',
+    );
+  });
+  it('backslash-escapes markdown punctuation and entity-escapes markup', () => {
+    expect(escapeForFormat('markdown')('# a*b* [x](y) <i> & 1. a_b: c|d~e=f')).toBe(
+      '\\# a\\*b\\* \\[x\\]\\(y\\) &lt;i&gt; &amp; 1\\. a\\_b\\: c\\|d\\~e\\=f',
+    );
+  });
+  it('keeps plain values as typed', () => {
+    expect(escapeForFormat('plain')('<b>*x*</b>')).toBe('<b>*x*</b>');
+    expect(escapeForFormat(undefined)('&')).toBe('&');
   });
 });

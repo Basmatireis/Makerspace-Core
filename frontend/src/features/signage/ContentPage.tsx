@@ -30,13 +30,16 @@ import { formatLoop, orientationLabel, pluralize } from './helpers';
 import { loopSeconds } from './engine/playback';
 import { NewPlaylistModal, NewSceneModal } from './NewContentModals';
 import { signagePaths } from './paths';
+import { CustomLayoutsTable } from './CustomLayoutsTable';
+import { customLayoutsQuery } from './layoutQueries';
 import { announcementsQuery, playlistsQuery, scenesQuery, templatesQuery } from './queries';
 
-type Section = 'scenes' | 'playlists' | 'announcements';
+type Section = 'scenes' | 'playlists' | 'announcements' | 'layouts';
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'scenes', label: 'Scenes' },
   { id: 'playlists', label: 'Playlists' },
   { id: 'announcements', label: 'Announcements' },
+  { id: 'layouts', label: 'Layouts' },
 ];
 const TONE_TAG: Record<SignageTone, 'blue' | 'warm-gray' | 'red' | 'gray'> = {
   info: 'blue',
@@ -56,7 +59,8 @@ export function ContentPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const requested = params.get('section');
-  const section: Section = requested === 'playlists' || requested === 'announcements' ? requested : 'scenes';
+  const section: Section =
+    requested === 'playlists' || requested === 'announcements' || requested === 'layouts' ? requested : 'scenes';
   const [creating, setCreating] = useState<'scene' | 'playlist' | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SignageAnnouncementTemplate | 'new' | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<SignageAnnouncementTemplate | null>(null);
@@ -64,14 +68,24 @@ export function ContentPage() {
   const playlists = useQuery(playlistsQuery());
   const templates = useQuery(templatesQuery());
   const announcements = useQuery(announcementsQuery());
-  const query = section === 'scenes' ? scenes : section === 'playlists' ? playlists : templates;
+  const layouts = useQuery(customLayoutsQuery());
+  const query =
+    section === 'scenes' ? scenes : section === 'playlists' ? playlists : section === 'layouts' ? layouts : templates;
 
-  const createLabel = section === 'scenes' ? 'New scene' : section === 'playlists' ? 'New playlist' : 'New template';
+  const createLabel =
+    section === 'scenes'
+      ? 'New scene'
+      : section === 'playlists'
+        ? 'New playlist'
+        : section === 'layouts'
+          ? 'New layout'
+          : 'New template';
   const create = canEdit ? (
     <Button
       renderIcon={Add}
       onClick={() => {
         if (section === 'announcements') setEditingTemplate('new');
+        else if (section === 'layouts') navigate(signagePaths.newLayout);
         else setCreating(section === 'scenes' ? 'scene' : 'playlist');
       }}
     >
@@ -89,7 +103,7 @@ export function ContentPage() {
       width="wide"
       breadcrumbs={[{ label: 'Signage' }]}
       actions={create}
-      description="Scenes are single screens built from a layout; playlists play scenes in a loop; announcement templates define live messages. Scene and playlist edits are drafts until a display is published."
+      description="Scenes are single screens built from a layout; playlists play scenes in a loop; announcement templates define live messages; custom layouts split the screen into your own zones. Scene and playlist edits are drafts until a display is published."
     >
       <div className="sg-stack">
         <SectionSwitcher
@@ -100,8 +114,19 @@ export function ContentPage() {
         />
         <QueryBoundary
           query={query}
-          label={section === 'scenes' ? 'scenes' : section === 'playlists' ? 'playlists' : 'announcement templates'}
+          label={
+            section === 'scenes'
+              ? 'scenes'
+              : section === 'playlists'
+                ? 'playlists'
+                : section === 'layouts'
+                  ? 'layouts'
+                  : 'announcement templates'
+          }
         >
+          {section === 'layouts' && (
+            <CustomLayoutsTable layouts={layouts.data?.items ?? []} canEdit={canEdit} create={create} />
+          )}
           {section === 'scenes' &&
             (scenes.data?.items.length === 0 ? (
               <EmptyState
