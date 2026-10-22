@@ -50,6 +50,7 @@ type Querier interface {
 	InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error)
 	InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error)
 	InsertRequestEvent(ctx context.Context, arg InsertRequestEventParams) error
+	InvoicePayments(ctx context.Context, orderID *uuid.UUID) ([]InvoicePaymentsRow, error)
 	LatestRequest(ctx context.Context, orderID *uuid.UUID) (ExternalInvoiceRequest, error)
 	ListAdjustments(ctx context.Context, orderID *uuid.UUID) ([]OrderAdjustment, error)
 	ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]PaymentAllocation, error)

@@ -7,6 +7,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 ### Upgrade notes
 
 - Migration 00065 adds custom signage layouts, font assets and announcement body formats. Existing scenes, templates and publications keep working unchanged. API: `SignagePlayerManifest` has `customLayouts` and `layoutsVersion` 2, scenes carry `customLayoutId`, live data and `GET /signage/calendar` carry `calendar` and events `endsAt`, announcement templates and rendered messages carry `bodyFormat` and `bodyCss`. Republish displays to use the new features.
+- Migration 00066 renames the wiRef template placeholders to English: `{{organisation}}` → `{{organization}}`, `{{kontaktperson}}` → `{{contact_person}}`, `{{bestellreferenz}}` → `{{purchase_order_reference}}`, `{{anforderungsnummer}}` → `{{request_number}}`, `{{auftragsnummer}}` → `{{order_number}}`, `{{summe}}` → `{{amount_to_invoice}}`, `{{freigegeben_von}}` → `{{approved_by}}`, `{{datum}}` → `{{approved_on}}`. Saved texts are rewritten and keep working; the settings version moves on, so an editor left open over the upgrade must reload. The old names are rejected when saving (422 `wiref_template_invalid`); configuration files exported by 0.8.3 and 0.8.4 still import, their placeholders are renamed on import.
 
 ### Added
 
@@ -16,6 +17,11 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Uploaded fonts.** WOFF2 fonts can be uploaded under Media and used in widget styles and CSS.
 - **List entry templates.** Open-day and event lists format each entry from one template with placeholders such as `{date}`, `{start}` and `{title}`; up to 20 entries.
 - **Agenda widget** listing open days and events together, and a **calendar widget** (month or weeks) showing public holidays, breaks, open days and events, each switchable with its own colour.
+
+### Changed
+
+- **wiRef PDF and mail list the payments.** Below the totals, the PDF has a Payments table with every payment that still counts towards the order: payment ID (`P-…`), date, method (cash, card or the wiRef invoice settlement) and amount. The mail shows the same rows. Refunded or corrected payments are left out; payer, recorder and card terminal references are not included.
+- **wiRef PDF header like the application header.** The compact logo sits on the left, beside it the organization name in capitals above the display name. The bundled default logo is now shown as well (only SVG logos are still omitted).
 
 ## [0.8.4] - 2026-10-22
 
@@ -46,7 +52,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Added
 
-- **wiRef delivery.** When an invoice request is approved and forwarded, Core emails it to the wiRef address set in Settings → Invoicing, as a branded mail with a PDF attachment, after the approval is committed. Subject, intro and closing of mail and PDF are editable with placeholders (`{{organisation}}`, `{{anforderungsnummer}}`, `{{summe}}`, …) and optional fields can be switched off; preview, sample PDF and test mail included. The invoice request shows the delivery status and can be resent (`external_invoice_requests.approve`).
+- **wiRef delivery.** When an invoice request is approved and forwarded, Core emails it to the wiRef address set in Settings → Invoicing, as a branded mail with a PDF attachment, after the approval is committed. Subject, intro and closing of mail and PDF are editable with placeholders (`{{organisation}}`, `{{anforderungsnummer}}`, `{{summe}}`, …; English names since migration 00066) and optional fields can be switched off; preview, sample PDF and test mail included. The invoice request shows the delivery status and can be resent (`external_invoice_requests.approve`).
 - **Configuration export and import.** Settings → Export & import downloads roles, device types and session policies, the machine catalog, inventory articles, pricing, open-day requirements, lab rules, surveys, visitor enrollment, branding and mail settings (never secrets) as one JSON file. Importing previews every change first; Overwrite makes each chosen section match the file (entries still in use are deactivated or kept), Insert only adds what is missing. The import runs in one transaction. See `docs/configuration-transfer.md`.
 - **Updates from the web UI.** Settings → Local services → Versions and updates shows each connector's and gateway's version next to Core's and updates them to Core's version through the optional updater sidecar.
 - **Connector activity log.** Connector diagnostics have an Activity log tab with the runtime events that used to fill the audit log (kept 30 days, at most 10,000 per connector).

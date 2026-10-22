@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
 	"github.com/go-pdf/fpdf"
@@ -16,6 +17,14 @@ type Logo struct {
 	Type string
 }
 
+// Mark is the brand at the top of every page, laid out like the application header: the logo on the left, beside
+// it the organization name in small capitals above the display name.
+type Mark struct {
+	OrganizationName string
+	DisplayName      string
+	Logo             *Logo
+}
+
 const (
 	pdfMargin     = 20.0
 	pdfLine       = 5.2
@@ -25,13 +34,16 @@ const (
 	pdfBottom     = 22.0
 )
 
-// column widths of the item table; they add up to the 170 mm text width.
-var pdfColumns = [4]float64{80, 28, 31, 31}
+// column widths of the item and the payment table; they add up to the 170 mm text width.
+var (
+	pdfColumns        = [4]float64{80, 28, 31, 31}
+	pdfPaymentColumns = [4]float64{42, 30, 67, 31}
+)
 
 // RenderPDF draws the invoice request on A4 pages. It uses the built-in Helvetica font and the cp1252 character set,
 // which covers German umlauts, the sharp s and the euro sign; other characters are replaced by fpdf. Nothing is
 // loaded from disk or the network.
-func RenderPDF(brand notifications.Branding, logo *Logo, s Settings, d Document) ([]byte, error) {
+func RenderPDF(brand notifications.Branding, mark Mark, s Settings, d Document) ([]byte, error) {
 	values := d.values(s)
 	title := singleLine(Substitute(s.PDFTitle, values))
 	pdf := fpdf.New("P", "mm", "A4", "")
@@ -45,29 +57,35 @@ func RenderPDF(brand notifications.Branding, logo *Logo, s Settings, d Document)
 	}
 	pdf.AliasNbPages("{nb}")
 	red, green, blue := parseHex(brand.PrimaryColor)
+	if mark.DisplayName == "" {
+		mark.DisplayName = brand.ApplicationName
+	}
 	pdf.SetHeaderFunc(func() {
 		pdf.SetFillColor(red, green, blue)
 		pdf.Rect(0, 0, pdfPageWidth, 4, "F")
-		pdf.SetY(10)
+		const logoTop, logoHeight = 10.0, 12.0
 		textX := pdfMargin
-		if logo != nil {
+		if mark.Logo != nil {
 			name := "logo"
-			info := pdf.RegisterImageOptionsReader(name, fpdf.ImageOptions{ImageType: logo.Type}, bytes.NewReader(logo.Data))
+			options := fpdf.ImageOptions{ImageType: mark.Logo.Type}
+			info := pdf.RegisterImageOptionsReader(name, options, bytes.NewReader(mark.Logo.Data))
 			if info != nil && pdf.Ok() {
-				pdf.ImageOptions(name, pdfMargin, 9, 0, 11, false, fpdf.ImageOptions{ImageType: logo.Type}, 0, "")
-				textX += 11*info.Width()/info.Height() + 3
+				pdf.ImageOptions(name, pdfMargin, logoTop, 0, logoHeight, false, options, 0, "")
+				textX += logoHeight*info.Width()/info.Height() + 3.5
 			}
 		}
-		pdf.SetXY(textX, 10)
-		pdf.SetTextColor(22, 22, 22)
-		pdf.SetFont("Helvetica", "B", 11)
-		pdf.CellFormat(0, 5.5, tr(brand.ApplicationName), "", 1, "L", false, 0, "")
-		if brand.OrganizationName != "" {
-			pdf.SetX(textX)
-			pdf.SetFont("Helvetica", "", 9)
+		nameTop := logoTop + 3
+		if mark.OrganizationName != "" {
+			pdf.SetXY(textX, logoTop+1)
+			pdf.SetFont("Helvetica", "", 8)
 			pdf.SetTextColor(82, 82, 82)
-			pdf.CellFormat(0, 4.5, tr(brand.OrganizationName), "", 1, "L", false, 0, "")
+			pdf.CellFormat(0, 4, tr(strings.ToUpper(mark.OrganizationName)), "", 1, "L", false, 0, "")
+			nameTop = logoTop + 5
 		}
+		pdf.SetXY(textX, nameTop)
+		pdf.SetTextColor(22, 22, 22)
+		pdf.SetFont("Helvetica", "B", 13)
+		pdf.CellFormat(0, 6, tr(mark.DisplayName), "", 1, "L", false, 0, "")
 		pdf.SetY(30)
 	})
 	pdf.SetFooterFunc(func() {
@@ -103,6 +121,7 @@ func RenderPDF(brand notifications.Branding, logo *Logo, s Settings, d Document)
 	for _, row := range d.totals() {
 		pdfTotal(pdf, tr, row)
 	}
+	pdfPayments(pdf, tr, d.Payments)
 	pdf.Ln(6)
 	for _, row := range d.approval(s) {
 		pdfRow(pdf, tr, row.Label, row.Value, false)
@@ -179,6 +198,39 @@ func pdfItems(pdf *fpdf.Fpdf, tr func(string) string, d Document) {
 		pdf.CellFormat(pdfColumns[2], height, tr(formatPlain(item.UnitPrice)), "B", 0, "R", false, 0, "")
 		pdf.CellFormat(pdfColumns[3], height, tr(formatPlain(item.Amount)), "B", 1, "R", false, 0, "")
 		pdf.SetXY(pdfMargin, y+height)
+	}
+}
+
+func pdfPaymentHeader(pdf *fpdf.Fpdf, tr func(string) string) {
+	pdf.SetFont("Helvetica", "B", 9.5)
+	pdf.SetFillColor(244, 244, 244)
+	pdf.SetTextColor(22, 22, 22)
+	pdf.CellFormat(pdfPaymentColumns[0], 7, tr("Payment ID"), "B", 0, "L", true, 0, "")
+	pdf.CellFormat(pdfPaymentColumns[1], 7, tr("Date"), "B", 0, "L", true, 0, "")
+	pdf.CellFormat(pdfPaymentColumns[2], 7, tr("Method"), "B", 0, "L", true, 0, "")
+	pdf.CellFormat(pdfPaymentColumns[3], 7, tr("Amount (EUR)"), "B", 1, "R", true, 0, "")
+}
+
+// pdfPayments lists the payments of the order below the totals; nothing is drawn when there are none.
+func pdfPayments(pdf *fpdf.Fpdf, tr func(string) string, payments []Payment) {
+	if len(payments) == 0 {
+		return
+	}
+	pdf.Ln(4)
+	ensureRoom(pdf, 22)
+	pdf.SetFont("Helvetica", "B", 10.5)
+	pdf.SetTextColor(22, 22, 22)
+	pdf.CellFormat(0, 7, tr("Payments"), "", 1, "L", false, 0, "")
+	pdfPaymentHeader(pdf, tr)
+	for _, payment := range payments {
+		if ensureRoom(pdf, pdfLine+2) {
+			pdfPaymentHeader(pdf, tr)
+		}
+		pdf.SetFont("Helvetica", "", 10)
+		pdf.CellFormat(pdfPaymentColumns[0], pdfLine+1, tr(payment.Reference), "B", 0, "L", false, 0, "")
+		pdf.CellFormat(pdfPaymentColumns[1], pdfLine+1, tr(formatDate(payment.PaidAt)), "B", 0, "L", false, 0, "")
+		pdf.CellFormat(pdfPaymentColumns[2], pdfLine+1, tr(payment.Method), "B", 0, "L", false, 0, "")
+		pdf.CellFormat(pdfPaymentColumns[3], pdfLine+1, tr(formatPlain(payment.Amount)), "B", 1, "R", false, 0, "")
 	}
 }
 

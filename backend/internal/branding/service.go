@@ -3,6 +3,7 @@ package branding
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
@@ -832,29 +833,56 @@ func legalLink(legal Legal, kind LegalKind) (link string, internal bool) {
 // maxPDFLogoBytes bounds the logo read for PDF documents; uploads are limited to MaxAssetBytes anyway.
 const maxPDFLogoBytes = 2 << 20
 
-// RasterLogo returns the uploaded logo when it is a PNG or JPEG image. The bundled default logo is a frontend
-// asset and SVG logos cannot be drawn into a PDF, so documents then show the names only.
-func (s *Service) RasterLogo(ctx context.Context) (data []byte, contentType string, ok bool) {
+// defaultCompactLogo is a copy of the bundled frontend asset /brand/htumkr-symbol.png, so documents rendered by the
+// backend can show the default mark as well; TestDefaultCompactLogoMatchesFrontendAsset keeps the two in step.
+//
+//go:embed documentmark/htumkr-symbol.png
+var defaultCompactLogo []byte
+
+// DocumentMark is the brand at the top of generated documents, as in the application header: the compact logo
+// beside the legal organization name and the display name.
+type DocumentMark struct {
+	OrganizationName string
+	DisplayName      string
+	// Logo is PNG or JPEG data; LogoType is "image/png" or "image/jpeg". Logo is nil for an SVG logo, which
+	// cannot be drawn into a PDF, and when the logo cannot be read.
+	Logo     []byte
+	LogoType string
+}
+
+// DocumentMark returns the brand for generated documents.
+func (s *Service) DocumentMark(ctx context.Context) DocumentMark {
 	config, err := s.get(ctx)
 	if err != nil {
-		return nil, "", false
+		return DocumentMark{DisplayName: s.ApplicationName(ctx)}
 	}
-	logo, found := config.Assets[Logo]
-	if !found || logo.Mode != AssetCustom || logo.URL == nil || logo.ContentType == nil {
-		return nil, "", false
+	mark := DocumentMark{
+		OrganizationName: config.Identity.LegalOrganizationName,
+		DisplayName:      config.Identity.DisplayName,
 	}
-	if *logo.ContentType != "image/png" && *logo.ContentType != "image/jpeg" {
-		return nil, "", false
+	logo, found := config.Assets[CompactLogo]
+	switch {
+	case !found || logo.Mode == AssetDefault:
+		mark.Logo, mark.LogoType = defaultCompactLogo, "image/png"
+	case logo.URL != nil && logo.ContentType != nil &&
+		(*logo.ContentType == "image/png" || *logo.ContentType == "image/jpeg"):
+		if data, ok := s.readLogo(ctx, *logo.URL); ok {
+			mark.Logo, mark.LogoType = data, *logo.ContentType
+		}
 	}
-	digest := (*logo.URL)[strings.LastIndex(*logo.URL, "/")+1:]
-	asset, err := s.OpenPublicAsset(ctx, Logo, digest)
+	return mark
+}
+
+func (s *Service) readLogo(ctx context.Context, url string) ([]byte, bool) {
+	digest := url[strings.LastIndex(url, "/")+1:]
+	asset, err := s.OpenPublicAsset(ctx, CompactLogo, digest)
 	if err != nil {
-		return nil, "", false
+		return nil, false
 	}
 	defer func() { _ = asset.Reader.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(asset.Reader, maxPDFLogoBytes+1))
 	if err != nil || len(raw) > maxPDFLogoBytes {
-		return nil, "", false
+		return nil, false
 	}
-	return raw, *logo.ContentType, true
+	return raw, true
 }

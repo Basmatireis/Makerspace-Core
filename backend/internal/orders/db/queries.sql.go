@@ -1010,6 +1010,44 @@ func (q *Queries) InsertRequestEvent(ctx context.Context, arg InsertRequestEvent
 	return err
 }
 
+const invoicePayments = `-- name: InvoicePayments :many
+SELECT p.reference,p.method,p.occurred_at,sum(a.amount)::numeric AS amount FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
+WHERE a.order_id=$1 AND p.entry_kind='receipt'
+GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.occurred_at,p.reference
+`
+
+type InvoicePaymentsRow struct {
+	Reference  string
+	Method     string
+	OccurredAt time.Time
+	Amount     pgtype.Numeric
+}
+
+func (q *Queries) InvoicePayments(ctx context.Context, orderID *uuid.UUID) ([]InvoicePaymentsRow, error) {
+	rows, err := q.db.Query(ctx, invoicePayments, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InvoicePaymentsRow{}
+	for rows.Next() {
+		var i InvoicePaymentsRow
+		if err := rows.Scan(
+			&i.Reference,
+			&i.Method,
+			&i.OccurredAt,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestRequest = `-- name: LatestRequest :one
 SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE order_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1
 `

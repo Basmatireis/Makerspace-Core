@@ -142,8 +142,13 @@ func TestSettingsStartWithSendingSwitchedOffAndDocumentedDefaults(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Enabled || got.RecipientEmail != "" || got.ReplyToEmail != "" || got.Version != 1 || !got.ShowApprover {
+	// Migration 00066 renamed the placeholders of the shipped texts and moved the version on.
+	if got.Enabled || got.RecipientEmail != "" || got.ReplyToEmail != "" || got.Version != 2 || !got.ShowApprover {
 		t.Fatalf("defaults %+v", got)
+	}
+	if got.MailSubject != "Invoice request {{request_number}} for {{organization}}" ||
+		!strings.Contains(got.PDFClosing, "{{approved_on}}") {
+		t.Fatalf("shipped texts were not renamed: %+v", got.Templates)
 	}
 	if err = ValidateTemplates(got.Templates); err != nil {
 		t.Fatalf("shipped defaults are invalid: %v", err)
@@ -173,7 +178,7 @@ func TestSettingsUpdateValidatesAndAudits(t *testing.T) {
 	f := newSettingsFixture(t)
 	in := f.input(t)
 	saved, err := f.s.UpdateSettings(t.Context(), f.admin, in, nil)
-	if err != nil || !saved.Enabled || saved.Version != 2 || saved.RecipientEmail != "wiref@example.org" ||
+	if err != nil || !saved.Enabled || saved.Version != in.ExpectedVersion+1 || saved.RecipientEmail != "wiref@example.org" ||
 		len(saved.CCEmails) != 1 || saved.ReplyToEmail != "lab@example.org" {
 		t.Fatalf("update %v %+v", err, saved)
 	}
@@ -290,7 +295,7 @@ func TestDeliverReportsMissingConfigurationAndFailureCodes(t *testing.T) {
 func TestPreviewRendersUnsavedTemplatesAndTestMailMarksItself(t *testing.T) {
 	f := newSettingsFixture(t)
 	templates := defaultSettings().Templates
-	templates.MailIntro = "Draft text for {{organisation}}."
+	templates.MailIntro = "Draft text for {{organization}}."
 	preview, err := f.s.PreviewMail(t.Context(), f.admin, templates)
 	if err != nil || !strings.Contains(preview.HTML, "Draft text for Example University") ||
 		!strings.Contains(preview.Subject, "W-2026-000123") || strings.Contains(preview.HTML, "<script") {

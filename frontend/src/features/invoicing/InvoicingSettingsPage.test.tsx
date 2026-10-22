@@ -12,7 +12,7 @@ const settings: WiRefDeliverySettings = {
   recipientEmail: '',
   ccEmails: [],
   replyToEmail: '',
-  mailSubject: 'Invoice request {{anforderungsnummer}}',
+  mailSubject: 'Invoice request {{request_number}}',
   mailIntro: 'Intro',
   mailClosing: 'Closing',
   pdfTitle: 'Title',
@@ -24,8 +24,8 @@ const settings: WiRefDeliverySettings = {
   showServicePeriod: true,
   showServiceDescription: true,
   placeholders: [
-    { token: '{{organisation}}', description: 'Name of the invoice recipient.' },
-    { token: '{{summe}}', description: 'Amount to invoice.' },
+    { token: '{{organization}}', description: 'Name of the invoice recipient.' },
+    { token: '{{amount_to_invoice}}', description: 'Amount to invoice.' },
   ],
   version: 1,
   updatedAt: '2026-10-21T00:00:00Z',
@@ -44,7 +44,7 @@ describe('invoicing settings', () => {
     const user = userEvent.setup();
     renderRoute(<InvoicingSettingsPage />, '/settings/invoicing');
     expect(await screen.findByRole('heading', { name: 'Invoicing' })).toBeInTheDocument();
-    expect(await screen.findByText('{{organisation}}')).toBeInTheDocument();
+    expect(await screen.findByText('{{organization}}')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send test mail' })).toBeDisabled();
     await user.click(screen.getByRole('switch', { name: 'Send approved requests to wiRef' }));
     await user.type(screen.getByLabelText('wiRef email address'), 'wiref@example.test');

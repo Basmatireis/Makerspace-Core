@@ -321,7 +321,8 @@ func applyMail(r *run, entry *mailEntry) (func() error, error) {
 }
 
 // Invoicing: the wiRef recipient, CC list, Reply-To address, templates and field toggles. Templates use the placeholder
-// validation of the settings endpoint.
+// validation of the settings endpoint; the German placeholder names of files exported by 0.8.3 and 0.8.4 are renamed
+// first.
 
 type invoicingEntry struct {
 	Enabled                bool     `json:"enabled"`
@@ -353,6 +354,11 @@ func invoicingSection() section {
 				&entry.PDFTitle, &entry.PDFIntro, &entry.PDFClosing,
 			} {
 				*field = strings.TrimSpace(*field)
+			}
+			for _, field := range []*string{
+				&entry.MailSubject, &entry.MailIntro, &entry.MailClosing, &entry.PDFTitle, &entry.PDFIntro, &entry.PDFClosing,
+			} {
+				*field = invoicing.RenameLegacyPlaceholders(*field)
 			}
 			if entry.CCEmails == nil {
 				entry.CCEmails = []string{}

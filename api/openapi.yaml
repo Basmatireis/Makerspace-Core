@@ -10168,7 +10168,7 @@ components:
       additionalProperties: false
       required: [token, description]
       properties:
-        token: {type: string, description: "The text to write into a template, for example {{organisation}}."}
+        token: {type: string, description: "The text to write into a template, for example {{organization}}."}
         description: {type: string}
     WiRefDeliverySettings:
       type: object

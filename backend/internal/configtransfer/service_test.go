@@ -245,6 +245,7 @@ func (e *env) seed() {
 		Password: smtpPassword, FromAddress: "lab@example.test", FromName: "Transfer Lab",
 		BaseURL: "https://lab.example.test", ExpectedVersion: 1,
 	}, nil))
+	wiref := must(e.s.Invoicing.GetSettings(ctx, p))
 	must(e.s.Invoicing.UpdateSettings(ctx, p, invoicing.SettingsInput{
 		Templates: invoicing.Templates{
 			MailSubject: "Invoice request", MailIntro: "Hello", MailClosing: "Thanks",
@@ -252,7 +253,7 @@ func (e *env) seed() {
 			ShowContactPerson: true, ShowPurchaseOrder: true,
 		},
 		Enabled: true, RecipientEmail: "wiref@example.test", CCEmails: []string{"cc@example.test"},
-		ReplyToEmail: "lab@example.test", ExpectedVersion: 1,
+		ReplyToEmail: "lab@example.test", ExpectedVersion: wiref.Version,
 	}, nil))
 }
 
@@ -716,7 +717,8 @@ func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
 	if invoicingSettings["replyToEmail"] != "lab@example.test" {
 		t.Fatalf("exported replyToEmail = %v", invoicingSettings["replyToEmail"])
 	}
-	invoicingSettings["mailSubject"] = "Changed"
+	// Files exported by 0.8.3 and 0.8.4 carry the German placeholder names; they import under the English ones.
+	invoicingSettings["mailSubject"] = "Changed {{anforderungsnummer}}"
 	invoicingSettings["replyToEmail"] = "office@example.test"
 	changed, _ := json.Marshal(parsed)
 	report := must(e.svc.Apply(e.ctx, importer, ModeOverwrite, keys, must(preview(importer, changed)).Fingerprint,
@@ -727,7 +729,7 @@ func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
 	var subject, replyTo string
 	if err := e.pool.QueryRow(e.ctx, `SELECT mail_subject, reply_to_email FROM wiref_delivery_settings`).Scan(
 		&subject, &replyTo,
-	); err != nil || subject != "Changed" || replyTo != "office@example.test" {
+	); err != nil || subject != "Changed {{request_number}}" || replyTo != "office@example.test" {
 		t.Fatalf("subject = %q, reply-to = %q, %v", subject, replyTo, err)
 	}
 	var audits int

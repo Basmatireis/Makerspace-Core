@@ -19,13 +19,17 @@ func TestValidateTemplateAcceptsWhitelistedPlaceholders(t *testing.T) {
 func TestValidateTemplateRejectsUnknownAndMalformedPlaceholders(t *testing.T) {
 	for _, text := range []string{
 		"{{unknown}}",
-		"{{ organisation }}",
-		"{{organisation",
-		"organisation}}",
+		"{{ organization }}",
+		"{{organization",
+		"organization}}",
 		"{{}}",
 		"{{.Organisation}}",
 		"{{template \"x\"}}",
-		"{{organisation}} {{nope}}",
+		"{{organization}} {{nope}}",
+		// The German names before migration 00065 are not aliases.
+		"{{organisation}}",
+		"{{anforderungsnummer}}",
+		"{{datum}}",
 	} {
 		if err := ValidateTemplate(text); err == nil {
 			t.Errorf("%q accepted", text)
@@ -34,11 +38,11 @@ func TestValidateTemplateRejectsUnknownAndMalformedPlaceholders(t *testing.T) {
 }
 
 func TestSubstituteReplacesOnlyWhitelistedValuesInOnePass(t *testing.T) {
-	got := Substitute("A {{organisation}} B {{summe}} {{unknown}}", map[string]string{
-		"organisation": "{{summe}}",
-		"summe":        "EUR 5.00",
+	got := Substitute("A {{organization}} B {{amount_to_invoice}} {{unknown}}", map[string]string{
+		"organization":      "{{amount_to_invoice}}",
+		"amount_to_invoice": "EUR 5.00",
 	})
-	if want := "A {{summe}} B EUR 5.00 {{unknown}}"; got != want {
+	if want := "A {{amount_to_invoice}} B EUR 5.00 {{unknown}}"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -57,12 +61,12 @@ func TestSwitchedOffFieldsYieldEmptyPlaceholders(t *testing.T) {
 	settings := defaultSettings()
 	settings.ShowApprover, settings.ShowContactPerson, settings.ShowPurchaseOrder = false, false, false
 	values := SampleDocument(sampleTime()).values(settings)
-	for _, name := range []string{"freigegeben_von", "kontaktperson", "bestellreferenz"} {
+	for _, name := range []string{"approved_by", "contact_person", "purchase_order_reference"} {
 		if values[name] != "" {
 			t.Errorf("%s = %q, want empty", name, values[name])
 		}
 	}
-	if values["organisation"] == "" || values["summe"] != "EUR 81.50" {
+	if values["organization"] == "" || values["amount_to_invoice"] != "EUR 81.50" {
 		t.Errorf("unexpected values %v", values)
 	}
 }
@@ -71,6 +75,18 @@ func TestFormatAmountGroupsThousands(t *testing.T) {
 	for in, want := range map[string]string{"1234.5": "EUR 1,234.50", "0": "EUR 0.00", "-12.345": "-EUR 12.35", "1000000": "EUR 1,000,000.00"} {
 		if got := formatAmount(in); got != want {
 			t.Errorf("formatAmount(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestRenameLegacyPlaceholdersOnlyTouchesTheGermanNames(t *testing.T) {
+	got := RenameLegacyPlaceholders("{{anforderungsnummer}} {{organisation}} {{summe}} {{datum}} {{organization}} {{nope}} summe")
+	if want := "{{request_number}} {{organization}} {{amount_to_invoice}} {{approved_on}} {{organization}} {{nope}} summe"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	for old := range legacyPlaceholders {
+		if err := ValidateTemplate(RenameLegacyPlaceholders("{{" + old + "}}")); err != nil {
+			t.Errorf("%s: %v", old, err)
 		}
 	}
 }

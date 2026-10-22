@@ -3,6 +3,8 @@ package invoicing
 import (
 	"bytes"
 	"compress/zlib"
+	"image"
+	"image/png"
 	"io"
 	"regexp"
 	"strings"
@@ -19,12 +21,12 @@ func defaultSettings() Settings {
 		Enabled:        true,
 		RecipientEmail: "wiref@example.org",
 		Templates: Templates{
-			MailSubject:            "Invoice request {{anforderungsnummer}} for {{organisation}}",
-			MailIntro:              "Approved on {{datum}}.\n\nPlease invoice {{organisation}}.",
+			MailSubject:            "Invoice request {{request_number}} for {{organization}}",
+			MailIntro:              "Approved on {{approved_on}}.\n\nPlease invoice {{organization}}.",
 			MailClosing:            "Thanks.",
-			PDFTitle:               "Invoice request {{anforderungsnummer}}",
-			PDFIntro:               "Please invoice {{organisation}} ({{bestellreferenz}}).",
-			PDFClosing:             "Approved by {{freigegeben_von}} on {{datum}}.",
+			PDFTitle:               "Invoice request {{request_number}}",
+			PDFIntro:               "Please invoice {{organization}} ({{purchase_order_reference}}).",
+			PDFClosing:             "Approved by {{approved_by}} on {{approved_on}}.",
 			ShowContactPerson:      true,
 			ShowApprover:           true,
 			ShowPurchaseOrder:      true,
@@ -55,7 +57,7 @@ func pdfText(t *testing.T, data []byte) string {
 
 func TestRenderPDFProducesAValidDocumentWithTotals(t *testing.T) {
 	data, err := RenderPDF(notifications.Branding{ApplicationName: "Makerspace", PrimaryColor: "#0f62fe"},
-		nil, defaultSettings(), SampleDocument(sampleTime()))
+		Mark{}, defaultSettings(), SampleDocument(sampleTime()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +79,8 @@ func TestRenderPDFKeepsUmlautsAndEuroSign(t *testing.T) {
 	d := SampleDocument(sampleTime())
 	d.Organisation = "Universität für Gestaltung Müßig"
 	settings := defaultSettings()
-	settings.PDFIntro = "Preis in € für {{organisation}}"
-	data, err := RenderPDF(notifications.Branding{}, nil, settings, d)
+	settings.PDFIntro = "Preis in € für {{organization}}"
+	data, err := RenderPDF(notifications.Branding{}, Mark{}, settings, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestRenderPDFHidesSwitchedOffFields(t *testing.T) {
 	settings := defaultSettings()
 	settings.ShowApprover, settings.ShowContactPerson, settings.ShowPurchaseOrder = false, false, false
 	settings.ShowServicePeriod, settings.ShowServiceDescription = false, false
-	data, err := RenderPDF(notifications.Branding{}, nil, settings, SampleDocument(sampleTime()))
+	data, err := RenderPDF(notifications.Branding{}, Mark{}, settings, SampleDocument(sampleTime()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +115,7 @@ func TestRenderPDFBreaksLongItemListsOverPages(t *testing.T) {
 		d.Items = append(d.Items, Item{Description: strings.Repeat("Long description ", 8), Quantity: "1", Unit: "pc", UnitPrice: "1.00", Amount: "1.00"})
 	}
 	d.Total = "161.50"
-	data, err := RenderPDF(notifications.Branding{}, nil, defaultSettings(), d)
+	data, err := RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,4 +140,65 @@ func TestMailContentShowsPrepaymentSplit(t *testing.T) {
 			t.Errorf("rows lack %q: %s", want, joined.String())
 		}
 	}
+}
+
+func TestRenderPDFHeaderFollowsTheApplicationHeader(t *testing.T) {
+	logo := &bytes.Buffer{}
+	if err := png.Encode(logo, image.NewRGBA(image.Rect(0, 0, 46, 51))); err != nil {
+		t.Fatal(err)
+	}
+	mark := Mark{OrganizationName: "HTU Graz", DisplayName: "Makerspace", Logo: &Logo{Data: logo.Bytes(), Type: "PNG"}}
+	data, err := RenderPDF(notifications.Branding{ApplicationName: "HTU Graz Makerspace"}, mark, defaultSettings(),
+		SampleDocument(sampleTime()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := pdfText(t, data)
+	for _, want := range []string{"(HTU GRAZ)", "(Makerspace)", "/Subtype /Image"} {
+		if !strings.Contains(text, want) && !bytes.Contains(data, []byte(want)) {
+			t.Errorf("PDF lacks %q", want)
+		}
+	}
+	if strings.Contains(text, "(HTU Graz Makerspace)") {
+		t.Error("header shows the application name instead of the display name")
+	}
+}
+
+func TestRenderPDFListsPaymentsWithTheirIDs(t *testing.T) {
+	d := SampleDocument(sampleTime())
+	d.AlreadyPaid = "30.00"
+	d.Payments = []Payment{
+		{Reference: "P-2026-000011", Method: "Cash", PaidAt: sampleTime(), Amount: "30.00"},
+		{Reference: "P-2026-000012", Method: "wiRef invoice", PaidAt: sampleTime(), Amount: "51.50"},
+	}
+	data, err := RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := pdfText(t, data)
+	for _, want := range []string{"Payment ID", "P-2026-000011", "P-2026-000012", "Cash", "wiRef invoice", "51.50"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("PDF text lacks %q", want)
+		}
+	}
+	d.Payments = nil
+	data, err = RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(pdfText(t, data), "Payment ID") {
+		t.Error("payment table drawn without payments")
+	}
+}
+
+func TestMailContentListsPayments(t *testing.T) {
+	d := SampleDocument(sampleTime())
+	d.Payments = []Payment{{Reference: "P-2026-000011", Method: "Card", PaidAt: sampleTime(), Amount: "12.00"}}
+	_, content := defaultSettings().MailContent(d)
+	for _, row := range content.Rows {
+		if row.Label == "Payment P-2026-000011" && strings.Contains(row.Value, "Card, EUR 12.00") {
+			return
+		}
+	}
+	t.Errorf("payment row missing: %+v", content.Rows)
 }

@@ -14,20 +14,20 @@ type Placeholder struct {
 	Description string
 }
 
-// Token is the text a template author writes, for example {{organisation}}.
+// Token is the text a template author writes, for example {{organization}}.
 func (p Placeholder) Token() string { return "{{" + p.Name + "}}" }
 
-// Placeholders is the closed whitelist of template tokens. Names are German because the accounting office and the
-// people who write the templates are; the application UI around them stays English.
+// Placeholders is the closed whitelist of template tokens. Migration 00066 renamed the earlier German names; old
+// names are not accepted as aliases, so a stored template only ever uses this list.
 var Placeholders = []Placeholder{
-	{"organisation", "Name of the invoice recipient (organization or person)."},
-	{"kontaktperson", "Contact person of the recipient. Empty when the contact person is switched off or unknown."},
-	{"bestellreferenz", "Purchase order reference of the recipient. Empty when switched off or not given."},
-	{"anforderungsnummer", "Number of the invoice request in this system, for example W-2026-000001."},
-	{"auftragsnummer", "Number of the order the invoice request belongs to."},
-	{"summe", "Amount to invoice in EUR: the order total minus cash and card payments already received."},
-	{"freigegeben_von", "Name of the person who approved the request. Empty when the approver is switched off."},
-	{"datum", "Date of the approval (DD.MM.YYYY)."},
+	{"organization", "Name of the invoice recipient (organization or person)."},
+	{"contact_person", "Contact person of the recipient. Empty when the contact person is switched off or unknown."},
+	{"purchase_order_reference", "Purchase order reference of the recipient. Empty when switched off or not given."},
+	{"request_number", "Number of the invoice request in this system, for example W-2026-000001."},
+	{"order_number", "Number of the order the invoice request belongs to."},
+	{"amount_to_invoice", "Amount to invoice in EUR: the order total minus cash and card payments already received."},
+	{"approved_by", "Name of the person who approved the request. Empty when the approver is switched off."},
+	{"approved_on", "Date of the approval (DD.MM.YYYY)."},
 }
 
 var (
@@ -40,6 +40,30 @@ var (
 		return names
 	}()
 )
+
+// legacyPlaceholders are the German names of releases 0.8.3 and 0.8.4 with their English successors. Migration 00066
+// rewrote stored templates; only configuration files exported by those releases still contain the old names.
+var legacyPlaceholders = map[string]string{
+	"organisation":       "organization",
+	"kontaktperson":      "contact_person",
+	"bestellreferenz":    "purchase_order_reference",
+	"anforderungsnummer": "request_number",
+	"auftragsnummer":     "order_number",
+	"summe":              "amount_to_invoice",
+	"freigegeben_von":    "approved_by",
+	"datum":              "approved_on",
+}
+
+// RenameLegacyPlaceholders rewrites the German placeholder names of an imported template to their English names and
+// leaves every other token alone, so an older configuration file imports like a current one.
+func RenameLegacyPlaceholders(text string) string {
+	return placeholderPattern.ReplaceAllStringFunc(text, func(token string) string {
+		if name, ok := legacyPlaceholders[token[2:len(token)-2]]; ok {
+			return "{{" + name + "}}"
+		}
+		return token
+	})
+}
 
 // ValidateTemplate rejects text that contains an unknown placeholder or a brace pair that is not a placeholder.
 // Rejecting on save means a typo can never reach an outgoing mail.

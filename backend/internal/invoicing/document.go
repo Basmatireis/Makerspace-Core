@@ -16,6 +16,15 @@ type Item struct {
 	Amount      string
 }
 
+// Payment is one payment that counts towards the order: a cash or card receipt, or the settlement by this
+// invoice. Amount is what the payment contributes to the order, as a decimal string.
+type Payment struct {
+	Reference string
+	Method    string
+	PaidAt    time.Time
+	Amount    string
+}
+
 // Document is everything the mail and the PDF show about one approved invoice request. The orders package fills
 // it; the settings decide which optional parts are rendered.
 type Document struct {
@@ -29,6 +38,7 @@ type Document struct {
 	Items                  []Item
 	Total                  string
 	AlreadyPaid            string
+	Payments               []Payment
 	ServiceStartsOn        string
 	ServiceEndsOn          string
 	ServiceDescription     string
@@ -57,20 +67,20 @@ func (d Document) hasPrepayment() bool {
 // mentions it still reads sensibly.
 func (d Document) values(s Settings) map[string]string {
 	values := map[string]string{
-		"organisation":       d.Organisation,
-		"anforderungsnummer": d.RequestNumber,
-		"auftragsnummer":     d.OrderNumber,
-		"summe":              formatAmount(d.amountToInvoice().StringFixed(2)),
-		"datum":              formatDate(d.ApprovedAt),
+		"organization":      d.Organisation,
+		"request_number":    d.RequestNumber,
+		"order_number":      d.OrderNumber,
+		"amount_to_invoice": formatAmount(d.amountToInvoice().StringFixed(2)),
+		"approved_on":       formatDate(d.ApprovedAt),
 	}
 	if s.ShowContactPerson {
-		values["kontaktperson"] = d.ContactName
+		values["contact_person"] = d.ContactName
 	}
 	if s.ShowPurchaseOrder {
-		values["bestellreferenz"] = d.PurchaseOrderReference
+		values["purchase_order_reference"] = d.PurchaseOrderReference
 	}
 	if s.ShowApprover {
-		values["freigegeben_von"] = d.Approver
+		values["approved_by"] = d.Approver
 	}
 	for _, p := range Placeholders {
 		if _, ok := values[p.Name]; !ok {
@@ -159,6 +169,7 @@ func SampleDocument(now time.Time) Document {
 		},
 		Total:              "81.50",
 		AlreadyPaid:        "0.00",
+		Payments:           []Payment{{Reference: "P-2026-000789", Method: "wiRef invoice", PaidAt: now, Amount: "81.50"}},
 		ServiceStartsOn:    "2026-10-01",
 		ServiceEndsOn:      "2026-10-15",
 		ServiceDescription: "Prototype parts for the sample project.",

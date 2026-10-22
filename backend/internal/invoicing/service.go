@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -53,21 +54,22 @@ type Notifier interface {
 	Branding(ctx context.Context) notifications.Branding
 }
 
-// LogoSource returns the organization logo when it is a PNG or JPEG image.
-type LogoSource interface {
-	RasterLogo(ctx context.Context) (data []byte, contentType string, ok bool)
+// MarkSource returns the brand shown at the top of the PDF.
+type MarkSource interface {
+	DocumentMark(ctx context.Context) branding.DocumentMark
 }
 
 // Service owns the wiRef delivery settings and sends the mail.
 type Service struct {
 	pool     *pgxpool.Pool
 	notifier Notifier
-	logos    LogoSource
+	marks    MarkSource
 }
 
-// NewService returns the delivery service. logos may be nil; the PDF header then shows the names only.
-func NewService(pool *pgxpool.Pool, notifier Notifier, logos LogoSource) *Service {
-	return &Service{pool: pool, notifier: notifier, logos: logos}
+// NewService returns the delivery service. marks may be nil; the PDF header then shows the application and
+// organization names of the mail branding without a logo.
+func NewService(pool *pgxpool.Pool, notifier Notifier, marks MarkSource) *Service {
+	return &Service{pool: pool, notifier: notifier, marks: marks}
 }
 
 // Deliver renders and sends the document with the saved settings. It never returns an error: the caller records the
@@ -115,18 +117,19 @@ func failed(ctx context.Context, code string) Outcome {
 }
 
 func (s *Service) pdf(ctx context.Context, settings Settings, d Document) ([]byte, error) {
-	var logo *Logo
-	if s.logos != nil {
-		if data, contentType, ok := s.logos.RasterLogo(ctx); ok {
-			switch contentType {
-			case "image/png":
-				logo = &Logo{Data: data, Type: "PNG"}
-			case "image/jpeg":
-				logo = &Logo{Data: data, Type: "JPG"}
-			}
+	brand := s.notifier.Branding(ctx)
+	mark := Mark{OrganizationName: brand.OrganizationName, DisplayName: brand.ApplicationName}
+	if s.marks != nil {
+		source := s.marks.DocumentMark(ctx)
+		mark = Mark{OrganizationName: source.OrganizationName, DisplayName: source.DisplayName}
+		switch source.LogoType {
+		case "image/png":
+			mark.Logo = &Logo{Data: source.Logo, Type: "PNG"}
+		case "image/jpeg":
+			mark.Logo = &Logo{Data: source.Logo, Type: "JPG"}
 		}
 	}
-	return RenderPDF(s.notifier.Branding(ctx), logo, settings, d)
+	return RenderPDF(brand, mark, settings, d)
 }
 
 var unsafeFilename = regexp.MustCompile(`[^A-Za-z0-9._-]+`)

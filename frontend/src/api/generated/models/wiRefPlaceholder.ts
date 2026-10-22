@@ -20,7 +20,7 @@
  */
 
 export interface WiRefPlaceholder {
-  /** The text to write into a template, for example {{organisation}}. */
+  /** The text to write into a template, for example {{organization}}. */
   token: string;
   description: string;
 }

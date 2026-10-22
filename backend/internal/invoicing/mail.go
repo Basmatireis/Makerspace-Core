@@ -118,7 +118,14 @@ func (s Settings) MailContent(d Document) (subject string, content notifications
 		}
 		content.Rows = append(content.Rows, notifications.Row{Label: item.Description, Value: value})
 	}
-	for _, row := range append(d.totals(), d.approval(s)...) {
+	rows := d.totals()
+	for _, payment := range d.Payments {
+		rows = append(rows, detail{
+			"Payment " + payment.Reference,
+			formatDate(payment.PaidAt) + ", " + payment.Method + ", " + formatAmount(payment.Amount),
+		})
+	}
+	for _, row := range append(rows, d.approval(s)...) {
 		content.Rows = append(content.Rows, notifications.Row{Label: row.Label, Value: row.Value})
 	}
 	return subject, content

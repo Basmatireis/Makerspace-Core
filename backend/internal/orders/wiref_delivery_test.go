@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
@@ -308,5 +309,51 @@ func TestResendRefusesAnOverlappingSendAndSurvivesAClientDisconnect(t *testing.T
 	reloaded, err := f.s.GetRequest(t.Context(), a.approver, issued.ID)
 	if err != nil || reloaded.WiRefDelivery == nil || reloaded.WiRefDelivery.Status != "sent" {
 		t.Fatalf("outcome not recorded: %v %+v", err, reloaded.WiRefDelivery)
+	}
+}
+
+func TestForwardedDocumentListsThePaymentsThatCount(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	a := f.actors(t)
+	delivery := &recordingDelivery{pool: f.pool, outcome: invoicing.Outcome{Status: invoicing.DeliverySent}}
+	f.s.WithInvoiceDelivery(delivery)
+	o := f.finalized(t, "10")
+	o = f.pay(t, o, "cash", "3")
+	refunded := *o.Allocations[0].PaymentID
+	o, e := f.s.ReversePayment(ctx, f.p, refunded, ReversePaymentCommand{
+		OperationKey:    ids.New(),
+		ExpectedVersion: o.Version,
+		Reversal:        PaymentReversalInput{PaymentID: refunded, ReasonKind: "refund", Reason: "r", OccurredAt: time.Now()},
+	}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	o = f.pay(t, o, "card", "4")
+	r := f.newRequest(t, a.staff, o)
+	r = f.ok(t, a.staff, r, "submit", nil)
+	f.ok(t, a.approver, r, "forward", nil)
+	if delivery.calls() != 1 {
+		t.Fatalf("deliveries %d", delivery.calls())
+	}
+	payments := delivery.documents[0].Payments
+	if len(payments) != 2 {
+		t.Fatalf("payments %+v", payments)
+	}
+	card, settlement := payments[0], payments[1]
+	if card.Method != "Card" || card.Amount != "4.00" || !strings.HasPrefix(card.Reference, "P-") || card.PaidAt.IsZero() {
+		t.Fatalf("card payment %+v", card)
+	}
+	if settlement.Method != "wiRef invoice" || settlement.Amount != "6.00" || settlement.Reference == card.Reference {
+		t.Fatalf("settlement %+v", settlement)
+	}
+	var refundedReference string
+	if e = f.pool.QueryRow(ctx, "SELECT reference FROM payments WHERE id=$1", refunded).Scan(&refundedReference); e != nil {
+		t.Fatal(e)
+	}
+	for _, p := range payments {
+		if p.Reference == refundedReference {
+			t.Fatal("a refunded payment is listed")
+		}
 	}
 }

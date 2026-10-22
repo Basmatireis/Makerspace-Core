@@ -199,3 +199,8 @@ INSERT INTO external_invoice_request_deliveries(request_id,status,attempted_at,f
 ON CONFLICT (request_id) DO UPDATE SET status=EXCLUDED.status,attempted_at=EXCLUDED.attempted_at,failure_code=EXCLUDED.failure_code;
 -- name: GetRequestWiRefDelivery :one
 SELECT status,attempted_at,failure_code FROM external_invoice_request_deliveries WHERE request_id=$1;
+
+-- name: InvoicePayments :many
+SELECT p.reference,p.method,p.occurred_at,sum(a.amount)::numeric AS amount FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
+WHERE a.order_id=$1 AND p.entry_kind='receipt'
+GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.occurred_at,p.reference;

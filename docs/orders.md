@@ -62,7 +62,7 @@ Confirming the external cancellation reverses the settling payment (a reversal w
 
 ### Delivery to wiRef
 
-When a request is forwarded (`submitted → issued`), Core mails the invoice information to the wiRef address configured under **Settings › Sales & invoicing › Invoicing** (permission `invoicing.settings.manage`; `master` has it through the registry, existing Roles do not). The mail is the shared branded HTML layout with a PDF attachment (`invoice-request-W-2026-000001.pdf`) that carries the same data: recipient, address, optional contact person, purchase order reference, service period and description, the line items with quantity, unit price and amount, the total (with already paid and amount to invoice when cash or card was received) and the approver.
+When a request is forwarded (`submitted → issued`), Core mails the invoice information to the wiRef address configured under **Settings › Sales & invoicing › Invoicing** (permission `invoicing.settings.manage`; `master` has it through the registry, existing Roles do not). The mail is the shared branded HTML layout with a PDF attachment (`invoice-request-W-2026-000001.pdf`) that carries the same data: recipient, address, optional contact person, purchase order reference, service period and description, the line items with quantity, unit price and amount, the total (with already paid and amount to invoice when cash or card was received), the payments and the approver. The payments are those that still count towards the Order (net allocation above zero, so refunded or corrected ones are left out), oldest first, each with its `P-…` payment ID, date, method (Cash, Card, or wiRef invoice for the settlement created by forwarding) and the amount it contributes to the Order; payer, recorder and card terminal references are not included.
 
 Sending happens **after** the forwarding transaction commits and holds no lock; a delivery problem never undoes the forwarding. The outcome is stored per request in `external_invoice_request_deliveries` and returned as `wirefDelivery` (`status` `not_configured`, `sent` or `failed`, `attemptedAt`, `failureCode`), with its own audit event `external_invoice_request.wiref_delivery_<status>`. `not_configured` means sending was switched off or had no address; the invoice section then links to the settings. Failure codes are `mail_disabled` (SMTP switched off), `send_failed`, `render_failed`; neither addresses nor message bodies are logged or stored. An approver (`external_invoice_requests.approve`) can **Resend to wiRef** for an issued request at any time, for example after a failure or once the settings are complete; the request version does not change.
 
@@ -72,18 +72,20 @@ Core does not receive mail. Replies from the accounting office go to the Reply-T
 
 Texts may contain these placeholders and nothing else. Replacement is a single pass of plain string substitution over this whitelist (no template engine; a value that looks like a placeholder is not expanded again), mail HTML escapes every value, and unknown or malformed `{{...}}` is rejected on save with `422 wiref_template_invalid`. Placeholders of switched-off optional fields are empty.
 
-| Placeholder              | Value                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| `{{organisation}}`       | Recipient name                                                                      |
-| `{{kontaktperson}}`      | Contact person (empty when switched off)                                            |
-| `{{bestellreferenz}}`    | Purchase order reference (empty when switched off)                                  |
-| `{{anforderungsnummer}}` | Invoice request number, `W-2026-000001`                                             |
-| `{{auftragsnummer}}`     | Order number                                                                        |
-| `{{summe}}`              | Amount to invoice in EUR (order total minus cash and card received), `EUR 1,234.50` |
-| `{{freigegeben_von}}`    | Approver (empty when switched off)                                                  |
-| `{{datum}}`              | Approval date, `DD.MM.YYYY` (Europe/Vienna)                                         |
+| Placeholder                    | Value                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `{{organization}}`             | Recipient name                                                                      |
+| `{{contact_person}}`           | Contact person (empty when switched off)                                            |
+| `{{purchase_order_reference}}` | Purchase order reference (empty when switched off)                                  |
+| `{{request_number}}`           | Invoice request number, `W-2026-000001`                                             |
+| `{{order_number}}`             | Order number                                                                        |
+| `{{amount_to_invoice}}`        | Amount to invoice in EUR (order total minus cash and card received), `EUR 1,234.50` |
+| `{{approved_by}}`              | Approver (empty when switched off)                                                  |
+| `{{approved_on}}`              | Approval date, `DD.MM.YYYY` (Europe/Vienna)                                         |
 
-The PDF is generated in pure Go with `github.com/go-pdf/fpdf` (MIT) using the built-in Helvetica font in cp1252, which covers German umlauts, ß and the euro sign; characters outside that set are replaced. The header shows the application and organization names and, when a PNG or JPEG logo was uploaded under Branding, the logo (the bundled default logo and SVG logos are omitted).
+Up to release 0.8.4 the placeholders had German names (`{{organisation}}`, `{{kontaktperson}}`, `{{bestellreferenz}}`, `{{anforderungsnummer}}`, `{{auftragsnummer}}`, `{{summe}}`, `{{freigegeben_von}}`, `{{datum}}`, in the order of the table). Migration 00066 rewrote the stored texts token by token and moved the settings version on. The old names are not accepted when saving, so stored texts only ever use the list above; configuration import renames them, so files exported by 0.8.3 and 0.8.4 still import.
+
+The PDF is generated in pure Go with `github.com/go-pdf/fpdf` (MIT) using the built-in Helvetica font in cp1252, which covers German umlauts, ß and the euro sign; characters outside that set are replaced. The header follows the application header: the compact logo on the left (the bundled default or an uploaded PNG or JPEG; SVG logos are omitted), beside it the legal organization name in capitals above the display name. The backend embeds a copy of the default logo (`backend/internal/branding/documentmark/`); a test fails when it differs from `frontend/public/brand/htumkr-symbol.png`.
 
 Recipient details are stored separately from the request header and stay editable while the request is a draft or awaiting approval (the item summary and `alreadyPaid` never change after submission); they freeze when it is issued. The UI exposes the purchase order configuration on the organization page (Directory › Organizations). Organization address and contact are stored on the organization (see [Machine logbook](machine-logbook.md)) and prefill the recipient details.
 

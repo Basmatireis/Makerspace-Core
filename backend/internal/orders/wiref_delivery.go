@@ -30,8 +30,34 @@ func (s *Service) WithInvoiceDelivery(delivery InvoiceDelivery) *Service {
 	return s
 }
 
+// paymentMethodLabels name the payment methods in the mail and the PDF.
+var paymentMethodLabels = map[PaymentMethod]string{
+	PaymentCash:     "Cash",
+	PaymentCard:     "Card",
+	PaymentExternal: "wiRef invoice",
+}
+
+// invoicePayments are the receipts that still count towards the order, with the amount each contributes to it. Only
+// reference, method, date and amount leave the system; payer, recorder and card references do not.
+func invoicePayments(rows []db.InvoicePaymentsRow) []invoicing.Payment {
+	payments := make([]invoicing.Payment, 0, len(rows))
+	for _, row := range rows {
+		method, ok := paymentMethodLabels[PaymentMethod(row.Method)]
+		if !ok {
+			method = row.Method
+		}
+		payments = append(payments, invoicing.Payment{
+			Reference: row.Reference,
+			Method:    method,
+			PaidAt:    row.OccurredAt,
+			Amount:    money(row.Amount),
+		})
+	}
+	return payments
+}
+
 // invoiceDocument collects what the mail and the PDF show. The approver is whoever issued the request.
-func invoiceDocument(r ExternalInvoiceRequest) invoicing.Document {
+func invoiceDocument(r ExternalInvoiceRequest, payments []invoicing.Payment) invoicing.Document {
 	document := invoicing.Document{
 		Organisation:           r.Details.RecipientName,
 		ContactName:            r.Details.ContactName,
@@ -44,6 +70,7 @@ func invoiceDocument(r ExternalInvoiceRequest) invoicing.Document {
 		ServiceStartsOn:        r.Details.ServiceStartsOn,
 		ServiceEndsOn:          r.Details.ServiceEndsOn,
 		ServiceDescription:     r.Details.ServiceDescription,
+		Payments:               payments,
 	}
 	for _, line := range []string{
 		r.Details.AddressLine1,
@@ -117,7 +144,11 @@ func (s *Service) sendAndRecord(
 	// with the request, but they are bounded.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deliveryTimeout)
 	defer cancel()
-	outcome := s.delivery.Deliver(ctx, invoiceDocument(r))
+	payments, err := db.New(s.pool).InvoicePayments(ctx, r.OrderID)
+	if err != nil {
+		return r, err
+	}
+	outcome := s.delivery.Deliver(ctx, invoiceDocument(r, invoicePayments(payments)))
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return r, err
