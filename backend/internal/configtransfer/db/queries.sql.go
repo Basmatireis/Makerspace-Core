@@ -167,7 +167,7 @@ func (q *Queries) GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVis
 }
 
 const getWirefDeliverySettings = `-- name: GetWirefDeliverySettings :one
-SELECT enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing,
+SELECT enabled, recipient_email, cc_emails, reply_to_email, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing,
     show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version
 FROM wiref_delivery_settings WHERE singleton = true
 `
@@ -176,6 +176,7 @@ type GetWirefDeliverySettingsRow struct {
 	Enabled                bool
 	RecipientEmail         string
 	CcEmails               []string
+	ReplyToEmail           string
 	MailSubject            string
 	MailIntro              string
 	MailClosing            string
@@ -197,6 +198,7 @@ func (q *Queries) GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliver
 		&i.Enabled,
 		&i.RecipientEmail,
 		&i.CcEmails,
+		&i.ReplyToEmail,
 		&i.MailSubject,
 		&i.MailIntro,
 		&i.MailClosing,

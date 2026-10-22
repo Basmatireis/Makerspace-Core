@@ -1833,4 +1833,5 @@ type WirefDeliverySetting struct {
 	Version                int64
 	UpdatedByAccountID     *uuid.UUID
 	UpdatedAt              time.Time
+	ReplyToEmail           string
 }

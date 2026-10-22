@@ -20,6 +20,7 @@ import (
 type sentMail struct {
 	To, Subject string
 	Cc          []string
+	ReplyTo     string
 	Content     notifications.Content
 	Attachments []mailservice.Attachment
 }
@@ -35,6 +36,7 @@ func (f *fakeNotifier) SendBrandedCC(
 	_ context.Context,
 	to string,
 	cc []string,
+	replyTo string,
 	subject string,
 	content notifications.Content,
 	attachments ...mailservice.Attachment,
@@ -44,7 +46,7 @@ func (f *fakeNotifier) SendBrandedCC(
 	if f.err != nil {
 		return f.err
 	}
-	f.sent = append(f.sent, sentMail{To: to, Cc: cc, Subject: subject, Content: content, Attachments: attachments})
+	f.sent = append(f.sent, sentMail{To: to, Cc: cc, ReplyTo: replyTo, Subject: subject, Content: content, Attachments: attachments})
 	return nil
 }
 
@@ -129,6 +131,7 @@ func (f *settingsFixture) input(t *testing.T) SettingsInput {
 		Enabled:         true,
 		RecipientEmail:  "wiref@example.org",
 		CCEmails:        []string{"office@example.org"},
+		ReplyToEmail:    " lab@example.org ",
 		ExpectedVersion: current.Version,
 	}
 }
@@ -139,7 +142,7 @@ func TestSettingsStartWithSendingSwitchedOffAndDocumentedDefaults(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Enabled || got.RecipientEmail != "" || got.Version != 1 || !got.ShowApprover {
+	if got.Enabled || got.RecipientEmail != "" || got.ReplyToEmail != "" || got.Version != 1 || !got.ShowApprover {
 		t.Fatalf("defaults %+v", got)
 	}
 	if err = ValidateTemplates(got.Templates); err != nil {
@@ -171,7 +174,7 @@ func TestSettingsUpdateValidatesAndAudits(t *testing.T) {
 	in := f.input(t)
 	saved, err := f.s.UpdateSettings(t.Context(), f.admin, in, nil)
 	if err != nil || !saved.Enabled || saved.Version != 2 || saved.RecipientEmail != "wiref@example.org" ||
-		len(saved.CCEmails) != 1 {
+		len(saved.CCEmails) != 1 || saved.ReplyToEmail != "lab@example.org" {
 		t.Fatalf("update %v %+v", err, saved)
 	}
 	var audits int
@@ -197,8 +200,11 @@ func TestSettingsUpdateValidatesAndAudits(t *testing.T) {
 		"too many cc": func(i *SettingsInput) {
 			i.CCEmails = []string{"a@example.org", "b@example.org", "c@example.org", "d@example.org", "e@example.org", "f@example.org"}
 		},
-		"invalid cc":    func(i *SettingsInput) { i.CCEmails = []string{"nope"} },
-		"header inject": func(i *SettingsInput) { i.CCEmails = []string{"a@example.org\r\nBcc: x@example.org"} },
+		"invalid cc":             func(i *SettingsInput) { i.CCEmails = []string{"nope"} },
+		"header inject":          func(i *SettingsInput) { i.CCEmails = []string{"a@example.org\r\nBcc: x@example.org"} },
+		"invalid reply-to":       func(i *SettingsInput) { i.ReplyToEmail = "nope" },
+		"reply-to display name":  func(i *SettingsInput) { i.ReplyToEmail = "Lab <lab@example.org>" },
+		"reply-to header inject": func(i *SettingsInput) { i.ReplyToEmail = "lab@example.org\r\nBcc: x@example.org" },
 	}
 	for name, mutate := range cases {
 		bad := in
@@ -209,11 +215,12 @@ func TestSettingsUpdateValidatesAndAudits(t *testing.T) {
 			t.Errorf("%s: expected a 422, got %v", name, err)
 		}
 	}
-	// Disabled settings may keep an empty recipient; duplicate and primary-equal CC addresses are dropped.
-	in.Enabled, in.RecipientEmail = false, ""
+	// Disabled settings may keep an empty recipient; duplicate and primary-equal CC addresses are dropped; an empty
+	// Reply-To clears it.
+	in.Enabled, in.RecipientEmail, in.ReplyToEmail = false, "", " "
 	in.CCEmails = []string{"x@example.org", "X@example.org"}
 	saved, err = f.s.UpdateSettings(t.Context(), f.admin, in, nil)
-	if err != nil || len(saved.CCEmails) != 1 {
+	if err != nil || len(saved.CCEmails) != 1 || saved.ReplyToEmail != "" {
 		t.Fatalf("disabled update %v %+v", err, saved)
 	}
 }
@@ -228,7 +235,8 @@ func TestDeliverMailsRecipientAndCCWithPDFAttachment(t *testing.T) {
 		t.Fatalf("outcome %+v, mails %d", outcome, f.notifier.count())
 	}
 	mail := f.notifier.sent[0]
-	if mail.To != "wiref@example.org" || len(mail.Cc) != 1 || mail.Cc[0] != "office@example.org" {
+	if mail.To != "wiref@example.org" || len(mail.Cc) != 1 || mail.Cc[0] != "office@example.org" ||
+		mail.ReplyTo != "lab@example.org" {
 		t.Fatalf("recipients %+v", mail)
 	}
 	if mail.Subject != "Invoice request W-2026-000123 for Example University, Institute of Sample Studies" {

@@ -10097,11 +10097,12 @@ components:
     WiRefDeliverySettings:
       type: object
       additionalProperties: false
-      required: [enabled, recipientEmail, ccEmails, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, placeholders, version, updatedAt]
+      required: [enabled, recipientEmail, ccEmails, replyToEmail, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, placeholders, version, updatedAt]
       properties:
         enabled: {type: boolean}
         recipientEmail: {type: string, maxLength: 254}
         ccEmails: {type: array, maxItems: 5, items: {type: string, maxLength: 254}}
+        replyToEmail: {type: string, maxLength: 254, description: "Reply-To address of the mail. Empty sends no Reply-To, so replies go to the mail sender address."}
         mailSubject: {type: string, minLength: 1, maxLength: 200}
         mailIntro: {type: string, maxLength: 2000}
         mailClosing: {type: string, maxLength: 2000}
@@ -10119,11 +10120,12 @@ components:
     UpdateWiRefDeliverySettingsRequest:
       type: object
       additionalProperties: false
-      required: [enabled, recipientEmail, ccEmails, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, expectedVersion]
+      required: [enabled, recipientEmail, ccEmails, replyToEmail, mailSubject, mailIntro, mailClosing, pdfTitle, pdfIntro, pdfClosing, showContactPerson, showApprover, showPurchaseOrder, showServicePeriod, showServiceDescription, expectedVersion]
       properties:
         enabled: {type: boolean, description: "Sending needs a valid recipientEmail."}
         recipientEmail: {type: string, maxLength: 254}
         ccEmails: {type: array, maxItems: 5, items: {type: string, maxLength: 254}}
+        replyToEmail: {type: string, maxLength: 254, description: "Reply-To address of the mail. Empty sends no Reply-To, so replies go to the mail sender address."}
         mailSubject: {type: string, minLength: 1, maxLength: 200}
         mailIntro: {type: string, maxLength: 2000}
         mailClosing: {type: string, maxLength: 2000}

@@ -52,6 +52,7 @@ func (s *Server) UpdateWiRefDeliverySettings(
 		Enabled:         b.Enabled,
 		RecipientEmail:  b.RecipientEmail,
 		CCEmails:        b.CcEmails,
+		ReplyToEmail:    b.ReplyToEmail,
 		ExpectedVersion: b.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -172,6 +173,7 @@ func wiRefSettingsDTO(v invoicing.Settings) openapi.WiRefDeliverySettings {
 		Enabled:                v.Enabled,
 		RecipientEmail:         v.RecipientEmail,
 		CcEmails:               cc,
+		ReplyToEmail:           v.ReplyToEmail,
 		MailSubject:            v.MailSubject,
 		MailIntro:              v.MailIntro,
 		MailClosing:            v.MailClosing,

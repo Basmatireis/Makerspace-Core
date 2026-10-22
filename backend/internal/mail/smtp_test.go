@@ -18,6 +18,7 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 	}
 	defer listener.Close()
 	delivered := make(chan string, 1)
+	recipients := make(chan string, 4)
 	serverError := make(chan error, 1)
 	go func() {
 		connection, acceptErr := listener.Accept()
@@ -48,7 +49,10 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 			switch {
 			case strings.HasPrefix(command, "EHLO "):
 				err = write("250-fake-smtp\r\n250 8BITMIME")
-			case strings.HasPrefix(command, "MAIL FROM:"), strings.HasPrefix(command, "RCPT TO:"):
+			case strings.HasPrefix(command, "MAIL FROM:"):
+				err = write("250 accepted")
+			case strings.HasPrefix(command, "RCPT TO:"):
+				recipients <- strings.TrimPrefix(command, "RCPT TO:")
 				err = write("250 accepted")
 			case command == "DATA":
 				if err = write("354 send message"); err == nil {
@@ -94,7 +98,10 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 	defer cancel()
 	if err := provider.Send(
 		ctx,
-		Message{To: "member@example.test", Subject: "Security notice", Text: "Your password changed."},
+		Message{
+			To: "member@example.test", ReplyTo: "lab@example.test",
+			Subject: "Security notice", Text: "Your password changed.",
+		},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -103,6 +110,7 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 		for _, fragment := range []string{
 			"From: \"Makerspace\" <makerspace@example.test>",
 			"To: <member@example.test>",
+			"Reply-To: <lab@example.test>",
 			"Subject: Security notice",
 			"Your password changed.",
 		} {
@@ -113,6 +121,10 @@ func TestSMTPProviderDeliversThroughInProcessServer(t *testing.T) {
 					strconv.Quote(message),
 				)
 			}
+		}
+		// The Reply-To address only steers replies; it never receives this message.
+		if got := <-recipients; got != "<member@example.test>" || len(recipients) != 0 {
+			t.Fatalf("unexpected SMTP recipients: first %q, %d more", got, len(recipients))
 		}
 	case err := <-serverError:
 		t.Fatal(err)

@@ -39,8 +39,10 @@ type Settings struct {
 	Enabled        bool
 	RecipientEmail string
 	CCEmails       []string
-	Version        int64
-	UpdatedAt      time.Time
+	// ReplyToEmail is where the accounting office's replies go; empty leaves them at the mail sender address.
+	ReplyToEmail string
+	Version      int64
+	UpdatedAt    time.Time
 }
 
 // SettingsInput replaces the settings. ExpectedVersion is the optimistic-concurrency token.
@@ -49,6 +51,7 @@ type SettingsInput struct {
 	Enabled         bool
 	RecipientEmail  string
 	CCEmails        []string
+	ReplyToEmail    string
 	ExpectedVersion int64
 }
 
@@ -73,6 +76,7 @@ func settingsFromRow(row invoicingdb.WirefDeliverySetting) Settings {
 		Enabled:        row.Enabled,
 		RecipientEmail: row.RecipientEmail,
 		CCEmails:       row.CcEmails,
+		ReplyToEmail:   row.ReplyToEmail,
 		Version:        row.Version,
 		UpdatedAt:      row.UpdatedAt,
 	}
@@ -126,6 +130,18 @@ func parseAddress(value string) (string, bool) {
 		return "", false
 	}
 	return value, true
+}
+
+// normalizeReplyTo returns the trimmed Reply-To address; empty means none.
+func normalizeReplyTo(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if _, ok := parseAddress(value); !ok {
+		return "", invalidSettings("The reply-to address is not a valid email address")
+	}
+	return value, nil
 }
 
 func normalizeRecipients(input SettingsInput) (string, []string, error) {
@@ -204,6 +220,10 @@ func (s *Service) UpdateSettingsTx(
 	if err != nil {
 		return Settings{}, err
 	}
+	replyTo, err := normalizeReplyTo(input.ReplyToEmail)
+	if err != nil {
+		return Settings{}, err
+	}
 	q := invoicingdb.New(tx)
 	current, err := q.GetSettingsForUpdate(ctx)
 	if err != nil {
@@ -217,6 +237,7 @@ func (s *Service) UpdateSettingsTx(
 		Enabled:                input.Enabled,
 		RecipientEmail:         recipient,
 		CcEmails:               cc,
+		ReplyToEmail:           replyTo,
 		MailSubject:            strings.TrimSpace(input.MailSubject),
 		MailIntro:              strings.TrimSpace(input.MailIntro),
 		MailClosing:            strings.TrimSpace(input.MailClosing),
@@ -243,7 +264,7 @@ func (s *Service) UpdateSettingsTx(
 		ResourceType:   "wiref_delivery_settings",
 		RequestID:      requestID,
 		ChangedFields: []string{
-			"enabled", "recipientEmail", "ccEmails", "mailSubject", "mailIntro", "mailClosing",
+			"enabled", "recipientEmail", "ccEmails", "replyToEmail", "mailSubject", "mailIntro", "mailClosing",
 			"pdfTitle", "pdfIntro", "pdfClosing", "fieldToggles",
 		},
 	}); err != nil {

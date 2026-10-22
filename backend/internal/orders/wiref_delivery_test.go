@@ -199,6 +199,7 @@ func (m *mailbox) SendBrandedCC(
 	_ context.Context,
 	to string,
 	cc []string,
+	_ string,
 	subject string,
 	_ notifications.Content,
 	attachments ...mailservice.Attachment,

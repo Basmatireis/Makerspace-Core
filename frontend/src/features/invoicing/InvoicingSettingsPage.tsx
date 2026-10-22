@@ -18,6 +18,7 @@ type FormValues = WiRefTemplateFields & {
   recipientEmail: string;
   /** One address per line; the API takes a list. */
   ccText: string;
+  replyToEmail: string;
 };
 
 const MAX_CC = 5;
@@ -27,6 +28,7 @@ function toValues(settings: WiRefDeliverySettings): FormValues {
     enabled: settings.enabled,
     recipientEmail: settings.recipientEmail,
     ccText: settings.ccEmails.join('\n'),
+    replyToEmail: settings.replyToEmail,
     mailSubject: settings.mailSubject,
     mailIntro: settings.mailIntro,
     mailClosing: settings.mailClosing,
@@ -96,6 +98,7 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
         enabled: values.enabled,
         recipientEmail: values.recipientEmail.trim(),
         ccEmails: parseCc(values.ccText),
+        replyToEmail: values.replyToEmail.trim(),
         expectedVersion: settings.version,
       }),
     onSuccess: async (updated) => {
@@ -184,6 +187,13 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
               invalid={Boolean(form.formState.errors.ccText)}
               invalidText={form.formState.errors.ccText?.message}
               {...register('ccText')}
+            />
+            <TextInput
+              id="wiref-reply-to"
+              type="email"
+              labelText="Reply-to address"
+              helperText="Optional. Replies from the accounting office go here; without it they go to the sender address under Settings › Email delivery."
+              {...register('replyToEmail')}
             />
           </Stack>
         </Tile>

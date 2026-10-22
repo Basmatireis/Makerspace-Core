@@ -165,14 +165,15 @@ func (s *Service) SendBranded(
 	content Content,
 	attachments ...mailservice.Attachment,
 ) error {
-	return s.SendBrandedCC(ctx, to, nil, subject, content, attachments...)
+	return s.SendBrandedCC(ctx, to, nil, "", subject, content, attachments...)
 }
 
-// SendBrandedCC is SendBranded with carbon-copy recipients.
+// SendBrandedCC is SendBranded with carbon-copy recipients and an optional Reply-To address.
 func (s *Service) SendBrandedCC(
 	ctx context.Context,
 	to string,
 	cc []string,
+	replyTo string,
 	subject string,
 	content Content,
 	attachments ...mailservice.Attachment,
@@ -181,7 +182,7 @@ func (s *Service) SendBrandedCC(
 	return s.mail.Send(
 		ctx,
 		mailservice.Message{
-			To: to, Cc: cc, Subject: subject, Text: text, HTML: htmlBody, Attachments: attachments,
+			To: to, Cc: cc, ReplyTo: replyTo, Subject: subject, Text: text, HTML: htmlBody, Attachments: attachments,
 		},
 	)
 }

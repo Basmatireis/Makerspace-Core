@@ -11,6 +11,7 @@ const settings: WiRefDeliverySettings = {
   enabled: false,
   recipientEmail: '',
   ccEmails: [],
+  replyToEmail: '',
   mailSubject: 'Invoice request {{anforderungsnummer}}',
   mailIntro: 'Intro',
   mailClosing: 'Closing',
@@ -31,7 +32,7 @@ const settings: WiRefDeliverySettings = {
 };
 
 describe('invoicing settings', () => {
-  it('lists the placeholders and saves recipient, CC list and toggles with the version', async () => {
+  it('lists the placeholders and saves recipient, CC list, reply-to and toggles with the version', async () => {
     let submitted: UpdateWiRefDeliverySettingsRequest | undefined;
     server.use(
       http.get('*/api/v1/invoicing/wiref-settings', () => HttpResponse.json(settings)),
@@ -48,6 +49,7 @@ describe('invoicing settings', () => {
     await user.click(screen.getByRole('switch', { name: 'Send approved requests to wiRef' }));
     await user.type(screen.getByLabelText('wiRef email address'), 'wiref@example.test');
     await user.type(screen.getByLabelText('CC addresses'), 'a@example.test{enter}b@example.test');
+    await user.type(screen.getByLabelText('Reply-to address'), ' lab@example.test ');
     await user.click(screen.getByLabelText('Approver name'));
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() =>
@@ -55,6 +57,7 @@ describe('invoicing settings', () => {
         enabled: true,
         recipientEmail: 'wiref@example.test',
         ccEmails: ['a@example.test', 'b@example.test'],
+        replyToEmail: 'lab@example.test',
         showApprover: false,
         showContactPerson: true,
         expectedVersion: 1,

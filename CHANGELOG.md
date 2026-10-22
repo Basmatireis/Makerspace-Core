@@ -4,6 +4,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00064 adds an optional Reply-To address to the wiRef delivery settings. It starts empty, so replies keep going to the mail sender address. API: `replyToEmail` is part of `WiRefDeliverySettings` and required in `UpdateWiRefDeliverySettingsRequest` (an empty string means none).
+
+### Added
+
+- **Reply-To for the wiRef mail.** Settings → Invoicing has an optional reply-to address. Replies from the accounting office go there instead of to the sender address of the email delivery settings, which is often an unread sending account. It is included in configuration export and import.
+
 ## [0.8.3] - 2026-10-22
 
 ### Upgrade notes

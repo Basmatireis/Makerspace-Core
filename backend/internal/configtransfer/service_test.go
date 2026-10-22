@@ -252,7 +252,7 @@ func (e *env) seed() {
 			ShowContactPerson: true, ShowPurchaseOrder: true,
 		},
 		Enabled: true, RecipientEmail: "wiref@example.test", CCEmails: []string{"cc@example.test"},
-		ExpectedVersion: 1,
+		ReplyToEmail: "lab@example.test", ExpectedVersion: 1,
 	}, nil))
 }
 
@@ -713,16 +713,22 @@ func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
 		t.Fatalf("unknown placeholder: %v", err)
 	}
 
+	if invoicingSettings["replyToEmail"] != "lab@example.test" {
+		t.Fatalf("exported replyToEmail = %v", invoicingSettings["replyToEmail"])
+	}
 	invoicingSettings["mailSubject"] = "Changed"
+	invoicingSettings["replyToEmail"] = "office@example.test"
 	changed, _ := json.Marshal(parsed)
 	report := must(e.svc.Apply(e.ctx, importer, ModeOverwrite, keys, must(preview(importer, changed)).Fingerprint,
 		bytes.NewReader(changed), nil))
 	if got := item(t, report, SectionInvoicing, invoicingItem); got.Action != ActionUpdate {
 		t.Fatalf("changed settings = %+v", got)
 	}
-	var subject string
-	if err := e.pool.QueryRow(e.ctx, `SELECT mail_subject FROM wiref_delivery_settings`).Scan(&subject); err != nil || subject != "Changed" {
-		t.Fatalf("subject = %q, %v", subject, err)
+	var subject, replyTo string
+	if err := e.pool.QueryRow(e.ctx, `SELECT mail_subject, reply_to_email FROM wiref_delivery_settings`).Scan(
+		&subject, &replyTo,
+	); err != nil || subject != "Changed" || replyTo != "office@example.test" {
+		t.Fatalf("subject = %q, reply-to = %q, %v", subject, replyTo, err)
 	}
 	var audits int
 	if err := e.pool.QueryRow(e.ctx,

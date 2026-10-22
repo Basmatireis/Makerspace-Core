@@ -12,7 +12,7 @@ import (
 )
 
 const getSettings = `-- name: GetSettings :one
-SELECT singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at FROM wiref_delivery_settings WHERE singleton=true
+SELECT singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at, reply_to_email FROM wiref_delivery_settings WHERE singleton=true
 `
 
 func (q *Queries) GetSettings(ctx context.Context) (WirefDeliverySetting, error) {
@@ -37,12 +37,13 @@ func (q *Queries) GetSettings(ctx context.Context) (WirefDeliverySetting, error)
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.ReplyToEmail,
 	)
 	return i, err
 }
 
 const getSettingsForUpdate = `-- name: GetSettingsForUpdate :one
-SELECT singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at FROM wiref_delivery_settings WHERE singleton=true FOR UPDATE
+SELECT singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at, reply_to_email FROM wiref_delivery_settings WHERE singleton=true FOR UPDATE
 `
 
 func (q *Queries) GetSettingsForUpdate(ctx context.Context) (WirefDeliverySetting, error) {
@@ -67,6 +68,7 @@ func (q *Queries) GetSettingsForUpdate(ctx context.Context) (WirefDeliverySettin
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.ReplyToEmail,
 	)
 	return i, err
 }
@@ -74,20 +76,22 @@ func (q *Queries) GetSettingsForUpdate(ctx context.Context) (WirefDeliverySettin
 const updateSettings = `-- name: UpdateSettings :one
 UPDATE wiref_delivery_settings SET
   enabled=$1, recipient_email=$2, cc_emails=$3::text[],
-  mail_subject=$4, mail_intro=$5, mail_closing=$6,
-  pdf_title=$7, pdf_intro=$8, pdf_closing=$9,
-  show_contact_person=$10, show_approver=$11,
-  show_purchase_order=$12, show_service_period=$13,
-  show_service_description=$14,
-  version=version+1, updated_by_account_id=$15, updated_at=now()
-WHERE singleton=true AND version=$16
-RETURNING singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at
+  reply_to_email=$4,
+  mail_subject=$5, mail_intro=$6, mail_closing=$7,
+  pdf_title=$8, pdf_intro=$9, pdf_closing=$10,
+  show_contact_person=$11, show_approver=$12,
+  show_purchase_order=$13, show_service_period=$14,
+  show_service_description=$15,
+  version=version+1, updated_by_account_id=$16, updated_at=now()
+WHERE singleton=true AND version=$17
+RETURNING singleton, enabled, recipient_email, cc_emails, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing, show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version, updated_by_account_id, updated_at, reply_to_email
 `
 
 type UpdateSettingsParams struct {
 	Enabled                bool
 	RecipientEmail         string
 	CcEmails               []string
+	ReplyToEmail           string
 	MailSubject            string
 	MailIntro              string
 	MailClosing            string
@@ -108,6 +112,7 @@ func (q *Queries) UpdateSettings(ctx context.Context, arg UpdateSettingsParams) 
 		arg.Enabled,
 		arg.RecipientEmail,
 		arg.CcEmails,
+		arg.ReplyToEmail,
 		arg.MailSubject,
 		arg.MailIntro,
 		arg.MailClosing,
@@ -142,6 +147,7 @@ func (q *Queries) UpdateSettings(ctx context.Context, arg UpdateSettingsParams) 
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.ReplyToEmail,
 	)
 	return i, err
 }

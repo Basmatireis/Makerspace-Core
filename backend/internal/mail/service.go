@@ -30,7 +30,9 @@ const passwordPurpose = "mail.smtp.password" //nolint:gosec // key-derivation pu
 type Message struct {
 	To, Subject, Text, HTML string
 	// Cc recipients receive the same message; they appear in the Cc header.
-	Cc          []string
+	Cc []string
+	// ReplyTo, when set, is where replies go instead of the sender address. It is not a recipient.
+	ReplyTo     string
 	Attachments []Attachment
 }
 

@@ -7,6 +7,7 @@ SELECT * FROM wiref_delivery_settings WHERE singleton=true FOR UPDATE;
 -- name: UpdateSettings :one
 UPDATE wiref_delivery_settings SET
   enabled=sqlc.arg(enabled), recipient_email=sqlc.arg(recipient_email), cc_emails=sqlc.arg(cc_emails)::text[],
+  reply_to_email=sqlc.arg(reply_to_email),
   mail_subject=sqlc.arg(mail_subject), mail_intro=sqlc.arg(mail_intro), mail_closing=sqlc.arg(mail_closing),
   pdf_title=sqlc.arg(pdf_title), pdf_intro=sqlc.arg(pdf_intro), pdf_closing=sqlc.arg(pdf_closing),
   show_contact_person=sqlc.arg(show_contact_person), show_approver=sqlc.arg(show_approver),

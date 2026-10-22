@@ -31,6 +31,11 @@ export interface WiRefDeliverySettings {
      */
   ccEmails: string[];
   /**
+     * Reply-To address of the mail. Empty sends no Reply-To, so replies go to the mail sender address.
+     * @maxLength 254
+     */
+  replyToEmail: string;
+  /**
      * @minLength 1
      * @maxLength 200
      */

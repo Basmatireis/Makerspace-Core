@@ -109,12 +109,33 @@ func TestRenderMixedWithAttachment(t *testing.T) {
 	}
 }
 
+func TestRenderReplyToOnlyWhenSet(t *testing.T) {
+	raw, err := renderMIME("Makerspace", "from@example.test", Message{
+		To: "a@example.test", ReplyTo: "lab@example.test", Subject: "Hi", Text: "t",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parse(t, raw).Header.Get("Reply-To"); got != "<lab@example.test>" {
+		t.Fatalf("Reply-To = %q", got)
+	}
+	raw, err = renderMIME("Makerspace", "from@example.test", Message{To: "a@example.test", Subject: "Hi", Text: "t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present := parse(t, raw).Header["Reply-To"]; present {
+		t.Fatal("a message without ReplyTo must not carry a Reply-To header")
+	}
+}
+
 func TestRenderRejectsHeaderInjection(t *testing.T) {
 	cases := []Message{
 		{To: "a@example.test", Subject: "x\r\nBcc: evil@example.test", Text: "t"},
 		{To: "Name <a@example.test>", Subject: "x", Text: "t"},
 		{To: "a@example.test\r\nBcc: evil@example.test", Subject: "x", Text: "t"},
 		{To: "not an address", Subject: "x", Text: "t"},
+		{To: "a@example.test", ReplyTo: "b@example.test\r\nBcc: evil@example.test", Subject: "x", Text: "t"},
+		{To: "a@example.test", ReplyTo: "Name <b@example.test>", Subject: "x", Text: "t"},
 		{To: "a@example.test", Subject: "x", Text: "t",
 			Attachments: []Attachment{{Name: "a.pdf\r\nX: y", ContentType: "application/pdf"}}},
 		{To: "a@example.test", Subject: "x", Text: "t",

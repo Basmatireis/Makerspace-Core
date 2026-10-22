@@ -1074,6 +1074,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
         enabled: false,
         recipientEmail: '',
         ccEmails: [],
+        replyToEmail: '',
         mailSubject: 'Invoice request {{anforderungsnummer}} for {{organisation}}',
         mailIntro: 'Please issue the invoice described below.',
         mailClosing: 'This message was sent automatically.',

@@ -320,13 +320,14 @@ func applyMail(r *run, entry *mailEntry) (func() error, error) {
 	return nil, err
 }
 
-// Invoicing: the wiRef recipient, CC list, templates and field toggles. Templates use the placeholder validation of the
-// settings endpoint.
+// Invoicing: the wiRef recipient, CC list, Reply-To address, templates and field toggles. Templates use the placeholder
+// validation of the settings endpoint.
 
 type invoicingEntry struct {
 	Enabled                bool     `json:"enabled"`
 	RecipientEmail         string   `json:"recipientEmail"`
 	CCEmails               []string `json:"ccEmails"`
+	ReplyToEmail           string   `json:"replyToEmail"`
 	MailSubject            string   `json:"mailSubject"`
 	MailIntro              string   `json:"mailIntro"`
 	MailClosing            string   `json:"mailClosing"`
@@ -348,7 +349,7 @@ func invoicingSection() section {
 		exportInvoicing,
 		func(entry *invoicingEntry) error {
 			for _, field := range []*string{
-				&entry.RecipientEmail, &entry.MailSubject, &entry.MailIntro, &entry.MailClosing,
+				&entry.RecipientEmail, &entry.ReplyToEmail, &entry.MailSubject, &entry.MailIntro, &entry.MailClosing,
 				&entry.PDFTitle, &entry.PDFIntro, &entry.PDFClosing,
 			} {
 				*field = strings.TrimSpace(*field)
@@ -388,7 +389,7 @@ func invoicingFromRow(row configtransferdb.GetWirefDeliverySettingsRow) invoicin
 		cc = []string{}
 	}
 	return invoicingEntry{
-		Enabled: row.Enabled, RecipientEmail: row.RecipientEmail, CCEmails: cc,
+		Enabled: row.Enabled, RecipientEmail: row.RecipientEmail, CCEmails: cc, ReplyToEmail: row.ReplyToEmail,
 		MailSubject: row.MailSubject, MailIntro: row.MailIntro, MailClosing: row.MailClosing,
 		PDFTitle: row.PdfTitle, PDFIntro: row.PdfIntro, PDFClosing: row.PdfClosing,
 		ShowContactPerson: row.ShowContactPerson, ShowApprover: row.ShowApprover,
@@ -408,7 +409,8 @@ func applyInvoicing(r *run, entry *invoicingEntry) (func() error, error) {
 	}
 	current := invoicingFromRow(row)
 	if current.Enabled == entry.Enabled && current.RecipientEmail == entry.RecipientEmail &&
-		slices.Equal(current.CCEmails, entry.CCEmails) && current.templates() == entry.templates() {
+		slices.Equal(current.CCEmails, entry.CCEmails) && current.ReplyToEmail == entry.ReplyToEmail &&
+		current.templates() == entry.templates() {
 		r.skip(invoicingItem, reasonUnchanged)
 		return nil, nil
 	}
@@ -418,6 +420,7 @@ func applyInvoicing(r *run, entry *invoicingEntry) (func() error, error) {
 			Enabled:         entry.Enabled,
 			RecipientEmail:  entry.RecipientEmail,
 			CCEmails:        entry.CCEmails,
+			ReplyToEmail:    entry.ReplyToEmail,
 			ExpectedVersion: row.Version,
 		}, r.requestID)
 		return err

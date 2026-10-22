@@ -24,6 +24,11 @@ func renderMIME(fromName, fromAddress string, message Message) (string, error) {
 			return "", fmt.Errorf("invalid mail message")
 		}
 	}
+	if message.ReplyTo != "" {
+		if parsed, err := netmail.ParseAddress(message.ReplyTo); err != nil || parsed.Address != message.ReplyTo {
+			return "", fmt.Errorf("invalid mail message")
+		}
+	}
 	for _, attachment := range message.Attachments {
 		if attachment.Name == "" || strings.ContainsAny(attachment.Name, "\r\n\"\\") ||
 			hasHeaderBreak(attachment.ContentType) {
@@ -45,6 +50,9 @@ func renderMIME(fromName, fromAddress string, message Message) (string, error) {
 			copies[i] = (&netmail.Address{Address: cc}).String()
 		}
 		header("Cc", strings.Join(copies, ", "))
+	}
+	if message.ReplyTo != "" {
+		header("Reply-To", (&netmail.Address{Address: message.ReplyTo}).String())
 	}
 	header("Subject", mime.QEncoding.Encode("utf-8", message.Subject))
 	header("MIME-Version", "1.0")
