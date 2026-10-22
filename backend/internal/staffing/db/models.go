@@ -1443,14 +1443,16 @@ type SignageAnnouncementDisplay struct {
 }
 
 type SignageAnnouncementTemplate struct {
-	ID        uuid.UUID
-	Name      string
-	Tone      string
-	Title     string
-	Body      string
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         uuid.UUID
+	Name       string
+	Tone       string
+	Title      string
+	Body       string
+	Version    int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	BodyFormat string
+	BodyCss    string
 }
 
 type SignageAnnouncementTemplateField struct {
@@ -1481,6 +1483,18 @@ type SignageAsset struct {
 	DurationMs         *int32
 	CreatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
+}
+
+type SignageCustomLayout struct {
+	ID        uuid.UUID
+	Name      string
+	Mode      string
+	Columns   []int32
+	Rows      []int32
+	Zones     []byte
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type SignageDisplay struct {
@@ -1588,6 +1602,7 @@ type SignageScene struct {
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	CustomLayoutID    *uuid.UUID
 }
 
 type SignageTicketKey struct {

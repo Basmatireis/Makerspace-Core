@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTone } from './signageTone';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -26,7 +27,10 @@ export interface SignagePlayerLiveAnnouncement {
   templateId: UUIDv7;
   tone: SignageTone;
   title: string;
+  /** Placeholder values are escaped for `bodyFormat`. */
   body: string;
+  bodyFormat: SignageRichTextFormat;
+  bodyCss: string;
   startsAt: string;
   /** @nullable */
   endsAt: string | null;

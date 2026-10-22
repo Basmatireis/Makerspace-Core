@@ -25,4 +25,5 @@ export type SignageAssetKind = typeof SignageAssetKind[keyof typeof SignageAsset
 export const SignageAssetKind = {
   SignageAssetKindImage: 'image',
   SignageAssetKindVideo: 'video',
+  SignageAssetKindFont: 'font',
 } as const;

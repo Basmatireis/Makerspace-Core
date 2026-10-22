@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageSlideshowWidgetType } from './signageSlideshowWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageSlideshowWidget {
@@ -30,4 +31,5 @@ export interface SignageSlideshowWidget {
      * @maximum 3600
      */
   seconds: number;
+  style?: SignageWidgetStyle;
 }

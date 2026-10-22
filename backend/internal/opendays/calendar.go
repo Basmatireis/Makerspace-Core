@@ -234,6 +234,29 @@ func (s *Service) CalendarContext(
 	return result, nil
 }
 
+// PublicHolidaysBetween returns the public holidays of the configured jurisdiction in the inclusive date
+// range. Holidays are public knowledge, so no permission is needed (signage displays show them).
+func (s *Service) PublicHolidaysBetween(start, end time.Time) ([]Holiday, error) {
+	return s.holidays.Between(start, end)
+}
+
+// PublicAcademicBreaksBetween returns the academic breaks that overlap the inclusive date range. Breaks
+// are shown on public displays, so no permission is needed; callers expose only name and dates.
+func (s *Service) PublicAcademicBreaksBetween(ctx context.Context, start, end time.Time) ([]AcademicBreak, error) {
+	rows, err := opendaysdb.New(s.pool).ListAcademicBreaksInRange(
+		ctx,
+		opendaysdb.ListAcademicBreaksInRangeParams{EndsOn: pgDate(end), StartsOn: pgDate(start)},
+	)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]AcademicBreak, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, breakFromRow(row))
+	}
+	return items, nil
+}
+
 func (s *Service) CreateAcademicBreak(
 	ctx context.Context,
 	p authorization.Principal,

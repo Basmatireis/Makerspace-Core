@@ -23,5 +23,7 @@ export interface SignagePlayerEvent {
   title: string;
   startsAt: string;
   /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
   location: string | null;
 }

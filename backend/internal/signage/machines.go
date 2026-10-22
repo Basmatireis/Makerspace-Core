@@ -44,10 +44,12 @@ func (s *Service) ListMachines(ctx context.Context, principal authorization.Prin
 	return machines, nil
 }
 
-// Calendar is the upcoming public open days and events a display shows.
+// Calendar is the upcoming public open days and events a display shows, plus the calendar block with
+// every category for admin previews.
 type Calendar struct {
 	OpenDays []PublicOpenDay
 	Events   []PublicEvent
+	Block    *CalendarBlock
 }
 
 // UpcomingCalendar returns the same public-safe lists the player live endpoint carries, for admin
@@ -58,11 +60,14 @@ func (s *Service) UpcomingCalendar(ctx context.Context, principal authorization.
 		return Calendar{}, apperror.PermissionDenied
 	}
 	calendar := Calendar{OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}}
+	now := s.now()
+	var err error
+	if calendar.Block, err = s.buildCalendar(ctx, now, allCalendarCategories()); err != nil {
+		return Calendar{}, err
+	}
 	if s.calendar == nil {
 		return calendar, nil
 	}
-	now := s.now()
-	var err error
 	if calendar.OpenDays, err = s.calendar.UpcomingOpenDays(ctx, now, liveListLimit); err != nil {
 		return Calendar{}, err
 	}

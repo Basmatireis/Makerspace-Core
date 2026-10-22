@@ -19,7 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageEmptyWidgetType } from './signageEmptyWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 
 export interface SignageEmptyWidget {
   type: SignageEmptyWidgetType;
+  style?: SignageWidgetStyle;
 }

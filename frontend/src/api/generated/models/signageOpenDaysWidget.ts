@@ -19,12 +19,36 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageOpenDaysWidgetType } from './signageOpenDaysWidgetType';
+import type { SignageRichTextFormat } from './signageRichTextFormat';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
+import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageOpenDaysWidget {
   type: SignageOpenDaysWidgetType;
   /**
      * @minimum 1
-     * @maximum 10
+     * @maximum 20
      */
   count: number;
+  /**
+     * Heading; absent keeps the previous heading, empty shows none.
+     * @maxLength 200
+     */
+  title?: string;
+  /**
+     * Shown without entries.
+     * @maxLength 500
+     */
+  emptyText?: string;
+  /**
+     * Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}; empty or absent keeps the previous row layout.
+     * @maxLength 5000
+     */
+  entryTemplate?: string;
+  format?: SignageRichTextFormat;
+  /** @maxLength 20000 */
+  css?: string;
+  /** @maxItems 10 */
+  fontAssetIds?: UUIDv7[];
+  style?: SignageWidgetStyle;
 }

@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignagePlayerAsset } from './signagePlayerAsset';
+import type { SignagePlayerCustomLayout } from './signagePlayerCustomLayout';
 import type { SignagePlayerManifestDisplay } from './signagePlayerManifestDisplay';
 import type { SignagePlayerPlaylist } from './signagePlayerPlaylist';
 import type { SignagePlayerRule } from './signagePlayerRule';
@@ -38,6 +39,11 @@ export interface SignagePlayerManifest {
   scenes: SignagePlayerScene[];
   playlists: SignagePlayerPlaylist[];
   assets: SignagePlayerAsset[];
-  /** @minimum 1 */
+  /** The custom layouts the published scenes use; empty in publications made before custom layouts. */
+  customLayouts: SignagePlayerCustomLayout[];
+  /**
+     * 2 for publications that carry `customLayouts`.
+     * @minimum 1
+     */
   layoutsVersion: number;
 }

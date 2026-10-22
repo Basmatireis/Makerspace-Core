@@ -22,11 +22,20 @@ type RawWidget = json.RawMessage
 var emptyWidget = RawWidget(`{"type":"empty"}`)
 
 const (
-	maxZonesJSONBytes   = 96 << 10
+	// maxZonesJSONBytes bounds the canonical widgets of one scene; rich text widgets may hold
+	// several tens of thousands of characters each.
+	maxZonesJSONBytes   = 1 << 20
 	maxSlideshowAssets  = 50
 	maxStatusMachines   = 20
 	maxWidgetTemplates  = 50
-	maxTextWidgetRunes  = 1000
+	maxTextWidgetRunes  = 20000
+	maxRichCSSRunes     = 20000
+	maxWidgetFonts      = 10
+	maxListEntries      = 20
+	maxListTitleRunes   = 200
+	maxListEmptyRunes   = 500
+	maxEntryTemplateRun = 5000
+	maxCalendarWeeks    = 6
 	maxQRURLRunes       = 500
 	maxCaptionRunes     = 200
 	maxFallbackTextRune = 500
@@ -36,6 +45,7 @@ const (
 type WidgetRefs struct {
 	ImageAssets []uuid.UUID
 	VideoAssets []uuid.UUID
+	FontAssets  []uuid.UUID
 	Machines    []uuid.UUID
 	Templates   []uuid.UUID
 }
@@ -43,13 +53,15 @@ type WidgetRefs struct {
 func (r *WidgetRefs) merge(other WidgetRefs) {
 	r.ImageAssets = append(r.ImageAssets, other.ImageAssets...)
 	r.VideoAssets = append(r.VideoAssets, other.VideoAssets...)
+	r.FontAssets = append(r.FontAssets, other.FontAssets...)
 	r.Machines = append(r.Machines, other.Machines...)
 	r.Templates = append(r.Templates, other.Templates...)
 }
 
-// AllAssets returns the distinct asset ids referenced by any widget.
+// AllAssets returns the distinct asset ids (images, videos and fonts) referenced by any widget.
 func (r WidgetRefs) AllAssets() []uuid.UUID {
-	return distinct(append(append([]uuid.UUID{}, r.ImageAssets...), r.VideoAssets...))
+	all := append(append(append([]uuid.UUID{}, r.ImageAssets...), r.VideoAssets...), r.FontAssets...)
+	return distinct(all)
 }
 
 func distinct(ids []uuid.UUID) []uuid.UUID {
@@ -70,31 +82,38 @@ type widgetType struct {
 
 type emptyW struct {
 	Type WidgetType `json:"type"`
+	styled
 }
 type mediaW struct {
 	Type    WidgetType `json:"type"`
 	MediaID *uuid.UUID `json:"mediaId"`
 	Fit     MediaFit   `json:"fit"`
+	styled
 }
 type slideshowW struct {
 	Type     WidgetType  `json:"type"`
 	MediaIDs []uuid.UUID `json:"mediaIds"`
 	Seconds  int         `json:"seconds"`
+	styled
 }
 type textW struct {
 	Type  WidgetType `json:"type"`
 	Text  string     `json:"text"`
 	Size  TextSize   `json:"size"`
 	Align TextAlign  `json:"align"`
+	richFields
+	styled
 }
 type qrW struct {
 	Type    WidgetType `json:"type"`
 	URL     string     `json:"url"`
 	Caption string     `json:"caption"`
+	styled
 }
 type clockW struct {
 	Type WidgetType `json:"type"`
 	Mode ClockMode  `json:"mode"`
+	styled
 }
 type cameraW struct {
 	Type            WidgetType     `json:"type"`
@@ -106,16 +125,61 @@ type cameraW struct {
 	Fallback        CameraFallback `json:"fallback"`
 	FallbackMediaID *uuid.UUID     `json:"fallbackMediaId"`
 	MachineIDs      []uuid.UUID    `json:"machineIds"`
+	styled
 }
 type statusW struct {
 	Type          WidgetType  `json:"type"`
 	MachineIDs    []uuid.UUID `json:"machineIds"`
 	ShowProgress  bool        `json:"showProgress"`
 	ShowRemaining bool        `json:"showRemaining"`
+	styled
 }
-type countW struct {
-	Type  WidgetType `json:"type"`
-	Count int        `json:"count"`
+
+// listW is the open days and events widget. Title nil keeps the previous heading, an empty
+// title shows none.
+type listW struct {
+	Type          WidgetType `json:"type"`
+	Count         int        `json:"count"`
+	Title         *string    `json:"title,omitempty"`
+	EmptyText     string     `json:"emptyText,omitempty"`
+	EntryTemplate string     `json:"entryTemplate,omitempty"`
+	richFields
+	styled
+}
+
+// agendaW merges open days and events by start time.
+type agendaW struct {
+	Type            WidgetType `json:"type"`
+	Count           int        `json:"count"`
+	IncludeOpenDays bool       `json:"includeOpenDays"`
+	IncludeEvents   bool       `json:"includeEvents"`
+	Title           *string    `json:"title,omitempty"`
+	EmptyText       string     `json:"emptyText,omitempty"`
+	OpenDayTemplate string     `json:"openDayTemplate,omitempty"`
+	EventTemplate   string     `json:"eventTemplate,omitempty"`
+	richFields
+	styled
+}
+
+type calendarColors struct {
+	Holiday string `json:"holiday"`
+	Break   string `json:"break"`
+	OpenDay string `json:"openDay"`
+	Event   string `json:"event"`
+}
+
+type calendarW struct {
+	Type            WidgetType     `json:"type"`
+	View            string         `json:"view"`
+	Weeks           int            `json:"weeks"`
+	ShowHolidays    bool           `json:"showHolidays"`
+	ShowBreaks      bool           `json:"showBreaks"`
+	ShowOpenDays    bool           `json:"showOpenDays"`
+	ShowEvents      bool           `json:"showEvents"`
+	Colors          calendarColors `json:"colors"`
+	ShowWeekNumbers bool           `json:"showWeekNumbers"`
+	Title           *string        `json:"title,omitempty"`
+	styled
 }
 type announcementW struct {
 	Type          WidgetType        `json:"type"`
@@ -126,6 +190,146 @@ type announcementW struct {
 	FallbackText  string            `json:"fallbackText"`
 	WhenMany      WhenMany          `json:"whenMany"`
 	RotateSeconds int               `json:"rotateSeconds"`
+	// BoxStyle is the zone box style. It is not called style like on the other widgets because
+	// `style` already selects the announcement presentation.
+	BoxStyle *WidgetStyle `json:"boxStyle,omitempty"`
+}
+
+func (w announcementW) styleOf() *WidgetStyle { return w.BoxStyle }
+
+// WidgetStyle is the optional style of a widget's zone box. Absent means the previous look; inside
+// the object every field is required (colours and the font asset may be null).
+type WidgetStyle struct {
+	TextColor         *string    `json:"textColor"`
+	BackgroundColor   *string    `json:"backgroundColor"`
+	BorderColor       *string    `json:"borderColor"`
+	BackgroundOpacity int        `json:"backgroundOpacity"`
+	Padding           int        `json:"padding"`
+	Radius            int        `json:"radius"`
+	BorderWidth       int        `json:"borderWidth"`
+	FontScale         int        `json:"fontScale"`
+	FontFamily        string     `json:"fontFamily"`
+	FontAssetID       *uuid.UUID `json:"fontAssetId"`
+	Align             string     `json:"align"`
+	VerticalAlign     string     `json:"verticalAlign"`
+}
+
+var (
+	styleKeys = []string{
+		"textColor", "backgroundColor", "borderColor", "backgroundOpacity", "padding", "radius", "borderWidth",
+		"fontScale", "fontFamily", "fontAssetId", "align", "verticalAlign",
+	}
+	styleNullableKeys = []string{"textColor", "backgroundColor", "borderColor", "fontAssetId"}
+	styleFontFamilies = []string{"inherit", "sans", "serif", "mono", "custom"}
+	styleAlignments   = []string{"inherit", "start", "center", "end"}
+)
+
+// UnmarshalJSON enforces what a plain struct decode cannot: no unknown fields and no missing ones.
+func (s *WidgetStyle) UnmarshalJSON(data []byte) error {
+	var generic map[string]json.RawMessage
+	if err := json.Unmarshal(data, &generic); err != nil || generic == nil {
+		return fmt.Errorf("style: must be an object")
+	}
+	for _, key := range styleKeys {
+		raw, ok := generic[key]
+		if !ok || (string(raw) == "null" && !contains(styleNullableKeys, key)) {
+			return fmt.Errorf("style: %s is required", key)
+		}
+	}
+	type plain WidgetStyle
+	var decoded plain
+	if err := strictDecode(data, &decoded); err != nil {
+		if strings.HasPrefix(err.Error(), "json: unknown field") {
+			return fmt.Errorf("style: %s", strings.TrimPrefix(err.Error(), "json: "))
+		}
+		return fmt.Errorf("style: malformed fields")
+	}
+	*s = WidgetStyle(decoded)
+	return nil
+}
+
+// styled adds the optional style to a widget; nil keeps the previous look and is not serialised.
+type styled struct {
+	Style *WidgetStyle `json:"style,omitempty"`
+}
+
+func (s styled) styleOf() *WidgetStyle { return s.Style }
+
+func validateStyle(zone string, style *WidgetStyle, refs *WidgetRefs) error {
+	for _, color := range []*string{style.TextColor, style.BackgroundColor, style.BorderColor} {
+		if color != nil && !colorPattern.MatchString(*color) {
+			return zoneError(zone, "style colours must be lowercase #rrggbb or null")
+		}
+	}
+	if style.BackgroundOpacity < 0 || style.BackgroundOpacity > 100 || style.Padding < 0 || style.Padding > 10 ||
+		style.Radius < 0 || style.Radius > 10 || style.BorderWidth < 0 || style.BorderWidth > 20 ||
+		style.FontScale < 25 || style.FontScale > 400 {
+		return zoneError(zone, "style backgroundOpacity, padding, radius, borderWidth or fontScale is out of range")
+	}
+	if !contains(styleFontFamilies, style.FontFamily) {
+		return zoneError(zone, "style fontFamily is invalid")
+	}
+	if !contains(styleAlignments, style.Align) || !contains(styleAlignments, style.VerticalAlign) {
+		return zoneError(zone, "style align or verticalAlign is invalid")
+	}
+	if (style.FontFamily == "custom") != (style.FontAssetID != nil) {
+		return zoneError(zone, "style fontAssetId is required exactly when fontFamily is custom")
+	}
+	if style.FontAssetID != nil {
+		refs.FontAssets = append(refs.FontAssets, *style.FontAssetID)
+	}
+	return nil
+}
+
+// richFields are the rich text fields of text, list and agenda widgets. An absent format is plain.
+type richFields struct {
+	Format       RichTextFormat `json:"format,omitempty"`
+	CSS          string         `json:"css,omitempty"`
+	FontAssetIDs []uuid.UUID    `json:"fontAssetIds,omitempty"`
+}
+
+func validFormat(format RichTextFormat) bool {
+	return inSet(format, "", FormatPlain, FormatMarkdown, FormatHTML)
+}
+
+// validate checks the rich text fields and drops duplicate or empty font lists from the canonical form.
+func (r *richFields) validate(zone string, refs *WidgetRefs) error {
+	if !validFormat(r.Format) {
+		return zoneError(zone, "format must be plain, markdown or html")
+	}
+	if !multilineText(r.CSS, maxRichCSSRunes) {
+		return zoneError(zone, "css must be text of at most %d characters", maxRichCSSRunes)
+	}
+	if len(r.FontAssetIDs) > maxWidgetFonts {
+		return zoneError(zone, "a widget lists at most %d fonts", maxWidgetFonts)
+	}
+	r.FontAssetIDs = distinct(r.FontAssetIDs)
+	if len(r.FontAssetIDs) == 0 {
+		r.FontAssetIDs = nil
+	}
+	refs.FontAssets = append(refs.FontAssets, r.FontAssetIDs...)
+	return nil
+}
+
+// multilineText accepts text for rich text fields: valid UTF-8, at most max runes and no control
+// characters except newlines, carriage returns and tabs. Markup is not rejected; the browser sanitises it.
+func multilineText(value string, max int) bool {
+	if !utf8.ValidString(value) || utf8.RuneCountInString(value) > max {
+		return false
+	}
+	for _, r := range value {
+		if r == '\n' || r == '\r' || r == '\t' {
+			continue
+		}
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func validHeading(title *string) bool {
+	return title == nil || plainText(*title, maxListTitleRunes, false)
 }
 
 func zoneError(zone, format string, args ...any) error {
@@ -231,12 +435,16 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !plainText(w.Text, maxTextWidgetRunes, true) {
-			return nil, refs, zoneError(zone, "text must be plain text of at most %d characters", maxTextWidgetRunes)
+		if !multilineText(w.Text, maxTextWidgetRunes) {
+			return nil, refs, zoneError(zone, "text must be text of at most %d characters", maxTextWidgetRunes)
 		}
 		if !inSet(w.Size, TextSizeS, TextSizeM, TextSizeL, TextSizeXL) || !inSet(w.Align, TextAlignStart, TextAlignCenter, TextAlignEnd) {
 			return nil, refs, zoneError(zone, "text size or alignment is invalid")
 		}
+		if err := w.validate(zone, &refs); err != nil {
+			return nil, refs, err
+		}
+		value = &w
 	case WidgetQR:
 		var w qrW
 		if err := decode(&w); err != nil {
@@ -312,12 +520,52 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
 		value = &w
 	case WidgetOpenDays, WidgetEvents:
-		var w countW
+		var w listW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if w.Count < 1 || w.Count > 10 {
-			return nil, refs, zoneError(zone, "count must be between 1 and 10")
+		if w.Count < 1 || w.Count > maxListEntries {
+			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxListEntries)
+		}
+		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
+			!multilineText(w.EntryTemplate, maxEntryTemplateRun) {
+			return nil, refs, zoneError(zone, "title, emptyText or entryTemplate is too long or not text")
+		}
+		if err := w.validate(zone, &refs); err != nil {
+			return nil, refs, err
+		}
+		value = &w
+	case WidgetAgenda:
+		var w agendaW
+		if err := decode(&w); err != nil {
+			return nil, refs, err
+		}
+		if w.Count < 1 || w.Count > maxListEntries {
+			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxListEntries)
+		}
+		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
+			!multilineText(w.OpenDayTemplate, maxEntryTemplateRun) || !multilineText(w.EventTemplate, maxEntryTemplateRun) {
+			return nil, refs, zoneError(zone, "title, emptyText or a template is too long or not text")
+		}
+		if err := w.validate(zone, &refs); err != nil {
+			return nil, refs, err
+		}
+		value = &w
+	case WidgetCalendar:
+		var w calendarW
+		if err := decode(&w); err != nil {
+			return nil, refs, err
+		}
+		if !inSet(w.View, "month", "weeks") || w.Weeks < 1 || w.Weeks > maxCalendarWeeks {
+			return nil, refs, zoneError(zone, "calendar view must be month or weeks and weeks between 1 and %d", maxCalendarWeeks)
+		}
+		for _, color := range []string{w.Colors.Holiday, w.Colors.Break, w.Colors.OpenDay, w.Colors.Event} {
+			if !colorPattern.MatchString(color) {
+				return nil, refs, zoneError(zone, "calendar colours must be lowercase #rrggbb")
+			}
+		}
+		if !validHeading(w.Title) {
+			return nil, refs, zoneError(zone, "calendar title is limited to %d characters of single-line text", maxListTitleRunes)
 		}
 	case WidgetAnnouncement:
 		var w announcementW
@@ -352,6 +600,11 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 	default:
 		return nil, refs, zoneError(zone, "unknown widget type")
 	}
+	if holder, ok := value.(interface{ styleOf() *WidgetStyle }); ok && holder.styleOf() != nil {
+		if err := validateStyle(zone, holder.styleOf(), &refs); err != nil {
+			return nil, refs, err
+		}
+	}
 	canonical, err := json.Marshal(value)
 	if err != nil {
 		return nil, refs, err
@@ -363,6 +616,9 @@ func decodeMessage(err error) string {
 	message := err.Error()
 	if strings.HasPrefix(message, "json: unknown field") {
 		return strings.TrimPrefix(message, "json: ")
+	}
+	if strings.HasPrefix(message, "style: ") {
+		return message
 	}
 	return "malformed fields"
 }
@@ -420,6 +676,7 @@ func ParseZones(layout Layout, raw map[string]json.RawMessage) (map[string]RawWi
 		return nil, WidgetRefs{}, apperror.New(http.StatusUnprocessableEntity, "validation_failed", "scene zones are too large")
 	}
 	refs.ImageAssets, refs.VideoAssets = distinct(refs.ImageAssets), distinct(refs.VideoAssets)
+	refs.FontAssets = distinct(refs.FontAssets)
 	refs.Machines, refs.Templates = distinct(refs.Machines), distinct(refs.Templates)
 	return result, refs, nil
 }

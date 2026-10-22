@@ -21,7 +21,7 @@ import (
 const (
 	// machineStaleAfter is how old a printer status may be before the player must treat it as unknown.
 	machineStaleAfter = 3 * time.Minute
-	liveListLimit     = 5
+	liveListLimit     = 20
 
 	maxHeartbeatErrors      = 20
 	maxHeartbeatErrorRunes  = 200
@@ -34,18 +34,25 @@ type PublicOpenDay struct {
 	Status           string
 }
 
-// PublicEvent is the public-safe part of an upcoming event: nothing but title, start and location.
+// PublicEvent is the public-safe part of an event: nothing but title, times and location.
 type PublicEvent struct {
 	Title    string
 	StartsAt time.Time
+	EndsAt   *time.Time
 	Location string
 }
 
-// PublicCalendar supplies what the live endpoint may show about open days and events. It must only
-// return what is already publicly visible.
+// PublicCalendar supplies what the live endpoint may show about open days, events, holidays and
+// academic breaks. It must only return what is already publicly visible. The Between methods return
+// everything overlapping the range, past entries included: instants [from, to) for open days and
+// events, inclusive calendar dates (UTC midnight) for holidays and breaks.
 type PublicCalendar interface {
 	UpcomingOpenDays(ctx context.Context, now time.Time, limit int) ([]PublicOpenDay, error)
 	UpcomingEvents(ctx context.Context, now time.Time, limit int) ([]PublicEvent, error)
+	OpenDaysBetween(ctx context.Context, from, to time.Time, limit int) ([]PublicOpenDay, error)
+	EventsBetween(ctx context.Context, from, to time.Time, limit int) ([]PublicEvent, error)
+	HolidaysBetween(ctx context.Context, from, to time.Time) ([]CalendarHoliday, error)
+	BreaksBetween(ctx context.Context, from, to time.Time) ([]CalendarBreak, error)
 }
 
 // PlayerDisplay is the display a player credential is bound to.
@@ -201,6 +208,8 @@ type LiveAnnouncement struct {
 	ID, TemplateID uuid.UUID
 	Tone           Tone
 	Title, Body    string
+	BodyFormat     RichTextFormat
+	BodyCSS        string
 	StartsAt       time.Time
 	EndsAt         *time.Time
 }
@@ -227,7 +236,9 @@ type LiveData struct {
 	Announcements []LiveAnnouncement
 	OpenDays      []PublicOpenDay
 	Events        []PublicEvent
-	Streams       []Stream
+	// Calendar is set only while the display's publication has a calendar widget.
+	Calendar *CalendarBlock
+	Streams  []Stream
 }
 
 var knownLiveStates = map[LiveState]struct{}{
@@ -303,6 +314,11 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 		return LiveData{}, err
 	}
 	if published {
+		if categories, present := calendarCategoriesOf(manifest); present {
+			if live.Calendar, err = s.buildCalendar(ctx, now, categories); err != nil {
+				return LiveData{}, err
+			}
+		}
 		revision := manifest.Revision
 		live.Revision = &revision
 		machineIDs := ManifestMachineIDs(manifest)
@@ -357,10 +373,12 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	for _, announcement := range announcements {
 		live.Announcements = append(live.Announcements, LiveAnnouncement{
 			ID: announcement.ID, TemplateID: announcement.TemplateID, Tone: Tone(announcement.Rendered.Tone),
-			Title:    announcement.Rendered.Title,
-			Body:     announcement.Rendered.Body,
-			StartsAt: announcement.StartsAt,
-			EndsAt:   announcement.EndsAt,
+			Title:      announcement.Rendered.Title,
+			Body:       announcement.Rendered.Body,
+			BodyFormat: announcement.Rendered.BodyFormat,
+			BodyCSS:    announcement.Rendered.BodyCSS,
+			StartsAt:   announcement.StartsAt,
+			EndsAt:     announcement.EndsAt,
 		})
 	}
 	if s.calendar != nil {

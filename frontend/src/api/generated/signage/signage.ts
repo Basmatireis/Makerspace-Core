@@ -20,6 +20,7 @@
  */
 import type {
   CreateSignageAnnouncementTemplateRequest,
+  CreateSignageCustomLayoutRequest,
   CreateSignagePlaylistRequest,
   CreateSignageSceneRequest,
   DownloadSignageAssetParams,
@@ -35,6 +36,8 @@ import type {
   SignageAsset,
   SignageAssetList,
   SignageCalendar,
+  SignageCustomLayout,
+  SignageCustomLayoutList,
   SignageDisplay,
   SignageDisplayList,
   SignageDisplayPreview,
@@ -51,6 +54,7 @@ import type {
   StartSignageAnnouncementRequest,
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
+  UpdateSignageCustomLayoutRequest,
   UpdateSignageDisplayRequest,
   UpdateSignagePlaylistRequest,
   UpdateSignageSceneRequest,
@@ -78,6 +82,168 @@ export const listSignageLayouts = async ( options?: Parameters<typeof apiFetch>[
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getListSignageCustomLayoutsUrl = () => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts`
+}
+
+/**
+ * Needs `signage.read` or `signage.content.manage`. Items carry `sceneCount`.
+ * @summary List the custom layouts
+ */
+export const listSignageCustomLayouts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayoutList> => {
+
+  return apiFetch<SignageCustomLayoutList>(getListSignageCustomLayoutsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSignageCustomLayoutUrl = () => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts`
+}
+
+/**
+ * Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
+ * @summary Create a custom layout
+ */
+export const createSignageCustomLayout = async (createSignageCustomLayoutRequest: CreateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageCustomLayout>(getCreateSignageCustomLayoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createSignageCustomLayoutRequest)
+  }
+);}
+
+
+export const getGetSignageCustomLayoutUrl = (customLayoutId: string,) => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts/${customLayoutId}`
+}
+
+/**
+ * Needs `signage.read` or `signage.content.manage`.
+ */
+export const getSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
+
+  return apiFetch<SignageCustomLayout>(getGetSignageCustomLayoutUrl(customLayoutId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateSignageCustomLayoutUrl = (customLayoutId: string,) => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts/${customLayoutId}`
+}
+
+/**
+ * Needs `signage.content.manage`. Audited as `signage_custom_layout.updated`. Removing zones is allowed: in the same transaction every scene using the layout loses the widgets of the removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`).
+ * @summary Replace a custom layout
+ */
+export const updateSignageCustomLayout = async (customLayoutId: string,
+    updateSignageCustomLayoutRequest: UpdateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageCustomLayout>(getUpdateSignageCustomLayoutUrl(customLayoutId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSignageCustomLayoutRequest)
+  }
+);}
+
+
+export const getDeleteSignageCustomLayoutUrl = (customLayoutId: string,) => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts/${customLayoutId}`
+}
+
+/**
+ * Needs `signage.content.manage`. Answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
+ */
+export const deleteSignageCustomLayout = async (customLayoutId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteSignageCustomLayoutUrl(customLayoutId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
   }
 );}
 
@@ -115,8 +281,8 @@ export const getGetSignageCalendarUrl = () => {
 }
 
 /**
- * Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews.
- * @summary Upcoming public open days and events (the lists players show)
+ * Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews. `calendar` carries every category (holidays, breaks, open days, events) for the same date range the player receives.
+ * @summary Upcoming public open days and events (the lists players show) and the calendar block
  */
 export const getSignageCalendar = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageCalendar> => {
 
@@ -146,7 +312,7 @@ export const getListSignageAssetsUrl = (params?: ListSignageAssetsParams,) => {
 }
 
 /**
- * @summary List uploaded images and videos
+ * @summary List uploaded images, videos and fonts
  */
 export const listSignageAssets = async (params?: ListSignageAssetsParams, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAssetList> => {
 
@@ -169,8 +335,8 @@ export const getUploadSignageAssetUrl = () => {
 }
 
 /**
- * Images may be up to 8192 px per side and 40 megapixels. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
- * @summary Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+ * Images may be up to 8192 px per side and 40 megapixels. Fonts must be WOFF2 (magic bytes `wOF2`) and become assets of kind `font` without dimensions. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
+ * @summary Upload a PNG, JPEG, WebP image (20 MiB), an MP4 video (200 MiB) or a WOFF2 font (2 MiB)
  */
 export const uploadSignageAsset = async (uploadSignageAssetBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAsset> => {
 
@@ -393,7 +559,7 @@ export const getUpdateSignageSceneUrl = (sceneId: string,) => {
 }
 
 /**
- * When `layoutId` changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+ * When the layout (built-in or custom) changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
  * @summary Replace a scene
  */
 export const updateSignageScene = async (sceneId: string,

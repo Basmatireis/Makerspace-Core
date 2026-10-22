@@ -19,9 +19,10 @@ type renderVector struct {
 			Key  string `json:"key"`
 			Type string `json:"type"`
 		} `json:"fields"`
-		Title string `json:"title"`
-		Body  string `json:"body"`
-		Tone  string `json:"tone"`
+		Title      string `json:"title"`
+		Body       string `json:"body"`
+		BodyFormat string `json:"bodyFormat"`
+		Tone       string `json:"tone"`
 	} `json:"template"`
 	Values      map[string]string `json:"values"`
 	StartsAt    time.Time         `json:"startsAt"`
@@ -58,9 +59,10 @@ func TestRenderAnnouncementVectors(t *testing.T) {
 				t.Fatal(err)
 			}
 			template := RenderTemplate{
-				Title: vector.Template.Title,
-				Body:  vector.Template.Body,
-				Tone:  Tone(vector.Template.Tone),
+				Title:      vector.Template.Title,
+				Body:       vector.Template.Body,
+				BodyFormat: RichTextFormat(vector.Template.BodyFormat),
+				Tone:       Tone(vector.Template.Tone),
 			}
 			for _, field := range vector.Template.Fields {
 				template.Fields = append(template.Fields, RenderField{Key: field.Key, Type: FieldType(field.Type)})
@@ -77,7 +79,13 @@ func TestRenderAnnouncementVectors(t *testing.T) {
 					MachineNames: vector.Machines,
 				},
 			)
-			want := Rendered{Title: vector.Expected.Title, Body: vector.Expected.Body, Tone: vector.Expected.Tone}
+			wantFormat := RichTextFormat(vector.Template.BodyFormat)
+			if wantFormat == "" {
+				wantFormat = FormatPlain
+			}
+			want := Rendered{
+				Title: vector.Expected.Title, Body: vector.Expected.Body, Tone: vector.Expected.Tone, BodyFormat: wantFormat,
+			}
 			if got != want {
 				t.Fatalf("rendered %#v, want %#v", got, want)
 			}

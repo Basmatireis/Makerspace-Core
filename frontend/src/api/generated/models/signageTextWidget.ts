@@ -18,17 +18,32 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTextSize } from './signageTextSize';
 import type { SignageTextWidgetAlign } from './signageTextWidgetAlign';
 import type { SignageTextWidgetType } from './signageTextWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
+import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageTextWidget {
   type: SignageTextWidgetType;
   /**
-     * Plain text; rendered as text nodes, never as HTML.
-     * @maxLength 1000
+     * Rendered according to `format`: plain text as text nodes, markdown and HTML sanitized by the browser. The backend never renders HTML.
+     * @maxLength 20000
      */
   text: string;
   size: SignageTextSize;
   align: SignageTextWidgetAlign;
+  format?: SignageRichTextFormat;
+  /**
+     * Sanitized by the browser; only affects the zone.
+     * @maxLength 20000
+     */
+  css?: string;
+  /**
+     * Font assets the CSS uses (distinct, kind `font`).
+     * @maxItems 10
+     */
+  fontAssetIds?: UUIDv7[];
+  style?: SignageWidgetStyle;
 }

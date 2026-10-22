@@ -1519,7 +1519,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	envelope := e.expect(response, http.StatusOK)
 	manifest := envelope["manifest"].(map[string]any)
 	if envelope["unchanged"] != false || manifest["revision"] != float64(1) ||
-		manifest["layoutsVersion"] != float64(1) ||
+		manifest["layoutsVersion"] != float64(2) ||
 		manifest["defaultPlaylistId"] != playlist.ID.String() {
 		t.Fatalf("manifest = %v", manifest)
 	}
@@ -1867,7 +1867,7 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if err := json.Unmarshal(raw, &live); err != nil {
 		t.Fatal(err)
 	}
-	if len(live) != 7 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
+	if len(live) != 8 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
 		live["serverTime"] == nil {
 		t.Fatalf("live = %v", live)
 	}
@@ -1909,7 +1909,7 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("events = %v", events)
 	}
-	if entry := events[0].(map[string]any); len(entry) != 3 || entry["title"] != "Public Workshop" ||
+	if entry := events[0].(map[string]any); len(entry) != 4 || entry["title"] != "Public Workshop" ||
 		entry["location"] != "Workshop floor" {
 		t.Fatalf("event = %v", entry)
 	}

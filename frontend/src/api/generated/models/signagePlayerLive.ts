@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignagePlayerCalendar } from './signagePlayerCalendar';
 import type { SignagePlayerEvent } from './signagePlayerEvent';
 import type { SignagePlayerLiveAnnouncement } from './signagePlayerLiveAnnouncement';
 import type { SignagePlayerLiveMachine } from './signagePlayerLiveMachine';
@@ -35,10 +36,12 @@ export interface SignagePlayerLive {
   machines: SignagePlayerLiveMachine[];
   /** @maxItems 100 */
   announcements: SignagePlayerLiveAnnouncement[];
-  /** @maxItems 5 */
+  /** @maxItems 20 */
   openDays: SignagePlayerOpenDay[];
-  /** @maxItems 5 */
+  /** @maxItems 20 */
   events: SignagePlayerEvent[];
+  /** Present only while the display's publication contains a calendar widget; holds only the categories a published calendar widget shows. */
+  calendar: SignagePlayerCalendar | null;
   /**
      * Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.
      * @maxItems 20

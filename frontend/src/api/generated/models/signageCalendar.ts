@@ -18,12 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignagePlayerCalendar } from './signagePlayerCalendar';
 import type { SignagePlayerEvent } from './signagePlayerEvent';
 import type { SignagePlayerOpenDay } from './signagePlayerOpenDay';
 
 export interface SignageCalendar {
-  /** @maxItems 5 */
+  /** @maxItems 20 */
   openDays: SignagePlayerOpenDay[];
-  /** @maxItems 5 */
+  /** @maxItems 20 */
   events: SignagePlayerEvent[];
+  /** The calendar block with every category, for admin previews. */
+  calendar: SignagePlayerCalendar | null;
 }

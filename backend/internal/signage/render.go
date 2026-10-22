@@ -26,10 +26,13 @@ type RenderField struct {
 	Type FieldType
 }
 
-// RenderTemplate is the part of an announcement template the renderer needs.
+// RenderTemplate is the part of an announcement template the renderer needs. BodyFormat empty means
+// plain.
 type RenderTemplate struct {
 	Fields      []RenderField
 	Title, Body string
+	BodyFormat  RichTextFormat
+	BodyCSS     string
 	Tone        Tone
 }
 
@@ -49,9 +52,12 @@ type RenderContext struct {
 	MachineNames map[string]string
 }
 
-// Rendered is the final message text.
+// Rendered is the final message text. Placeholder values in Body are escaped for BodyFormat, so the
+// browser can interpret the whole body as that format without a value injecting markup.
 type Rendered struct {
 	Title, Body, Tone string
+	BodyFormat        RichTextFormat
+	BodyCSS           string
 }
 
 var (
@@ -221,13 +227,83 @@ func RenderAnnouncement(
 	for _, field := range template.Fields {
 		lookup[field.Key] = formatFieldValue(field, values[field.Key], now, context.MachineNames)
 	}
-	fill := func(text string) string {
+	fill := func(text string, escape func(string) string) string {
 		return placeholderPattern.ReplaceAllStringFunc(text, func(match string) string {
 			if replacement, ok := lookup[match[1:len(match)-1]]; ok {
-				return replacement
+				return escape(replacement)
 			}
 			return match
 		})
 	}
-	return Rendered{Title: fill(template.Title), Body: fill(template.Body), Tone: string(template.Tone)}
+	format := template.BodyFormat
+	if format == "" {
+		format = FormatPlain
+	}
+	return Rendered{
+		Title:      fill(template.Title, func(value string) string { return value }),
+		Body:       fill(template.Body, escaperFor(format)),
+		Tone:       string(template.Tone),
+		BodyFormat: format,
+		BodyCSS:    template.BodyCSS,
+	}
+}
+
+// markdownPunctuation is backslash-escaped in placeholder values of markdown bodies. Any ASCII punctuation
+// character may be escaped in markdown; these are the ones that start inline or block constructs, links
+// and autolinks.
+const markdownPunctuation = "\\`*_{}[]()#+-.!|~=:"
+
+func escaperFor(format RichTextFormat) func(string) string {
+	switch format {
+	case FormatHTML:
+		return escapeHTML
+	case FormatMarkdown:
+		return escapeMarkdown
+	default:
+		return func(value string) string { return value }
+	}
+}
+
+// escapeHTML escapes the characters that matter in HTML text and attribute values.
+func escapeHTML(value string) string {
+	var out strings.Builder
+	for _, r := range value {
+		switch r {
+		case '&':
+			out.WriteString("&amp;")
+		case '<':
+			out.WriteString("&lt;")
+		case '>':
+			out.WriteString("&gt;")
+		case '"':
+			out.WriteString("&quot;")
+		case '\'':
+			out.WriteString("&#39;")
+		default:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
+}
+
+// escapeMarkdown makes a value literal in markdown: `&`, `<` and `>` become entities (so no raw HTML can
+// appear) and markdown punctuation is backslash-escaped in the same pass, which keeps the entities intact.
+func escapeMarkdown(value string) string {
+	var out strings.Builder
+	for _, r := range value {
+		switch {
+		case r == '&':
+			out.WriteString("&amp;")
+		case r == '<':
+			out.WriteString("&lt;")
+		case r == '>':
+			out.WriteString("&gt;")
+		case strings.ContainsRune(markdownPunctuation, r):
+			out.WriteByte('\\')
+			out.WriteRune(r)
+		default:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }

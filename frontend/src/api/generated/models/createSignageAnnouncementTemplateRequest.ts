@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTemplateField } from './signageTemplateField';
 import type { SignageTone } from './signageTone';
 
@@ -33,8 +34,11 @@ export interface CreateSignageAnnouncementTemplateRequest {
      * @maxLength 200
      */
   title: string;
-  /** @maxLength 2000 */
+  /** @maxLength 5000 */
   body: string;
+  bodyFormat?: SignageRichTextFormat;
+  /** @maxLength 20000 */
+  bodyCss?: string;
   /** @maxItems 20 */
   fields: SignageTemplateField[];
 }

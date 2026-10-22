@@ -162,6 +162,58 @@
       "location": "",
       "machines": {},
       "expected": {"title": "next friday", "body": "2026-10-20 09:00", "tone": "info"}
+    },
+    {
+      "name": "html body escapes placeholder values but not the title or the template",
+      "template": {"fields": [{"key": "note", "type": "text"}], "title": "T {note}", "body": "<p>{note}</p> {starts_at} {unknown}", "bodyFormat": "html", "tone": "info"},
+      "values": {"note": "<b>\"Tom\" & 'Jerry'</b>"},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "T <b>\"Tom\" & 'Jerry'</b>", "body": "<p>&lt;b&gt;&quot;Tom&quot; &amp; &#39;Jerry&#39;&lt;/b&gt;</p> 09:05 {unknown}", "tone": "info"}
+    },
+    {
+      "name": "markdown body backslash-escapes punctuation and entity-escapes markup",
+      "template": {"fields": [{"key": "note", "type": "text"}], "title": "{note}", "body": "Note: {note} at {starts_at}", "bodyFormat": "markdown", "tone": "info"},
+      "values": {"note": "# Hi *there* [x](https://e.test) <i>a&b</i> 1. a_b"},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "# Hi *there* [x](https://e.test) <i>a&b</i> 1. a_b", "body": "Note: \\# Hi \\*there\\* \\[x\\]\\(https\\://e\\.test\\) &lt;i&gt;a&amp;b&lt;/i&gt; 1\\. a\\_b at 09\\:05", "tone": "info"}
+    },
+    {
+      "name": "plain body keeps placeholder values as typed",
+      "template": {"fields": [{"key": "note", "type": "text"}], "title": "{note}", "body": "<p>{note}</p>", "bodyFormat": "plain", "tone": "info"},
+      "values": {"note": "<b>*x* & y</b>"},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "<b>*x* & y</b>", "body": "<p><b>*x* & y</b></p>", "tone": "info"}
+    },
+    {
+      "name": "markdown body escapes built-in variables too",
+      "template": {"fields": [], "title": "{display}", "body": "{display}-{location} {today}", "bodyFormat": "markdown", "tone": "neutral"},
+      "values": {},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "A_B*",
+      "location": "x",
+      "machines": {},
+      "expected": {"title": "A_B*", "body": "A\\_B\\*-x Mon 19 Oct", "tone": "neutral"}
     }
   ]
 }

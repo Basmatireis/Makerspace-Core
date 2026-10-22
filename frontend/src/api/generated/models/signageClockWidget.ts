@@ -20,8 +20,10 @@
  */
 import type { SignageClockWidgetMode } from './signageClockWidgetMode';
 import type { SignageClockWidgetType } from './signageClockWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 
 export interface SignageClockWidget {
   type: SignageClockWidgetType;
   mode: SignageClockWidgetMode;
+  style?: SignageWidgetStyle;
 }

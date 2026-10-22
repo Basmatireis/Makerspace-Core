@@ -20,10 +20,12 @@
  */
 import type { SignageFit } from './signageFit';
 import type { SignageVideoWidgetType } from './signageVideoWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageVideoWidget {
   type: SignageVideoWidgetType;
   mediaId: UUIDv7 | null;
   fit: SignageFit;
+  style?: SignageWidgetStyle;
 }

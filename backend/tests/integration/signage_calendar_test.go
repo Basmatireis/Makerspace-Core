@@ -162,10 +162,10 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	assertLists := func(source string, body map[string]any) {
 		t.Helper()
 		days := body["openDays"].([]any)
-		if len(days) != 5 {
-			t.Fatalf("%s: %d open days, want the next 5", source, len(days))
+		if len(days) != 7 {
+			t.Fatalf("%s: %d open days, want all 7 (the list limit is 20)", source, len(days))
 		}
-		for index, offset := range []int{3, 4, 5, 6, 7} {
+		for index, offset := range []int{3, 4, 5, 6, 7, 8, 9} {
 			wantStart, wantEnd := slot(offset)
 			day := days[index].(map[string]any)
 			gotStart, _ := time.Parse(time.RFC3339, day["startsAt"].(string))
@@ -175,14 +175,14 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 			}
 		}
 		list := body["events"].([]any)
-		if len(list) != 5 {
-			t.Fatalf("%s: %d events, want 5", source, len(list))
+		if len(list) != 7 {
+			t.Fatalf("%s: %d events, want all 7 public ones", source, len(list))
 		}
 		previous := ""
 		for _, raw := range list {
 			entry := raw.(map[string]any)
-			if len(entry) != 3 || entry["location"] != "Workshop floor" || entry["title"] == "Not public" ||
-				entry["title"] == nil {
+			if len(entry) != 4 || entry["location"] != "Workshop floor" || entry["title"] == "Not public" ||
+				entry["title"] == nil || entry["endsAt"] == nil {
 				t.Fatalf("%s: event = %v", source, entry)
 			}
 			if starts := entry["startsAt"].(string); starts < previous {
@@ -201,6 +201,9 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	live := e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
 	assertLists("live", live)
 	// Both endpoints serve the same lists.
+	if live["calendar"] != nil {
+		t.Fatalf("a display without calendar widget got a calendar block: %v", live["calendar"])
+	}
 	for _, key := range []string{"openDays", "events"} {
 		if fmt.Sprint(calendar[key]) != fmt.Sprint(live[key]) {
 			t.Fatalf("%s differ: calendar %v, live %v", key, calendar[key], live[key])
@@ -218,7 +221,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	days := e.expect(e.as(staff, http.MethodGet, "/signage/calendar", nil), http.StatusOK)["openDays"].([]any)
-	if len(days) != 5 {
+	if len(days) != 7 {
 		t.Fatalf("after cancelling: %v", days)
 	}
 	// The cancelled day either stays with status cancelled or leaves the list; it is never "scheduled".

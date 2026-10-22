@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageStatusWidgetType } from './signageStatusWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageStatusWidget {
@@ -27,4 +28,5 @@ export interface SignageStatusWidget {
   machineIds: UUIDv7[];
   showProgress: boolean;
   showRemaining: boolean;
+  style?: SignageWidgetStyle;
 }

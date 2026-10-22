@@ -200,10 +200,12 @@ func (s *Service) hydrateFor(
 		endsAt := fromPgTime(row.EndsAt)
 		rendered := RenderAnnouncement(
 			RenderTemplate{
-				Fields: renderFields(fields[row.TemplateID]),
-				Title:  template.Title,
-				Body:   template.Body,
-				Tone:   Tone(template.Tone),
+				Fields:     renderFields(fields[row.TemplateID]),
+				Title:      template.Title,
+				Body:       template.Body,
+				BodyFormat: RichTextFormat(template.BodyFormat),
+				BodyCSS:    template.BodyCss,
+				Tone:       Tone(template.Tone),
 			},
 			announcementValues,
 			RenderTiming{StartsAt: row.StartsAt, EndsAt: endsAt},

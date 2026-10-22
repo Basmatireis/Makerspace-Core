@@ -53,8 +53,8 @@ ORDER BY lower(name), id;
 -- Scenes ------------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageScene :one
-INSERT INTO signage_scenes (id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(orientation), sqlc.arg(layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
+INSERT INTO signage_scenes (id, name, orientation, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(orientation), sqlc.arg(layout_id), sqlc.narg(custom_layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
         sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(zones)::text::jsonb)
 RETURNING *;
 
@@ -69,11 +69,16 @@ SELECT * FROM signage_scenes ORDER BY lower(name), id;
 
 -- name: UpdateSignageScene :one
 UPDATE signage_scenes
-SET name = sqlc.arg(name), orientation = sqlc.arg(orientation), layout_id = sqlc.arg(layout_id), background_color = sqlc.arg(background_color),
+SET name = sqlc.arg(name), orientation = sqlc.arg(orientation), layout_id = sqlc.arg(layout_id), custom_layout_id = sqlc.narg(custom_layout_id),
+    background_color = sqlc.arg(background_color),
     background_asset_id = sqlc.narg(background_asset_id), background_fit = sqlc.arg(background_fit), background_dim = sqlc.arg(background_dim),
     theme = sqlc.arg(theme), zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
+
+-- name: SetSignageSceneZones :exec
+-- Rewrites the widgets of a scene whose custom layout changed its zones.
+UPDATE signage_scenes SET zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
 
 -- name: DeleteSignageScene :one
 DELETE FROM signage_scenes WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING id;
@@ -88,6 +93,48 @@ WHERE i.scene_id = sqlc.arg(scene_id) ORDER BY p.name, p.id;
 -- name: ListRulesReferencingScene :many
 SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
 WHERE r.target_scene_id = sqlc.arg(scene_id) ORDER BY d.name, r.position;
+
+-- Custom layouts ----------------------------------------------------------------------------------------------
+
+-- name: CreateSignageCustomLayout :one
+INSERT INTO signage_custom_layouts (id, name, mode, columns, rows, zones)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(mode), sqlc.arg(columns)::int[], sqlc.arg(rows)::int[], sqlc.arg(zones)::text::jsonb)
+RETURNING *;
+
+-- name: GetSignageCustomLayout :one
+SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id);
+
+-- name: GetSignageCustomLayoutForUpdate :one
+SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: GetSignageCustomLayoutForShare :one
+-- Scene writes share-lock the layout so that a concurrent layout update or deletion waits for them.
+SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: ListSignageCustomLayouts :many
+SELECT l.id, l.name, l.mode, l.columns, l.rows, l.zones, l.version, l.created_at, l.updated_at,
+       (SELECT count(*) FROM signage_scenes s WHERE s.custom_layout_id = l.id)::int AS scene_count
+FROM signage_custom_layouts l ORDER BY lower(l.name), l.id;
+
+-- name: CountScenesUsingCustomLayout :one
+SELECT count(*)::int FROM signage_scenes WHERE custom_layout_id = sqlc.arg(id)::uuid;
+
+-- name: ListSignageCustomLayoutsByIDs :many
+SELECT * FROM signage_custom_layouts WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) ORDER BY id;
+
+-- name: UpdateSignageCustomLayout :one
+UPDATE signage_custom_layouts
+SET name = sqlc.arg(name), mode = sqlc.arg(mode), columns = sqlc.arg(columns)::int[], rows = sqlc.arg(rows)::int[],
+    zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: DeleteSignageCustomLayout :one
+DELETE FROM signage_custom_layouts WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING id;
+
+-- name: ListScenesUsingCustomLayoutForUpdate :many
+-- Locks every scene that uses the layout (in id order) before the layout zones change.
+SELECT id, name, zones FROM signage_scenes WHERE custom_layout_id = sqlc.arg(id)::uuid ORDER BY id FOR UPDATE;
 
 -- Playlists ---------------------------------------------------------------------------------------------------
 
@@ -130,8 +177,8 @@ WHERE r.target_playlist_id = sqlc.arg(playlist_id) ORDER BY d.name, r.position;
 -- Announcement templates --------------------------------------------------------------------------------------
 
 -- name: CreateSignageTemplate :one
-INSERT INTO signage_announcement_templates (id, name, tone, title, body)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(tone), sqlc.arg(title), sqlc.arg(body)) RETURNING *;
+INSERT INTO signage_announcement_templates (id, name, tone, title, body, body_format, body_css)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(tone), sqlc.arg(title), sqlc.arg(body), sqlc.arg(body_format), sqlc.arg(body_css)) RETURNING *;
 
 -- name: GetSignageTemplate :one
 SELECT * FROM signage_announcement_templates WHERE id = sqlc.arg(id);
@@ -144,7 +191,8 @@ SELECT * FROM signage_announcement_templates ORDER BY lower(name), id;
 
 -- name: UpdateSignageTemplate :one
 UPDATE signage_announcement_templates
-SET name = sqlc.arg(name), tone = sqlc.arg(tone), title = sqlc.arg(title), body = sqlc.arg(body), version = version + 1, updated_at = now()
+SET name = sqlc.arg(name), tone = sqlc.arg(tone), title = sqlc.arg(title), body = sqlc.arg(body), body_format = sqlc.arg(body_format),
+    body_css = sqlc.arg(body_css), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
 
 -- name: DeleteSignageTemplate :one

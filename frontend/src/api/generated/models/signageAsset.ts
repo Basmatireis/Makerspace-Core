@@ -30,7 +30,7 @@ export interface SignageAsset {
      */
   name: string;
   /**
-     * Always set for images; null for videos uploaded without dimensions.
+     * Always set for images; null for fonts and for videos uploaded without dimensions.
      * @nullable
      */
   width: number | null;

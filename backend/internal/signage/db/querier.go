@@ -18,10 +18,13 @@ type Querier interface {
 	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
 	CountOpenSignagePairingRequests(ctx context.Context, now time.Time) (int64, error)
 	CountSceneRulesWithOtherOrientation(ctx context.Context, arg CountSceneRulesWithOtherOrientationParams) (int64, error)
+	CountScenesUsingCustomLayout(ctx context.Context, id uuid.UUID) (int32, error)
 	// Announcements -----------------------------------------------------------------------------------------------
 	CreateSignageAnnouncement(ctx context.Context, arg CreateSignageAnnouncementParams) (SignageAnnouncement, error)
 	// Assets ------------------------------------------------------------------------------------------------------
 	CreateSignageAsset(ctx context.Context, arg CreateSignageAssetParams) (uuid.UUID, error)
+	// Custom layouts ----------------------------------------------------------------------------------------------
+	CreateSignageCustomLayout(ctx context.Context, arg CreateSignageCustomLayoutParams) (SignageCustomLayout, error)
 	// Displays ----------------------------------------------------------------------------------------------------
 	CreateSignageDisplay(ctx context.Context, arg CreateSignageDisplayParams) (uuid.UUID, error)
 	CreateSignagePairingRequest(ctx context.Context, arg CreateSignagePairingRequestParams) error
@@ -40,6 +43,7 @@ type Querier interface {
 	DeleteSignageAnnouncementValues(ctx context.Context, announcementID uuid.UUID) error
 	DeleteSignageAnnouncementValuesNotIn(ctx context.Context, arg DeleteSignageAnnouncementValuesNotInParams) error
 	DeleteSignageAsset(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	DeleteSignageCustomLayout(ctx context.Context, arg DeleteSignageCustomLayoutParams) (uuid.UUID, error)
 	DeleteSignageDisplay(ctx context.Context, arg DeleteSignageDisplayParams) (uuid.UUID, error)
 	DeleteSignagePairingRequest(ctx context.Context, id uuid.UUID) error
 	DeleteSignagePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error
@@ -55,6 +59,10 @@ type Querier interface {
 	GetSignageAnnouncementForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error)
 	GetSignageAsset(ctx context.Context, id uuid.UUID) (GetSignageAssetRow, error)
 	GetSignageAssetForUpdate(ctx context.Context, id uuid.UUID) (GetSignageAssetForUpdateRow, error)
+	GetSignageCustomLayout(ctx context.Context, id uuid.UUID) (SignageCustomLayout, error)
+	// Scene writes share-lock the layout so that a concurrent layout update or deletion waits for them.
+	GetSignageCustomLayoutForShare(ctx context.Context, id uuid.UUID) (SignageCustomLayout, error)
+	GetSignageCustomLayoutForUpdate(ctx context.Context, id uuid.UUID) (SignageCustomLayout, error)
 	GetSignageDisplayByDevice(ctx context.Context, managedDeviceID uuid.UUID) (GetSignageDisplayByDeviceRow, error)
 	GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayForUpdateRow, error)
 	GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetSignageDisplayViewRow, error)
@@ -82,12 +90,16 @@ type Querier interface {
 	ListRulesReferencingScene(ctx context.Context, sceneID *uuid.UUID) ([]ListRulesReferencingSceneRow, error)
 	ListScenesReferencingAsset(ctx context.Context, id uuid.UUID) ([]ListScenesReferencingAssetRow, error)
 	ListScenesReferencingTemplate(ctx context.Context, templateID uuid.UUID) ([]ListScenesReferencingTemplateRow, error)
+	// Locks every scene that uses the layout (in id order) before the layout zones change.
+	ListScenesUsingCustomLayoutForUpdate(ctx context.Context, id uuid.UUID) ([]ListScenesUsingCustomLayoutForUpdateRow, error)
 	ListSignageAnnouncementDisplays(ctx context.Context, announcementIds []string) ([]SignageAnnouncementDisplay, error)
 	ListSignageAnnouncementValues(ctx context.Context, announcementIds []string) ([]SignageAnnouncementValue, error)
 	ListSignageAssetKinds(ctx context.Context, ids []string) ([]ListSignageAssetKindsRow, error)
 	ListSignageAssets(ctx context.Context, kind *string) ([]ListSignageAssetsRow, error)
 	ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]ListSignageAssetsByIDsRow, error)
 	ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error)
+	ListSignageCustomLayouts(ctx context.Context) ([]ListSignageCustomLayoutsRow, error)
+	ListSignageCustomLayoutsByIDs(ctx context.Context, ids []string) ([]SignageCustomLayout, error)
 	ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
 	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)
@@ -116,7 +128,10 @@ type Querier interface {
 	RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDisplayParams) (uuid.UUID, error)
 	SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error)
 	SetSignageRulePosition(ctx context.Context, arg SetSignageRulePositionParams) error
+	// Rewrites the widgets of a scene whose custom layout changed its zones.
+	SetSignageSceneZones(ctx context.Context, arg SetSignageSceneZonesParams) error
 	UpdateSignageAnnouncement(ctx context.Context, arg UpdateSignageAnnouncementParams) (SignageAnnouncement, error)
+	UpdateSignageCustomLayout(ctx context.Context, arg UpdateSignageCustomLayoutParams) (SignageCustomLayout, error)
 	UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDisplayParams) (uuid.UUID, error)
 	UpdateSignagePlaylist(ctx context.Context, arg UpdateSignagePlaylistParams) (SignagePlaylist, error)
 	UpdateSignageRule(ctx context.Context, arg UpdateSignageRuleParams) (int64, error)

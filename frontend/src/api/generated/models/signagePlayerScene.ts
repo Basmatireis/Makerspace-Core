@@ -31,6 +31,8 @@ export interface SignagePlayerScene {
   name: string;
   orientation: SignageOrientation;
   layoutId: SignageLayoutId;
+  /** Set exactly when `layoutId` is `custom`; the layout is in the manifest's `customLayouts`. */
+  customLayoutId: UUIDv7 | null;
   /** @pattern ^#[0-9a-f]{6}$ */
   backgroundColor: string;
   backgroundAssetId: UUIDv7 | null;

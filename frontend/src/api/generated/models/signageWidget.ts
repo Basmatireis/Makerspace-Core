@@ -18,7 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageAgendaWidget } from './signageAgendaWidget';
 import type { SignageAnnouncementWidget } from './signageAnnouncementWidget';
+import type { SignageCalendarWidget } from './signageCalendarWidget';
 import type { SignageCameraWidget } from './signageCameraWidget';
 import type { SignageClockWidget } from './signageClockWidget';
 import type { SignageEmptyWidget } from './signageEmptyWidget';
@@ -34,4 +36,4 @@ import type { SignageVideoWidget } from './signageVideoWidget';
 /**
  * One widget per layout zone. Fields are decoded strictly; unknown fields are rejected.
  */
-export type SignageWidget = SignageEmptyWidget | SignageImageWidget | SignageVideoWidget | SignageSlideshowWidget | SignageTextWidget | SignageQrWidget | SignageClockWidget | SignageCameraWidget | SignageStatusWidget | SignageOpenDaysWidget | SignageEventsWidget | SignageAnnouncementWidget;
+export type SignageWidget = SignageEmptyWidget | SignageImageWidget | SignageVideoWidget | SignageSlideshowWidget | SignageTextWidget | SignageQrWidget | SignageClockWidget | SignageCameraWidget | SignageStatusWidget | SignageOpenDaysWidget | SignageEventsWidget | SignageAnnouncementWidget | SignageAgendaWidget | SignageCalendarWidget;

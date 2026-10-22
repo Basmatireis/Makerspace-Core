@@ -35,6 +35,8 @@ export interface SignageScene {
   name: string;
   orientation: SignageOrientation;
   layoutId: SignageLayoutId;
+  /** The custom layout; set exactly when `layoutId` is `custom`. */
+  customLayoutId: UUIDv7 | null;
   /** @pattern ^#[0-9a-f]{6}$ */
   backgroundColor: string;
   backgroundAssetId: UUIDv7 | null;

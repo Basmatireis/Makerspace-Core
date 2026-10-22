@@ -20,6 +20,7 @@ const (
 	maxTemplateFields  = 20
 	maxFieldOptions    = 20
 	maxFieldValueRunes = 2000
+	maxTemplateBody    = 5000
 )
 
 var (
@@ -40,12 +41,15 @@ type TemplateField struct {
 	Options      []string
 }
 
-// Template is an announcement template: fields, a title and body with {placeholders}, and a tone.
+// Template is an announcement template: fields, a title and body with {placeholders}, and a tone. The
+// body is interpreted as BodyFormat by the browser and styled by BodyCSS.
 type Template struct {
 	ID          uuid.UUID
 	Name        string
 	Tone        Tone
 	Title, Body string
+	BodyFormat  RichTextFormat
+	BodyCSS     string
 	Fields      []TemplateField
 	Version     int64
 	CreatedAt   time.Time
@@ -57,7 +61,10 @@ type TemplateInput struct {
 	Name        string
 	Tone        Tone
 	Title, Body string
-	Fields      []TemplateField
+	// BodyFormat empty means plain.
+	BodyFormat RichTextFormat
+	BodyCSS    string
+	Fields     []TemplateField
 }
 
 func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateField) Template {
@@ -65,15 +72,17 @@ func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateFi
 		fields = []TemplateField{}
 	}
 	return Template{
-		ID:        row.ID,
-		Name:      row.Name,
-		Tone:      Tone(row.Tone),
-		Title:     row.Title,
-		Body:      row.Body,
-		Fields:    fields,
-		Version:   row.Version,
-		CreatedAt: row.CreatedAt.UTC(),
-		UpdatedAt: row.UpdatedAt.UTC(),
+		ID:         row.ID,
+		Name:       row.Name,
+		Tone:       Tone(row.Tone),
+		Title:      row.Title,
+		Body:       row.Body,
+		BodyFormat: RichTextFormat(row.BodyFormat),
+		BodyCSS:    row.BodyCss,
+		Fields:     fields,
+		Version:    row.Version,
+		CreatedAt:  row.CreatedAt.UTC(),
+		UpdatedAt:  row.UpdatedAt.UTC(),
 	}
 }
 
@@ -174,8 +183,18 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 	if input.Title == "" || !plainText(input.Title, 200, false) {
 		return TemplateInput{}, validation("title is required and limited to 200 characters of single-line text")
 	}
-	if !plainText(input.Body, 2000, true) {
-		return TemplateInput{}, validation("body must be plain text of at most 2000 characters")
+	if !multilineText(input.Body, maxTemplateBody) {
+		return TemplateInput{}, validation("body must be text of at most %d characters", maxTemplateBody)
+	}
+	bodyFormat := input.BodyFormat
+	if bodyFormat == "" {
+		bodyFormat = FormatPlain
+	}
+	if !validFormat(bodyFormat) {
+		return TemplateInput{}, validation("bodyFormat must be plain, markdown or html")
+	}
+	if !multilineText(input.BodyCSS, maxRichCSSRunes) {
+		return TemplateInput{}, validation("bodyCss must be text of at most %d characters", maxRichCSSRunes)
 	}
 	if len(input.Fields) > maxTemplateFields {
 		return TemplateInput{}, validation("a template has at most %d fields", maxTemplateFields)
@@ -253,7 +272,15 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 		result.Details["placeholders"] = unknown
 		return TemplateInput{}, result
 	}
-	return TemplateInput{Name: name, Tone: input.Tone, Title: input.Title, Body: input.Body, Fields: fields}, nil
+	return TemplateInput{
+		Name:       name,
+		Tone:       input.Tone,
+		Title:      input.Title,
+		Body:       input.Body,
+		BodyFormat: bodyFormat,
+		BodyCSS:    input.BodyCSS,
+		Fields:     fields,
+	}, nil
 }
 
 func insertFields(ctx context.Context, q *signagedb.Queries, templateID uuid.UUID, fields []TemplateField) error {
@@ -349,11 +376,13 @@ func (s *Service) CreateTemplate(
 	if _, err := q.CreateSignageTemplate(
 		ctx,
 		signagedb.CreateSignageTemplateParams{
-			ID:    id,
-			Name:  checked.Name,
-			Tone:  string(checked.Tone),
-			Title: checked.Title,
-			Body:  checked.Body,
+			ID:         id,
+			Name:       checked.Name,
+			Tone:       string(checked.Tone),
+			Title:      checked.Title,
+			Body:       checked.Body,
+			BodyFormat: string(checked.BodyFormat),
+			BodyCss:    checked.BodyCSS,
 		},
 	); err != nil {
 		return Template{}, databaseError(err)
@@ -369,7 +398,7 @@ func (s *Service) CreateTemplate(
 		"signage_announcement_template",
 		id,
 		requestID,
-		[]string{"name", "tone", "title", "body", "fields"},
+		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "fields"},
 	); err != nil {
 		return Template{}, err
 	}
@@ -423,6 +452,8 @@ func (s *Service) UpdateTemplate(
 			Tone:            string(checked.Tone),
 			Title:           checked.Title,
 			Body:            checked.Body,
+			BodyFormat:      string(checked.BodyFormat),
+			BodyCss:         checked.BodyCSS,
 			ID:              id,
 			ExpectedVersion: expected,
 		},
@@ -455,7 +486,7 @@ func (s *Service) UpdateTemplate(
 		"signage_announcement_template",
 		id,
 		requestID,
-		[]string{"name", "tone", "title", "body", "fields"},
+		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "fields"},
 	); err != nil {
 		return Template{}, err
 	}

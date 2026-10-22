@@ -146,3 +146,46 @@ Setup, ports, TLS and the hardware checklist are in [Streaming gateway](streamin
 - **Heartbeat health is derived from go2rtc.** go2rtc connects to a printer on the first viewer, so an idle stream is `idle`; `unavailable` means go2rtc is unreachable, the stream is unknown, or viewers exist without a receiving producer. A printer that is switched off therefore shows `idle` until someone watches. go2rtc's `/api/streams` does not report resolution or frame rate (verify on hardware); they stay `null` unless a future go2rtc provides them.
 - **Audit.** Gateway and camera mutations, enrollment issue, enrollment, credential rotation and ticket key creation/rotation are audited in the same transaction; secrets, source URLs and tickets never are. Heartbeats and configuration reads are not audited.
 - **Admin UI.** Gateways and cameras are administered under Settings, Local services (the key rotation, `POST /local-services/ticket-key/rotation`, stays API-only). The list shows status, version, public host, camera count, enrollment and credential expiry.
+
+## Custom layouts, styling, rich text, lists, agenda and calendar
+
+Decisions of 2026-10-22. Dates on displays stay English (`en-GB`), in the makerspace time zone.
+
+### Custom layouts
+
+- Table `signage_custom_layouts` (migration `00065_signage_custom_layouts.sql`): id, name (1–100, trimmed), mode (`grid`|`free`), columns int[] and rows int[] (grid track weights in `fr`, 1–100 each, 1–12 tracks; free mode stores `{1}`/`{1}`), zones jsonb, created_at, updated_at, version. `signage_scenes` gets `custom_layout_id uuid NULL REFERENCES signage_custom_layouts ON DELETE RESTRICT`, with `CHECK ((layout_id = 'custom') = (custom_layout_id IS NOT NULL))`.
+- Zones (1–12, ids `^[a-z][a-z0-9_]{0,39}$`, unique, labels 1–60): `{id, label, grid: {col, row, colSpan, rowSpan} | null, rect: {x, y, width, height} | null}`. Grid mode: every zone has `grid` and no `rect`, lies inside the tracks and zones do not overlap (cells may stay empty). Free mode: every zone has `rect` and no `grid`; values are percentages of the screen with at most two decimals, `width`/`height` ≥ 1, `x + width ≤ 100`, `y + height ≤ 100`; zones may overlap and array order is the stacking order (later on top).
+- API (`signage.read` or `signage.content.manage` to read, `signage.content.manage` to write, all audited as `signage_custom_layout.created|updated|deleted` with changed field names): `GET/POST /signage/custom-layouts`, `GET/PUT/DELETE /signage/custom-layouts/{customLayoutId}` (`PUT` and `DELETE` carry `expectedVersion`; 409 `stale_write`). List items carry `sceneCount`. `DELETE` answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
+- Removing zones on `PUT` is allowed: in the same transaction every scene using the layout loses the widgets of removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`). The editor lists the affected scenes before saving.
+- Scenes: `layoutId` gains the value `custom`; `customLayoutId` (nullable, required with `custom`, otherwise null) is on `SignageScene`, the create/update requests and `SignagePlayerScene`. Switching between any two layouts keeps widgets by position as before. `SignageZones` allows 12 zones.
+- Manifest: `customLayouts: [{id, name, mode, columns, rows, zones, version}]` holds the layouts the published scenes use; `layoutsVersion` is 2. Pending changes gain the kind `layout` (a used custom layout whose version differs from the publication).
+- Rendering (`frontend/src/features/signage/layouts.ts` resolves built-in and custom layouts to one shape): grid layouts use CSS grid with `fr` tracks; free layouts position zones absolutely in percent with `z-index` by order.
+
+### Widget style
+
+Every widget (including `empty`, which then works as a coloured box) may carry an optional `style` object; absent means the previous look. All fields are required inside it:
+`textColor` / `backgroundColor` / `borderColor` (`#rrggbb` or null), `backgroundOpacity` 0–100, `padding` 0–10 and `radius` 0–10 (in `u`, 1 u = 1 % of the design width), `borderWidth` 0–20 (tenths of `u`), `fontScale` 25–400 (percent), `fontFamily` (`inherit`|`sans`|`serif`|`mono`|`custom`), `fontAssetId` (a font asset, required exactly when `fontFamily` is `custom`), `align` and `verticalAlign` (`inherit`|`start`|`center`|`end`). The style applies to the zone box. The `announcement` widget already uses `style` for its presentation (`banner`, `card`, `full`), so its box style is the field `boxStyle` instead; all other widgets use `style`.
+
+### Fonts
+
+Asset kind `font`: WOFF2 only (`font/woff2`, magic `wOF2`, at most 2 MiB; width, height and duration are null). Fonts reach the manifest through `style.fontAssetId` and through `fontAssetIds` (≤ 10) of rich-text widgets ("fonts used in CSS"); deleting a referenced font is blocked like other assets. The renderer registers each font of a scene once per document with `@font-face { font-family: "<asset name>" }` (name escaped) loaded from the asset URL, so CSS can use the asset name.
+
+### Rich text (markdown and sanitized HTML/CSS, no JavaScript)
+
+- Fields: `format` (`plain`|`markdown`|`html`, absent = `plain`), `css` (≤ 20 000 characters, optional) and `fontAssetIds` on `text`, `open_days`, `events` and `agenda` widgets. Text widgets allow 20 000 characters. Announcement templates get `bodyFormat` (same enum, default `plain`) and `bodyCss` (≤ 20 000); `body` allows 5 000 characters; rendered announcements (`SignageRenderedMessage`, live announcements, admin preview) carry `bodyFormat` and `bodyCss`.
+- The browser renders (`frontend/src/features/signage/render/richText.ts`, shared by admin previews and the player): markdown through `marked` (GFM), then markdown and HTML through DOMPurify with scripts, `style` attributes kept, `<style>` elements allowed only in `html`, and `iframe`, `object`, `embed`, `form`, form controls, `link`, `meta`, `base` and event handler attributes removed; URLs only `https:`, `data:image/`, relative and fragments. CSS (the `css` field and `<style>` contents) loses `@import`, `@font-face`, `@namespace`, `expression(`, `behavior:` and `-moz-binding`, and `</style` sequences. The result is placed in a shadow root of the zone, so CSS only affects that box; `var(--u)` is available inside. CSP (`script-src 'self'`) remains the second line of defence.
+- The backend validates lengths, enums and references only; it never renders HTML. Plain text stays text nodes.
+- Server-side announcement placeholders are escaped for the template's `bodyFormat`: HTML-escaped for `html`, markdown punctuation backslash-escaped and HTML-escaped for `markdown`. The shared vectors in `api/testdata/signage-announcement-render.json` cover all three formats.
+
+### Open day, event and agenda lists
+
+- `open_days` and `events` widgets: `count` 1–20 and optional `title` (≤ 200; absent = the previous heading, empty = no heading), `emptyText` (≤ 500), `entryTemplate` (≤ 5 000) plus the rich-text fields. One template is rendered per entry; an empty or absent template keeps the previous row layout. The whole list is one rich-text document, each entry wrapped in `<div class="entry entry--open_day|entry--event">`, so the CSS styles all entries alike.
+- New `agenda` widget: open days and events merged by start time: `count` 1–20, `includeOpenDays`, `includeEvents`, `title`, `emptyText`, `openDayTemplate`, `eventTemplate`, rich-text fields, `style`.
+- Placeholders `{name}`, values escaped for the format: `{kind}` (`Open day`/`Event`), `{title}` (`Open day` for open days), `{date}` (`Thu 23 Oct`), `{weekday}`, `{weekday_short}`, `{day}`, `{month}`, `{month_short}`, `{year}`, `{start}`, `{end}` (`HH:MM`; empty when unknown), `{status}` (open days: `Scheduled`/`Cancelled`), `{location}` (events; empty when none). Unknown placeholders stay as written.
+- Live data: `openDays` and `events` hold up to 20 entries (`liveListLimit` 20); events gain `endsAt` (nullable). `GET /signage/calendar` follows.
+
+### Calendar widget
+
+- Widget `calendar`: `view` (`month`|`weeks`), `weeks` 1–6 (weeks view, starting with the current ISO week), `showHolidays`, `showBreaks`, `showOpenDays`, `showEvents`, `colors: {holiday, break, openDay, event}` (`#rrggbb`), `showWeekNumbers`, `title` (≤ 200, empty hides), `style`. Weeks start on Monday.
+- Live data: `SignagePlayerLive.calendar` (nullable) is present only while the display's publication contains a calendar widget and holds only the categories some published calendar widget shows: `{from, to, holidays: [{date, name}] (≤ 60), breaks: [{name, startsOn, endsOn}] (≤ 20), openDays (≤ 100), events (≤ 100)}`. The range runs from 7 days before the first day of the current month to 49 days after today (makerspace time zone, dates inclusive). Holidays come from the Open Days holiday provider, breaks from `open_day_academic_breaks` (overlapping the range), open days only from published periods and events only from the public calendar, including past entries inside the range. `GET /signage/calendar` returns the same `calendar` block with every category for admin previews.
+- The player persists the calendar like open days and events.

@@ -909,6 +909,7 @@ func managementDigest(token string) ([]byte, error) {
 type UpcomingPublicEvent struct {
 	Title    string
 	StartsAt time.Time
+	EndsAt   time.Time
 	Location string
 }
 
@@ -927,7 +928,30 @@ func (s *Service) ListUpcomingPublic(ctx context.Context, now time.Time, limit i
 	for _, row := range rows {
 		result = append(
 			result,
-			UpcomingPublicEvent{Title: row.Title, StartsAt: row.StartsAt.UTC(), Location: row.Location},
+			UpcomingPublicEvent{
+				Title: row.Title, StartsAt: row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(), Location: row.Location,
+			},
+		)
+	}
+	return result, nil
+}
+
+// ListPublicBetween returns the public sessions of publicly visible events that overlap [from, to), past
+// ones included, soonest first. Like ListUpcomingPublic it exposes only title, times and location.
+func (s *Service) ListPublicBetween(ctx context.Context, from, to time.Time, limit int) ([]UpcomingPublicEvent, error) {
+	rows, err := eventsdb.New(s.pool).ListPublicEventSessionsBetween(ctx, eventsdb.ListPublicEventSessionsBetweenParams{
+		RangeStart: from.UTC(), RangeEnd: to.UTC(), RowLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]UpcomingPublicEvent, 0, len(rows))
+	for _, row := range rows {
+		result = append(
+			result,
+			UpcomingPublicEvent{
+				Title: row.Title, StartsAt: row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(), Location: row.Location,
+			},
 		)
 	}
 	return result, nil

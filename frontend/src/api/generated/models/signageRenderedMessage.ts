@@ -18,10 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTone } from './signageTone';
 
 export interface SignageRenderedMessage {
   title: string;
+  /** Placeholder values are escaped for `bodyFormat`. */
   body: string;
+  bodyFormat: SignageRichTextFormat;
+  bodyCss: string;
   tone: SignageTone;
 }

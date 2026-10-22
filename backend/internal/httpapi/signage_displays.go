@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const defaultSignagePairingCookieName = "makerspace_signage_pairing"
@@ -530,6 +531,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Name:              scene.Name,
 			Orientation:       openapi.SignageOrientation(scene.Orientation),
 			LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
+			CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 			BackgroundColor:   scene.BackgroundColor,
 			BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 			BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
@@ -577,9 +579,22 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Url: apiBasePath + "/signage/player/assets/" + asset.ID.String() + "/" + asset.SHA256,
 		})
 	}
+	customLayouts := make([]openapi.SignagePlayerCustomLayout, 0, len(manifest.CustomLayouts))
+	for _, layout := range manifest.CustomLayouts {
+		customLayouts = append(customLayouts, openapi.SignagePlayerCustomLayout{
+			Id:      layout.ID,
+			Name:    layout.Name,
+			Mode:    openapi.SignageCustomLayoutMode(layout.Mode),
+			Columns: layout.Columns,
+			Rows:    layout.Rows,
+			Zones:   signageCustomZoneDTOs(layout.Zones),
+			Version: layout.Version,
+		})
+	}
 	return openapi.SignagePlayerManifest{
 		Revision:          manifest.Revision,
 		DefaultPlaylistId: manifest.DefaultPlaylistID,
+		CustomLayouts:     customLayouts,
 		LayoutsVersion:    manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
 			Orientation: openapi.SignageOrientation(manifest.Display.Orientation),
@@ -684,10 +699,45 @@ func signageCalendarDTO(
 		}
 		events = append(
 			events,
-			openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)},
+			openapi.SignagePlayerEvent{
+				Title:    event.Title,
+				StartsAt: event.StartsAt,
+				EndsAt:   nullableTimeValue(event.EndsAt),
+				Location: nullableValue(location),
+			},
 		)
 	}
 	return openDays, events
+}
+
+func signageCalendarBlockDTO(block *signage.CalendarBlock) nullable.Nullable[openapi.SignagePlayerCalendar] {
+	if block == nil {
+		return nullable.NewNullNullable[openapi.SignagePlayerCalendar]()
+	}
+	holidays := make([]openapi.SignagePlayerCalendarHoliday, 0, len(block.Holidays))
+	for _, holiday := range block.Holidays {
+		holidays = append(
+			holidays,
+			openapi.SignagePlayerCalendarHoliday{Date: openapi_types.Date{Time: holiday.Date}, Name: holiday.Name},
+		)
+	}
+	breaks := make([]openapi.SignagePlayerCalendarBreak, 0, len(block.Breaks))
+	for _, item := range block.Breaks {
+		breaks = append(breaks, openapi.SignagePlayerCalendarBreak{
+			Name:     item.Name,
+			StartsOn: openapi_types.Date{Time: item.StartsOn},
+			EndsOn:   openapi_types.Date{Time: item.EndsOn},
+		})
+	}
+	openDays, events := signageCalendarDTO(block.OpenDays, block.Events)
+	return nullable.NewNullableWithValue(openapi.SignagePlayerCalendar{
+		From:     openapi_types.Date{Time: block.From},
+		To:       openapi_types.Date{Time: block.To},
+		Holidays: holidays,
+		Breaks:   breaks,
+		OpenDays: openDays,
+		Events:   events,
+	})
 }
 
 func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
@@ -710,7 +760,11 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 			TemplateId: announcement.TemplateID,
 			Tone:       openapi.SignageTone(announcement.Tone),
 			Title:      announcement.Title,
-			Body:       announcement.Body, StartsAt: announcement.StartsAt, EndsAt: nullableTimeValue(announcement.EndsAt),
+			Body:       announcement.Body,
+			BodyFormat: openapi.SignageRichTextFormat(announcement.BodyFormat),
+			BodyCss:    announcement.BodyCSS,
+			StartsAt:   announcement.StartsAt,
+			EndsAt:     nullableTimeValue(announcement.EndsAt),
 		})
 	}
 	openDays, events := signageCalendarDTO(live.OpenDays, live.Events)
@@ -732,7 +786,7 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		Revision:      nullableValue(live.Revision),
 		Machines:      machines,
 		Announcements: announcements,
-		OpenDays:      openDays, Events: events, Streams: streams,
+		OpenDays:      openDays, Events: events, Calendar: signageCalendarBlockDTO(live.Calendar), Streams: streams,
 	}
 }
 
@@ -823,7 +877,9 @@ func (s *Server) GetSignageCalendar(
 	}
 	openDays, events := signageCalendarDTO(calendar.OpenDays, calendar.Events)
 	return openapi.GetSignageCalendar200JSONResponse{
-		Body:    openapi.SignageCalendar{OpenDays: openDays, Events: events},
+		Body: openapi.SignageCalendar{
+			OpenDays: openDays, Events: events, Calendar: signageCalendarBlockDTO(calendar.Block),
+		},
 		Headers: openapi.GetSignageCalendar200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }

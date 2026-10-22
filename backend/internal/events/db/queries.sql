@@ -469,8 +469,8 @@ RETURNING *;
 -- name: ListUpcomingPublicEventSessions :many
 -- One row per event: its next public scheduled session. Only already publicly visible events
 -- (published, with a public title) that are still draft or confirmed; returns nothing internal.
-SELECT title, starts_at, location FROM (
-    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
+SELECT title, starts_at, ends_at, location FROM (
+    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at, es.ends_at,
            COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
     FROM events e JOIN event_sessions es ON es.event_id = e.id
     WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed')
@@ -478,6 +478,18 @@ SELECT title, starts_at, location FROM (
     ORDER BY e.id, es.starts_at
 ) upcoming
 ORDER BY starts_at, title
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: ListPublicEventSessionsBetween :many
+-- Every public scheduled session of a publicly visible event that overlaps [range_start, range_end), past ones
+-- included; for calendar views. Returns nothing internal.
+SELECT e.public_title::text AS title, es.starts_at, es.ends_at,
+       COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
+FROM events e JOIN event_sessions es ON es.event_id = e.id
+WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed', 'completed')
+  AND es.is_public AND es.status = 'scheduled'
+  AND es.starts_at < sqlc.arg(range_end)::timestamptz AND es.ends_at > sqlc.arg(range_start)::timestamptz
+ORDER BY es.starts_at, e.public_title, es.id
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListOwnComingUpShifts :many

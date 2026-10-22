@@ -2583,9 +2583,60 @@ func (q *Queries) ListOwnEventShiftAssignments(ctx context.Context, arg ListOwnE
 	return items, nil
 }
 
+const listPublicEventSessionsBetween = `-- name: ListPublicEventSessionsBetween :many
+SELECT e.public_title::text AS title, es.starts_at, es.ends_at,
+       COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
+FROM events e JOIN event_sessions es ON es.event_id = e.id
+WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed', 'completed')
+  AND es.is_public AND es.status = 'scheduled'
+  AND es.starts_at < $1::timestamptz AND es.ends_at > $2::timestamptz
+ORDER BY es.starts_at, e.public_title, es.id
+LIMIT $3::int
+`
+
+type ListPublicEventSessionsBetweenParams struct {
+	RangeEnd   time.Time
+	RangeStart time.Time
+	RowLimit   int32
+}
+
+type ListPublicEventSessionsBetweenRow struct {
+	Title    string
+	StartsAt time.Time
+	EndsAt   time.Time
+	Location string
+}
+
+// Every public scheduled session of a publicly visible event that overlaps [range_start, range_end), past ones
+// included; for calendar views. Returns nothing internal.
+func (q *Queries) ListPublicEventSessionsBetween(ctx context.Context, arg ListPublicEventSessionsBetweenParams) ([]ListPublicEventSessionsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, listPublicEventSessionsBetween, arg.RangeEnd, arg.RangeStart, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublicEventSessionsBetweenRow{}
+	for rows.Next() {
+		var i ListPublicEventSessionsBetweenRow
+		if err := rows.Scan(
+			&i.Title,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Location,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUpcomingPublicEventSessions = `-- name: ListUpcomingPublicEventSessions :many
-SELECT title, starts_at, location FROM (
-    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
+SELECT title, starts_at, ends_at, location FROM (
+    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at, es.ends_at,
            COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
     FROM events e JOIN event_sessions es ON es.event_id = e.id
     WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('draft', 'confirmed')
@@ -2604,6 +2655,7 @@ type ListUpcomingPublicEventSessionsParams struct {
 type ListUpcomingPublicEventSessionsRow struct {
 	Title    string
 	StartsAt time.Time
+	EndsAt   time.Time
 	Location string
 }
 
@@ -2618,7 +2670,12 @@ func (q *Queries) ListUpcomingPublicEventSessions(ctx context.Context, arg ListU
 	items := []ListUpcomingPublicEventSessionsRow{}
 	for rows.Next() {
 		var i ListUpcomingPublicEventSessionsRow
-		if err := rows.Scan(&i.Title, &i.StartsAt, &i.Location); err != nil {
+		if err := rows.Scan(
+			&i.Title,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Location,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

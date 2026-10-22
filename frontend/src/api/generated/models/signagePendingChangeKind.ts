@@ -28,4 +28,5 @@ export const SignagePendingChangeKind = {
   SignagePendingChangeKindScene: 'scene',
   SignagePendingChangeKindPlaylist: 'playlist',
   SignagePendingChangeKindAsset: 'asset',
+  SignagePendingChangeKindLayout: 'layout',
 } as const;

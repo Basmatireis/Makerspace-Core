@@ -35,6 +35,8 @@ export interface UpdateSignageSceneRequest {
   name: string;
   orientation: SignageOrientation;
   layoutId: SignageLayoutId;
+  /** Required with `layoutId` `custom`, otherwise omitted or null. */
+  customLayoutId?: UUIDv7 | null;
   /** @pattern ^#[0-9a-f]{6}$ */
   backgroundColor: string;
   /** Image asset; omitted or null clears it. */

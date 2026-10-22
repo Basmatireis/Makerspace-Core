@@ -25,6 +25,7 @@ type Scene struct {
 	Name              string
 	Orientation       Orientation
 	LayoutID          string
+	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
 	BackgroundFit     MediaFit
@@ -42,6 +43,7 @@ type SceneInput struct {
 	Name              string
 	Orientation       Orientation
 	LayoutID          string
+	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
 	BackgroundFit     MediaFit
@@ -69,6 +71,7 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 		Name:              row.Name,
 		Orientation:       Orientation(row.Orientation),
 		LayoutID:          row.LayoutID,
+		CustomLayoutID:    row.CustomLayoutID,
 		BackgroundColor:   row.BackgroundColor,
 		BackgroundAssetID: row.BackgroundAssetID,
 		BackgroundFit:     MediaFit(row.BackgroundFit),
@@ -80,8 +83,9 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 
 type validatedScene struct {
 	SceneInput
-	name   string
-	layout Layout
+	name string
+	// builtin is the fixed layout of the scene; it is only set when the scene does not use a custom layout.
+	builtin *Layout
 }
 
 func validateSceneInput(input SceneInput) (validatedScene, error) {
@@ -89,9 +93,20 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 	if err != nil {
 		return validatedScene{}, err
 	}
-	layout, ok := LayoutByID(input.LayoutID)
-	if !ok {
-		return validatedScene{}, validation("layoutId is not a known layout")
+	var builtin *Layout
+	if input.LayoutID == CustomLayoutID {
+		if input.CustomLayoutID == nil {
+			return validatedScene{}, validation("customLayoutId is required with the custom layout")
+		}
+	} else {
+		layout, ok := LayoutByID(input.LayoutID)
+		if !ok {
+			return validatedScene{}, validation("layoutId is not a known layout")
+		}
+		if input.CustomLayoutID != nil {
+			return validatedScene{}, validation("customLayoutId is only allowed with the custom layout")
+		}
+		builtin = &layout
 	}
 	if input.Orientation != OrientationPortrait && input.Orientation != OrientationLandscape {
 		return validatedScene{}, validation("orientation must be portrait or landscape")
@@ -108,7 +123,54 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 	if input.Theme != ThemeDark && input.Theme != ThemeLight {
 		return validatedScene{}, validation("theme must be dark or light")
 	}
-	return validatedScene{SceneInput: input, name: name, layout: layout}, nil
+	return validatedScene{SceneInput: input, name: name, builtin: builtin}, nil
+}
+
+// sceneLayout resolves the zone list of a scene's layout. A custom layout is share-locked when lock is set so
+// that a concurrent change of its zones waits for the scene write (and the other way round never deadlocks:
+// scene writes take this lock before the scene row).
+func sceneLayout(
+	ctx context.Context,
+	q *signagedb.Queries,
+	layoutID string,
+	customID *uuid.UUID,
+	lock bool,
+) (Layout, error) {
+	if layoutID != CustomLayoutID {
+		layout, ok := LayoutByID(layoutID)
+		if !ok {
+			return Layout{}, validation("layoutId is not a known layout")
+		}
+		return layout, nil
+	}
+	if customID == nil {
+		return Layout{}, validation("customLayoutId is required with the custom layout")
+	}
+	get := q.GetSignageCustomLayout
+	if lock {
+		get = q.GetSignageCustomLayoutForShare
+	}
+	row, err := get(ctx, *customID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Layout{}, validation("the custom layout does not exist")
+	}
+	if err != nil {
+		return Layout{}, err
+	}
+	custom, err := customLayoutFromRow(
+		row.ID, row.Name, row.Mode, row.Columns, row.Rows, row.Zones, 0, row.Version, row.CreatedAt, row.UpdatedAt,
+	)
+	if err != nil {
+		return Layout{}, err
+	}
+	return custom.layout(), nil
+}
+
+func samePointer(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // verifyReferences checks that assets (with the right kind), machines and announcement templates
@@ -120,11 +182,11 @@ func (s *Service) verifyReferences(
 	background *uuid.UUID,
 	refs WidgetRefs,
 ) error {
-	images, videos := refs.ImageAssets, refs.VideoAssets
+	images, videos, fonts := refs.ImageAssets, refs.VideoAssets, refs.FontAssets
 	if background != nil {
 		images = append(append([]uuid.UUID{}, images...), *background)
 	}
-	if all := distinct(append(append([]uuid.UUID{}, images...), videos...)); len(all) > 0 {
+	if all := distinct(append(append(append([]uuid.UUID{}, images...), videos...), fonts...)); len(all) > 0 {
 		rows, err := q.ListSignageAssetKinds(ctx, uuidStrings(all))
 		if err != nil {
 			return err
@@ -141,6 +203,11 @@ func (s *Service) verifyReferences(
 		for _, id := range distinct(videos) {
 			if kinds[id] != AssetKindVideo {
 				return validation("video asset %s does not exist", id)
+			}
+		}
+		for _, id := range distinct(fonts) {
+			if kinds[id] != AssetKindFont {
+				return validation("font asset %s does not exist", id)
 			}
 		}
 	}
@@ -214,16 +281,19 @@ func (s *Service) CreateScene(
 	if err != nil {
 		return Scene{}, err
 	}
-	zones := emptyZones(checked.layout)
+	var zones map[string]RawWidget
 	var refs WidgetRefs
-	if input.Zones != nil {
-		if zones, refs, err = ParseZones(checked.layout, input.Zones); err != nil {
+	parse := func(layout Layout) (err error) {
+		zones = emptyZones(layout)
+		if input.Zones != nil {
+			zones, refs, err = ParseZones(layout, input.Zones)
+		}
+		return err
+	}
+	if checked.builtin != nil {
+		if err := parse(*checked.builtin); err != nil {
 			return Scene{}, err
 		}
-	}
-	encoded, err := marshalZones(zones)
-	if err != nil {
-		return Scene{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -231,6 +301,19 @@ func (s *Service) CreateScene(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
+	if checked.builtin == nil {
+		layout, err := sceneLayout(ctx, q, input.LayoutID, input.CustomLayoutID, true)
+		if err != nil {
+			return Scene{}, err
+		}
+		if err := parse(layout); err != nil {
+			return Scene{}, err
+		}
+	}
+	encoded, err := marshalZones(zones)
+	if err != nil {
+		return Scene{}, err
+	}
 	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, refs); err != nil {
 		return Scene{}, err
 	}
@@ -240,6 +323,7 @@ func (s *Service) CreateScene(
 		Name:              checked.name,
 		Orientation:       string(input.Orientation),
 		LayoutID:          input.LayoutID,
+		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
 		BackgroundFit:     string(input.BackgroundFit),
@@ -290,8 +374,8 @@ func (s *Service) UpdateScene(
 	}
 	var parsed map[string]RawWidget
 	var refs WidgetRefs
-	if input.Zones != nil {
-		if parsed, refs, err = ParseZones(checked.layout, input.Zones); err != nil {
+	if checked.builtin != nil && input.Zones != nil {
+		if parsed, refs, err = ParseZones(*checked.builtin, input.Zones); err != nil {
 			return Scene{}, err
 		}
 	}
@@ -301,6 +385,21 @@ func (s *Service) UpdateScene(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
+	// The new layout is share-locked before the scene row: a layout update locks the layout first and the
+	// scenes after, so both orders agree.
+	var next Layout
+	if checked.builtin != nil {
+		next = *checked.builtin
+	} else {
+		if next, err = sceneLayout(ctx, q, input.LayoutID, input.CustomLayoutID, true); err != nil {
+			return Scene{}, err
+		}
+		if input.Zones != nil {
+			if parsed, refs, err = ParseZones(next, input.Zones); err != nil {
+				return Scene{}, err
+			}
+		}
+	}
 	current, err := q.GetSignageSceneForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Scene{}, apperror.NotFound
@@ -319,12 +418,13 @@ func (s *Service) UpdateScene(
 			return Scene{}, err
 		}
 		zones = stored
-		if current.LayoutID != input.LayoutID {
-			previous, known := LayoutByID(current.LayoutID)
-			if known {
-				zones = remapZones(previous, stored, checked.layout)
+		if current.LayoutID != input.LayoutID || !samePointer(current.CustomLayoutID, input.CustomLayoutID) {
+			// The previous layout is read without a lock: its zone list is consistent with the stored widgets
+			// because a layout update cannot rewrite this scene while we hold its row lock.
+			if previous, err := sceneLayout(ctx, q, current.LayoutID, current.CustomLayoutID, false); err == nil {
+				zones = remapZones(previous, stored, next)
 			} else {
-				zones = emptyZones(checked.layout)
+				zones = emptyZones(next)
 			}
 			changed = append(changed, "zones")
 		}
@@ -342,6 +442,7 @@ func (s *Service) UpdateScene(
 		Name:              checked.name,
 		Orientation:       string(input.Orientation),
 		LayoutID:          input.LayoutID,
+		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
 		BackgroundFit:     string(input.BackgroundFit),

@@ -22,6 +22,7 @@ import type { SignageCameraWidgetFallback } from './signageCameraWidgetFallback'
 import type { SignageCameraWidgetMulti } from './signageCameraWidgetMulti';
 import type { SignageCameraWidgetSource } from './signageCameraWidgetSource';
 import type { SignageCameraWidgetType } from './signageCameraWidgetType';
+import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageCameraWidget {
@@ -40,4 +41,5 @@ export interface SignageCameraWidget {
      * @maxItems 20
      */
   machineIds?: UUIDv7[];
+  style?: SignageWidgetStyle;
 }

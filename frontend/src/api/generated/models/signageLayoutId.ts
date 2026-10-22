@@ -20,7 +20,7 @@
  */
 
 /**
- * Fixed, code-defined layouts shared by backend validation and frontend rendering.
+ * Fixed, code-defined layouts shared by backend validation and frontend rendering, or `custom` (then `customLayoutId` names the custom layout).
  */
 export type SignageLayoutId = typeof SignageLayoutId[keyof typeof SignageLayoutId];
 
@@ -35,4 +35,5 @@ export const SignageLayoutId = {
   SignageLayoutIdMainSide: 'main_side',
   SignageLayoutIdMainFooter: 'main_footer',
   SignageLayoutIdBannerMain: 'banner_main',
+  SignageLayoutIdCustom: 'custom',
 } as const;

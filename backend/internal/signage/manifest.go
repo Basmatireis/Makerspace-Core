@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// LayoutsVersion is the version of the code-defined layout list that manifests were built against.
-// Bump it whenever the layout list changes incompatibly.
-const LayoutsVersion = 1
+// LayoutsVersion is the version of the layout model that manifests were built against: 2 added
+// custom layouts to the manifest. Bump it whenever the layout list or its meaning changes incompatibly.
+const LayoutsVersion = 2
 
 // Resolution is a display's pixel size.
 type Resolution struct {
@@ -49,6 +49,7 @@ type ManifestScene struct {
 	Name              string                     `json:"name"`
 	Orientation       Orientation                `json:"orientation"`
 	LayoutID          string                     `json:"layoutId"`
+	CustomLayoutID    *uuid.UUID                 `json:"customLayoutId"`
 	BackgroundColor   string                     `json:"backgroundColor"`
 	BackgroundAssetID *uuid.UUID                 `json:"backgroundAssetId"`
 	BackgroundFit     MediaFit                   `json:"backgroundFit"`
@@ -56,6 +57,17 @@ type ManifestScene struct {
 	Theme             Theme                      `json:"theme"`
 	Zones             map[string]json.RawMessage `json:"zones"`
 	Version           int64                      `json:"version"`
+}
+
+// ManifestCustomLayout is a custom layout as published; the version identifies the draft it was taken from.
+type ManifestCustomLayout struct {
+	ID      uuid.UUID        `json:"id"`
+	Name    string           `json:"name"`
+	Mode    CustomLayoutMode `json:"mode"`
+	Columns []int            `json:"columns"`
+	Rows    []int            `json:"rows"`
+	Zones   []CustomZone     `json:"zones"`
+	Version int64            `json:"version"`
 }
 
 // ManifestPlaylistItem is one scene slot of a published playlist.
@@ -95,7 +107,10 @@ type Manifest struct {
 	Scenes            []ManifestScene    `json:"scenes"`
 	Playlists         []ManifestPlaylist `json:"playlists"`
 	Assets            []ManifestAsset    `json:"assets"`
-	LayoutsVersion    int                `json:"layoutsVersion"`
+	// CustomLayouts holds the custom layouts the published scenes use; publications made before custom
+	// layouts existed do not have the field.
+	CustomLayouts  []ManifestCustomLayout `json:"customLayouts"`
+	LayoutsVersion int                    `json:"layoutsVersion"`
 }
 
 // displayDraft is the editable state of one display that a manifest is built from.
@@ -111,9 +126,10 @@ type displayDraft struct {
 
 // manifestContent holds the scenes, playlists and assets that drafts can reach.
 type manifestContent struct {
-	scenes    map[uuid.UUID]ManifestScene
-	playlists map[uuid.UUID]ManifestPlaylist
-	assets    map[uuid.UUID]ManifestAsset
+	scenes        map[uuid.UUID]ManifestScene
+	playlists     map[uuid.UUID]ManifestPlaylist
+	assets        map[uuid.UUID]ManifestAsset
+	customLayouts map[uuid.UUID]ManifestCustomLayout
 }
 
 // sceneAssetIDs lists the assets a scene's background and widgets use.
@@ -152,6 +168,7 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 		Scenes:            []ManifestScene{},
 		Playlists:         []ManifestPlaylist{},
 		Assets:            []ManifestAsset{},
+		CustomLayouts:     []ManifestCustomLayout{},
 		LayoutsVersion:    LayoutsVersion,
 	}
 	playlistIDs := map[uuid.UUID]struct{}{draft.DefaultPlaylistID: {}}
@@ -178,12 +195,16 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 		}
 	}
 	assetIDs := map[uuid.UUID]struct{}{}
+	layoutIDs := map[uuid.UUID]struct{}{}
 	for _, id := range sortedIDs(sceneIDs) {
 		scene, ok := content.scenes[id]
 		if !ok {
 			return Manifest{}, fmt.Errorf("scene %s is missing", id)
 		}
 		manifest.Scenes = append(manifest.Scenes, scene)
+		if scene.CustomLayoutID != nil {
+			layoutIDs[*scene.CustomLayoutID] = struct{}{}
+		}
 		ids, err := sceneAssetIDs(scene)
 		if err != nil {
 			return Manifest{}, err
@@ -198,6 +219,13 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 			return Manifest{}, fmt.Errorf("asset %s is missing", id)
 		}
 		manifest.Assets = append(manifest.Assets, asset)
+	}
+	for _, id := range sortedIDs(layoutIDs) {
+		layout, ok := content.customLayouts[id]
+		if !ok {
+			return Manifest{}, fmt.Errorf("custom layout %s is missing", id)
+		}
+		manifest.CustomLayouts = append(manifest.CustomLayouts, layout)
 	}
 	return manifest, nil
 }
@@ -337,7 +365,15 @@ func diffManifests(published, draft Manifest) []PendingChange {
 		}
 		return result
 	}
+	layouts := func(manifest Manifest) map[uuid.UUID]versioned {
+		result := map[uuid.UUID]versioned{}
+		for _, layout := range manifest.CustomLayouts {
+			result[layout.ID] = versioned{name: layout.Name, marker: fmt.Sprint(layout.Version)}
+		}
+		return result
+	}
 	changes = append(changes, diffEntities(ChangeTargetScene, scenes(published), scenes(draft))...)
+	changes = append(changes, diffEntities(ChangeTargetLayout, layouts(published), layouts(draft))...)
 	changes = append(changes, diffEntities(ChangeTargetPlaylist, playlists(published), playlists(draft))...)
 	changes = append(changes, diffEntities(ChangeTargetAsset, assets(published), assets(draft))...)
 	return changes

@@ -244,6 +244,12 @@ func (s *Server) DownloadSignageAsset(
 			ContentLength: opened.Asset.SizeBytes,
 			Headers:       headers,
 		}, nil
+	case "font/woff2":
+		return openapi.DownloadSignageAsset200Fontwoff2Response{
+			Body:          opened.Reader,
+			ContentLength: opened.Asset.SizeBytes,
+			Headers:       headers,
+		}, nil
 	default:
 		_ = opened.Reader.Close()
 		return nil, apperror.New(http.StatusInternalServerError, "internal_error", "Stored asset content type is invalid")
@@ -281,6 +287,7 @@ func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
 		Name:              scene.Name,
 		Orientation:       openapi.SignageOrientation(scene.Orientation),
 		LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
+		CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 		BackgroundColor:   scene.BackgroundColor,
 		BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 		BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
@@ -331,6 +338,7 @@ func (s *Server) CreateSignageScene(
 		Name:            r.Body.Name,
 		Orientation:     signage.Orientation(r.Body.Orientation),
 		LayoutID:        string(r.Body.LayoutId),
+		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
@@ -385,6 +393,7 @@ func (s *Server) UpdateSignageScene(
 		Name:            r.Body.Name,
 		Orientation:     signage.Orientation(r.Body.Orientation),
 		LayoutID:        string(r.Body.LayoutId),
+		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
 		BackgroundAssetID: uuidNullable(
 			r.Body.BackgroundAssetId,
@@ -569,13 +578,29 @@ func signageTemplateDTO(template signage.Template) openapi.SignageAnnouncementTe
 		})
 	}
 	return openapi.SignageAnnouncementTemplate{
-		Id:     template.ID,
-		Name:   template.Name,
-		Tone:   openapi.SignageTone(template.Tone),
-		Title:  template.Title,
-		Body:   template.Body,
-		Fields: fields, Version: template.Version, CreatedAt: template.CreatedAt, UpdatedAt: template.UpdatedAt,
+		Id:         template.ID,
+		Name:       template.Name,
+		Tone:       openapi.SignageTone(template.Tone),
+		Title:      template.Title,
+		Body:       template.Body,
+		BodyFormat: openapi.SignageRichTextFormat(template.BodyFormat),
+		BodyCss:    template.BodyCSS,
+		Fields:     fields, Version: template.Version, CreatedAt: template.CreatedAt, UpdatedAt: template.UpdatedAt,
 	}
+}
+
+func signageBodyFormat(format *openapi.SignageRichTextFormat) signage.RichTextFormat {
+	if format == nil {
+		return ""
+	}
+	return signage.RichTextFormat(*format)
+}
+
+func stringOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func signageTemplateFields(fields []openapi.SignageTemplateField) []signage.TemplateField {
@@ -620,11 +645,13 @@ func (s *Server) CreateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.CreateTemplate(ctx, p, signage.TemplateInput{
-		Name:   r.Body.Name,
-		Tone:   signage.Tone(r.Body.Tone),
-		Title:  r.Body.Title,
-		Body:   r.Body.Body,
-		Fields: signageTemplateFields(r.Body.Fields),
+		Name:       r.Body.Name,
+		Tone:       signage.Tone(r.Body.Tone),
+		Title:      r.Body.Title,
+		Body:       r.Body.Body,
+		BodyFormat: signageBodyFormat(r.Body.BodyFormat),
+		BodyCSS:    stringOrEmpty(r.Body.BodyCss),
+		Fields:     signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -659,11 +686,13 @@ func (s *Server) UpdateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.UpdateTemplate(ctx, p, r.TemplateId, r.Body.ExpectedVersion, signage.TemplateInput{
-		Name:   r.Body.Name,
-		Tone:   signage.Tone(r.Body.Tone),
-		Title:  r.Body.Title,
-		Body:   r.Body.Body,
-		Fields: signageTemplateFields(r.Body.Fields),
+		Name:       r.Body.Name,
+		Tone:       signage.Tone(r.Body.Tone),
+		Title:      r.Body.Title,
+		Body:       r.Body.Body,
+		BodyFormat: signageBodyFormat(r.Body.BodyFormat),
+		BodyCSS:    stringOrEmpty(r.Body.BodyCss),
+		Fields:     signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -709,9 +738,11 @@ func signageAnnouncementDTO(item signage.Announcement) openapi.SignageAnnounceme
 		EndsAt:      nullableValue(item.EndsAt),
 		Status:      openapi.SignageAnnouncementStatus(item.Status),
 		Rendered: openapi.SignageRenderedMessage{
-			Title: item.Rendered.Title,
-			Body:  item.Rendered.Body,
-			Tone:  openapi.SignageTone(item.Rendered.Tone),
+			Title:      item.Rendered.Title,
+			Body:       item.Rendered.Body,
+			BodyFormat: openapi.SignageRichTextFormat(item.Rendered.BodyFormat),
+			BodyCss:    item.Rendered.BodyCSS,
+			Tone:       openapi.SignageTone(item.Rendered.Tone),
 		},
 		Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}

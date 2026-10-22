@@ -3492,6 +3492,75 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/custom-layouts:
+    get:
+      tags: [Signage]
+      operationId: listSignageCustomLayouts
+      summary: List the custom layouts
+      description: Needs `signage.read` or `signage.content.manage`. Items carry `sceneCount`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Custom layouts by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayoutList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageCustomLayout
+      summary: Create a custom layout
+      description: Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageCustomLayoutRequest"}}}}
+      responses:
+        "201": {description: Custom layout created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/custom-layouts/{customLayoutId}:
+    parameters: [{$ref: "#/components/parameters/SignageCustomLayoutId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageCustomLayout
+      description: Needs `signage.read` or `signage.content.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Custom layout., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageCustomLayout
+      summary: Replace a custom layout
+      description: |
+        Needs `signage.content.manage`. Audited as `signage_custom_layout.updated`. Removing zones is allowed: in the same transaction every scene using the layout loses the widgets of the removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageCustomLayoutRequest"}}}}
+      responses:
+        "200": {description: Updated custom layout., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageCustomLayout
+      description: Needs `signage.content.manage`. Answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Custom layout deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/machines:
     get:
       tags: [Signage]
@@ -3509,8 +3578,8 @@ paths:
     get:
       tags: [Signage]
       operationId: getSignageCalendar
-      summary: Upcoming public open days and events (the lists players show)
-      description: Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews.
+      summary: Upcoming public open days and events (the lists players show) and the calendar block
+      description: Needs `signage.read`, `signage.content.manage` or `signage.manage`. Same public-safe data and limit as the player live endpoint; used by admin previews. `calendar` carries every category (holidays, breaks, open days, events) for the same date range the player receives.
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Upcoming open days and events., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignageCalendar"}}}}
@@ -3522,7 +3591,7 @@ paths:
     get:
       tags: [Signage]
       operationId: listSignageAssets
-      summary: List uploaded images and videos
+      summary: List uploaded images, videos and fonts
       security: [{sessionCookie: []}]
       parameters:
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/SignageAssetKind"}}
@@ -3535,12 +3604,12 @@ paths:
     post:
       tags: [Signage]
       operationId: uploadSignageAsset
-      summary: Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
-      description: Images may be up to 8192 px per side and 40 megapixels. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
+      summary: Upload a PNG, JPEG, WebP image (20 MiB), an MP4 video (200 MiB) or a WOFF2 font (2 MiB)
+      description: Images may be up to 8192 px per side and 40 megapixels. Fonts must be WOFF2 (magic bytes `wOF2`) and become assets of kind `font` without dimensions. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters:
         - {name: X-File-Name, in: header, required: true, description: "Percent-encoded UTF-8 file name.", schema: {type: string, minLength: 1, maxLength: 2048}}
-        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, enum: [image/png, image/jpeg, image/webp, video/mp4], x-enum-varnames: [UploadSignageAssetContentTypeImagePng, UploadSignageAssetContentTypeImageJpeg, UploadSignageAssetContentTypeImageWebp, UploadSignageAssetContentTypeVideoMp4]}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, enum: [image/png, image/jpeg, image/webp, video/mp4, font/woff2], x-enum-varnames: [UploadSignageAssetContentTypeImagePng, UploadSignageAssetContentTypeImageJpeg, UploadSignageAssetContentTypeImageWebp, UploadSignageAssetContentTypeVideoMp4, UploadSignageAssetContentTypeFontWoff2]}}
         - {name: X-Asset-Width, in: header, description: "Video only: pixel width.", schema: {type: integer, minimum: 1, maximum: 20000}}
         - {name: X-Asset-Height, in: header, description: "Video only: pixel height.", schema: {type: integer, minimum: 1, maximum: 20000}}
         - {name: X-Asset-Duration-Ms, in: header, description: "Video only: duration in milliseconds.", schema: {type: integer, minimum: 1, maximum: 86400000}}
@@ -3614,6 +3683,7 @@ paths:
             image/jpeg: {schema: {type: string, format: binary}}
             image/webp: {schema: {type: string, format: binary}}
             video/mp4: {schema: {type: string, format: binary}}
+            font/woff2: {schema: {type: string, format: binary}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -3657,7 +3727,7 @@ paths:
       tags: [Signage]
       operationId: updateSignageScene
       summary: Replace a scene
-      description: When `layoutId` changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+      description: When the layout (built-in or custom) changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageSceneRequest"}}}}
       responses:
@@ -4141,6 +4211,7 @@ paths:
             image/jpeg: {schema: {type: string, format: binary}}
             image/webp: {schema: {type: string, format: binary}}
             video/mp4: {schema: {type: string, format: binary}}
+            font/woff2: {schema: {type: string, format: binary}}
         "206":
           description: Partial content for a Range request.
           content:
@@ -8674,6 +8745,11 @@ components:
 
     SignageAssetId:
       name: assetId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageCustomLayoutId:
+      name: customLayoutId
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
@@ -16317,9 +16393,9 @@ components:
         answers: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SurveyAnswerInput"}}
     SignageLayoutId:
       type: string
-      description: Fixed, code-defined layouts shared by backend validation and frontend rendering.
-      enum: [full, stack3, stack4, split, grid2x2, quad_banner, main_side, main_footer, banner_main]
-      x-enum-varnames: [SignageLayoutIdFull, SignageLayoutIdStack3, SignageLayoutIdStack4, SignageLayoutIdSplit, SignageLayoutIdGrid2x2, SignageLayoutIdQuadBanner, SignageLayoutIdMainSide, SignageLayoutIdMainFooter, SignageLayoutIdBannerMain]
+      description: Fixed, code-defined layouts shared by backend validation and frontend rendering, or `custom` (then `customLayoutId` names the custom layout).
+      enum: [full, stack3, stack4, split, grid2x2, quad_banner, main_side, main_footer, banner_main, custom]
+      x-enum-varnames: [SignageLayoutIdFull, SignageLayoutIdStack3, SignageLayoutIdStack4, SignageLayoutIdSplit, SignageLayoutIdGrid2x2, SignageLayoutIdQuadBanner, SignageLayoutIdMainSide, SignageLayoutIdMainFooter, SignageLayoutIdBannerMain, SignageLayoutIdCustom]
     SignageOrientation:
       type: string
       enum: [portrait, landscape]
@@ -16350,11 +16426,87 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageLayout"}}}
+    SignageCustomLayoutMode:
+      type: string
+      enum: [grid, free]
+      x-enum-varnames: [SignageCustomLayoutModeGrid, SignageCustomLayoutModeFree]
+    SignageGridPlacement:
+      type: object
+      additionalProperties: false
+      required: [col, row, colSpan, rowSpan]
+      description: 1-based grid lines; the zone must lie inside the layout's tracks.
+      properties:
+        col: {type: integer, minimum: 1, maximum: 12}
+        row: {type: integer, minimum: 1, maximum: 12}
+        colSpan: {type: integer, minimum: 1, maximum: 12}
+        rowSpan: {type: integer, minimum: 1, maximum: 12}
+    SignageFreeRect:
+      type: object
+      additionalProperties: false
+      required: [x, y, width, height]
+      description: Percentages of the screen with at most two decimals; `width` and `height` are at least 1, `x + width` and `y + height` at most 100.
+      properties:
+        x: {type: number, format: double, minimum: 0, maximum: 100}
+        y: {type: number, format: double, minimum: 0, maximum: 100}
+        width: {type: number, format: double, minimum: 1, maximum: 100}
+        height: {type: number, format: double, minimum: 1, maximum: 100}
+    SignageCustomLayoutZone:
+      type: object
+      additionalProperties: false
+      required: [id, label, grid, rect]
+      description: Grid layouts use `grid` (and `rect` is null); free layouts use `rect` (and `grid` is null). In free mode the array order is the stacking order (later on top).
+      properties:
+        id: {type: string, pattern: "^[a-z][a-z0-9_]{0,39}$", maxLength: 40}
+        label: {type: string, minLength: 1, maxLength: 60}
+        grid: {allOf: [{$ref: "#/components/schemas/SignageGridPlacement"}], nullable: true}
+        rect: {allOf: [{$ref: "#/components/schemas/SignageFreeRect"}], nullable: true}
+    SignageCustomLayout:
+      type: object
+      additionalProperties: false
+      required: [id, name, mode, columns, rows, zones, sceneCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
+        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}, description: "Grid column track weights in `fr`; `[1]` for free layouts."}
+        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}, description: "Grid row track weights in `fr`; `[1]` for free layouts."}
+        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
+        sceneCount: {type: integer, minimum: 0, description: Number of scenes using the layout.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageCustomLayoutList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageCustomLayout"}}}
+    CreateSignageCustomLayoutRequest:
+      type: object
+      additionalProperties: false
+      required: [name, mode, columns, rows, zones]
+      description: In `free` mode `columns` and `rows` are ignored and stored as `[1]`.
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
+        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
+    UpdateSignageCustomLayoutRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, mode, columns, rows, zones]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
+        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
 
     SignageAssetKind:
       type: string
-      enum: [image, video]
-      x-enum-varnames: [SignageAssetKindImage, SignageAssetKindVideo]
+      enum: [image, video, font]
+      x-enum-varnames: [SignageAssetKindImage, SignageAssetKindVideo, SignageAssetKindFont]
     SignageAsset:
       type: object
       additionalProperties: false
@@ -16363,7 +16515,7 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/SignageAssetKind"}
         name: {type: string, minLength: 1, maxLength: 150}
-        width: {type: integer, nullable: true, description: "Always set for images; null for videos uploaded without dimensions."}
+        width: {type: integer, nullable: true, description: "Always set for images; null for fonts and for videos uploaded without dimensions."}
         height: {type: integer, nullable: true}
         durationMs: {type: integer, nullable: true}
         contentType: {type: string, maxLength: 255}
@@ -16406,12 +16558,43 @@ components:
       type: string
       enum: [contain, cover]
       x-enum-varnames: [SignageFitContain, SignageFitCover]
+    SignageRichTextFormat:
+      type: string
+      enum: [plain, markdown, html]
+      x-enum-varnames: [SignageRichTextFormatPlain, SignageRichTextFormatMarkdown, SignageRichTextFormatHtml]
+    SignageStyleFontFamily:
+      type: string
+      enum: [inherit, sans, serif, mono, custom]
+      x-enum-varnames: [SignageStyleFontFamilyInherit, SignageStyleFontFamilySans, SignageStyleFontFamilySerif, SignageStyleFontFamilyMono, SignageStyleFontFamilyCustom]
+    SignageStyleAlign:
+      type: string
+      enum: [inherit, start, center, end]
+      x-enum-varnames: [SignageStyleAlignInherit, SignageStyleAlignStart, SignageStyleAlignCenter, SignageStyleAlignEnd]
+    SignageWidgetStyle:
+      type: object
+      additionalProperties: false
+      required: [textColor, backgroundColor, borderColor, backgroundOpacity, padding, radius, borderWidth, fontScale, fontFamily, fontAssetId, align, verticalAlign]
+      description: Optional style of a widget's zone box; absent means the previous look. Every field is required inside it. Length units `u` are 1 % of the design width.
+      properties:
+        textColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
+        backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
+        borderColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
+        backgroundOpacity: {type: integer, minimum: 0, maximum: 100}
+        padding: {type: integer, minimum: 0, maximum: 10, description: In u.}
+        radius: {type: integer, minimum: 0, maximum: 10, description: In u.}
+        borderWidth: {type: integer, minimum: 0, maximum: 20, description: In tenths of u.}
+        fontScale: {type: integer, minimum: 25, maximum: 400, description: Percent.}
+        fontFamily: {$ref: "#/components/schemas/SignageStyleFontFamily"}
+        fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "A font asset; required exactly when `fontFamily` is `custom`."}
+        align: {$ref: "#/components/schemas/SignageStyleAlign"}
+        verticalAlign: {$ref: "#/components/schemas/SignageStyleAlign"}
     SignageEmptyWidget:
       type: object
       additionalProperties: false
       required: [type]
       properties:
         type: {type: string, enum: [empty], x-enum-varnames: [SignageEmptyWidgetTypeEmpty]}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageImageWidget:
       type: object
       additionalProperties: false
@@ -16420,6 +16603,7 @@ components:
         type: {type: string, enum: [image], x-enum-varnames: [SignageImageWidgetTypeImage]}
         mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         fit: {$ref: "#/components/schemas/SignageFit"}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageVideoWidget:
       type: object
       additionalProperties: false
@@ -16428,6 +16612,7 @@ components:
         type: {type: string, enum: [video], x-enum-varnames: [SignageVideoWidgetTypeVideo]}
         mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         fit: {$ref: "#/components/schemas/SignageFit"}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageSlideshowWidget:
       type: object
       additionalProperties: false
@@ -16436,15 +16621,20 @@ components:
         type: {type: string, enum: [slideshow], x-enum-varnames: [SignageSlideshowWidgetTypeSlideshow]}
         mediaIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
         seconds: {type: integer, minimum: 3, maximum: 3600}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageTextWidget:
       type: object
       additionalProperties: false
       required: [type, text, size, align]
       properties:
         type: {type: string, enum: [text], x-enum-varnames: [SignageTextWidgetTypeText]}
-        text: {type: string, maxLength: 1000, description: "Plain text; rendered as text nodes, never as HTML."}
+        text: {type: string, maxLength: 20000, description: "Rendered according to `format`: plain text as text nodes, markdown and HTML sanitized by the browser. The backend never renders HTML."}
         size: {$ref: "#/components/schemas/SignageTextSize"}
         align: {type: string, enum: [start, center, end], x-enum-varnames: [SignageTextWidgetAlignStart, SignageTextWidgetAlignCenter, SignageTextWidgetAlignEnd]}
+        format: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        css: {type: string, maxLength: 20000, description: "Sanitized by the browser; only affects the zone."}
+        fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Font assets the CSS uses (distinct, kind `font`)."}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageQrWidget:
       type: object
       additionalProperties: false
@@ -16453,6 +16643,7 @@ components:
         type: {type: string, enum: [qr], x-enum-varnames: [SignageQrWidgetTypeQr]}
         url: {type: string, maxLength: 500, pattern: "^https://", description: Absolute https URL.}
         caption: {type: string, maxLength: 200}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageClockWidget:
       type: object
       additionalProperties: false
@@ -16460,6 +16651,7 @@ components:
       properties:
         type: {type: string, enum: [clock], x-enum-varnames: [SignageClockWidgetTypeClock]}
         mode: {type: string, enum: [time, datetime], x-enum-varnames: [SignageClockWidgetModeTime, SignageClockWidgetModeDatetime]}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageCameraWidget:
       type: object
       additionalProperties: false
@@ -16474,6 +16666,7 @@ components:
         fallback: {type: string, enum: [image, text, hide], x-enum-varnames: [SignageCameraWidgetFallbackImage, SignageCameraWidgetFallbackText, SignageCameraWidgetFallbackHide]}
         fallbackMediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; only kept when `fallback` is `image`.}
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Only for `auto`: the machines the camera may show (empty or missing means every machine with a camera). Distinct, existing machines; cleared for `machine`."}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageStatusWidget:
       type: object
       additionalProperties: false
@@ -16483,20 +16676,79 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         showProgress: {type: boolean}
         showRemaining: {type: boolean}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageOpenDaysWidget:
       type: object
       additionalProperties: false
       required: [type, count]
       properties:
         type: {type: string, enum: [open_days], x-enum-varnames: [SignageOpenDaysWidgetTypeOpenDays]}
-        count: {type: integer, minimum: 1, maximum: 10}
+        count: {type: integer, minimum: 1, maximum: 20}
+        title: {type: string, maxLength: 200, description: "Heading; absent keeps the previous heading, empty shows none."}
+        emptyText: {type: string, maxLength: 500, description: Shown without entries.}
+        entryTemplate: {type: string, maxLength: 5000, description: "Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}; empty or absent keeps the previous row layout."}
+        format: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        css: {type: string, maxLength: 20000}
+        fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageEventsWidget:
       type: object
       additionalProperties: false
       required: [type, count]
       properties:
         type: {type: string, enum: [events], x-enum-varnames: [SignageEventsWidgetTypeEvents]}
-        count: {type: integer, minimum: 1, maximum: 10}
+        count: {type: integer, minimum: 1, maximum: 20}
+        title: {type: string, maxLength: 200, description: "Heading; absent keeps the previous heading, empty shows none."}
+        emptyText: {type: string, maxLength: 500, description: Shown without entries.}
+        entryTemplate: {type: string, maxLength: 5000, description: "Template rendered once per entry (placeholders as for open days); empty or absent keeps the previous row layout."}
+        format: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        css: {type: string, maxLength: 20000}
+        fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
+    SignageAgendaWidget:
+      type: object
+      additionalProperties: false
+      required: [type, count, includeOpenDays, includeEvents]
+      description: Open days and events merged by start time.
+      properties:
+        type: {type: string, enum: [agenda], x-enum-varnames: [SignageAgendaWidgetTypeAgenda]}
+        count: {type: integer, minimum: 1, maximum: 20}
+        includeOpenDays: {type: boolean}
+        includeEvents: {type: boolean}
+        title: {type: string, maxLength: 200, description: "Heading; absent keeps the default heading, empty shows none."}
+        emptyText: {type: string, maxLength: 500}
+        openDayTemplate: {type: string, maxLength: 5000}
+        eventTemplate: {type: string, maxLength: 5000}
+        format: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        css: {type: string, maxLength: 20000}
+        fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
+    SignageCalendarColors:
+      type: object
+      additionalProperties: false
+      required: [holiday, break, openDay, event]
+      properties:
+        holiday: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        break: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        openDay: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        event: {type: string, pattern: "^#[0-9a-f]{6}$"}
+    SignageCalendarWidget:
+      type: object
+      additionalProperties: false
+      required: [type, view, weeks, showHolidays, showBreaks, showOpenDays, showEvents, colors, showWeekNumbers]
+      description: Month grid or a number of weeks, starting on Monday. The player receives the data in `SignagePlayerLive.calendar`.
+      properties:
+        type: {type: string, enum: [calendar], x-enum-varnames: [SignageCalendarWidgetTypeCalendar]}
+        view: {type: string, enum: [month, weeks], x-enum-varnames: [SignageCalendarWidgetViewMonth, SignageCalendarWidgetViewWeeks]}
+        weeks: {type: integer, minimum: 1, maximum: 6, description: "Weeks view only: number of weeks, starting with the current ISO week."}
+        showHolidays: {type: boolean}
+        showBreaks: {type: boolean}
+        showOpenDays: {type: boolean}
+        showEvents: {type: boolean}
+        colors: {$ref: "#/components/schemas/SignageCalendarColors"}
+        showWeekNumbers: {type: boolean}
+        title: {type: string, maxLength: 200, description: Heading; empty hides it.}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageAnnouncementWidget:
       type: object
       additionalProperties: false
@@ -16510,6 +16762,7 @@ components:
         fallbackText: {type: string, maxLength: 500}
         whenMany: {type: string, enum: [rotate, newest, stack], x-enum-varnames: [SignageAnnouncementWidgetWhenManyRotate, SignageAnnouncementWidgetWhenManyNewest, SignageAnnouncementWidgetWhenManyStack]}
         rotateSeconds: {type: integer, minimum: 3, maximum: 300}
+        boxStyle: {allOf: [{$ref: "#/components/schemas/SignageWidgetStyle"}], description: "The zone box style. Named `boxStyle` here because `style` already selects the announcement presentation (banner, card, full)."}
     SignageWidget:
       description: One widget per layout zone. Fields are decoded strictly; unknown fields are rejected.
       oneOf:
@@ -16525,6 +16778,8 @@ components:
         - $ref: "#/components/schemas/SignageOpenDaysWidget"
         - $ref: "#/components/schemas/SignageEventsWidget"
         - $ref: "#/components/schemas/SignageAnnouncementWidget"
+        - $ref: "#/components/schemas/SignageAgendaWidget"
+        - $ref: "#/components/schemas/SignageCalendarWidget"
       discriminator:
         propertyName: type
         mapping:
@@ -16540,20 +16795,23 @@ components:
           open_days: "#/components/schemas/SignageOpenDaysWidget"
           events: "#/components/schemas/SignageEventsWidget"
           announcement: "#/components/schemas/SignageAnnouncementWidget"
+          agenda: "#/components/schemas/SignageAgendaWidget"
+          calendar: "#/components/schemas/SignageCalendarWidget"
     SignageZones:
       type: object
       description: Widget per zone id of the scene's layout.
-      maxProperties: 5
+      maxProperties: 12
       additionalProperties: {$ref: "#/components/schemas/SignageWidget"}
     SignageScene:
       type: object
       additionalProperties: false
-      required: [id, name, orientation, layoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
+      required: [id, name, orientation, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The custom layout; set exactly when `layoutId` is `custom`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -16576,6 +16834,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null means none.}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -16591,6 +16850,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null clears it.}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -16665,13 +16925,15 @@ components:
     SignageAnnouncementTemplate:
       type: object
       additionalProperties: false
-      required: [id, name, tone, title, body, fields, version, createdAt, updatedAt]
+      required: [id, name, tone, title, body, bodyFormat, bodyCss, fields, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
         tone: {$ref: "#/components/schemas/SignageTone"}
         title: {type: string, minLength: 1, maxLength: 200}
-        body: {type: string, maxLength: 2000}
+        body: {type: string, maxLength: 5000}
+        bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        bodyCss: {type: string, maxLength: 20000}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -16689,7 +16951,9 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         tone: {$ref: "#/components/schemas/SignageTone"}
         title: {type: string, minLength: 1, maxLength: 200}
-        body: {type: string, maxLength: 2000}
+        body: {type: string, maxLength: 5000}
+        bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        bodyCss: {type: string, maxLength: 20000}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
     UpdateSignageAnnouncementTemplateRequest:
       type: object
@@ -16700,16 +16964,20 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         tone: {$ref: "#/components/schemas/SignageTone"}
         title: {type: string, minLength: 1, maxLength: 200}
-        body: {type: string, maxLength: 2000}
+        body: {type: string, maxLength: 5000}
+        bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        bodyCss: {type: string, maxLength: 20000}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
 
     SignageRenderedMessage:
       type: object
       additionalProperties: false
-      required: [title, body, tone]
+      required: [title, body, bodyFormat, bodyCss, tone]
       properties:
         title: {type: string}
-        body: {type: string}
+        body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
+        bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        bodyCss: {type: string}
         tone: {$ref: "#/components/schemas/SignageTone"}
     SignageAnnouncementStatus:
       type: string
@@ -16781,8 +17049,8 @@ components:
         height: {type: integer, minimum: 320, maximum: 16384}
     SignagePendingChangeKind:
       type: string
-      enum: [display, rule, scene, playlist, asset]
-      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindPlaylist, SignagePendingChangeKindAsset]
+      enum: [display, rule, scene, playlist, asset, layout]
+      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindPlaylist, SignagePendingChangeKindAsset, SignagePendingChangeKindLayout]
     SignagePendingChangeType:
       type: string
       enum: [added, modified, removed]
@@ -16974,18 +17242,31 @@ components:
     SignagePlayerScene:
       type: object
       additionalProperties: false
-      required: [id, name, orientation, layoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
+      required: [id, name, orientation, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set exactly when `layoutId` is `custom`; the layout is in the manifest's `customLayouts`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
         backgroundDim: {type: integer, minimum: 0, maximum: 80}
         theme: {type: string, enum: [dark, light], x-enum-varnames: [SignagePlayerSceneThemeDark, SignagePlayerSceneThemeLight]}
         zones: {$ref: "#/components/schemas/SignageZones"}
+        version: {$ref: "#/components/schemas/Version"}
+    SignagePlayerCustomLayout:
+      type: object
+      additionalProperties: false
+      required: [id, name, mode, columns, rows, zones, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
+        columns: {type: array, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        rows: {type: array, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
+        zones: {type: array, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
         version: {$ref: "#/components/schemas/Version"}
     SignagePlayerPlaylist:
       type: object
@@ -17022,7 +17303,7 @@ components:
     SignagePlayerManifest:
       type: object
       additionalProperties: false
-      required: [revision, display, rules, defaultPlaylistId, scenes, playlists, assets, layoutsVersion]
+      required: [revision, display, rules, defaultPlaylistId, scenes, playlists, assets, customLayouts, layoutsVersion]
       properties:
         revision: {type: integer, minimum: 1}
         display: {$ref: "#/components/schemas/SignagePlayerManifestDisplay"}
@@ -17031,7 +17312,8 @@ components:
         scenes: {type: array, items: {$ref: "#/components/schemas/SignagePlayerScene"}}
         playlists: {type: array, items: {$ref: "#/components/schemas/SignagePlayerPlaylist"}}
         assets: {type: array, items: {$ref: "#/components/schemas/SignagePlayerAsset"}}
-        layoutsVersion: {type: integer, minimum: 1}
+        customLayouts: {type: array, description: The custom layouts the published scenes use; empty in publications made before custom layouts., items: {$ref: "#/components/schemas/SignagePlayerCustomLayout"}}
+        layoutsVersion: {type: integer, minimum: 1, description: "2 for publications that carry `customLayouts`."}
     SignagePlayerManifestResponse:
       type: object
       additionalProperties: false
@@ -17059,13 +17341,15 @@ components:
     SignagePlayerLiveAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, tone, title, body, startsAt, endsAt]
+      required: [id, templateId, tone, title, body, bodyFormat, bodyCss, startsAt, endsAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
         tone: {$ref: "#/components/schemas/SignageTone"}
         title: {type: string}
-        body: {type: string}
+        body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
+        bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
+        bodyCss: {type: string}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
     SignagePlayerOpenDay:
@@ -17079,11 +17363,40 @@ components:
     SignagePlayerEvent:
       type: object
       additionalProperties: false
-      required: [title, startsAt, location]
+      required: [title, startsAt, endsAt, location]
       properties:
         title: {type: string}
         startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time, nullable: true}
         location: {type: string, nullable: true}
+    SignagePlayerCalendarHoliday:
+      type: object
+      additionalProperties: false
+      required: [date, name]
+      properties:
+        date: {type: string, format: date}
+        name: {type: string, maxLength: 200}
+    SignagePlayerCalendarBreak:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn]
+      properties:
+        name: {type: string, maxLength: 200}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+    SignagePlayerCalendar:
+      type: object
+      additionalProperties: false
+      required: [from, to, holidays, breaks, openDays, events]
+      description: |
+        Data of the calendar widget, in the makerspace time zone. The range runs from 7 days before the first day of the current month to 49 days after today (dates inclusive). Categories no published calendar widget shows are empty. Open days come from published periods only and events only from the public calendar, past entries inside the range included.
+      properties:
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        holidays: {type: array, maxItems: 60, items: {$ref: "#/components/schemas/SignagePlayerCalendarHoliday"}}
+        breaks: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerCalendarBreak"}}
+        openDays: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
+        events: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
     SignagePlayerStream:
       type: object
       additionalProperties: false
@@ -17097,22 +17410,30 @@ components:
     SignagePlayerLive:
       type: object
       additionalProperties: false
-      required: [serverTime, revision, machines, announcements, openDays, events, streams]
+      required: [serverTime, revision, machines, announcements, openDays, events, calendar, streams]
       properties:
         serverTime: {type: string, format: date-time}
         revision: {type: integer, nullable: true, description: Latest published revision; null before the first publication.}
         machines: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveMachine"}}
         announcements: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveAnnouncement"}}
-        openDays: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
-        events: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
+        openDays: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
+        events: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
+        calendar:
+          allOf: [{$ref: "#/components/schemas/SignagePlayerCalendar"}]
+          nullable: true
+          description: Present only while the display's publication contains a calendar widget; holds only the categories a published calendar widget shows.
         streams: {type: array, maxItems: 20, description: "Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.", items: {$ref: "#/components/schemas/SignagePlayerStream"}}
     SignageCalendar:
       type: object
       additionalProperties: false
-      required: [openDays, events]
+      required: [openDays, events, calendar]
       properties:
-        openDays: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
-        events: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
+        openDays: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
+        events: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
+        calendar:
+          allOf: [{$ref: "#/components/schemas/SignagePlayerCalendar"}]
+          nullable: true
+          description: The calendar block with every category, for admin previews.
     SignageDisplayPreview:
       type: object
       additionalProperties: false

@@ -29,12 +29,17 @@ const (
 	// MaxImageBytes and MaxVideoBytes are the upload limits per asset kind.
 	MaxImageBytes int64 = 20 << 20
 	MaxVideoBytes int64 = 200 << 20
+	// MaxFontBytes is the upload limit of a WOFF2 font.
+	MaxFontBytes int64 = 2 << 20
 
 	maxImageSide   = 8192
 	maxImagePixels = 40_000_000
 )
 
-// Asset is an uploaded image or video; the bytes live in the files module.
+// woff2Magic opens every WOFF2 file.
+const woff2Magic = "wOF2"
+
+// Asset is an uploaded image, video or font; the bytes live in the files module.
 type Asset struct {
 	ID                 uuid.UUID
 	Kind               AssetKind
@@ -60,7 +65,11 @@ type UploadInput struct {
 }
 
 var assetContentTypes = map[string]AssetKind{
-	"image/png": AssetKindImage, "image/jpeg": AssetKindImage, "image/webp": AssetKindImage, "video/mp4": AssetKindVideo,
+	"image/png":  AssetKindImage,
+	"image/jpeg": AssetKindImage,
+	"image/webp": AssetKindImage,
+	"video/mp4":  AssetKindVideo,
+	"font/woff2": AssetKindFont,
 }
 
 var imageFormats = map[string]string{"image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp"}
@@ -109,8 +118,8 @@ func (s *Service) ListAssets(ctx context.Context, principal authorization.Princi
 	if err := requireRead(principal); err != nil {
 		return nil, err
 	}
-	if kind != nil && *kind != AssetKindImage && *kind != AssetKindVideo {
-		return nil, validation("kind must be image or video")
+	if kind != nil && *kind != AssetKindImage && *kind != AssetKindVideo && *kind != AssetKindFont {
+		return nil, validation("kind must be image, video or font")
 	}
 	rows, err := signagedb.New(s.pool).ListSignageAssets(ctx, optional.Convert[string](kind))
 	if err != nil {
@@ -214,7 +223,8 @@ func positiveHeader(value *int, max int, label string) error {
 }
 
 // UploadAsset validates and stores an image (PNG, JPEG, WebP up to 20 MiB, dimensions decoded from
-// the bytes) or an MP4 video (up to 200 MiB, dimensions and duration optional). The body is
+// the bytes), an MP4 video (up to 200 MiB, dimensions and duration optional) or a WOFF2 font (up to
+// 2 MiB, checked by its magic bytes; fonts carry no dimensions). The body is
 // spooled to a temporary file while hashing so large videos never sit in memory; the HTTP layer
 // does not buffer it either (raw binary routes skip OpenAPI body validation, see isRawBinaryUpload).
 func (s *Service) UploadAsset(
@@ -228,7 +238,7 @@ func (s *Service) UploadAsset(
 	}
 	kind, ok := assetContentTypes[input.ContentType]
 	if !ok {
-		return Asset{}, validation("content type must be image/png, image/jpeg, image/webp or video/mp4")
+		return Asset{}, validation("content type must be image/png, image/jpeg, image/webp, video/mp4 or font/woff2")
 	}
 	name, err := cleanName(input.Name, "asset name", 150)
 	if err != nil {
@@ -249,8 +259,11 @@ func (s *Service) UploadAsset(
 		}
 	}
 	limit := MaxImageBytes
-	if kind == AssetKindVideo {
+	switch kind {
+	case AssetKindVideo:
 		limit = MaxVideoBytes
+	case AssetKindFont:
+		limit = MaxFontBytes
 	}
 	spool, err := os.CreateTemp("", "signage-upload-*")
 	if err != nil {
@@ -279,7 +292,13 @@ func (s *Service) UploadAsset(
 		return Asset{}, err
 	}
 	var width, height, duration *int
-	if kind == AssetKindImage {
+	switch kind {
+	case AssetKindFont:
+		header := make([]byte, len(woff2Magic))
+		if _, err := io.ReadFull(spool, header); err != nil || string(header) != woff2Magic {
+			return Asset{}, validation("the file is not a valid WOFF2 font")
+		}
+	case AssetKindImage:
 		configuration, format, err := image.DecodeConfig(spool)
 		if err != nil || format != imageFormats[input.ContentType] {
 			return Asset{}, validation("the file is not a valid %s image", imageFormats[input.ContentType])
@@ -295,7 +314,7 @@ func (s *Service) UploadAsset(
 		}
 		w, h := configuration.Width, configuration.Height
 		width, height = &w, &h
-	} else {
+	default:
 		header := make([]byte, 12)
 		if _, err := io.ReadFull(spool, header); err != nil || string(header[4:8]) != "ftyp" {
 			return Asset{}, validation("the file is not a valid MP4 video")
@@ -373,6 +392,9 @@ func assetTooLarge(kind AssetKind) error {
 			"signage_asset_too_large",
 			"Videos are limited to 200 MiB",
 		)
+	}
+	if kind == AssetKindFont {
+		return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Fonts are limited to 2 MiB")
 	}
 	return apperror.New(http.StatusRequestEntityTooLarge, "signage_asset_too_large", "Images are limited to 20 MiB")
 }

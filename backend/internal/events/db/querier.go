@@ -88,6 +88,9 @@ type Querier interface {
 	ListOwnComingUpShifts(ctx context.Context, arg ListOwnComingUpShiftsParams) ([]ListOwnComingUpShiftsRow, error)
 	ListOwnEventAssignments(ctx context.Context, arg ListOwnEventAssignmentsParams) ([]EventShiftAssignment, error)
 	ListOwnEventShiftAssignments(ctx context.Context, arg ListOwnEventShiftAssignmentsParams) ([]ListOwnEventShiftAssignmentsRow, error)
+	// Every public scheduled session of a publicly visible event that overlaps [range_start, range_end), past ones
+	// included; for calendar views. Returns nothing internal.
+	ListPublicEventSessionsBetween(ctx context.Context, arg ListPublicEventSessionsBetweenParams) ([]ListPublicEventSessionsBetweenRow, error)
 	// One row per event: its next public scheduled session. Only already publicly visible events
 	// (published, with a public title) that are still draft or confirmed; returns nothing internal.
 	ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error)

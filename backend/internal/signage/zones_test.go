@@ -99,7 +99,7 @@ func TestParseZonesRejectsInvalidInput(t *testing.T) {
 		"multiline caption":     `{"left":{"type":"qr","url":"https://x.example","caption":"a\nb"}}`,
 		"long text": `{"left":{"type":"text","text":"` + strings.Repeat(
 			"a",
-			1001,
+			20001,
 		) + `","size":"m","align":"start"}}`,
 		"control character":  `{"left":{"type":"text","text":"a\u0000b","size":"m","align":"start"}}`,
 		"bad size":           `{"left":{"type":"text","text":"x","size":"xxl","align":"start"}}`,
@@ -112,7 +112,7 @@ func TestParseZonesRejectsInvalidInput(t *testing.T) {
 		"camera needs machine": `{"left":{"type":"camera","source":"machine","machineId":null,"multi":"split","showProgress":true,"showRemaining":true,"fallback":"text","fallbackMediaId":null}}`,
 		"clock mode":           `{"left":{"type":"clock","mode":"seconds"}}`,
 		"count zero":           `{"left":{"type":"open_days","count":0}}`,
-		"count eleven":         `{"left":{"type":"events","count":11}}`,
+		"count twenty-one":     `{"left":{"type":"events","count":21}}`,
 		"rotate too fast":      `{"left":{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":1}}`,
 		"announcement style":   `{"left":{"type":"announcement","templateIds":[],"style":"popup","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}}`,
 		"trailing data":        `{"left":{"type":"empty"} }`,
@@ -188,6 +188,7 @@ func TestLayoutsMatchOpenAPIEnumAndRemapByPosition(t *testing.T) {
 			t.Fatalf("layout %s has no zones", layout.ID)
 		}
 	}
+	codeIDs = append(codeIDs, CustomLayoutID) // the enum adds the custom layout selector
 	if strings.Join(enum, ",") != strings.Join(codeIDs, ",") {
 		t.Fatalf("OpenAPI layouts %v differ from code %v", enum, codeIDs)
 	}

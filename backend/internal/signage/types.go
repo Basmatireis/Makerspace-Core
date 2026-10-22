@@ -30,7 +30,30 @@ type AssetKind string
 const (
 	AssetKindImage AssetKind = "image"
 	AssetKindVideo AssetKind = "video"
+	AssetKindFont  AssetKind = "font"
 )
+
+// RichTextFormat is how a text, list or announcement body is interpreted by the browser. The
+// backend only validates it (and escapes announcement placeholder values for it); it never
+// renders markdown or HTML.
+type RichTextFormat string
+
+const (
+	FormatPlain    RichTextFormat = "plain"
+	FormatMarkdown RichTextFormat = "markdown"
+	FormatHTML     RichTextFormat = "html"
+)
+
+// CustomLayoutMode is how the zones of a custom layout are positioned.
+type CustomLayoutMode string
+
+const (
+	LayoutModeGrid CustomLayoutMode = "grid"
+	LayoutModeFree CustomLayoutMode = "free"
+)
+
+// CustomLayoutID is the scene layout id that selects a custom layout.
+const CustomLayoutID = "custom"
 
 // TargetKind is what a display rule shows.
 type TargetKind string
@@ -114,6 +137,8 @@ const (
 	WidgetOpenDays     WidgetType = "open_days"
 	WidgetEvents       WidgetType = "events"
 	WidgetAnnouncement WidgetType = "announcement"
+	WidgetAgenda       WidgetType = "agenda"
+	WidgetCalendar     WidgetType = "calendar"
 )
 
 // TextSize is the type size of a text or announcement widget.
@@ -245,6 +270,7 @@ const (
 	ChangeTargetScene    ChangeTarget = "scene"
 	ChangeTargetPlaylist ChangeTarget = "playlist"
 	ChangeTargetAsset    ChangeTarget = "asset"
+	ChangeTargetLayout   ChangeTarget = "layout"
 )
 
 // ChangeKind is how a draft differs from the published state.
