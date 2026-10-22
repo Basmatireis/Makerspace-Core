@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-22
+
 ### Upgrade notes
 
 - Migration 00064 adds an optional Reply-To address to the wiRef delivery settings. It starts empty, so replies keep going to the mail sender address. API: `replyToEmail` is part of `WiRefDeliverySettings` and required in `UpdateWiRefDeliverySettingsRequest` (an empty string means none).
@@ -371,6 +373,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.8.4]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.0...v0.8.1
