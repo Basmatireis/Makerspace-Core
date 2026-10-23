@@ -1,0 +1,77 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Layout glue for the staff attendance page.
+
+.attendance-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: $spacing-03;
+}
+
+.attendance-stat {
+  display: grid;
+  gap: $spacing-02;
+
+  strong {
+    @include type-style('heading-06');
+  }
+
+  span {
+    color: theme.$text-secondary;
+  }
+
+  &.is-alert {
+    box-shadow: inset 4px 0 0 theme.$support-error;
+
+    strong {
+      color: theme.$text-error;
+    }
+  }
+}
+
+.attendance-hold {
+  box-shadow: inset 4px 0 0 theme.$support-error;
+}
+
+.attendance-hold__header {
+  display: flex;
+  gap: $spacing-04;
+
+  svg {
+    flex-shrink: 0;
+    fill: theme.$support-error;
+  }
+
+  h2 {
+    @include type-style('heading-03');
+  }
+
+  p {
+    margin-block-start: $spacing-02;
+    color: theme.$text-secondary;
+  }
+}
+
+.attendance-hold__person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+
+  span:last-child {
+    flex-basis: 100%;
+    color: theme.$text-secondary;
+  }
+}
+
+.attendance-hold__actions {
+  display: flex;
+  gap: $spacing-03;
+}
+
+.attendance-empty {
+  padding: $spacing-05;
+  color: theme.$text-secondary;
+}

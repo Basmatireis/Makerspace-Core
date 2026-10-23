@@ -4,6 +4,19 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00067 adds held check-ins. Roles with Lab Rules mode `blocking` are no longer rejected at check-in (409 `attendance_admission_required`): the terminal and supervised check-in answer `202` with an `AttendanceHold` until the Lab Rules are confirmed. `PublicPresenceList` has a `waiting` list. New endpoints `GET /attendance/holds` and `DELETE /attendance/holds/{holdId}`.
+
+### Added
+
+- **Held check-in until the Lab Rules are signed.** Someone whose role requires signed Lab Rules and who has not signed the current revision is not checked in but held. The tablet explains what to do and lists them under "Waiting for Lab Rules"; a supervisor confirms the signed document on the Attendance page and the person is checked in from then on. Holds lapse at midnight.
+
+### Changed
+
+- **Entrance terminal for touch tablets.** Large check-in and check-out buttons, a PIN keypad, a presence list beside the actions, check-out by tapping one's name when the device allows public checkout, and an idle reset that clears half-entered sign-in details.
+- **Attendance page.** Key figures, held check-ins with Lab Rules confirmation in place, assisted check-in by name search instead of person ID, and a searchable presence table with check-out and void in the row menu. Visitor hours are no longer shown.
+
 ## [0.8.5] - 2026-10-22
 
 ### Upgrade notes
