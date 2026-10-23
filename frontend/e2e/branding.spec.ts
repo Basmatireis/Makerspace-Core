@@ -187,10 +187,10 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
   await page.getByLabel('Legal organization name').fill('Open Workshop Association');
   await page.getByLabel('Display name').fill('Open Workshop');
   await page.getByLabel('Application name').fill('Open Workshop Portal');
-  await page.getByLabel('Primary color picker').fill('#123456');
+  await page.getByLabel('Choose primary color').fill('#123456');
   await expect(page.getByLabel('Primary', { exact: true })).toHaveValue('#123456');
   await page.getByLabel('Primary', { exact: true }).fill('#654321');
-  await expect(page.getByLabel('Primary color picker')).toHaveValue('#654321');
+  await expect(page.getByLabel('Choose primary color')).toHaveValue('#654321');
   await page.getByRole('tab', { name: 'Legal' }).click();
   await page.getByLabel('Markdown', { exact: true }).first().fill('# Publisher\n\nOpen Workshop Association');
   await page.getByRole('button', { name: 'Save configuration' }).click();

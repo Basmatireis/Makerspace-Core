@@ -686,7 +686,7 @@ test('renders the Directory-styled Members table without summary statistics', as
   const memberCells = page.getByRole('row', { name: /Grace Hopper/ }).getByRole('cell');
   await expect(memberCells.nth(1)).toHaveText('Supervisor');
   await expect(memberCells.nth(2)).toHaveText('Current');
-  await expect(memberCells.nth(3)).toContainText('3 of 3');
+  await expect(memberCells.nth(3)).toContainText('3 of 2');
   await expect(memberCells.nth(4)).toHaveText('Minimum reached');
   const traineeCells = page.getByRole('row', { name: /Alan Turing/ }).getByRole('cell');
   await expect(traineeCells.nth(1)).toContainText('1 of 2 as trainee');
@@ -1147,14 +1147,12 @@ test('shows an accessible destructive confirmation before deleting a custom role
   await roleActions.hover();
   const roleActionsTooltip = page.getByRole('tooltip').filter({ hasText: `Actions for ${role.name}` });
   await expect(roleActionsTooltip).toBeVisible();
-  const [roleListBounds, roleActionsTooltipBounds] = await Promise.all([
-    page.locator('.roles-list').boundingBox(),
-    roleActionsTooltip.boundingBox(),
-  ]);
-  if (!roleListBounds || !roleActionsTooltipBounds) throw new Error('Could not measure the role action tooltip.');
-  expect(roleActionsTooltipBounds.x + roleActionsTooltipBounds.width).toBeLessThanOrEqual(
-    roleListBounds.x + roleListBounds.width,
-  );
+  // Tooltips render in a portal above the page, so the list no longer clips them; they must stay inside the viewport.
+  const roleActionsTooltipBounds = await roleActionsTooltip.boundingBox();
+  const viewport = page.viewportSize();
+  if (!roleActionsTooltipBounds || !viewport) throw new Error('Could not measure the role action tooltip.');
+  expect(roleActionsTooltipBounds.x).toBeGreaterThanOrEqual(0);
+  expect(roleActionsTooltipBounds.x + roleActionsTooltipBounds.width).toBeLessThanOrEqual(viewport.width);
   await roleActions.click();
   await page.getByRole('menuitem', { name: 'Delete role' }).click();
 

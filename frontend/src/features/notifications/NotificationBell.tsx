@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState, type RefObject } from 'react';
-import { HeaderPanel, IconButton, SkeletonText } from '@carbon/react';
+import { HeaderPanel, IconButton } from '@carbon/react';
 import { Notification } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { unreadCountQuery } from './queries';
@@ -53,6 +53,8 @@ export function NotificationPanel({ expanded, actionRef, onClose }: PanelProps) 
       expanded={expanded}
       className="notification-panel"
       aria-label="Notifications"
+      // Carbon forwards extra attributes to the panel's div but does not type `role`; a label needs a role (axe).
+      {...{ role: 'region' }}
       ref={panelRef}
       onHeaderPanelFocus={() => {
         // Focus left the panel (Escape or tabbing out): close it and, when it was inside, return it to the bell.
@@ -62,7 +64,7 @@ export function NotificationPanel({ expanded, actionRef, onClose }: PanelProps) 
       }}
     >
       {everOpened && (
-        <Suspense fallback={<SkeletonText paragraph lineCount={4} />}>
+        <Suspense fallback={null}>
           <NotificationList active={expanded} onNavigate={onClose} />
         </Suspense>
       )}
