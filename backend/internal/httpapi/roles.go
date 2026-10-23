@@ -124,6 +124,7 @@ func (s *Server) CreateRole(
 		profileImageRequired,
 		laborordnungMode,
 		staffingLevel,
+		nullableIntPointer(request.Body.MinOpenDaysPerSemester),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -197,6 +198,8 @@ func (s *Server) UpdateRole(
 		optional.Convert[laborordnung.Mode](request.Body.LaborordnungMode),
 		request.Body.StaffingLevel.IsSpecified(),
 		optional.Convert[roles.StaffingLevel](nullableStringPointer(request.Body.StaffingLevel)),
+		request.Body.MinOpenDaysPerSemester.IsSpecified(),
+		nullableIntPointer(request.Body.MinOpenDaysPerSemester),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -255,7 +258,8 @@ func roleDTO(role roles.Role) openapi.Role {
 			role.StaffingLevel,
 			func(value roles.StaffingLevel) openapi.StaffingLevel { return openapi.StaffingLevel(value) },
 		),
-		CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt,
+		MinOpenDaysPerSemester: nullablePointer[int](role.MinOpenDaysPerSemester, func(value int) int { return value }),
+		CreatedAt:              role.CreatedAt, UpdatedAt: role.UpdatedAt,
 		Description: nullablePointer[string](role.Description, func(value string) string { return value }),
 	}
 	if role.SystemKey == nil {

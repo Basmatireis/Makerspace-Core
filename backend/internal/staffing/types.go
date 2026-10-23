@@ -82,13 +82,39 @@ func KindOf(levels []roles.StaffingLevel) *roles.StaffingLevel {
 	return kind
 }
 
-// StatusFor evaluates counts against the requirements.
-func StatusFor(kind roles.StaffingLevel, counts Counts, requirements Requirements) Standing {
+// EffectiveMinimum is the open-day minimum of one person: the lowest override among their roles with a staffing
+// level and an override (an override of 0 included), or the general minimum when none of their roles overrides it.
+// Every place that evaluates the minimum goes through this function.
+func EffectiveMinimum(general int, overrides []int) int {
+	if len(overrides) == 0 {
+		return general
+	}
+	lowest := overrides[0]
+	for _, override := range overrides[1:] {
+		lowest = min(lowest, override)
+	}
+	return lowest
+}
+
+// Minimums resolves the effective minimum per person.
+type Minimums struct {
+	general   int
+	overrides map[uuid.UUID][]int
+}
+
+// For returns the effective minimum of the person.
+func (m Minimums) For(personID uuid.UUID) int {
+	return EffectiveMinimum(m.general, m.overrides[personID])
+}
+
+// StatusFor evaluates counts against the person's effective minimum (see EffectiveMinimum) and the promotion
+// threshold of the requirements.
+func StatusFor(kind roles.StaffingLevel, counts Counts, requirements Requirements, minimum int) Standing {
 	if kind == roles.StaffingTrainee && counts.StaffedAsTrainee >= requirements.TraineeOpenDaysForPromotion {
 		return Standing{Status: StatusReady}
 	}
-	if counts.Staffed+counts.Booked >= requirements.MinOpenDaysPerSemester {
+	if counts.Staffed+counts.Booked >= minimum {
 		return Standing{Status: StatusFulfilled}
 	}
-	return Standing{Status: StatusMissing, Missing: requirements.MinOpenDaysPerSemester - counts.Staffed - counts.Booked}
+	return Standing{Status: StatusMissing, Missing: minimum - counts.Staffed - counts.Booked}
 }

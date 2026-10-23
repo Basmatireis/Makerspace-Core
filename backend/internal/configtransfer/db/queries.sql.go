@@ -844,20 +844,22 @@ func (q *Queries) ListRolePricingGroups(ctx context.Context) ([]ListRolePricingG
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level, version
+SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level,
+    min_open_days_per_semester, version
 FROM roles
 ORDER BY lower(name), id
 `
 
 type ListRolesRow struct {
-	ID                   uuid.UUID
-	Name                 string
-	Description          *string
-	SystemKey            *string
-	ProfileImageRequired bool
-	LaborordnungMode     string
-	StaffingLevel        *string
-	Version              int64
+	ID                     uuid.UUID
+	Name                   string
+	Description            *string
+	SystemKey              *string
+	ProfileImageRequired   bool
+	LaborordnungMode       string
+	StaffingLevel          *string
+	MinOpenDaysPerSemester *int32
+	Version                int64
 }
 
 func (q *Queries) ListRoles(ctx context.Context) ([]ListRolesRow, error) {
@@ -877,6 +879,7 @@ func (q *Queries) ListRoles(ctx context.Context) ([]ListRolesRow, error) {
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
 			&i.StaffingLevel,
+			&i.MinOpenDaysPerSemester,
 			&i.Version,
 		); err != nil {
 			return nil, err

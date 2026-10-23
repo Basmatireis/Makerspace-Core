@@ -3,6 +3,8 @@ package staffing
 import (
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 )
 
@@ -27,7 +29,7 @@ func TestStatusForCountsBookedOpenDaysTowardsTheMinimum(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := StatusFor(tc.kind, tc.counts, defaults); got != tc.want {
+			if got := StatusFor(tc.kind, tc.counts, defaults, defaults.MinOpenDaysPerSemester); got != tc.want {
 				t.Fatalf("StatusFor = %+v, want %+v", got, tc.want)
 			}
 		})
@@ -35,7 +37,7 @@ func TestStatusForCountsBookedOpenDaysTowardsTheMinimum(t *testing.T) {
 }
 
 func TestStatusForMinimumZeroIsAlwaysFulfilled(t *testing.T) {
-	got := StatusFor(roles.StaffingSupervisor, Counts{}, Requirements{MinOpenDaysPerSemester: 0, TraineeOpenDaysForPromotion: 3})
+	got := StatusFor(roles.StaffingSupervisor, Counts{}, defaults, 0)
 	if got.Status != StatusFulfilled || got.Missing != 0 {
 		t.Fatalf("StatusFor = %+v, want fulfilled", got)
 	}
@@ -51,5 +53,38 @@ func TestKindOfLetsSupervisorWinOverTrainee(t *testing.T) {
 	both := []roles.StaffingLevel{roles.StaffingTrainee, roles.StaffingSupervisor}
 	if got := KindOf(both); got == nil || *got != roles.StaffingSupervisor {
 		t.Fatalf("both = %v, want supervisor", got)
+	}
+}
+
+func TestEffectiveMinimumLowestOverrideWins(t *testing.T) {
+	cases := []struct {
+		name      string
+		overrides []int
+		want      int
+	}{
+		{"no override uses the general minimum", nil, 2},
+		{"one override", []int{4}, 4},
+		{"override below the general minimum", []int{1}, 1},
+		{"several overrides, lowest wins", []int{5, 3, 4}, 3},
+		{"override zero switches the minimum off", []int{3, 0}, 0},
+		{"single zero override", []int{0}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := EffectiveMinimum(2, tc.overrides); got != tc.want {
+				t.Fatalf("EffectiveMinimum = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMinimumsResolvePerPerson(t *testing.T) {
+	overridden, other := uuid.New(), uuid.New()
+	minimums := Minimums{general: 2, overrides: map[uuid.UUID][]int{overridden: {4, 1}}}
+	if got := minimums.For(overridden); got != 1 {
+		t.Fatalf("overridden person = %d, want 1", got)
+	}
+	if got := minimums.For(other); got != 2 {
+		t.Fatalf("person without override = %d, want 2", got)
 	}
 }

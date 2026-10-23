@@ -121,6 +121,7 @@ func (s *seeder) ensureRoles() {
 			laborordnung.ModeNotRequired,
 			r.level,
 			nil,
+			nil,
 		)
 		check("role "+r.name, err)
 		s.roles[strings.ToLower(r.name)] = role.ID

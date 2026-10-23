@@ -32,6 +32,14 @@ FROM person_roles pr
 JOIN roles r ON r.id = pr.role_id
 WHERE pr.person_id = sqlc.arg(person_id) AND r.staffing_level IS NOT NULL;
 
+-- name: ListStaffingMinimumOverrides :many
+-- The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
+SELECT pr.person_id, r.min_open_days_per_semester::integer AS minimum
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE r.staffing_level IS NOT NULL AND r.min_open_days_per_semester IS NOT NULL
+  AND (sqlc.narg(only_person_id)::uuid IS NULL OR pr.person_id = sqlc.narg(only_person_id));
+
 -- name: ListStaffingCounts :many
 -- Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
 -- do not count. A NULL period yields all zeros. person_id narrows the result to one person.

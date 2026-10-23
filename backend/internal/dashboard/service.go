@@ -258,6 +258,11 @@ func (s *Service) staffingSection(
 	if err != nil {
 		return nil, err
 	}
+	minimums, err := s.staffing.Minimums(ctx, requirements.MinOpenDaysPerSemester, &principal.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	minimum := minimums.For(principal.PersonID)
 	personCounts := counts[principal.PersonID]
 	place, err := s.opendays.NextOpenPlace(ctx, principal, opendays.RequirementKind(kind), now, OpenPlaceWindow)
 	if err != nil {
@@ -266,10 +271,10 @@ func (s *Service) staffingSection(
 	section := &Staffing{
 		Kind:             kind,
 		Semester:         semester,
-		Minimum:          requirements.MinOpenDaysPerSemester,
+		Minimum:          minimum,
 		TraineeThreshold: requirements.TraineeOpenDaysForPromotion,
 		Counts:           personCounts,
-		Standing:         staffing.StatusFor(kind, personCounts, requirements),
+		Standing:         staffing.StatusFor(kind, personCounts, requirements, minimum),
 		NextOpenPlace:    place,
 	}
 	for _, item := range comingUp {

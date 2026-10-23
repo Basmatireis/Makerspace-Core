@@ -34,6 +34,7 @@ func (s *Server) GetSupervisorDashboard(
 			Staffed:           supervisor.Counts.Staffed,
 			Booked:            supervisor.Counts.Booked,
 			StaffedAsTrainee:  supervisor.Counts.StaffedAsTrainee,
+			Minimum:           supervisor.Minimum,
 			Status:            openapi.StaffingStatus(supervisor.Standing.Status),
 			Missing:           supervisor.Standing.Missing,
 			MemberSince:       openapi_types.Date{Time: supervisor.MemberSince},

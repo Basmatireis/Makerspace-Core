@@ -1323,16 +1323,17 @@ type PrinterSpoolAssignment struct {
 }
 
 type Role struct {
-	ID                   uuid.UUID
-	Name                 string
-	Description          *string
-	SystemKey            *string
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	ProfileImageRequired bool
-	LaborordnungMode     string
-	StaffingLevel        *string
+	ID                     uuid.UUID
+	Name                   string
+	Description            *string
+	SystemKey              *string
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	ProfileImageRequired   bool
+	LaborordnungMode       string
+	StaffingLevel          *string
+	MinOpenDaysPerSemester *int32
 }
 
 type RolePermissionGrant struct {

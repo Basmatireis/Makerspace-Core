@@ -28,6 +28,7 @@ function supervisorDashboard() {
         staffed: 1,
         booked: 0,
         staffedAsTrainee: 0,
+        minimum: 2,
         status: 'missing',
         missing: 1,
         lastOpenDayAt: null,
@@ -189,6 +190,21 @@ function serveDashboard(
 const bodyRows = () => screen.getAllByRole('row').slice(1);
 const pageSizeSelect = () => screen.getByRole('combobox', { name: /Items per page/ });
 const pageSelect = () => screen.getByRole('combobox', { name: /Page number|Page of/ });
+
+describe('per-person open-day target', () => {
+  it('shows each person against their own minimum, not the general one', async () => {
+    serveDashboard([
+      row(1, { status: 'missing', missing: 3, staffed: 1, minimum: 4 }),
+      row(2, { status: 'fulfilled', staffed: 1, minimum: 1 }),
+    ]);
+    renderRoute(<App />, '/people/staffing');
+
+    expect(await screen.findByText('Member 01')).toBeInTheDocument();
+    expect(screen.getByText('Member 01: signed up for 1 of 4 open days')).toBeInTheDocument();
+    expect(screen.getByText('Member 02: signed up for 1 of 1 open days')).toBeInTheDocument();
+    expect(screen.getByText(/general minimum 2 open days per person/)).toBeInTheDocument();
+  });
+});
 
 describe('staffing key figures', () => {
   const members = [

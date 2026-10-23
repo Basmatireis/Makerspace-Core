@@ -45,6 +45,7 @@ export function SemesterTile({
             {trainee ? 'open days as trainee' : 'open days signed up'} · {staffing.staffed} staffed, {staffing.booked}{' '}
             booked
           </p>
+          {trainee && <p className="db-tile__meta">Your semester minimum: {plural(staffing.minimum, 'open day')}.</p>}
           {status === 'ready' && (
             <p className="db-status db-status--ok">
               <CheckmarkFilled size={16} aria-hidden />

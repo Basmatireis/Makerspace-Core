@@ -9569,7 +9569,7 @@ components:
     SupervisorRow:
       type: object
       additionalProperties: false
-      required: [personId, personVersion, name, kind, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, status, missing, lastOpenDayAt, memberSince]
+      required: [personId, personVersion, name, kind, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, status, missing, lastOpenDayAt, memberSince]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         personVersion: {$ref: "#/components/schemas/Version"}
@@ -9580,6 +9580,7 @@ components:
         staffed: {type: integer, minimum: 0, description: "Open days of the semester that ended, in any place."}
         booked: {type: integer, minimum: 0, description: "Upcoming open days of the semester, in any place."}
         staffedAsTrainee: {type: integer, minimum: 0, description: "Ended open days of the semester staffed in a trainee place."}
+        minimum: {type: integer, minimum: 0, maximum: 20, description: "The person's open-day minimum: the lowest override among their staffing roles, else the general minimum."}
         status: {$ref: "#/components/schemas/StaffingStatus"}
         missing: {type: integer, minimum: 0, description: "Open days still missing to reach the minimum."}
         lastOpenDayAt:
@@ -9627,7 +9628,7 @@ components:
         semester:
           allOf: [{$ref: "#/components/schemas/Semester"}]
           nullable: true
-        minimum: {type: integer, minimum: 0}
+        minimum: {type: integer, minimum: 0, description: "The person's own minimum: the lowest role override, else the general minimum."}
         traineeThreshold: {type: integer, minimum: 1}
         staffed: {type: integer, minimum: 0}
         booked: {type: integer, minimum: 0}
@@ -11422,7 +11423,7 @@ components:
     Role:
       type: object
       additionalProperties: false
-      required: [id, name, description, systemKey, permissionGrants, profileImageRequired, laborordnungMode, staffingLevel, createdAt, updatedAt, version]
+      required: [id, name, description, systemKey, permissionGrants, profileImageRequired, laborordnungMode, staffingLevel, minOpenDaysPerSemester, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -11453,6 +11454,12 @@ components:
           allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
           nullable: true
           description: How people holding this role staff open days; null when the role does not staff.
+        minOpenDaysPerSemester:
+          type: integer
+          minimum: 0
+          maximum: 20
+          nullable: true
+          description: Open days per semester people holding this role must staff; null uses the general minimum of the open-day requirements. Only roles with a staffing level can set it.
         createdAt:
           type: string
           format: date-time
@@ -11491,6 +11498,12 @@ components:
           allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
           nullable: true
           description: How people holding this role staff open days. Omitted or null means the role does not staff.
+        minOpenDaysPerSemester:
+          type: integer
+          minimum: 0
+          maximum: 20
+          nullable: true
+          description: Omitted or null uses the general minimum. Rejected (422) when the role has no staffing level.
 
     UpdateRoleRequest:
       type: object
@@ -11506,7 +11519,13 @@ components:
         staffingLevel:
           allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
           nullable: true
-          description: Omitted keeps the level; null clears it.
+          description: Omitted keeps the level; null clears it (which also clears `minOpenDaysPerSemester`).
+        minOpenDaysPerSemester:
+          type: integer
+          minimum: 0
+          maximum: 20
+          nullable: true
+          description: Omitted keeps the override; null clears it. Rejected (422) when the role has no staffing level afterwards.
         expectedVersion:
           $ref: "#/components/schemas/Version"
         name:

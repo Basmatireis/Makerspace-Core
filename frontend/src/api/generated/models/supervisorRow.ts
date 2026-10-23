@@ -46,6 +46,12 @@ export interface SupervisorRow {
      * @minimum 0
      */
   staffedAsTrainee: number;
+  /**
+     * The person's open-day minimum: the lowest override among their staffing roles, else the general minimum.
+     * @minimum 0
+     * @maximum 20
+     */
+  minimum: number;
   status: StaffingStatus;
   /**
      * Open days still missing to reach the minimum.

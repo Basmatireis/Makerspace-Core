@@ -52,7 +52,7 @@ func (q *Queries) AddRolePermissionDeviceType(ctx context.Context, arg AddRolePe
 
 const bumpRoleVersion = `-- name: BumpRoleVersion :one
 UPDATE roles SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level
+WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
 `
 
 type BumpRoleVersionParams struct {
@@ -74,6 +74,7 @@ func (q *Queries) BumpRoleVersion(ctx context.Context, arg BumpRoleVersionParams
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -90,17 +91,18 @@ func (q *Queries) ClearSupervisorRoleRequirement(ctx context.Context, roleID *uu
 }
 
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level
+INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester)
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
 `
 
 type CreateRoleParams struct {
-	ID                   uuid.UUID
-	Name                 string
-	Description          *string
-	ProfileImageRequired bool
-	LaborordnungMode     string
-	StaffingLevel        *string
+	ID                     uuid.UUID
+	Name                   string
+	Description            *string
+	ProfileImageRequired   bool
+	LaborordnungMode       string
+	StaffingLevel          *string
+	MinOpenDaysPerSemester *int32
 }
 
 func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
@@ -111,6 +113,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 		arg.ProfileImageRequired,
 		arg.LaborordnungMode,
 		arg.StaffingLevel,
+		arg.MinOpenDaysPerSemester,
 	)
 	var i Role
 	err := row.Scan(
@@ -124,6 +127,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -154,7 +158,7 @@ func (q *Queries) DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) e
 }
 
 const getRole = `-- name: GetRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles WHERE id = $1
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id = $1
 `
 
 func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -171,12 +175,13 @@ func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
 
 const getRoleForMutation = `-- name: GetRoleForMutation :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles WHERE id = $1 FOR UPDATE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -193,6 +198,7 @@ func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, e
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -239,7 +245,7 @@ func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID)
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
 `
 
 func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
@@ -262,6 +268,7 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
 			&i.StaffingLevel,
+			&i.MinOpenDaysPerSemester,
 		); err != nil {
 			return nil, err
 		}
@@ -288,18 +295,20 @@ const updateRole = `-- name: UpdateRole :one
 UPDATE roles SET name = $1, description = $2,
     profile_image_required = $3,
     laborordnung_mode = $4, staffing_level = $5,
+    min_open_days_per_semester = $6,
     version = version + 1, updated_at = now()
-WHERE id = $6 AND version = $7 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level
+WHERE id = $7 AND version = $8 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
 `
 
 type UpdateRoleParams struct {
-	Name                 string
-	Description          *string
-	ProfileImageRequired bool
-	LaborordnungMode     string
-	StaffingLevel        *string
-	ID                   uuid.UUID
-	ExpectedVersion      int64
+	Name                   string
+	Description            *string
+	ProfileImageRequired   bool
+	LaborordnungMode       string
+	StaffingLevel          *string
+	MinOpenDaysPerSemester *int32
+	ID                     uuid.UUID
+	ExpectedVersion        int64
 }
 
 func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error) {
@@ -309,6 +318,7 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, e
 		arg.ProfileImageRequired,
 		arg.LaborordnungMode,
 		arg.StaffingLevel,
+		arg.MinOpenDaysPerSemester,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -324,6 +334,7 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, e
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }

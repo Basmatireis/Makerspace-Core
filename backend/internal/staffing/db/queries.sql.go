@@ -224,6 +224,40 @@ func (q *Queries) ListStaffingCounts(ctx context.Context, arg ListStaffingCounts
 	return items, nil
 }
 
+const listStaffingMinimumOverrides = `-- name: ListStaffingMinimumOverrides :many
+SELECT pr.person_id, r.min_open_days_per_semester::integer AS minimum
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE r.staffing_level IS NOT NULL AND r.min_open_days_per_semester IS NOT NULL
+  AND ($1::uuid IS NULL OR pr.person_id = $1)
+`
+
+type ListStaffingMinimumOverridesRow struct {
+	PersonID uuid.UUID
+	Minimum  int32
+}
+
+// The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
+func (q *Queries) ListStaffingMinimumOverrides(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListStaffingMinimumOverridesRow, error) {
+	rows, err := q.db.Query(ctx, listStaffingMinimumOverrides, onlyPersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListStaffingMinimumOverridesRow{}
+	for rows.Next() {
+		var i ListStaffingMinimumOverridesRow
+		if err := rows.Scan(&i.PersonID, &i.Minimum); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateOpenDayRequirements = `-- name: UpdateOpenDayRequirements :one
 UPDATE open_day_requirements SET
     min_open_days_per_semester = $1,

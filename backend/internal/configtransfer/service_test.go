@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/png"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -177,7 +178,7 @@ func (e *env) seed() {
 				PermissionID: authorization.AttendanceAssist, Scope: authorization.GrantSelectedDeviceTypes,
 				DeviceTypeIDs: []uuid.UUID{kiosk.ID}, MinimumAssurance: authorization.AssuranceNormal,
 			},
-		}, true, laborordnung.ModeWarning, ptr(roles.StaffingSupervisor), nil))
+		}, true, laborordnung.ModeWarning, ptr(roles.StaffingSupervisor), ptr(1), nil))
 	visitorRole := must(e.s.Roles.Create(ctx, p, "Visitor", nil, nil, nil))
 	logbook := e.s.MachineLogbook
 	fdm := must(logbook.CreateMachineType(ctx, p, "FDM printers", "fdm_printing", nil))
@@ -445,6 +446,50 @@ func TestInsertLeavesExistingEntriesAndOverwriteUpdatesThem(t *testing.T) {
 	if got := roleByName(t, e, "Supervisor"); got.Description == nil || *got.Description != "Runs open days" {
 		t.Fatalf("overwrite did not restore the role: %+v", got.Description)
 	}
+}
+
+func TestRoleOpenDayMinimumTravelsAndOlderFilesStillImport(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	data := source.export(source.master, SectionDeviceTypes, SectionRoles)
+	if !strings.Contains(string(data), `"minOpenDaysPerSemester"`) {
+		t.Fatal("export does not carry the role's open-day minimum")
+	}
+
+	t.Run("with the field", func(t *testing.T) {
+		target := newEnv(t)
+		target.importFile(target.master, ModeOverwrite, data, SectionDeviceTypes, SectionRoles)
+		got := roleByName(t, target, "Supervisor")
+		if got.MinOpenDaysPerSemester == nil || *got.MinOpenDaysPerSemester != 1 {
+			t.Fatalf("imported minimum = %v, want 1", got.MinOpenDaysPerSemester)
+		}
+	})
+
+	t.Run("older file without the field", func(t *testing.T) {
+		older := regexp.MustCompile(`"minOpenDaysPerSemester":\s*(null|\d+),\s*`).ReplaceAll(data, nil)
+		if strings.Contains(string(older), "minOpenDaysPerSemester") {
+			t.Fatal("test file still contains the field")
+		}
+		target := newEnv(t)
+		target.importFile(target.master, ModeOverwrite, older, SectionDeviceTypes, SectionRoles)
+		got := roleByName(t, target, "Supervisor")
+		if got.MinOpenDaysPerSemester != nil {
+			t.Fatalf("minimum without the field = %d, want the general minimum", *got.MinOpenDaysPerSemester)
+		}
+		if got.StaffingLevel == nil || *got.StaffingLevel != roles.StaffingSupervisor {
+			t.Fatalf("staffing level = %v", got.StaffingLevel)
+		}
+	})
+
+	t.Run("override on a role without staffing level is refused", func(t *testing.T) {
+		invalid := regexp.MustCompile(`"staffingLevel":\s*"supervisor"`).ReplaceAll(data, []byte(`"staffingLevel": null`))
+		target := newEnv(t)
+		if _, err := target.svc.Preview(
+			target.ctx, target.master, ModeOverwrite, []SectionKey{SectionDeviceTypes, SectionRoles}, bytes.NewReader(invalid),
+		); err == nil {
+			t.Fatal("an override without a staffing level was accepted")
+		}
+	})
 }
 
 func roleByName(t *testing.T, e *env, name string) roles.Role {

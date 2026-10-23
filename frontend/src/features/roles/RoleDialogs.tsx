@@ -8,13 +8,14 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  NumberInput,
   Select,
   SelectItem,
   Stack,
   TextArea,
   TextInput,
 } from '@carbon/react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm, type Control } from 'react-hook-form';
 import type { CreateRoleRequest, Role, StaffingLevel, UpdateRoleRequest } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { normalizePermissionGrants } from '../auth/permissions';
@@ -26,11 +27,64 @@ type RoleForm = {
   profileImageRequired: boolean;
   laborordnungMode: Role['laborordnungMode'];
   staffingLevel: StaffingLevel | 'none';
+  // Empty means: use the general minimum.
+  minOpenDaysPerSemester: number | string;
 };
+
+const MIN_OPEN_DAYS_LIMIT = 20;
+
+function validMinimum(value: number | string): true | string {
+  if (value === '') return true;
+  const number = typeof value === 'number' ? value : Number(value);
+  return (
+    (Number.isInteger(number) && number >= 0 && number <= MIN_OPEN_DAYS_LIMIT) ||
+    `Enter a whole number from 0 to ${MIN_OPEN_DAYS_LIMIT}, or leave it empty.`
+  );
+}
+
+/** The role's own open-day minimum; only roles with a staffing level can have one. */
+function minimumFromForm(values: RoleForm): number | null {
+  if (values.staffingLevel === 'none' || values.minOpenDaysPerSemester === '') return null;
+  return Number(values.minOpenDaysPerSemester);
+}
+
+function OpenDayMinimumField({
+  id,
+  control,
+  generalMinimum,
+}: {
+  id: string;
+  control: Control<RoleForm>;
+  generalMinimum?: number;
+}) {
+  return (
+    <Controller
+      control={control}
+      name="minOpenDaysPerSemester"
+      rules={{ validate: validMinimum }}
+      render={({ field, fieldState }) => (
+        <NumberInput
+          id={id}
+          label="Open days per semester (optional)"
+          min={0}
+          max={MIN_OPEN_DAYS_LIMIT}
+          step={1}
+          allowEmpty
+          value={field.value}
+          helperText={`Leave empty to use the general minimum${generalMinimum === undefined ? '' : ` of ${generalMinimum}`}. People with several roles get the lowest minimum of their roles.`}
+          invalid={Boolean(fieldState.error)}
+          invalidText={fieldState.error?.message}
+          onChange={(_event, { value }) => field.onChange(value)}
+        />
+      )}
+    />
+  );
+}
 
 export function CreateRoleDialog({
   open,
   roles,
+  generalMinimum,
   isPending,
   error,
   onClose,
@@ -38,6 +92,8 @@ export function CreateRoleDialog({
 }: {
   open: boolean;
   roles: Role[];
+  /** The general open-day minimum, when the viewer may read the open-day requirements. */
+  generalMinimum?: number;
   isPending: boolean;
   error?: Error | null;
   onClose: () => void;
@@ -56,6 +112,7 @@ export function CreateRoleDialog({
       profileImageRequired: values.profileImageRequired,
       laborordnungMode: values.laborordnungMode,
       staffingLevel: values.staffingLevel === 'none' ? null : values.staffingLevel,
+      minOpenDaysPerSemester: minimumFromForm(values),
     });
   });
 
@@ -63,7 +120,7 @@ export function CreateRoleDialog({
     <ComposedModal open={open} onClose={onClose} size="sm" preventCloseOnClickOutside>
       <ModalHeader title="Create role" closeModal={onClose} />
       <ModalBody hasScrollingContent>
-        <Form id="create-role-form" onSubmit={submit}>
+        <Form id="create-role-form" onSubmit={submit} noValidate>
           <Stack gap={6}>
             {error && (
               <InlineNotification
@@ -138,6 +195,13 @@ export function CreateRoleDialog({
               <SelectItem value="supervisor" text="Supervisor" />
               <SelectItem value="trainee" text="Trainee" />
             </Select>
+            {form.watch('staffingLevel') !== 'none' && (
+              <OpenDayMinimumField
+                id="create-role-min-open-days"
+                control={form.control}
+                generalMinimum={generalMinimum}
+              />
+            )}
           </Stack>
         </Form>
       </ModalBody>
@@ -155,12 +219,15 @@ export function CreateRoleDialog({
 
 export function RoleSettingsDialog({
   role,
+  generalMinimum,
   isPending,
   error,
   onClose,
   onSubmit,
 }: {
   role?: Role;
+  /** The general open-day minimum, when the viewer may read the open-day requirements. */
+  generalMinimum?: number;
   isPending: boolean;
   error?: Error | null;
   onClose: () => void;
@@ -176,6 +243,7 @@ export function RoleSettingsDialog({
         profileImageRequired: role.profileImageRequired,
         laborordnungMode: role.laborordnungMode,
         staffingLevel: role.staffingLevel ?? 'none',
+        minOpenDaysPerSemester: role.minOpenDaysPerSemester ?? '',
       });
   }, [form, role]);
   const submit = form.handleSubmit((values) => {
@@ -187,6 +255,7 @@ export function RoleSettingsDialog({
       profileImageRequired: values.profileImageRequired,
       laborordnungMode: values.laborordnungMode,
       staffingLevel: values.staffingLevel === 'none' ? null : values.staffingLevel,
+      minOpenDaysPerSemester: minimumFromForm(values),
     });
   });
   return (
@@ -194,7 +263,7 @@ export function RoleSettingsDialog({
       <ModalHeader title="Edit role" closeModal={onClose} />
       <ModalBody hasScrollingContent>
         {role && (
-          <Form id="edit-role-form" onSubmit={submit}>
+          <Form id="edit-role-form" onSubmit={submit} noValidate>
             <Stack gap={6}>
               {error && (
                 <InlineNotification
@@ -255,6 +324,13 @@ export function RoleSettingsDialog({
                 <SelectItem value="supervisor" text="Supervisor" />
                 <SelectItem value="trainee" text="Trainee" />
               </Select>
+              {form.watch('staffingLevel') !== 'none' && (
+                <OpenDayMinimumField
+                  id="edit-role-min-open-days"
+                  control={form.control}
+                  generalMinimum={generalMinimum}
+                />
+              )}
             </Stack>
           </Form>
         )}
@@ -314,4 +390,5 @@ const emptyRoleForm: RoleForm = {
   profileImageRequired: false,
   laborordnungMode: 'not_required',
   staffingLevel: 'none',
+  minOpenDaysPerSemester: '',
 };

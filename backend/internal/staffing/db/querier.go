@@ -23,6 +23,8 @@ type Querier interface {
 	// Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
 	// do not count. A NULL period yields all zeros. person_id narrows the result to one person.
 	ListStaffingCounts(ctx context.Context, arg ListStaffingCountsParams) ([]ListStaffingCountsRow, error)
+	// The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
+	ListStaffingMinimumOverrides(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListStaffingMinimumOverridesRow, error)
 	UpdateOpenDayRequirements(ctx context.Context, arg UpdateOpenDayRequirementsParams) (OpenDayRequirement, error)
 }
 

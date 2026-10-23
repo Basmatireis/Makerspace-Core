@@ -111,7 +111,7 @@ export function SupervisorStaffingPage() {
         ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : []),
         { label: 'Members' },
       ]}
-      description={`${semesterText} · minimum ${plural(requirements.minOpenDaysPerSemester, 'open day')} per person`}
+      description={`${semesterText} · general minimum ${plural(requirements.minOpenDaysPerSemester, 'open day')} per person (roles can differ)`}
       width="wide"
       className="supervisor-staffing-page"
       actions={
@@ -180,7 +180,6 @@ export function SupervisorStaffingPage() {
 
         <StaffingTable
           rows={visible}
-          minimum={requirements.minOpenDaysPerSemester}
           traineeThreshold={requirements.traineeOpenDaysForPromotion}
           search={search}
           filters={filters}

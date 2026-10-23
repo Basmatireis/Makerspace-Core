@@ -27,7 +27,10 @@ import type { StaffingStatus } from './staffingStatus';
 export interface PersonalDashboardStaffing {
   kind: StaffingLevel;
   semester: Semester | null;
-  /** @minimum 0 */
+  /**
+     * The person's own minimum: the lowest role override, else the general minimum.
+     * @minimum 0
+     */
   minimum: number;
   /** @minimum 1 */
   traineeThreshold: number;

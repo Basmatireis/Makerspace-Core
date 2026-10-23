@@ -8,9 +8,10 @@ import { ErrorState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { fullRoleCatalogOptions } from '../roles/queries';
+import { openDayKeys } from './queries';
 import './styles.scss';
 
-const requirementsKey = ['open-days', 'requirements'] as const;
+const requirementsKey = openDayKeys.requirements();
 
 type FormValues = {
   minOpenDaysPerSemester: number | string;
@@ -123,7 +124,7 @@ export function OpenDayRequirementsPage() {
                     step={1}
                     allowEmpty
                     value={field.value}
-                    helperText="Applies to supervisors and trainees. Supervisor and trainee places both count. 0 turns the minimum off."
+                    helperText="Applies to supervisors and trainees. Supervisor and trainee places both count. 0 turns the minimum off. Roles can set their own minimum in the role settings; the lowest one wins for people with several roles."
                     invalid={Boolean(errors.minOpenDaysPerSemester)}
                     invalidText={errors.minOpenDaysPerSemester?.message}
                     onChange={(_event, { value }) => field.onChange(value)}

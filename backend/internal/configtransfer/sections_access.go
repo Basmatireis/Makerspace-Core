@@ -245,12 +245,15 @@ type permissionGrantEntry struct {
 }
 
 type roleEntry struct {
-	Name                 string                 `json:"name"`
-	Description          *string                `json:"description"`
-	ProfileImageRequired bool                   `json:"profileImageRequired"`
-	LabRulesMode         string                 `json:"labRulesMode"`
-	StaffingLevel        *string                `json:"staffingLevel"`
-	Permissions          []permissionGrantEntry `json:"permissions"`
+	Name                 string  `json:"name"`
+	Description          *string `json:"description"`
+	ProfileImageRequired bool    `json:"profileImageRequired"`
+	LabRulesMode         string  `json:"labRulesMode"`
+	StaffingLevel        *string `json:"staffingLevel"`
+	// MinOpenDaysPerSemester is absent in files exported before roles could override the minimum; absent means the
+	// general minimum.
+	MinOpenDaysPerSemester *int                   `json:"minOpenDaysPerSemester"`
+	Permissions            []permissionGrantEntry `json:"permissions"`
 }
 
 func rolesSection() section {
@@ -273,6 +276,14 @@ func validateRoles(items *[]roleEntry) error {
 			return errors.New("the system role master cannot be imported")
 		}
 		item.Description = trimmed(item.Description)
+		if item.MinOpenDaysPerSemester != nil {
+			if *item.MinOpenDaysPerSemester < 0 || *item.MinOpenDaysPerSemester > roles.MaxMinOpenDaysPerSemester {
+				return fmt.Errorf("role %q: minOpenDaysPerSemester must be between 0 and 20", item.Name)
+			}
+			if item.StaffingLevel == nil {
+				return fmt.Errorf("role %q: minOpenDaysPerSemester requires a staffing level", item.Name)
+			}
+		}
 		if len(item.Permissions) > 1000 {
 			return fmt.Errorf("role %q has too many permissions", item.Name)
 		}
@@ -362,12 +373,13 @@ func loadRoles(ctx context.Context, q *configtransferdb.Queries) ([]storedRole, 
 		}
 		sort.SliceStable(roleGrants, func(i, j int) bool { return grantKey(roleGrants[i]) < grantKey(roleGrants[j]) })
 		result = append(result, storedRole{row: row, entry: roleEntry{
-			Name:                 row.Name,
-			Description:          row.Description,
-			ProfileImageRequired: row.ProfileImageRequired,
-			LabRulesMode:         row.LaborordnungMode,
-			StaffingLevel:        row.StaffingLevel,
-			Permissions:          roleGrants,
+			Name:                   row.Name,
+			Description:            row.Description,
+			ProfileImageRequired:   row.ProfileImageRequired,
+			LabRulesMode:           row.LaborordnungMode,
+			StaffingLevel:          row.StaffingLevel,
+			MinOpenDaysPerSemester: intFromInt32(row.MinOpenDaysPerSemester),
+			Permissions:            roleGrants,
 		}})
 	}
 	return result, nil
@@ -457,7 +469,7 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 			_, err = r.attempt(item.Name, ActionCreate, "", func(tx pgx.Tx) error {
 				_, err := r.svc.Roles.CreateWithBehaviorsTx(
 					r.ctx, tx, r.p, item.Name, item.Description, grants, item.ProfileImageRequired, mode, level,
-					r.requestID,
+					item.MinOpenDaysPerSemester, r.requestID,
 				)
 				return err
 			})
@@ -467,7 +479,7 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 				if !roleBehaviorsEqual(current.entry, item) {
 					updated, err := r.svc.Roles.UpdateWithBehaviorsTx(
 						r.ctx, tx, r.p, current.row.ID, version, &item.Name, true, item.Description,
-						&item.ProfileImageRequired, &mode, true, level, r.requestID,
+						&item.ProfileImageRequired, &mode, true, level, true, item.MinOpenDaysPerSemester, r.requestID,
 					)
 					if err != nil {
 						return err
@@ -511,7 +523,23 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 func roleBehaviorsEqual(current, item roleEntry) bool {
 	return current.Name == item.Name && sameText(current.Description, item.Description) &&
 		current.ProfileImageRequired == item.ProfileImageRequired && current.LabRulesMode == item.LabRulesMode &&
-		sameText(current.StaffingLevel, item.StaffingLevel)
+		sameText(current.StaffingLevel, item.StaffingLevel) &&
+		sameOptionalInt(current.MinOpenDaysPerSemester, item.MinOpenDaysPerSemester)
+}
+
+func sameOptionalInt(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func intFromInt32(value *int32) *int {
+	if value == nil {
+		return nil
+	}
+	converted := int(*value)
+	return &converted
 }
 
 func roleUnchanged(current, item roleEntry) bool {

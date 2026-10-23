@@ -45,6 +45,13 @@ export interface Role {
   laborordnungMode: RoleLaborordnungMode;
   /** How people holding this role staff open days; null when the role does not staff. */
   staffingLevel: StaffingLevel | null;
+  /**
+     * Open days per semester people holding this role must staff; null uses the general minimum of the open-day requirements. Only roles with a staffing level can set it.
+     * @minimum 0
+     * @maximum 20
+     * @nullable
+     */
+  minOpenDaysPerSemester: number | null;
   createdAt: string;
   updatedAt: string;
   version: Version;

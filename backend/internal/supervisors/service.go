@@ -23,6 +23,7 @@ type Row struct {
 	HasProfileImage   bool
 	LaborordnungState string
 	Counts            staffing.Counts
+	Minimum           int
 	Standing          staffing.Standing
 	LastOpenDayAt     *time.Time
 	MemberSince       time.Time
@@ -64,6 +65,10 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	if err != nil {
 		return Dashboard{}, err
 	}
+	minimums, err := s.staffing.Minimums(ctx, requirements.MinOpenDaysPerSemester, nil)
+	if err != nil {
+		return Dashboard{}, err
+	}
 	people, err := supervisorsdb.New(s.pool).ListStaffingPeople(ctx)
 	if err != nil {
 		return Dashboard{}, err
@@ -84,6 +89,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	for _, person := range people {
 		kind := roles.StaffingLevel(person.Kind)
 		personCounts := counts[person.PersonID]
+		minimum := minimums.For(person.PersonID)
 		row := Row{
 			PersonID:          person.PersonID,
 			PersonVersion:     person.PersonVersion,
@@ -92,7 +98,8 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 			HasProfileImage:   person.HasProfileImage,
 			LaborordnungState: person.LaborordnungState,
 			Counts:            personCounts,
-			Standing:          staffing.StatusFor(kind, personCounts, requirements),
+			Minimum:           minimum,
+			Standing:          staffing.StatusFor(kind, personCounts, requirements, minimum),
 			MemberSince:       person.MemberSince.Time,
 		}
 		if last, ok := lastStaffed[person.PersonID]; ok {

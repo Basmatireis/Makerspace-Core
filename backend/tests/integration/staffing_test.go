@@ -118,7 +118,7 @@ func (e *staffingEnv) role(name string, level *roles.StaffingLevel, permissions 
 		grants = append(grants, authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantEverywhere})
 	}
 	role, err := e.roles.CreateWithBehaviors(
-		testContext(e.t), e.master, name, nil, grants, false, laborordnung.ModeNotRequired, level, nil,
+		testContext(e.t), e.master, name, nil, grants, false, laborordnung.ModeNotRequired, level, nil, nil,
 	)
 	if err != nil {
 		e.t.Fatal(err)
@@ -192,7 +192,7 @@ func TestRoleStaffingLevelRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("created staffing level = %v, want trainee", role.StaffingLevel)
 	}
 	name := "Renamed"
-	renamed, err := e.roles.UpdateWithBehaviors(ctx, e.master, role.ID, role.Version, &name, false, nil, nil, nil, false, nil, nil)
+	renamed, err := e.roles.UpdateWithBehaviors(ctx, e.master, role.ID, role.Version, &name, false, nil, nil, nil, false, nil, false, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestRoleStaffingLevelRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("an update that omits the level changed it to %v", renamed.StaffingLevel)
 	}
 	promoted, err := e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, renamed.Version, nil, false, nil, nil, nil, true, level(roles.StaffingSupervisor), nil,
+		ctx, e.master, role.ID, renamed.Version, nil, false, nil, nil, nil, true, level(roles.StaffingSupervisor), false, nil, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -209,11 +209,11 @@ func TestRoleStaffingLevelRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("updated staffing level = %v, want supervisor", promoted.StaffingLevel)
 	}
 	_, err = e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, level("lead"), nil,
+		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, level("lead"), false, nil, nil,
 	)
 	expectAppCode(t, err, "validation_failed")
 	cleared, err := e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, nil, nil,
+		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, nil, false, nil, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestRoleStaffingLevelRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("explicit null kept staffing level %v", *cleared.StaffingLevel)
 	}
 	_, err = e.roles.CreateWithBehaviors(
-		ctx, e.master, "Bad level", nil, nil, false, laborordnung.ModeNotRequired, level("lead"), nil,
+		ctx, e.master, "Bad level", nil, nil, false, laborordnung.ModeNotRequired, level("lead"), nil, nil,
 	)
 	expectAppCode(t, err, "validation_failed")
 }
@@ -333,7 +333,7 @@ func TestOpenDayRequirementsPermissionsVersionAndValidation(t *testing.T) {
 
 	// A role that stops being a supervisor role can no longer be the promotion role.
 	if _, err = e.roles.UpdateWithBehaviors(
-		ctx, e.master, supervisorRole.ID, supervisorRole.Version, nil, false, nil, nil, nil, true, level(roles.StaffingTrainee), nil,
+		ctx, e.master, supervisorRole.ID, supervisorRole.Version, nil, false, nil, nil, nil, true, level(roles.StaffingTrainee), false, nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -34,9 +34,12 @@ type Role struct {
 	ProfileImageRequired bool
 	LaborordnungMode     laborordnung.Mode
 	StaffingLevel        *StaffingLevel
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// MinOpenDaysPerSemester overrides the general open-day minimum for people holding the role; nil uses the
+	// general minimum. Only set together with a staffing level.
+	MinOpenDaysPerSemester *int
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type Page struct {
@@ -62,7 +65,7 @@ func (s *Service) Create(
 	grants []authorization.PermissionGrant,
 	requestID *uuid.UUID,
 ) (Role, error) {
-	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, laborordnung.ModeNotRequired, nil, requestID)
+	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, laborordnung.ModeNotRequired, nil, nil, requestID)
 }
 
 func (s *Service) CreateWithBehaviors(
@@ -74,6 +77,7 @@ func (s *Service) CreateWithBehaviors(
 	profileImageRequired bool,
 	laborordnungMode laborordnung.Mode,
 	staffingLevel *StaffingLevel,
+	minOpenDays *int,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
@@ -91,6 +95,7 @@ func (s *Service) CreateWithBehaviors(
 			profileImageRequired,
 			laborordnungMode,
 			staffingLevel,
+			minOpenDays,
 			requestID,
 		)
 		return err
@@ -109,6 +114,7 @@ func (s *Service) CreateWithBehaviorsTx(
 	profileImageRequired bool,
 	laborordnungMode laborordnung.Mode,
 	staffingLevel *StaffingLevel,
+	minOpenDays *int,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
@@ -128,6 +134,9 @@ func (s *Service) CreateWithBehaviorsTx(
 	if staffingLevel != nil && !staffingLevel.Valid() {
 		return Role{}, apperror.InvalidField("staffing level is invalid")
 	}
+	if err := validateMinOpenDays(staffingLevel, minOpenDays); err != nil {
+		return Role{}, err
+	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
 		return Role{}, err
@@ -137,12 +146,13 @@ func (s *Service) CreateWithBehaviorsTx(
 	row, err := q.CreateRole(
 		ctx,
 		rolesdb.CreateRoleParams{
-			ID:                   id,
-			Name:                 name,
-			Description:          description,
-			ProfileImageRequired: profileImageRequired,
-			LaborordnungMode:     string(laborordnungMode),
-			StaffingLevel:        optional.Convert[string](staffingLevel),
+			ID:                     id,
+			Name:                   name,
+			Description:            description,
+			ProfileImageRequired:   profileImageRequired,
+			LaborordnungMode:       string(laborordnungMode),
+			StaffingLevel:          optional.Convert[string](staffingLevel),
+			MinOpenDaysPerSemester: minOpenDaysParam(minOpenDays),
 		},
 	)
 	if err != nil {
@@ -161,7 +171,8 @@ func (s *Service) CreateWithBehaviorsTx(
 			ResourceType:   "role",
 			ResourceID:     &id,
 			RequestID:      requestID,
-			ChangedFields:  []string{"name", "description", "permissionGrants", "profileImageRequired", "staffingLevel"},
+			ChangedFields: []string{"name", "description", "permissionGrants", "profileImageRequired", "staffingLevel",
+				"minOpenDaysPerSemester"},
 		},
 	); err != nil {
 		return Role{}, err
@@ -477,6 +488,8 @@ func (s *Service) Update(
 		nil,
 		false,
 		nil,
+		false,
+		nil,
 		requestID,
 	)
 }
@@ -493,13 +506,16 @@ func (s *Service) UpdateWithBehaviors(
 	laborordnungMode *laborordnung.Mode,
 	staffingLevelSet bool,
 	staffingLevel *StaffingLevel,
+	minOpenDaysSet bool,
+	minOpenDays *int,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 ||
-		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet) {
+		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet &&
+			!minOpenDaysSet) {
 		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
 	}
 	var result Role
@@ -517,6 +533,8 @@ func (s *Service) UpdateWithBehaviors(
 			laborordnungMode,
 			staffingLevelSet,
 			staffingLevel,
+			minOpenDaysSet,
+			minOpenDays,
 			requestID,
 		)
 		return err
@@ -538,13 +556,16 @@ func (s *Service) UpdateWithBehaviorsTx(
 	laborordnungMode *laborordnung.Mode,
 	staffingLevelSet bool,
 	staffingLevel *StaffingLevel,
+	minOpenDaysSet bool,
+	minOpenDays *int,
 	requestID *uuid.UUID,
 ) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
 	if expectedVersion < 1 ||
-		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet) {
+		(name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && !staffingLevelSet &&
+			!minOpenDaysSet) {
 		return Role{}, apperror.InvalidField("at least one field and a positive expectedVersion are required")
 	}
 	queries := rolesdb.New(tx)
@@ -565,6 +586,7 @@ func (s *Service) UpdateWithBehaviorsTx(
 	newProfileImageRequired := current.ProfileImageRequired
 	newLaborordnungMode := laborordnung.Mode(current.LaborordnungMode)
 	newStaffingLevel := optional.Convert[StaffingLevel](current.StaffingLevel)
+	newMinOpenDays := minOpenDaysFromRow(current.MinOpenDaysPerSemester)
 	changed := make([]string, 0, 5)
 	if name != nil {
 		newName = strings.TrimSpace(*name)
@@ -586,8 +608,19 @@ func (s *Service) UpdateWithBehaviorsTx(
 		newStaffingLevel = staffingLevel
 		changed = append(changed, "staffingLevel")
 	}
+	if minOpenDaysSet {
+		newMinOpenDays = minOpenDays
+		changed = append(changed, "minOpenDaysPerSemester")
+	} else if staffingLevelSet && newStaffingLevel == nil && newMinOpenDays != nil {
+		// A role that stops staffing has no open-day minimum to override.
+		newMinOpenDays = nil
+		changed = append(changed, "minOpenDaysPerSemester")
+	}
 	if newStaffingLevel != nil && !newStaffingLevel.Valid() {
 		return Role{}, apperror.InvalidField("staffing level is invalid")
+	}
+	if err := validateMinOpenDays(newStaffingLevel, newMinOpenDays); err != nil {
+		return Role{}, err
 	}
 	if !newLaborordnungMode.Valid() {
 		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
@@ -601,13 +634,14 @@ func (s *Service) UpdateWithBehaviorsTx(
 	row, err := queries.UpdateRole(
 		ctx,
 		rolesdb.UpdateRoleParams{
-			ID:                   id,
-			ExpectedVersion:      expectedVersion,
-			Name:                 newName,
-			Description:          newDescription,
-			ProfileImageRequired: newProfileImageRequired,
-			LaborordnungMode:     string(newLaborordnungMode),
-			StaffingLevel:        optional.Convert[string](newStaffingLevel),
+			ID:                     id,
+			ExpectedVersion:        expectedVersion,
+			Name:                   newName,
+			Description:            newDescription,
+			ProfileImageRequired:   newProfileImageRequired,
+			LaborordnungMode:       string(newLaborordnungMode),
+			StaffingLevel:          optional.Convert[string](newStaffingLevel),
+			MinOpenDaysPerSemester: minOpenDaysParam(newMinOpenDays),
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -763,17 +797,18 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 	}
 	sort.Slice(grants, func(i, j int) bool { return grants[i].PermissionID < grants[j].PermissionID })
 	return Role{
-		ID:                   row.ID,
-		Name:                 row.Name,
-		Description:          row.Description,
-		SystemKey:            optional.Convert[authorization.SystemKey](row.SystemKey),
-		PermissionGrants:     grants,
-		ProfileImageRequired: row.ProfileImageRequired,
-		LaborordnungMode:     laborordnung.Mode(row.LaborordnungMode),
-		StaffingLevel:        optional.Convert[StaffingLevel](row.StaffingLevel),
-		Version:              row.Version,
-		CreatedAt:            row.CreatedAt,
-		UpdatedAt:            row.UpdatedAt,
+		ID:                     row.ID,
+		Name:                   row.Name,
+		Description:            row.Description,
+		SystemKey:              optional.Convert[authorization.SystemKey](row.SystemKey),
+		PermissionGrants:       grants,
+		ProfileImageRequired:   row.ProfileImageRequired,
+		LaborordnungMode:       laborordnung.Mode(row.LaborordnungMode),
+		StaffingLevel:          optional.Convert[StaffingLevel](row.StaffingLevel),
+		MinOpenDaysPerSemester: minOpenDaysFromRow(row.MinOpenDaysPerSemester),
+		Version:                row.Version,
+		CreatedAt:              row.CreatedAt,
+		UpdatedAt:              row.UpdatedAt,
 	}, nil
 }
 
@@ -838,4 +873,37 @@ func invalidRequest(reason string) *apperror.Error {
 	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
+}
+
+// MaxMinOpenDaysPerSemester mirrors the table constraint on roles.min_open_days_per_semester.
+const MaxMinOpenDaysPerSemester = 20
+
+// validateMinOpenDays checks a role's open-day minimum override: within 0..20 and only for roles that staff.
+func validateMinOpenDays(level *StaffingLevel, minOpenDays *int) error {
+	if minOpenDays == nil {
+		return nil
+	}
+	if *minOpenDays < 0 || *minOpenDays > MaxMinOpenDaysPerSemester {
+		return apperror.InvalidField("minOpenDaysPerSemester must be between 0 and 20")
+	}
+	if level == nil {
+		return apperror.InvalidField("minOpenDaysPerSemester requires a staffing level")
+	}
+	return nil
+}
+
+func minOpenDaysParam(value *int) *int32 {
+	if value == nil {
+		return nil
+	}
+	converted := int32(*value) //nolint:gosec // validated to 0..20 above
+	return &converted
+}
+
+func minOpenDaysFromRow(value *int32) *int {
+	if value == nil {
+		return nil
+	}
+	converted := int(*value)
+	return &converted
 }

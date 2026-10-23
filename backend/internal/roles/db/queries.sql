@@ -1,6 +1,6 @@
 -- name: CreateRole :one
-INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.narg(description), sqlc.arg(profile_image_required), sqlc.arg(laborordnung_mode), sqlc.narg(staffing_level)) RETURNING *;
+INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.narg(description), sqlc.arg(profile_image_required), sqlc.arg(laborordnung_mode), sqlc.narg(staffing_level), sqlc.narg(min_open_days_per_semester)) RETURNING *;
 
 -- name: ListRoles :many
 SELECT * FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id;
@@ -15,6 +15,7 @@ SELECT * FROM roles WHERE id = sqlc.arg(id) FOR UPDATE;
 UPDATE roles SET name = sqlc.arg(name), description = sqlc.narg(description),
     profile_image_required = sqlc.arg(profile_image_required),
     laborordnung_mode = sqlc.arg(laborordnung_mode), staffing_level = sqlc.narg(staffing_level),
+    min_open_days_per_semester = sqlc.narg(min_open_days_per_semester),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key IS NULL RETURNING *;
 

@@ -190,6 +190,20 @@ func (s *Service) Counts(
 	return result, nil
 }
 
+// Minimums loads the role overrides of the open-day minimum so each person's effective minimum can be resolved;
+// onlyPerson narrows it to one person. general is the minimum of the requirements settings.
+func (s *Service) Minimums(ctx context.Context, general int, onlyPerson *uuid.UUID) (Minimums, error) {
+	rows, err := staffingdb.New(s.pool).ListStaffingMinimumOverrides(ctx, onlyPerson)
+	if err != nil {
+		return Minimums{}, err
+	}
+	overrides := map[uuid.UUID][]int{}
+	for _, row := range rows {
+		overrides[row.PersonID] = append(overrides[row.PersonID], int(row.Minimum))
+	}
+	return Minimums{general: general, overrides: overrides}, nil
+}
+
 // LastStaffed returns when each person last staffed an ended open day, in any semester.
 func (s *Service) LastStaffed(
 	ctx context.Context,

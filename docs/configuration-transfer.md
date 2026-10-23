@@ -72,6 +72,7 @@ The services write their usual audit events; the import adds one `configuration.
         "profileImageRequired": false,
         "labRulesMode": "warning",
         "staffingLevel": "supervisor",
+        "minOpenDaysPerSemester": 1,
         "permissions": [
           {
             "permission": "open_days.read",
@@ -87,6 +88,7 @@ The services write their usual audit events; the import adds one `configuration.
 }
 ```
 
+- A role's `minOpenDaysPerSemester` (`null` = the general minimum) is only valid together with a `staffingLevel`. Files exported before the field existed lack it and still import; an overwrite import then resets the role to the general minimum.
 - The file is indented JSON with stable ordering (entries sorted by natural key), so two exports of the same state differ only in `exportedAt`.
 - Decimals (rates, prices, thresholds, diameters) are strings; timestamps are RFC 3339 UTC; file content is standard base64 next to its lowercase hex `sha256`, which the import verifies.
 - Validation is strict: at most 64 MiB (`configtransfer.MaxFileBytes`, also the export limit), `format` and `version` must match, chosen sections must be present, unknown fields and duplicate names (ignoring case) are rejected with 422 `configuration_file_invalid` naming the section. Unknown sections (from a newer release) are ignored with a warning.

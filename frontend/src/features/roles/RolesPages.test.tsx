@@ -267,6 +267,7 @@ describe('Roles and permissions matrix', () => {
         profileImageRequired: false,
         laborordnungMode: 'not_required',
         staffingLevel: null,
+        minOpenDaysPerSemester: null,
       }),
     );
   });
@@ -403,6 +404,124 @@ describe('Roles and permissions matrix', () => {
     await user.selectOptions(level, 'trainee');
     await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
     await waitFor(() => expect(submitted[0]).toEqual(expect.objectContaining({ staffingLevel: 'trainee' })));
+  });
+
+  it('sets the own open-day minimum of a role only while the role has a staffing level', async () => {
+    const actor = currentUserFixture([
+      PermissionId.rolesread,
+      PermissionId.rolesmanage,
+      PermissionId.peoplereadall,
+      PermissionId.open_daysread,
+    ]);
+    const role = roleFixture({ staffingLevel: null });
+    const submitted: UpdateRoleRequest[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.get('*/api/v1/open-day-requirements', () =>
+        HttpResponse.json({
+          minOpenDaysPerSemester: 2,
+          traineeOpenDaysForPromotion: 3,
+          supervisorRoleId: null,
+          version: 1,
+          updatedAt: '2026-01-01T00:00:00Z',
+        }),
+      ),
+      http.patch('*/api/v1/roles/:roleId', async ({ request }) => {
+        const body = (await request.json()) as UpdateRoleRequest;
+        submitted.push(body);
+        return HttpResponse.json({ ...role, ...body, version: role.version + submitted.length });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/roles/${role.id}`);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText(/Open days per semester/)).not.toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Open day staffing'), 'supervisor');
+    const minimum = await within(dialog).findByLabelText('Open days per semester (optional)');
+    expect(minimum).toHaveValue(null);
+    expect(await within(dialog).findByText(/Leave empty to use the general minimum of 2\./)).toBeInTheDocument();
+
+    await user.type(minimum, '4');
+    await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+    await waitFor(() =>
+      expect(submitted[0]).toEqual(expect.objectContaining({ staffingLevel: 'supervisor', minOpenDaysPerSemester: 4 })),
+    );
+  });
+
+  it('falls back to the general minimum when the override field is emptied', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
+    const role = roleFixture({ staffingLevel: 'supervisor', minOpenDaysPerSemester: 3 });
+    const submitted: UpdateRoleRequest[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.patch('*/api/v1/roles/:roleId', async ({ request }) => {
+        submitted.push((await request.json()) as UpdateRoleRequest);
+        return HttpResponse.json(role);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/roles/${role.id}`);
+
+    const dialog = await screen.findByRole('dialog');
+    const minimum = await within(dialog).findByLabelText('Open days per semester (optional)');
+    expect(minimum).toHaveValue(3);
+    await user.clear(minimum);
+    await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+    await waitFor(() => expect(submitted[0]).toEqual(expect.objectContaining({ minOpenDaysPerSemester: null })));
+  });
+
+  it('drops the override field and sends none when the staffing level is cleared', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
+    const role = roleFixture({ staffingLevel: 'supervisor', minOpenDaysPerSemester: 3 });
+    const submitted: UpdateRoleRequest[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.patch('*/api/v1/roles/:roleId', async ({ request }) => {
+        submitted.push((await request.json()) as UpdateRoleRequest);
+        return HttpResponse.json(role);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/roles/${role.id}`);
+
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(await within(dialog).findByLabelText('Open day staffing'), 'none');
+    expect(within(dialog).queryByLabelText(/Open days per semester/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+    await waitFor(() =>
+      expect(submitted[0]).toEqual(expect.objectContaining({ staffingLevel: null, minOpenDaysPerSemester: null })),
+    );
+  });
+
+  it('rejects an open-day minimum above 20 before submitting', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
+    const role = roleFixture({ staffingLevel: 'trainee', minOpenDaysPerSemester: 1 });
+    let patched = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.patch('*/api/v1/roles/:roleId', () => {
+        patched = true;
+        return HttpResponse.json(role);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/roles/${role.id}`);
+
+    const dialog = await screen.findByRole('dialog');
+    const minimum = await within(dialog).findByLabelText('Open days per semester (optional)');
+    expect(minimum).toHaveValue(1);
+    // Without open_days.read the helper text cannot name the general minimum.
+    expect(within(dialog).getByText(/Leave empty to use the general minimum\./)).toBeInTheDocument();
+    await user.clear(minimum);
+    await user.type(minimum, '25');
+    await user.click(within(dialog).getByRole('button', { name: 'Save role' }));
+    expect(await within(dialog).findByText(/Enter a whole number from 0 to 20/)).toBeInTheDocument();
+    expect(patched).toBe(false);
   });
 
   it('disables rule choices outside the administrator delegation envelope', async () => {

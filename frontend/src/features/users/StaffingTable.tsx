@@ -53,7 +53,6 @@ const STATUS_TAG: Record<StaffingStatus, { label: (row: SupervisorRow) => string
 type Props = {
   /** Rows after search and filters; the table slices out the current page. */
   rows: SupervisorRow[];
-  minimum: number;
   traineeThreshold: number;
   search: string;
   filters: FilterValues;
@@ -71,7 +70,6 @@ type Props = {
 
 export function StaffingTable({
   rows,
-  minimum,
   traineeThreshold,
   search,
   filters,
@@ -186,19 +184,19 @@ export function StaffingTable({
                     <TableCell>
                       <div className="staffing-progress">
                         <span>
-                          {signedUp} of {minimum}
+                          {signedUp} of {row.minimum}
                           <span className="staffing-secondary">
                             {' '}
                             · {row.staffed} staffed, {row.booked} booked
                           </span>
                         </span>
                         <ProgressBar
-                          label={`${row.name}: signed up for ${signedUp} of ${minimum} open days`}
+                          label={`${row.name}: signed up for ${signedUp} of ${row.minimum} open days`}
                           hideLabel
                           size="small"
-                          value={Math.min(signedUp, minimum)}
-                          max={Math.max(minimum, 1)}
-                          status={signedUp >= minimum ? 'finished' : 'active'}
+                          value={Math.min(signedUp, row.minimum)}
+                          max={Math.max(row.minimum, 1)}
+                          status={signedUp >= row.minimum ? 'finished' : 'active'}
                         />
                       </div>
                     </TableCell>

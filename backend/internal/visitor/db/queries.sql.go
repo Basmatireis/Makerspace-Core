@@ -351,7 +351,7 @@ func (q *Queries) DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, err
 }
 
 const getAssignableRole = `-- name: GetAssignableRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level FROM roles WHERE id=$1
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id=$1
 `
 
 func (q *Queries) GetAssignableRole(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -368,6 +368,7 @@ func (q *Queries) GetAssignableRole(ctx context.Context, id uuid.UUID) (Role, er
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
 		&i.StaffingLevel,
+		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }

@@ -1,5 +1,6 @@
 import {
   getOpenDay,
+  getOpenDayRequirements,
   getOpenDayCalendarContext,
   listOpenDayAcademicBreaks,
   listOpenDayEligibilityRoles,
@@ -14,6 +15,7 @@ export const openDayKeys = {
   schedule: (periodId: string) => [...openDayKeys.all, 'period', periodId] as const,
   calendarContext: (periodId: string) => [...openDayKeys.all, 'calendar-context', periodId] as const,
   eligibilityRoles: () => [...openDayKeys.all, 'eligibility-roles'] as const,
+  requirements: () => [...openDayKeys.all, 'requirements'] as const,
   day: (openDayId: string) => [...openDayKeys.all, 'day', openDayId] as const,
 };
 
@@ -28,6 +30,14 @@ export function eligibilityRolesQueryOptions(enabled = true) {
   return {
     queryKey: openDayKeys.eligibilityRoles(),
     queryFn: ({ signal }: { signal: AbortSignal }) => listOpenDayEligibilityRoles({ signal }),
+    enabled,
+  };
+}
+
+export function openDayRequirementsQueryOptions(enabled = true) {
+  return {
+    queryKey: openDayKeys.requirements(),
+    queryFn: ({ signal }: { signal: AbortSignal }) => getOpenDayRequirements({ signal }),
     enabled,
   };
 }

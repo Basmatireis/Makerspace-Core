@@ -18,7 +18,8 @@ FROM session_policies
 ORDER BY lower(name), id;
 
 -- name: ListRoles :many
-SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level, version
+SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level,
+    min_open_days_per_semester, version
 FROM roles
 ORDER BY lower(name), id;
 
