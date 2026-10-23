@@ -9,6 +9,8 @@ export const server = setupServer(
       postSessionDestination: 'login',
     }),
   ),
+  // The header bell polls these on every page that renders the application shell.
+  http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: 0 })),
   http.get('*/api/v1/session-policies', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/permissions', () => HttpResponse.json({ items: [] })),

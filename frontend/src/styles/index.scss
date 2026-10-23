@@ -11,6 +11,7 @@
 @use '@carbon/styles/scss/layout';
 @use '@carbon/styles/scss/zone';
 @use '@carbon/styles/scss/components/accordion';
+@use '@carbon/styles/scss/components/badge-indicator';
 @use '@carbon/styles/scss/components/breadcrumb';
 @use '@carbon/styles/scss/components/button';
 @use '@carbon/styles/scss/components/checkbox';
@@ -289,6 +290,72 @@ body.cds--body--with-modal-open .app-main > * {
   color: theme.$text-on-color;
   white-space: nowrap;
   @include type-style('body-compact-01');
+}
+
+// The header notification panel (Carbon HeaderPanel + ContainedList): application-specific layout only.
+.notification-panel.cds--header-panel--expanded {
+  inline-size: min(26rem, 100vw);
+  overflow-y: auto;
+}
+
+.notification-panel:not(.cds--header-panel--expanded) {
+  overflow: hidden;
+}
+
+.notification-panel__content {
+  padding: $spacing-05;
+}
+
+.notification-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: $spacing-03;
+}
+
+.notification-panel__title {
+  @include type-style('heading-compact-02');
+}
+
+.notification-panel__empty,
+.notification-panel__note,
+.notification-form__hint {
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
+
+.notification-panel__note {
+  margin-block-start: $spacing-03;
+}
+
+.notification-item {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  padding-block: $spacing-03;
+}
+
+.notification-item__heading {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+.notification-item__body {
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: pre-line;
+}
+
+.notification-item__time {
+  @include type-style('helper-text-01');
+  color: theme.$text-helper;
 }
 
 .person-avatar {

@@ -129,6 +129,9 @@ export const OpenDayManagementPage = lazy(() =>
     default: OpenDayManagementPage,
   })),
 );
+export const MessagesPage = lazy(() =>
+  import('../features/notifications/MessagesPage').then(({ MessagesPage }) => ({ default: MessagesPage })),
+);
 export const SettingsPage = lazy(() =>
   import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),
 );

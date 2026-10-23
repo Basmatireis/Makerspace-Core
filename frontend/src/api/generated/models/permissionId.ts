@@ -131,4 +131,5 @@ export const PermissionId = {
   local_servicesmanage: 'local_services.manage',
   configurationexport: 'configuration.export',
   configurationimport: 'configuration.import',
+  notificationssend: 'notifications.send',
 } as const;

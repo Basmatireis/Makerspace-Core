@@ -77,7 +77,8 @@ function NavigationGroup({ title, icon, items, active, pathname, onNavigate }: N
 function activeGroupForPath(pathname: string): NavigationGroupId | null {
   if (pathname.startsWith('/open-days') || pathname.startsWith('/events') || pathname.startsWith('/attendance'))
     return 'operations';
-  if (pathname.startsWith('/people') || pathname.startsWith('/organizations')) return 'people';
+  if (pathname.startsWith('/people') || pathname.startsWith('/organizations') || pathname.startsWith('/notifications'))
+    return 'people';
   if (pathname.startsWith('/machine-logbook')) return 'machines';
   if (
     pathname === '/sales' ||
@@ -136,6 +137,14 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
   if (hasPermission(currentUser, PermissionId.supervisor_dashboardread)) {
     people.push({ label: 'Staffing', to: '/people/staffing', active: pathname.startsWith('/people/staffing') });
+  }
+
+  if (hasPermission(currentUser, PermissionId.notificationssend)) {
+    people.push({
+      label: 'Messages',
+      to: '/notifications/messages',
+      active: pathname.startsWith('/notifications'),
+    });
   }
 
   const machines: NavigationItem[] = [];

@@ -1,6 +1,7 @@
 package printerconnectors
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -827,6 +828,23 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		*run.Usages[0].SpoolID != spoolID ||
 		run.Usages[0].Quantity != "25" {
 		t.Fatalf("settled job %s: %+v", settled.Status, run)
+	}
+	// The machine's final report tells the job's operator once, in the ingest transaction.
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(
+			context.Background(),
+			`DELETE FROM inbox_notifications WHERE id IN (SELECT notification_id FROM inbox_recipients WHERE account_id = $1)`,
+			h.principal.AccountID,
+		)
+	})
+	var finished int
+	if err = h.pool.QueryRow(
+		ctx,
+		`SELECT count(*) FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
+		 WHERE r.account_id = $1 AND n.kind = 'run_finished' AND n.link = $2`,
+		h.principal.AccountID, "/machine-logbook/jobs/runs/"+runID.String(),
+	).Scan(&finished); err != nil || finished != 1 {
+		t.Fatalf("run_finished notifications for the operator = %d, %v", finished, err)
 	}
 	// 30 minutes at 10/h; the material has no pricing rule yet, so the price stays incomplete.
 	if settled.DurationSeconds != 1800 || settled.PricingStatus != "incomplete" {

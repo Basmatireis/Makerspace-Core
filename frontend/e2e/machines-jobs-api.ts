@@ -1022,6 +1022,8 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     let match: RegExpMatchArray | null;
 
     if (path === '/api/v1/auth/activity' && method === 'POST') return ok(route, currentUser(world.permissions).session);
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') return ok(route, { unreadCount: 0 });
     if (method !== 'GET')
       world.requests.push({
         method,

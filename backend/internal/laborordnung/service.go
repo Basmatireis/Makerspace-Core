@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	laborordnungdb "github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
@@ -68,10 +69,17 @@ type Request struct {
 type Service struct {
 	pool  *pgxpool.Pool
 	files *files.Service
+	inbox inboxEmitter
+}
+
+// inboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// the caller's transaction.
+type inboxEmitter interface {
+	LabRulesConfirmationRequested(ctx context.Context, tx pgx.Tx, requesterAccountID uuid.UUID) error
 }
 
 func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
-	return &Service{pool: pool, files: fileService}
+	return &Service{pool: pool, files: fileService, inbox: inbox.NewEmitter()}
 }
 
 func (s *Service) CreateVersion(
@@ -478,6 +486,9 @@ func (s *Service) RequestOwnConfirmation(
 			RequestID:      requestID,
 		},
 	); err != nil {
+		return Request{}, false, err
+	}
+	if err := s.inbox.LabRulesConfirmationRequested(ctx, tx, principal.AccountID); err != nil {
 		return Request{}, false, err
 	}
 	result, err := s.hydrateRequest(ctx, queries, created)

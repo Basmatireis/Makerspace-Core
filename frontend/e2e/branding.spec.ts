@@ -114,6 +114,11 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST')
       return json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',

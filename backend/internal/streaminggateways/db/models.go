@@ -392,6 +392,28 @@ type File struct {
 	UpdatedAt          time.Time
 }
 
+type InboxNotification struct {
+	ID                 uuid.UUID
+	Kind               string
+	Title              string
+	Body               string
+	Link               *string
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+	ExpiresAt          time.Time
+}
+
+type InboxNotificationRole struct {
+	NotificationID uuid.UUID
+	RoleID         uuid.UUID
+}
+
+type InboxRecipient struct {
+	NotificationID uuid.UUID
+	AccountID      uuid.UUID
+	ReadAt         pgtype.Timestamptz
+}
+
 type InventoryTransaction struct {
 	ID                  uuid.UUID
 	MaterialID          uuid.UUID

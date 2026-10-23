@@ -238,6 +238,16 @@ func (s *Service) removeAssignment(
 	}); err != nil {
 		return err
 	}
+	// Only a freed supervisor place is worth a notification; empty trainee places never warn.
+	requirement, err := q.GetRequirement(ctx, assignment.RequirementID)
+	if err != nil {
+		return err
+	}
+	if RequirementKind(requirement.Kind) == RequirementSupervisor {
+		if err := s.inbox.OpenDayPlaceFreed(ctx, tx, openDayID, assignment.PersonID, s.location); err != nil {
+			return err
+		}
+	}
 	return tx.Commit(ctx)
 }
 

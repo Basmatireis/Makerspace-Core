@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -79,6 +80,7 @@ type Server struct {
 	signage           *signage.Service
 	attendance        *attendance.Service
 	surveys           *surveys.Service
+	inbox             *inbox.Service
 	configTransfer    *configtransfer.Service
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
@@ -192,6 +194,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		branding:          brandingService,
 		signage:           signageService,
 		surveys:           surveyService,
+		inbox:             inbox.NewService(pool),
 		configTransfer:    configTransferService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),

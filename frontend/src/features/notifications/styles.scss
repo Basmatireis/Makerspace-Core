@@ -1,0 +1,26 @@
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/spacing' as spacing;
+@use '@carbon/styles/scss/type' as type;
+
+.notification-form__hint {
+  @include type.type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
+
+.notification-sent__message {
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-01;
+  max-inline-size: 36rem;
+}
+
+.notification-sent__body {
+  @include type.type-style('body-compact-01');
+  color: theme.$text-secondary;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

@@ -536,6 +536,10 @@ func (s *Service) CancelRun(
 	); err != nil {
 		return MachineJob{}, err
 	}
+	// A person who cancels their own run does not need to be told.
+	if err = s.inbox.RunFinished(ctx, tx, id, p.AccountID); err != nil {
+		return MachineJob{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MachineJob{}, err
 	}

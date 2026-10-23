@@ -70,6 +70,10 @@ func (s *Service) ApplyRecordedRunEvent(
 		if err == nil {
 			run = updated
 			fields = append(fields, "outcome")
+			// The outcome is set once, by the machine's final report, so the operator is told once.
+			if err := s.inbox.RunFinished(ctx, tx, run.ID); err != nil {
+				return RecordedRunChange{}, err
+			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return RecordedRunChange{}, err
 		}

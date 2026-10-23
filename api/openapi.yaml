@@ -49,6 +49,8 @@ tags:
   - name: Signage
   - name: Signage Player
   - name: Local Services
+  - name: Notifications
+    description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: Configuration Transfer
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
 
@@ -2910,6 +2912,108 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "413": {description: The file exceeds 64 MiB., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List the signed-in account's own notifications
+      description: >-
+        Newest first, always scoped to the session's account. Notifications are kept for 90 days; expired ones are
+        hard-deleted lazily. `unreadCount` covers all pages.
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200": {description: Own notifications., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getNotificationUnreadCount
+      summary: Count the signed-in account's unread notifications
+      description: Cheap endpoint the application header polls.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Unread count., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationUnreadCount"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark all of the signed-in account's notifications as read
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: All notifications are read.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/messages:
+    get:
+      tags: [Notifications]
+      operationId: listSentNotificationMessages
+      summary: List the manual messages that were sent to roles
+      description: >-
+        Requires `notifications.send`. Recipient and read counts only include recipients who have not dismissed the
+        message.
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200": {description: "Sent messages, newest first.", content: {application/json: {schema: {$ref: "#/components/schemas/SentNotificationMessagePage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Notifications]
+      operationId: sendNotificationMessage
+      summary: Send an in-app message to the people who currently hold any of the chosen roles
+      description: >-
+        Requires `notifications.send`. The recipients are the active accounts of the people holding any chosen role at
+        this moment (a snapshot). Answers 422 `no_recipients` when that set is empty and 429 when the sender sends too
+        many messages.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SendNotificationMessageRequest"}}}}
+      responses:
+        "201": {description: Message sent., content: {application/json: {schema: {$ref: "#/components/schemas/SentNotificationMessage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/{notificationId}/read:
+    parameters: [{$ref: "#/components/parameters/NotificationId"}]
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark one of the signed-in account's notifications as read
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The notification is read.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/{notificationId}:
+    parameters: [{$ref: "#/components/parameters/NotificationId"}]
+    delete:
+      tags: [Notifications]
+      operationId: dismissNotification
+      summary: Dismiss one of the signed-in account's notifications
+      description: Hard-deletes the account's copy of the notification.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The notification is dismissed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /laborordnung/versions:
@@ -8765,6 +8869,11 @@ components:
         type: string
         maxLength: 500
 
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
     SignageAssetId:
       name: assetId
       in: path
@@ -9017,6 +9126,87 @@ components:
         - local_services.manage
         - configuration.export
         - configuration.import
+        - notifications.send
+
+    NotificationKind:
+      type: string
+      enum: [message, lab_rules_confirmation_requested, open_day_period_open, open_day_place_freed, run_finished]
+      x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesConfirmationRequested, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindRunFinished]
+
+    Notification:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, body, link, createdAt, readAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/NotificationKind"}
+        title: {type: string, maxLength: 120}
+        body: {type: string, maxLength: 2000, description: Plain text.}
+        link: {type: string, maxLength: 500, nullable: true, description: "Application-relative path, always starting with a single `/`."}
+        createdAt: {type: string, format: date-time}
+        readAt: {type: string, format: date-time, nullable: true}
+
+    NotificationPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total, unreadCount]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Notification"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
+        unreadCount: {type: integer, format: int64, minimum: 0}
+
+    NotificationUnreadCount:
+      type: object
+      additionalProperties: false
+      required: [unreadCount]
+      properties:
+        unreadCount: {type: integer, format: int64, minimum: 0}
+
+    SendNotificationMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [title, body, roleIds]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 120}
+        body: {type: string, minLength: 1, maxLength: 2000, description: Plain text.}
+        link: {type: string, maxLength: 500, nullable: true, description: "Optional application-relative path; must start with a single `/`."}
+        roleIds: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    SentNotificationMessageRole:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+
+    SentNotificationMessage:
+      type: object
+      additionalProperties: false
+      required: [id, title, body, link, roles, senderName, recipientCount, readCount, createdAt, expiresAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string}
+        body: {type: string}
+        link: {type: string, nullable: true}
+        roles: {type: array, items: {$ref: "#/components/schemas/SentNotificationMessageRole"}}
+        senderName: {type: string, nullable: true, description: Null once the sender's account was deleted.}
+        recipientCount: {type: integer, format: int64, minimum: 0}
+        readCount: {type: integer, format: int64, minimum: 0}
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+
+    SentNotificationMessagePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SentNotificationMessage"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1, maximum: 100}
+        total: {type: integer, format: int64, minimum: 0}
 
     ConfigurationSection:
       type: string

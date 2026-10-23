@@ -9,6 +9,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -20,8 +21,15 @@ import (
 )
 
 type Service struct {
-	pool *pgxpool.Pool
-	now  func() time.Time
+	pool  *pgxpool.Pool
+	now   func() time.Time
+	inbox inboxEmitter
+}
+
+// inboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// the caller's transaction.
+type inboxEmitter interface {
+	RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UUID, excludedAccountIDs ...uuid.UUID) error
 }
 
 // Option customizes a Service.
@@ -32,7 +40,7 @@ type Option func(*Service)
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
 func NewService(pool *pgxpool.Pool, options ...Option) *Service {
-	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }}
+	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }, inbox: inbox.NewEmitter()}
 	for _, option := range options {
 		option(s)
 	}

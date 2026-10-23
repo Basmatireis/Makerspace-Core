@@ -35,6 +35,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'people.profile_image.update.all': { group: 'People', label: 'Update all profile images' },
   'people.profile_image.remove.self': { group: 'People', label: 'Remove own profile image' },
   'people.profile_image.remove.all': { group: 'People', label: 'Remove all profile images' },
+  'notifications.send': { group: 'People', label: 'Send in-app messages' },
   'accounts.read': { group: 'Accounts & authentication', label: 'View accounts' },
   'accounts.create': { group: 'Accounts & authentication', label: 'Create accounts' },
   'accounts.delete': { group: 'Accounts & authentication', label: 'Delete accounts' },

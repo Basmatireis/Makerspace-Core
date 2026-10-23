@@ -307,6 +307,14 @@ async function installApi(page: Page, state: ApiState) {
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
+    // The header bell polls the unread count on every page.
+
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+
+      return;
+    }
+
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
       await json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',

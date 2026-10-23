@@ -78,6 +78,7 @@ import {
   VisitorEnrollmentPage,
   VisitorEnrollmentSettingsPage,
   VisitorTerminalPage,
+  MessagesPage,
 } from './routes';
 import { ExternalInvoiceRedirect, IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
 
@@ -596,6 +597,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}>
                   <SupervisorStaffingPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="notifications/messages"
+              element={
+                <PermissionRoute allOf={[PermissionId.notificationssend]}>
+                  <MessagesPage />
                 </PermissionRoute>
               }
             />

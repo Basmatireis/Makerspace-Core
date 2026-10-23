@@ -123,6 +123,7 @@ const (
 	LocalServicesManage                Permission = Permission(openapi.LocalServicesManage)
 	ConfigurationExport                Permission = Permission(openapi.ConfigurationExport)
 	ConfigurationImport                Permission = Permission(openapi.ConfigurationImport)
+	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
 )
 
 type Definition struct {
@@ -169,7 +170,7 @@ var registry = []Permission{
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
-	ConfigurationExport, ConfigurationImport,
+	ConfigurationExport, ConfigurationImport, NotificationsSend,
 }
 
 var known = func() map[Permission]struct{} {
@@ -290,6 +291,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	LocalServicesManage:                "Manage local streaming gateways and camera assignments and issue their enrollment secrets.",
 	ConfigurationExport:                "Download configuration sections as a file; each section also needs its own read permission.",
 	ConfigurationImport:                "Preview and import configuration files; each section also needs its own read and manage permissions.",
+	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
 }
 
 type GrantScope string

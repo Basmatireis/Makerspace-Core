@@ -23,6 +23,7 @@ import {
 } from '../api/generated/laborordnung/laborordnung';
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
+import { NotificationAction, NotificationPanel } from '../features/notifications/NotificationBell';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
 import { AppNavigation } from './AppNavigation';
@@ -45,7 +46,9 @@ export function AppShell() {
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
   const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState());
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const profileActionRef = useRef<HTMLButtonElement>(null);
+  const notificationActionRef = useRef<HTMLButtonElement>(null);
   const profilePanelRef = useRef<HTMLDivElement>(null);
   const labRulesRequest = useMutation({
     mutationFn: () => requestOwnLaborordnungConfirmation(),
@@ -74,6 +77,7 @@ export function AppShell() {
 
   useEffect(() => {
     setProfilePanelOpen(false);
+    setNotificationPanelOpen(false);
     if (isNarrow) {
       setSideNavExpanded(false);
     }
@@ -112,12 +116,23 @@ export function AppShell() {
           </HeaderName>
           <HeaderGlobalBar>
             <span className="header-account__name">{displayName}</span>
+            <NotificationAction
+              expanded={notificationPanelOpen}
+              actionRef={notificationActionRef}
+              onToggle={() => {
+                setProfilePanelOpen(false);
+                setNotificationPanelOpen((open) => !open);
+              }}
+            />
             <HeaderGlobalAction
               aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
               tooltipAlignment="end"
               isActive={profilePanelOpen}
               ref={profileActionRef}
-              onClick={() => setProfilePanelOpen((open) => !open)}
+              onClick={() => {
+                setNotificationPanelOpen(false);
+                setProfilePanelOpen((open) => !open);
+              }}
             >
               {currentUser.person.profileImage ? (
                 <PersonAvatar
@@ -132,6 +147,11 @@ export function AppShell() {
               )}
             </HeaderGlobalAction>
           </HeaderGlobalBar>
+          <NotificationPanel
+            expanded={notificationPanelOpen}
+            actionRef={notificationActionRef}
+            onClose={() => setNotificationPanelOpen(false)}
+          />
           <HeaderPanel
             expanded={profilePanelOpen}
             className="profile-panel"

@@ -183,6 +183,11 @@ test('keeps other identities and management fields private while staff sign up',
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
       await json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',
@@ -247,6 +252,11 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
       await json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',
@@ -424,6 +434,11 @@ test('manages inclusive academic-break context on a focused screen', async ({ pa
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
       await json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',
@@ -511,6 +526,11 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   page.on('pageerror', (error) => errors.push(error));
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path.endsWith('/auth/activity') && route.request().method() === 'POST')
       return json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',
@@ -569,6 +589,11 @@ async function mockResponsivePeriod(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
+    // The header bell polls the unread count on every page.
+    if (path === '/api/v1/notifications/unread-count') {
+      await json(route, { unreadCount: 0 });
+      return;
+    }
     if (path.endsWith('/auth/activity'))
       return json(route, {
         idleExpiresAt: '2099-01-01T01:00:00Z',
