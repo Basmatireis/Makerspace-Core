@@ -13,6 +13,8 @@ export type ListEntry = {
   /** Open days: `scheduled` or `cancelled`. */
   status: string;
   location: string;
+  /** Open days: public labels of the planned competencies. */
+  competencies: readonly string[];
 };
 
 export const PLACEHOLDERS = [
@@ -29,6 +31,7 @@ export const PLACEHOLDERS = [
   'end',
   'status',
   'location',
+  'competencies',
 ] as const;
 
 export const openDayEntry = (day: RenderOpenDay): ListEntry => ({
@@ -38,6 +41,7 @@ export const openDayEntry = (day: RenderOpenDay): ListEntry => ({
   title: 'Open day',
   status: day.status,
   location: '',
+  competencies: day.competencies ?? [],
 });
 
 export const eventEntry = (event: RenderEvent): ListEntry => ({
@@ -47,6 +51,7 @@ export const eventEntry = (event: RenderEvent): ListEntry => ({
   title: event.title,
   status: '',
   location: event.location ?? '',
+  competencies: [],
 });
 
 /** Open days and events merged by start time; an open day comes first when both start at the same moment. */
@@ -80,6 +85,7 @@ export function entryValues(entry: ListEntry, timeZone: string | undefined): Rec
     end: entry.endsAt ? timeText(wallTime(entry.endsAt, timeZone)) : '',
     status: entry.kind === 'open_day' ? (entry.status === 'cancelled' ? 'Cancelled' : 'Scheduled') : '',
     location: entry.location,
+    competencies: entry.competencies.join(', '),
   };
 }
 

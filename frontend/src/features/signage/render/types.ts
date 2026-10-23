@@ -56,7 +56,8 @@ export type RenderAnnouncement = {
   startsAt: number;
 };
 
-export type RenderOpenDay = { startsAt: string; endsAt: string; status: string };
+/** `competencies` holds the public labels of the planned support; data cached by an older player may lack it. */
+export type RenderOpenDay = { startsAt: string; endsAt: string; status: string; competencies?: readonly string[] };
 export type RenderEvent = { title: string; startsAt: string; endsAt?: string | null; location: string | null };
 
 export type RenderData = {

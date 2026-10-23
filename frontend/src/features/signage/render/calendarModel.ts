@@ -12,6 +12,8 @@ export type CalendarEntry = {
   /** `HH:MM` or `HH:MM–HH:MM` on the day an entry starts; empty on its later days. */
   time: string;
   cancelled: boolean;
+  /** Open days in the weeks view with `showCompetencies`: the planned competencies, on the day the entry starts. */
+  competencies?: readonly string[];
 };
 
 export type CalendarDay = {
@@ -62,7 +64,10 @@ function spanKeys(startsAt: string, endsAt: string | null | undefined, timeZone:
 }
 
 export function buildCalendar(
-  widget: Pick<SignageCalendarWidget, 'view' | 'weeks' | 'showHolidays' | 'showBreaks' | 'showOpenDays' | 'showEvents'>,
+  widget: Pick<
+    SignageCalendarWidget,
+    'view' | 'weeks' | 'showHolidays' | 'showBreaks' | 'showOpenDays' | 'showEvents' | 'showCompetencies'
+  >,
   calendar: SignagePlayerCalendar | null | undefined,
   now: number,
   timeZone: string | undefined,
@@ -115,6 +120,7 @@ export function buildCalendar(
       category: CalendarCategory,
       label: (index: number) => string,
       cancelled: (index: number) => boolean,
+      competencies: (index: number) => readonly string[] | undefined = () => undefined,
     ) =>
       list.forEach((item, index) => {
         const { start, startKey, endKey } = spanKeys(item.startsAt, item.endsAt, timeZone);
@@ -132,6 +138,7 @@ export function buildCalendar(
             label: label(index),
             time: key === startKey ? (endTime && startKey === endKey ? `${startTime}–${endTime}` : startTime) : '',
             cancelled: cancelled(index),
+            ...(key === startKey && competencies(index)?.length ? { competencies: competencies(index) } : {}),
           });
         }
       });
@@ -141,6 +148,11 @@ export function buildCalendar(
         'openDay',
         () => 'Open day',
         (index) => calendar.openDays[index].status === 'cancelled',
+        // Month cells are too small; the weeks view has room for the first ones.
+        (index) =>
+          widget.showCompetencies && !monthView && calendar.openDays[index].status !== 'cancelled'
+            ? (calendar.openDays[index].competencies ?? [])
+            : undefined,
       );
     if (widget.showEvents)
       spans(

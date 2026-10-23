@@ -90,6 +90,21 @@ export function CalendarFields({
         toggled={widget.showWeekNumbers}
         onToggle={(showWeekNumbers) => onChange({ ...widget, showWeekNumbers })}
       />
+      {widget.showOpenDays && (
+        <Toggle
+          id="wf-calendar-competencies"
+          size="sm"
+          labelText="Planned competencies on open days"
+          labelA="Off"
+          labelB="On"
+          toggled={widget.showCompetencies === true}
+          disabled={widget.view === 'month'}
+          onToggle={(checked) => onChange(withField(widget, 'showCompetencies', checked || undefined))}
+        />
+      )}
+      {widget.showOpenDays && widget.view === 'month' && (
+        <p className="sg-secondary">Month cells are too small for competencies; the weeks view shows the first two.</p>
+      )}
       <p className="sg-secondary">Weeks start on Monday. Dates are shown in the makerspace time zone.</p>
     </>
   );

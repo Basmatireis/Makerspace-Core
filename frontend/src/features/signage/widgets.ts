@@ -217,6 +217,7 @@ export const ENTRY_PLACEHOLDERS: { key: string; label: string; for: 'both' | 'op
   { key: 'end', label: 'End time', for: 'both' },
   { key: 'status', label: 'Scheduled or Cancelled', for: 'open_day' },
   { key: 'location', label: 'Location', for: 'event' },
+  { key: 'competencies', label: 'Planned competencies, e.g. 3D printing, Laser cutting', for: 'open_day' },
 ];
 
 const SINGLE_LINE = /[\r\n]/;

@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties } from 'react';
 import type { SignageCalendarWidget } from '../../../api/generated/models';
 import { buildCalendar, type CalendarCategory, type CalendarDay } from './calendarModel';
+import { CompetencyChips } from './CompetencyChips';
 import { withOpacity } from './style';
 import type { RenderData } from './types';
 
@@ -13,6 +14,8 @@ const CATEGORY_LABEL: Record<CalendarCategory, string> = {
   openDay: 'Open day',
   event: 'Event',
 };
+/** Planned competencies per open day in the weeks view before "+n". */
+const CALENDAR_COMPETENCIES = 2;
 /** Entries shown per day before "+n"; a month cell is small, a week row has room. */
 const MAX_ENTRIES = { month: 2, weeks: 4 } as const;
 
@@ -40,10 +43,13 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
         return (
           <span
             key={`${entry.category}-${index}`}
-            className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}`}
+            className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}${
+              entry.competencies ? ' sg-cal__entry--detailed' : ''
+            }`}
             style={entryStyle}
           >
             {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>} {entry.label}
+            {entry.competencies && <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES} />}
           </span>
         );
       })}

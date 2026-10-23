@@ -178,4 +178,26 @@ describe('Widget fields', () => {
     expect(widgetError(seen.current)).toBeNull();
     expect(widgetError({ ...(seen.current as object), weeks: 7 } as SignageWidget)).toMatch(/1 and 6/);
   });
+
+  it('switches planned competencies on and drops the field again when off', async () => {
+    const user = userEvent.setup();
+    const seen = setup(defaultWidget('open_days'));
+    expect(seen.current).not.toHaveProperty('showCompetencies');
+    await user.click(screen.getByLabelText('Show planned competencies'));
+    expect(seen.current).toMatchObject({ showCompetencies: true });
+    await user.click(screen.getByLabelText('Show planned competencies'));
+    expect(seen.current).not.toHaveProperty('showCompetencies');
+  });
+
+  it('offers no competencies for events', () => {
+    setup(defaultWidget('events'));
+    expect(screen.queryByLabelText('Show planned competencies')).not.toBeInTheDocument();
+  });
+
+  it('offers calendar competencies only for open days in the weeks view', async () => {
+    const user = userEvent.setup();
+    const seen = setup({ ...defaultWidget('calendar'), view: 'weeks', showOpenDays: true } as SignageWidget);
+    await user.click(screen.getByRole('switch', { name: 'Planned competencies on open days' }));
+    expect(seen.current).toMatchObject({ showCompetencies: true });
+  });
 });

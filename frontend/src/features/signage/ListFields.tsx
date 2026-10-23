@@ -148,6 +148,15 @@ export function ListFields({ widget, assets, onChange, error }: Props) {
           onChange={(value) => onChange(setText(widget, 'entryTemplate', value))}
         />
       )}
+      {widget.type !== 'events' && (
+        <Checkbox
+          id={`${id}-competencies`}
+          labelText="Show planned competencies"
+          helperText="Adds the competencies of the assigned supervisors, such as 3D printing, to each open day in the standard row. Templates use {competencies}."
+          checked={widget.showCompetencies === true}
+          onChange={(_, { checked }) => onChange(withField(widget, 'showCompetencies', checked || undefined))}
+        />
+      )}
       <RichTextOptions id={id} widget={widget} assets={assets} onChange={onChange} />
       {widget.type !== 'open_days' && widget.type !== 'events' && !widget.includeOpenDays && !widget.includeEvents && (
         <p className="sg-error-text">Nothing is included, so the agenda always shows its empty text.</p>

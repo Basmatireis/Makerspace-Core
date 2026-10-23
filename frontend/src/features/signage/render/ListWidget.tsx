@@ -1,6 +1,7 @@
 import type { SignageAgendaWidget, SignageEventsWidget, SignageOpenDaysWidget } from '../../../api/generated/models';
 import { dateText, timeText, wallTime } from './dates';
 import { entriesDocument, eventEntry, mergeAgenda, openDayEntry, type ListEntry } from './entries';
+import { CompetencyChips } from './CompetencyChips';
 import { RichText } from './RichTextView';
 import type { RenderData } from './types';
 
@@ -30,10 +31,21 @@ function templatesOf(widget: ListWidgetProps['widget']): { open_day?: string; ev
   return { open_day: widget.openDayTemplate, event: widget.eventTemplate };
 }
 
-function Row({ entry, timeZone }: { entry: ListEntry; timeZone: string | undefined }) {
+/** Planned competencies of the standard open-day row: the first few, then "+n". */
+const ROW_COMPETENCIES = 4;
+
+function Row({
+  entry,
+  timeZone,
+  showCompetencies,
+}: {
+  entry: ListEntry;
+  timeZone: string | undefined;
+  showCompetencies: boolean;
+}) {
   const start = wallTime(entry.startsAt, timeZone);
-  if (entry.kind === 'open_day')
-    return (
+  if (entry.kind === 'open_day') {
+    const row = (
       <div className="sg-list__row">
         <span>{dateText(start)}</span>
         <span>
@@ -41,6 +53,14 @@ function Row({ entry, timeZone }: { entry: ListEntry; timeZone: string | undefin
         </span>
       </div>
     );
+    if (!showCompetencies || entry.competencies.length === 0) return row;
+    return (
+      <div className="sg-list__item">
+        {row}
+        <CompetencyChips labels={entry.competencies} limit={ROW_COMPETENCIES} />
+      </div>
+    );
+  }
   return (
     <div className="sg-list__row">
       <span>{entry.title}</span>
@@ -73,7 +93,12 @@ export function ListWidget({ widget, data }: ListWidgetProps) {
         />
       ) : (
         entries.map((entry) => (
-          <Row key={`${entry.kind}-${entry.startsAt}-${entry.title}`} entry={entry} timeZone={data.timeZone} />
+          <Row
+            key={`${entry.kind}-${entry.startsAt}-${entry.title}`}
+            entry={entry}
+            timeZone={data.timeZone}
+            showCompetencies={widget.type !== 'events' && widget.showCompetencies === true}
+          />
         ))
       )}
     </div>
