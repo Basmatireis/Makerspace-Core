@@ -70,7 +70,7 @@ func (q *Queries) ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (b
 const attachArtifactToRun = `-- name: AttachArtifactToRun :one
 UPDATE machine_runs SET artifact_id = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND (artifact_id IS NULL OR artifact_id = $1)
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage
 `
 
 type AttachArtifactToRunParams struct {
@@ -109,6 +109,7 @@ func (q *Queries) AttachArtifactToRun(ctx context.Context, arg AttachArtifactToR
 		&i.ArtifactID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.HiddenFromSignage,
 	)
 	return i, err
 }

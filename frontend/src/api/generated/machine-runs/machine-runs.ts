@@ -30,10 +30,12 @@ import type {
   DetachMachineRunRequest,
   ListMachineRunsParams,
   MachineJob,
+  MachineRun,
   MachineRunDetail,
   MachineRunPage,
   MachineRunUpdateResult,
   ReplaceMachineRunUsagesRequest,
+  SetMachineRunSignageVisibilityRequest,
   UUIDv7,
   UpdateMachineRunRequest,
   VersionRequest
@@ -289,6 +291,45 @@ return apiFetch<MachineRunUpdateResult>(getReplaceMachineRunUsagesUrl(runId),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(replaceMachineRunUsagesRequest)
+  }
+);}
+
+
+export const getSetMachineRunSignageVisibilityUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/signage-visibility`
+}
+
+/**
+ * Needs machine_jobs.edit, or the caller is the operator or the person customer of the run's job. Only a run that has not ended can be changed (409 run_ended); the flag is per run, so the next run starts visible. Does not change the run's version.
+ * @summary Hide a running run's machine from signage displays, or show it again
+ */
+export const setMachineRunSignageVisibility = async (runId: UUIDv7,
+    setMachineRunSignageVisibilityRequest: SetMachineRunSignageVisibilityRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRun> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MachineRun>(getSetMachineRunSignageVisibilityUrl(runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setMachineRunSignageVisibilityRequest)
   }
 );}
 

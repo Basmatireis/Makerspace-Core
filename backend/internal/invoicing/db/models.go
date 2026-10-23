@@ -569,6 +569,7 @@ type MachineRun struct {
 	ArtifactID            *uuid.UUID
 	DeletedAt             pgtype.Timestamptz
 	DeletedBy             *uuid.UUID
+	HiddenFromSignage     bool
 }
 
 type MachineRunMeasure struct {

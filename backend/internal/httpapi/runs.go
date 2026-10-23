@@ -155,6 +155,24 @@ func (s *Server) CancelMachineRun(
 	return openapi.CancelMachineRun200JSONResponse(mlJobDTO(item)), nil
 }
 
+func (s *Server) SetMachineRunSignageVisibility(
+	ctx context.Context,
+	r openapi.SetMachineRunSignageVisibilityRequestObject,
+) (openapi.SetMachineRunSignageVisibilityResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.SetRunSignageHidden(ctx, p, r.RunId, r.Body.Hidden, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetMachineRunSignageVisibility200JSONResponse(mlRunBase(item)), nil
+}
+
 func (s *Server) CreateMachineJobFromRun(
 	ctx context.Context,
 	r openapi.CreateMachineJobFromRunRequestObject,
@@ -348,6 +366,7 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 		Usages:             usages,
 		Measures:           mlMeasuresDTO(item.Measures),
 		UsagesFromMachine:  item.UsagesFromMachine,
+		HiddenFromSignage:  item.HiddenFromSignage,
 		ReportedUsage:      reported,
 		ReportedUsageItems: reportedItems,
 		Artifact:           artifact,
@@ -399,6 +418,7 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 		Usages:             base.Usages,
 		Measures:           base.Measures,
 		UsagesFromMachine:  base.UsagesFromMachine,
+		HiddenFromSignage:  base.HiddenFromSignage,
 		ReportedUsage:      base.ReportedUsage,
 		ReportedUsageItems: base.ReportedUsageItems,
 		Artifact:           base.Artifact,

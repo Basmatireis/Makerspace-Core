@@ -59,7 +59,9 @@ type MachineRun struct {
 	ReportedUsage           *RunReportedUsage
 	ReportedUsageItems      []RunReportedUsageItem
 	Artifact                *ArtifactReference
-	Version                 int64
+	// HiddenFromSignage hides the machine from signage displays while the run is running.
+	HiddenFromSignage bool
+	Version           int64
 }
 
 // RunEvent exposes what a machine event reported, never its raw payload.
@@ -168,6 +170,7 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 		StartedAt:          started,
 		Outcome:            optional.Convert[RunOutcome](row.Outcome),
 		UsagesFromMachine:  row.UsagesFromMachine,
+		HiddenFromSignage:  row.HiddenFromSignage,
 		Version:            row.Version,
 		Usages:             []MachineJobUsage{},
 		Measures:           RunMeasures{},

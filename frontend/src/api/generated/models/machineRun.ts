@@ -72,5 +72,7 @@ export interface MachineRun {
   reportedUsage?: MachineRunReportedUsage | null;
   reportedUsageItems: MachineRunReportedUsageItem[];
   artifact?: PrintArtifactReference | null;
+  /** While the run is running, its machine (status and camera) is hidden from every signage display. */
+  hiddenFromSignage: boolean;
   version: Version;
 }

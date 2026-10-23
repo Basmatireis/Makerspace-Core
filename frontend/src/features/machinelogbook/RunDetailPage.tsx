@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionItem,
   Button,
+  Checkbox,
   InlineNotification,
   Link as CarbonLink,
   OverflowMenu,
@@ -14,16 +15,18 @@ import {
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { detachMachineRun } from '../../api/generated/machine-runs/machine-runs';
+import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
 import type { MachineRunEvent } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
+import { useCurrentUser } from '../auth/auth';
 import { PermissionId } from '../auth/permissions';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
+import { ApiError } from '../../api/http-client';
 import { saveError } from './dialogs/jobFormHelpers';
 import { artifactQuery, jobQuery, machineLogbookKeys, runQuery } from './queries';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
@@ -80,6 +83,7 @@ function eventSummary(event: MachineRunEvent) {
 export function RunDetailPage() {
   const { runId = '' } = useParams();
   const can = useCan();
+  const currentUser = useCurrentUser();
   const now = useNow();
   const client = useQueryClient();
   const notify = useNotify();
@@ -123,6 +127,30 @@ export function RunDetailPage() {
 
   const unassigned = run !== undefined && run.job == null;
   const live = run !== undefined && isRunLive(run, now);
+  // Mirrors the backend rule (job editors, or the job's operator or person customer); the backend decides.
+  const canHideFromSignage =
+    canEdit ||
+    job?.operator?.personId === currentUser.person.id ||
+    (job?.customer?.kind === 'person' && job.customer.id === currentUser.person.id);
+  const signageVisibility = useMutation({
+    mutationFn: (hidden: boolean) => setMachineRunSignageVisibility(runId, { hidden }),
+    onSuccess: async (updated) => {
+      await client.invalidateQueries({ queryKey: machineLogbookKeys.run(runId) });
+      notify({
+        kind: 'success',
+        title: updated.hiddenFromSignage ? 'Run hidden from signage' : 'Run shown on signage again',
+      });
+    },
+    onError: (error) =>
+      notify({
+        kind: 'error',
+        title: 'Signage visibility not changed',
+        subtitle:
+          error instanceof ApiError && error.data?.code === 'run_ended'
+            ? 'The run has already ended.'
+            : 'Reload the page and try again.',
+      }),
+  });
   const state = run ? runStateNow(run, now) : undefined;
   const end = run ? runEnd(run) : null;
   const progress = run ? runProgress(run, now) : 0;
@@ -244,6 +272,18 @@ export function RunDetailPage() {
                   value={progress}
                   max={100}
                   helperText={`${progress} %${end ? ` · ends ~${formatTime(end)}` : ''}`}
+                />
+              </Tile>
+            )}
+            {live && canHideFromSignage && (
+              <Tile>
+                <Checkbox
+                  id="run-hidden-from-signage"
+                  labelText="Hide this run from signage screens"
+                  helperText="Machine status and camera are hidden from all displays until this run ends."
+                  checked={run.hiddenFromSignage}
+                  disabled={signageVisibility.isPending}
+                  onChange={(_, { checked }) => signageVisibility.mutate(checked)}
                 />
               </Tile>
             )}

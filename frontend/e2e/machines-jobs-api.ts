@@ -307,6 +307,7 @@ export function manualRunFixture(overrides: RunInit): MachineRun {
     usages: [usageOf(130, '183.000')],
     measures: {},
     usagesFromMachine: false,
+    hiddenFromSignage: false,
     reportedUsage: null,
     reportedUsageItems: [],
     version: 2,
@@ -503,6 +504,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
       usages: [],
       measures: {},
       usagesFromMachine: false,
+      hiddenFromSignage: false,
       reportedUsageItems: [],
       reportedUsage: {
         quantity: '42.000',
@@ -533,6 +535,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
       durationSeconds: 6000,
       usages: [usageOf(131, '42.000')],
       usagesFromMachine: true,
+      hiddenFromSignage: false,
       job: { id: ids.jobLinked, displayId: 'J-2026-000004', title: null },
     }),
     recordedRun({
@@ -1249,6 +1252,12 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       if (params.get('assigned'))
         items = items.filter((run) => Boolean(run.job) === (params.get('assigned') === 'true'));
       return ok(route, paginate(items, params));
+    }
+    if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/signage-visibility$/)) && method === 'PUT') {
+      const run = world.runs.find((item) => item.id === match![1]);
+      if (!run) return notFound(route);
+      run.hiddenFromSignage = body?.hidden === true;
+      return ok(route, run);
     }
     if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/job$/))) {
       const run = world.runs.find((item) => item.id === match![1]);

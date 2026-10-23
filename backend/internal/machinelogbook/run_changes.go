@@ -542,6 +542,66 @@ func (s *Service) CancelRun(
 	return s.loadJob(ctx, *run.JobID)
 }
 
+// SetRunSignageHidden hides the machine of a run that has not ended from signage displays, or shows it again.
+// Besides staff who edit jobs, the operator and the person customer of the run's job may decide, because
+// the display would otherwise show their work. It does not bump the run version: it is a preference, not a
+// fact of the run, and must not make a concurrent staff correction fail.
+func (s *Service) SetRunSignageHidden(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	hidden bool,
+	requestID *uuid.UUID,
+) (MachineRun, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MachineRun{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := machinelogbookdb.New(tx)
+	run, job, err := s.lockedRun(ctx, tx, id)
+	if err != nil {
+		return MachineRun{}, err
+	}
+	// Without the permission the run's existence is only revealed to its own operator or customer.
+	if !p.Has(authorization.MachineJobsEdit) && !isJobParty(p, job) {
+		return MachineRun{}, apperror.PermissionDenied
+	}
+	state := RunState("")
+	if RunSource(run.Source) == RunSourceManual {
+		state = manualRunState(run, s.now())
+	} else if run.State != nil {
+		state = RunState(*run.State)
+	}
+	if state != RunStateRunning {
+		return MachineRun{}, apperror.Conflicting(
+			"run_ended",
+			"The run has ended; its signage visibility can no longer be changed",
+		)
+	}
+	params := machinelogbookdb.SetRunSignageHiddenParams{ID: id, Hidden: hidden}
+	if _, err = q.SetRunSignageHidden(ctx, params); err != nil {
+		return MachineRun{}, databaseError(err)
+	}
+	if err = writeAudit(
+		ctx, tx, p, "machine_run.signage_visibility_set", "machine_run", id, requestID, []string{"hiddenFromSignage"},
+	); err != nil {
+		return MachineRun{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MachineRun{}, err
+	}
+	return s.loadRun(ctx, machinelogbookdb.New(s.pool), id)
+}
+
+// isJobParty reports whether the principal is the operator or the person customer of the job.
+func isJobParty(p authorization.Principal, job *machinelogbookdb.MachineJob) bool {
+	if job == nil {
+		return false
+	}
+	return sameUUID(job.OperatorPersonID, &p.PersonID) || sameUUID(job.CustomerPersonID, &p.PersonID)
+}
+
 // AddManualRun adds a manual run, for example a reprint, to a job.
 func (s *Service) AddManualRun(
 	ctx context.Context,

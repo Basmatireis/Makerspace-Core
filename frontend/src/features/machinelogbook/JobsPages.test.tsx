@@ -364,6 +364,7 @@ describe('Job detail page', () => {
       durationSeconds: 3600,
       usages: [usage({ id: ids.otherJob, quantity: '42.000', materialName: 'PETG Grey' })],
       usagesFromMachine: true,
+      hiddenFromSignage: false,
     });
     const replaced = manualRun({
       id: ids.otherJob,
@@ -609,6 +610,7 @@ describe('Job detail page', () => {
     const recorded = recordedRun({
       job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usagesFromMachine: true,
+      hiddenFromSignage: false,
       usages: [usage()],
     });
     server.use(
@@ -638,6 +640,7 @@ describe('Job detail page', () => {
     const recorded = recordedRun({
       job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usagesFromMachine: true,
+      hiddenFromSignage: false,
     });
     server.use(
       as(...editor),
@@ -790,6 +793,7 @@ describe('Job detail page', () => {
       recordedRun({
         job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
         usagesFromMachine: true,
+        hiddenFromSignage: false,
         usages: [usage({ id: ids.otherJob, quantity: '40.000', spoolDisplayId: 'SP-0002' })],
       });
     const jobWithBoth = () => jobFixture({ runs: [manualRun(), recorded()] });
@@ -931,6 +935,7 @@ describe('Job detail page', () => {
     const recorded = recordedRun({
       job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usagesFromMachine: true,
+      hiddenFromSignage: false,
       version: 7,
     });
     const job = jobFixture({ runs: [manualRun(), recorded] });

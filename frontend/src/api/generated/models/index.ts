@@ -688,6 +688,7 @@ export * from './setBillingPartyPricingGroupRequest';
 export * from './setBillingPartyPricingGroupRequestParty';
 export * from './setBillingPartyPricingGroupRequestPartyKind';
 export * from './setMachineJobPriceAdjustmentRequest';
+export * from './setMachineRunSignageVisibilityRequest';
 export * from './setRolePricingGroupsRequest';
 export * from './setSignageRuleEnabledRequest';
 export * from './signageAgendaWidget';

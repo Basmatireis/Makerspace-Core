@@ -332,6 +332,16 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			cameraIDs = distinct(append(cameraIDs, every...))
 			machineIDs = distinct(append(machineIDs, every...))
 		}
+		// A machine whose running run its operator opted out of signage disappears entirely: no status, no
+		// camera ticket. Already issued tickets stay valid until they expire (a few minutes, verified
+		// statelessly by the streaming gateway), so a hidden camera vanishes from the screens within that time.
+		hidden, err := q.ListSignageHiddenMachineIDs(ctx, now)
+		if err != nil {
+			return LiveData{}, err
+		}
+		if len(hidden) > 0 {
+			machineIDs, cameraIDs = withoutIDs(machineIDs, hidden), withoutIDs(cameraIDs, hidden)
+		}
 		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) &&
 			len(cameraIDs) > 0 {
 			if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, cameraIDs); err != nil {
@@ -509,4 +519,19 @@ func (s *Service) RecordHeartbeat(ctx context.Context, display PlayerDisplay, he
 		CacheUsedBytes:      checked.CacheUsedBytes,
 		CacheQuotaBytes:     checked.CacheQuotaBytes, Errors: string(encoded),
 	})
+}
+
+// withoutIDs returns ids without the excluded ones.
+func withoutIDs(ids, excluded []uuid.UUID) []uuid.UUID {
+	skip := make(map[uuid.UUID]struct{}, len(excluded))
+	for _, id := range excluded {
+		skip[id] = struct{}{}
+	}
+	kept := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, hidden := skip[id]; !hidden {
+			kept = append(kept, id)
+		}
+	}
+	return kept
 }

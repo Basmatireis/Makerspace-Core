@@ -42,6 +42,15 @@ ORDER BY lower(m.name), m.id;
 SELECT c.machine_id FROM streaming_cameras c JOIN streaming_gateways g ON g.id = c.gateway_id
 WHERE c.enabled AND g.lifecycle <> 'revoked';
 
+-- name: ListSignageHiddenMachineIDs :many
+-- Machines whose currently running run was opted out of signage by its operator or customer. A manual run
+-- is running until its planned end; a recorded run while its state says so.
+SELECT DISTINCT r.machine_id FROM machine_runs r
+WHERE r.hidden_from_signage AND r.deleted_at IS NULL
+  AND CASE WHEN r.source = 'manual'
+           THEN COALESCE(r.state, CASE WHEN r.ended_at > sqlc.arg(now)::timestamptz THEN 'running' ELSE 'finished' END)
+           ELSE r.state END = 'running';
+
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 

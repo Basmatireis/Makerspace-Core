@@ -771,6 +771,11 @@ SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NULL FOR UP
 -- name: GetRunBase :one
 SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
+-- name: SetRunSignageHidden :one
+UPDATE machine_runs SET hidden_from_signage = sqlc.arg(hidden), updated_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL
+RETURNING *;
+
 -- name: InsertManualRun :one
 INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, outcome, history_complete)
 VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), 'manual', sqlc.arg(job_id), sqlc.arg(started_at), sqlc.arg(ended_at), sqlc.narg(outcome), true)
@@ -829,7 +834,7 @@ WITH runs AS (
            c.name AS connector_name, r.file_name,
            COALESCE(r.started_at, r.first_observed_at)::timestamptz AS run_started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.outcome,
            r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, sp.display_id AS spool_display_id,
-           mat.id AS material_id, mat.name AS material_name, r.version,
+           mat.id AS material_id, mat.name AS material_name, r.version, r.hidden_from_signage,
            r.artifact_id, COALESCE(encode(pa.sha256, 'hex'), '')::text AS artifact_sha256, pa.parser_status AS artifact_parser_status,
            EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.run_id = r.id AND u.active AND u.source_printer_event_id IS NOT NULL) AS usages_from_machine
     FROM machine_runs r

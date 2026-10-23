@@ -6650,6 +6650,28 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /machine-runs/{runId}/signage-visibility:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Machine Runs]
+      operationId: setMachineRunSignageVisibility
+      summary: Hide a running run's machine from signage displays, or show it again
+      description: >-
+        Needs machine_jobs.edit, or the caller is the operator or the person customer of the run's job. Only a run that
+        has not ended can be changed (409 run_ended); the flag is per run, so the next run starts visible. Does not
+        change the run's version.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetMachineRunSignageVisibilityRequest"}}}}
+      responses:
+        "200": {description: Visibility set., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRun"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-runs/{runId}/cancellation:
     parameters:
       - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -14392,7 +14414,7 @@ components:
     MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, hiddenFromSignage, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -14416,7 +14438,15 @@ components:
         reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
         reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
         artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
+        hiddenFromSignage: {type: boolean, description: "While the run is running, its machine (status and camera) is hidden from every signage display."}
         version: {$ref: "#/components/schemas/Version"}
+
+    SetMachineRunSignageVisibilityRequest:
+      type: object
+      additionalProperties: false
+      required: [hidden]
+      properties:
+        hidden: {type: boolean}
 
     MachineRunEvent:
       type: object

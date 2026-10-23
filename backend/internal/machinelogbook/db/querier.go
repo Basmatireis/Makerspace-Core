@@ -227,6 +227,7 @@ type Querier interface {
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)
 	SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachineJobPriceAdjustmentParams) (MachineJob, error)
 	SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error)
+	SetRunSignageHidden(ctx context.Context, arg SetRunSignageHiddenParams) (MachineRun, error)
 	SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachineJobParams) (MachineJob, error)
 	// A deleted run is detached from its job.
 	SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error

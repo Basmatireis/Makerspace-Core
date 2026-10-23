@@ -22,8 +22,10 @@ import { RunDetailPage } from './RunDetailPage';
 import { machineLogbookPaths } from './shared/paths';
 import { ToastProvider } from './shared/toasts';
 
-const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
-vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
+const auth = vi.hoisted(() => ({ permissions: [] as string[], personId: '0192f6f8-743e-7c77-a349-cd07c3e8ffff' }));
+vi.mock('../auth/auth', () => ({
+  useCurrentUser: () => ({ permissions: auth.permissions, person: { id: auth.personId } }),
+}));
 vi.mock('./dialogs/JobFormModal', () => ({
   JobFormModal: (props: { open: boolean; mode: string; run?: { id: string }; initialValues?: unknown }) =>
     props.open ? (
@@ -369,6 +371,72 @@ describe('Run detail page', () => {
     expect(screen.getByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
   });
 
+  describe('signage visibility', () => {
+    const jobRef = { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' };
+    const hide = () => screen.findByRole('checkbox', { name: 'Hide this run from signage screens' });
+
+    it('lets staff who edit jobs hide a running run, sending the choice to the API', async () => {
+      auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+      const run = runningRecorded();
+      serveRun(run);
+      const bodies: unknown[] = [];
+      server.use(
+        http.put(`*/api/v1/machine-runs/${run.id}/signage-visibility`, async ({ request }) => {
+          bodies.push(await request.json());
+          return HttpResponse.json({ ...run, hiddenFromSignage: true });
+        }),
+      );
+      renderRun();
+      const checkbox = await hide();
+      expect(checkbox).not.toBeChecked();
+      expect(
+        screen.getByText('Machine status and camera are hidden from all displays until this run ends.'),
+      ).toBeInTheDocument();
+      await userEvent.click(checkbox);
+      await waitFor(() => expect(bodies).toEqual([{ hidden: true }]));
+      expect(await screen.findByText('Run hidden from signage')).toBeInTheDocument();
+    });
+
+    it('shows an error when the run ended meanwhile', async () => {
+      auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+      const run = runningRecorded();
+      serveRun(run);
+      server.use(
+        http.put(`*/api/v1/machine-runs/${run.id}/signage-visibility`, () =>
+          HttpResponse.json({ code: 'run_ended', message: 'The run has ended.' }, { status: 409 }),
+        ),
+      );
+      renderRun();
+      await userEvent.click(await hide());
+      expect(await screen.findByText('The run has already ended.')).toBeInTheDocument();
+    });
+
+    it("lets the job's operator hide it without edit permission", async () => {
+      auth.permissions = [PermissionId.machine_jobsread];
+      auth.personId = ids.operator;
+      serveRun({ ...runningRecorded(), hiddenFromSignage: true, job: jobRef }, [jobFixture()]);
+      renderRun();
+      expect(await hide()).toBeChecked();
+      auth.personId = '0192f6f8-743e-7c77-a349-cd07c3e8ffff';
+    });
+
+    it('offers nothing to people who are neither editors nor part of the job', async () => {
+      auth.permissions = [PermissionId.machine_jobsread];
+      serveRun({ ...runningRecorded(), job: jobRef }, [jobFixture()]);
+      renderRun();
+      expect(await screen.findByText('Machine events')).toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: 'Hide this run from signage screens' })).not.toBeInTheDocument();
+    });
+
+    it('is not offered once the run has ended', async () => {
+      auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+      serveRun(recordedRun());
+      renderRun();
+      expect(await screen.findByText('Machine events')).toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: 'Hide this run from signage screens' })).not.toBeInTheDocument();
+    });
+  });
+
   it('treats an omitted itemized report from an older response as empty', async () => {
     auth.permissions = [PermissionId.machine_jobsread];
     serveRun({ ...runningRecorded(), reportedUsageItems: undefined } as unknown as ReturnType<typeof recordedRun>);
@@ -417,6 +485,7 @@ describe('Run detail page', () => {
     const run = recordedRun({
       usages: [usage({ spoolId: whiteSpool, spoolDisplayId: 'S-617', materialName: 'PLA White', quantity: '1.64' })],
       usagesFromMachine: true,
+      hiddenFromSignage: false,
       reportedUsage: null,
       reportedUsageItems: [
         {
@@ -599,6 +668,7 @@ describe('Run detail page', () => {
       job: { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usages: [usage()],
       usagesFromMachine: true,
+      hiddenFromSignage: false,
     });
     serveRun(assigned);
     server.use(
@@ -649,6 +719,7 @@ describe('Run detail page', () => {
       job: { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usages: [usage({ spoolDisplayId: 'SP-0003' })],
       usagesFromMachine: true,
+      hiddenFromSignage: false,
       version: 5,
     });
     serveRun(assigned);

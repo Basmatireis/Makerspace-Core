@@ -102,6 +102,9 @@ type Querier interface {
 	ListSignageCustomLayoutsByIDs(ctx context.Context, ids []string) ([]SignageCustomLayout, error)
 	ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
+	// Machines whose currently running run was opted out of signage by its operator or customer. A manual run
+	// is running until its planned end; a recorded run while its state says so.
+	ListSignageHiddenMachineIDs(ctx context.Context, now time.Time) ([]uuid.UUID, error)
 	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)
 	ListSignageMachineNames(ctx context.Context, ids []string) ([]ListSignageMachineNamesRow, error)
 	ListSignageMachines(ctx context.Context) ([]ListSignageMachinesRow, error)

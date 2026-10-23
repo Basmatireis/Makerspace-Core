@@ -2127,6 +2127,36 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 	return items, nil
 }
 
+const listSignageHiddenMachineIDs = `-- name: ListSignageHiddenMachineIDs :many
+SELECT DISTINCT r.machine_id FROM machine_runs r
+WHERE r.hidden_from_signage AND r.deleted_at IS NULL
+  AND CASE WHEN r.source = 'manual'
+           THEN COALESCE(r.state, CASE WHEN r.ended_at > $1::timestamptz THEN 'running' ELSE 'finished' END)
+           ELSE r.state END = 'running'
+`
+
+// Machines whose currently running run was opted out of signage by its operator or customer. A manual run
+// is running until its planned end; a recorded run while its state says so.
+func (q *Queries) ListSignageHiddenMachineIDs(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSignageHiddenMachineIDs, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var machine_id uuid.UUID
+		if err := rows.Scan(&machine_id); err != nil {
+			return nil, err
+		}
+		items = append(items, machine_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSignageLiveStatuses = `-- name: ListSignageLiveStatuses :many
 SELECT s.machine_id, s.observed_at, s.received_at, s.snapshot
 FROM printer_live_statuses s JOIN printer_connector_assignments a ON a.id = s.assignment_id

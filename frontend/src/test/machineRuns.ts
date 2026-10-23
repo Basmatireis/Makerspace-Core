@@ -90,6 +90,7 @@ export function manualRun(overrides: Partial<MachineRun> = {}): MachineRun {
     usages: [usage()],
     measures: {},
     usagesFromMachine: false,
+    hiddenFromSignage: false,
     reportedUsage: null,
     reportedUsageItems: [],
     artifact: null,
@@ -120,6 +121,7 @@ export function recordedRun(overrides: Partial<MachineRunDetail> = {}): MachineR
     usages: [],
     measures: {},
     usagesFromMachine: false,
+    hiddenFromSignage: false,
     reportedUsageItems: [],
     artifact: null,
     reportedUsage: {
