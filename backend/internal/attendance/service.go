@@ -43,6 +43,8 @@ type Service struct {
 	auth     CredentialVerifier
 	labRules LabRules
 	surveys  PostVisitSurveyTrigger
+	// location defines the local day after which a held check-in lapses.
+	location *time.Location
 }
 
 func NewService(
@@ -50,8 +52,9 @@ func NewService(
 	verifier CredentialVerifier,
 	labRules LabRules,
 	surveys PostVisitSurveyTrigger,
+	location *time.Location,
 ) *Service {
-	return &Service{pool: pool, auth: verifier, labRules: labRules, surveys: surveys}
+	return &Service{pool: pool, auth: verifier, labRules: labRules, surveys: surveys, location: location}
 }
 
 type TerminalContext struct {
@@ -139,25 +142,55 @@ func (s *Service) TerminalContext(ctx context.Context, device manageddevices.Dev
 		AuthenticationMethods: methods, Capabilities: capabilities}, nil
 }
 
-func (s *Service) PublicPresence(ctx context.Context, device manageddevices.DeviceContext) ([]PublicPresence, error) {
+// PublicPresence lists who is here and whose check-in is held, both with first name and last initial only.
+func (s *Service) PublicPresence(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+) ([]PublicPresence, []PublicWaiting, error) {
 	if _, err := s.terminal(ctx, device); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	rows, err := attendancedb.New(s.pool).ListPublicPresence(ctx)
+	q := attendancedb.New(s.pool)
+	rows, err := q.ListPublicPresence(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	result := make([]PublicPresence, 0, len(rows))
-	duplicates := map[string]int{}
+	shortName := shortNamer()
 	for _, row := range rows {
-		name := row.FirstName + " " + row.LastInitial + "."
+		result = append(result, PublicPresence{
+			VisitID:     row.ID,
+			DisplayName: shortName(row.FirstName, row.LastInitial),
+			CheckedInAt: row.CheckedInAt,
+		})
+	}
+	holds, err := q.ListPublicHolds(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	waiting := make([]PublicWaiting, 0, len(holds))
+	shortName = shortNamer()
+	for _, row := range holds {
+		waiting = append(waiting, PublicWaiting{
+			HoldID:      row.ID,
+			DisplayName: shortName(row.FirstName, row.LastInitial),
+			RequestedAt: row.RequestedAt,
+		})
+	}
+	return result, waiting, nil
+}
+
+// shortNamer numbers repeated "First L." names so people with the same short name stay distinguishable.
+func shortNamer() func(firstName, lastInitial string) string {
+	duplicates := map[string]int{}
+	return func(firstName, lastInitial string) string {
+		name := firstName + " " + lastInitial + "."
 		duplicates[name]++
 		if duplicates[name] > 1 {
 			name = fmt.Sprintf("%s (%d)", name, duplicates[name])
 		}
-		result = append(result, PublicPresence{VisitID: row.ID, DisplayName: name, CheckedInAt: row.CheckedInAt})
+		return name
 	}
-	return result, nil
 }
 
 func (s *Service) PasswordCheckIn(
@@ -165,10 +198,10 @@ func (s *Service) PasswordCheckIn(
 	device manageddevices.DeviceContext,
 	email, password, source string,
 	requestID *uuid.UUID,
-) (Visit, error) {
+) (CheckInResult, error) {
 	verified, err := s.auth.VerifyPasswordForAttendance(ctx, email, password, source)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	return s.checkIn(ctx, device, verified, requestID)
 }
@@ -178,10 +211,10 @@ func (s *Service) PINCheckIn(
 	device manageddevices.DeviceContext,
 	login, pin, source string,
 	requestID *uuid.UUID,
-) (Visit, error) {
+) (CheckInResult, error) {
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	return s.checkIn(ctx, device, verified, requestID)
 }
@@ -191,20 +224,20 @@ func (s *Service) checkIn(
 	device manageddevices.DeviceContext,
 	verified auth.VerifiedIdentity,
 	requestID *uuid.UUID,
-) (Visit, error) {
+) (CheckInResult, error) {
 	terminal, err := s.terminal(ctx, device)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if err = requireAssurance(verified.Assurance, authorization.Assurance(terminal.CheckInAssurance)); err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	status, err := s.labRules.Evaluate(ctx, verified.PersonID)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if status.Mode != laborordnung.ModeNotRequired && status.State == laborordnung.StateNoPublishedVersion {
-		return Visit{}, apperror.New(
+		return CheckInResult{}, apperror.New(
 			http.StatusConflict,
 			"lab_rules_unavailable",
 			"Required Lab Rules are not currently available",
@@ -217,16 +250,11 @@ func (s *Service) checkIn(
 			Assurance: verified.Assurance,
 		}
 		if _, _, err = s.labRules.RequestOwnConfirmation(ctx, principal, requestID); err != nil {
-			return Visit{}, err
-		}
-		if status.Mode == laborordnung.ModeBlocking {
-			return Visit{}, apperror.New(
-				http.StatusConflict,
-				"attendance_admission_required",
-				"Lab Rules confirmation is required before check-in",
-			)
+			return CheckInResult{}, err
 		}
 	}
+	// Roles that block admission get a held check-in that a supervisor completes by confirming the Lab Rules.
+	held := status.ActionRequired && status.Mode == laborordnung.ModeBlocking
 	decision := AdmissionAdmitted
 	if status.ActionRequired {
 		decision = AdmissionWarning
@@ -237,7 +265,7 @@ func (s *Service) checkIn(
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
@@ -248,21 +276,39 @@ func (s *Service) checkIn(
 		err,
 		pgx.ErrNoRows,
 	) {
-		return Visit{}, apperror.Unauthenticated
+		return CheckInResult{}, apperror.Unauthenticated
 	} else if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if _, err = q.LockPerson(ctx, verified.PersonID); errors.Is(err, pgx.ErrNoRows) {
-		return Visit{}, apperror.NotFound
+		return CheckInResult{}, apperror.NotFound
 	} else if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if _, err = q.GetOpenVisitForPerson(ctx, verified.PersonID); err == nil {
-		return Visit{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
+		return CheckInResult{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	accountID := verified.AccountID
+	if held {
+		hold, err := s.createHold(ctx, tx, holdInput{
+			PersonID:  verified.PersonID,
+			DeviceID:  &device.ID,
+			Method:    verified.Method,
+			Assurance: string(verified.Assurance),
+			ByAccount: &accountID,
+			ActorID:   &accountID,
+			RequestID: requestID,
+		})
+		if err != nil {
+			return CheckInResult{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return CheckInResult{}, err
+		}
+		return CheckInResult{Hold: &hold}, nil
+	}
 	row, err := q.CreateVisit(
 		ctx,
 		attendancedb.CreateVisitParams{ID: ids.New(), PersonID: verified.PersonID,
@@ -270,7 +316,7 @@ func (s *Service) checkIn(
 			AdmissionDecision: string(decision), LaborordnungVersionID: versionID, CheckedInByAccountID: &accountID},
 	)
 	if err != nil {
-		return Visit{}, databaseError(err)
+		return CheckInResult{}, databaseError(err)
 	}
 	if err = audit.Write(
 		ctx,
@@ -283,12 +329,13 @@ func (s *Service) checkIn(
 			RequestID:      requestID,
 		},
 	); err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
-	return visitFromCreate(row), nil
+	visit := visitFromCreate(row)
+	return CheckInResult{Visit: &visit}, nil
 }
 
 func (s *Service) PasswordCheckOut(
@@ -428,16 +475,16 @@ func (s *Service) SupervisedCheckIn(
 	principal authorization.Principal,
 	personID uuid.UUID,
 	requestID *uuid.UUID,
-) (Visit, error) {
+) (CheckInResult, error) {
 	if !principal.Has(authorization.AttendanceAssist) {
-		return Visit{}, apperror.PermissionDenied
+		return CheckInResult{}, apperror.PermissionDenied
 	}
 	status, err := s.labRules.Evaluate(ctx, personID)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if status.Mode != laborordnung.ModeNotRequired && status.State == laborordnung.StateNoPublishedVersion {
-		return Visit{}, apperror.New(
+		return CheckInResult{}, apperror.New(
 			http.StatusConflict,
 			"lab_rules_unavailable",
 			"Required Lab Rules are not currently available",
@@ -447,16 +494,11 @@ func (s *Service) SupervisedCheckIn(
 		requestPrincipal := principal
 		requestPrincipal.PersonID = personID
 		if _, _, err = s.labRules.RequestOwnConfirmation(ctx, requestPrincipal, requestID); err != nil {
-			return Visit{}, err
-		}
-		if status.Mode == laborordnung.ModeBlocking {
-			return Visit{}, apperror.New(
-				http.StatusConflict,
-				"attendance_admission_required",
-				"Lab Rules confirmation is required before check-in",
-			)
+			return CheckInResult{}, err
 		}
 	}
+	// Roles that block admission get a held check-in that a supervisor completes by confirming the Lab Rules.
+	held := status.ActionRequired && status.Mode == laborordnung.ModeBlocking
 	decision := AdmissionAdmitted
 	if status.ActionRequired {
 		decision = AdmissionWarning
@@ -467,21 +509,38 @@ func (s *Service) SupervisedCheckIn(
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := attendancedb.New(tx)
 	if _, err = q.LockPerson(ctx, personID); errors.Is(err, pgx.ErrNoRows) {
-		return Visit{}, apperror.NotFound
+		return CheckInResult{}, apperror.NotFound
 	} else if err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if _, err = q.GetOpenVisitForPerson(ctx, personID); err == nil {
-		return Visit{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
+		return CheckInResult{}, apperror.New(http.StatusConflict, "already_checked_in", "This person is already checked in")
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	accountID := principal.AccountID
+	if held {
+		hold, err := s.createHold(ctx, tx, holdInput{
+			PersonID:  personID,
+			Method:    "supervisor",
+			Assurance: string(principal.Assurance),
+			ByAccount: &accountID,
+			ActorID:   &accountID,
+			RequestID: requestID,
+		})
+		if err != nil {
+			return CheckInResult{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return CheckInResult{}, err
+		}
+		return CheckInResult{Hold: &hold}, nil
+	}
 	row, err := q.CreateVisit(
 		ctx,
 		attendancedb.CreateVisitParams{
@@ -495,7 +554,7 @@ func (s *Service) SupervisedCheckIn(
 		},
 	)
 	if err != nil {
-		return Visit{}, databaseError(err)
+		return CheckInResult{}, databaseError(err)
 	}
 	if err = audit.Write(
 		ctx,
@@ -508,12 +567,13 @@ func (s *Service) SupervisedCheckIn(
 			RequestID:      requestID,
 		},
 	); err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return Visit{}, err
+		return CheckInResult{}, err
 	}
-	return visitFromCreate(row), nil
+	visit := visitFromCreate(row)
+	return CheckInResult{Visit: &visit}, nil
 }
 
 func (s *Service) SupervisedCheckOut(

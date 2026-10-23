@@ -19,6 +19,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  AttendanceHold,
+  AttendanceHoldList,
   AttendancePasswordRequest,
   AttendancePinRequest,
   AttendanceStatistics,
@@ -83,7 +85,7 @@ export const getTerminalPasswordCheckInUrl = () => {
   return `/api/v1/terminal/check-in/password`
 }
 
-export const terminalPasswordCheckIn = async (attendancePasswordRequest: AttendancePasswordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
+export const terminalPasswordCheckIn = async (attendancePasswordRequest: AttendancePasswordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -99,7 +101,7 @@ export const terminalPasswordCheckIn = async (attendancePasswordRequest: Attenda
     }
     return headers;
   };
-return apiFetch<Visit>(getTerminalPasswordCheckInUrl(),
+return apiFetch<Visit | AttendanceHold>(getTerminalPasswordCheckInUrl(),
   {
     ...options,
     method: 'POST',
@@ -117,7 +119,7 @@ export const getTerminalPinCheckInUrl = () => {
   return `/api/v1/terminal/check-in/pin`
 }
 
-export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
+export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -133,7 +135,7 @@ export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequ
     }
     return headers;
   };
-return apiFetch<Visit>(getTerminalPinCheckInUrl(),
+return apiFetch<Visit | AttendanceHold>(getTerminalPinCheckInUrl(),
   {
     ...options,
     method: 'POST',
@@ -266,7 +268,7 @@ export const getSupervisedVisitCheckInUrl = () => {
   return `/api/v1/visits`
 }
 
-export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
+export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -282,7 +284,7 @@ export const supervisedVisitCheckIn = async (supervisedCheckInRequest: Supervise
     }
     return headers;
   };
-return apiFetch<Visit>(getSupervisedVisitCheckInUrl(),
+return apiFetch<Visit | AttendanceHold>(getSupervisedVisitCheckInUrl(),
   {
     ...options,
     method: 'POST',
@@ -343,6 +345,52 @@ return apiFetch<Visit>(getVoidVisitUrl(visitId),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(voidVisitRequest)
+  }
+);}
+
+
+export const getListAttendanceHoldsUrl = () => {
+
+
+
+
+  return `/api/v1/attendance/holds`
+}
+
+/**
+ * @summary Check-ins held until a supervisor confirms the person's Lab Rules
+ */
+export const listAttendanceHolds = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AttendanceHoldList> => {
+
+  return apiFetch<AttendanceHoldList>(getListAttendanceHoldsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCancelAttendanceHoldUrl = (holdId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/attendance/holds/${holdId}`
+}
+
+/**
+ * @summary Cancel a held check-in without admitting the person
+ */
+export const cancelAttendanceHold = async (holdId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getCancelAttendanceHoldUrl(holdId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

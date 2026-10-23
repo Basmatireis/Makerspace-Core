@@ -54,7 +54,7 @@ func (s *Server) ListTerminalPresence(
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.attendance.PublicPresence(ctx, device)
+	items, waiting, err := s.attendance.PublicPresence(ctx, device)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,15 @@ func (s *Server) ListTerminalPresence(
 			CheckedInAt: item.CheckedInAt,
 		}
 	}
-	return openapi.ListTerminalPresence200JSONResponse{Items: result, Count: len(result)}, nil
+	waitingDTOs := make([]openapi.PublicWaiting, len(waiting))
+	for i, item := range waiting {
+		waitingDTOs[i] = openapi.PublicWaiting{
+			HoldId:      item.HoldID,
+			DisplayName: item.DisplayName,
+			RequestedAt: item.RequestedAt,
+		}
+	}
+	return openapi.ListTerminalPresence200JSONResponse{Items: result, Count: len(result), Waiting: waitingDTOs}, nil
 }
 
 func (s *Server) TerminalPasswordCheckIn(
@@ -91,7 +99,10 @@ func (s *Server) TerminalPasswordCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.TerminalPasswordCheckIn201JSONResponse(visitDTO(value)), nil
+	if value.Hold != nil {
+		return openapi.TerminalPasswordCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
+	}
+	return openapi.TerminalPasswordCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
 }
 
 func (s *Server) TerminalPinCheckIn(
@@ -116,7 +127,10 @@ func (s *Server) TerminalPinCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.TerminalPinCheckIn201JSONResponse(visitDTO(value)), nil
+	if value.Hold != nil {
+		return openapi.TerminalPinCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
+	}
+	return openapi.TerminalPinCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
 }
 
 func (s *Server) TerminalPasswordCheckOut(
@@ -224,7 +238,57 @@ func (s *Server) SupervisedVisitCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.SupervisedVisitCheckIn201JSONResponse(visitDTO(value)), nil
+	if value.Hold != nil {
+		return openapi.SupervisedVisitCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
+	}
+	return openapi.SupervisedVisitCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
+}
+
+func (s *Server) ListAttendanceHolds(
+	ctx context.Context,
+	_ openapi.ListAttendanceHoldsRequestObject,
+) (openapi.ListAttendanceHoldsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	holds, err := s.attendance.ListHolds(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.AttendanceHold, len(holds))
+	for i, hold := range holds {
+		items[i] = holdDTO(hold)
+	}
+	return openapi.ListAttendanceHolds200JSONResponse{Items: items}, nil
+}
+
+func (s *Server) CancelAttendanceHold(
+	ctx context.Context,
+	request openapi.CancelAttendanceHoldRequestObject,
+) (openapi.CancelAttendanceHoldResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.attendance.CancelHold(ctx, p, request.HoldId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.CancelAttendanceHold204Response{}, nil
+}
+
+func holdDTO(value attendance.Hold) openapi.AttendanceHold {
+	return openapi.AttendanceHold{
+		Id:                    value.ID,
+		PersonId:              value.PersonID,
+		DisplayName:           value.DisplayName,
+		RequestedAt:           value.RequestedAt,
+		ExpiresAt:             value.ExpiresAt,
+		CheckInMethod:         value.CheckInMethod,
+		LaborordnungRequestId: nullableUUIDValue(value.LaborordnungRequestID),
+		RequiredRevision:      nullableValue(value.RequiredRevision),
+		PreviousRevision:      nullableValue(value.PreviousRevision),
+	}
 }
 
 func (s *Server) SupervisedVisitCheckOut(

@@ -2991,6 +2991,7 @@ paths:
       tags: [Laborordnung]
       operationId: confirmLaborordnungRequest
       summary: Confirm verification of a physical signed document
+      description: Also completes a held check-in of the person that has not expired; the visit starts now.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfirmLaborordnungRequest"}}}}
       responses:
@@ -8296,6 +8297,7 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -8309,6 +8311,7 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -8372,6 +8375,7 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupervisedCheckInRequest"}}}}
       responses:
         "201": {description: Supervised check-in completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -8404,6 +8408,30 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /attendance/holds:
+    get:
+      tags: [Attendance]
+      operationId: listAttendanceHolds
+      summary: Check-ins held until a supervisor confirms the person's Lab Rules
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Active held check-ins., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHoldList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /attendance/holds/{holdId}:
+    parameters: [{name: holdId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    delete:
+      tags: [Attendance]
+      operationId: cancelAttendanceHold
+      summary: Cancel a held check-in without admitting the person
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Held check-in cancelled.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /attendance/statistics:
     get:
@@ -16187,10 +16215,40 @@ components:
     PublicPresenceList:
       type: object
       additionalProperties: false
-      required: [items, count]
+      required: [items, count, waiting]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PublicPresence"}}
         count: {type: integer, minimum: 0}
+        waiting: {type: array, description: Held check-ins waiting for Lab Rules confirmation., items: {$ref: "#/components/schemas/PublicWaiting"}}
+    PublicWaiting:
+      type: object
+      additionalProperties: false
+      required: [holdId, displayName, requestedAt]
+      properties:
+        holdId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string, minLength: 1, maxLength: 205}
+        requestedAt: {type: string, format: date-time}
+    AttendanceHold:
+      type: object
+      additionalProperties: false
+      description: A check-in held until a supervisor confirms the person's signed Lab Rules. It lapses at expiresAt.
+      required: [id, personId, displayName, requestedAt, expiresAt, checkInMethod, laborordnungRequestId, requiredRevision, previousRevision]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+        requestedAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+        checkInMethod: {type: string}
+        laborordnungRequestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        requiredRevision: {type: string, nullable: true, description: Lab Rules revision that needs the signature.}
+        previousRevision: {type: string, nullable: true, description: Last confirmed revision; null when the person never signed.}
+    AttendanceHoldList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/AttendanceHold"}}
     AttendancePasswordRequest:
       type: object
       additionalProperties: false

@@ -65,13 +65,27 @@ type Request struct {
 	ArchiveNote               *string
 }
 
+// ConfirmationListener reacts to a confirmed request inside the confirming transaction, so its writes commit or
+// roll back together with the confirmation.
+type ConfirmationListener interface {
+	LabRulesConfirmed(ctx context.Context, tx pgx.Tx, personID, versionID, actorAccountID uuid.UUID,
+		requestID *uuid.UUID) error
+}
+
 type Service struct {
-	pool  *pgxpool.Pool
-	files *files.Service
+	pool     *pgxpool.Pool
+	files    *files.Service
+	listener ConfirmationListener
 }
 
 func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
 	return &Service{pool: pool, files: fileService}
+}
+
+// SetConfirmationListener registers the attendance module, which itself depends on this service and therefore
+// cannot be passed to NewService.
+func (s *Service) SetConfirmationListener(listener ConfirmationListener) {
+	s.listener = listener
 }
 
 func (s *Service) CreateVersion(
@@ -581,6 +595,11 @@ func (s *Service) Confirm(
 		},
 	); err != nil {
 		return Request{}, err
+	}
+	if s.listener != nil {
+		if err := s.listener.LabRulesConfirmed(ctx, tx, row.PersonID, row.RequiredVersionID, actor, requestID); err != nil {
+			return Request{}, err
+		}
 	}
 	result, err := s.hydrateRequest(ctx, queries, row)
 	if err != nil {

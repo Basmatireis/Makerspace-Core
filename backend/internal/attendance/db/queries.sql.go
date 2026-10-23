@@ -292,6 +292,205 @@ func (q *Queries) CreateVisit(ctx context.Context, arg CreateVisitParams) (Creat
 	return i, err
 }
 
+const createVisitFromHold = `-- name: CreateVisitFromHold :one
+WITH inserted AS (
+  INSERT INTO visits (id, person_id, checked_in_at, check_in_device_id, check_in_method,
+    check_in_assurance, admission_decision, laborordnung_version_id, checked_in_by_account_id)
+  VALUES ($1, $2, now(), $3, $4,
+    $5, 'admitted', $6,
+    $7)
+  ON CONFLICT (person_id) WHERE status = 'checked_in' DO NOTHING
+  RETURNING id, person_id, checked_in_at, checked_out_at, check_in_device_id, check_out_device_id, status, check_in_method, check_out_method, check_in_assurance, check_out_assurance, admission_decision, laborordnung_version_id, checked_in_by_account_id, checked_out_by_account_id, correction_reason, version, created_at, updated_at
+)
+SELECT inserted.id, inserted.person_id, inserted.checked_in_at, inserted.checked_out_at, inserted.check_in_device_id, inserted.check_out_device_id, inserted.status, inserted.check_in_method, inserted.check_out_method, inserted.check_in_assurance, inserted.check_out_assurance, inserted.admission_decision, inserted.laborordnung_version_id, inserted.checked_in_by_account_id, inserted.checked_out_by_account_id, inserted.correction_reason, inserted.version, inserted.created_at, inserted.updated_at, p.first_name, p.last_name FROM inserted JOIN people p ON p.id = inserted.person_id
+`
+
+type CreateVisitFromHoldParams struct {
+	ID                    uuid.UUID
+	PersonID              uuid.UUID
+	CheckInDeviceID       *uuid.UUID
+	CheckInMethod         string
+	CheckInAssurance      string
+	LaborordnungVersionID *uuid.UUID
+	CheckedInByAccountID  *uuid.UUID
+}
+
+type CreateVisitFromHoldRow struct {
+	ID                    uuid.UUID
+	PersonID              uuid.UUID
+	CheckedInAt           time.Time
+	CheckedOutAt          pgtype.Timestamptz
+	CheckInDeviceID       *uuid.UUID
+	CheckOutDeviceID      *uuid.UUID
+	Status                string
+	CheckInMethod         string
+	CheckOutMethod        *string
+	CheckInAssurance      string
+	CheckOutAssurance     *string
+	AdmissionDecision     string
+	LaborordnungVersionID *uuid.UUID
+	CheckedInByAccountID  *uuid.UUID
+	CheckedOutByAccountID *uuid.UUID
+	CorrectionReason      *string
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	FirstName             string
+	LastName              string
+}
+
+func (q *Queries) CreateVisitFromHold(ctx context.Context, arg CreateVisitFromHoldParams) (CreateVisitFromHoldRow, error) {
+	row := q.db.QueryRow(ctx, createVisitFromHold,
+		arg.ID,
+		arg.PersonID,
+		arg.CheckInDeviceID,
+		arg.CheckInMethod,
+		arg.CheckInAssurance,
+		arg.LaborordnungVersionID,
+		arg.CheckedInByAccountID,
+	)
+	var i CreateVisitFromHoldRow
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.CheckedInAt,
+		&i.CheckedOutAt,
+		&i.CheckInDeviceID,
+		&i.CheckOutDeviceID,
+		&i.Status,
+		&i.CheckInMethod,
+		&i.CheckOutMethod,
+		&i.CheckInAssurance,
+		&i.CheckOutAssurance,
+		&i.AdmissionDecision,
+		&i.LaborordnungVersionID,
+		&i.CheckedInByAccountID,
+		&i.CheckedOutByAccountID,
+		&i.CorrectionReason,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FirstName,
+		&i.LastName,
+	)
+	return i, err
+}
+
+const deleteExpiredHoldForPerson = `-- name: DeleteExpiredHoldForPerson :exec
+DELETE FROM attendance_holds WHERE person_id = $1 AND expires_at <= now()
+`
+
+func (q *Queries) DeleteExpiredHoldForPerson(ctx context.Context, personID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteExpiredHoldForPerson, personID)
+	return err
+}
+
+const deleteExpiredHolds = `-- name: DeleteExpiredHolds :execrows
+DELETE FROM attendance_holds WHERE expires_at <= $1
+`
+
+func (q *Queries) DeleteExpiredHolds(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredHolds, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteHoldByID = `-- name: DeleteHoldByID :one
+DELETE FROM attendance_holds WHERE id = $1 AND expires_at > now() RETURNING id, person_id, requested_at, expires_at, check_in_device_id, check_in_method, check_in_assurance, checked_in_by_account_id
+`
+
+func (q *Queries) DeleteHoldByID(ctx context.Context, id uuid.UUID) (AttendanceHold, error) {
+	row := q.db.QueryRow(ctx, deleteHoldByID, id)
+	var i AttendanceHold
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.CheckInDeviceID,
+		&i.CheckInMethod,
+		&i.CheckInAssurance,
+		&i.CheckedInByAccountID,
+	)
+	return i, err
+}
+
+const deleteHoldByIDUnconditional = `-- name: DeleteHoldByIDUnconditional :exec
+DELETE FROM attendance_holds WHERE id = $1
+`
+
+func (q *Queries) DeleteHoldByIDUnconditional(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteHoldByIDUnconditional, id)
+	return err
+}
+
+const getActiveHoldForPersonForUpdate = `-- name: GetActiveHoldForPersonForUpdate :one
+SELECT id, person_id, requested_at, expires_at, check_in_device_id, check_in_method, check_in_assurance, checked_in_by_account_id FROM attendance_holds
+WHERE person_id = $1 AND expires_at > now()
+FOR UPDATE
+`
+
+func (q *Queries) GetActiveHoldForPersonForUpdate(ctx context.Context, personID uuid.UUID) (AttendanceHold, error) {
+	row := q.db.QueryRow(ctx, getActiveHoldForPersonForUpdate, personID)
+	var i AttendanceHold
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.CheckInDeviceID,
+		&i.CheckInMethod,
+		&i.CheckInAssurance,
+		&i.CheckedInByAccountID,
+	)
+	return i, err
+}
+
+const getActiveHoldView = `-- name: GetActiveHoldView :one
+SELECT h.id, h.person_id, h.requested_at, h.expires_at, h.check_in_method, p.first_name, p.last_name,
+  r.id AS laborordnung_request_id, required.human_revision AS required_revision,
+  previous.human_revision AS previous_revision
+FROM attendance_holds h
+JOIN people p ON p.id = h.person_id
+LEFT JOIN laborordnung_requests r ON r.person_id = h.person_id AND r.status = 'pending'
+LEFT JOIN laborordnung_versions required ON required.id = r.required_version_id
+LEFT JOIN laborordnung_versions previous ON previous.id = r.previous_version_id
+WHERE h.person_id = $1 AND h.expires_at > now()
+`
+
+type GetActiveHoldViewRow struct {
+	ID                    uuid.UUID
+	PersonID              uuid.UUID
+	RequestedAt           time.Time
+	ExpiresAt             time.Time
+	CheckInMethod         string
+	FirstName             string
+	LastName              string
+	LaborordnungRequestID *uuid.UUID
+	RequiredRevision      *string
+	PreviousRevision      *string
+}
+
+func (q *Queries) GetActiveHoldView(ctx context.Context, personID uuid.UUID) (GetActiveHoldViewRow, error) {
+	row := q.db.QueryRow(ctx, getActiveHoldView, personID)
+	var i GetActiveHoldViewRow
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.CheckInMethod,
+		&i.FirstName,
+		&i.LastName,
+		&i.LaborordnungRequestID,
+		&i.RequiredRevision,
+		&i.PreviousRevision,
+	)
+	return i, err
+}
+
 const getOpenVisitByID = `-- name: GetOpenVisitByID :one
 SELECT v.id, v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_device_id, v.check_out_device_id, v.status, v.check_in_method, v.check_out_method, v.check_in_assurance, v.check_out_assurance, v.admission_decision, v.laborordnung_version_id, v.checked_in_by_account_id, v.checked_out_by_account_id, v.correction_reason, v.version, v.created_at, v.updated_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
@@ -530,6 +729,102 @@ func (q *Queries) GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetV
 	return i, err
 }
 
+const listActiveHolds = `-- name: ListActiveHolds :many
+SELECT h.id, h.person_id, h.requested_at, h.expires_at, h.check_in_method, p.first_name, p.last_name,
+  r.id AS laborordnung_request_id, required.human_revision AS required_revision,
+  previous.human_revision AS previous_revision
+FROM attendance_holds h
+JOIN people p ON p.id = h.person_id
+LEFT JOIN laborordnung_requests r ON r.person_id = h.person_id AND r.status = 'pending'
+LEFT JOIN laborordnung_versions required ON required.id = r.required_version_id
+LEFT JOIN laborordnung_versions previous ON previous.id = r.previous_version_id
+WHERE h.expires_at > now()
+ORDER BY h.requested_at, h.id
+`
+
+type ListActiveHoldsRow struct {
+	ID                    uuid.UUID
+	PersonID              uuid.UUID
+	RequestedAt           time.Time
+	ExpiresAt             time.Time
+	CheckInMethod         string
+	FirstName             string
+	LastName              string
+	LaborordnungRequestID *uuid.UUID
+	RequiredRevision      *string
+	PreviousRevision      *string
+}
+
+func (q *Queries) ListActiveHolds(ctx context.Context) ([]ListActiveHoldsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveHolds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveHoldsRow{}
+	for rows.Next() {
+		var i ListActiveHoldsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.RequestedAt,
+			&i.ExpiresAt,
+			&i.CheckInMethod,
+			&i.FirstName,
+			&i.LastName,
+			&i.LaborordnungRequestID,
+			&i.RequiredRevision,
+			&i.PreviousRevision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicHolds = `-- name: ListPublicHolds :many
+SELECT h.id, h.requested_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+FROM attendance_holds h JOIN people p ON p.id = h.person_id
+WHERE h.expires_at > now()
+ORDER BY lower(p.first_name), lower(p.last_name), h.requested_at, h.id
+`
+
+type ListPublicHoldsRow struct {
+	ID          uuid.UUID
+	RequestedAt time.Time
+	FirstName   string
+	LastInitial string
+}
+
+func (q *Queries) ListPublicHolds(ctx context.Context) ([]ListPublicHoldsRow, error) {
+	rows, err := q.db.Query(ctx, listPublicHolds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublicHoldsRow{}
+	for rows.Next() {
+		var i ListPublicHoldsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequestedAt,
+			&i.FirstName,
+			&i.LastInitial,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPublicPresence = `-- name: ListPublicPresence :many
 SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
 FROM visits v JOIN people p ON p.id = v.person_id
@@ -703,6 +998,54 @@ func (q *Queries) LockPerson(ctx context.Context, id uuid.UUID) (uuid.UUID, erro
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const upsertHold = `-- name: UpsertHold :one
+INSERT INTO attendance_holds (id, person_id, requested_at, expires_at, check_in_device_id, check_in_method,
+  check_in_assurance, checked_in_by_account_id)
+VALUES ($1, $2, now(), $3, $4,
+  $5, $6, $7)
+ON CONFLICT (person_id) DO UPDATE SET
+  expires_at = EXCLUDED.expires_at,
+  check_in_device_id = EXCLUDED.check_in_device_id,
+  check_in_method = EXCLUDED.check_in_method,
+  check_in_assurance = EXCLUDED.check_in_assurance,
+  checked_in_by_account_id = EXCLUDED.checked_in_by_account_id
+RETURNING id, person_id, requested_at, expires_at, check_in_device_id, check_in_method, check_in_assurance, checked_in_by_account_id
+`
+
+type UpsertHoldParams struct {
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	ExpiresAt            time.Time
+	CheckInDeviceID      *uuid.UUID
+	CheckInMethod        string
+	CheckInAssurance     string
+	CheckedInByAccountID *uuid.UUID
+}
+
+func (q *Queries) UpsertHold(ctx context.Context, arg UpsertHoldParams) (AttendanceHold, error) {
+	row := q.db.QueryRow(ctx, upsertHold,
+		arg.ID,
+		arg.PersonID,
+		arg.ExpiresAt,
+		arg.CheckInDeviceID,
+		arg.CheckInMethod,
+		arg.CheckInAssurance,
+		arg.CheckedInByAccountID,
+	)
+	var i AttendanceHold
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.RequestedAt,
+		&i.ExpiresAt,
+		&i.CheckInDeviceID,
+		&i.CheckInMethod,
+		&i.CheckInAssurance,
+		&i.CheckedInByAccountID,
+	)
+	return i, err
 }
 
 const voidVisit = `-- name: VoidVisit :one

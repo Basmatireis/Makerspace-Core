@@ -6,6 +6,7 @@ package attendancedb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,16 +17,26 @@ type Querier interface {
 	AttendanceStatistics(ctx context.Context, arg AttendanceStatisticsParams) (AttendanceStatisticsRow, error)
 	CheckOutVisit(ctx context.Context, arg CheckOutVisitParams) (CheckOutVisitRow, error)
 	CreateVisit(ctx context.Context, arg CreateVisitParams) (CreateVisitRow, error)
+	CreateVisitFromHold(ctx context.Context, arg CreateVisitFromHoldParams) (CreateVisitFromHoldRow, error)
+	DeleteExpiredHoldForPerson(ctx context.Context, personID uuid.UUID) error
+	DeleteExpiredHolds(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeleteHoldByID(ctx context.Context, id uuid.UUID) (AttendanceHold, error)
+	DeleteHoldByIDUnconditional(ctx context.Context, id uuid.UUID) error
+	GetActiveHoldForPersonForUpdate(ctx context.Context, personID uuid.UUID) (AttendanceHold, error)
+	GetActiveHoldView(ctx context.Context, personID uuid.UUID) (GetActiveHoldViewRow, error)
 	GetOpenVisitByID(ctx context.Context, id uuid.UUID) (GetOpenVisitByIDRow, error)
 	GetOpenVisitForPerson(ctx context.Context, personID uuid.UUID) (GetOpenVisitForPersonRow, error)
 	GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPersonDisplayRow, error)
 	GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTerminalDeviceRow, error)
 	GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetVisitByIDForUpdateRow, error)
+	ListActiveHolds(ctx context.Context) ([]ListActiveHoldsRow, error)
+	ListPublicHolds(ctx context.Context) ([]ListPublicHoldsRow, error)
 	ListPublicPresence(ctx context.Context) ([]ListPublicPresenceRow, error)
 	ListTerminalCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
 	ListVisits(ctx context.Context, arg ListVisitsParams) ([]ListVisitsRow, error)
 	LockEnabledAttendanceAccount(ctx context.Context, arg LockEnabledAttendanceAccountParams) (uuid.UUID, error)
 	LockPerson(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	UpsertHold(ctx context.Context, arg UpsertHoldParams) (AttendanceHold, error)
 	VoidVisit(ctx context.Context, arg VoidVisitParams) (VoidVisitRow, error)
 }
 
