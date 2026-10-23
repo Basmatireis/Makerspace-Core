@@ -34,6 +34,17 @@ type AttendanceDailyStatistic struct {
 	UpdatedAt             time.Time
 }
 
+type AttendanceHold struct {
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	RequestedAt          time.Time
+	ExpiresAt            time.Time
+	CheckInDeviceID      *uuid.UUID
+	CheckInMethod        string
+	CheckInAssurance     string
+	CheckedInByAccountID *uuid.UUID
+}
+
 type AuditEvent struct {
 	ID             uuid.UUID
 	ActorAccountID *uuid.UUID

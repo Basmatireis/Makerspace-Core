@@ -1,33 +1,22 @@
-import {
-  Button,
-  ComposedModal,
-  Form,
-  InlineNotification,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  Stack,
-  TextArea,
-  TextInput,
-  Tile,
-} from '@carbon/react';
+import { Button, InlineNotification, Stack } from '@carbon/react';
+import { UserFollow } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  getAttendanceStatistics,
-  listVisits,
-  supervisedVisitCheckIn,
-  supervisedVisitCheckOut,
-  voidVisit,
-} from '../../api/generated/attendance/attendance';
-import type { Visit } from '../../api/generated/models';
+import { cancelAttendanceHold, supervisedVisitCheckOut } from '../../api/generated/attendance/attendance';
+import type { AttendanceHold, Visit } from '../../api/generated/models';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
-import { useLatestCallback } from '../../app/useLatestCallback';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { CurrentlyHere } from './components/CurrentlyHere';
+import { HeldCheckIns } from './components/HeldCheckIns';
+import { StatTile } from './components/StatTiles';
+import { CheckInDialog } from './dialogs/CheckInDialog';
+import { VoidVisitDialog } from './dialogs/VoidVisitDialog';
+import { attendanceKeys, holdsOptions, statisticsOptions, visitsOptions } from './queries';
+import './attendance.scss';
 
-const visitsKey = ['attendance', 'visits'] as const;
+type DialogState = { hold: AttendanceHold | null } | null;
 
 export function AttendancePage() {
   const user = useCurrentUser();
@@ -36,108 +25,84 @@ export function AttendancePage() {
   const canAssist = hasPermission(user, PermissionId.attendanceassist);
   const canCorrect = hasPermission(user, PermissionId.attendancecorrect);
   const canStats = hasPermission(user, PermissionId.attendancestatisticsread);
-  const [personId, setPersonId] = useState('');
+  const canConfirm = hasPermission(user, PermissionId.laborordnungconfirm);
+  const canSearchPeople = hasPermission(user, PermissionId.peoplereadall);
+  const [dialog, setDialog] = useState<DialogState>(null);
   const [visitToVoid, setVisitToVoid] = useState<Visit | null>(null);
-  const [voidReason, setVoidReason] = useState('');
-  const visits = useQuery({
-    queryKey: visitsKey,
-    queryFn: ({ signal }) => listVisits({ currentlyHere: true }, { signal }),
-    refetchInterval: 30_000,
-    enabled: canRead,
-  });
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(now.getDate() - 30);
-  const stats = useQuery({
-    queryKey: ['attendance', 'statistics', from.toISOString().slice(0, 10)],
-    queryFn: ({ signal }) => getAttendanceStatistics({ from: from.toISOString(), to: now.toISOString() }, { signal }),
-    enabled: canStats,
-  });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: visitsKey });
-  const checkIn = useMutation({
-    mutationFn: () => supervisedVisitCheckIn({ personId: personId.trim() }),
-    onSuccess: async () => {
-      setPersonId('');
-      await refresh();
-    },
-  });
+  const [waitingNotice, setWaitingNotice] = useState<AttendanceHold | null>(null);
+  const visits = useQuery(visitsOptions(canRead));
+  const holds = useQuery(holdsOptions(canRead));
+  const stats = useQuery(statisticsOptions(canStats));
+  const refresh = () => queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
   const checkOut = useMutation({ mutationFn: (id: string) => supervisedVisitCheckOut(id), onSuccess: refresh });
-  const voidMutation = useMutation({
-    mutationFn: ({ visit, reason }: { visit: Visit; reason: string }) =>
-      voidVisit(visit.id, { expectedVersion: visit.version, reason }),
-    onSuccess: async () => {
-      setVisitToVoid(null);
-      setVoidReason('');
-      await refresh();
-      await queryClient.invalidateQueries({ queryKey: ['attendance', 'statistics'] });
-    },
-  });
-  const closeVoidDialog = useLatestCallback(() => {
-    if (voidMutation.isPending) return false;
-    setVisitToVoid(null);
-    setVoidReason('');
-    voidMutation.reset();
-    return false;
-  });
+  const cancelHold = useMutation({ mutationFn: (id: string) => cancelAttendanceHold(id), onSuccess: refresh });
+
+  const heldItems = holds.data?.items ?? [];
+  const hereCount = canRead ? visits.data?.items.length : stats.data?.currentOccupancy;
+  const excludedPersonIds = new Set([
+    ...(visits.data?.items ?? []).map((visit) => visit.personId),
+    ...heldItems.map((hold) => hold.personId),
+  ]);
+  const showTiles = hereCount !== undefined || (canRead && holds.data) || (canStats && stats.data);
 
   return (
-    <PageShell title="Attendance" description="See who is currently here and assist with check-in or checkout.">
-      <Stack gap={6}>
-        {canStats && stats.data && (
-          <div className="stats-grid">
-            <Tile>
-              <strong>{stats.data.currentOccupancy}</strong>
-              <span>Currently here</span>
-            </Tile>
-            <Tile>
-              <strong>{stats.data.visitorCount}</strong>
-              <span>Visits in 30 days</span>
-            </Tile>
-            <Tile>
-              <strong>{stats.data.uniqueVisitors}</strong>
-              <span>Unique visitors</span>
-            </Tile>
-            <Tile>
-              <strong>{Number(stats.data.visitorHours).toFixed(1)}</strong>
-              <span>Visitor hours</span>
-            </Tile>
+    <PageShell
+      title="Attendance"
+      description="Who is in the Makerspace right now, and who is waiting to be let in."
+      width="wide"
+      actions={
+        canAssist && canSearchPeople ? (
+          <Button renderIcon={UserFollow} onClick={() => setDialog({ hold: null })}>
+            Check someone in
+          </Button>
+        ) : undefined
+      }
+    >
+      <Stack gap={7}>
+        {waitingNotice && (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            title="Check-in is waiting"
+            subtitle={`${waitingNotice.displayName} is waiting at the entrance until someone allowed to confirm the Lab Rules has seen their signature.`}
+            onCloseButtonClick={() => setWaitingNotice(null)}
+          />
+        )}
+        {showTiles && (
+          <div className="attendance-stats">
+            {hereCount !== undefined && <StatTile value={hereCount} label="Currently here" />}
+            {canRead && holds.data && (
+              <StatTile value={heldItems.length} label="Waiting for Lab Rules" alert={heldItems.length > 0} />
+            )}
+            {canStats && stats.data && (
+              <>
+                <StatTile value={stats.data.visitorCount} label="Visits in 30 days" />
+                <StatTile value={stats.data.uniqueVisitors} label="Unique visitors in 30 days" />
+              </>
+            )}
           </div>
         )}
-        {canAssist && (
-          <Tile>
-            <Form
-              onSubmit={(event) => {
-                event.preventDefault();
-                checkIn.mutate();
-              }}
-            >
-              <Stack gap={4}>
-                <h2>Assisted check-in</h2>
-                <TextInput
-                  id="attendance-person-id"
-                  labelText="Person ID"
-                  value={personId}
-                  onChange={(event) => setPersonId(event.target.value)}
-                />
-                {checkIn.isError && (
-                  <InlineNotification
-                    kind="error"
-                    lowContrast
-                    hideCloseButton
-                    title="Check-in failed"
-                    subtitle={checkIn.error.message}
-                  />
-                )}
-                <Button type="submit" disabled={!personId.trim() || checkIn.isPending}>
-                  Check in person
-                </Button>
-              </Stack>
-            </Form>
-          </Tile>
+        {cancelHold.isError && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Check-in not cancelled"
+            subtitle={cancelHold.error.message}
+          />
+        )}
+        {canRead && heldItems.length > 0 && (
+          <HeldCheckIns
+            holds={heldItems}
+            canCancel={canAssist}
+            canConfirm={canConfirm}
+            busy={cancelHold.isPending}
+            onConfirm={(hold) => setDialog({ hold })}
+            onCancel={(hold) => cancelHold.mutate(hold.id)}
+          />
         )}
         {canRead && (
           <section>
-            <h2>Currently here</h2>
             {visits.isPending && <InlineLoadingState label="Loading attendance" />}
             {visits.isError && (
               <ErrorState
@@ -155,95 +120,28 @@ export function AttendancePage() {
                 subtitle={checkOut.error.message}
               />
             )}
-            <Stack gap={3}>
-              {visits.data?.items.map((visit) => (
-                <Tile key={visit.id}>
-                  <div className="section-heading">
-                    <div>
-                      <strong>{visit.displayName}</strong>
-                      <p>Checked in {new Date(visit.checkedInAt).toLocaleString()}</p>
-                    </div>
-                    <div className="button-cluster">
-                      {canAssist && (
-                        <Button
-                          kind="ghost"
-                          size="sm"
-                          disabled={checkOut.isPending || voidMutation.isPending}
-                          onClick={() => checkOut.mutate(visit.id)}
-                        >
-                          Check out
-                        </Button>
-                      )}
-                      {canCorrect && (
-                        <Button
-                          kind="danger--ghost"
-                          size="sm"
-                          disabled={checkOut.isPending || voidMutation.isPending}
-                          onClick={() => {
-                            voidMutation.reset();
-                            setVoidReason('');
-                            setVisitToVoid(visit);
-                          }}
-                        >
-                          Void record
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Tile>
-              ))}
-              {visits.data?.items.length === 0 && <p>Nobody is currently checked in.</p>}
-            </Stack>
+            {visits.data && (
+              <CurrentlyHere
+                visits={visits.data.items}
+                canAssist={canAssist}
+                canCorrect={canCorrect}
+                onCheckOut={(visit) => checkOut.mutate(visit.id)}
+                onVoid={setVisitToVoid}
+              />
+            )}
           </section>
         )}
       </Stack>
 
-      <ComposedModal
-        open={Boolean(visitToVoid)}
-        danger
-        size="sm"
-        selectorPrimaryFocus=".cds--btn--secondary"
-        preventCloseOnClickOutside
-        onClose={closeVoidDialog}
-      >
-        <ModalHeader title={`Void attendance record for ${visitToVoid?.displayName ?? ''}?`} />
-        <ModalBody>
-          <Stack gap={5}>
-            <p>
-              The visit will be marked void and removed from current presence. Pending post-visit survey invitations are
-              cancelled. The correction and its audit history remain recorded.
-            </p>
-            <TextArea
-              id="void-visit-reason"
-              labelText="Correction reason"
-              maxLength={500}
-              value={voidReason}
-              onChange={(event) => setVoidReason(event.target.value)}
-            />
-            {voidMutation.isError && (
-              <InlineNotification
-                kind="error"
-                lowContrast
-                hideCloseButton
-                title="Attendance record not voided"
-                subtitle={voidMutation.error.message}
-              />
-            )}
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" disabled={voidMutation.isPending} onClick={closeVoidDialog}>
-            Cancel
-          </Button>
-          <Button
-            kind="danger"
-            disabled={!voidReason.trim() || voidMutation.isPending}
-            onClick={() => visitToVoid && voidMutation.mutate({ visit: visitToVoid, reason: voidReason.trim() })}
-          >
-            {voidMutation.isPending ? 'Voiding…' : 'Void record'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
+      <CheckInDialog
+        open={dialog !== null}
+        hold={dialog?.hold ?? null}
+        canConfirm={canConfirm}
+        excludedPersonIds={excludedPersonIds}
+        onClose={() => setDialog(null)}
+        onWaiting={setWaitingNotice}
+      />
+      <VoidVisitDialog visit={visitToVoid} onClose={() => setVisitToVoid(null)} />
     </PageShell>
   );
 }

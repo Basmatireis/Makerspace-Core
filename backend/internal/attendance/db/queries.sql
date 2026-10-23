@@ -161,3 +161,74 @@ ON CONFLICT (day) DO UPDATE SET
   completed_visit_seconds = attendance_daily_statistics.completed_visit_seconds + EXCLUDED.completed_visit_seconds,
   peak_occupancy = GREATEST(attendance_daily_statistics.peak_occupancy, EXCLUDED.peak_occupancy),
   updated_at = now();
+
+-- name: DeleteExpiredHoldForPerson :exec
+DELETE FROM attendance_holds WHERE person_id = sqlc.arg(person_id) AND expires_at <= now();
+
+-- name: UpsertHold :one
+INSERT INTO attendance_holds (id, person_id, requested_at, expires_at, check_in_device_id, check_in_method,
+  check_in_assurance, checked_in_by_account_id)
+VALUES (sqlc.arg(id), sqlc.arg(person_id), now(), sqlc.arg(expires_at), sqlc.narg(check_in_device_id),
+  sqlc.arg(check_in_method), sqlc.arg(check_in_assurance), sqlc.narg(checked_in_by_account_id))
+ON CONFLICT (person_id) DO UPDATE SET
+  expires_at = EXCLUDED.expires_at,
+  check_in_device_id = EXCLUDED.check_in_device_id,
+  check_in_method = EXCLUDED.check_in_method,
+  check_in_assurance = EXCLUDED.check_in_assurance,
+  checked_in_by_account_id = EXCLUDED.checked_in_by_account_id
+RETURNING *;
+
+-- name: GetActiveHoldForPersonForUpdate :one
+SELECT * FROM attendance_holds
+WHERE person_id = sqlc.arg(person_id) AND expires_at > now()
+FOR UPDATE;
+
+-- name: DeleteHoldByID :one
+DELETE FROM attendance_holds WHERE id = sqlc.arg(id) AND expires_at > now() RETURNING *;
+
+-- name: DeleteHoldByIDUnconditional :exec
+DELETE FROM attendance_holds WHERE id = sqlc.arg(id);
+
+-- name: DeleteExpiredHolds :execrows
+DELETE FROM attendance_holds WHERE expires_at <= sqlc.arg(before_time);
+
+-- name: ListActiveHolds :many
+SELECT h.id, h.person_id, h.requested_at, h.expires_at, h.check_in_method, p.first_name, p.last_name,
+  r.id AS laborordnung_request_id, required.human_revision AS required_revision,
+  previous.human_revision AS previous_revision
+FROM attendance_holds h
+JOIN people p ON p.id = h.person_id
+LEFT JOIN laborordnung_requests r ON r.person_id = h.person_id AND r.status = 'pending'
+LEFT JOIN laborordnung_versions required ON required.id = r.required_version_id
+LEFT JOIN laborordnung_versions previous ON previous.id = r.previous_version_id
+WHERE h.expires_at > now()
+ORDER BY h.requested_at, h.id;
+
+-- name: ListPublicHolds :many
+SELECT h.id, h.requested_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+FROM attendance_holds h JOIN people p ON p.id = h.person_id
+WHERE h.expires_at > now()
+ORDER BY lower(p.first_name), lower(p.last_name), h.requested_at, h.id;
+
+-- name: CreateVisitFromHold :one
+WITH inserted AS (
+  INSERT INTO visits (id, person_id, checked_in_at, check_in_device_id, check_in_method,
+    check_in_assurance, admission_decision, laborordnung_version_id, checked_in_by_account_id)
+  VALUES (sqlc.arg(id), sqlc.arg(person_id), now(), sqlc.narg(check_in_device_id), sqlc.arg(check_in_method),
+    sqlc.arg(check_in_assurance), 'admitted', sqlc.narg(laborordnung_version_id),
+    sqlc.narg(checked_in_by_account_id))
+  ON CONFLICT (person_id) WHERE status = 'checked_in' DO NOTHING
+  RETURNING *
+)
+SELECT inserted.*, p.first_name, p.last_name FROM inserted JOIN people p ON p.id = inserted.person_id;
+
+-- name: GetActiveHoldView :one
+SELECT h.id, h.person_id, h.requested_at, h.expires_at, h.check_in_method, p.first_name, p.last_name,
+  r.id AS laborordnung_request_id, required.human_revision AS required_revision,
+  previous.human_revision AS previous_revision
+FROM attendance_holds h
+JOIN people p ON p.id = h.person_id
+LEFT JOIN laborordnung_requests r ON r.person_id = h.person_id AND r.status = 'pending'
+LEFT JOIN laborordnung_versions required ON required.id = r.required_version_id
+LEFT JOIN laborordnung_versions previous ON previous.id = r.previous_version_id
+WHERE h.person_id = sqlc.arg(person_id) AND h.expires_at > now();

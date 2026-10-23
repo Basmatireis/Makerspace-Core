@@ -147,11 +147,11 @@ describe('protected application routing', () => {
           staffDestination: 'login',
         }),
       ),
-      http.get('*/api/v1/terminal/presence', () => HttpResponse.json({ items: [], count: 0 })),
+      http.get('*/api/v1/terminal/presence', () => HttpResponse.json({ items: [], count: 0, waiting: [] })),
     );
     const { router } = renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome to the Makerspace' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/terminal');
   });
 

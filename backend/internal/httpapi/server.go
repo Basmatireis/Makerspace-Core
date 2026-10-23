@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
@@ -167,6 +168,12 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		Mail:           mailer,
 		Invoicing:      invoicingService,
 	})
+	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("load makerspace time zone: %w", err)
+	}
+	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService, location)
+	labRulesService.SetConfirmationListener(attendanceService)
 	return &Server{
 		pool:              pool,
 		config:            cfg,
@@ -202,6 +209,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		configTransfer:    configTransferService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
-		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),
+		attendance:        attendanceService,
 	}, nil
 }

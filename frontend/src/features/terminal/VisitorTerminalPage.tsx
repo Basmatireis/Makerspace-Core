@@ -1,20 +1,28 @@
-import { Button, Form, InlineNotification, PasswordInput, Stack, TextInput, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import {
   getTerminalContext,
   listTerminalPresence,
-  terminalPasswordCheckIn,
-  terminalPasswordCheckOut,
-  terminalPinCheckIn,
-  terminalPinCheckOut,
   terminalPublicCheckOut,
 } from '../../api/generated/attendance/attendance';
+import type { AttendanceHold, Visit } from '../../api/generated/models';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { TerminalHardwareStatus } from './DeviceBridgePanel';
+import { CheckOutScreen } from './components/CheckOutScreen';
+import { CredentialsScreen } from './components/CredentialsScreen';
+import { HoldScreen } from './components/HoldScreen';
+import { HomeScreen } from './components/HomeScreen';
+import { PresencePanel } from './components/PresencePanel';
+import { ResultScreen } from './components/ResultScreen';
+import './terminal.scss';
 
 const presenceKey = ['terminal', 'presence'] as const;
+
+type Screen =
+  | { kind: 'home' }
+  | { kind: 'check-in' }
+  | { kind: 'check-out'; preselected: string | null }
+  | { kind: 'hold'; hold: AttendanceHold }
+  | { kind: 'result'; mode: 'check-in' | 'check-out'; displayName: string; at: string };
 
 export function VisitorTerminalPage() {
   const terminal = useQuery({
@@ -29,33 +37,19 @@ export function VisitorTerminalPage() {
     enabled: terminal.isSuccess,
   });
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<'check-in' | 'check-out'>('check-in');
-  const [method, setMethod] = useState<'password' | 'pin'>('pin');
-  const [identifier, setIdentifier] = useState('');
-  const [secret, setSecret] = useState('');
-  const [message, setMessage] = useState('');
-  const attendance = useMutation({
-    mutationFn: async () => {
-      if (method === 'password') {
-        const payload = { email: identifier, password: secret };
-        return mode === 'check-in' ? terminalPasswordCheckIn(payload) : terminalPasswordCheckOut(payload);
-      }
-      const payload = { loginName: identifier, pin: secret };
-      return mode === 'check-in' ? terminalPinCheckIn(payload) : terminalPinCheckOut(payload);
-    },
-    onSuccess: async (visit) => {
-      setIdentifier('');
-      setSecret('');
-      setMessage(`${visit.displayName} is ${mode === 'check-in' ? 'checked in' : 'checked out'}.`);
-      await queryClient.invalidateQueries({ queryKey: presenceKey });
-    },
-  });
+  const [screen, setScreen] = useState<Screen>({ kind: 'home' });
+  const now = useClock();
   const publicCheckout = useMutation({
     mutationFn: (visitId: string) => terminalPublicCheckOut(visitId),
-    onSuccess: async (visit) => {
-      setMessage(`${visit.displayName} is checked out.`);
-      await queryClient.invalidateQueries({ queryKey: presenceKey });
+    onSuccess: (visit) => {
+      setScreen({
+        kind: 'result',
+        mode: 'check-out',
+        displayName: visit.displayName,
+        at: visit.checkedOutAt ?? new Date().toISOString(),
+      });
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 
   if (terminal.isPending) return <FullPageLoading label="Loading visitor terminal" />;
@@ -70,119 +64,96 @@ export function VisitorTerminalPage() {
       </main>
     );
 
+  const context = terminal.data;
+  const publicTap = context.checkoutMode === 'public_tap';
+  const home = () => {
+    publicCheckout.reset();
+    setScreen({ kind: 'home' });
+  };
+  const openCheckOut = (preselected: string | null) => {
+    publicCheckout.reset();
+    setScreen({ kind: 'check-out', preselected });
+  };
+
+  function credentialsDone(mode: 'check-in' | 'check-out', result: Visit | AttendanceHold) {
+    void queryClient.invalidateQueries({ queryKey: presenceKey });
+    if ('expiresAt' in result) {
+      setScreen({ kind: 'hold', hold: result });
+      return;
+    }
+    const at = mode === 'check-in' ? result.checkedInAt : (result.checkedOutAt ?? new Date().toISOString());
+    setScreen({ kind: 'result', mode, displayName: result.displayName, at });
+  }
+
   return (
-    <main className="public-page terminal-page">
-      <Stack gap={6}>
+    <main className="tablet">
+      <header className="tablet-header">
         <div>
-          <p className="eyebrow">{terminal.data.deviceName}</p>
-          <h1>Welcome</h1>
-          <p>Check in when you arrive and check out before you leave.</p>
+          <p className="tablet-header__device">{context.deviceName}</p>
+          <p className="tablet-header__date">
+            {now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
         </div>
-        <TerminalHardwareStatus />
-        {message && (
-          <InlineNotification
-            kind="success"
-            lowContrast
-            title="Attendance updated"
-            subtitle={message}
-            onClose={() => setMessage('')}
+        <p className="tablet-header__clock" aria-label="Current time">
+          {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </p>
+      </header>
+
+      <section className="tablet-main" aria-live="polite">
+        {screen.kind === 'home' && (
+          <HomeScreen
+            staffDestination={context.staffDestination}
+            onCheckIn={() => setScreen({ kind: 'check-in' })}
+            onCheckOut={() => openCheckOut(null)}
           />
         )}
-        <Tile>
-          <Stack gap={5}>
-            <div className="button-cluster">
-              <Button kind={mode === 'check-in' ? 'primary' : 'secondary'} onClick={() => setMode('check-in')}>
-                Check in
-              </Button>
-              <Button kind={mode === 'check-out' ? 'primary' : 'secondary'} onClick={() => setMode('check-out')}>
-                Check out
-              </Button>
-            </div>
-            <Form
-              onSubmit={(event) => {
-                event.preventDefault();
-                attendance.mutate();
-              }}
-            >
-              <Stack gap={4}>
-                <div className="button-cluster">
-                  <Button size="sm" kind={method === 'pin' ? 'tertiary' : 'ghost'} onClick={() => setMethod('pin')}>
-                    PIN
-                  </Button>
-                  <Button
-                    size="sm"
-                    kind={method === 'password' ? 'tertiary' : 'ghost'}
-                    onClick={() => setMethod('password')}
-                  >
-                    Password
-                  </Button>
-                </div>
-                <TextInput
-                  id="terminal-identifier"
-                  labelText={method === 'pin' ? 'Login name' : 'Email'}
-                  value={identifier}
-                  autoComplete={method === 'pin' ? 'username' : 'email'}
-                  onChange={(event) => setIdentifier(event.target.value)}
-                />
-                <PasswordInput
-                  id="terminal-secret"
-                  labelText={method === 'pin' ? 'PIN' : 'Password'}
-                  value={secret}
-                  autoComplete="current-password"
-                  onChange={(event) => setSecret(event.target.value)}
-                />
-                {attendance.isError && (
-                  <InlineNotification
-                    kind="error"
-                    lowContrast
-                    hideCloseButton
-                    title="Attendance not updated"
-                    subtitle={attendance.error.message}
-                  />
-                )}
-                <Button type="submit" disabled={!identifier.trim() || !secret || attendance.isPending}>
-                  {mode === 'check-in' ? 'Check in' : 'Check out'}
-                </Button>
-              </Stack>
-            </Form>
-          </Stack>
-        </Tile>
-        <section>
-          <h2>Currently here</h2>
-          {presence.isPending && <p>Loading…</p>}
-          {presence.data?.items.length === 0 && <p>Nobody is currently checked in.</p>}
-          <div className="terminal-presence-grid">
-            {presence.data?.items.map((item) => (
-              <Tile key={item.visitId}>
-                <Stack gap={3}>
-                  <strong>{item.displayName}</strong>
-                  <span>
-                    Since {new Date(item.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {terminal.data.checkoutMode === 'public_tap' && (
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      disabled={publicCheckout.isPending}
-                      onClick={() => publicCheckout.mutate(item.visitId)}
-                    >
-                      Check out
-                    </Button>
-                  )}
-                </Stack>
-              </Tile>
-            ))}
-          </div>
-        </section>
-        <div className="button-cluster">
-          <Button as={Link} to="/visitor-enrollment" kind="secondary">
-            Register as a new visitor
-          </Button>
-          <Button as={Link} to={`/${terminal.data.staffDestination}`} kind="ghost">
-            Staff sign in
-          </Button>
-        </div>
-      </Stack>
+        {screen.kind === 'check-in' && (
+          <CredentialsScreen
+            mode="check-in"
+            methods={context.authenticationMethods}
+            onSuccess={(result) => credentialsDone('check-in', result)}
+            onCancel={home}
+          />
+        )}
+        {screen.kind === 'check-out' &&
+          (publicTap ? (
+            <CheckOutScreen
+              key={screen.preselected ?? ''}
+              presence={presence.data?.items ?? []}
+              preselected={screen.preselected}
+              pending={publicCheckout.isPending}
+              error={publicCheckout.isError ? publicCheckout.error.message : ''}
+              onCheckOut={(visit) => publicCheckout.mutate(visit.visitId)}
+              onCancel={home}
+            />
+          ) : (
+            <CredentialsScreen
+              mode="check-out"
+              methods={context.authenticationMethods}
+              onSuccess={(result) => credentialsDone('check-out', result)}
+              onCancel={home}
+            />
+          ))}
+        {screen.kind === 'hold' && <HoldScreen hold={screen.hold} onDone={home} />}
+        {screen.kind === 'result' && (
+          <ResultScreen mode={screen.mode} displayName={screen.displayName} at={screen.at} onDone={home} />
+        )}
+      </section>
+
+      <PresencePanel
+        items={presence.data?.items ?? []}
+        waiting={presence.data?.waiting ?? []}
+        onSelect={publicTap ? (visit) => openCheckOut(visit.visitId) : undefined}
+      />
     </main>
   );
+}
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }

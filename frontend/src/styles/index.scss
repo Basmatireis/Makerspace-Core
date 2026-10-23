@@ -18,6 +18,7 @@
 @use '@carbon/styles/scss/components/code-snippet';
 @use '@carbon/styles/scss/components/combo-box';
 @use '@carbon/styles/scss/components/contained-list';
+@use '@carbon/styles/scss/components/content-switcher';
 @use '@carbon/styles/scss/components/copy-button';
 @use '@carbon/styles/scss/components/data-table';
 @use '@carbon/styles/scss/components/data-table/action';
@@ -594,27 +595,6 @@ body.cds--body--with-modal-open .app-main > * {
 
 .summary-grid strong {
   @include type-style('heading-05');
-}
-
-.terminal-page {
-  max-inline-size: 72rem;
-  margin-inline: auto;
-}
-
-.terminal-presence-grid,
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: spacing.$spacing-04;
-}
-
-.stats-grid .cds--tile {
-  display: grid;
-  gap: spacing.$spacing-02;
-}
-
-.stats-grid strong {
-  font-size: 1.75rem;
 }
 
 .survey-question {

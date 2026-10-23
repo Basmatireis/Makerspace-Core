@@ -354,6 +354,9 @@ func (s *Service) Cleanup(
 	); err != nil {
 		return sessions, resets, 0, 0, err
 	}
+	if _, err = attendancedb.New(s.pool).DeleteExpiredHolds(ctx, time.Now().UTC()); err != nil {
+		return sessions, resets, 0, 0, err
+	}
 	if !auditBefore.IsZero() {
 		auditEvents, err = audit.NewService(s.pool).DeleteBefore(ctx, auditBefore)
 		if err != nil {

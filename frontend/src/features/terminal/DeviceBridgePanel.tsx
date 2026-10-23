@@ -1,25 +1,27 @@
-import { InlineNotification } from '@carbon/react';
-import { useEffect, useState } from 'react';
+import { InlineNotification, Tag } from '@carbon/react';
 import { useDeviceBridge } from './DeviceBridgeProvider';
-import type { NfcEvent } from './device-bridge';
 
+// A card scan is only ever acknowledged: no scan signs anybody in.
 export function TerminalHardwareStatus() {
-  const { bridge, info } = useDeviceBridge();
-  const [lastEvent, setLastEvent] = useState<NfcEvent | null>(null);
-  useEffect(() => bridge.subscribeToNfc(setLastEvent), [bridge]);
+  const { info } = useDeviceBridge();
   const nfc = info?.capabilities.find((capability) => capability.id === 'nfc');
   if (!nfc) return null;
+  if (!nfc.available)
+    return (
+      <InlineNotification
+        kind="warning"
+        lowContrast
+        hideCloseButton
+        title="Card reader unavailable"
+        subtitle="Use your PIN or password."
+      />
+    );
   return (
-    <InlineNotification
-      kind={nfc.available ? 'info' : 'warning'}
-      lowContrast
-      hideCloseButton
-      title={nfc.available ? 'NFC reader ready' : 'NFC reader unavailable'}
-      subtitle={
-        lastEvent?.kind === 'nfc_scan'
-          ? 'NFC tag detected. Scans do not sign in a person automatically.'
-          : (nfc.detail ?? `Reader state: ${nfc.state}`)
-      }
-    />
+    <div className="tablet-nfc">
+      <Tag type="green" size="md">
+        Card reader ready
+      </Tag>
+      <span>Card scans are recognised but do not sign you in yet.</span>
+    </div>
   );
 }

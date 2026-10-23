@@ -19,9 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PublicPresence } from './publicPresence';
+import type { PublicWaiting } from './publicWaiting';
 
 export interface PublicPresenceList {
   items: PublicPresence[];
   /** @minimum 0 */
   count: number;
+  /** Held check-ins waiting for Lab Rules confirmation. */
+  waiting: PublicWaiting[];
 }

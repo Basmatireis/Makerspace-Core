@@ -9,6 +9,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Migration 00067 adds `machine_runs.hidden_from_signage`. API: runs carry `hiddenFromSignage`; new `PUT /machine-runs/{runId}/signage-visibility`.
 - Migration 00068 adds `roles.min_open_days_per_semester`. API: roles carry `minOpenDaysPerSemester`; supervisor dashboard rows carry `minimum`. Configuration files exported before this version still import; an overwrite import of such a file resets every role to the general minimum.
 - Migration 00069 adds in-app notifications (`inbox_notifications`, `inbox_notification_roles`, `inbox_recipients`) and the permission `notifications.send`; only master has it until you add it to a role. API: `/notifications` (own list, unread count, read, read all, dismiss) and `/notifications/messages` (send and sent list). Notifications are deleted after 90 days.
+- Migration 00070 adds held check-ins. Roles with Lab Rules mode `blocking` are no longer rejected at check-in (409 `attendance_admission_required`): the terminal and supervised check-in answer `202` with an `AttendanceHold` until the Lab Rules are confirmed. `PublicPresenceList` has a `waiting` list. New endpoints `GET /attendance/holds` and `DELETE /attendance/holds/{holdId}`.
 
 ### Added
 
@@ -17,6 +18,12 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Open-day minimum per role.** A role with a staffing level can set its own minimum open days per semester. Empty uses the general setting; with several such roles the lowest value applies.
 - **Colour picker.** Every colour field (branding, signage zones, calendar colours, scene background, material colour) has the system colour picker next to the hex value.
 - **All time in the cashbook.** Payments show everything from the beginning by default; the other periods stay available in the filter.
+- **Held check-in until the Lab Rules are signed.** Someone whose role requires signed Lab Rules and who has not signed the current revision is not checked in but held. The tablet explains what to do and lists them under "Waiting for Lab Rules"; a supervisor confirms the signed document on the Attendance page and the person is checked in from then on. Holds lapse at midnight.
+
+### Changed
+
+- **Entrance terminal for touch tablets.** Large check-in and check-out buttons, a PIN keypad, a presence list beside the actions, check-out by tapping one's name when the device allows public checkout, and an idle reset that clears half-entered sign-in details.
+- **Attendance page.** Key figures, held check-ins with Lab Rules confirmation in place, assisted check-in by name search instead of person ID, and a searchable presence table with check-out and void in the row menu. Visitor hours are no longer shown.
 
 ### Fixed
 

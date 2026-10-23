@@ -229,6 +229,7 @@ export const getConfirmLaborordnungRequestUrl = (laborordnungRequestId: string,)
 }
 
 /**
+ * Also completes a held check-in of the person that has not expired; the visit starts now.
  * @summary Confirm verification of a physical signed document
  */
 export const confirmLaborordnungRequest = async (laborordnungRequestId: string,
