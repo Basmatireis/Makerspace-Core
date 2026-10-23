@@ -34,6 +34,8 @@ import { PersonalInformationSection } from './detail/PersonalInformationSection'
 import { ProfileSection } from './detail/ProfileSection';
 import { RoleAndConfirmationDialogs } from './detail/RoleAndConfirmationDialogs';
 import { RolesSection } from './detail/RolesSection';
+import { canReadTrainingRecords } from '../trainings/queries';
+import { TrainingRecordsSection } from '../trainings/TrainingRecordsSection';
 import type { PersonDetailTab } from './detail/types';
 import { usePersonDetailActions } from './detail/usePersonDetailActions';
 import { peopleKeys, personOptions } from './queries';
@@ -49,6 +51,7 @@ const personDetailTabs: readonly PersonDetailTabOption[] = [
   { key: 'account-access', label: 'Account access' },
   { key: 'roles-permissions', label: 'Roles & permissions' },
   { key: 'makerspace-status', label: 'Makerspace status' },
+  { key: 'trainings', label: 'Trainings' },
 ];
 
 function asAccount(value: Person['account']): AccountSummary | undefined {
@@ -124,6 +127,7 @@ function UserDetailContent({ person }: { person: Person }) {
     enabled: canReadMakerspaceStatus,
   });
 
+  const canReadTrainings = canReadTrainingRecords(currentUser, person.id);
   // Stable identity: the tab-normalising effect below depends on it.
   const availableTabs = useMemo(
     () =>
@@ -132,10 +136,11 @@ function UserDetailContent({ person }: { person: Person }) {
           if (tab.key === 'account-access') return canReadAccounts;
           if (tab.key === 'roles-permissions') return true;
           if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
+          if (tab.key === 'trainings') return canReadTrainings;
           return true;
         })
         .map((tab) => (tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab)),
-    [canReadAccounts, canReadMakerspaceStatus, statusLabel],
+    [canReadAccounts, canReadMakerspaceStatus, canReadTrainings, statusLabel],
   );
   const requestedTab = searchParams.get('tab');
   const selectedTabIndex = Math.max(
@@ -255,6 +260,7 @@ function UserDetailContent({ person }: { person: Person }) {
     }
     if (tab === 'roles-permissions') return rolesSection;
     if (tab === 'makerspace-status') return makerspaceStatusSection;
+    if (tab === 'trainings') return <TrainingRecordsSection personId={person.id} />;
 
     return (
       <Grid className="person-detail-grid person-detail-grid--overview">

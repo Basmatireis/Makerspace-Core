@@ -1,6 +1,7 @@
 import { ContainedList, ContainedListItem, Tile } from '@carbon/react';
 import { Calendar } from '@carbon/icons-react';
 import type { PublicOpenDay } from '../../api/generated/models';
+import { CompetencyTags } from '../trainings/CompetencyTags';
 import { countdown, when } from './format';
 
 export function NextOpenDayTile({ next, now }: { next: PublicOpenDay | undefined; now: number }) {
@@ -14,6 +15,7 @@ export function NextOpenDayTile({ next, now }: { next: PublicOpenDay | undefined
         <>
           <p className="db-countdown">{countdown(next.startsAt, next.endsAt, now)}</p>
           <p className="db-tile__title">{when(next.startsAt, next.endsAt, now)}</p>
+          <CompetencyTags competencies={next.competencies ?? []} limit={4} size="sm" />
           <p className="db-tile__meta">No sign-up needed. Supervisors help you with the machines.</p>
         </>
       ) : (
@@ -34,6 +36,7 @@ export function UpcomingOpenDaysList({ days, now }: { days: PublicOpenDay[]; now
         days.slice(0, 6).map((day) => (
           <ContainedListItem key={day.id} renderIcon={Calendar}>
             {when(day.startsAt, day.endsAt, now)}
+            <CompetencyTags competencies={day.competencies ?? []} limit={3} size="sm" />
           </ContainedListItem>
         ))
       )}

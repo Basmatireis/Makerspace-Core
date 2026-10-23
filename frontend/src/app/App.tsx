@@ -57,6 +57,7 @@ import {
   RolesPage,
   RunDetailPage,
   OpenDayRequirementsPage,
+  TrainingsSettingsPage,
   SalesOverviewPage,
   SettingsPage,
   SingleSignOnPage,
@@ -423,6 +424,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
                   <OpenDayRequirementsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/trainings"
+              element={
+                <PermissionRoute allOf={[PermissionId.trainingsmanage]}>
+                  <TrainingsSettingsPage />
                 </PermissionRoute>
               }
             />

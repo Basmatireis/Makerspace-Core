@@ -243,6 +243,11 @@ export const SurveyAdminPage = lazy(() =>
 export const DashboardPage = lazy(() =>
   import('../features/dashboard/DashboardPage').then(({ DashboardPage }) => ({ default: DashboardPage })),
 );
+export const TrainingsSettingsPage = lazy(() =>
+  import('../features/trainings/TrainingsSettingsPage').then(({ TrainingsSettingsPage }) => ({
+    default: TrainingsSettingsPage,
+  })),
+);
 export const OpenDayRequirementsPage = lazy(() =>
   import('../features/opendays/OpenDayRequirementsPage').then(({ OpenDayRequirementsPage }) => ({
     default: OpenDayRequirementsPage,

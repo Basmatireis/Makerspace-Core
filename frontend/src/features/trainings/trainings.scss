@@ -1,0 +1,25 @@
+@use '@carbon/styles/scss/spacing' as *;
+
+.competency-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+
+  .cds--tag {
+    margin: 0;
+    max-width: 100%;
+  }
+}
+
+.training-records {
+  .cds--structured-list-td {
+    vertical-align: middle;
+  }
+}
+
+.training-records__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}

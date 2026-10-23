@@ -20,6 +20,7 @@ import { PageShell } from '../../app/PageShell';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
+import { CompetencyTags } from '../trainings/CompetencyTags';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
 import { openDaySchedulePath } from './paths';
@@ -312,6 +313,20 @@ function OpenDayDetails({
           );
         })}
       </div>
+      {day.status === 'scheduled' && (
+        <section className="open-day-competencies" aria-labelledby="open-day-competencies">
+          <h2 id="open-day-competencies" className="open-days-section-title">
+            Planned support
+          </h2>
+          {day.competencies.length > 0 ? (
+            <CompetencyTags competencies={day.competencies} />
+          ) : (
+            <p className="section-description">
+              No supervisor with a matching training is assigned yet. Competencies appear here as soon as one is.
+            </p>
+          )}
+        </section>
+      )}
     </>
   );
 

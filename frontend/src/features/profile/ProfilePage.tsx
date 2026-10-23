@@ -26,6 +26,8 @@ import { PersonFields, type PersonFormValues, toPersonPatch } from '../users/Per
 import { DetailRow, DetailSection } from '../users/PersonDetailComponents';
 import { PersonAvatar } from '../users/PersonAvatar';
 import { ProfilePictureEditor } from '../users/ProfilePictureEditor';
+import { canReadTrainingRecords } from '../trainings/queries';
+import { TrainingRecordsSection } from '../trainings/TrainingRecordsSection';
 import { AuthenticationDialogs } from './AuthenticationDialogs';
 import { AuthenticationMethodsSection } from './AuthenticationMethodsSection';
 import { useProfileAuthentication } from './useProfileAuthentication';
@@ -286,6 +288,9 @@ export function ProfilePage() {
                   ))}
                 </div>
               </DetailSection>
+              {canReadTrainingRecords(currentUser, currentUser.person.id) && (
+                <TrainingRecordsSection personId={currentUser.person.id} own />
+              )}
             </Stack>
           </Column>
         </Grid>

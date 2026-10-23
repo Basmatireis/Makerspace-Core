@@ -11,4 +11,4 @@ export type AccountEmailForm = { loginEmail: string };
 export type AccountPasswordForm = { newPassword: string; confirmPassword: string };
 export type AccountPINForm = { loginName: string; pin: string; confirmPIN: string };
 export type PersonDetailTab =
-  'overview' | 'personal-information' | 'account-access' | 'roles-permissions' | 'makerspace-status';
+  'overview' | 'personal-information' | 'account-access' | 'roles-permissions' | 'makerspace-status' | 'trainings';

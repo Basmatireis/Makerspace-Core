@@ -2,6 +2,7 @@ import {
   Calendar,
   Devices,
   Document,
+  Education,
   Email,
   Group,
   IbmCloudKeyProtect,
@@ -24,6 +25,7 @@ export type SettingsPageId =
   | 'single-sign-on'
   | 'devices-sessions'
   | 'open-days'
+  | 'trainings'
   | 'laborordnung'
   | 'visitor-enrollment'
   | 'surveys'
@@ -59,7 +61,7 @@ export const settingsGroups: readonly SettingsGroup[] = [
   {
     id: 'lab',
     title: 'Lab operations',
-    description: 'Open day staffing, lab rules, visitor intake and feedback.',
+    description: 'Open day staffing, trainings, lab rules, visitor intake and feedback.',
   },
   {
     id: 'communication',
@@ -111,6 +113,15 @@ export const settingsItems: readonly SettingsItem[] = [
     path: '/settings/open-days',
     icon: Calendar,
     permissions: [PermissionId.open_daysmanage],
+  },
+  {
+    id: 'trainings',
+    group: 'lab',
+    title: 'Trainings & competencies',
+    description: 'Trainings people are recorded for and the competencies open days show.',
+    path: '/settings/trainings',
+    icon: Education,
+    permissions: [PermissionId.trainingsmanage],
   },
   {
     id: 'laborordnung',
