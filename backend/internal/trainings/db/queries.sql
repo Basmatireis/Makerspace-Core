@@ -75,3 +75,41 @@ INSERT INTO training_machine_types (training_id, machine_type_id) VALUES (sqlc.a
 
 -- name: CountExistingMachineTypes :one
 SELECT count(*) FROM machine_types WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+
+-- name: PersonExists :one
+SELECT EXISTS (SELECT 1 FROM people WHERE id = sqlc.arg(id))::boolean;
+
+-- name: LockPersonForShare :one
+SELECT id FROM people WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: ListPersonTrainingRecords :many
+-- Every active training plus inactive ones the person holds a record of; no record means not trained.
+SELECT t.id AS training_id, t.name AS training_name, t.active AS training_active,
+       r.status, r.completed_on, r.notes, r.version, r.updated_at
+FROM trainings t
+LEFT JOIN training_records r ON r.training_id = t.id AND r.person_id = sqlc.arg(person_id)
+WHERE t.active OR r.person_id IS NOT NULL
+ORDER BY t.active DESC, t.sort_order, lower(t.name), t.id;
+
+-- name: GetTrainingRecordForUpdate :one
+SELECT * FROM training_records
+WHERE person_id = sqlc.arg(person_id) AND training_id = sqlc.arg(training_id)
+FOR UPDATE;
+
+-- name: GetTrainingForShare :one
+SELECT * FROM trainings WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: InsertTrainingRecord :exec
+INSERT INTO training_records (person_id, training_id, status, completed_on, notes, recorded_by_account_id)
+VALUES (sqlc.arg(person_id), sqlc.arg(training_id), sqlc.arg(status), sqlc.narg(completed_on), sqlc.narg(notes),
+        sqlc.narg(recorded_by_account_id));
+
+-- name: UpdateTrainingRecord :execrows
+UPDATE training_records
+SET status = sqlc.arg(status), completed_on = sqlc.narg(completed_on), notes = sqlc.narg(notes),
+    recorded_by_account_id = sqlc.narg(recorded_by_account_id), version = version + 1, updated_at = now()
+WHERE person_id = sqlc.arg(person_id) AND training_id = sqlc.arg(training_id) AND version = sqlc.arg(expected_version);
+
+-- name: DeleteTrainingRecord :execrows
+DELETE FROM training_records
+WHERE person_id = sqlc.arg(person_id) AND training_id = sqlc.arg(training_id) AND version = sqlc.arg(expected_version);

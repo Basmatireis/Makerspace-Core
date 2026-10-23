@@ -273,7 +273,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	TrainingsManage:                    "Create, update and deactivate trainings and the competency categories they feed.",
 	TrainingRecordsReadSelf:            "Read the training records of the person linked to the current account.",
 	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
-	TrainingRecordsUpdate:              "Set another person's training status; nobody can change their own.",
+	TrainingRecordsUpdate:              "Set another person's training status and read every person's records; nobody can change their own.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",

@@ -2,9 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
+	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 func (s *Server) ListCompetencyCategories(
@@ -206,4 +209,65 @@ func trainingDTO(item trainings.Training) openapi.Training {
 		CreatedAt:      item.CreatedAt,
 		UpdatedAt:      item.UpdatedAt,
 	}
+}
+
+func (s *Server) ListPersonTrainingRecords(
+	ctx context.Context,
+	r openapi.ListPersonTrainingRecordsRequestObject,
+) (openapi.ListPersonTrainingRecordsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.trainings.ListPersonRecords(ctx, p, r.PersonId)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.TrainingRecord, 0, len(items))
+	for _, item := range items {
+		out = append(out, trainingRecordDTO(item))
+	}
+	return openapi.ListPersonTrainingRecords200JSONResponse{Items: out}, nil
+}
+
+func (s *Server) SetPersonTrainingRecord(
+	ctx context.Context,
+	r openapi.SetPersonTrainingRecordRequestObject,
+) (openapi.SetPersonTrainingRecordResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input := trainings.RecordInput{Status: trainings.Status(r.Body.Status), Notes: nullableStringPointer(r.Body.Notes)}
+	if completedOn, err := r.Body.CompletedOn.Get(); err == nil {
+		day := completedOn.Time
+		input.CompletedOn = &day
+	}
+	if expected, err := r.Body.ExpectedVersion.Get(); err == nil {
+		input.ExpectedVersion = &expected
+	}
+	item, err := s.trainings.SetRecord(ctx, p, r.PersonId, r.TrainingId, input, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetPersonTrainingRecord200JSONResponse(trainingRecordDTO(item)), nil
+}
+
+func trainingRecordDTO(item trainings.Record) openapi.TrainingRecord {
+	out := openapi.TrainingRecord{
+		TrainingId:     item.TrainingID,
+		TrainingName:   item.TrainingName,
+		TrainingActive: item.TrainingActive,
+		Status:         openapi.TrainingStatus(item.Status),
+		CompletedOn:    nullablePointer(item.CompletedOn, func(day time.Time) openapi_types.Date { return openapi_types.Date{Time: day} }),
+		Version:        nullablePointer(item.Version, func(version int64) int64 { return version }),
+		UpdatedAt:      nullablePointer(item.UpdatedAt, func(at time.Time) time.Time { return at }),
+	}
+	if item.Notes != nil {
+		out.Notes = nullable.NewNullableWithValue(*item.Notes)
+	}
+	return out
 }

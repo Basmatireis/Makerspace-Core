@@ -376,11 +376,16 @@ func validateName(name string, limit int) (string, error) {
 }
 
 func validateDescription(description *string) (*string, error) {
-	description = optional.Trimmed(description)
-	if description != nil && len([]rune(*description)) > maxDescriptionRunes {
-		return nil, apperror.Invalid("description is limited to 2000 characters")
+	return validateText(description, maxDescriptionRunes, "description")
+}
+
+// validateText trims optional text; blank text becomes nil.
+func validateText(value *string, limit int, field string) (*string, error) {
+	value = optional.Trimmed(value)
+	if value != nil && len([]rune(*value)) > limit {
+		return nil, apperror.Invalid(field + " is too long")
 	}
-	return description, nil
+	return value, nil
 }
 
 func distinct(values []uuid.UUID) []uuid.UUID {
@@ -577,9 +582,8 @@ func writeAudit(
 	requestID *uuid.UUID,
 	fields []string,
 ) error {
-	actor := p.AccountID
 	return audit.Write(ctx, tx, audit.Event{
-		ActorAccountID: &actor,
+		ActorAccountID: accountPointer(p),
 		Action:         action,
 		ResourceType:   resource,
 		ResourceID:     &id,

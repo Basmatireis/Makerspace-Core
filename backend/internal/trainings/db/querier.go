@@ -19,18 +19,27 @@ type Querier interface {
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) (int64, error)
 	DeleteTrainingCompetencies(ctx context.Context, trainingID uuid.UUID) error
 	DeleteTrainingMachineTypes(ctx context.Context, trainingID uuid.UUID) error
+	DeleteTrainingRecord(ctx context.Context, arg DeleteTrainingRecordParams) (int64, error)
 	GetCompetencyCategory(ctx context.Context, id uuid.UUID) (GetCompetencyCategoryRow, error)
 	GetCompetencyCategoryForUpdate(ctx context.Context, id uuid.UUID) (CompetencyCategory, error)
 	GetTraining(ctx context.Context, id uuid.UUID) (GetTrainingRow, error)
+	GetTrainingForShare(ctx context.Context, id uuid.UUID) (Training, error)
 	GetTrainingForUpdate(ctx context.Context, id uuid.UUID) (Training, error)
+	GetTrainingRecordForUpdate(ctx context.Context, arg GetTrainingRecordForUpdateParams) (TrainingRecord, error)
 	InsertTrainingCompetency(ctx context.Context, arg InsertTrainingCompetencyParams) error
 	InsertTrainingMachineType(ctx context.Context, arg InsertTrainingMachineTypeParams) error
+	InsertTrainingRecord(ctx context.Context, arg InsertTrainingRecordParams) error
 	ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error)
+	// Every active training plus inactive ones the person holds a record of; no record means not trained.
+	ListPersonTrainingRecords(ctx context.Context, personID uuid.UUID) ([]ListPersonTrainingRecordsRow, error)
 	ListTrainingCompetencies(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingCompetency, error)
 	ListTrainingMachineTypes(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingMachineType, error)
 	ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
+	LockPersonForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
 	UpdateCompetencyCategory(ctx context.Context, arg UpdateCompetencyCategoryParams) (int64, error)
 	UpdateTraining(ctx context.Context, arg UpdateTrainingParams) (int64, error)
+	UpdateTrainingRecord(ctx context.Context, arg UpdateTrainingRecordParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

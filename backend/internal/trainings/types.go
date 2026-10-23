@@ -51,3 +51,38 @@ type TrainingInput struct {
 	CompetencyIDs  []uuid.UUID
 	MachineTypeIDs []uuid.UUID
 }
+
+// Status is a person's state for one training. NotTrained is never stored: it is the absence of a record.
+type Status string
+
+const (
+	StatusNotTrained Status = "not_trained"
+	StatusTrained    Status = "trained"
+	StatusTrainer    Status = "trainer"
+)
+
+func (s Status) Valid() bool {
+	return s == StatusNotTrained || s == StatusTrained || s == StatusTrainer
+}
+
+// Record is a person's status for one training. Version is nil while no record exists. Notes are internal and only
+// filled for readers of all records.
+type Record struct {
+	TrainingID     uuid.UUID
+	TrainingName   string
+	TrainingActive bool
+	Status         Status
+	CompletedOn    *time.Time
+	Notes          *string
+	Version        *int64
+	UpdatedAt      *time.Time
+}
+
+// RecordInput sets a person's status for one training. ExpectedVersion is the stored record's version, nil when the
+// caller saw no record.
+type RecordInput struct {
+	Status          Status
+	CompletedOn     *time.Time
+	Notes           *string
+	ExpectedVersion *int64
+}

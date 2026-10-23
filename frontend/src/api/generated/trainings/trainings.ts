@@ -22,9 +22,12 @@ import type {
   CompetencyCategory,
   CompetencyCategoryInput,
   CompetencyCategoryList,
+  SetTrainingRecordRequest,
   Training,
   TrainingInput,
   TrainingList,
+  TrainingRecord,
+  TrainingRecordList,
   UUIDv7,
   UpdateCompetencyCategoryRequest,
   UpdateTrainingRequest,
@@ -309,6 +312,71 @@ return apiFetch<void>(getDeleteTrainingUrl(trainingId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getListPersonTrainingRecordsUrl = (personId: string,) => {
+
+
+
+
+  return `/api/v1/people/${personId}/training-records`
+}
+
+/**
+ * Requires `training_records.read.all` or `training_records.update`, or `training_records.read.self` for the caller's own person. Lists every active training and every inactive one the person holds a record of; a training without a record is `not_trained`. Internal notes are omitted for self readers.
+ * @summary List a person's training status
+ */
+export const listPersonTrainingRecords = async (personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<TrainingRecordList> => {
+
+  return apiFetch<TrainingRecordList>(getListPersonTrainingRecordsUrl(personId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetPersonTrainingRecordUrl = (personId: string,
+    trainingId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/people/${personId}/training-records/${trainingId}`
+}
+
+/**
+ * Requires `training_records.update`. Nobody changes their own status (403 training_record_self). `not_trained` deletes the record. Send the record's version as `expectedVersion`, or omit it when the person had no record. An inactive training takes no new status (409 training_inactive) but can be removed or corrected.
+ * @summary Set a person's training status
+ */
+export const setPersonTrainingRecord = async (personId: string,
+    trainingId: UUIDv7,
+    setTrainingRecordRequest: SetTrainingRecordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<TrainingRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<TrainingRecord>(getSetPersonTrainingRecordUrl(personId,trainingId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setTrainingRecordRequest)
   }
 );}
 

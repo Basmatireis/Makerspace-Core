@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countExistingCompetencyCategories = `-- name: CountExistingCompetencyCategories :one
@@ -134,6 +135,25 @@ func (q *Queries) DeleteTrainingMachineTypes(ctx context.Context, trainingID uui
 	return err
 }
 
+const deleteTrainingRecord = `-- name: DeleteTrainingRecord :execrows
+DELETE FROM training_records
+WHERE person_id = $1 AND training_id = $2 AND version = $3
+`
+
+type DeleteTrainingRecordParams struct {
+	PersonID        uuid.UUID
+	TrainingID      uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeleteTrainingRecord(ctx context.Context, arg DeleteTrainingRecordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTrainingRecord, arg.PersonID, arg.TrainingID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getCompetencyCategory = `-- name: GetCompetencyCategory :one
 SELECT c.id, c.name, c.description, c.active, c.sort_order, c.version, c.created_at, c.updated_at, (SELECT count(*) FROM training_competencies tc WHERE tc.competency_id = c.id)::bigint AS training_count
 FROM competency_categories c WHERE c.id = $1
@@ -222,6 +242,26 @@ func (q *Queries) GetTraining(ctx context.Context, id uuid.UUID) (GetTrainingRow
 	return i, err
 }
 
+const getTrainingForShare = `-- name: GetTrainingForShare :one
+SELECT id, name, description, active, sort_order, version, created_at, updated_at FROM trainings WHERE id = $1 FOR SHARE
+`
+
+func (q *Queries) GetTrainingForShare(ctx context.Context, id uuid.UUID) (Training, error) {
+	row := q.db.QueryRow(ctx, getTrainingForShare, id)
+	var i Training
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Active,
+		&i.SortOrder,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTrainingForUpdate = `-- name: GetTrainingForUpdate :one
 SELECT id, name, description, active, sort_order, version, created_at, updated_at FROM trainings WHERE id = $1 FOR UPDATE
 `
@@ -235,6 +275,34 @@ func (q *Queries) GetTrainingForUpdate(ctx context.Context, id uuid.UUID) (Train
 		&i.Description,
 		&i.Active,
 		&i.SortOrder,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTrainingRecordForUpdate = `-- name: GetTrainingRecordForUpdate :one
+SELECT person_id, training_id, status, completed_on, notes, recorded_by_account_id, version, created_at, updated_at FROM training_records
+WHERE person_id = $1 AND training_id = $2
+FOR UPDATE
+`
+
+type GetTrainingRecordForUpdateParams struct {
+	PersonID   uuid.UUID
+	TrainingID uuid.UUID
+}
+
+func (q *Queries) GetTrainingRecordForUpdate(ctx context.Context, arg GetTrainingRecordForUpdateParams) (TrainingRecord, error) {
+	row := q.db.QueryRow(ctx, getTrainingRecordForUpdate, arg.PersonID, arg.TrainingID)
+	var i TrainingRecord
+	err := row.Scan(
+		&i.PersonID,
+		&i.TrainingID,
+		&i.Status,
+		&i.CompletedOn,
+		&i.Notes,
+		&i.RecordedByAccountID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -267,6 +335,33 @@ type InsertTrainingMachineTypeParams struct {
 
 func (q *Queries) InsertTrainingMachineType(ctx context.Context, arg InsertTrainingMachineTypeParams) error {
 	_, err := q.db.Exec(ctx, insertTrainingMachineType, arg.TrainingID, arg.MachineTypeID)
+	return err
+}
+
+const insertTrainingRecord = `-- name: InsertTrainingRecord :exec
+INSERT INTO training_records (person_id, training_id, status, completed_on, notes, recorded_by_account_id)
+VALUES ($1, $2, $3, $4, $5,
+        $6)
+`
+
+type InsertTrainingRecordParams struct {
+	PersonID            uuid.UUID
+	TrainingID          uuid.UUID
+	Status              string
+	CompletedOn         pgtype.Date
+	Notes               *string
+	RecordedByAccountID *uuid.UUID
+}
+
+func (q *Queries) InsertTrainingRecord(ctx context.Context, arg InsertTrainingRecordParams) error {
+	_, err := q.db.Exec(ctx, insertTrainingRecord,
+		arg.PersonID,
+		arg.TrainingID,
+		arg.Status,
+		arg.CompletedOn,
+		arg.Notes,
+		arg.RecordedByAccountID,
+	)
 	return err
 }
 
@@ -307,6 +402,56 @@ func (q *Queries) ListCompetencyCategories(ctx context.Context) ([]ListCompetenc
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TrainingCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPersonTrainingRecords = `-- name: ListPersonTrainingRecords :many
+SELECT t.id AS training_id, t.name AS training_name, t.active AS training_active,
+       r.status, r.completed_on, r.notes, r.version, r.updated_at
+FROM trainings t
+LEFT JOIN training_records r ON r.training_id = t.id AND r.person_id = $1
+WHERE t.active OR r.person_id IS NOT NULL
+ORDER BY t.active DESC, t.sort_order, lower(t.name), t.id
+`
+
+type ListPersonTrainingRecordsRow struct {
+	TrainingID     uuid.UUID
+	TrainingName   string
+	TrainingActive bool
+	Status         *string
+	CompletedOn    pgtype.Date
+	Notes          *string
+	Version        *int64
+	UpdatedAt      pgtype.Timestamptz
+}
+
+// Every active training plus inactive ones the person holds a record of; no record means not trained.
+func (q *Queries) ListPersonTrainingRecords(ctx context.Context, personID uuid.UUID) ([]ListPersonTrainingRecordsRow, error) {
+	rows, err := q.db.Query(ctx, listPersonTrainingRecords, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonTrainingRecordsRow{}
+	for rows.Next() {
+		var i ListPersonTrainingRecordsRow
+		if err := rows.Scan(
+			&i.TrainingID,
+			&i.TrainingName,
+			&i.TrainingActive,
+			&i.Status,
+			&i.CompletedOn,
+			&i.Notes,
+			&i.Version,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -418,6 +563,28 @@ func (q *Queries) ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 	return items, nil
 }
 
+const lockPersonForShare = `-- name: LockPersonForShare :one
+SELECT id FROM people WHERE id = $1 FOR SHARE
+`
+
+func (q *Queries) LockPersonForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockPersonForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const personExists = `-- name: PersonExists :one
+SELECT EXISTS (SELECT 1 FROM people WHERE id = $1)::boolean
+`
+
+func (q *Queries) PersonExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, personExists, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const updateCompetencyCategory = `-- name: UpdateCompetencyCategory :execrows
 UPDATE competency_categories
 SET name = $1, description = $2, active = $3,
@@ -472,6 +639,39 @@ func (q *Queries) UpdateTraining(ctx context.Context, arg UpdateTrainingParams) 
 		arg.Active,
 		arg.SortOrder,
 		arg.ID,
+		arg.ExpectedVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTrainingRecord = `-- name: UpdateTrainingRecord :execrows
+UPDATE training_records
+SET status = $1, completed_on = $2, notes = $3,
+    recorded_by_account_id = $4, version = version + 1, updated_at = now()
+WHERE person_id = $5 AND training_id = $6 AND version = $7
+`
+
+type UpdateTrainingRecordParams struct {
+	Status              string
+	CompletedOn         pgtype.Date
+	Notes               *string
+	RecordedByAccountID *uuid.UUID
+	PersonID            uuid.UUID
+	TrainingID          uuid.UUID
+	ExpectedVersion     int64
+}
+
+func (q *Queries) UpdateTrainingRecord(ctx context.Context, arg UpdateTrainingRecordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTrainingRecord,
+		arg.Status,
+		arg.CompletedOn,
+		arg.Notes,
+		arg.RecordedByAccountID,
+		arg.PersonID,
+		arg.TrainingID,
 		arg.ExpectedVersion,
 	)
 	if err != nil {

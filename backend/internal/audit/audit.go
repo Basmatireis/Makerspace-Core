@@ -95,7 +95,8 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			key != "assignmentId" &&
 			key != "runId" &&
 			key != "jobId" &&
-			key != "artifactId" {
+			key != "artifactId" &&
+			key != "trainingId" {
 			return fmt.Errorf("audit metadata key %q is not allowlisted", key)
 		}
 		text, ok := value.(string)
