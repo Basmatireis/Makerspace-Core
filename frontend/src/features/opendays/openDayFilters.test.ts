@@ -16,6 +16,7 @@ function openDay(id: string, overrides: Partial<OpenDay> = {}): OpenDay {
     startsAt: '2026-10-01T08:00:00Z',
     endsAt: '2026-10-01T11:00:00Z',
     status: 'scheduled',
+    competencies: [],
     requirements: [
       requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
       requirement(`${id.slice(0, -1)}2`, 'trainee', 1, 1),

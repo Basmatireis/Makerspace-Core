@@ -271,3 +271,12 @@ func trainingRecordDTO(item trainings.Record) openapi.TrainingRecord {
 	}
 	return out
 }
+
+// competencyDTOs maps planned open-day competencies; it never emits nil, so the JSON is always an array.
+func competencyDTOs(items []trainings.Competency) []openapi.OpenDayCompetency {
+	out := make([]openapi.OpenDayCompetency, 0, len(items))
+	for _, item := range items {
+		out = append(out, openapi.OpenDayCompetency{Id: item.ID, Label: item.Label})
+	}
+	return out
+}

@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OpenDayAssignment } from './openDayAssignment';
+import type { OpenDayCompetency } from './openDayCompetency';
 import type { OpenDayStaffRequirement } from './openDayStaffRequirement';
 import type { OpenDayStatus } from './openDayStatus';
 import type { UUIDv7 } from './uUIDv7';
@@ -27,6 +28,8 @@ import type { Version } from './version';
 export interface OpenDay {
   id: UUIDv7;
   periodId: UUIDv7;
+  /** Planned competencies derived from the supervisors assigned to the day and their training records; trainee places do not count. Empty for cancelled days. */
+  competencies: OpenDayCompetency[];
   /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;

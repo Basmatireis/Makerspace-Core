@@ -720,12 +720,13 @@ func (s *Server) ListPublicOpenDays(
 		out = append(
 			out,
 			openapi.PublicOpenDay{
-				Id:        v.ID,
-				Title:     openapi.PublicOpenDayTitle(v.Title),
-				StartsAt:  v.StartsAt,
-				EndsAt:    v.EndsAt,
-				Status:    openapi.OpenDayStatus(v.Status),
-				UpdatedAt: v.UpdatedAt,
+				Id:           v.ID,
+				Title:        openapi.PublicOpenDayTitle(v.Title),
+				StartsAt:     v.StartsAt,
+				EndsAt:       v.EndsAt,
+				Status:       openapi.OpenDayStatus(v.Status),
+				UpdatedAt:    v.UpdatedAt,
+				Competencies: competencyDTOs(v.Competencies),
 			},
 		)
 	}
@@ -782,6 +783,7 @@ func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
 		CreatedAt:    v.CreatedAt,
 		UpdatedAt:    v.UpdatedAt,
 		Requirements: make([]openapi.OpenDayStaffRequirement, 0, len(v.Requirements)),
+		Competencies: competencyDTOs(v.Competencies),
 		MyAssignment: nullable.NewNullNullable[openapi.OpenDayAssignment](),
 	}
 	if v.InternalNoteVisible {

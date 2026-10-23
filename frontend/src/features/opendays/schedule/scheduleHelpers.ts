@@ -49,6 +49,7 @@ export function toPreviewOpenDay(slot: WorkingSlot, periodId: string): OpenDay {
     internalNote: slot.internalNote,
     status: 'scheduled',
     requirements,
+    competencies: [],
     version: 0,
     createdAt: slot.startsAt,
     updatedAt: slot.startsAt,

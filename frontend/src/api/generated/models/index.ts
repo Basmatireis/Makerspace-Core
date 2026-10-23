@@ -434,6 +434,7 @@ export * from './oIDCProviderList';
 export * from './openDay';
 export * from './openDayAssignment';
 export * from './openDayCalendarContext';
+export * from './openDayCompetency';
 export * from './openDayPeriod';
 export * from './openDayPeriodList';
 export * from './openDayPeriodStatus';

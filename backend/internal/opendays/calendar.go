@@ -16,6 +16,7 @@ import (
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	goholidays "github.com/coredds/GoHoliday"
 	"github.com/coredds/GoHoliday/countries"
 	"github.com/emersion/go-ical"
@@ -547,10 +548,20 @@ type PublicOpenDay struct {
 	Status           DayStatus
 	UpdatedAt        time.Time
 	Version          int64
+	// Competencies hold only category IDs and labels: no people, trainings or trainer rights.
+	Competencies []trainings.Competency
 }
 
 func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 	rows, err := opendaysdb.New(s.pool).ListPublishedOpenDays(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dayIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		dayIDs = append(dayIDs, row.ID)
+	}
+	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, dayIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -559,13 +570,14 @@ func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 		items = append(
 			items,
 			PublicOpenDay{
-				ID:        row.ID,
-				Title:     "Open Day",
-				StartsAt:  row.StartsAt,
-				EndsAt:    row.EndsAt,
-				Status:    DayStatus(row.Status),
-				UpdatedAt: row.UpdatedAt,
-				Version:   row.Version,
+				ID:           row.ID,
+				Title:        "Open Day",
+				StartsAt:     row.StartsAt,
+				EndsAt:       row.EndsAt,
+				Status:       DayStatus(row.Status),
+				UpdatedAt:    row.UpdatedAt,
+				Version:      row.Version,
+				Competencies: competenciesOrEmpty(competencies[row.ID]),
 			},
 		)
 	}
@@ -591,13 +603,19 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 		zone.Children = append(zone.Children, standard)
 		cal.Children = append(cal.Children, zone)
 	}
+	generatedAt := time.Now().UTC().Truncate(time.Second)
 	for _, item := range items {
 		event := ical.NewEvent()
 		event.Props.SetText(ical.PropUID, "urn:uuid:"+item.ID.String())
 		event.Props.SetText(ical.PropSummary, item.Title)
 		event.Props.SetDateTime(ical.PropDateTimeStart, item.StartsAt.UTC())
 		event.Props.SetDateTime(ical.PropDateTimeEnd, item.EndsAt.UTC())
-		event.Props.SetDateTime(ical.PropDateTimeStamp, item.UpdatedAt.UTC())
+		// DTSTAMP is when the feed was generated: the description follows assignments and training records, which do
+		// not change the open day's version, LAST-MODIFIED or SEQUENCE.
+		event.Props.SetDateTime(ical.PropDateTimeStamp, generatedAt)
+		if description := competencyDescription(item.Competencies); description != "" {
+			event.Props.SetText(ical.PropDescription, description)
+		}
 		event.Props.SetDateTime(ical.PropLastModified, item.UpdatedAt.UTC())
 		event.Props.SetText(ical.PropSequence, strconv.FormatInt(item.Version, 10))
 		if item.Status == DayCancelled {
@@ -612,6 +630,19 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// competencyDescription is the ICS description: the planned competencies, labelled as planned because staffing can
+// still change.
+func competencyDescription(items []trainings.Competency) string {
+	if len(items) == 0 {
+		return ""
+	}
+	labels := make([]string, 0, len(items))
+	for _, item := range items {
+		labels = append(labels, item.Label)
+	}
+	return "Planned support: " + strings.Join(labels, ", ")
 }
 
 func validateBreak(name string, start, end time.Time) (string, error) {

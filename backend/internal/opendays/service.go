@@ -15,6 +15,7 @@ import (
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -61,13 +62,15 @@ type Requirement struct {
 }
 
 type OpenDay struct {
-	ID, PeriodID         uuid.UUID
-	StartsAt, EndsAt     time.Time
-	InternalNote         *string
-	InternalNoteVisible  bool
-	Status               DayStatus
-	Requirements         []Requirement
-	MyAssignment         *Assignment
+	ID, PeriodID        uuid.UUID
+	StartsAt, EndsAt    time.Time
+	InternalNote        *string
+	InternalNoteVisible bool
+	Status              DayStatus
+	Requirements        []Requirement
+	MyAssignment        *Assignment
+	// Competencies are the planned competencies derived from the assigned supervisors' training records.
+	Competencies         []trainings.Competency
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
@@ -468,12 +471,21 @@ func (s *Service) GetSchedule(
 	if err != nil {
 		return Schedule{}, err
 	}
+	dayIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		dayIDs = append(dayIDs, row.ID)
+	}
+	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, dayIDs)
+	if err != nil {
+		return Schedule{}, err
+	}
 	items := make([]OpenDay, 0, len(rows))
 	for _, row := range rows {
 		day, err := s.dayFromRow(ctx, q, principal, row)
 		if err != nil {
 			return Schedule{}, err
 		}
+		day.Competencies = competenciesOrEmpty(competencies[row.ID])
 		items = append(items, day)
 	}
 	return Schedule{Period: period, Items: items, TimeZone: s.location.String()}, nil
@@ -498,7 +510,23 @@ func (s *Service) GetOpenDay(ctx context.Context, principal authorization.Princi
 	if PeriodStatus(p.Status) == PeriodDraft && !principal.Has(authorization.OpenDaysManage) {
 		return OpenDay{}, apperror.NotFound
 	}
-	return s.dayFromRow(ctx, q, principal, row)
+	day, err := s.dayFromRow(ctx, q, principal, row)
+	if err != nil {
+		return OpenDay{}, err
+	}
+	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, []uuid.UUID{row.ID})
+	if err != nil {
+		return OpenDay{}, err
+	}
+	day.Competencies = competenciesOrEmpty(competencies[row.ID])
+	return day, nil
+}
+
+func competenciesOrEmpty(items []trainings.Competency) []trainings.Competency {
+	if items == nil {
+		return []trainings.Competency{}
+	}
+	return items
 }
 
 func (s *Service) CreateOpenDay(

@@ -18,11 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { OpenDayCompetency } from './openDayCompetency';
 import type { OpenDayStatus } from './openDayStatus';
 import type { PublicOpenDayTitle } from './publicOpenDayTitle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface PublicOpenDay {
+  /** Planned support, derived from the assigned supervisors; empty when nobody qualified is assigned or the day is cancelled. */
+  competencies: OpenDayCompetency[];
   id: UUIDv7;
   title: PublicOpenDayTitle;
   /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */

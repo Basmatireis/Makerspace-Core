@@ -113,3 +113,18 @@ WHERE person_id = sqlc.arg(person_id) AND training_id = sqlc.arg(training_id) AN
 -- name: DeleteTrainingRecord :execrows
 DELETE FROM training_records
 WHERE person_id = sqlc.arg(person_id) AND training_id = sqlc.arg(training_id) AND version = sqlc.arg(expected_version);
+
+-- name: ListOpenDayCompetencies :many
+-- The active competency categories the supervisors assigned to scheduled open days are trained for. Trainee places,
+-- inactive trainings and inactive categories do not count; trained and trainer count alike. IDs are passed as text so
+-- the query also runs in pgx's simple protocol mode.
+SELECT DISTINCT a.open_day_id, c.id, c.name, c.sort_order, lower(c.name) AS sort_name
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id AND r.kind = 'supervisor'
+JOIN training_records tr ON tr.person_id = a.person_id
+JOIN trainings t ON t.id = tr.training_id AND t.active
+JOIN training_competencies tc ON tc.training_id = t.id
+JOIN competency_categories c ON c.id = tc.competency_id AND c.active
+WHERE a.open_day_id = ANY(sqlc.arg(open_day_ids)::text[]::uuid[])
+ORDER BY a.open_day_id, c.sort_order, sort_name, c.id;

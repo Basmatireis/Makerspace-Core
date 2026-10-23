@@ -12239,10 +12239,16 @@ components:
     OpenDay:
       type: object
       additionalProperties: false
-      required: [id, periodId, startsAt, endsAt, status, requirements, version, createdAt, updatedAt]
+      required: [id, periodId, startsAt, endsAt, status, requirements, competencies, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         periodId: {$ref: "#/components/schemas/UUIDv7"}
+        competencies:
+          type: array
+          items: {$ref: "#/components/schemas/OpenDayCompetency"}
+          description: >-
+            Planned competencies derived from the supervisors assigned to the day and their training records; trainee
+            places do not count. Empty for cancelled days.
         startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         internalNote:
@@ -12448,11 +12454,24 @@ components:
         entries: {type: array, items: {$ref: "#/components/schemas/CalendarEntry"}}
         academicBreaks: {type: array, items: {$ref: "#/components/schemas/AcademicBreak"}}
 
+    OpenDayCompetency:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      description: A competency category planned for an open day. Never names people, trainings or trainer rights.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        label: {type: string}
+
     PublicOpenDay:
       type: object
       additionalProperties: false
-      required: [id, title, startsAt, endsAt, status, updatedAt]
+      required: [id, title, startsAt, endsAt, status, updatedAt, competencies]
       properties:
+        competencies:
+          type: array
+          items: {$ref: "#/components/schemas/OpenDayCompetency"}
+          description: Planned support, derived from the assigned supervisors; empty when nobody qualified is assigned or the day is cancelled.
         id: {$ref: "#/components/schemas/UUIDv7"}
         title: {type: string, enum: [Open Day]}
         startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
