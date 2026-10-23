@@ -3,9 +3,8 @@ package staffing
 import (
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
+	"github.com/google/uuid"
 )
 
 var defaults = Requirements{MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 3}

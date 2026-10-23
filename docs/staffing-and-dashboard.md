@@ -23,14 +23,14 @@ People › Staffing (`/people/staffing`, `supervisor_dashboard.read`) is the Lei
 
 The dashboard (`/dashboard`, the landing page) is about the signed-in person and comes from `GET /me/dashboard`, which is always scoped to the session. A section is present only when the person may see it:
 
-| Section                                                                             | Shown when                                                                                                               |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Next up, Coming up (open-day duties and event shifts, open days can be left)        | always; open days need `open_days.read`                                                                                  |
+| Section                                                                                                                                    | Shown when                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Next up, Coming up (open-day duties and event shifts, open days can be left)                                                               | always; open days need `open_days.read`                                                                                  |
 | Semester progress (against the person's own minimum, `staffing.minimum`) and the hint for a free place of the person's kind within 14 days | the person has a staffing level and `open_days.read`                                                                     |
-| Open balance and Pay now                                                            | `orders.read`; paying needs `payments.read` and `payments.record`, paying jobs also `orders.write` and `orders.finalize` |
-| Recent orders                                                                       | `orders.read`                                                                                                            |
-| Recent jobs, job statistics and the jobs-per-month chart                            | `machine_jobs.read`                                                                                                      |
-| Open-day and shift statistics                                                       | a staffing level or `open_days.signup`                                                                                   |
+| Open balance and Pay now                                                                                                                   | `orders.read`; paying needs `payments.read` and `payments.record`, paying jobs also `orders.write` and `orders.finalize` |
+| Recent orders                                                                                                                              | `orders.read`                                                                                                            |
+| Recent jobs, job statistics and the jobs-per-month chart                                                                                   | `machine_jobs.read`                                                                                                      |
+| Open-day and shift statistics                                                                                                              | a staffing level or `open_days.signup`                                                                                   |
 
 People without these see their lab-rules status and the next open days. Statistics cover all time; time spent in the space cannot be tracked, so there is no statistic based on it.
 
