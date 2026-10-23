@@ -1,4 +1,3 @@
-import './trainings.scss';
 import { Tag } from '@carbon/react';
 import type { OpenDayCompetency } from '../../api/generated/models';
 

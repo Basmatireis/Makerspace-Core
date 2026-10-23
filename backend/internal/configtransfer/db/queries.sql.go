@@ -313,6 +313,50 @@ func (q *Queries) ListBrandingAssetOverrides(ctx context.Context) ([]ListBrandin
 	return items, nil
 }
 
+const listCompetencyCategories = `-- name: ListCompetencyCategories :many
+SELECT c.id, c.name, c.description, c.active, c.sort_order, c.version,
+       (SELECT count(*) FROM training_competencies tc WHERE tc.competency_id = c.id)::bigint AS training_count
+FROM competency_categories c ORDER BY lower(c.name), c.id
+`
+
+type ListCompetencyCategoriesRow struct {
+	ID            uuid.UUID
+	Name          string
+	Description   *string
+	Active        bool
+	SortOrder     int32
+	Version       int64
+	TrainingCount int64
+}
+
+func (q *Queries) ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, listCompetencyCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompetencyCategoriesRow{}
+	for rows.Next() {
+		var i ListCompetencyCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Active,
+			&i.SortOrder,
+			&i.Version,
+			&i.TrainingCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDeviceTypes = `-- name: ListDeviceTypes :many
 
 SELECT id, name, description, version FROM device_types ORDER BY lower(name), id
@@ -1088,6 +1132,59 @@ func (q *Queries) ListSurveys(ctx context.Context) ([]ListSurveysRow, error) {
 			&i.SurveyVersionID,
 			&i.Title,
 			&i.Introduction,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrainings = `-- name: ListTrainings :many
+SELECT t.id, t.name, t.description, t.active, t.sort_order, t.version,
+       (SELECT count(*) FROM training_records r WHERE r.training_id = t.id)::bigint AS record_count,
+       ARRAY(SELECT c.name FROM training_competencies tc JOIN competency_categories c ON c.id = tc.competency_id
+             WHERE tc.training_id = t.id ORDER BY lower(c.name))::text[] AS competencies,
+       ARRAY(SELECT m.name FROM training_machine_types tm JOIN machine_types m ON m.id = tm.machine_type_id
+             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS machine_types
+FROM trainings t ORDER BY lower(t.name), t.id
+`
+
+type ListTrainingsRow struct {
+	ID           uuid.UUID
+	Name         string
+	Description  *string
+	Active       bool
+	SortOrder    int32
+	Version      int64
+	RecordCount  int64
+	Competencies []string
+	MachineTypes []string
+}
+
+// Trainings with their competency and machine type names, the natural keys the file uses.
+func (q *Queries) ListTrainings(ctx context.Context) ([]ListTrainingsRow, error) {
+	rows, err := q.db.Query(ctx, listTrainings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTrainingsRow{}
+	for rows.Next() {
+		var i ListTrainingsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Active,
+			&i.SortOrder,
+			&i.Version,
+			&i.RecordCount,
+			&i.Competencies,
+			&i.MachineTypes,
 		); err != nil {
 			return nil, err
 		}

@@ -34,6 +34,8 @@ const (
 	SectionSessionPolicies     SectionKey = "sessionPolicies"
 	SectionRoles               SectionKey = "roles"
 	SectionMachineTypes        SectionKey = "machineTypes"
+	SectionCompetencies        SectionKey = "competencies"
+	SectionTrainings           SectionKey = "trainings"
 	SectionMaterialTypes       SectionKey = "materialTypes"
 	SectionMachines            SectionKey = "machines"
 	SectionInventoryArticles   SectionKey = "inventoryArticles"

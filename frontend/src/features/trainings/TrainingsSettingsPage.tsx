@@ -1,4 +1,3 @@
-import './trainings.scss';
 import { useState } from 'react';
 import {
   Button,
@@ -19,7 +18,6 @@ import {
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CompetencyCategory, Training } from '../../api/generated/models';
-import { listMachineTypes } from '../../api/generated/machines/machines';
 import { deleteCompetencyCategory, deleteTraining } from '../../api/generated/trainings/trainings';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
@@ -28,6 +26,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { SettingsTabs } from '../settings/SettingsTabs';
+import { machineTypesQuery } from '../machinelogbook/queries';
 import { CategoryFormModal, TrainingFormModal } from './CatalogFormModals';
 import { competencyCategoriesOptions, trainingKeys, trainingsOptions } from './queries';
 
@@ -64,11 +63,7 @@ function TrainingsPanel() {
   const canReadMachineTypes = hasPermission(currentUser, PermissionId.machinesread);
   const trainings = useQuery(trainingsOptions);
   const categories = useQuery(competencyCategoriesOptions);
-  const machineTypes = useQuery({
-    queryKey: [...trainingKeys.catalogue(), 'machine-types'],
-    queryFn: ({ signal }) => listMachineTypes({ signal }),
-    enabled: canReadMachineTypes,
-  });
+  const machineTypes = useQuery({ ...machineTypesQuery(), enabled: canReadMachineTypes });
   const [editing, setEditing] = useState<Training | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Training | null>(null);
   const remove = useMutation({

@@ -18,7 +18,7 @@ Academic breaks are versioned database records managed by `open_days.manage`. Pu
 
 ## Public privacy
 
-Anonymous `GET /api/v1/public/open-days` and `/api/v1/public/open-days/calendar.ics` expose only Open Days from currently published periods. JSON contains stable ID, generic title, UTC start/end, scheduled/cancelled state, and update time. ICS uses a stable `urn:uuid:` UID, Open Day version as `SEQUENCE`, `LAST-MODIFIED`, and `STATUS:CANCELLED` when relevant. Neither representation contains notes, requirements, assignment names, counts, or Person identifiers.
+Anonymous `GET /api/v1/public/open-days` and `/api/v1/public/open-days/calendar.ics` expose only Open Days from currently published periods. JSON contains stable ID, generic title, UTC start/end, scheduled/cancelled state, update time, and the planned competencies (category ID and label only, see [trainings.md](trainings.md)). ICS uses a stable `urn:uuid:` UID, Open Day version as `SEQUENCE`, `LAST-MODIFIED`, `STATUS:CANCELLED` when relevant, the competencies as `DESCRIPTION`, and the generation time as `DTSTAMP`. Neither representation contains notes, requirements, assignment names, counts, Person identifiers, trainings, or trainer rights.
 
 Internal readers receive staffing counts and their own assignment. Other assignment identities require `open_days.read_assignments`; internal notes require `open_days.manage`.
 

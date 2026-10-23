@@ -9413,8 +9413,8 @@ components:
 
     ConfigurationSection:
       type: string
-      enum: [deviceTypes, sessionPolicies, roles, machineTypes, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail, invoicing]
-      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionMachineTypes, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing]
+      enum: [deviceTypes, sessionPolicies, roles, machineTypes, competencies, trainings, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail, invoicing]
+      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionMachineTypes, ConfigurationSectionCompetencies, ConfigurationSectionTrainings, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing]
 
     ConfigurationImportMode:
       type: string

@@ -27,6 +27,8 @@ export const ConfigurationSection = {
   ConfigurationSectionSessionPolicies: 'sessionPolicies',
   ConfigurationSectionRoles: 'roles',
   ConfigurationSectionMachineTypes: 'machineTypes',
+  ConfigurationSectionCompetencies: 'competencies',
+  ConfigurationSectionTrainings: 'trainings',
   ConfigurationSectionMaterialTypes: 'materialTypes',
   ConfigurationSectionMachines: 'machines',
   ConfigurationSectionInventoryArticles: 'inventoryArticles',

@@ -41,6 +41,20 @@ export const sectionDefinitions: SectionDefinition[] = [
     manage: [PermissionId.machinesmanage],
   },
   {
+    key: 'competencies',
+    label: 'Competencies',
+    description: 'Public competency labels open days show; sort order and active flag.',
+    read: [PermissionId.trainingsmanage],
+    manage: [PermissionId.trainingsmanage],
+  },
+  {
+    key: 'trainings',
+    label: 'Trainings',
+    description: 'Trainings with their competencies and machine types; no training records.',
+    read: [PermissionId.trainingsmanage],
+    manage: [PermissionId.trainingsmanage],
+  },
+  {
     key: 'materialTypes',
     label: 'Material types',
     description: 'Filament, consumable and part categories.',

@@ -28,6 +28,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -49,6 +50,7 @@ type Services struct {
 	Surveys        *surveys.Service
 	Mail           *mail.Service
 	Invoicing      *invoicing.Service
+	Trainings      *trainings.Service
 }
 
 type Service struct {

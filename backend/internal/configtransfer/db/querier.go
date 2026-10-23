@@ -23,6 +23,7 @@ type Querier interface {
 	GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error)
 	ListActivePricingRules(ctx context.Context) ([]ListActivePricingRulesRow, error)
 	ListBrandingAssetOverrides(ctx context.Context) ([]ListBrandingAssetOverridesRow, error)
+	ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error)
 	// Read model of the configuration export and import. Every write goes through the owning feature's service, so
 	// these queries only read. They run inside the import transaction, which is why they do not reuse the services'
 	// pool-bound list methods. Orderings are by natural key so exports are stable.
@@ -44,6 +45,8 @@ type Querier interface {
 	ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]SurveyQuestion, error)
 	ListSurveyTriggers(ctx context.Context) ([]ListSurveyTriggersRow, error)
 	ListSurveys(ctx context.Context) ([]ListSurveysRow, error)
+	// Trainings with their competency and machine type names, the natural keys the file uses.
+	ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 	ListVisitorEnrollmentDeviceTypes(ctx context.Context) ([]ListVisitorEnrollmentDeviceTypesRow, error)
 	// Machines with history, connector assignments, cameras or mounted spools are retired instead of deleted.
 	MachineInUse(ctx context.Context, id uuid.UUID) (bool, error)

@@ -1,4 +1,3 @@
-import './trainings.scss';
 import { useState } from 'react';
 import {
   Button,

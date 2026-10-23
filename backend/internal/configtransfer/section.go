@@ -34,6 +34,8 @@ var registry = []section{
 	sessionPoliciesSection(),
 	rolesSection(),
 	machineTypesSection(),
+	competenciesSection(),
+	trainingsSection(),
 	materialTypesSection(),
 	machinesSection(),
 	inventoryArticlesSection(),

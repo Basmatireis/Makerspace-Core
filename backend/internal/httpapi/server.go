@@ -156,6 +156,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	rolesService := roles.NewService(pool)
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
+	trainingsService := trainings.NewService(pool)
 	configTransferService := configtransfer.NewService(pool, configtransfer.Services{
 		Files:          fileService,
 		ManagedDevices: managedDevicesService,
@@ -169,6 +170,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		Surveys:        surveyService,
 		Mail:           mailer,
 		Invoicing:      invoicingService,
+		Trainings:      trainingsService,
 	})
 	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
 	if err != nil {
@@ -209,7 +211,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
 		configTransfer:    configTransferService,
-		trainings:         trainings.NewService(pool),
+		trainings:         trainingsService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		attendance:        attendanceService,

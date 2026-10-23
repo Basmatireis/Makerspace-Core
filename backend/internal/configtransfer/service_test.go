@@ -32,6 +32,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,6 +80,7 @@ func newEnv(t *testing.T) *env {
 		Surveys:        surveys.NewService(pool, cfg, nil),
 		Mail:           mailer,
 		Invoicing:      invoicing.NewService(pool, nil, nil),
+		Trainings:      trainings.NewService(pool),
 	}
 	e := &env{t: t, ctx: t.Context(), pool: pool, svc: NewService(pool, services), s: services}
 	account, person := e.account("master")
@@ -257,6 +259,17 @@ func (e *env) seed() {
 		Enabled: true, RecipientEmail: "wiref@example.test", CCEmails: []string{"cc@example.test"},
 		ReplyToEmail: "lab@example.test", ExpectedVersion: wiref.Version,
 	}, nil))
+	printingCompetency := must(e.s.Trainings.CreateCompetencyCategory(ctx, p, trainings.CompetencyCategoryInput{
+		Name: "3D printing", Description: ptr("FDM and resin"), Active: true, SortOrder: 10,
+	}, nil))
+	electronics := must(e.s.Trainings.CreateCompetencyCategory(ctx, p, trainings.CompetencyCategoryInput{
+		Name: "Electronics", Active: false, SortOrder: 20,
+	}, nil))
+	must(e.s.Trainings.CreateTraining(ctx, p, trainings.TrainingInput{
+		Name: "Prusa – operation", Description: ptr("Loading filament"), Active: true, SortOrder: 1,
+		CompetencyIDs: []uuid.UUID{printingCompetency.ID, electronics.ID}, MachineTypeIDs: []uuid.UUID{fdm.ID},
+	}, nil))
+	must(e.s.Trainings.CreateTraining(ctx, p, trainings.TrainingInput{Name: "Soldering", Active: false}, nil))
 }
 
 func (e *env) export(p authorization.Principal, keys ...SectionKey) []byte {
@@ -782,5 +795,81 @@ func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
 	if err := e.pool.QueryRow(e.ctx,
 		`SELECT count(*) FROM audit_events WHERE action = 'invoicing.wiref_settings_updated'`).Scan(&audits); err != nil || audits < 1 {
 		t.Fatalf("audit events = %d, %v", audits, err)
+	}
+}
+
+func TestTrainingsTravelWithoutRecordsAndOverwriteKeepsUsedOnes(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	keys := []SectionKey{SectionMachineTypes, SectionCompetencies, SectionTrainings}
+	data := source.export(source.master, keys...)
+	sections := sectionsOf(t, data)
+	var exported []trainingEntry
+	if err := json.Unmarshal(sections[SectionTrainings], &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported) != 2 || exported[0].Name != "Prusa – operation" ||
+		fmt.Sprint(exported[0].Competencies) != "[3D printing Electronics]" ||
+		fmt.Sprint(exported[0].MachineTypes) != "[FDM printers]" {
+		t.Fatalf("trainings = %+v", exported)
+	}
+
+	// A target that holds a record of a training missing from the file keeps it, deactivated; unused ones go.
+	t.Run("overwrite", func(t *testing.T) {
+		target := newEnv(t)
+		used := must(target.s.Trainings.CreateTraining(target.ctx, target.master,
+			trainings.TrainingInput{Name: "Laser", Active: true}, nil))
+		unused := must(target.s.Trainings.CreateTraining(target.ctx, target.master,
+			trainings.TrainingInput{Name: "Vinyl", Active: true}, nil))
+		_, person := target.account("trained")
+		target.exec(`INSERT INTO training_records (person_id, training_id, status) VALUES ($1, $2, 'trained')`,
+			person, used.ID)
+		report := target.importFile(target.master, ModeOverwrite, data, keys...)
+		if got := item(t, report, SectionTrainings, "Laser"); got.Action != ActionDeactivate {
+			t.Fatalf("Laser = %+v", got)
+		}
+		if got := item(t, report, SectionTrainings, "Vinyl"); got.Action != ActionDelete {
+			t.Fatalf("Vinyl = %+v", got)
+		}
+		if got := item(t, report, SectionTrainings, "Prusa – operation"); got.Action != ActionCreate {
+			t.Fatalf("Prusa = %+v", got)
+		}
+		var active bool
+		if err := target.pool.QueryRow(target.ctx, `SELECT active FROM trainings WHERE id = $1`, used.ID).Scan(&active); err != nil ||
+			active {
+			t.Fatalf("Laser active = %v, %v", active, err)
+		}
+		var records, vinyl int
+		if err := target.pool.QueryRow(target.ctx, `SELECT (SELECT count(*) FROM training_records),
+		(SELECT count(*) FROM trainings WHERE id = $1)`, unused.ID).Scan(&records, &vinyl); err != nil ||
+			records != 1 || vinyl != 0 {
+			t.Fatalf("records = %d, vinyl = %d, %v", records, vinyl, err)
+		}
+		got := sectionsOf(t, target.export(target.master, SectionCompetencies))
+		if canonical(t, got[SectionCompetencies]) != canonical(t, sections[SectionCompetencies]) {
+			t.Fatalf("competencies differ:\n got %s\nwant %s", got[SectionCompetencies], sections[SectionCompetencies])
+		}
+
+	})
+
+	// Without the competencies and machine types a training is a conflict.
+	t.Run("missing references", func(t *testing.T) {
+		empty := newEnv(t)
+		preview := must(empty.svc.Preview(empty.ctx, empty.master, ModeInsert, []SectionKey{SectionTrainings},
+			bytes.NewReader(data)))
+		if got := item(t, preview, SectionTrainings, "Prusa – operation"); got.Action != ActionConflict ||
+			got.Code != "competency_missing" {
+			t.Fatalf("Prusa = %+v", got)
+		}
+		if got := item(t, preview, SectionTrainings, "Soldering"); got.Action != ActionCreate {
+			t.Fatalf("Soldering = %+v", got)
+		}
+
+	})
+
+	// Both sections need trainings.manage.
+	if _, err := source.svc.Export(source.ctx, source.staff(authorization.ConfigurationExport, authorization.MachinesRead),
+		[]SectionKey{SectionTrainings}, nil); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("export without trainings.manage: %v", err)
 	}
 }

@@ -2401,3 +2401,28 @@ body.cds--body--with-modal-open .app-main > * {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Trainings: competency tags (dashboard, open days) and the training records list. */
+.competency-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+
+  .cds--tag {
+    margin: 0;
+    max-width: 100%;
+  }
+}
+
+.training-records {
+  .cds--structured-list-td {
+    vertical-align: middle;
+  }
+}
+
+.training-records__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}

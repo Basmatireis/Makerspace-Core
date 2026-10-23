@@ -58,8 +58,25 @@ func (s *Service) ListCompetencyCategories(ctx context.Context, p authorization.
 	return items, nil
 }
 
+// The mutations below come in pairs: the plain method runs in its own transaction, the Tx variant inside the
+// caller's (the configuration import uses those).
+
 func (s *Service) CreateCompetencyCategory(
 	ctx context.Context,
+	p authorization.Principal,
+	input CompetencyCategoryInput,
+	requestID *uuid.UUID,
+) (result CompetencyCategory, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateCompetencyCategoryTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) CreateCompetencyCategoryTx(
+	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	input CompetencyCategoryInput,
 	requestID *uuid.UUID,
@@ -72,27 +89,40 @@ func (s *Service) CreateCompetencyCategory(
 		return CompetencyCategory{}, err
 	}
 	id := ids.New()
-	var result CompetencyCategory
-	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		if err := q.CreateCompetencyCategory(ctx, trainingsdb.CreateCompetencyCategoryParams{
-			ID: id, Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
-		}); err != nil {
-			return nameConflict(err, "competency_category_exists", "A competency category with this name already exists")
-		}
-		if err := writeAudit(ctx, tx, p, "competency_category.created", "competency_category", id, requestID,
-			[]string{"name", "description", "active", "sortOrder"}); err != nil {
-			return err
-		}
-		row, err := q.GetCompetencyCategory(ctx, id)
-		result = categoryFromRow(row)
+	q := trainingsdb.New(tx)
+	if err := q.CreateCompetencyCategory(ctx, trainingsdb.CreateCompetencyCategoryParams{
+		ID: id, Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
+	}); err != nil {
+		return CompetencyCategory{}, nameConflict(
+			err, "competency_category_exists", "A competency category with this name already exists",
+		)
+	}
+	if err := writeAudit(ctx, tx, p, "competency_category.created", "competency_category", id, requestID,
+		[]string{"name", "description", "active", "sortOrder"}); err != nil {
+		return CompetencyCategory{}, err
+	}
+	row, err := q.GetCompetencyCategory(ctx, id)
+	return categoryFromRow(row), err
+}
+
+func (s *Service) UpdateCompetencyCategory(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input CompetencyCategoryInput,
+	requestID *uuid.UUID,
+) (result CompetencyCategory, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateCompetencyCategoryTx(ctx, tx, p, id, expected, input, requestID)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) UpdateCompetencyCategory(
+func (s *Service) UpdateCompetencyCategoryTx(
 	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -109,32 +139,28 @@ func (s *Service) UpdateCompetencyCategory(
 	if err != nil {
 		return CompetencyCategory{}, err
 	}
-	var result CompetencyCategory
-	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		current, err := q.GetCompetencyCategoryForUpdate(ctx, id)
-		if err != nil {
-			return noRows(err)
-		}
-		if current.Version != expected {
-			return apperror.StaleWrite
-		}
-		if _, err := q.UpdateCompetencyCategory(ctx, trainingsdb.UpdateCompetencyCategoryParams{
-			Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
-			ID: id, ExpectedVersion: expected,
-		}); err != nil {
-			return nameConflict(err, "competency_category_exists", "A competency category with this name already exists")
-		}
-		changed := changedCategoryFields(current, input)
-		if err := writeAudit(ctx, tx, p, "competency_category.updated", "competency_category", id, requestID,
-			changed); err != nil {
-			return err
-		}
-		row, err := q.GetCompetencyCategory(ctx, id)
-		result = categoryFromRow(row)
-		return err
-	})
-	return result, err
+	q := trainingsdb.New(tx)
+	current, err := q.GetCompetencyCategoryForUpdate(ctx, id)
+	if err != nil {
+		return CompetencyCategory{}, noRows(err)
+	}
+	if current.Version != expected {
+		return CompetencyCategory{}, apperror.StaleWrite
+	}
+	if _, err := q.UpdateCompetencyCategory(ctx, trainingsdb.UpdateCompetencyCategoryParams{
+		Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
+		ID: id, ExpectedVersion: expected,
+	}); err != nil {
+		return CompetencyCategory{}, nameConflict(
+			err, "competency_category_exists", "A competency category with this name already exists",
+		)
+	}
+	if err := writeAudit(ctx, tx, p, "competency_category.updated", "competency_category", id, requestID,
+		changedCategoryFields(current, input)); err != nil {
+		return CompetencyCategory{}, err
+	}
+	row, err := q.GetCompetencyCategory(ctx, id)
+	return categoryFromRow(row), err
 }
 
 // DeleteCompetencyCategory hard-deletes a category no training feeds; one in use answers 409
@@ -146,39 +172,50 @@ func (s *Service) DeleteCompetencyCategory(
 	expected int64,
 	requestID *uuid.UUID,
 ) error {
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteCompetencyCategoryTx(ctx, tx, p, id, expected, requestID)
+	})
+}
+
+func (s *Service) DeleteCompetencyCategoryTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.TrainingsManage) {
 		return apperror.PermissionDenied
 	}
 	if expected < 1 {
 		return apperror.Invalid("expectedVersion must be positive")
 	}
-	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		current, err := q.GetCompetencyCategoryForUpdate(ctx, id)
-		if err != nil {
-			return noRows(err)
-		}
-		if current.Version != expected {
-			return apperror.StaleWrite
-		}
-		usage, err := q.GetCompetencyCategory(ctx, id)
-		if err != nil {
-			return err
-		}
-		if usage.TrainingCount > 0 {
-			return apperror.Conflicting(
-				"competency_category_in_use",
-				"Trainings feed this competency category and it cannot be deleted; deactivate it instead",
-			)
-		}
-		if _, err := q.DeleteCompetencyCategory(
-			ctx,
-			trainingsdb.DeleteCompetencyCategoryParams{ID: id, ExpectedVersion: expected},
-		); err != nil {
-			return err
-		}
-		return writeAudit(ctx, tx, p, "competency_category.deleted", "competency_category", id, requestID, nil)
-	})
+	q := trainingsdb.New(tx)
+	current, err := q.GetCompetencyCategoryForUpdate(ctx, id)
+	if err != nil {
+		return noRows(err)
+	}
+	if current.Version != expected {
+		return apperror.StaleWrite
+	}
+	usage, err := q.GetCompetencyCategory(ctx, id)
+	if err != nil {
+		return err
+	}
+	if usage.TrainingCount > 0 {
+		return apperror.Conflicting(
+			"competency_category_in_use",
+			"Trainings feed this competency category and it cannot be deleted; deactivate it instead",
+		)
+	}
+	if _, err := q.DeleteCompetencyCategory(
+		ctx,
+		trainingsdb.DeleteCompetencyCategoryParams{ID: id, ExpectedVersion: expected},
+	); err != nil {
+		return err
+	}
+	return writeAudit(ctx, tx, p, "competency_category.deleted", "competency_category", id, requestID, nil)
 }
 
 func (s *Service) ListTrainings(ctx context.Context, p authorization.Principal) ([]Training, error) {
@@ -210,6 +247,20 @@ func (s *Service) CreateTraining(
 	p authorization.Principal,
 	input TrainingInput,
 	requestID *uuid.UUID,
+) (result Training, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateTrainingTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) CreateTrainingTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input TrainingInput,
+	requestID *uuid.UUID,
 ) (Training, error) {
 	if !p.Has(authorization.TrainingsManage) {
 		return Training{}, apperror.PermissionDenied
@@ -219,29 +270,40 @@ func (s *Service) CreateTraining(
 		return Training{}, err
 	}
 	id := ids.New()
-	var result Training
-	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		if err := q.CreateTraining(ctx, trainingsdb.CreateTrainingParams{
-			ID: id, Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
-		}); err != nil {
-			return nameConflict(err, "training_exists", "A training with this name already exists")
-		}
-		if err := replaceLinks(ctx, q, id, input); err != nil {
-			return err
-		}
-		if err := writeAudit(ctx, tx, p, "training.created", "training", id, requestID,
-			[]string{"name", "description", "active", "sortOrder", "competencyIds", "machineTypeIds"}); err != nil {
-			return err
-		}
-		result, err = getTraining(ctx, q, id)
+	q := trainingsdb.New(tx)
+	if err := q.CreateTraining(ctx, trainingsdb.CreateTrainingParams{
+		ID: id, Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
+	}); err != nil {
+		return Training{}, nameConflict(err, "training_exists", "A training with this name already exists")
+	}
+	if err := replaceLinks(ctx, q, id, input); err != nil {
+		return Training{}, err
+	}
+	if err := writeAudit(ctx, tx, p, "training.created", "training", id, requestID,
+		[]string{"name", "description", "active", "sortOrder", "competencyIds", "machineTypeIds"}); err != nil {
+		return Training{}, err
+	}
+	return getTraining(ctx, q, id)
+}
+
+func (s *Service) UpdateTraining(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	input TrainingInput,
+	requestID *uuid.UUID,
+) (result Training, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateTrainingTx(ctx, tx, p, id, expected, input, requestID)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) UpdateTraining(
+func (s *Service) UpdateTrainingTx(
 	ctx context.Context,
+	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
@@ -258,37 +320,32 @@ func (s *Service) UpdateTraining(
 	if err != nil {
 		return Training{}, err
 	}
-	var result Training
-	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		current, err := q.GetTrainingForUpdate(ctx, id)
-		if err != nil {
-			return noRows(err)
-		}
-		if current.Version != expected {
-			return apperror.StaleWrite
-		}
-		before, err := getTraining(ctx, q, id)
-		if err != nil {
-			return err
-		}
-		if _, err := q.UpdateTraining(ctx, trainingsdb.UpdateTrainingParams{
-			Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
-			ID: id, ExpectedVersion: expected,
-		}); err != nil {
-			return nameConflict(err, "training_exists", "A training with this name already exists")
-		}
-		if err := replaceLinks(ctx, q, id, input); err != nil {
-			return err
-		}
-		if err := writeAudit(ctx, tx, p, "training.updated", "training", id, requestID,
-			changedTrainingFields(before, input)); err != nil {
-			return err
-		}
-		result, err = getTraining(ctx, q, id)
-		return err
-	})
-	return result, err
+	q := trainingsdb.New(tx)
+	current, err := q.GetTrainingForUpdate(ctx, id)
+	if err != nil {
+		return Training{}, noRows(err)
+	}
+	if current.Version != expected {
+		return Training{}, apperror.StaleWrite
+	}
+	before, err := getTraining(ctx, q, id)
+	if err != nil {
+		return Training{}, err
+	}
+	if _, err := q.UpdateTraining(ctx, trainingsdb.UpdateTrainingParams{
+		Name: input.Name, Description: input.Description, Active: input.Active, SortOrder: input.SortOrder,
+		ID: id, ExpectedVersion: expected,
+	}); err != nil {
+		return Training{}, nameConflict(err, "training_exists", "A training with this name already exists")
+	}
+	if err := replaceLinks(ctx, q, id, input); err != nil {
+		return Training{}, err
+	}
+	if err := writeAudit(ctx, tx, p, "training.updated", "training", id, requestID,
+		changedTrainingFields(before, input)); err != nil {
+		return Training{}, err
+	}
+	return getTraining(ctx, q, id)
 }
 
 // DeleteTraining hard-deletes a training nobody holds a record of; one with records answers 409 training_in_use and
@@ -300,36 +357,47 @@ func (s *Service) DeleteTraining(
 	expected int64,
 	requestID *uuid.UUID,
 ) error {
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteTrainingTx(ctx, tx, p, id, expected, requestID)
+	})
+}
+
+func (s *Service) DeleteTrainingTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.TrainingsManage) {
 		return apperror.PermissionDenied
 	}
 	if expected < 1 {
 		return apperror.Invalid("expectedVersion must be positive")
 	}
-	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		q := trainingsdb.New(tx)
-		current, err := q.GetTrainingForUpdate(ctx, id)
-		if err != nil {
-			return noRows(err)
-		}
-		if current.Version != expected {
-			return apperror.StaleWrite
-		}
-		usage, err := q.GetTraining(ctx, id)
-		if err != nil {
-			return err
-		}
-		if usage.RecordCount > 0 {
-			return apperror.Conflicting(
-				"training_in_use",
-				"People hold records of this training and it cannot be deleted; deactivate it instead",
-			)
-		}
-		if _, err := q.DeleteTraining(ctx, trainingsdb.DeleteTrainingParams{ID: id, ExpectedVersion: expected}); err != nil {
-			return err
-		}
-		return writeAudit(ctx, tx, p, "training.deleted", "training", id, requestID, nil)
-	})
+	q := trainingsdb.New(tx)
+	current, err := q.GetTrainingForUpdate(ctx, id)
+	if err != nil {
+		return noRows(err)
+	}
+	if current.Version != expected {
+		return apperror.StaleWrite
+	}
+	usage, err := q.GetTraining(ctx, id)
+	if err != nil {
+		return err
+	}
+	if usage.RecordCount > 0 {
+		return apperror.Conflicting(
+			"training_in_use",
+			"People hold records of this training and it cannot be deleted; deactivate it instead",
+		)
+	}
+	if _, err := q.DeleteTraining(ctx, trainingsdb.DeleteTrainingParams{ID: id, ExpectedVersion: expected}); err != nil {
+		return err
+	}
+	return writeAudit(ctx, tx, p, "training.deleted", "training", id, requestID, nil)
 }
 
 func validateCategory(input CompetencyCategoryInput) (CompetencyCategoryInput, error) {
@@ -459,6 +527,11 @@ func loadLinks(ctx context.Context, q *trainingsdb.Queries, trainingIDs []uuid.U
 		links.machineTypes[row.TrainingID] = append(links.machineTypes[row.TrainingID], row.MachineTypeID)
 	}
 	return links, nil
+}
+
+// TrainingTx loads one training with its links inside the caller's transaction; the caller authorizes.
+func (s *Service) TrainingTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (Training, error) {
+	return getTraining(ctx, trainingsdb.New(tx), id)
 }
 
 func getTraining(ctx context.Context, q *trainingsdb.Queries, id uuid.UUID) (Training, error) {

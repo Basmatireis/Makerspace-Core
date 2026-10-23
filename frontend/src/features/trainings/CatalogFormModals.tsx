@@ -1,14 +1,5 @@
 import { Controller, useForm } from 'react-hook-form';
-import {
-  FilterableMultiSelect,
-  InlineNotification,
-  Modal,
-  NumberInput,
-  Stack,
-  TextArea,
-  TextInput,
-  Toggle,
-} from '@carbon/react';
+import { InlineNotification, Modal, MultiSelect, NumberInput, Stack, TextArea, TextInput, Toggle } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CompetencyCategory, MachineType, Training } from '../../api/generated/models';
 import {
@@ -277,14 +268,15 @@ export function TrainingFormModal({
             control={control}
             name="competencyIds"
             render={({ field }) => (
-              <FilterableMultiSelect<CompetencyCategory>
+              <MultiSelect<CompetencyCategory>
+                autoAlign
                 id="training-competencies"
                 titleText="Competencies"
                 helperText="Open days show these when a supervisor with this training is assigned."
-                placeholder="Choose competencies"
+                label="Choose competencies"
                 items={categoryItems}
                 itemToString={(item) => item?.name ?? ''}
-                initialSelectedItems={categoryItems.filter((item) => field.value.includes(item.id))}
+                selectedItems={categoryItems.filter((item) => field.value.includes(item.id))}
                 onChange={({ selectedItems }) => field.onChange((selectedItems ?? []).map((item) => item.id))}
               />
             )}
@@ -294,13 +286,14 @@ export function TrainingFormModal({
               control={control}
               name="machineTypeIds"
               render={({ field }) => (
-                <FilterableMultiSelect<MachineType>
+                <MultiSelect<MachineType>
+                  autoAlign
                   id="training-machine-types"
                   titleText="Machine types (optional)"
-                  placeholder="Choose machine types"
+                  label="Choose machine types"
                   items={machineTypeItems}
                   itemToString={(item) => item?.name ?? ''}
-                  initialSelectedItems={machineTypeItems.filter((item) => field.value.includes(item.id))}
+                  selectedItems={machineTypeItems.filter((item) => field.value.includes(item.id))}
                   onChange={({ selectedItems }) => field.onChange((selectedItems ?? []).map((item) => item.id))}
                 />
               )}

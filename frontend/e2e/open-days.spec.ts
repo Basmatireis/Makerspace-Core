@@ -121,6 +121,7 @@ function staffOpenDay(joined = false) {
     startsAt: '2026-10-02T14:00:00Z',
     endsAt: '2026-10-02T17:00:00Z',
     status: 'scheduled',
+    competencies: [],
     requirements: [
       {
         id: supervisorRequirementId,
@@ -307,6 +308,7 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
             periodId,
             ...create,
             status: 'scheduled',
+            competencies: [],
             requirements: [
               {
                 id: supervisorRequirementId,

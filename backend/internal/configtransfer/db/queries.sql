@@ -196,3 +196,18 @@ FROM mail_configuration;
 SELECT enabled, recipient_email, cc_emails, reply_to_email, mail_subject, mail_intro, mail_closing, pdf_title, pdf_intro, pdf_closing,
     show_contact_person, show_approver, show_purchase_order, show_service_period, show_service_description, version
 FROM wiref_delivery_settings WHERE singleton = true;
+
+-- name: ListCompetencyCategories :many
+SELECT c.id, c.name, c.description, c.active, c.sort_order, c.version,
+       (SELECT count(*) FROM training_competencies tc WHERE tc.competency_id = c.id)::bigint AS training_count
+FROM competency_categories c ORDER BY lower(c.name), c.id;
+
+-- name: ListTrainings :many
+-- Trainings with their competency and machine type names, the natural keys the file uses.
+SELECT t.id, t.name, t.description, t.active, t.sort_order, t.version,
+       (SELECT count(*) FROM training_records r WHERE r.training_id = t.id)::bigint AS record_count,
+       ARRAY(SELECT c.name FROM training_competencies tc JOIN competency_categories c ON c.id = tc.competency_id
+             WHERE tc.training_id = t.id ORDER BY lower(c.name))::text[] AS competencies,
+       ARRAY(SELECT m.name FROM training_machine_types tm JOIN machine_types m ON m.id = tm.machine_type_id
+             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS machine_types
+FROM trainings t ORDER BY lower(t.name), t.id;
