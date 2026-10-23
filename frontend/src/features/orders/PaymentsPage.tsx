@@ -35,6 +35,7 @@ import {
 import {
   cashbookLines,
   lineKindId,
+  defaultPeriodPreset,
   periodPresets,
   periodRange,
   periodText,
@@ -62,7 +63,8 @@ function Cashbook() {
   const canMovements = hasPermission(user, PermissionId.cash_movementsread);
   const canRecord = hasPermission(user, PermissionId.cash_movementsrecord);
   const canOrders = hasPermission(user, PermissionId.ordersread);
-  const preset = (periodPresets.find((item) => item.id === url.get('period'))?.id ?? 'today') as PeriodPreset;
+  const preset = (periodPresets.find((item) => item.id === url.get('period'))?.id ??
+    defaultPeriodPreset) as PeriodPreset;
   const from = url.get('from');
   const to = url.get('to');
   const range = periodRange(preset, from, to);
@@ -100,7 +102,13 @@ function Cashbook() {
     { key: 'external', label: 'Invoice (wiRef)', value: net.external, detail: count('external') },
   ];
   const figures = register.data;
-  const filename = `cashbook-${preset === 'custom' ? `${from}_${to}` : dateInAppTimeZone(new Date(range.from))}.csv`;
+  const filename = `cashbook-${
+    preset === 'custom'
+      ? `${from}_${to}`
+      : preset === 'all'
+        ? `until-${dateInAppTimeZone(new Date(range.to - 1))}`
+        : dateInAppTimeZone(new Date(range.from))
+  }.csv`;
 
   const columns: Column<CashbookLine>[] = [
     {
@@ -220,7 +228,9 @@ function Cashbook() {
             </span>
             <span className="mj-secondary">
               {range.valid
-                ? `To the end of ${range.label.toLowerCase()}, after withdrawals and deposits`
+                ? preset === 'all'
+                  ? 'Up to now, after withdrawals and deposits'
+                  : `To the end of ${range.label.toLowerCase()}, after withdrawals and deposits`
                 : 'Choose both dates'}
             </span>
           </Tile>
@@ -247,7 +257,7 @@ function Cashbook() {
             label: 'Period',
             keys: ['period', 'from', 'to'],
             render: ({ idPrefix, staged, set }) => {
-              const chosen = staged.period?.[0] ?? 'today';
+              const chosen = staged.period?.[0] ?? defaultPeriodPreset;
               const [stagedFrom, stagedTo] = [staged.from?.[0] ?? '', staged.to?.[0] ?? ''];
               return (
                 <>
@@ -257,7 +267,7 @@ function Cashbook() {
                     orientation="vertical"
                     valueSelected={chosen}
                     onChange={(value) => {
-                      set('period', value === 'today' ? [] : [String(value)]);
+                      set('period', value === defaultPeriodPreset ? [] : [String(value)]);
                       if (value !== 'custom') {
                         set('from', []);
                         set('to', []);
@@ -342,7 +352,7 @@ export function PaymentsPage() {
   const user = useCurrentUser();
   const url = useUrlState('');
   const range = periodRange(
-    (periodPresets.find((item) => item.id === url.get('period'))?.id ?? 'today') as PeriodPreset,
+    (periodPresets.find((item) => item.id === url.get('period'))?.id ?? defaultPeriodPreset) as PeriodPreset,
     url.get('from'),
     url.get('to'),
   );

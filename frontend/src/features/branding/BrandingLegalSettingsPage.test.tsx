@@ -153,7 +153,7 @@ describe('branding and legal settings', () => {
     renderRoute(<BrandingLegalSettingsPage />, '/settings/branding-legal');
 
     expect(await screen.findByRole('heading', { name: 'Branding & legal' })).toBeInTheDocument();
-    const picker = screen.getByLabelText('Primary color picker');
+    const picker = screen.getByLabelText('Choose primary color');
     const textInput = screen.getByLabelText('Primary');
 
     fireEvent.change(picker, { target: { value: '#123456' } });

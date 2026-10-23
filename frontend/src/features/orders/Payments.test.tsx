@@ -68,7 +68,7 @@ describe('cashbook', () => {
     as(everything);
     serveCashbook();
     renderRoute(<App />, '/payments');
-    expect(await screen.findByText(/^Today · \d{2}\.\d{2}\.\d{4}$/)).toBeInTheDocument();
+    expect(await screen.findByText(/^All time · up to \d{2}\.\d{2}\.\d{4}$/)).toBeInTheDocument();
     for (const label of ['Net takings', 'Cash', 'Card', 'Invoice (wiRef)'])
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(await screen.findByText('Cash in register (expected)')).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe('cashbook', () => {
     expect(await screen.findByText(/Card and invoice payments never go through the register/)).toBeInTheDocument();
   });
 
-  it('loads the period from the URL and resets to today', async () => {
+  it('loads the period from the URL and resets to all time', async () => {
     as(everything);
     const requests: URL[] = [];
     serveCashbook(requests);
@@ -105,8 +105,8 @@ describe('cashbook', () => {
     expect(screen.getByRole('radio', { name: 'Yesterday' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     await waitFor(() => expect(router.state.location.search).toBe(''));
-    expect(await screen.findByText(/^Today · /)).toBeInTheDocument();
-    await waitFor(() => expect(requests.at(-1)?.searchParams.get('from')).not.toBe(yesterdayFrom));
+    expect(await screen.findByText(/^All time · /)).toBeInTheDocument();
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get('from')).toBe(new Date(0).toISOString()));
   });
 
   it('applies a custom range with both dates', async () => {

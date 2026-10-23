@@ -97,21 +97,6 @@
   background: var(--cds-layer-selected);
   box-shadow: inset 3px 0 0 var(--cds-border-interactive);
 }
-.sg-colour-field {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-03;
-}
-.sg-colour-field > .cds--form-item {
-  flex: 1 1 auto;
-}
-.sg-colour-field__swatch {
-  flex: none;
-  inline-size: $spacing-08;
-  block-size: $spacing-08;
-  margin-block-start: 1.375rem;
-  border: 1px solid var(--cds-border-strong);
-}
 .sg-canvas {
   border: 1px solid var(--cds-border-strong);
 }

@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { FeatureFlags } from '@carbon/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { queryClient } from './api/query-client';
@@ -22,10 +23,14 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrandingProvider>
-        <RouterProvider router={router} />
-      </BrandingProvider>
-    </QueryClientProvider>
+    {/* Tooltips, toggletips and dropdown menus are positioned as fixed layers, so tables, tiles and modals with
+        overflow no longer clip them. */}
+    <FeatureFlags enableV12DynamicFloatingStyles>
+      <QueryClientProvider client={queryClient}>
+        <BrandingProvider>
+          <RouterProvider router={router} />
+        </BrandingProvider>
+      </QueryClientProvider>
+    </FeatureFlags>
   </StrictMode>,
 );

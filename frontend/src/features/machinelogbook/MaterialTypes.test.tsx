@@ -254,7 +254,7 @@ describe('Article form', () => {
     const user = userEvent.setup();
     renderWithProviders(<MaterialFormModal open onClose={() => undefined} material={material} />, '/');
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('img', { name: 'Colour #C62828' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Choose colour code')).toHaveValue('#c62828');
     // "PLA · Red" is not the stored name "PLA Red", so the stored name stays as typed.
     expect(within(dialog).getByLabelText('Name (optional)')).toHaveValue('PLA Red');
     const hex = within(dialog).getByLabelText('Colour code (optional)');

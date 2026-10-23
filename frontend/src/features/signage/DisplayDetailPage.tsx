@@ -253,6 +253,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
         {activeAnnouncements.length > 0 && (
           <ActionableNotification
             inline
+            role="status"
             lowContrast
             hideCloseButton
             kind="warning"

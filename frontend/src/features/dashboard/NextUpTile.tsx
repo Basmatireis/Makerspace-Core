@@ -81,6 +81,7 @@ function NextUpHint({ next, staffing, now, canSignUp }: Pick<Props, 'next' | 'st
       kind="info"
       lowContrast
       inline
+      role="status"
       hideCloseButton
       title={supervisor ? 'Supervisor needed' : 'Trainee place free'}
       subtitle={

@@ -47,6 +47,7 @@ export function PersonalInformationSection({
       {missingLoginEmail && (
         <ActionableNotification
           inline
+          role="status"
           kind="warning"
           lowContrast
           hideCloseButton

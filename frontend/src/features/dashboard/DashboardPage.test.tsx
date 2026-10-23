@@ -167,6 +167,10 @@ describe('personal dashboard', () => {
 
     expect(await screen.findByText('Nothing booked yet')).toBeInTheDocument();
     expect(screen.getByText('Supervisor needed')).toBeInTheDocument();
+    // An embedded notification must not be a focus-trapping alert dialog: it would pull focus (and the scroll
+    // position) back on every click elsewhere, so links further down the page would not open.
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign up as supervisor' })).not.toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Sign up as supervisor' }));
     await waitFor(() => expect(joined).toEqual({ openDayId: otherOpenDayId, body: { requirementId } }));
     expect(await screen.findByText('Signed up')).toBeInTheDocument();

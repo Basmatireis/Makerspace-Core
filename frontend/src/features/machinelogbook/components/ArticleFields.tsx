@@ -13,6 +13,7 @@ import type {
   MaterialUnit,
 } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
+import { ColorFieldRow, ColorPicker } from '../../../app/ColorPicker';
 import { DecimalField } from '../../../app/DecimalField';
 import { decimalNumber, decimalText, decimalValidator } from '../../../app/decimalInput';
 import { COLOR_HEX_PATTERN, reportedToMaterialHex } from '../colors';
@@ -354,7 +355,7 @@ export function ArticleFields({
             invalidText={errors.article?.colorName?.message}
             {...register('article.colorName', { maxLength: { value: 80, message: 'Use at most 80 characters.' } })}
           />
-          <div className="mj-color-field">
+          <ColorFieldRow>
             <TextInput
               id={`${idPrefix}-color-hex`}
               labelText="Colour code (optional)"
@@ -371,13 +372,14 @@ export function ArticleFields({
                 setValueAs: (value: string) => value.toUpperCase(),
               })}
             />
-            <span
-              className="mj-swatch mj-color-field__swatch"
-              style={{ backgroundColor: previewHex ?? 'transparent' }}
-              role="img"
-              aria-label={previewHex ? `Colour ${previewHex}` : 'No colour code'}
+            <ColorPicker
+              label="Colour code"
+              value={previewHex}
+              onChange={(next) =>
+                setValue('article.colorHex', next.toUpperCase(), { shouldDirty: true, shouldValidate: true })
+              }
             />
-          </div>
+          </ColorFieldRow>
           {reportedColorHex && previewHex !== reportedToMaterialHex(reportedColorHex) && (
             <Button
               kind="tertiary"

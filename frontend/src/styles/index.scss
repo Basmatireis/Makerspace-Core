@@ -1937,27 +1937,54 @@ body.cds--body--with-modal-open .app-main > * {
   padding: $spacing-06;
 }
 
-.branding-color-field {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
-  align-items: end;
+// A Carbon text input with the native colour picker as a swatch on the input row (Carbon has no colour picker).
+.app-color-field {
+  display: flex;
+  align-items: flex-start;
   gap: $spacing-03;
 }
 
-.branding-color-field__picker {
-  display: grid;
-  gap: $spacing-02;
-  color: theme.$text-secondary;
-  @include type-style('label-01');
+.app-color-field > :first-child {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }
 
-.branding-color-field__picker input {
-  inline-size: 4rem;
+.app-color-picker {
+  flex: none;
+  inline-size: 2.5rem;
   block-size: 2.5rem;
-  padding: 0;
+  // The label above a Carbon text input takes label-01 line height plus its bottom margin.
+  margin-block-start: 1.5rem;
+  padding: $spacing-01;
   border: 1px solid var(--cds-border-strong);
   background: var(--cds-field);
   cursor: pointer;
+  appearance: none;
+}
+
+.app-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.app-color-picker::-webkit-color-swatch {
+  border: none;
+}
+
+.app-color-picker::-moz-color-swatch {
+  border: none;
+}
+
+.app-color-picker--empty {
+  opacity: 0.4;
+}
+
+.app-color-picker:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: -2px;
+}
+
+.app-color-picker:disabled {
+  cursor: not-allowed;
 }
 
 .branding-live-preview {

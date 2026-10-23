@@ -33,6 +33,7 @@ export function LabRulesNotice({ status }: { status: LaborordnungStatus }) {
       kind="warning"
       lowContrast
       inline
+      role="status"
       hideCloseButton
       title="New lab rules"
       subtitle="The lab rules changed. Sign the new version with another supervisor before you use machines again."

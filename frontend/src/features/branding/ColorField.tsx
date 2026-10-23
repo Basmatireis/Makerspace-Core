@@ -1,6 +1,7 @@
 import { TextInput } from '@carbon/react';
 import { useForm } from 'react-hook-form';
 import type { BrandingColors } from '../../api/generated/models';
+import { ColorFieldRow, ColorPicker } from '../../app/ColorPicker';
 import { FormValues, hexPattern } from './brandingSettings';
 
 export function ColorField({
@@ -26,22 +27,7 @@ export function ColorField({
     },
   });
   return (
-    <div className="branding-color-field">
-      <label className="branding-color-field__picker">
-        <span>{label} picker</span>
-        <input
-          type="color"
-          aria-label={`${label} color picker`}
-          value={hexPattern.test(value) ? value : '#000000'}
-          onChange={(event) =>
-            setValue(name, event.currentTarget.value, {
-              shouldDirty: true,
-              shouldTouch: true,
-              shouldValidate: true,
-            })
-          }
-        />
-      </label>
+    <ColorFieldRow>
       <TextInput
         id={name.replace('.', '-')}
         labelText={label}
@@ -50,6 +36,17 @@ export function ColorField({
         {...registration}
         value={value}
       />
-    </div>
+      <ColorPicker
+        label={`${label} color`}
+        value={value}
+        onChange={(next) =>
+          setValue(name, next, {
+            shouldDirty: true,
+            shouldTouch: true,
+            shouldValidate: true,
+          })
+        }
+      />
+    </ColorFieldRow>
   );
 }

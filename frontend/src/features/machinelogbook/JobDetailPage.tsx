@@ -238,6 +238,7 @@ function JobDetail({ job }: { job: MachineJob }) {
             lowContrast
             hideCloseButton
             inline
+            role="status"
             title="Price incomplete"
             subtitle={`No pricing rate for ${missingRules.map((rule) => rule.label).join(', ') || 'this job'}${canOverride ? '. You can set the price manually.' : '.'}`}
             actionButtonLabel={canEdit ? 'Recalculate price' : undefined}

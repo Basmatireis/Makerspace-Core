@@ -21,6 +21,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { SignageCustomLayout, SignageScene, SignageWidget, SignageZones } from '../../api/generated/models';
 import { deleteSignageScene, updateSignageScene } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
+import { ColorFieldRow, ColorPicker } from '../../app/ColorPicker';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
@@ -390,7 +391,7 @@ function Editor({
                   invalidText="A scene needs a name"
                   onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
                 />
-                <div className="sg-colour-field">
+                <ColorFieldRow>
                   <TextInput
                     id="scene-settings-colour"
                     labelText="Background colour"
@@ -401,12 +402,12 @@ function Editor({
                     invalidText="Enter a hex colour like #161616"
                     onChange={(event) => edit((current) => ({ ...current, backgroundColor: event.target.value }))}
                   />
-                  <span
-                    className="sg-colour-field__swatch"
-                    style={{ background: colourValid ? draft.backgroundColor : 'transparent' }}
-                    aria-hidden="true"
+                  <ColorPicker
+                    label="Background colour"
+                    value={draft.backgroundColor}
+                    onChange={(backgroundColor) => edit((current) => ({ ...current, backgroundColor }))}
                   />
-                </div>
+                </ColorFieldRow>
                 <AssetPicker
                   id="scene-settings-image"
                   label="Background image (optional)"

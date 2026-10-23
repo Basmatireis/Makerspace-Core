@@ -365,6 +365,7 @@ export function ReceiveStockModal({
                     {duplicate && (
                       <ActionableNotification
                         inline
+                        role="status"
                         kind="warning"
                         lowContrast
                         hideCloseButton

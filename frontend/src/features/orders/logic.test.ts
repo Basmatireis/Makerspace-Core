@@ -95,6 +95,12 @@ describe('period', () => {
     const month = periodRange('month', '', '', now);
     expect(new Date(month.from).toISOString()).toBe('2026-09-30T22:00:00.000Z');
   });
+  it('covers everything from the beginning up to the end of today for all time', () => {
+    const all = periodRange('all', '', '', now);
+    expect(all.from).toBe(0);
+    expect(all.to).toBe(periodRange('today', '', '', now).to);
+    expect(periodText('all', all, '', '')).toBe('All time · up to 19.10.2026');
+  });
   it('treats a custom range as inclusive days and needs both dates', () => {
     const range = periodRange('custom', '2026-10-01', '2026-10-05');
     expect(range.valid).toBe(true);

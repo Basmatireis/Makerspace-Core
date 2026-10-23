@@ -466,6 +466,7 @@ export function PrinterSetup({
             lowContrast
             hideCloseButton
             inline
+            role="status"
             title={`The printer reports ${unit.label} (${unit.externalId}), which isn't set up`}
             actionButtonLabel="Add as input unit"
             onActionButtonClick={() => setWizard({ step: 'spools', addDetected: unit.externalId })}

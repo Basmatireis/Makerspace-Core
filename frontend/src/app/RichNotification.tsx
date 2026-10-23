@@ -19,6 +19,7 @@ export function RichNotification({
   return (
     <ActionableNotification
       inline
+      role="status"
       lowContrast
       hideCloseButton
       kind={kind}

@@ -143,6 +143,7 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
       {suggestedOrganization && (
         <ActionableNotification
           inline
+          role="status"
           kind="info"
           lowContrast
           hideCloseButton

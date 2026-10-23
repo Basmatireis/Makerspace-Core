@@ -172,8 +172,11 @@ export function takings(
 
 // Cashbook -------------------------------------------------------------------------------------------------------------
 
-export type PeriodPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+export type PeriodPreset = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+/** The cashbook shows everything from the beginning unless another period is chosen. */
+export const defaultPeriodPreset: PeriodPreset = 'all';
 export const periodPresets: { id: PeriodPreset; label: string }[] = [
+  { id: 'all', label: 'All time' },
   { id: 'today', label: 'Today' },
   { id: 'yesterday', label: 'Yesterday' },
   { id: 'week', label: 'This week' },
@@ -190,6 +193,7 @@ export function periodRange(
   now = new Date(),
 ): { from: number; to: number; label: string; valid: boolean } {
   const today = dateInAppTimeZone(now);
+  if (preset === 'all') return { from: 0, to: midnight(addCalendarDays(today, 1)), label: 'All time', valid: true };
   if (preset === 'today')
     return { from: midnight(today), to: midnight(addCalendarDays(today, 1)), label: 'Today', valid: true };
   if (preset === 'yesterday')
@@ -219,7 +223,7 @@ export function periodRange(
   };
 }
 
-/** "Today · 19.10.2026", "This week · 12.10.2026 to 19.10.2026", "Custom range · 01.10.2026 to 05.10.2026". */
+/** "All time · up to 19.10.2026", "Today · 19.10.2026", "This week · 12.10.2026 to 19.10.2026", "Custom range · 01.10.2026 to 05.10.2026". */
 export function periodText(
   preset: PeriodPreset,
   range: ReturnType<typeof periodRange>,
@@ -227,6 +231,7 @@ export function periodText(
   to: string,
 ): string {
   if (!range.valid) return 'Custom range · choose both dates';
+  if (preset === 'all') return `All time · up to ${formatDate(new Date(range.to - 1).toISOString())}`;
   if (preset === 'custom')
     return `Custom range · ${formatDate(`${from}T12:00:00Z`)} to ${formatDate(`${to}T12:00:00Z`)}`;
   const start = formatDate(new Date(range.from).toISOString());

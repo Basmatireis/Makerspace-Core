@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Accordion, AccordionItem, Button, NumberInput, Select, SelectItem, TextInput } from '@carbon/react';
 import type { SignageAsset, SignageStyleAlign, SignageWidgetStyle } from '../../api/generated/models';
+import { ColorFieldRow, ColorPicker } from '../../app/ColorPicker';
 import { AssetPicker } from './components';
 import { clampInt, defaultStyle } from './widgets';
 
 /**
- * A hex colour input with a swatch. Carbon has no colour picker, so the value is typed as `#rrggbb`; the widget only
- * receives valid, lowercase values (or null when emptied and `nullable`).
+ * A hex colour input with the native colour picker beside it. The value can be typed as `#rrggbb` or picked; the
+ * widget only receives valid, lowercase values (or null when emptied and `nullable`).
  */
 export function ColorField({
   id,
@@ -27,7 +28,7 @@ export function ColorField({
   const valid = /^#[0-9a-fA-F]{6}$/.test(text);
   const invalid = typed !== null && !valid && !(nullable && typed === '');
   return (
-    <div className="sg-colour-field">
+    <ColorFieldRow>
       <TextInput
         id={id}
         labelText={label}
@@ -44,12 +45,15 @@ export function ColorField({
         }}
         onBlur={() => setTyped(null)}
       />
-      <span
-        className="sg-colour-field__swatch"
-        style={{ background: valid || (typed === null && value) ? text : 'transparent' }}
-        aria-hidden="true"
+      <ColorPicker
+        label={label}
+        value={valid || (typed === null && value) ? text : null}
+        onChange={(next) => {
+          setTyped(null);
+          onChange(next);
+        }}
       />
-    </div>
+    </ColorFieldRow>
   );
 }
 
