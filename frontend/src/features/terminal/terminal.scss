@@ -1,0 +1,376 @@
+// Application-specific layout for the landscape entrance tablet (~1280×800, touch). Carbon supplies the controls.
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+
+body:has(.tablet) {
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.tablet input {
+  user-select: text;
+}
+
+.tablet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'main presence';
+  block-size: 100dvh;
+  background: $background;
+}
+
+.tablet-header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-05 $spacing-07;
+  background: $layer-01;
+  border-block-end: 1px solid $border-subtle-01;
+}
+
+.tablet-header__device {
+  @include type-style('label-02');
+  color: $text-secondary;
+}
+
+.tablet-header__date {
+  @include type-style('heading-03');
+}
+
+.tablet-header__clock {
+  @include type-style('heading-06');
+  font-variant-numeric: tabular-nums;
+}
+
+.tablet-main {
+  grid-area: main;
+  overflow-y: auto;
+  padding: $spacing-08 $spacing-09;
+}
+
+.tablet-presence {
+  grid-area: presence;
+  overflow-y: auto;
+  padding: $spacing-07 $spacing-06;
+  background: $layer-01;
+  border-inline-start: 1px solid $border-subtle-01;
+}
+
+// Home
+
+.tablet-home {
+  display: grid;
+  gap: $spacing-08;
+  max-inline-size: 48rem;
+}
+
+.tablet-home__title {
+  @include type-style('heading-07');
+}
+
+.tablet-home__lead {
+  @include type-style('body-02');
+  margin-block-start: $spacing-04;
+  color: $text-secondary;
+}
+
+.tablet-home__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-05;
+}
+
+.tablet-action.cds--btn {
+  @include type-style('heading-05');
+  max-inline-size: none;
+  inline-size: 100%;
+  min-block-size: 10rem;
+  align-items: flex-start;
+}
+
+.tablet-action .cds--btn__icon {
+  inline-size: 2rem;
+  block-size: 2rem;
+}
+
+.tablet-nfc {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  color: $text-secondary;
+
+  .cds--tag {
+    flex-shrink: 0;
+    max-inline-size: none;
+  }
+}
+
+.tablet-home__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-04;
+}
+
+// Identify
+
+.tablet-identify {
+  display: grid;
+  gap: $spacing-07;
+  max-inline-size: 52rem;
+}
+
+.tablet-identify__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
+.tablet-checkout > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: $spacing-03;
+}
+
+.tablet-checkout .cds--tile {
+  min-block-size: 5rem;
+  align-content: center;
+}
+
+.tablet-identify__title {
+  @include type-style('heading-06');
+}
+
+.tablet-pin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: $spacing-08;
+  align-items: start;
+}
+
+.tablet-pin__dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-04;
+  min-block-size: 3rem;
+  align-items: center;
+  padding-inline: $spacing-05;
+  background: $field-01;
+  border-block-end: 1px solid $border-strong-01;
+
+  > span:not(.cds--visually-hidden) {
+    inline-size: 1rem;
+    block-size: 1rem;
+    border: 2px solid $icon-secondary;
+    border-radius: 50%;
+  }
+
+  > .is-filled {
+    background: $icon-primary;
+    border-color: $icon-primary;
+  }
+}
+
+.tablet-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $spacing-03;
+}
+
+.tablet-keypad__key.cds--btn {
+  @include type-style('heading-04');
+  max-inline-size: none;
+  inline-size: 100%;
+  min-block-size: 4.5rem;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.tablet-keypad__key--small.cds--btn {
+  @include type-style('body-compact-02');
+}
+
+.tablet-submit.cds--btn {
+  max-inline-size: none;
+  inline-size: 100%;
+}
+
+.tablet-password {
+  max-inline-size: 32rem;
+}
+
+.tablet-identify__idle {
+  @include type-style('helper-text-02');
+  color: $text-helper;
+}
+
+// Result
+
+.tablet-result {
+  display: grid;
+  gap: $spacing-06;
+  justify-items: start;
+  max-inline-size: 36rem;
+  padding-block-start: $spacing-09;
+}
+
+.tablet-result__icon {
+  fill: $support-success;
+}
+
+.tablet-result__title {
+  @include type-style('heading-07');
+}
+
+.tablet-result__lead {
+  @include type-style('heading-03');
+  color: $text-secondary;
+}
+
+// Presence
+
+.tablet-presence__label {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.tablet-presence .cds--contained-list__header {
+  @include type-style('heading-03');
+  background: $layer-01;
+}
+
+.tablet-person__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: $spacing-04;
+}
+
+.tablet-person__avatar {
+  @include type-style('label-02');
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 50%;
+  background: $layer-accent-01;
+}
+
+.tablet-person__name {
+  @include type-style('body-02');
+  font-weight: 600;
+}
+
+.tablet-person__since {
+  @include type-style('label-02');
+  color: $text-secondary;
+}
+
+.tablet-person.is-confirming {
+  background: $layer-selected-01;
+}
+
+.tablet-person__confirm {
+  display: flex;
+  gap: $spacing-03;
+}
+
+.tablet-presence__hint {
+  @include type-style('helper-text-02');
+  margin-block-start: $spacing-04;
+  color: $text-helper;
+}
+
+// Held check-in: deliberately loud, the person must not start working.
+
+.tablet-hold {
+  display: grid;
+  gap: $spacing-06;
+  max-inline-size: 44rem;
+}
+
+.tablet-hold__banner {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  padding: $spacing-06;
+  color: $text-on-color;
+  background: $support-error;
+
+  svg {
+    flex-shrink: 0;
+    fill: currentColor;
+  }
+}
+
+.tablet-hold__eyebrow {
+  @include type-style('heading-02');
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tablet-hold__title {
+  @include type-style('heading-06');
+}
+
+.tablet-hold__lead {
+  @include type-style('heading-03');
+}
+
+.tablet-hold__steps .cds--progress-step {
+  min-block-size: 4.5rem;
+}
+
+.tablet-hold__warning {
+  @include type-style('heading-03');
+  padding-inline-start: $spacing-05;
+  border-inline-start: 4px solid $support-error;
+  color: $text-error;
+  font-weight: 600;
+}
+
+.tablet-presence__pending {
+  margin-block-end: $spacing-07;
+}
+
+.tablet-person__avatar--hold {
+  color: $text-on-color;
+  background: $support-error;
+}
+
+// Portrait tablets stack the presence list below the main area.
+@media (max-width: 66rem) {
+  .tablet {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'header'
+      'main'
+      'presence';
+  }
+
+  .tablet-main {
+    padding: $spacing-07 $spacing-06;
+  }
+
+  .tablet-presence {
+    max-block-size: 40dvh;
+    border-inline-start: 0;
+    border-block-start: 1px solid $border-subtle-01;
+  }
+
+  .tablet-pin {
+    grid-template-columns: 1fr;
+  }
+
+  .tablet-keypad {
+    max-inline-size: 22rem;
+  }
+}
