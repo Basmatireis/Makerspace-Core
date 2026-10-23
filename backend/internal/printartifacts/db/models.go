@@ -144,6 +144,17 @@ type CashMovement struct {
 	CreatedAt          time.Time
 }
 
+type CompetencyCategory struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	Active      bool
+	SortOrder   int32
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type DeviceType struct {
 	ID          uuid.UUID
 	Name        string
@@ -1814,6 +1825,39 @@ type SurveyVersion struct {
 	Introduction *string
 	PublishedAt  pgtype.Timestamptz
 	CreatedAt    time.Time
+}
+
+type Training struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	Active      bool
+	SortOrder   int32
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TrainingCompetency struct {
+	TrainingID   uuid.UUID
+	CompetencyID uuid.UUID
+}
+
+type TrainingMachineType struct {
+	TrainingID    uuid.UUID
+	MachineTypeID uuid.UUID
+}
+
+type TrainingRecord struct {
+	PersonID            uuid.UUID
+	TrainingID          uuid.UUID
+	Status              string
+	CompletedOn         pgtype.Date
+	Notes               *string
+	RecordedByAccountID *uuid.UUID
+	Version             int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type Visit struct {

@@ -39,4 +39,5 @@ export * from './signage/signage';
 export * from './signage-player/signage-player';
 export * from './supervisors/supervisors';
 export * from './surveys/surveys';
+export * from './trainings/trainings';
 export * from './visitor-enrollment/visitor-enrollment';

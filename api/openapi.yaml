@@ -35,6 +35,7 @@ tags:
   - name: Events
   - name: Public Events
   - name: Machines
+  - name: Trainings
   - name: Organizations
   - name: Pricing
   - name: Machine Jobs
@@ -5374,6 +5375,134 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /competency-categories:
+    get:
+      tags: [Trainings]
+      operationId: listCompetencyCategories
+      summary: List competency categories
+      description: Requires `trainings.manage`, `training_records.read.all` or `training_records.read.self`. Ordered active first, then by sort order and name.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Competency categories., content: {application/json: {schema: {$ref: "#/components/schemas/CompetencyCategoryList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Trainings]
+      operationId: createCompetencyCategory
+      summary: Create a competency category
+      description: Requires `trainings.manage`. The name is the label shown publicly for open days.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CompetencyCategoryInput"}}}}
+      responses:
+        "201": {description: Competency category created., content: {application/json: {schema: {$ref: "#/components/schemas/CompetencyCategory"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /competency-categories/{competencyCategoryId}:
+    parameters:
+      - {name: competencyCategoryId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Trainings]
+      operationId: updateCompetencyCategory
+      summary: Update a competency category
+      description: Requires `trainings.manage`. Replaces every field; a deactivated category no longer counts for open days.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateCompetencyCategoryRequest"}}}}
+      responses:
+        "200": {description: Competency category updated., content: {application/json: {schema: {$ref: "#/components/schemas/CompetencyCategory"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Trainings]
+      operationId: deleteCompetencyCategory
+      summary: Delete a competency category
+      description: >-
+        Requires `trainings.manage`. Permanently deletes a category no training feeds. A category in use answers 409
+        competency_category_in_use; deactivate it instead.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Competency category deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /trainings:
+    get:
+      tags: [Trainings]
+      operationId: listTrainings
+      summary: List trainings
+      description: Requires `trainings.manage`, `training_records.read.all` or `training_records.read.self`. Ordered active first, then by sort order and name.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Trainings., content: {application/json: {schema: {$ref: "#/components/schemas/TrainingList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Trainings]
+      operationId: createTraining
+      summary: Create a training
+      description: Requires `trainings.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TrainingInput"}}}}
+      responses:
+        "201": {description: Training created., content: {application/json: {schema: {$ref: "#/components/schemas/Training"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /trainings/{trainingId}:
+    parameters:
+      - {name: trainingId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Trainings]
+      operationId: updateTraining
+      summary: Update a training
+      description: >-
+        Requires `trainings.manage`. Replaces every field and both link lists. A deactivated training keeps its records
+        but no longer counts for open days and takes no new records.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateTrainingRequest"}}}}
+      responses:
+        "200": {description: Training updated., content: {application/json: {schema: {$ref: "#/components/schemas/Training"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Trainings]
+      operationId: deleteTraining
+      summary: Delete a training
+      description: >-
+        Requires `trainings.manage`. Permanently deletes a training nobody holds a record of. A training with records
+        answers 409 training_in_use; deactivate it instead.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Training deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machines:
     get:
       tags: [Machines]
@@ -9116,6 +9245,10 @@ components:
         - branding.manage
         - machines.read
         - machines.manage
+        - trainings.manage
+        - training_records.read.self
+        - training_records.read.all
+        - training_records.update
         - machine_jobs.read
         - machine_jobs.create
         - machine_jobs.edit
@@ -13317,6 +13450,98 @@ components:
         name: {type: string, minLength: 1, maxLength: 120}
         active: {type: boolean}
         process: {$ref: "#/components/schemas/MachineProcess"}
+
+    CompetencyCategory:
+      type: object
+      additionalProperties: false
+      required: [id, name, active, sortOrder, trainingCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, description: Public label shown for open days.}
+        description: {type: string, nullable: true, description: Internal note for the people who maintain the categories.}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32}
+        trainingCount: {type: integer, format: int64, minimum: 0, description: Trainings that feed this category.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    CompetencyCategoryList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/CompetencyCategory"}}
+
+    CompetencyCategoryInput:
+      type: object
+      additionalProperties: false
+      required: [name, active, sortOrder]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 2000, nullable: true}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
+
+    UpdateCompetencyCategoryRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, active, sortOrder]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 2000, nullable: true}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
+
+    Training:
+      type: object
+      additionalProperties: false
+      required: [id, name, active, sortOrder, competencyIds, machineTypeIds, recordCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32}
+        competencyIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        machineTypeIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        recordCount: {type: integer, format: int64, minimum: 0, description: People holding a training record (trained or trainer).}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    TrainingList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Training"}}
+
+    TrainingInput:
+      type: object
+      additionalProperties: false
+      required: [name, active, sortOrder, competencyIds, machineTypeIds]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000, nullable: true}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
+        competencyIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        machineTypeIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    UpdateTrainingRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, active, sortOrder, competencyIds, machineTypeIds]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000, nullable: true}
+        active: {type: boolean}
+        sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
+        competencyIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        machineTypeIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     Machine:
       type: object

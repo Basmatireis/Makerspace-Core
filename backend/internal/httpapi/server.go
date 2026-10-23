@@ -39,6 +39,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -83,6 +84,7 @@ type Server struct {
 	surveys           *surveys.Service
 	inbox             *inbox.Service
 	configTransfer    *configtransfer.Service
+	trainings         *trainings.Service
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
@@ -207,6 +209,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
 		configTransfer:    configTransferService,
+		trainings:         trainings.NewService(pool),
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		attendance:        attendanceService,

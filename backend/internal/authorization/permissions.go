@@ -97,6 +97,10 @@ const (
 	InvoicingSettingsManage            Permission = Permission(openapi.InvoicingSettingsManage)
 	MachinesRead                       Permission = Permission(openapi.MachinesRead)
 	MachinesManage                     Permission = Permission(openapi.MachinesManage)
+	TrainingsManage                    Permission = Permission(openapi.TrainingsManage)
+	TrainingRecordsReadSelf            Permission = Permission(openapi.TrainingRecordsReadSelf)
+	TrainingRecordsReadAll             Permission = Permission(openapi.TrainingRecordsReadAll)
+	TrainingRecordsUpdate              Permission = Permission(openapi.TrainingRecordsUpdate)
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
@@ -165,6 +169,7 @@ var registry = []Permission{
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
 	MachinesRead, MachinesManage,
+	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
@@ -265,6 +270,10 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	InvoicingSettingsManage:            "Configure the delivery of approved invoice requests to wiRef: recipient, mail and PDF templates.",
 	MachinesRead:                       "Read machine types, machines, and their operational metrics.",
 	MachinesManage:                     "Create and update machine types and machines.",
+	TrainingsManage:                    "Create, update and deactivate trainings and the competency categories they feed.",
+	TrainingRecordsReadSelf:            "Read the training records of the person linked to the current account.",
+	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
+	TrainingRecordsUpdate:              "Set another person's training status; nobody can change their own.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",
