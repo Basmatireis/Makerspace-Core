@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,9 +161,47 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	}
 	makeEvent("Unpublished", "Not public", 24, false)
 
+	// The earliest day gets a supervisor trained for 3D printing; signage receives the label only.
+	var earliestDay, supervisorPlace uuid.UUID
+	if err := e.pool.QueryRow(ctx, `SELECT d.id, r.id FROM open_days d
+		JOIN open_day_staff_requirements r ON r.open_day_id = d.id AND r.kind = 'supervisor'
+		WHERE d.period_id = $1 ORDER BY d.starts_at LIMIT 1`, period.ID).Scan(&earliestDay, &supervisorPlace); err != nil {
+		t.Fatal(err)
+	}
+	categoryID, trainingID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	for _, statement := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO competency_categories(id,name) VALUES($1,'3D printing')`, []any{categoryID}},
+		{`INSERT INTO trainings(id,name) VALUES($1,'Secret H2D training')`, []any{trainingID}},
+		{`INSERT INTO training_competencies(training_id,competency_id) VALUES($1,$2)`, []any{trainingID, categoryID}},
+		{`INSERT INTO training_records(person_id,training_id,status) VALUES($1,$2,'trainer')`, []any{owner, trainingID}},
+		{`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`,
+			[]any{uuid.Must(uuid.NewV7()), earliestDay, supervisorPlace, owner}},
+	} {
+		if _, err := e.pool.Exec(ctx, statement.sql, statement.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	assertLists := func(source string, body map[string]any) {
 		t.Helper()
 		days := body["openDays"].([]any)
+		for index, raw := range days {
+			day := raw.(map[string]any)
+			want := "[]"
+			if index == 0 {
+				want = "[3D printing]"
+			}
+			if len(day) != 4 || fmt.Sprint(day["competencies"]) != want {
+				t.Fatalf("%s: open day %d = %v, want competencies %s and nothing else", source, index, day, want)
+			}
+		}
+		if text := fmt.Sprint(body); strings.Contains(text, "Secret") || strings.Contains(text, "trainer") ||
+			strings.Contains(text, owner.String()) {
+			t.Fatalf("%s exposes training details: %s", source, text)
+		}
 		if len(days) != 7 {
 			t.Fatalf("%s: %d open days, want all 7 (the list limit is 20)", source, len(days))
 		}

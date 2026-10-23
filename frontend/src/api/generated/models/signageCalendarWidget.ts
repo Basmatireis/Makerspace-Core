@@ -46,5 +46,7 @@ export interface SignageCalendarWidget {
      * @maxLength 200
      */
   title?: string;
+  /** Weeks view: adds the planned competencies to open days, the first two and +N; absent means false. */
+  showCompetencies?: boolean;
   style?: SignageWidgetStyle;
 }

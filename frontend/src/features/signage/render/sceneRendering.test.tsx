@@ -467,7 +467,9 @@ describe('calendar widget', () => {
     to: '2026-12-10',
     holidays: [{ date: '2026-10-26', name: 'National Day' }],
     breaks: [{ name: 'Autumn break', startsOn: '2026-10-27', endsOn: '2026-10-30' }],
-    openDays: [{ startsAt: '2026-10-23T14:00:00Z', endsAt: '2026-10-23T18:00:00Z', status: 'scheduled' }],
+    openDays: [
+      { startsAt: '2026-10-23T14:00:00Z', endsAt: '2026-10-23T18:00:00Z', status: 'scheduled', competencies: [] },
+    ],
     events: [
       { title: 'Soldering workshop', startsAt: '2026-10-22T18:00:00Z', endsAt: null, location: null },
       // Spans Nov 1 to Nov 3 (ends at midnight of the 4th).

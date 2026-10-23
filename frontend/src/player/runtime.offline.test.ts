@@ -198,7 +198,7 @@ describe('PlayerRuntime offline cache', () => {
           announcement('expired', new Date(2026, 9, 19, 11).toISOString()),
           announcement('open', null),
         ],
-        openDays: [{ startsAt: 'a', endsAt: 'b', status: 'open' }],
+        openDays: [{ startsAt: 'a', endsAt: 'b', status: 'open', competencies: [] }],
         events: [],
       });
     }

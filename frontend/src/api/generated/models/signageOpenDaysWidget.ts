@@ -41,10 +41,12 @@ export interface SignageOpenDaysWidget {
      */
   emptyText?: string;
   /**
-     * Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}; empty or absent keeps the previous row layout.
+     * Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}, {competencies}; empty or absent keeps the previous row layout.
      * @maxLength 5000
      */
   entryTemplate?: string;
+  /** Adds the planned competencies as tags to the previous row layout; absent means false. */
+  showCompetencies?: boolean;
   format?: SignageRichTextFormat;
   /** @maxLength 20000 */
   css?: string;

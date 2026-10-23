@@ -46,6 +46,8 @@ export interface SignageAgendaWidget {
   openDayTemplate?: string;
   /** @maxLength 5000 */
   eventTemplate?: string;
+  /** Adds the planned competencies as tags to open-day entries without a template; absent means false. */
+  showCompetencies?: boolean;
   format?: SignageRichTextFormat;
   /** @maxLength 20000 */
   css?: string;

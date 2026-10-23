@@ -28,10 +28,12 @@ const (
 	maxHeartbeatVersionRune = 64
 )
 
-// PublicOpenDay is an upcoming open day from the public calendar.
+// PublicOpenDay is an upcoming open day from the public calendar. Competencies are the public labels of the planned
+// competencies; signage never learns who brings them.
 type PublicOpenDay struct {
 	StartsAt, EndsAt time.Time
 	Status           string
+	Competencies     []string
 }
 
 // PublicEvent is the public-safe part of an event: nothing but title, times and location.

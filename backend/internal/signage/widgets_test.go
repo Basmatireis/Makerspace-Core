@@ -121,3 +121,42 @@ func TestOldWidgetsKeepTheirCanonicalForm(t *testing.T) {
 		}
 	}
 }
+
+func TestShowCompetenciesIsOptionalAndOnlyForOpenDays(t *testing.T) {
+	calendar := `{"type":"calendar","view":"weeks","weeks":2,"showHolidays":true,"showBreaks":true,"showOpenDays":true,` +
+		`"showEvents":false,"colors":{"holiday":"#111111","break":"#222222","openDay":"#333333","event":"#444444"},` +
+		`"showWeekNumbers":false`
+	for name, raw := range map[string]string{
+		"open days": `{"type":"open_days","count":5,"showCompetencies":true}`,
+		"agenda":    `{"type":"agenda","count":5,"includeOpenDays":true,"includeEvents":true,"showCompetencies":true}`,
+		"calendar":  calendar + `,"showCompetencies":true}`,
+	} {
+		canonical, _, err := ValidateWidget("main", []byte(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !strings.Contains(string(canonical), `"showCompetencies":true`) {
+			t.Fatalf("%s lost the flag: %s", name, canonical)
+		}
+	}
+	// Existing widgets stay byte-for-byte the same: the flag is omitted while false.
+	for name, raw := range map[string]string{
+		"open days": `{"type":"open_days","count":5}`,
+		"agenda":    `{"type":"agenda","count":5,"includeOpenDays":true,"includeEvents":false,"showCompetencies":false}`,
+		"calendar":  calendar + `}`,
+	} {
+		canonical, _, err := ValidateWidget("main", []byte(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if strings.Contains(string(canonical), "showCompetencies") {
+			t.Fatalf("%s gained the flag: %s", name, canonical)
+		}
+	}
+	if _, _, err := ValidateWidget("main", []byte(`{"type":"events","count":5,"showCompetencies":true}`)); err == nil {
+		t.Fatal("events widget accepted showCompetencies")
+	}
+	if _, _, err := ValidateWidget("main", []byte(`{"type":"open_days","count":5,"showCompetencies":"yes"}`)); err == nil {
+		t.Fatal("non-boolean showCompetencies accepted")
+	}
+}

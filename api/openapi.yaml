@@ -17306,7 +17306,8 @@ components:
         count: {type: integer, minimum: 1, maximum: 20}
         title: {type: string, maxLength: 200, description: "Heading; absent keeps the previous heading, empty shows none."}
         emptyText: {type: string, maxLength: 500, description: Shown without entries.}
-        entryTemplate: {type: string, maxLength: 5000, description: "Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}; empty or absent keeps the previous row layout."}
+        entryTemplate: {type: string, maxLength: 5000, description: "Template rendered once per entry with the placeholders {kind}, {title}, {date}, {weekday}, {weekday_short}, {day}, {month}, {month_short}, {year}, {start}, {end}, {status}, {location}, {competencies}; empty or absent keeps the previous row layout."}
+        showCompetencies: {type: boolean, description: "Adds the planned competencies as tags to the previous row layout; absent means false."}
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
@@ -17339,6 +17340,7 @@ components:
         emptyText: {type: string, maxLength: 500}
         openDayTemplate: {type: string, maxLength: 5000}
         eventTemplate: {type: string, maxLength: 5000}
+        showCompetencies: {type: boolean, description: "Adds the planned competencies as tags to open-day entries without a template; absent means false."}
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
@@ -17368,6 +17370,7 @@ components:
         colors: {$ref: "#/components/schemas/SignageCalendarColors"}
         showWeekNumbers: {type: boolean}
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
+        showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
         style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageAnnouncementWidget:
       type: object
@@ -17975,11 +17978,16 @@ components:
     SignagePlayerOpenDay:
       type: object
       additionalProperties: false
-      required: [startsAt, endsAt, status]
+      required: [startsAt, endsAt, status, competencies]
       properties:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
         status: {type: string, maxLength: 40}
+        competencies:
+          type: array
+          maxItems: 50
+          items: {type: string, maxLength: 120}
+          description: Public labels of the planned competencies, derived from the assigned supervisors' trainings; never who brings them.
     SignagePlayerEvent:
       type: object
       additionalProperties: false

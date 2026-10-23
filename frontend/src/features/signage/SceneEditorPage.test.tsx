@@ -200,6 +200,7 @@ describe('Scene editor', () => {
             startsAt: soon.toISOString(),
             endsAt: new Date(soon.getTime() + 3_600_000).toISOString(),
             status: 'scheduled',
+            competencies: [],
           },
         ],
         events: [{ title: 'Real repair cafe', startsAt: soon.toISOString(), endsAt: null, location: null }],

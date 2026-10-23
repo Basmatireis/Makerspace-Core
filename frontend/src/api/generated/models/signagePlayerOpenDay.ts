@@ -24,4 +24,10 @@ export interface SignagePlayerOpenDay {
   endsAt: string;
   /** @maxLength 40 */
   status: string;
+  /**
+     * Public labels of the planned competencies, derived from the assigned supervisors' trainings; never who brings them.
+     * @maxItems 50
+     * @items.maxLength 120
+     */
+  competencies: string[];
 }

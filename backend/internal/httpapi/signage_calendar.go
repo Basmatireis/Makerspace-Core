@@ -16,7 +16,13 @@ type publicCalendar struct {
 }
 
 func publicOpenDay(day opendays.PublicOpenDay) signage.PublicOpenDay {
-	return signage.PublicOpenDay{StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: string(day.Status)}
+	labels := make([]string, 0, len(day.Competencies))
+	for _, competency := range day.Competencies {
+		labels = append(labels, competency.Label)
+	}
+	return signage.PublicOpenDay{
+		StartsAt: day.StartsAt.UTC(), EndsAt: day.EndsAt.UTC(), Status: string(day.Status), Competencies: labels,
+	}
 }
 
 func publicEvent(event events.UpcomingPublicEvent) signage.PublicEvent {

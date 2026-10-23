@@ -143,6 +143,8 @@ type listW struct {
 	Title         *string    `json:"title,omitempty"`
 	EmptyText     string     `json:"emptyText,omitempty"`
 	EntryTemplate string     `json:"entryTemplate,omitempty"`
+	// ShowCompetencies adds the planned competencies to each open day; absent keeps the previous look. Open days only.
+	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	richFields
 	styled
 }
@@ -157,6 +159,8 @@ type agendaW struct {
 	EmptyText       string     `json:"emptyText,omitempty"`
 	OpenDayTemplate string     `json:"openDayTemplate,omitempty"`
 	EventTemplate   string     `json:"eventTemplate,omitempty"`
+	// ShowCompetencies adds the planned competencies to open-day entries; absent keeps the previous look.
+	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	richFields
 	styled
 }
@@ -179,6 +183,8 @@ type calendarW struct {
 	Colors          calendarColors `json:"colors"`
 	ShowWeekNumbers bool           `json:"showWeekNumbers"`
 	Title           *string        `json:"title,omitempty"`
+	// ShowCompetencies adds the planned competencies to open days in the weeks view; absent keeps the previous look.
+	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	styled
 }
 type announcementW struct {
@@ -526,6 +532,9 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		}
 		if w.Count < 1 || w.Count > maxListEntries {
 			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxListEntries)
+		}
+		if w.Type == WidgetEvents && w.ShowCompetencies {
+			return nil, refs, zoneError(zone, "only open-day widgets show competencies")
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.EntryTemplate, maxEntryTemplateRun) {

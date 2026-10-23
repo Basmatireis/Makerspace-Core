@@ -687,7 +687,9 @@ func signageCalendarDTO(
 	for _, day := range days {
 		openDays = append(
 			openDays,
-			openapi.SignagePlayerOpenDay{StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status},
+			openapi.SignagePlayerOpenDay{
+				StartsAt: day.StartsAt, EndsAt: day.EndsAt, Status: day.Status, Competencies: nonNilStrings(day.Competencies),
+			},
 		)
 	}
 	events := make([]openapi.SignagePlayerEvent, 0, len(upcoming))
@@ -882,4 +884,11 @@ func (s *Server) GetSignageCalendar(
 		},
 		Headers: openapi.GetSignageCalendar200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
