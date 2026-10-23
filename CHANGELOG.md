@@ -4,6 +4,25 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00067 adds `machine_runs.hidden_from_signage`. API: runs carry `hiddenFromSignage`; new `PUT /machine-runs/{runId}/signage-visibility`.
+- Migration 00068 adds `roles.min_open_days_per_semester`. API: roles carry `minOpenDaysPerSemester`; supervisor dashboard rows carry `minimum`. Configuration files exported before this version still import; an overwrite import of such a file resets every role to the general minimum.
+- Migration 00069 adds in-app notifications (`inbox_notifications`, `inbox_notification_roles`, `inbox_recipients`) and the permission `notifications.send`; only master has it until you add it to a role. API: `/notifications` (own list, unread count, read, read all, dismiss) and `/notifications/messages` (send and sent list). Notifications are deleted after 90 days.
+
+### Added
+
+- **Notifications.** A bell next to the profile picture shows unread notifications. People with `notifications.send` write messages to one or more roles under Directory → Messages (choosing roles also needs `roles.read`). The app also notifies by itself: lab-rules confirmers when someone requests a signature, staffing roles when an open-day period opens for sign-up, supervisors when a supervisor place within the next 14 days becomes free, and a job's operator when its run ends.
+- **Hide a run from signage.** On a running run, "Hide this run from signage screens" removes the machine, its status and its camera from every display until the run ends. Each new run starts visible again. Job editors and the job's operator or customer can set it.
+- **Open-day minimum per role.** A role with a staffing level can set its own minimum open days per semester. Empty uses the general setting; with several such roles the lowest value applies.
+- **Colour picker.** Every colour field (branding, signage zones, calendar colours, scene background, material colour) has the system colour picker next to the hex value.
+- **All time in the cashbook.** Payments show everything from the beginning by default; the other periods stay available in the filter.
+
+### Fixed
+
+- **Dashboard buttons and links.** Notices with an action (for example "Sign up as supervisor") held on to the keyboard focus and scrolled the page back to themselves on every click, so links further down the dashboard did nothing. Such notices no longer trap focus, here and on other pages.
+- **Tooltips and menus are no longer cut off** by tables, tiles and dialogs: tooltips, toggletips, copy buttons and dropdown menus are placed above the page.
+
 ## [0.8.5] - 2026-10-22
 
 ### Upgrade notes
