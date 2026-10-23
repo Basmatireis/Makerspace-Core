@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
-	s := NewService(nil)
+	s := NewService(nil, inbox.NewEmitter())
 	ctx := t.Context()
 	p := authorization.Principal{}
 	id := ids.New()
@@ -225,7 +226,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	pool := integrationPool(t)
 	ctx := t.Context()
-	s := NewService(pool)
+	s := NewService(pool, inbox.NewEmitter())
 	personID := ids.New()
 	accountID := ids.New()
 	requestID := ids.New()

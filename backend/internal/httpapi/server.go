@@ -103,7 +103,9 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize authentication: %w", err)
 	}
-	openDaysService, err := opendays.NewService(pool, cfg)
+	// One emitter writes the system notifications of every service inside the caller's transaction.
+	notificationEmitter := inbox.NewEmitter()
+	openDaysService, err := opendays.NewService(pool, notificationEmitter, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
@@ -122,10 +124,12 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err := oidcService.ValidateConfiguration(context.Background()); err != nil {
 		return nil, fmt.Errorf("validate OIDC configuration: %w", err)
 	}
-	labRulesService := laborordnung.NewService(pool, fileService)
-	machineLogbook := machinelogbook.NewService(pool)
+	labRulesService := laborordnung.NewService(pool, notificationEmitter, fileService)
+	machineLogbook := machinelogbook.NewService(pool, notificationEmitter)
 	printingService := printing.NewService(pool)
-	printerConnectorService, err := printerconnectors.NewService(pool, printingService, cfg.EncryptionKeys)
+	printerConnectorService, err := printerconnectors.NewService(
+		pool, notificationEmitter, printingService, cfg.EncryptionKeys,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}

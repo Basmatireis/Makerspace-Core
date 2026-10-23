@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -46,9 +47,9 @@ func TestCameraCandidatesAndCredentialExpiry(t *testing.T) {
 	// Linux clocks have nanosecond resolution; PostgreSQL keeps microseconds.
 	// Simulate that so the returned expiry must already match the stored one.
 	service.now = func() time.Time { return time.Now().UTC().Truncate(time.Microsecond).Add(789 * time.Nanosecond) }
-	logbook := machinelogbook.NewService(pool)
+	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	printingService := printing.NewService(pool)
-	connectors, err := printerconnectors.NewService(pool, printingService, nil)
+	connectors, err := printerconnectors.NewService(pool, inbox.NewEmitter(), printingService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,9 +214,9 @@ func TestDeleteGatewayInAnyLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logbook := machinelogbook.NewService(pool)
+	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	printingService := printing.NewService(pool)
-	connectors, err := printerconnectors.NewService(pool, printingService, nil)
+	connectors, err := printerconnectors.NewService(pool, inbox.NewEmitter(), printingService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

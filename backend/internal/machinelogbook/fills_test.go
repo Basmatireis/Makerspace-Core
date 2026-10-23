@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -41,7 +42,7 @@ func newFillFixture(t *testing.T) *fillFixture {
 		now:     fillsClock,
 		suffix:  strings.ReplaceAll(person.String(), "-", "")[:12],
 	}
-	f.s = NewService(pool, WithClock(func() time.Time { return f.now }))
+	f.s = NewService(pool, inbox.NewEmitter(), WithClock(func() time.Time { return f.now }))
 	f.p = authorization.Principal{AccountID: account, PersonID: person, Master: true}
 	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Fill', 'Tester', $2)`, person, "fills-"+f.suffix+"@example.test"); err != nil {
 		t.Fatal(err)

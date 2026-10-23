@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -31,7 +32,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	f := &setupFixture{
 		t:       t,
 		service: NewService(pool),
-		jobs:    machinelogbook.NewService(pool),
+		jobs:    machinelogbook.NewService(pool, inbox.NewEmitter()),
 		request: ids.New(),
 	}
 	personID, accountID := ids.New(), ids.New()

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
@@ -185,7 +186,7 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	logbook := machinelogbook.NewService(pool)
+	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	orderService := orders.NewService(pool, logbook)
 	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", "other", nil)
 	if err != nil {
@@ -410,7 +411,7 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	}
 
 	// Clearing connector events needs printer_connectors.manage.
-	connector, err := printerconnectors.NewService(pool, printing.NewService(pool), nil)
+	connector, err := printerconnectors.NewService(pool, inbox.NewEmitter(), printing.NewService(pool), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

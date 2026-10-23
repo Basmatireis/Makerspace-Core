@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -36,10 +37,10 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	t.Helper()
 	pool := printerConnectorIntegrationPool(t)
 	ctx := t.Context()
-	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool)}
+	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool, inbox.NewEmitter())}
 	printingService := printing.NewService(pool)
 	var err error
-	h.service, err = NewService(pool, printingService, nil)
+	h.service, err = NewService(pool, inbox.NewEmitter(), printingService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 	ctx := testContext(t)
 	manager := seedAccount(t, pool, "period-bounds", true)
 	p := authorization.Principal{AccountID: manager.accountID, PersonID: manager.personID, Master: true}
-	service, err := opendays.NewService(pool, config.Config{})
+	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	) INSERT INTO person_roles(person_id,role_id) SELECT person_id,$1 FROM accounts_insert`, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
-	service, err := opendays.NewService(pool, config.Config{})
+	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestOpenDayRecurrenceRejectsDSTGapsAndOverlaps(t *testing.T) {
 	ctx := testContext(t)
 	actor := seedAccount(t, pool, "dst-manager", true)
 	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
-	service, err := opendays.NewService(pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"})
+	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{MakerspaceTimeZone: "Europe/Vienna"})
 	if err != nil {
 		t.Fatal(err)
 	}

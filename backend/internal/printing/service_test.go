@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -65,7 +66,7 @@ func printingIntegrationPool(t *testing.T) *pgxpool.Pool {
 func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	pool := printingIntegrationPool(t)
 	ctx := t.Context()
-	jobs := machinelogbook.NewService(pool)
+	jobs := machinelogbook.NewService(pool, inbox.NewEmitter())
 	service := NewService(pool)
 	personID := ids.New()
 	accountID := ids.New()

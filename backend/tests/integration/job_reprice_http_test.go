@@ -12,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -174,7 +175,7 @@ func TestRepriceMachineJobOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	logbook := machinelogbook.NewService(pool)
+	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	machineType, err := logbook.CreateMachineType(ctx, master, "Reprice HTTP printer", "fdm_printing", nil)
 	if err != nil {
 		t.Fatal(err)

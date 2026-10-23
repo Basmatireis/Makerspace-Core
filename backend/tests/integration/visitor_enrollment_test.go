@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
@@ -80,7 +81,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	fileService := files.NewService(pool, localStore)
-	labRulesService := laborordnung.NewService(pool, fileService)
+	labRulesService := laborordnung.NewService(pool, inbox.NewEmitter(), fileService)
 	notifier := newNotificationRecorder()
 	service := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
 
@@ -376,7 +377,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	fileService := files.NewService(pool, local)
-	labRules := laborordnung.NewService(pool, fileService)
+	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), fileService)
 	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, nil)
 	publish := func(revision string) uuid.UUID {
 		stored, err := fileService.StoreSystemBytes(ctx, revision+".pdf", "application/pdf", []byte(revision), nil)

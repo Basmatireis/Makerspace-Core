@@ -17,7 +17,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	laborordnungdb "github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
@@ -69,17 +68,17 @@ type Request struct {
 type Service struct {
 	pool  *pgxpool.Pool
 	files *files.Service
-	inbox inboxEmitter
+	inbox InboxEmitter
 }
 
-// inboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
 // the caller's transaction.
-type inboxEmitter interface {
+type InboxEmitter interface {
 	LabRulesConfirmationRequested(ctx context.Context, tx pgx.Tx, requesterAccountID uuid.UUID) error
 }
 
-func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
-	return &Service{pool: pool, files: fileService, inbox: inbox.NewEmitter()}
+func NewService(pool *pgxpool.Pool, emitter InboxEmitter, fileService *files.Service) *Service {
+	return &Service{pool: pool, files: fileService, inbox: emitter}
 }
 
 func (s *Service) CreateVersion(

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -48,7 +49,7 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	pool := integrationPool(t)
 	ctx := t.Context()
 	f := &jobFixture{pool: pool, person: ids.New(), request: ids.New(), now: now}
-	f.s = NewService(pool, WithClock(func() time.Time { return f.now }))
+	f.s = NewService(pool, inbox.NewEmitter(), WithClock(func() time.Time { return f.now }))
 	accountID := ids.New()
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
 	f.p = authorization.Principal{AccountID: accountID, PersonID: f.person, Master: true}

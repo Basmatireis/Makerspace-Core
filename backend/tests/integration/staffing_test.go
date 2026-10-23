@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
@@ -59,7 +60,7 @@ func newStaffingEnv(t *testing.T) *staffingEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	openDaysService, err := opendays.NewService(pool, cfg)
+	openDaysService, err := opendays.NewService(pool, inbox.NewEmitter(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func newStaffingEnv(t *testing.T) *staffingEnv {
 		events:    eventService,
 		now:       time.Now().UTC(),
 	}
-	jobs := machinelogbook.NewService(pool)
+	jobs := machinelogbook.NewService(pool, inbox.NewEmitter())
 	env.dashboard = dashboard.NewService(
 		pool,
 		staffingService,

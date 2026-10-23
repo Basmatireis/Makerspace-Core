@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
@@ -66,7 +67,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1`, 0, personID)
 
-	service := laborordnung.NewService(pool, nil)
+	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
 	status, err := service.Evaluate(ctx, personID)
 	if err != nil {
 		t.Fatal(err)

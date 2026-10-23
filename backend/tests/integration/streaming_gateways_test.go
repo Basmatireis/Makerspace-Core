@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -57,9 +58,9 @@ func (g *gatewayEnv) bambu(name, kind, ip, code string) uuid.UUID {
 	ctx := testContext(g.t)
 	admin := g.fixture.admin
 	requestID := ids.New()
-	logbook := machinelogbook.NewService(g.pool)
+	logbook := machinelogbook.NewService(g.pool, inbox.NewEmitter())
 	printingService := printing.NewService(g.pool)
-	connectors, err := printerconnectors.NewService(g.pool, printingService, nil)
+	connectors, err := printerconnectors.NewService(g.pool, inbox.NewEmitter(), printingService, nil)
 	if err != nil {
 		g.t.Fatal(err)
 	}
@@ -107,7 +108,7 @@ func (g *gatewayEnv) machineWithoutPrinter(name string) uuid.UUID {
 	g.t.Helper()
 	ctx := testContext(g.t)
 	requestID := ids.New()
-	logbook := machinelogbook.NewService(g.pool)
+	logbook := machinelogbook.NewService(g.pool, inbox.NewEmitter())
 	machineType, err := logbook.CreateMachineType(ctx, g.fixture.admin, name+" type", "fdm_printing", &requestID)
 	if err != nil {
 		g.t.Fatal(err)

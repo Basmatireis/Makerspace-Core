@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -64,12 +65,12 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	labRules := laborordnung.NewService(pool, fileService)
+	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), fileService)
 	services := Services{
 		Files:          fileService,
 		ManagedDevices: manageddevices.NewService(pool),
 		Roles:          roles.NewService(pool),
-		MachineLogbook: machinelogbook.NewService(pool),
+		MachineLogbook: machinelogbook.NewService(pool, inbox.NewEmitter()),
 		Printing:       printing.NewService(pool),
 		Staffing:       staffingService,
 		Visitor:        visitor.NewService(pool, cfg, fileService, labRules, nil),

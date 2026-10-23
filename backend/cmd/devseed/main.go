@@ -33,6 +33,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
@@ -163,6 +164,7 @@ type event struct {
 type seeder struct {
 	ctx      context.Context
 	pool     *pgxpool.Pool
+	inbox    *inbox.Emitter
 	cfg      config.Config
 	rng      *mrand.Rand
 	actor    authorization.Principal
@@ -226,7 +228,7 @@ func main() {
 	now := time.Now().UTC()
 	anchor := time.Date(timelineAnchor.Year(), timelineAnchor.Month(), timelineAnchor.Day(), 0, 0, 0, 0, loc)
 	today := now.In(loc)
-	s := &seeder{ctx: ctx, pool: pool, cfg: cfg, rng: mrand.New(mrand.NewSource(*seed)), loc: loc, now: now,
+	s := &seeder{ctx: ctx, pool: pool, inbox: inbox.NewEmitter(), cfg: cfg, rng: mrand.New(mrand.NewSource(*seed)), loc: loc, now: now,
 		tag:      hex.EncodeToString(tagBytes),
 		shift:    time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc).Sub(anchor),
 		orgs:     map[string]party{},
@@ -240,12 +242,12 @@ func main() {
 	s.people = people.NewService(pool, nil)
 	s.rolesSvc = roles.NewService(pool)
 	s.accounts = accounts.NewService(pool, cfg, nil)
-	s.ml = machinelogbook.NewService(pool)
+	s.ml = machinelogbook.NewService(pool, s.inbox)
 	s.printing = printing.NewService(pool)
-	s.pc, err = printerconnectors.NewService(pool, s.printing, cfg.EncryptionKeys)
+	s.pc, err = printerconnectors.NewService(pool, s.inbox, s.printing, cfg.EncryptionKeys)
 	check("pc", err)
 	s.orders = orders.NewService(pool, s.ml)
-	s.od, err = opendays.NewService(pool, cfg)
+	s.od, err = opendays.NewService(pool, s.inbox, cfg)
 	check("opendays", err)
 
 	s.setupActor(*actorEmail)
@@ -267,7 +269,7 @@ func main() {
 }
 
 func (s *seeder) mlAt(t time.Time) *ML {
-	return machinelogbook.NewService(s.pool, machinelogbook.WithClock(func() time.Time { return t }))
+	return machinelogbook.NewService(s.pool, s.inbox, machinelogbook.WithClock(func() time.Time { return t }))
 }
 
 func (s *seeder) ago(d time.Duration) time.Time { return s.now.Add(-d) }

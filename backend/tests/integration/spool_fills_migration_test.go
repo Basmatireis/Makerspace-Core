@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -127,7 +128,7 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	service := machinelogbook.NewService(pool)
+	service := machinelogbook.NewService(pool, inbox.NewEmitter())
 	master := authorization.Principal{
 		AccountID: ids.New(),
 		PersonID:  ids.New(),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -49,7 +50,7 @@ func laborordnungPrincipal(t *testing.T, permissions ...authorization.Permission
 
 func TestEvaluateForPersonRequiresBothPersonAndRequestRead(t *testing.T) {
 	personID := ids.New()
-	service := NewService(nil, nil)
+	service := NewService(nil, inbox.NewEmitter(), nil)
 
 	for name, principal := range map[string]authorization.Principal{
 		"person read without feature": laborordnungPrincipal(t, authorization.PeopleReadAll),

@@ -33,7 +33,12 @@ type Service struct {
 	keyring  *security.Keyring
 }
 
-func NewService(pool *pgxpool.Pool, printingService *printing.Service, encryptionKeys [][]byte) (*Service, error) {
+func NewService(
+	pool *pgxpool.Pool,
+	emitter machinelogbook.InboxEmitter,
+	printingService *printing.Service,
+	encryptionKeys [][]byte,
+) (*Service, error) {
 	var keyring *security.Keyring
 	var err error
 	if len(encryptionKeys) != 0 {
@@ -45,7 +50,7 @@ func NewService(pool *pgxpool.Pool, printingService *printing.Service, encryptio
 	return &Service{
 		pool:     pool,
 		printing: printingService,
-		logbook:  machinelogbook.NewService(pool),
+		logbook:  machinelogbook.NewService(pool, emitter),
 		keyring:  keyring,
 	}, nil
 }

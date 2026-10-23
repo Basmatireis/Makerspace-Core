@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -122,7 +123,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	f.p = authorization.Principal{AccountID: account, PersonID: f.person, Master: true}
-	f.jobs = machinelogbook.NewService(pool)
+	f.jobs = machinelogbook.NewService(pool, inbox.NewEmitter())
 	f.s = NewService(pool, f.jobs)
 	org, e := f.jobs.CreateOrganization(
 		ctx,

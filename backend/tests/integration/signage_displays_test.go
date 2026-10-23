@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -1685,9 +1686,9 @@ func (e *signageEnv) printer(name string) signagePrinter {
 	e.t.Helper()
 	ctx := testContext(e.t)
 	admin := e.fixture.admin
-	logbook := machinelogbook.NewService(e.pool)
+	logbook := machinelogbook.NewService(e.pool, inbox.NewEmitter())
 	printingService := printing.NewService(e.pool)
-	connectors, err := printerconnectors.NewService(e.pool, printingService, nil)
+	connectors, err := printerconnectors.NewService(e.pool, inbox.NewEmitter(), printingService, nil)
 	if err != nil {
 		e.t.Fatal(err)
 	}

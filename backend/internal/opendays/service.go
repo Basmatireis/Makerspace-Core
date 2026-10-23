@@ -12,7 +12,6 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -109,12 +108,12 @@ type Service struct {
 	cfg      config.Config
 	location *time.Location
 	holidays HolidayProvider
-	inbox    inboxEmitter
+	inbox    InboxEmitter
 }
 
-// inboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
 // the caller's transaction.
-type inboxEmitter interface {
+type InboxEmitter interface {
 	OpenDayPeriodOpen(ctx context.Context, tx pgx.Tx, periodID uuid.UUID) error
 	OpenDayPlaceFreed(
 		ctx context.Context,
@@ -124,7 +123,7 @@ type inboxEmitter interface {
 	) error
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config) (*Service, error) {
+func NewService(pool *pgxpool.Pool, emitter InboxEmitter, cfg config.Config) (*Service, error) {
 	timeZone := cfg.MakerspaceTimeZone
 	if timeZone == "" {
 		timeZone = "Europe/Vienna"
@@ -138,7 +137,7 @@ func NewService(pool *pgxpool.Pool, cfg config.Config) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
-		pool: pool, cfg: cfg, location: location, holidays: holidayProvider, inbox: inbox.NewEmitter(),
+		pool: pool, cfg: cfg, location: location, holidays: holidayProvider, inbox: emitter,
 	}, nil
 }
 

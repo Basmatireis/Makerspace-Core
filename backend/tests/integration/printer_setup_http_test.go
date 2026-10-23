@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
@@ -204,7 +205,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	logbook := machinelogbook.NewService(pool)
+	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	machineType, err := logbook.CreateMachineType(ctx, master, "Setup printer", "fdm_printing", nil)
 	if err != nil {
 		t.Fatal(err)

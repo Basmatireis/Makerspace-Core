@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
@@ -28,7 +29,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	display, player := e.pair(staff, "Calendar display", playlist.ID)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+display["id"].(string)+"/publish", nil), http.StatusOK)
 
-	openDays, err := opendays.NewService(e.pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"})
+	openDays, err := opendays.NewService(e.pool, inbox.NewEmitter(), config.Config{MakerspaceTimeZone: "Europe/Vienna"})
 	if err != nil {
 		t.Fatal(err)
 	}

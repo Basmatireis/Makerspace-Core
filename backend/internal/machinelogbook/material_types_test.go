@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -18,7 +19,7 @@ func strPtr(value string) *string { return &value }
 func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	pool := integrationPool(t)
 	ctx := t.Context()
-	s := NewService(pool)
+	s := NewService(pool, inbox.NewEmitter())
 	account, person, request := ids.New(), ids.New(), ids.New()
 	suffix := strings.ReplaceAll(person.String(), "-", "")[:12]
 	p := authorization.Principal{AccountID: account, PersonID: person, Master: true}
