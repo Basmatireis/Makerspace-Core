@@ -37,6 +37,7 @@ type Config struct {
 	PasswordResetTTL           time.Duration
 	AuditRetention             time.Duration
 	EventSignupRetention       time.Duration
+	SurveyDeliveryInterval     time.Duration
 	ShutdownTimeout            time.Duration
 	MakerspaceTimeZone         string
 	HolidayCountry             string
@@ -100,6 +101,13 @@ func Load() (Config, error) {
 	}
 	if eventSignupRetention < 0 {
 		return Config{}, errors.New("EVENT_SIGNUP_RETENTION cannot be negative")
+	}
+	surveyDeliveryInterval, err := durationEnv("SURVEY_DELIVERY_INTERVAL", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	if surveyDeliveryInterval < 0 {
+		return Config{}, errors.New("SURVEY_DELIVERY_INTERVAL cannot be negative")
 	}
 	absolute, err := durationEnv("SESSION_ABSOLUTE_TTL", 72*time.Hour)
 	if err != nil {
@@ -218,6 +226,7 @@ func Load() (Config, error) {
 		PasswordResetTTL:           resetTTL,
 		AuditRetention:             auditRetention,
 		EventSignupRetention:       eventSignupRetention,
+		SurveyDeliveryInterval:     surveyDeliveryInterval,
 		ShutdownTimeout:            10 * time.Second,
 		MakerspaceTimeZone:         timeZone,
 		HolidayCountry:             holidayCountry,

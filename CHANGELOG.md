@@ -9,11 +9,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Migration 00072 adds `open_day_periods.sign_up_deadline`. API: open-day periods carry `signUpDeadline` (nullable) and accept it on create and update; `Semester` carries `signUpBy`.
 - Migration 00073 adds the check-in method `enrollment` for visits and held check-ins. `VisitorEnrollmentResult` carries `attendance` (`checked_in` or `awaiting_sign_off`).
 - New permission `training_records.update.self`; only master has it until you add it to a role. Master can therefore now change its own training status.
+- New setting `SURVEY_DELIVERY_INTERVAL` (default `1m`, `0` disables): the API now sends due survey invitations by itself, so a cron job running `admin deliver-surveys` is no longer needed.
 - New frontend dependency `pdfjs-dist` (loaded only when the Lab Rules are opened during enrollment).
 
 ### Added
 
 - **Sign-up deadline per open-day period.** The Leitung can set an optional sign-up deadline on a period, also while it is in staffing or published. The dashboard's "Sign up for … open days more by …" hint shows that date instead of the period's end date; without a deadline nothing changes.
+- **Survey trigger settings.** On the survey page you can set the delay after check-out and the cooldown in days for the post-visit trigger, not only switch it on or off.
+- **Automatic survey delivery.** The API checks every minute for due survey invitations and sends them. A failed send is retried after 5, 10, 20 and 40 minutes.
 - **Change your own training status** with the new permission `training_records.update.self`, on the profile and on your own person page.
 - **Lab Rules confirmations on the attendance page.** Besides the people waiting at the entrance, the notice at the top of the attendance page now also lists every other open Lab Rules confirmation request, with a confirm button.
 
@@ -28,6 +31,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Dependencies:** orval updated to 8.44.0 and `undici` 7 pinned to 7.30.1, so `pnpm audit` is clean again.
 - **Dashboard:** the "Supervisor needed" box puts its sign-up button under the text when the tile is narrow, instead of squeezing the text.
 
 ## [0.9.0] - 2026-10-23

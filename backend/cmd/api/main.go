@@ -60,7 +60,7 @@ func run() error {
 	}
 	defer pool.Close()
 
-	handler, err := httpapi.NewHandler(pool, cfg, logger)
+	handler, runBackground, err := httpapi.NewApplication(pool, cfg, logger)
 	if err != nil {
 		return fmt.Errorf("initialize HTTP API: %w", err)
 	}
@@ -76,6 +76,12 @@ func run() error {
 			return rootContext
 		},
 	}
+
+	backgroundDone := make(chan struct{})
+	go func() {
+		defer close(backgroundDone)
+		runBackground(rootContext)
+	}()
 
 	serveError := make(chan error, 1)
 	go func() {
@@ -96,6 +102,10 @@ func run() error {
 	defer cancel()
 	if err := server.Shutdown(shutdownContext); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+	select {
+	case <-backgroundDone:
+	case <-shutdownContext.Done():
 	}
 	logger.Info("API stopped")
 	return nil

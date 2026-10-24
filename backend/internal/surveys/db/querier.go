@@ -38,6 +38,8 @@ type Querier interface {
 	ListSurveyOptions(ctx context.Context, questionID uuid.UUID) ([]SurveyQuestionOption, error)
 	ListSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) ([]SurveyQuestion, error)
 	ListSurveys(ctx context.Context) ([]ListSurveysRow, error)
+	// The next attempt waits 5, 10, 20 and then 40 minutes, so a short mail outage does not use up every attempt while
+	// the delivery loop runs each minute.
 	MarkSurveyInvitationFailed(ctx context.Context, arg MarkSurveyInvitationFailedParams) error
 	MarkSurveyInvitationSent(ctx context.Context, id uuid.UUID) error
 	MarkSurveyVersionPublished(ctx context.Context, id uuid.UUID) error

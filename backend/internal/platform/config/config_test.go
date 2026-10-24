@@ -131,6 +131,9 @@ func TestLoadUsesLockedSessionAndRetentionDefaults(t *testing.T) {
 			cfg.EventSignupRetention,
 		)
 	}
+	if cfg.SurveyDeliveryInterval != time.Minute {
+		t.Fatalf("unexpected survey delivery interval: %s", cfg.SurveyDeliveryInterval)
+	}
 	if cfg.MakerspaceTimeZone != "Europe/Vienna" || cfg.HolidayCountry != "AT" || cfg.HolidaySubdivision != "AT-6" ||
 		cfg.HolidayLanguage != "de" {
 		t.Fatalf("unexpected Open Days defaults: %#v", cfg)

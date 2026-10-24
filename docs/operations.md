@@ -55,7 +55,7 @@ Cleanup always prunes expired sessions/reset tokens and, by default, audit rows 
 
 The same cleanup removes delivery identity from redeemed or expired Survey invitations after a seven-day operational grace period. Completed and voided Visit detail is removed after 90 days; completed Visit rows are first rolled into non-identifying UTC daily attendance aggregates. Open Visits are never removed by retention cleanup.
 
-Run due post-visit email delivery from the existing scheduler. Claims are concurrency-safe and retry failed or stale deliveries up to the configured database limit:
+Due post-visit survey emails are sent automatically by the API process every minute (`SURVEY_DELIVERY_INTERVAL`, a Go duration; `0` disables the loop), so no scheduler entry is needed any more. Claims are concurrency-safe across API replicas and retry failed or stale deliveries up to the configured database limit. The manual command remains available, for example when the loop is disabled:
 
 ```sh
 docker compose run --rm --entrypoint /app/admin backend deliver-surveys --limit 100

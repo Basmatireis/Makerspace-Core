@@ -27,6 +27,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
@@ -74,10 +75,35 @@ type operationState struct {
 }
 
 func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (http.Handler, error) {
+	handler, _, err := NewApplication(pool, cfg, logger)
+	return handler, err
+}
+
+// NewApplication builds the HTTP handler together with the background work the API process runs
+// beside it. The returned function blocks until ctx is cancelled and is meant for one goroutine.
+func NewApplication(
+	pool *pgxpool.Pool,
+	cfg config.Config,
+	logger *slog.Logger,
+) (http.Handler, func(context.Context), error) {
 	server, err := NewServer(pool, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	handler, err := newHandler(server, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	run := func(ctx context.Context) {
+		surveys.RunDelivery(ctx, server.surveys, cfg.SurveyDeliveryInterval, surveys.DeliveryBatchLimit, logger)
+	}
+	return handler, run, nil
+}
+
+func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -185,7 +211,7 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	handler = recoveryMiddleware(handler, logger)
 	handler = traceMiddleware(handler)
 	handler = accessLogMiddleware(handler, logger)
-	handler = requestMetadataMiddleware(handler, router, cfg.HTTPTrustedProxies)
+	handler = requestMetadataMiddleware(handler, router, server.config.HTTPTrustedProxies)
 	return handler, nil
 }
 

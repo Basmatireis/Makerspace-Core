@@ -835,6 +835,7 @@ func (q *Queries) ListSurveys(ctx context.Context) ([]ListSurveysRow, error) {
 
 const markSurveyInvitationFailed = `-- name: MarkSurveyInvitationFailed :exec
 UPDATE survey_invitations SET status = 'failed', delivery_claimed_at = NULL,
+  due_at = now() + interval '5 minutes' * power(2, delivery_attempts - 1),
   delivery_failure_code = $1 WHERE id = $2 AND status = 'delivering'
 `
 
@@ -843,6 +844,8 @@ type MarkSurveyInvitationFailedParams struct {
 	ID                  uuid.UUID
 }
 
+// The next attempt waits 5, 10, 20 and then 40 minutes, so a short mail outage does not use up every attempt while
+// the delivery loop runs each minute.
 func (q *Queries) MarkSurveyInvitationFailed(ctx context.Context, arg MarkSurveyInvitationFailedParams) error {
 	_, err := q.db.Exec(ctx, markSurveyInvitationFailed, arg.DeliveryFailureCode, arg.ID)
 	return err

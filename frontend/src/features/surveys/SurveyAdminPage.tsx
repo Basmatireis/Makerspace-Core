@@ -20,13 +20,14 @@ import {
   listSurveys,
   publishSurvey,
   updateSurvey,
-  updateSurveyTrigger,
 } from '../../api/generated/surveys/surveys';
 import type { Survey, SurveyQuestionKind } from '../../api/generated/models';
 import { ErrorState } from '../../app/PageState';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { SurveyTriggerForm } from './SurveyTriggerForm';
+import { describeTrigger } from './triggerFormat';
 
 type BuilderQuestion = {
   kind: SurveyQuestionKind;
@@ -116,16 +117,6 @@ function SurveySummary({
     mutationFn: () => closeSurvey(survey.id, { expectedVersion: survey.version }),
     onSuccess: onChanged,
   });
-  const trigger = useMutation({
-    mutationFn: () =>
-      updateSurveyTrigger(survey.id, {
-        enabled: !(survey.trigger?.enabled ?? false),
-        delaySeconds: survey.trigger?.delaySeconds ?? 1800,
-        cooldownDays: survey.trigger?.cooldownDays ?? 30,
-        expectedVersion: survey.trigger?.version ?? 0,
-      }),
-    onSuccess: onChanged,
-  });
   return (
     <Tile>
       <Stack gap={4}>
@@ -155,23 +146,19 @@ function SurveySummary({
                 Close
               </Button>
             )}
-            <Button
-              size="sm"
-              kind="secondary"
-              disabled={survey.status !== 'published' || trigger.isPending}
-              onClick={() => trigger.mutate()}
-            >
-              {survey.trigger?.enabled ? 'Disable post-visit trigger' : 'Enable post-visit trigger'}
-            </Button>
           </div>
         )}
-        {(publish.isError || close.isError || trigger.isError) && (
+        <p>{describeTrigger(survey.trigger)}</p>
+        {canManage && survey.status !== 'closed' && (
+          <SurveyTriggerForm key={survey.trigger?.version ?? 0} survey={survey} onSaved={onChanged} />
+        )}
+        {(publish.isError || close.isError) && (
           <InlineNotification
             kind="error"
             lowContrast
             hideCloseButton
             title="Survey not changed"
-            subtitle={(publish.error ?? close.error ?? trigger.error)?.message}
+            subtitle={(publish.error ?? close.error)?.message}
           />
         )}
       </Stack>

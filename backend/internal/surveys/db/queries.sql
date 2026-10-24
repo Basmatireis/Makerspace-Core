@@ -140,7 +140,10 @@ UPDATE survey_invitations SET status = 'sent', sent_at = now(), delivery_claimed
   delivery_failure_code = NULL WHERE id = sqlc.arg(id) AND status = 'delivering';
 
 -- name: MarkSurveyInvitationFailed :exec
+-- The next attempt waits 5, 10, 20 and then 40 minutes, so a short mail outage does not use up every attempt while
+-- the delivery loop runs each minute.
 UPDATE survey_invitations SET status = 'failed', delivery_claimed_at = NULL,
+  due_at = now() + interval '5 minutes' * power(2, delivery_attempts - 1),
   delivery_failure_code = sqlc.arg(delivery_failure_code) WHERE id = sqlc.arg(id) AND status = 'delivering';
 
 -- name: GetPublicSurveyInvitation :one
