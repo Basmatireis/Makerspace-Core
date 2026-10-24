@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-24
+
 ### Upgrade notes
 
 - Migration 00072 adds `open_day_periods.sign_up_deadline`. API: open-day periods carry `signUpDeadline` (nullable) and accept it on create and update; `Semester` carries `signUpBy`.
@@ -455,6 +457,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.9.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.5...v0.9.0
 [0.8.5]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.3...v0.8.4
