@@ -131,17 +131,18 @@ func (q *Queries) ListPersonStaffingLevels(ctx context.Context, personID uuid.UU
 }
 
 const listSemesterCandidates = `-- name: ListSemesterCandidates :many
-SELECT id, name, starts_on, ends_on
+SELECT id, name, starts_on, ends_on, sign_up_deadline
 FROM open_day_periods
 WHERE status IN ('staffing', 'published')
 ORDER BY starts_on, id
 `
 
 type ListSemesterCandidatesRow struct {
-	ID       uuid.UUID
-	Name     string
-	StartsOn pgtype.Date
-	EndsOn   pgtype.Date
+	ID             uuid.UUID
+	Name           string
+	StartsOn       pgtype.Date
+	EndsOn         pgtype.Date
+	SignUpDeadline pgtype.Date
 }
 
 // Periods a semester can be resolved from: neither draft nor archived.
@@ -159,6 +160,7 @@ func (q *Queries) ListSemesterCandidates(ctx context.Context) ([]ListSemesterCan
 			&i.Name,
 			&i.StartsOn,
 			&i.EndsOn,
+			&i.SignUpDeadline,
 		); err != nil {
 			return nil, err
 		}

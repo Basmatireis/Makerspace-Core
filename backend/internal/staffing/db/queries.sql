@@ -21,7 +21,7 @@ SELECT staffing_level FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
 
 -- name: ListSemesterCandidates :many
 -- Periods a semester can be resolved from: neither draft nor archived.
-SELECT id, name, starts_on, ends_on
+SELECT id, name, starts_on, ends_on, sign_up_deadline
 FROM open_day_periods
 WHERE status IN ('staffing', 'published')
 ORDER BY starts_on, id;

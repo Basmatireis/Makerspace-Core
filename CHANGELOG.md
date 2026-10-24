@@ -4,6 +4,23 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00072 adds `open_day_periods.sign_up_deadline`. API: open-day periods carry `signUpDeadline` (nullable) and accept it on create and update; `Semester` carries `signUpBy`.
+
+### Added
+
+- **Sign-up deadline per open-day period.** The Leitung can set an optional sign-up deadline on a period, also while it is in staffing or published. The dashboard's "Sign up for … open days more by …" hint shows that date instead of the period's end date; without a deadline nothing changes.
+
+### Changed
+
+- **Visitor enrollment on the terminal is a three-step wizard** (about you and photo, sign-in method, Lab Rules) that fits the tablet without scrolling. Required fields are marked, and email and phone are explained as "at least one". After 30 s without input it asks "Are you still there?" and returns to the terminal if nobody answers. The screen after submitting explains the paper Lab Rules step and returns to the terminal automatically.
+- **Terminal:** "New here? Register as a visitor" moved from the start screen into the check-in screen. The enrollment and the staff sign-in (when opened from the terminal) have a back button to the terminal. The PIN shows one bullet per digit with a counter instead of six fixed dots, and the email/password fields use the full width.
+
+### Fixed
+
+- **Dashboard:** the "Supervisor needed" box puts its sign-up button under the text when the tile is narrow, instead of squeezing the text.
+
 ## [0.9.0] - 2026-10-23
 
 ### Upgrade notes

@@ -27,6 +27,7 @@ type Period struct {
 	ID                      uuid.UUID
 	Name                    string
 	StartsOn, EndsOn        time.Time
+	SignUpDeadline          *time.Time
 	Status                  PeriodStatus
 	Version                 int64
 	CreatedAt, UpdatedAt    time.Time
@@ -212,12 +213,13 @@ func (s *Service) CreatePeriod(
 	principal authorization.Principal,
 	name string,
 	startsOn, endsOn time.Time,
+	signUpDeadline *time.Time,
 	requestID *uuid.UUID,
 ) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
-	name, err := validatePeriod(name, startsOn, endsOn)
+	name, err := validatePeriod(name, startsOn, endsOn, signUpDeadline)
 	if err != nil {
 		return Period{}, err
 	}
@@ -230,7 +232,10 @@ func (s *Service) CreatePeriod(
 	id := ids.New()
 	row, err := queries.CreatePeriod(
 		ctx,
-		opendaysdb.CreatePeriodParams{ID: id, Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn)},
+		opendaysdb.CreatePeriodParams{
+			ID: id, Name: name, StartsOn: pgDate(startsOn), EndsOn: pgDate(endsOn),
+			SignUpDeadline: optionalPgDate(signUpDeadline),
+		},
 	)
 	if err != nil {
 		return Period{}, databaseError(err)
@@ -243,7 +248,7 @@ func (s *Service) CreatePeriod(
 		"open_day_period",
 		id,
 		requestID,
-		[]string{"name", "startsOn", "endsOn"},
+		[]string{"name", "startsOn", "endsOn", "signUpDeadline"},
 	); err != nil {
 		return Period{}, err
 	}
@@ -260,12 +265,13 @@ func (s *Service) UpdatePeriod(
 	expected int64,
 	name string,
 	startsOn, endsOn time.Time,
+	signUpDeadline *time.Time,
 	requestID *uuid.UUID,
 ) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
-	name, err := validatePeriod(name, startsOn, endsOn)
+	name, err := validatePeriod(name, startsOn, endsOn, signUpDeadline)
 	if err != nil || expected < 1 {
 		if err != nil {
 			return Period{}, err
@@ -288,8 +294,12 @@ func (s *Service) UpdatePeriod(
 	if current.Version != expected {
 		return Period{}, apperror.StaleWrite
 	}
-	if PeriodStatus(current.Status) != PeriodDraft {
-		return Period{}, apperror.Conflicting("period_not_draft", "Period metadata can only be edited in draft")
+	// Outside draft only the sign-up deadline may change, so the Leitung can set it for a running semester.
+	if status := PeriodStatus(current.Status); status != PeriodDraft {
+		boundsKept := name == current.Name && sameDate(startsOn, current.StartsOn.Time) && sameDate(endsOn, current.EndsOn.Time)
+		if status == PeriodArchived || !boundsKept {
+			return Period{}, apperror.Conflicting("period_not_draft", "Period metadata can only be edited in draft")
+		}
 	}
 	days, err := queries.ListOpenDaysByPeriod(ctx, id)
 	if err != nil {
@@ -307,6 +317,7 @@ func (s *Service) UpdatePeriod(
 			Name:            name,
 			StartsOn:        pgDate(startsOn),
 			EndsOn:          pgDate(endsOn),
+			SignUpDeadline:  optionalPgDate(signUpDeadline),
 			ID:              id,
 			ExpectedVersion: expected,
 		},
@@ -325,7 +336,7 @@ func (s *Service) UpdatePeriod(
 		"open_day_period",
 		id,
 		requestID,
-		[]string{"name", "startsOn", "endsOn"},
+		[]string{"name", "startsOn", "endsOn", "signUpDeadline"},
 	); err != nil {
 		return Period{}, err
 	}
@@ -1081,7 +1092,7 @@ func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.
 	return nil
 }
 
-func validatePeriod(name string, start, end time.Time) (string, error) {
+func validatePeriod(name string, start, end time.Time, signUpDeadline *time.Time) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 150 {
 		return "", apperror.Invalid("period name is invalid")
@@ -1089,18 +1100,37 @@ func validatePeriod(name string, start, end time.Time) (string, error) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return "", apperror.Invalid("period date range is invalid")
 	}
+	if signUpDeadline != nil && !dateWithin(*signUpDeadline, start, end) {
+		return "", apperror.Invalid("sign-up deadline must lie within the period")
+	}
 	return name, nil
 }
+func sameDate(a, b time.Time) bool {
+	return a.Format(time.DateOnly) == b.Format(time.DateOnly)
+}
+
+func optionalPgDate(t *time.Time) pgtype.Date {
+	if t == nil {
+		return pgtype.Date{}
+	}
+	return pgDate(*t)
+}
 func periodBase(r opendaysdb.OpenDayPeriod) Period {
+	var signUpDeadline *time.Time
+	if r.SignUpDeadline.Valid {
+		value := r.SignUpDeadline.Time
+		signUpDeadline = &value
+	}
 	return Period{
-		ID:        r.ID,
-		Name:      r.Name,
-		StartsOn:  r.StartsOn.Time,
-		EndsOn:    r.EndsOn.Time,
-		Status:    PeriodStatus(r.Status),
-		Version:   r.Version,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		ID:             r.ID,
+		Name:           r.Name,
+		StartsOn:       r.StartsOn.Time,
+		EndsOn:         r.EndsOn.Time,
+		SignUpDeadline: signUpDeadline,
+		Status:         PeriodStatus(r.Status),
+		Version:        r.Version,
+		CreatedAt:      r.CreatedAt,
+		UpdatedAt:      r.UpdatedAt,
 	}
 }
 func canRead(p authorization.Principal) bool {

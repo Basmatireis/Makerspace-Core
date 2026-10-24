@@ -39,6 +39,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: $spacing-04;
+  container: db-tile / inline-size;
 }
 
 // Carbon notifications have a minimum width; inside a narrow tile they have to shrink with it.
@@ -48,6 +49,26 @@
   max-inline-size: none;
   inline-size: 100%;
   margin: 0;
+}
+
+// Carbon puts the action button next to the text from the md viewport on, which squeezes the text in a narrow tile.
+// Below 32rem of tile width the button wraps under the text, as Carbon does on small viewports.
+@container db-tile (max-width: 32rem) {
+  .db-tile .cds--actionable-notification {
+    flex-wrap: wrap;
+  }
+
+  .db-tile.cds--tile .cds--actionable-notification .cds--actionable-notification__details {
+    margin-inline: 0.8125rem $spacing-05;
+  }
+
+  .db-tile .cds--actionable-notification__button-wrapper {
+    inline-size: 100%;
+  }
+
+  .db-tile.cds--tile .cds--actionable-notification__action-button.cds--btn--ghost {
+    margin: 0 0 $spacing-03 $spacing-08;
+  }
 }
 
 .db-tile__eyebrow {

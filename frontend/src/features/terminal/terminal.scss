@@ -154,27 +154,36 @@ body:has(.tablet) {
   align-items: start;
 }
 
-.tablet-pin__dots {
+// Read-only, field-like PIN display: one bullet per entered digit, so it fits any length from 6 to 12.
+.tablet-pin__display {
   display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-04;
-  min-block-size: 3rem;
   align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+  min-block-size: 3rem;
   padding-inline: $spacing-05;
   background: $field-01;
   border-block-end: 1px solid $border-strong-01;
+}
 
-  > span:not(.cds--visually-hidden) {
-    inline-size: 1rem;
-    block-size: 1rem;
-    border: 2px solid $icon-secondary;
-    border-radius: 50%;
-  }
+.tablet-pin__mask {
+  @include type-style('heading-04');
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  letter-spacing: 0.2em;
 
-  > .is-filled {
-    background: $icon-primary;
-    border-color: $icon-primary;
+  > span {
+    @include type-style('body-02');
+    color: $text-placeholder;
+    letter-spacing: normal;
   }
+}
+
+.tablet-pin__count {
+  @include type-style('helper-text-02');
+  flex-shrink: 0;
+  color: $text-helper;
+  font-variant-numeric: tabular-nums;
 }
 
 .tablet-keypad {
@@ -201,8 +210,9 @@ body:has(.tablet) {
   inline-size: 100%;
 }
 
+// The email form spans the method switcher like the PIN layout does, instead of a narrow column.
 .tablet-password {
-  max-inline-size: 32rem;
+  inline-size: 100%;
 }
 
 .tablet-identify__idle {

@@ -230,6 +230,7 @@ function supervisorDashboard() {
       name: 'Autumn Open Days',
       startsOn: '2026-09-01',
       endsOn: '2027-02-28',
+      signUpBy: '2027-02-28',
     },
     requirements: {
       minOpenDaysPerSemester: 3,
@@ -917,6 +918,7 @@ test('renders Open Day periods as an accessible table and mobile cards without o
         name: 'Winter Semester 2026/27',
         startsOn: '2026-10-01',
         endsOn: '2027-01-31',
+        signUpDeadline: null,
         status: 'published',
         totalOpenDays: 44,
         fullyStaffedCount: 12,
@@ -941,7 +943,7 @@ test('renders Open Day periods as an accessible table and mobile cards without o
   await expect(periodLink).toHaveAttribute('href', `/open-days/${openDayPeriodId}`);
   await expect(table.getByRole('columnheader', { name: 'Open supervisor positions' })).toBeVisible();
   await expect(table.getByRole('columnheader', { name: 'Actions' })).toBeVisible();
-  await expect(table.getByRole('button', { name: 'Edit metadata' })).toBeDisabled();
+  await expect(table.getByRole('button', { name: 'Edit sign-up deadline' })).toBeEnabled();
   await expect(table.getByRole('button', { name: 'Delete Winter Semester 2026/27' })).toBeEnabled();
   await expect(page.getByText('1 item')).toBeVisible();
   await expect(table.getByRole('checkbox')).toHaveCount(0);
@@ -1054,6 +1056,54 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
     const contrast = await new AxeBuilder({ page }).include('.page-header').withRules(['color-contrast']).analyze();
     expect(contrast.violations).toEqual([]);
   }
+});
+
+test('wraps the supervisor-needed action under its text in a narrow dashboard tile', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await installApi(page, { authenticated: true, user: currentUser(['open_days.read', 'open_days.signup']) });
+  const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+  await page.route('**/api/v1/me/dashboard', (route) =>
+    json(route, {
+      person: { firstName: 'Ada', memberSince: '2025-01-01' },
+      staffing: {
+        kind: 'supervisor',
+        semester: {
+          periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+          name: 'Autumn',
+          startsOn: '2026-10-01',
+          endsOn: '2027-01-31',
+          signUpBy: '2026-11-15',
+        },
+        minimum: 2,
+        traineeThreshold: 3,
+        staffed: 0,
+        booked: 0,
+        staffedAsTrainee: 0,
+        status: 'missing',
+        missing: 2,
+        nextOpenDay: null,
+        nextOpenPlace: {
+          openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8b001',
+          periodId: '0192f6f8-743e-7c77-a349-cd07c3e8b005',
+          requirementId: '0192f6f8-743e-7c77-a349-cd07c3e8b003',
+          startsAt: inHours(50),
+          endsAt: inHours(54),
+          freePlaces: 2,
+        },
+      },
+      comingUp: [],
+    }),
+  );
+
+  await page.goto('/dashboard');
+  const subtitle = page.getByText(/supervisor places still open/);
+  const action = page.getByRole('button', { name: 'Sign up as supervisor' });
+  const [text, button] = await Promise.all([
+    visibleBoundingBox(subtitle, 'notification text'),
+    visibleBoundingBox(action, 'sign-up action'),
+  ]);
+  expect(button.y).toBeGreaterThanOrEqual(text.y + text.height - 1);
+  await expectNoHorizontalPageOverflow(page);
 });
 
 test('collapses and opens the SideNav at the responsive breakpoint', async ({ page }) => {

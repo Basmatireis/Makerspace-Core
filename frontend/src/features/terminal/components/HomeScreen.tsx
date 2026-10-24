@@ -1,5 +1,5 @@
 import { Button } from '@carbon/react';
-import { Login, Logout, UserAdmin, UserFollow } from '@carbon/icons-react';
+import { Login, Logout, UserAdmin } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import { TerminalHardwareStatus } from '../DeviceBridgePanel';
 
@@ -31,10 +31,14 @@ export function HomeScreen({
       <TerminalHardwareStatus />
 
       <div className="tablet-home__footer">
-        <Button as={Link} to="/visitor-enrollment" kind="tertiary" size="lg" renderIcon={UserFollow}>
-          New here? Register as a visitor
-        </Button>
-        <Button as={Link} to={`/${staffDestination}`} kind="ghost" size="lg" renderIcon={UserAdmin}>
+        <Button
+          as={Link}
+          to={`/${staffDestination}`}
+          state={{ origin: 'terminal' }}
+          kind="ghost"
+          size="lg"
+          renderIcon={UserAdmin}
+        >
           Staff sign in
         </Button>
       </div>

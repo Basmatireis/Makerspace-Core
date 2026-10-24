@@ -29,4 +29,6 @@ export interface Semester {
   name: string;
   startsOn: string;
   endsOn: string;
+  /** The sign-up deadline of the period, else its end date. */
+  signUpBy: string;
 }

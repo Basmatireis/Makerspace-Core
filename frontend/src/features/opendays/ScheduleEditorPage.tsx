@@ -4,7 +4,7 @@ import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
-import { periodRange, statusTagType } from './format';
+import { periodRange, signUpDeadlineLabel, statusTagType } from './format';
 import { OpenDayRegistrationModal } from './OpenDayDetailPage';
 import { toPreviewOpenDay, actionsForStatus, scheduleErrorMessage } from './schedule/scheduleHelpers';
 import { OpenDayPreviewView } from './schedule/OpenDayPreviewView';
@@ -100,7 +100,9 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
           <Tag type={statusTagType(scheduleQuery.data.period.status)}>{scheduleQuery.data.period.status}</Tag>
         }
         breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: scheduleQuery.data.period.name }]}
-        description={periodRange(scheduleQuery.data.period)}
+        description={[periodRange(scheduleQuery.data.period), signUpDeadlineLabel(scheduleQuery.data.period)]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           editMode
             ? lifecycleActions.map((action) => (

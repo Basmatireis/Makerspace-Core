@@ -9906,7 +9906,7 @@ components:
     Semester:
       type: object
       additionalProperties: false
-      required: [periodId, name, startsOn, endsOn]
+      required: [periodId, name, startsOn, endsOn, signUpBy]
       description: |
         The open-day period serving as the semester: the non-draft, non-archived period containing today, else the
         next upcoming one, else the most recent past one.
@@ -9915,6 +9915,7 @@ components:
         name: {type: string}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
+        signUpBy: {type: string, format: date, description: "The sign-up deadline of the period, else its end date."}
     OpenDayRequirements:
       type: object
       additionalProperties: false
@@ -12108,12 +12109,13 @@ components:
     OpenDayPeriod:
       type: object
       additionalProperties: false
-      required: [id, name, startsOn, endsOn, status, totalOpenDays, fullyStaffedCount, needsStaffCount, openSupervisorPositions, cancelledCount, myAssignmentCount, version, createdAt, updatedAt]
+      required: [id, name, startsOn, endsOn, signUpDeadline, status, totalOpenDays, fullyStaffedCount, needsStaffCount, openSupervisorPositions, cancelledCount, myAssignmentCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, maxLength: 150}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
+        signUpDeadline: {type: string, format: date, nullable: true, description: "Date by which supervisors must have signed up for their open-day minimum; null uses the period's end date."}
         status: {$ref: "#/components/schemas/OpenDayPeriodStatus"}
         totalOpenDays: {type: integer, minimum: 0}
         fullyStaffedCount: {type: integer, minimum: 0}
@@ -12143,6 +12145,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 150}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
+        signUpDeadline: {type: string, format: date, nullable: true, description: "Date by which supervisors must have signed up for their open-day minimum; null or omitted uses the period's end date. Must lie within startsOn..endsOn."}
 
     UpdateOpenDayPeriodRequest:
       type: object
@@ -12152,6 +12155,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 150}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
+        signUpDeadline: {type: string, format: date, nullable: true, description: "Date by which supervisors must have signed up for their open-day minimum; null or omitted clears it, so the period's end date applies. Must lie within startsOn..endsOn."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     StaffingRequirementInput:

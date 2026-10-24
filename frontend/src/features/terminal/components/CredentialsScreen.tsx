@@ -8,8 +8,9 @@ import {
   Switch,
   TextInput,
 } from '@carbon/react';
-import { ArrowLeft } from '@carbon/icons-react';
+import { ArrowLeft, UserFollow } from '@carbon/icons-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   terminalPasswordCheckIn,
   terminalPasswordCheckOut,
@@ -107,6 +108,11 @@ export function CredentialsScreen({
         <Button kind="ghost" size="lg" renderIcon={ArrowLeft} iconDescription="Back" onClick={onCancel}>
           Back
         </Button>
+        {mode === 'check-in' && (
+          <Button as={Link} to="/visitor-enrollment" kind="tertiary" size="lg" renderIcon={UserFollow}>
+            New here? Register as a visitor
+          </Button>
+        )}
       </div>
 
       <h1 className="tablet-identify__title">{mode === 'check-in' ? 'Who is arriving?' : 'Who is leaving?'}</h1>
@@ -139,11 +145,16 @@ export function CredentialsScreen({
               <p className="cds--label" id="tablet-pin-label">
                 PIN
               </p>
-              <div className="tablet-pin__dots" role="status" aria-labelledby="tablet-pin-label">
-                {Array.from({ length: Math.max(pinLength.min, secret.length) }, (_, index) => (
-                  <span key={index} className={index < secret.length ? 'is-filled' : undefined} />
-                ))}
-                <span className="cds--visually-hidden">{secret.length} digits entered</span>
+              <div className="tablet-pin__display" aria-labelledby="tablet-pin-label">
+                <span className="tablet-pin__mask" aria-hidden="true">
+                  {secret.length > 0 ? '•'.repeat(secret.length) : <span>Use the keypad</span>}
+                </span>
+                <span className="tablet-pin__count" aria-hidden="true">
+                  {secret.length} {secret.length === 1 ? 'digit' : 'digits'} · {pinLength.min}–{pinLength.max}
+                </span>
+                <span className="cds--visually-hidden" role="status">
+                  {secret.length} digits entered
+                </span>
               </div>
             </div>
             {error}

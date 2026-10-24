@@ -1,0 +1,257 @@
+// Application-specific layout for the visitor enrollment on the entrance tablet (landscape ~1280×800 and portrait
+// ~800×1280). Carbon supplies the controls; the flow fills the viewport instead of scrolling the page.
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+
+body:has(.visitor-flow) {
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.visitor-flow {
+  display: block;
+  block-size: 100dvh;
+  overflow-y: auto;
+  background: $background;
+}
+
+.visitor-flow__form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  block-size: 100%;
+  max-inline-size: 72rem;
+  margin-inline: auto;
+  padding-inline: $spacing-06;
+}
+
+.visitor-flow__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: $spacing-04;
+}
+
+.visitor-flow__brand {
+  @include type-style('label-02');
+  color: $text-secondary;
+}
+
+.visitor-flow__body {
+  display: grid;
+  align-content: start;
+  gap: $spacing-05;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding-block: $spacing-06;
+}
+
+.visitor-flow__eyebrow {
+  @include type-style('label-02');
+  color: $text-secondary;
+}
+
+.visitor-flow__title {
+  @include type-style('heading-06');
+  margin-block-start: -$spacing-04;
+}
+
+.visitor-flow__note,
+.visitor-photo__hint {
+  @include type-style('helper-text-01');
+  color: $text-secondary;
+}
+
+.visitor-flow__lead {
+  @include type-style('body-02');
+  max-inline-size: 40rem;
+}
+
+.visitor-flow__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-05;
+  padding-block: $spacing-05;
+  border-block-start: 1px solid $border-subtle-01;
+}
+
+.visitor-flow__footer .cds--btn {
+  min-inline-size: 12rem;
+}
+
+.visitor-flow__about {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: $spacing-08;
+  align-items: start;
+}
+
+.visitor-flow__fields,
+.visitor-flow__contact,
+.visitor-flow__methods,
+.visitor-flow__rules {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.visitor-flow__contact {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.visitor-flow__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+}
+
+// A required marker for fields whose Carbon label carries no asterisk of its own.
+.visitor-required .cds--label::after {
+  color: $text-error;
+  content: ' *';
+}
+
+.visitor-flow__methods .cds--tile-group > .cds--tile-group__fieldset,
+.visitor-flow__methods .cds--tile-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+}
+
+.visitor-flow__methods .cds--tile-group legend {
+  grid-column: 1 / -1;
+}
+
+.visitor-flow__methods .cds--tile--selectable {
+  min-block-size: 8rem;
+}
+
+.visitor-flow__tile-title {
+  @include type-style('heading-03');
+  display: block;
+  margin-block-end: $spacing-03;
+}
+
+.visitor-flow__tile-text {
+  @include type-style('body-compact-01');
+  display: block;
+  color: $text-secondary;
+}
+
+// Photo
+
+.visitor-photo {
+  display: grid;
+  gap: $spacing-04;
+  justify-items: start;
+}
+
+.visitor-photo__frame {
+  display: grid;
+  place-items: center;
+  inline-size: min(100%, 20rem);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: $layer-02;
+}
+
+.visitor-photo__media {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  grid-area: 1 / 1;
+}
+
+.visitor-photo__media[hidden] {
+  display: none;
+}
+
+.visitor-photo__placeholder {
+  grid-area: 1 / 1;
+  fill: $icon-secondary;
+}
+
+.visitor-photo .cds--file {
+  inline-size: min(100%, 20rem);
+}
+
+.visitor-photo .cds--file-browse-btn {
+  max-inline-size: none;
+}
+
+// Done
+
+.visitor-done {
+  display: grid;
+  gap: $spacing-06;
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  padding: $spacing-08 $spacing-06;
+}
+
+.visitor-done__banner {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  padding: $spacing-06;
+  background: $layer-01;
+  border-inline-start: 8px solid $support-success;
+
+  svg {
+    flex-shrink: 0;
+    fill: $support-success;
+  }
+}
+
+.visitor-done__eyebrow {
+  @include type-style('heading-02');
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.visitor-done__title {
+  @include type-style('heading-06');
+}
+
+.visitor-done__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-08;
+}
+
+.visitor-done__column {
+  display: grid;
+  gap: $spacing-05;
+  align-content: start;
+}
+
+.visitor-done__heading {
+  @include type-style('heading-04');
+}
+
+.visitor-done__lead {
+  @include type-style('heading-03');
+}
+
+.visitor-done__button.cds--btn {
+  justify-content: center;
+  align-items: center;
+  max-inline-size: none;
+  inline-size: 100%;
+}
+
+@media (max-width: 66rem) {
+  .visitor-flow__about,
+  .visitor-done__grid {
+    grid-template-columns: 1fr;
+    gap: $spacing-06;
+  }
+}
+
+@media (max-width: 40rem) {
+  .visitor-flow__pair,
+  .visitor-flow__methods .cds--tile-group {
+    grid-template-columns: 1fr;
+  }
+}

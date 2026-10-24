@@ -1,6 +1,6 @@
 -- name: CreatePeriod :one
-INSERT INTO open_day_periods (id, name, starts_on, ends_on)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(starts_on), sqlc.arg(ends_on)) RETURNING *;
+INSERT INTO open_day_periods (id, name, starts_on, ends_on, sign_up_deadline)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(starts_on), sqlc.arg(ends_on), sqlc.narg(sign_up_deadline)) RETURNING *;
 
 -- name: ListPeriods :many
 SELECT * FROM open_day_periods ORDER BY starts_on DESC, id DESC;
@@ -14,8 +14,9 @@ SELECT * FROM open_day_periods WHERE id = sqlc.arg(id) FOR UPDATE;
 -- name: UpdatePeriod :one
 UPDATE open_day_periods
 SET name = sqlc.arg(name), starts_on = sqlc.arg(starts_on), ends_on = sqlc.arg(ends_on),
+    sign_up_deadline = sqlc.narg(sign_up_deadline),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status = 'draft'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status <> 'archived'
 RETURNING *;
 
 -- name: DeletePeriod :one

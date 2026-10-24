@@ -438,7 +438,7 @@ describe('open day deep links', () => {
       {
         staffing: {
           kind: 'supervisor',
-          semester: { periodId, name: 'Autumn', startsOn: '2026-10-01', endsOn: '2027-01-31' },
+          semester: { periodId, name: 'Autumn', startsOn: '2026-10-01', endsOn: '2027-01-31', signUpBy: '2027-01-31' },
           minimum: 2,
           traineeThreshold: 3,
           staffed: 1,

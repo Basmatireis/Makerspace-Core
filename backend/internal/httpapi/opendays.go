@@ -50,6 +50,7 @@ func (s *Server) CreateOpenDayPeriod(
 		r.Body.Name,
 		r.Body.StartsOn.Time,
 		r.Body.EndsOn.Time,
+		nullableDate(r.Body.SignUpDeadline),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -92,6 +93,7 @@ func (s *Server) UpdateOpenDayPeriod(
 		r.Body.Name,
 		r.Body.StartsOn.Time,
 		r.Body.EndsOn.Time,
+		nullableDate(r.Body.SignUpDeadline),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -753,6 +755,7 @@ func openDayPeriodDTO(v opendays.Period) openapi.OpenDayPeriod {
 		Name:                    v.Name,
 		StartsOn:                apiDate(v.StartsOn),
 		EndsOn:                  apiDate(v.EndsOn),
+		SignUpDeadline:          signUpDeadlineDTO(v.SignUpDeadline),
 		Status:                  openapi.OpenDayPeriodStatus(v.Status),
 		Version:                 v.Version,
 		CreatedAt:               v.CreatedAt,
@@ -839,6 +842,13 @@ func academicBreakDTO(v opendays.AcademicBreak) openapi.AcademicBreak {
 		UpdatedAt: v.UpdatedAt,
 	}
 }
+func signUpDeadlineDTO(v *time.Time) nullable.Nullable[openapi_types.Date] {
+	if v == nil {
+		return nullable.NewNullNullable[openapi_types.Date]()
+	}
+	return nullable.NewNullableWithValue(apiDate(*v))
+}
+
 func apiDate(v time.Time) openapi_types.Date {
 	return openapi_types.Date{Time: time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)}
 }

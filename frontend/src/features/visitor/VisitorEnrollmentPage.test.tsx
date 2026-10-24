@@ -1,8 +1,9 @@
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VisitorEnrollmentSubmission } from '../../api/generated/models';
+import { Route, Routes } from 'react-router-dom';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { VisitorEnrollmentPage } from './VisitorEnrollmentPage';
@@ -25,10 +26,8 @@ describe('controlled visitor enrollment', () => {
 
   it('submits only the configured method and explicit confirmation request, never a Role ID', async () => {
     let submission: (VisitorEnrollmentSubmission & { roleId?: string }) | undefined;
-    let contexts = 0;
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => {
-        contexts += 1;
         return new HttpResponse(null, { status: 204 });
       }),
       http.get('*/api/v1/visitor-enrollment/state', () =>
@@ -58,32 +57,55 @@ describe('controlled visitor enrollment', () => {
       }),
     );
     const user = userEvent.setup();
-    const { queryClient } = renderRoute(<VisitorEnrollmentPage />, '/visitor-enrollment');
+    const { queryClient } = renderTerminalAware();
 
-    expect(await screen.findByRole('heading', { name: 'Visitor enrollment' })).toBeInTheDocument();
+    // Step 1: required fields and the contact rule are visible, Next stays disabled until the step is valid.
+    expect(await screen.findByRole('heading', { name: 'About you' })).toHaveFocus();
+    expect(screen.getByText(/Email or phone, at least one/)).toBeInTheDocument();
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeDisabled();
+    await user.type(screen.getByLabelText('First name'), 'New');
+    await user.type(screen.getByLabelText('Last name'), 'Visitor');
+    await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
+    expect(next).toBeDisabled();
+    await user.upload(
+      screen.getByLabelText('or upload a profile photo'),
+      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
+    );
+    expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
+    await waitFor(() => expect(next).toBeEnabled());
+    await user.click(next);
+
+    // Step 2: only the configured method is offered; entries survive going back.
+    expect(await screen.findByRole('heading', { name: 'Sign-in method' })).toHaveFocus();
+    expect(screen.queryByLabelText(/Email invitation/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Login name and PIN/)).toBeChecked();
+    await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
+    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '65432');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '1');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('heading', { name: 'About you' })).toBeInTheDocument();
+    expect(screen.getByLabelText('First name')).toHaveValue('New');
+    expect(screen.getByAltText('Selected profile')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByLabelText('PIN login username')).toHaveValue('Visitor.One');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    // Step 3
+    expect(await screen.findByRole('heading', { name: 'Lab Rules' })).toHaveFocus();
     expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute(
       'href',
       '/api/v1/visitor-enrollment/lab-rules.pdf',
     );
-    expect(screen.queryByText(/password invitation/i)).not.toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Submit enrollment' });
+    expect(submit).toBeDisabled();
+    await user.click(screen.getByLabelText(/I am ready to sign the physical Lab Rules document/));
+    await user.click(submit);
 
-    await user.type(screen.getByLabelText('First name'), 'New');
-    await user.type(screen.getByLabelText('Last name'), 'Visitor');
-    await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
-    await user.click(screen.getByLabelText('Username and PIN'));
-    await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
-    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
-    const upload = screen.getByLabelText('or upload a profile photo');
-    await user.upload(
-      upload,
-      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
-    );
-    await user.click(
-      screen.getByLabelText('I am ready to sign the physical Lab Rules document and request supervisor confirmation'),
-    );
-    await user.click(screen.getByRole('button', { name: 'Submit enrollment and request confirmation' }));
-
-    expect(await screen.findByRole('heading', { name: 'Enrollment submitted' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
+    expect(screen.getByText(/Ask a supervisor for the paper Lab Rules/)).toBeInTheDocument();
+    expect(screen.getByText('Visitor.One')).toBeInTheDocument();
     await waitFor(() => expect(submission).toBeDefined());
     expect(submission).toMatchObject({
       firstName: 'New',
@@ -104,12 +126,76 @@ describe('controlled visitor enrollment', () => {
         .every((mutation) => mutation.state.variables === undefined),
     ).toBe(true);
 
-    await user.click(screen.getByRole('button', { name: 'Next visitor' }));
-    expect(await screen.findByRole('heading', { name: 'Visitor enrollment' })).toBeInTheDocument();
-    expect(contexts).toBe(2);
-    expect(screen.getByLabelText('First name')).toHaveValue('');
-    expect(screen.getByLabelText('Email')).toHaveValue('');
-    expect(screen.queryByAltText('Selected profile')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Username and PIN')).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: /^Done/ }));
+    expect(await screen.findByText('Terminal screen')).toBeInTheDocument();
+  });
+
+  it('offers the email invitation only with an email address and goes back to the terminal', async () => {
+    server.use(
+      http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/api/v1/visitor-enrollment/state', () =>
+        HttpResponse.json({
+          allowedMethods: ['password', 'pin'],
+          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
+          expiresAt: '2026-09-20T12:15:00Z',
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTerminalAware();
+    await user.type(await screen.findByLabelText('First name'), 'Pia');
+    await user.type(screen.getByLabelText('Last name'), 'Phone');
+    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
+    await user.upload(
+      screen.getByLabelText('or upload a profile photo'),
+      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByLabelText(/Email invitation/)).toBeDisabled();
+    expect(screen.getByText(/you did not enter an email address/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await user.click(screen.getByRole('link', { name: 'Back to check-in' }));
+    expect(await screen.findByText('Terminal screen')).toBeInTheDocument();
+  });
+
+  describe('inactivity', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('asks whether the visitor is still there and discards everything when nobody answers', async () => {
+      server.use(
+        http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+        http.get('*/api/v1/visitor-enrollment/state', () =>
+          HttpResponse.json({
+            allowedMethods: ['pin'],
+            currentLabRules: null,
+            expiresAt: '2026-09-20T12:15:00Z',
+          }),
+        ),
+      );
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      renderTerminalAware();
+      expect(await screen.findByLabelText('First name')).toBeInTheDocument();
+      act(() => void vi.advanceTimersByTime(30_000));
+      expect(screen.getByText(/Returning to check-in in (29|30) s/)).toBeInTheDocument();
+      act(() => void vi.advanceTimersByTime(10_000));
+      expect(screen.getByText(/Returning to check-in in (19|20|21) s/)).toBeInTheDocument();
+      // "Still here" restarts the idle period.
+      act(() => screen.getByRole('button', { name: 'Still here' }).click());
+      act(() => void vi.advanceTimersByTime(29_000));
+      expect(screen.queryByText(/Returning to check-in/)).not.toBeInTheDocument();
+      act(() => void vi.advanceTimersByTime(61_000));
+      expect(screen.getByText('Terminal screen')).toBeInTheDocument();
+    });
   });
 });
+
+function renderTerminalAware() {
+  return renderRoute(
+    <Routes>
+      <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
+      <Route path="/terminal" element={<p>Terminal screen</p>} />
+    </Routes>,
+    '/visitor-enrollment',
+  );
+}

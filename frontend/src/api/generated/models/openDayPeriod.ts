@@ -28,6 +28,11 @@ export interface OpenDayPeriod {
   name: string;
   startsOn: string;
   endsOn: string;
+  /**
+     * Date by which supervisors must have signed up for their open-day minimum; null uses the period's end date.
+     * @nullable
+     */
+  signUpDeadline: string | null;
   status: OpenDayPeriodStatus;
   /** @minimum 0 */
   totalOpenDays: number;

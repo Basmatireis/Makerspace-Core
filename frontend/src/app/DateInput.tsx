@@ -4,26 +4,40 @@ import { APP_DATE_PLACEHOLDER, dateOnlyToPickerDate, parseDisplayDate, pickerDat
 type DateInputProps = {
   id: string;
   labelText: string;
+  helperText?: string;
   value: string;
   onChange: (value: string) => void;
   invalid?: boolean;
   invalidText?: string;
   required?: boolean;
+  readOnly?: boolean;
 };
 
-export function DateInput({ id, labelText, value, onChange, invalid, invalidText, required }: DateInputProps) {
+export function DateInput({
+  id,
+  labelText,
+  helperText,
+  value,
+  onChange,
+  invalid,
+  invalidText,
+  required,
+  readOnly,
+}: DateInputProps) {
   return (
     <DatePicker
       allowInput
       datePickerType="single"
       dateFormat="d.m.Y"
       locale="en"
+      readOnly={readOnly}
       value={value ? dateOnlyToPickerDate(value) : ''}
       onChange={(dates) => onChange(dates[0] ? pickerDateToDateOnly(dates[0]) : '')}
     >
       <DatePickerInput
         id={id}
         labelText={labelText}
+        helperText={helperText}
         placeholder={APP_DATE_PLACEHOLDER}
         pattern="\d{2}\.\d{2}\.\d{4}"
         invalid={invalid}

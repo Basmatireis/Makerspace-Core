@@ -249,6 +249,36 @@ describe('Open Day period management entry points', () => {
     await waitFor(() => expect(submitted).toMatchObject({ name: 'Updated period', expectedVersion: 3 }));
   });
 
+  it('edits only the sign-up deadline of a published period', async () => {
+    mockPeriodList([PermissionId.open_daysmanage], [period('published')]);
+    let submitted: unknown;
+    server.use(
+      http.patch('*/api/v1/open-day-periods/:periodId', async ({ request }) => {
+        submitted = await request.json();
+        return HttpResponse.json({ ...period('published'), signUpDeadline: '2026-10-01', version: 4 });
+      }),
+    );
+    renderRoute(<App />, '/open-days');
+    const user = userEvent.setup();
+
+    const table = await screen.findByRole('table', { name: 'Open Day periods' });
+    await user.click(within(table).getByRole('button', { name: 'Edit sign-up deadline' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit sign-up deadline' });
+    expect(within(dialog).getByLabelText('Name')).toHaveAttribute('readonly');
+    await user.type(within(dialog).getByLabelText('Sign-up deadline (optional)'), '01.10.2026');
+    await user.click(within(dialog).getByRole('button', { name: 'Save period' }));
+
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        name: 'Winter Semester 2026/27',
+        startsOn: '2026-10-01',
+        endsOn: '2026-10-01',
+        signUpDeadline: '2026-10-01',
+        expectedVersion: 3,
+      }),
+    );
+  });
+
   it.each(['draft', 'staffing', 'published', 'archived'] as const)(
     'confirms and deletes a %s period from its row action',
     async (status) => {

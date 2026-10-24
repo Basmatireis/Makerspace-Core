@@ -74,7 +74,7 @@ describe('public terminal and survey pages', () => {
     expect(await screen.findByRole('heading', { name: 'Welcome to the Makerspace' })).toBeInTheDocument();
     const publicName = await screen.findByText('Ada L.');
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Register as a visitor/ })).toHaveAttribute('href', '/visitor-enrollment');
+    expect(screen.queryByRole('link', { name: /Register as a visitor/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Staff sign in/ })).toHaveAttribute('href', '/login');
     expect(authRequests).toBe(0);
 
@@ -121,6 +121,44 @@ describe('public terminal and survey pages', () => {
     expect(screen.getByText('Grace, you are not checked in.')).toBeInTheDocument();
     expect(screen.getByText('You have not signed the Lab Rules yet. Ask a supervisor for help.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Understood/ })).toBeInTheDocument();
+  });
+
+  it('offers visitor registration on the check-in screen only and shows the PIN length as a counter', async () => {
+    mockTerminal('public_tap', adaPresence);
+    const user = userEvent.setup();
+    renderRoute(<App />, '/terminal');
+
+    await user.click(await screen.findByRole('button', { name: 'Check in' }));
+    expect(await screen.findByRole('link', { name: /New here\? Register as a visitor/ })).toHaveAttribute(
+      'href',
+      '/visitor-enrollment',
+    );
+    expect(screen.getByText('0 digits · 6–12')).toBeInTheDocument();
+    for (const digit of '1234') await user.click(screen.getByRole('button', { name: digit }));
+    expect(screen.getByText('4 digits · 6–12')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('4 digits entered');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(await screen.findByRole('button', { name: 'Check out' }));
+    expect(screen.queryByRole('link', { name: /Register as a visitor/ })).not.toBeInTheDocument();
+  });
+
+  it('offers the way back to the terminal on the sign-in page only when coming from the terminal', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json({ code: 'unauthenticated', message: 'Authentication required' }, { status: 401 }),
+      ),
+    );
+    const user = userEvent.setup();
+    mockTerminal('public_tap', adaPresence);
+    const first = renderRoute(<App />, '/terminal');
+    await user.click(await screen.findByRole('link', { name: /Staff sign in/ }));
+    expect(await screen.findByRole('link', { name: 'Back to terminal' })).toHaveAttribute('href', '/terminal');
+    first.unmount();
+
+    renderRoute(<App />, '/login');
+    expect(await screen.findByRole('heading', { name: /Makerspace|Sign in/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Back to terminal' })).not.toBeInTheDocument();
   });
 
   it('does not offer tap checkout when the terminal requires credentials', async () => {

@@ -67,8 +67,8 @@ export function SemesterTile({
           {status === 'missing' && (
             <p className="db-status db-status--warning">
               <WarningAltFilled size={16} aria-hidden />
-              Sign up for {plural(staffing.missing, 'open day')} more by {shortDate(semester.endsOn)} to keep your room
-              access.
+              Sign up for {plural(staffing.missing, 'open day')} more by {shortDate(semester.signUpBy)} to keep your
+              room access.
             </p>
           )}
         </>

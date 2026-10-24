@@ -14,11 +14,14 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
 import { createOpenDayPeriod } from '../../api/generated/open-days/open-days';
+import { DateInput } from '../../app/DateInput';
 import { usePickerDateRange } from '../../app/usePickerDateRange';
 import { APP_DATE_PLACEHOLDER, parseDisplayDate, pickerDateToDateOnly } from '../../app/dateTime';
 import { openDayKeys } from './queries';
 
-type PeriodForm = { name: string; startsOn: string; endsOn: string };
+type PeriodForm = { name: string; startsOn: string; endsOn: string; signUpDeadline: string };
+const SIGN_UP_DEADLINE_HELP =
+  "Supervisors see this date on their dashboard as the deadline for their open-day minimum. Empty uses the period's end date.";
 type WizardError = { title: string; subtitle: string };
 
 type Props = {
@@ -39,11 +42,12 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
     getValues,
     reset,
     setError,
+    clearErrors,
     setValue,
     trigger,
     formState: { errors, isDirty },
   } = useForm<PeriodForm>({
-    defaultValues: { name: '', startsOn: '', endsOn: '' },
+    defaultValues: { name: '', startsOn: '', endsOn: '', signUpDeadline: '' },
   });
 
   useEffect(() => {
@@ -51,7 +55,10 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
   }, [isDirty, onDirtyChange]);
 
   const createMutation = useMutation({
-    mutationFn: () => createOpenDayPeriod(getValues()),
+    mutationFn: () => {
+      const { signUpDeadline, ...values } = getValues();
+      return createOpenDayPeriod({ ...values, signUpDeadline: signUpDeadline || null });
+    },
     onSuccess: async (period) => {
       await queryClient.invalidateQueries({ queryKey: openDayKeys.periods() });
       reset();
@@ -94,6 +101,14 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
       setWizardError({ title: 'Invalid date range', subtitle: 'Choose an end date on or after the start date.' });
       return;
     }
+    if (values.signUpDeadline && (values.signUpDeadline < values.startsOn || values.signUpDeadline > values.endsOn)) {
+      setError('signUpDeadline', { message: 'Sign-up deadline must lie within the period.' });
+      setWizardError({
+        title: 'Invalid sign-up deadline',
+        subtitle: 'Choose a date within the period or leave it empty.',
+      });
+      return;
+    }
     createMutation.mutate();
   };
   const requestClose = useLatestCallback(() => {
@@ -102,7 +117,7 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
     return false;
   });
   // Watched, not read with getValues: picking a date must re-render the picker.
-  const [startsOn, endsOn] = useWatch({ control, name: ['startsOn', 'endsOn'] });
+  const [startsOn, endsOn, signUpDeadline] = useWatch({ control, name: ['startsOn', 'endsOn', 'signUpDeadline'] });
   const range = usePickerDateRange(startsOn, endsOn);
 
   return (
@@ -179,6 +194,19 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyCha
                 }}
               />
             </DatePicker>
+            <DateInput
+              id="period-sign-up-deadline"
+              labelText="Sign-up deadline (optional)"
+              helperText={SIGN_UP_DEADLINE_HELP}
+              value={signUpDeadline}
+              invalid={Boolean(errors.signUpDeadline)}
+              invalidText={errors.signUpDeadline?.message}
+              onChange={(value) => {
+                setValue('signUpDeadline', value, { shouldDirty: true });
+                clearErrors('signUpDeadline');
+                clearError();
+              }}
+            />
           </Stack>
         )}
         {!discardOpen && wizardError && (

@@ -39,6 +39,7 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 			today,
 			end,
 			nil,
+			nil,
 		)
 		check("create period", err)
 		for _, target := range []opendays.PeriodStatus{opendays.PeriodStaffing, opendays.PeriodPublished} {

@@ -39,11 +39,26 @@ import { RowActions } from '../../app/RowActions';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { CreateOpenDayPeriodWizard } from './CreateOpenDayPeriodWizard';
-import { periodRange, statusTagType } from './format';
+import { periodRange, signUpDeadlineLabel, statusTagType } from './format';
 import { openDaySchedulePath } from './paths';
 import { openDayKeys, periodsQueryOptions } from './queries';
 
-type PeriodDraft = Pick<OpenDayPeriod, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
+type PeriodDraft = Pick<OpenDayPeriod, 'id' | 'name' | 'startsOn' | 'endsOn' | 'status' | 'version'> & {
+  signUpDeadline: string;
+};
+
+function periodToDraft(period: OpenDayPeriod): PeriodDraft {
+  return { ...period, signUpDeadline: period.signUpDeadline ?? '' };
+}
+
+// Outside draft only the sign-up deadline can change; archived periods are final.
+function editPeriodLabel(period: OpenDayPeriod) {
+  return period.status === 'draft' || period.status === 'archived' ? 'Edit metadata' : 'Edit sign-up deadline';
+}
+
+function editPeriodTitle(period: OpenDayPeriod) {
+  return period.status === 'archived' ? 'Archived periods cannot be edited' : editPeriodLabel(period);
+}
 
 const pageSizes = [10, 25, 50];
 const periodHeaders = [
@@ -73,9 +88,14 @@ export function OpenDaysPage() {
   const periodDirty = Boolean(
     periodDraft &&
     originalPeriod &&
-    ['name', 'startsOn', 'endsOn'].some(
+    (['name', 'startsOn', 'endsOn'].some(
       (key) => periodDraft[key as keyof PeriodDraft] !== originalPeriod[key as keyof PeriodDraft],
-    ),
+    ) ||
+      periodDraft.signUpDeadline !== (originalPeriod.signUpDeadline ?? '')),
+  );
+  const signUpDeadlineInvalid = Boolean(
+    periodDraft?.signUpDeadline &&
+    (periodDraft.signUpDeadline < periodDraft.startsOn || periodDraft.signUpDeadline > periodDraft.endsOn),
   );
   const guard = useUnsavedChanges({
     isDirty: periodDirty || (createOpen && createDirty),
@@ -92,6 +112,7 @@ export function OpenDaysPage() {
         name: value.name,
         startsOn: value.startsOn,
         endsOn: value.endsOn,
+        signUpDeadline: value.signUpDeadline || null,
         expectedVersion: value.version,
       }),
     onSuccess: async () => {
@@ -253,6 +274,7 @@ export function OpenDaysPage() {
                                       {period.name}
                                     </CarbonLink>
                                     <span>{periodRange(period)}</span>
+                                    {period.signUpDeadline && <span>{signUpDeadlineLabel(period)}</span>}
                                   </span>
                                 ) : cell.info.header === 'status' ? (
                                   <Tag type={statusTagType(period.status)}>{period.status}</Tag>
@@ -266,15 +288,11 @@ export function OpenDaysPage() {
                                       kind="ghost"
                                       size="sm"
                                       renderIcon={Edit}
-                                      title={
-                                        period.status === 'draft'
-                                          ? 'Edit metadata'
-                                          : 'Only draft period metadata can be edited'
-                                      }
-                                      disabled={period.status !== 'draft'}
-                                      onClick={() => setPeriodDraft(period)}
+                                      title={editPeriodTitle(period)}
+                                      disabled={period.status === 'archived'}
+                                      onClick={() => setPeriodDraft(periodToDraft(period))}
                                     >
-                                      Edit metadata
+                                      {editPeriodLabel(period)}
                                     </Button>
                                     <Button
                                       hasIconOnly
@@ -316,6 +334,7 @@ export function OpenDaysPage() {
                           <Tag type={statusTagType(period.status)}>{period.status}</Tag>
                         </div>
                         <p>{periodRange(period)}</p>
+                        {period.signUpDeadline && <p>{signUpDeadlineLabel(period)}</p>}
                         <dl>
                           <div>
                             <dt>Open Days</dt>
@@ -342,10 +361,10 @@ export function OpenDaysPage() {
                               kind="ghost"
                               size="sm"
                               renderIcon={Edit}
-                              disabled={period.status !== 'draft'}
-                              onClick={() => setPeriodDraft(period)}
+                              disabled={period.status === 'archived'}
+                              onClick={() => setPeriodDraft(periodToDraft(period))}
                             >
-                              Edit metadata
+                              {editPeriodLabel(period)}
                             </Button>
                             <Button
                               kind="danger--ghost"
@@ -401,11 +420,15 @@ export function OpenDaysPage() {
       )}
       <Modal
         open={Boolean(periodDraft) && !guard.dialogOpen}
-        modalHeading="Edit period metadata"
+        modalHeading={periodDraft?.status === 'draft' ? 'Edit period metadata' : 'Edit sign-up deadline'}
         primaryButtonText="Save period"
         secondaryButtonText="Cancel"
         primaryButtonDisabled={
-          periodMutation.isPending || !periodDraft?.name.trim() || !periodDraft.startsOn || !periodDraft.endsOn
+          periodMutation.isPending ||
+          !periodDraft?.name.trim() ||
+          !periodDraft.startsOn ||
+          !periodDraft.endsOn ||
+          signUpDeadlineInvalid
         }
         onRequestClose={requestFormClose}
         onRequestSubmit={() => periodDraft && !periodMutation.isPending && periodMutation.mutate(periodDraft)}
@@ -421,23 +444,38 @@ export function OpenDaysPage() {
                 subtitle="Your inputs are kept. The period may have changed; review and try again."
               />
             )}
+            {periodDraft.status !== 'draft' && (
+              <p>Name and dates are fixed once staffing has started. Only the sign-up deadline can change.</p>
+            )}
             <TextInput
               id="period-name"
               labelText="Name"
+              readOnly={periodDraft.status !== 'draft'}
               value={periodDraft.name}
               onChange={(event) => setPeriodDraft({ ...periodDraft, name: event.target.value })}
             />
             <DateInput
               id="period-start"
+              readOnly={periodDraft.status !== 'draft'}
               labelText="Start date"
               value={periodDraft.startsOn}
               onChange={(startsOn) => setPeriodDraft({ ...periodDraft, startsOn })}
             />
             <DateInput
               id="period-end"
+              readOnly={periodDraft.status !== 'draft'}
               labelText="End date"
               value={periodDraft.endsOn}
               onChange={(endsOn) => setPeriodDraft({ ...periodDraft, endsOn })}
+            />
+            <DateInput
+              id="period-sign-up-deadline"
+              labelText="Sign-up deadline (optional)"
+              helperText="Supervisors see this date on their dashboard as the deadline for their open-day minimum. Empty uses the period's end date."
+              value={periodDraft.signUpDeadline}
+              invalid={signUpDeadlineInvalid}
+              invalidText="Sign-up deadline must lie within the period."
+              onChange={(signUpDeadline) => setPeriodDraft({ ...periodDraft, signUpDeadline })}
             />
           </Stack>
         )}

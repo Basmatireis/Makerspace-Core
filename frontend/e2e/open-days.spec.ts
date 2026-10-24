@@ -101,6 +101,7 @@ function period(status: 'draft' | 'staffing' | 'published' = 'staffing') {
     name: 'Winter Semester 2026/27',
     startsOn: '2026-10-01',
     endsOn: '2026-10-03',
+    signUpDeadline: null,
     status,
     totalOpenDays: status === 'draft' ? 0 : 1,
     fullyStaffedCount: 0,
@@ -804,7 +805,7 @@ test('creates a period whose calendar range spans several months', async ({ page
   await expect(dialog.getByLabel('End date', { exact: true })).toHaveValue('29.01.2027');
   await dialog.getByRole('button', { name: 'Create Period', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
-  expect(body).toEqual({ name: 'Winter semester', startsOn: '2026-11-02', endsOn: '2027-01-29' });
+  expect(body).toEqual({ name: 'Winter semester', startsOn: '2026-11-02', endsOn: '2027-01-29', signUpDeadline: null });
   // Activity is reported at most once a minute, not on every click.
   expect(activityReports).toBe(1);
 });

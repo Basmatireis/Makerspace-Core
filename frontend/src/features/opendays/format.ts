@@ -16,6 +16,10 @@ export function periodRange(period: Pick<OpenDayPeriod, 'startsOn' | 'endsOn'>) 
   return `${periodDate(period.startsOn)} – ${periodDate(period.endsOn)}`;
 }
 
+export function signUpDeadlineLabel(period: Pick<OpenDayPeriod, 'signUpDeadline'>) {
+  return period.signUpDeadline ? `Sign-up deadline: ${periodDate(period.signUpDeadline)}` : '';
+}
+
 export function longDate(instant: string, _timeZone: string) {
   void _timeZone;
   return formatLongDate(instant);

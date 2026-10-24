@@ -27,4 +27,9 @@ export interface CreateOpenDayPeriodRequest {
   name: string;
   startsOn: string;
   endsOn: string;
+  /**
+     * Date by which supervisors must have signed up for their open-day minimum; null or omitted uses the period's end date. Must lie within startsOn..endsOn.
+     * @nullable
+     */
+  signUpDeadline?: string | null;
 }

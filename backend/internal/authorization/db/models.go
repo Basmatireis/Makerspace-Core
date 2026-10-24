@@ -846,14 +846,15 @@ type OpenDayAssignment struct {
 }
 
 type OpenDayPeriod struct {
-	ID        uuid.UUID
-	Name      string
-	StartsOn  pgtype.Date
-	EndsOn    pgtype.Date
-	Status    string
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID             uuid.UUID
+	Name           string
+	StartsOn       pgtype.Date
+	EndsOn         pgtype.Date
+	Status         string
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	SignUpDeadline pgtype.Date
 }
 
 type OpenDayRequirement struct {

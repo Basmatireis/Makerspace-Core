@@ -157,8 +157,13 @@ func (s *Service) CurrentSemester(ctx context.Context, now time.Time) (*Semester
 	}
 	candidates := make([]Semester, 0, len(rows))
 	for _, row := range rows {
+		endsOn := row.EndsOn.Time.UTC()
+		signUpBy := endsOn
+		if row.SignUpDeadline.Valid {
+			signUpBy = row.SignUpDeadline.Time.UTC()
+		}
 		candidates = append(candidates, Semester{
-			ID: row.ID, Name: row.Name, StartsOn: row.StartsOn.Time.UTC(), EndsOn: row.EndsOn.Time.UTC(),
+			ID: row.ID, Name: row.Name, StartsOn: row.StartsOn.Time.UTC(), EndsOn: endsOn, SignUpBy: signUpBy,
 		})
 	}
 	return ResolveSemester(candidates, DateOf(now, s.location)), nil

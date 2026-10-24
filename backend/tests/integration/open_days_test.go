@@ -35,7 +35,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 
 	startDate := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2027, time.January, 31, 0, 0, 0, 0, time.UTC)
-	period, err := service.CreatePeriod(ctx, manager, "Winter Semester 2026/27", startDate, endDate, nil)
+	period, err := service.CreatePeriod(ctx, manager, "Winter Semester 2026/27", startDate, endDate, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,6 +300,7 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 		time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -371,6 +372,7 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 		"Supervisor vacancy summary",
 		time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC),
+		nil,
 		nil,
 	)
 	if err != nil {
@@ -472,6 +474,7 @@ func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 		time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -502,7 +505,7 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	}
 	startsOn := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
 	endsOn := time.Date(2026, time.October, 31, 0, 0, 0, 0, time.UTC)
-	period, err := service.CreatePeriod(ctx, manager, "Disposable draft", startsOn, endsOn, nil)
+	period, err := service.CreatePeriod(ctx, manager, "Disposable draft", startsOn, endsOn, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +539,7 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 		period.ID,
 	)
 
-	staffed, err := service.CreatePeriod(ctx, manager, "Staffed period", startsOn, endsOn, nil)
+	staffed, err := service.CreatePeriod(ctx, manager, "Staffed period", startsOn, endsOn, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,6 +602,7 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 		"Holiday context",
 		time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC),
+		nil,
 		nil,
 	)
 	if err != nil {

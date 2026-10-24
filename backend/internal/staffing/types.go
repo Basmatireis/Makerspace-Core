@@ -34,6 +34,9 @@ type Semester struct {
 	Name     string
 	StartsOn time.Time
 	EndsOn   time.Time
+	// SignUpBy is the date supervisors must have signed up for their minimum: the period's sign-up deadline, else
+	// its end date.
+	SignUpBy time.Time
 }
 
 // Counts are a person's open days in one semester.

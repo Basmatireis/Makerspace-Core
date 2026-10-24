@@ -9,7 +9,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { Login } from '@carbon/icons-react';
+import { ArrowLeft, Login } from '@carbon/icons-react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +22,8 @@ import { useCurrentUserQuery, useLogin, usePINLogin } from './auth';
 import { useBranding, usePageTitle } from '../branding/branding';
 import { LegalLinks } from '../branding/LegalLinks';
 
-type LocationState = { from?: string } | null;
+// `origin: 'terminal'` is set by the entrance terminal's staff link so this page can offer the way back.
+type LocationState = { from?: string; origin?: string } | null;
 
 function safeReturnPath(state: LocationState): string {
   const path = state?.from;
@@ -41,6 +42,7 @@ export function LoginPage() {
     queryKey: ['oidc', 'login-providers'],
     queryFn: ({ signal }) => listOIDCLoginProviders({ signal }),
   });
+  const fromTerminal = (location.state as LocationState)?.origin === 'terminal';
   const [method, setMethod] = useState<'password' | 'pin'>('password');
   const {
     register,
@@ -90,6 +92,13 @@ export function LoginPage() {
     <main className="auth-page auth-page--login">
       <section className="auth-card" aria-labelledby="login-title">
         <Stack gap={6}>
+          {fromTerminal && (
+            <div>
+              <Button as={Link} to="/terminal" kind="ghost" size="md" renderIcon={ArrowLeft}>
+                Back to terminal
+              </Button>
+            </div>
+          )}
           <div className="auth-card__heading">
             <div className="auth-card__brand">
               <BrandMark kind="logo" className="auth-card__logo" />

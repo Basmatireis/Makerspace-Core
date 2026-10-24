@@ -30,7 +30,7 @@ func (q *Queries) AddRequirementRole(ctx context.Context, arg AddRequirementRole
 
 const bumpPeriodVersion = `-- name: BumpPeriodVersion :one
 UPDATE open_day_periods SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at
+WHERE id = $1 AND version = $2 RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline
 `
 
 type BumpPeriodVersionParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) BumpPeriodVersion(ctx context.Context, arg BumpPeriodVersionPa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -197,15 +198,16 @@ func (q *Queries) CreateOpenDay(ctx context.Context, arg CreateOpenDayParams) (O
 }
 
 const createPeriod = `-- name: CreatePeriod :one
-INSERT INTO open_day_periods (id, name, starts_on, ends_on)
-VALUES ($1, $2, $3, $4) RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at
+INSERT INTO open_day_periods (id, name, starts_on, ends_on, sign_up_deadline)
+VALUES ($1, $2, $3, $4, $5) RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline
 `
 
 type CreatePeriodParams struct {
-	ID       uuid.UUID
-	Name     string
-	StartsOn pgtype.Date
-	EndsOn   pgtype.Date
+	ID             uuid.UUID
+	Name           string
+	StartsOn       pgtype.Date
+	EndsOn         pgtype.Date
+	SignUpDeadline pgtype.Date
 }
 
 func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (OpenDayPeriod, error) {
@@ -214,6 +216,7 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Ope
 		arg.Name,
 		arg.StartsOn,
 		arg.EndsOn,
+		arg.SignUpDeadline,
 	)
 	var i OpenDayPeriod
 	err := row.Scan(
@@ -225,6 +228,7 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Ope
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -515,7 +519,7 @@ func (q *Queries) GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDay
 }
 
 const getPeriod = `-- name: GetPeriod :one
-SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at FROM open_day_periods WHERE id = $1
+SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline FROM open_day_periods WHERE id = $1
 `
 
 func (q *Queries) GetPeriod(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error) {
@@ -530,12 +534,13 @@ func (q *Queries) GetPeriod(ctx context.Context, id uuid.UUID) (OpenDayPeriod, e
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
 
 const getPeriodForUpdate = `-- name: GetPeriodForUpdate :one
-SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at FROM open_day_periods WHERE id = $1 FOR UPDATE
+SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline FROM open_day_periods WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPeriodForUpdate(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error) {
@@ -550,6 +555,7 @@ func (q *Queries) GetPeriodForUpdate(ctx context.Context, id uuid.UUID) (OpenDay
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -898,7 +904,7 @@ func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComing
 }
 
 const listPeriods = `-- name: ListPeriods :many
-SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at FROM open_day_periods ORDER BY starts_on DESC, id DESC
+SELECT id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline FROM open_day_periods ORDER BY starts_on DESC, id DESC
 `
 
 func (q *Queries) ListPeriods(ctx context.Context) ([]OpenDayPeriod, error) {
@@ -919,6 +925,7 @@ func (q *Queries) ListPeriods(ctx context.Context) ([]OpenDayPeriod, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SignUpDeadline,
 		); err != nil {
 			return nil, err
 		}
@@ -1098,7 +1105,7 @@ const transitionPeriod = `-- name: TransitionPeriod :one
 UPDATE open_day_periods
 SET status = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND version = $3
-RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at
+RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline
 `
 
 type TransitionPeriodParams struct {
@@ -1119,6 +1126,7 @@ func (q *Queries) TransitionPeriod(ctx context.Context, arg TransitionPeriodPara
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -1201,15 +1209,17 @@ func (q *Queries) UpdateOpenDay(ctx context.Context, arg UpdateOpenDayParams) (O
 const updatePeriod = `-- name: UpdatePeriod :one
 UPDATE open_day_periods
 SET name = $1, starts_on = $2, ends_on = $3,
+    sign_up_deadline = $4,
     version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5 AND status = 'draft'
-RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at
+WHERE id = $5 AND version = $6 AND status <> 'archived'
+RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline
 `
 
 type UpdatePeriodParams struct {
 	Name            string
 	StartsOn        pgtype.Date
 	EndsOn          pgtype.Date
+	SignUpDeadline  pgtype.Date
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -1219,6 +1229,7 @@ func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (Ope
 		arg.Name,
 		arg.StartsOn,
 		arg.EndsOn,
+		arg.SignUpDeadline,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -1232,6 +1243,7 @@ func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (Ope
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }

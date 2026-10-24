@@ -64,7 +64,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	// Open days: a published period with seven future days, one cancelled, plus a period still in
 	// staffing whose day must stay invisible.
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	period, err := openDays.CreatePeriod(ctx, admin, "Autumn", today, today.AddDate(0, 0, 40), nil)
+	period, err := openDays.CreatePeriod(ctx, admin, "Autumn", today, today.AddDate(0, 0, 40), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

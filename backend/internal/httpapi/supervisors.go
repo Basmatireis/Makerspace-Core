@@ -71,5 +71,6 @@ func semesterDTO(semester *staffing.Semester) nullable.Nullable[openapi.Semester
 		Name:     semester.Name,
 		StartsOn: openapi_types.Date{Time: semester.StartsOn},
 		EndsOn:   openapi_types.Date{Time: semester.EndsOn},
+		SignUpBy: openapi_types.Date{Time: semester.SignUpBy},
 	})
 }

@@ -23,6 +23,7 @@ const semester = {
   name: 'Autumn',
   startsOn: '2026-10-01',
   endsOn: '2027-01-31',
+  signUpBy: '2026-11-15',
 };
 
 function staffing(overrides: Partial<PersonalDashboardStaffing> = {}): PersonalDashboardStaffing {
@@ -126,7 +127,10 @@ describe('personal dashboard', () => {
       await screen.findByRole('heading', { name: /^Good (morning|afternoon|evening)|Still up, Ada$/ }),
     ).toBeInTheDocument();
     expect(await screen.findByText('1 of 2', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText(/Sign up for 1 open day more/)).toBeInTheDocument();
+    // The deadline is the period's sign-up date, not its end date (31 Jan).
+    const reminder = screen.getByText(/Sign up for 1 open day more/);
+    expect(reminder).toHaveTextContent(/15 Nov/);
+    expect(reminder).not.toHaveTextContent(/31 Jan/);
     // One info box in Next up: the short-staffed warning wins over the open place.
     expect(screen.getByText('Short-staffed')).toBeInTheDocument();
     expect(screen.queryByText('Supervisor needed')).not.toBeInTheDocument();

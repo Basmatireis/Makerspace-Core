@@ -39,33 +39,34 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
     }
   });
   await page.goto('/visitor-enrollment');
+  await expect(page.getByRole('heading', { name: 'About you' })).toBeFocused();
   await page.getByLabel('First name', { exact: true }).fill('Local');
   await page.getByLabel('Last name', { exact: true }).fill('Visitor');
   await page.getByLabel('Email', { exact: true }).fill('local@example.test');
-  await page.getByText('Username and PIN', { exact: true }).click();
-  await page.getByLabel('PIN login username', { exact: true }).fill('local.visitor');
-  await page.getByLabel('PIN (6–12 digits)', { exact: true }).fill('654321');
   await page
     .getByLabel('or upload a profile photo', { exact: true })
     .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
-  await page
-    .getByText('I am ready to sign the physical Lab Rules document and request supervisor confirmation', {
-      exact: true,
-    })
-    .click();
-  await page.getByRole('button', { name: 'Submit enrollment and request confirmation' }).click();
-  await expect(page.getByRole('heading', { name: 'Enrollment submitted' })).toBeVisible();
+  await expect(page.getByAltText('Selected profile')).toBeVisible();
+  // The whole step fits the viewport: the page itself never scrolls.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('visitor-step-1.png') });
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign-in method' })).toBeFocused();
+  await page.getByLabel('PIN login username', { exact: true }).fill('local.visitor');
+  await page.getByLabel('PIN (6–12 digits)', { exact: true }).fill('654321');
+  await page.screenshot({ path: testInfo.outputPath('visitor-step-2.png') });
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeFocused();
+  await page.getByText(/I am ready to sign the physical Lab Rules document/).click();
+  await page.screenshot({ path: testInfo.outputPath('visitor-step-3.png') });
+  await page.getByRole('button', { name: 'Submit enrollment' }).click();
+  await expect(page.getByRole('heading', { name: 'Local, your account is ready.' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-submitted.png'), fullPage: true });
-  const priorContexts = contexts;
-  await page.getByRole('button', { name: 'Next visitor' }).click();
-  await expect(page.getByLabel('First name', { exact: true })).toHaveValue('');
-  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('');
-  await expect(page.getByLabel('Username and PIN', { exact: true })).not.toBeChecked();
-  await expect(page.getByAltText('Selected profile')).toHaveCount(0);
-  expect(contexts).toBeGreaterThan(priorContexts);
   await page.setViewportSize({ width: 390, height: 844 });
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('visitor-next-mobile.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('visitor-submitted-mobile.png'), fullPage: true });
+  expect(contexts).toBe(1);
   expect(errors).toEqual([]);
 });

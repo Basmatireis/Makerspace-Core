@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +23,7 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 	}
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 0, 2)
-	period, err := service.CreatePeriod(ctx, p, "Overnight", start, end, nil)
+	period, err := service.CreatePeriod(ctx, p, "Overnight", start, end, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.UpdatePeriod(ctx, p, period.ID, schedule.Period.Version, period.Name, start, start, nil)
+	_, err = service.UpdatePeriod(ctx, p, period.ID, schedule.Period.Version, period.Name, start, start, nil, nil)
 	expectAppCode(t, err, "validation_failed")
 	_, err = service.UpdatePeriod(
 		ctx,
@@ -46,6 +47,7 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 		period.Name,
 		start,
 		start.AddDate(0, 0, 1),
+		nil,
 		nil,
 	)
 	if err != nil {
@@ -78,7 +80,7 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	period, err := service.CreatePeriod(ctx, p, "Assignment names", start, start.AddDate(0, 0, 2), nil)
+	period, err := service.CreatePeriod(ctx, p, "Assignment names", start, start.AddDate(0, 0, 2), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +117,7 @@ func TestOpenDayRecurrenceRejectsDSTGapsAndOverlaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	date := func(value string) time.Time { parsed, _ := time.Parse("2006-01-02", value); return parsed }
-	period, err := service.CreatePeriod(ctx, principal, "DST", date("2026-01-01"), date("2026-12-31"), nil)
+	period, err := service.CreatePeriod(ctx, principal, "DST", date("2026-01-01"), date("2026-12-31"), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,4 +159,83 @@ func TestOpenDayRecurrenceRejectsDSTGapsAndOverlaps(t *testing.T) {
 		}
 	}
 	assertCount(t, pool, `SELECT count(*) FROM open_days`, 0)
+}
+
+func TestOpenDayPeriodSignUpDeadline(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	manager := seedAccount(t, pool, "period-deadline", true)
+	p := authorization.Principal{AccountID: manager.accountID, PersonID: manager.personID, Master: true}
+	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staffingService, err := staffing.NewService(pool, config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
+	deadline := start.AddDate(0, 0, 14)
+	outside := end.AddDate(0, 0, 1)
+	before := start.AddDate(0, 0, -1)
+
+	_, err = service.CreatePeriod(ctx, p, "Too late", start, end, &outside, nil)
+	expectAppCode(t, err, "validation_failed")
+	_, err = service.CreatePeriod(ctx, p, "Too early", start, end, &before, nil)
+	expectAppCode(t, err, "validation_failed")
+
+	period, err := service.CreatePeriod(ctx, p, "Deadline", start, end, &deadline, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if period.SignUpDeadline == nil || !period.SignUpDeadline.Equal(deadline) {
+		t.Fatalf("created deadline = %v, want %v", period.SignUpDeadline, deadline)
+	}
+	_, err = service.UpdatePeriod(ctx, p, period.ID, period.Version, period.Name, start, end, &outside, nil)
+	expectAppCode(t, err, "validation_failed")
+
+	now := start.Add(24 * time.Hour)
+	for _, target := range []opendays.PeriodStatus{opendays.PeriodStaffing} {
+		period, err = service.TransitionPeriod(ctx, p, period.ID, period.Version, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	semester, err := staffingService.CurrentSemester(ctx, now)
+	if err != nil || semester == nil {
+		t.Fatalf("semester = %v, err = %v", semester, err)
+	}
+	if semester.ID != period.ID || !semester.SignUpBy.Equal(deadline) || !semester.EndsOn.Equal(end) {
+		t.Fatalf("semester = %#v, want signUpBy %v", semester, deadline)
+	}
+
+	// Outside draft the deadline alone can still change; name and bounds stay locked.
+	later := deadline.AddDate(0, 0, 3)
+	period, err = service.UpdatePeriod(ctx, p, period.ID, period.Version, period.Name, start, end, &later, nil)
+	if err != nil || period.SignUpDeadline == nil || !period.SignUpDeadline.Equal(later) {
+		t.Fatalf("staffing deadline update = %v, err = %v", period.SignUpDeadline, err)
+	}
+	_, err = service.UpdatePeriod(ctx, p, period.ID, period.Version, "Renamed", start, end, &later, nil)
+	expectAppCode(t, err, "period_not_draft")
+	_, err = service.UpdatePeriod(ctx, p, period.ID, period.Version, period.Name, start, end.AddDate(0, 0, 1), &later, nil)
+	expectAppCode(t, err, "period_not_draft")
+
+	// A second draft period covers the full metadata update and the fallback.
+	draft, err := service.CreatePeriod(ctx, p, "Draft", start.AddDate(1, 0, 0), end.AddDate(1, 0, 0), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.SignUpDeadline != nil {
+		t.Fatalf("deadline = %v, want none", draft.SignUpDeadline)
+	}
+	set := draft.StartsOn.AddDate(0, 0, 5)
+	draft, err = service.UpdatePeriod(ctx, p, draft.ID, draft.Version, draft.Name, draft.StartsOn, draft.EndsOn, &set, nil)
+	if err != nil || draft.SignUpDeadline == nil || !draft.SignUpDeadline.Equal(set) {
+		t.Fatalf("updated = %#v, err = %v", draft.SignUpDeadline, err)
+	}
+	draft, err = service.UpdatePeriod(ctx, p, draft.ID, draft.Version, draft.Name, draft.StartsOn, draft.EndsOn, nil, nil)
+	if err != nil || draft.SignUpDeadline != nil {
+		t.Fatalf("cleared = %#v, err = %v", draft.SignUpDeadline, err)
+	}
 }
