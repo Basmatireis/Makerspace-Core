@@ -13,7 +13,10 @@ body:has(.visitor-flow) {
   display: block;
   block-size: 100dvh;
   overflow-y: auto;
-  background: $background;
+  // The brand stripe of the sign-in card, at the top of the flow.
+  background:
+    var(--app-brand-gradient) top / 100% 4px no-repeat,
+    $background;
 }
 
 .visitor-flow__form {
@@ -33,8 +36,22 @@ body:has(.visitor-flow) {
 }
 
 .visitor-flow__brand {
-  @include type-style('label-02');
-  color: $text-secondary;
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('heading-02');
+}
+
+.visitor-flow__logo {
+  inline-size: 1.75rem;
+  block-size: 2rem;
+}
+
+.visitor-flow__header--done {
+  max-inline-size: 72rem;
+  margin-inline: auto;
+  padding-inline: $spacing-06;
+  justify-content: flex-end;
 }
 
 .visitor-flow__body {
@@ -54,6 +71,11 @@ body:has(.visitor-flow) {
 .visitor-flow__title {
   @include type-style('heading-06');
   margin-block-start: -$spacing-04;
+
+  // Focus moves here programmatically on each step so screen readers announce it; the heading is not a control.
+  &:focus {
+    outline: none;
+  }
 }
 
 .visitor-flow__note,
@@ -254,4 +276,18 @@ body:has(.visitor-flow) {
   .visitor-flow__methods .cds--tile-group {
     grid-template-columns: 1fr;
   }
+}
+
+// Lab Rules PDF rendered by pdf.js into canvases inside a Carbon modal.
+.visitor-pdf__pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-05;
+}
+
+.visitor-pdf__page {
+  max-inline-size: 100%;
+  background: #fff;
+  box-shadow: 0 0 0 1px $border-subtle;
 }

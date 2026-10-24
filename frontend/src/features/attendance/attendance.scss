@@ -33,6 +33,10 @@
 
 .attendance-hold {
   box-shadow: inset 4px 0 0 theme.$support-error;
+
+  &.is-calm {
+    box-shadow: inset 4px 0 0 theme.$support-info;
+  }
 }
 
 .attendance-hold__header {
@@ -44,12 +48,16 @@
     fill: theme.$support-error;
   }
 
+  .is-calm & svg {
+    fill: theme.$support-info;
+  }
+
   h2 {
     @include type-style('heading-03');
   }
 
   p {
-    margin-block-start: $spacing-02;
+    margin-block-start: $spacing-03;
     color: theme.$text-secondary;
   }
 }
@@ -68,6 +76,13 @@
 
 .attendance-hold__actions {
   display: flex;
+  gap: $spacing-03;
+}
+
+.attendance-person {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: $spacing-03;
 }
 

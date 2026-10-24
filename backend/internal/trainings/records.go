@@ -24,6 +24,9 @@ func canReadRecords(p authorization.Principal, personID uuid.UUID) (allowed, rea
 	if p.Has(authorization.TrainingRecordsReadAll) || p.Has(authorization.TrainingRecordsUpdate) {
 		return true, true
 	}
+	if p.PersonID == personID && p.Has(authorization.TrainingRecordsUpdateSelf) {
+		return true, true
+	}
 	return p.PersonID == personID && p.Has(authorization.TrainingRecordsReadSelf), false
 }
 
@@ -71,9 +74,10 @@ func (s *Service) ListPersonRecords(ctx context.Context, p authorization.Princip
 	return records, nil
 }
 
-// SetRecord sets another person's status for one training. Not trained deletes the record. Inactive trainings take no
-// new or changed status, only removal and corrections of date and notes. Each change is audited with the status
-// transition in the action name; notes and dates are never copied into the audit.
+// SetRecord sets a person's status for one training; the own status needs training_records.update.self. Not trained
+// deletes the record. Inactive trainings take no new or changed status, only removal and corrections of date and notes.
+// Each change is audited with the status transition in the action name; notes and dates are never copied into the
+// audit.
 func (s *Service) SetRecord(
 	ctx context.Context,
 	p authorization.Principal,
@@ -81,13 +85,14 @@ func (s *Service) SetRecord(
 	input RecordInput,
 	requestID *uuid.UUID,
 ) (Record, error) {
-	if !p.Has(authorization.TrainingRecordsUpdate) {
-		return Record{}, apperror.PermissionDenied
-	}
 	if p.PersonID == personID {
-		return Record{}, apperror.New(
-			http.StatusForbidden, "training_record_self", "Nobody can change their own training status",
-		)
+		if !p.Has(authorization.TrainingRecordsUpdateSelf) {
+			return Record{}, apperror.New(
+				http.StatusForbidden, "training_record_self", "Changing the own training status needs its own permission",
+			)
+		}
+	} else if !p.Has(authorization.TrainingRecordsUpdate) {
+		return Record{}, apperror.PermissionDenied
 	}
 	input, err := validateRecord(input)
 	if err != nil {

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VisitorEnrollmentSubmission } from '../../api/generated/models';
@@ -7,6 +7,13 @@ import { Route, Routes } from 'react-router-dom';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { VisitorEnrollmentPage } from './VisitorEnrollmentPage';
+
+vi.mock('./components/renderPdf', () => ({
+  renderPdf: async (url: string, container: HTMLElement, _signal: AbortSignal, onFirstPage: () => void) => {
+    container.textContent = `Mock PDF viewer ${url}`;
+    onFirstPage();
+  },
+}));
 
 const versionId = '0192f6f8-743e-7c77-a349-cd07c3e8ab01';
 
@@ -51,6 +58,7 @@ describe('controlled visitor enrollment', () => {
             invitationDelivery: null,
             labRulesRequestId: '0192f6f8-743e-7c77-a349-cd07c3e8ab04',
             admission: 'blocked',
+            attendance: 'awaiting_sign_off',
           },
           { status: 201 },
         );
@@ -94,16 +102,22 @@ describe('controlled visitor enrollment', () => {
 
     // Step 3
     expect(await screen.findByRole('heading', { name: 'Lab Rules' })).toHaveFocus();
-    expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute(
-      'href',
-      '/api/v1/visitor-enrollment/lab-rules.pdf',
+    await user.click(screen.getByRole('button', { name: 'View current Lab Rules PDF' }));
+    expect(await screen.findByText(/Mock PDF viewer/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' })).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' })).getByRole('button', {
+        name: 'Close',
+      }),
     );
+    await waitFor(() => expect(screen.queryByText(/Mock PDF viewer/)).not.toBeInTheDocument());
     const submit = screen.getByRole('button', { name: 'Submit enrollment' });
     expect(submit).toBeDisabled();
     await user.click(screen.getByLabelText(/I am ready to sign the physical Lab Rules document/));
     await user.click(submit);
 
     expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
+    expect(screen.getByText(/checked in automatically once a supervisor confirms/)).toBeInTheDocument();
     expect(screen.getByText(/Ask a supervisor for the paper Lab Rules/)).toBeInTheDocument();
     expect(screen.getByText('Visitor.One')).toBeInTheDocument();
     await waitFor(() => expect(submission).toBeDefined());

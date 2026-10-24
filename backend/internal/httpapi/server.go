@@ -178,6 +178,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	}
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService, location)
 	labRulesService.SetConfirmationListener(attendanceService)
+	visitorService.SetAttendance(attendanceService)
 	return &Server{
 		pool:              pool,
 		config:            cfg,

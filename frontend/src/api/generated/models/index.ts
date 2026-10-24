@@ -960,6 +960,7 @@ export * from './visitorEnrollmentConfiguration';
 export * from './visitorEnrollmentResult';
 export * from './visitorEnrollmentResultAccountStatus';
 export * from './visitorEnrollmentResultAdmission';
+export * from './visitorEnrollmentResultAttendance';
 export * from './visitorEnrollmentResultInvitationDelivery';
 export * from './visitorEnrollmentState';
 export * from './visitorEnrollmentSubmission';

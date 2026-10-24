@@ -150,6 +150,7 @@ func (s *Server) SubmitVisitorEnrollment(
 		PersonId: result.PersonID, AccountId: result.AccountID,
 		AccountStatus: openapi.VisitorEnrollmentResultAccountStatus(result.AccountStatus),
 		Admission:     openapi.VisitorEnrollmentResultAdmission(result.Admission),
+		Attendance:    openapi.VisitorEnrollmentResultAttendance(result.Attendance),
 		InvitationDelivery: nullablePointer(
 			result.InvitationDelivery,
 			func(value auth.DeliveryStatus) openapi.VisitorEnrollmentResultInvitationDelivery {

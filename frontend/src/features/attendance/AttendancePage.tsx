@@ -9,14 +9,15 @@ import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { CurrentlyHere } from './components/CurrentlyHere';
-import { HeldCheckIns } from './components/HeldCheckIns';
+import { LabRulesNotice } from './components/LabRulesNotice';
 import { StatTile } from './components/StatTiles';
 import { CheckInDialog } from './dialogs/CheckInDialog';
 import { VoidVisitDialog } from './dialogs/VoidVisitDialog';
-import { attendanceKeys, holdsOptions, statisticsOptions, visitsOptions } from './queries';
+import { type ConfirmSubject, subjectFromRequest } from './presentation';
+import { attendanceKeys, holdsOptions, labRulesQueueOptions, statisticsOptions, visitsOptions } from './queries';
 import './attendance.scss';
 
-type DialogState = { hold: AttendanceHold | null } | null;
+type DialogState = { hold: AttendanceHold | null; subject?: ConfirmSubject } | null;
 
 export function AttendancePage() {
   const user = useCurrentUser();
@@ -26,12 +27,14 @@ export function AttendancePage() {
   const canCorrect = hasPermission(user, PermissionId.attendancecorrect);
   const canStats = hasPermission(user, PermissionId.attendancestatisticsread);
   const canConfirm = hasPermission(user, PermissionId.laborordnungconfirm);
+  const canReadQueue = hasPermission(user, PermissionId.laborordnungrequestsread);
   const canSearchPeople = hasPermission(user, PermissionId.peoplereadall);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [visitToVoid, setVisitToVoid] = useState<Visit | null>(null);
   const [waitingNotice, setWaitingNotice] = useState<AttendanceHold | null>(null);
   const visits = useQuery(visitsOptions(canRead));
   const holds = useQuery(holdsOptions(canRead));
+  const queue = useQuery(labRulesQueueOptions(canReadQueue));
   const stats = useQuery(statisticsOptions(canStats));
   const refresh = () => queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
   const checkOut = useMutation({ mutationFn: (id: string) => supervisedVisitCheckOut(id), onSuccess: refresh });
@@ -68,11 +71,21 @@ export function AttendancePage() {
             onCloseButtonClick={() => setWaitingNotice(null)}
           />
         )}
+        <LabRulesNotice
+          holds={heldItems}
+          requests={queue.data?.items ?? []}
+          canCancel={canAssist}
+          canConfirm={canConfirm}
+          busy={cancelHold.isPending}
+          onConfirmHold={(hold) => setDialog({ hold })}
+          onCancelHold={(hold) => cancelHold.mutate(hold.id)}
+          onConfirmRequest={(request) => setDialog({ hold: null, subject: subjectFromRequest(request) })}
+        />
         {showTiles && (
           <div className="attendance-stats">
             {hereCount !== undefined && <StatTile value={hereCount} label="Currently here" />}
             {canRead && holds.data && (
-              <StatTile value={heldItems.length} label="Waiting for Lab Rules" alert={heldItems.length > 0} />
+              <StatTile value={heldItems.length} label="Awaiting sign-off" alert={heldItems.length > 0} />
             )}
             {canStats && stats.data && (
               <>
@@ -89,16 +102,6 @@ export function AttendancePage() {
             hideCloseButton
             title="Check-in not cancelled"
             subtitle={cancelHold.error.message}
-          />
-        )}
-        {canRead && heldItems.length > 0 && (
-          <HeldCheckIns
-            holds={heldItems}
-            canCancel={canAssist}
-            canConfirm={canConfirm}
-            busy={cancelHold.isPending}
-            onConfirm={(hold) => setDialog({ hold })}
-            onCancel={(hold) => cancelHold.mutate(hold.id)}
           />
         )}
         {canRead && (
@@ -123,10 +126,15 @@ export function AttendancePage() {
             {visits.data && (
               <CurrentlyHere
                 visits={visits.data.items}
+                holds={heldItems}
                 canAssist={canAssist}
                 canCorrect={canCorrect}
+                canConfirm={canConfirm}
+                busy={cancelHold.isPending}
                 onCheckOut={(visit) => checkOut.mutate(visit.id)}
                 onVoid={setVisitToVoid}
+                onConfirm={(hold) => setDialog({ hold })}
+                onCancelHold={(hold) => cancelHold.mutate(hold.id)}
               />
             )}
           </section>
@@ -136,6 +144,7 @@ export function AttendancePage() {
       <CheckInDialog
         open={dialog !== null}
         hold={dialog?.hold ?? null}
+        subject={dialog?.subject ?? null}
         canConfirm={canConfirm}
         excludedPersonIds={excludedPersonIds}
         onClose={() => setDialog(null)}

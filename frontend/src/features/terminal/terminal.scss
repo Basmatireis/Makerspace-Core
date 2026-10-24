@@ -32,6 +32,26 @@ body:has(.tablet) {
   padding: $spacing-05 $spacing-07;
   background: $layer-01;
   border-block-end: 1px solid $border-subtle-01;
+  // The brand stripe of the sign-in card.
+  background-image: var(--app-brand-gradient);
+  background-repeat: no-repeat;
+  background-size: 100% 4px;
+}
+
+.tablet-header__brand {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  min-inline-size: 0;
+}
+
+.tablet-header__logo {
+  inline-size: 2.25rem;
+  block-size: 2.5rem;
+}
+
+.tablet-header__name {
+  @include type-style('heading-04');
 }
 
 .tablet-header__device {
@@ -39,8 +59,15 @@ body:has(.tablet) {
   color: $text-secondary;
 }
 
+.tablet-header__time {
+  display: flex;
+  align-items: center;
+  gap: $spacing-06;
+}
+
 .tablet-header__date {
   @include type-style('heading-03');
+  color: $text-secondary;
 }
 
 .tablet-header__clock {
@@ -72,6 +99,12 @@ body:has(.tablet) {
 
 .tablet-home__title {
   @include type-style('heading-07');
+}
+
+.tablet-home__tagline {
+  @include type-style('heading-03');
+  margin-block-start: $spacing-03;
+  color: $text-secondary;
 }
 
 .tablet-home__lead {
@@ -344,10 +377,6 @@ body:has(.tablet) {
   border-inline-start: 4px solid $support-error;
   color: $text-error;
   font-weight: 600;
-}
-
-.tablet-presence__pending {
-  margin-block-end: $spacing-07;
 }
 
 .tablet-person__avatar--hold {

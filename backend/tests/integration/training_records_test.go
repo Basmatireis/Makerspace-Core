@@ -338,7 +338,7 @@ func TestTrainingRecordsOverHTTP(t *testing.T) {
 		t.Fatalf("removed = %+v", record)
 	}
 
-	// The master is bound by the self-change rule too.
+	// The master holds every permission, including the one for the own status.
 	var masterPerson uuid.UUID
 	if err := pool.QueryRow(ctx, `SELECT person_id FROM accounts WHERE id = $1`, masterAccount).Scan(&masterPerson); err != nil {
 		t.Fatal(err)
@@ -346,14 +346,44 @@ func TestTrainingRecordsOverHTTP(t *testing.T) {
 	response = doJSON(t, client, http.MethodPut,
 		server.URL+"/api/v1/people/"+masterPerson.String()+"/training-records/"+training.Id.String(), origin, csrf,
 		map[string]any{"status": "trained"})
-	assertStatus(t, response, http.StatusForbidden)
-	var problem struct {
-		Code string `json:"code"`
+	assertStatus(t, response, http.StatusOK)
+}
+
+func TestTrainingRecordSelfUpdatePermission(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	service := trainings.NewService(pool)
+	manager, _ := principalWithPermissions(t, pool, "selfupd-manager", "trainings.manage")
+	updater, updaterSeed := principalWithPermissions(t, pool, "selfupd-updater", "training_records.update")
+	selfUpdater, selfSeed := principalWithPermissions(t, pool, "selfupd-self", "training_records.update.self")
+	other := insertPlainPerson(t, pool, "selfupd-other@example.test")
+	laser := insertTraining(t, service, manager, "Selfupd laser")
+	notes := "own note"
+
+	// update alone does not cover the own person.
+	_, err := service.SetRecord(ctx, updater, updaterSeed.personID, laser.ID,
+		trainings.RecordInput{Status: trainings.StatusTrained}, nil)
+	requireAppError(t, err, http.StatusForbidden, "training_record_self")
+
+	// update.self covers the own person, including reading the notes.
+	if _, err = service.SetRecord(ctx, selfUpdater, selfSeed.personID, laser.ID,
+		trainings.RecordInput{Status: trainings.StatusTrained, Notes: &notes}, nil); err != nil {
+		t.Fatal(err)
 	}
-	decodeResponse(t, response, &problem)
-	if problem.Code != "training_record_self" {
-		t.Fatalf("code = %q", problem.Code)
+	records, err := service.ListPersonRecords(ctx, selfUpdater, selfSeed.personID)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if entry := recordFor(t, records, laser.ID); entry.Status != trainings.StatusTrained || entry.Notes == nil || *entry.Notes != notes {
+		t.Fatalf("entry = %+v", entry)
+	}
+
+	// but not anybody else's.
+	_, err = service.SetRecord(ctx, selfUpdater, other, laser.ID, trainings.RecordInput{Status: trainings.StatusTrained}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = service.ListPersonRecords(ctx, selfUpdater, other)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	assertCount(t, pool, `SELECT count(*) FROM training_records WHERE person_id = $1`, 0, other)
 }
 
 func int64Pointer(value int64) *int64 { return &value }

@@ -325,7 +325,7 @@ export const getListPersonTrainingRecordsUrl = (personId: string,) => {
 }
 
 /**
- * Requires `training_records.read.all` or `training_records.update`, or `training_records.read.self` for the caller's own person. Lists every active training and every inactive one the person holds a record of; a training without a record is `not_trained`. Internal notes are omitted for self readers.
+ * Requires `training_records.read.all` or `training_records.update`, or `training_records.read.self` or `training_records.update.self` for the caller's own person (the latter also sees internal notes). Lists every active training and every inactive one the person holds a record of; a training without a record is `not_trained`. Internal notes are omitted for self readers.
  * @summary List a person's training status
  */
 export const listPersonTrainingRecords = async (personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<TrainingRecordList> => {
@@ -350,7 +350,7 @@ export const getSetPersonTrainingRecordUrl = (personId: string,
 }
 
 /**
- * Requires `training_records.update`. Nobody changes their own status (403 training_record_self). `not_trained` deletes the record. Send the record's version as `expectedVersion`, or omit it when the person had no record. An inactive training takes no new status (409 training_inactive) but can be removed or corrected.
+ * Requires `training_records.update` for another person and `training_records.update.self` for the caller's own person (403 training_record_self without it). `not_trained` deletes the record. Send the record's version as `expectedVersion`, or omit it when the person had no record. An inactive training takes no new status (409 training_inactive) but can be removed or corrected.
  * @summary Set a person's training status
  */
 export const setPersonTrainingRecord = async (personId: string,

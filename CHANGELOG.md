@@ -7,14 +7,23 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 ### Upgrade notes
 
 - Migration 00072 adds `open_day_periods.sign_up_deadline`. API: open-day periods carry `signUpDeadline` (nullable) and accept it on create and update; `Semester` carries `signUpBy`.
+- Migration 00073 adds the check-in method `enrollment` for visits and held check-ins. `VisitorEnrollmentResult` carries `attendance` (`checked_in` or `awaiting_sign_off`).
+- New permission `training_records.update.self`; only master has it until you add it to a role. Master can therefore now change its own training status.
+- New frontend dependency `pdfjs-dist` (loaded only when the Lab Rules are opened during enrollment).
 
 ### Added
 
 - **Sign-up deadline per open-day period.** The Leitung can set an optional sign-up deadline on a period, also while it is in staffing or published. The dashboard's "Sign up for … open days more by …" hint shows that date instead of the period's end date; without a deadline nothing changes.
+- **Change your own training status** with the new permission `training_records.update.self`, on the profile and on your own person page.
+- **Lab Rules confirmations on the attendance page.** Besides the people waiting at the entrance, the notice at the top of the attendance page now also lists every other open Lab Rules confirmation request, with a confirm button.
 
 ### Changed
 
-- **Visitor enrollment on the terminal is a three-step wizard** (about you and photo, sign-in method, Lab Rules) that fits the tablet without scrolling. Required fields are marked, and email and phone are explained as "at least one". After 30 s without input it asks "Are you still there?" and returns to the terminal if nobody answers. The screen after submitting explains the paper Lab Rules step and returns to the terminal automatically.
+- **Visitor enrollment on the terminal is a three-step wizard** (about you and photo, sign-in method, Lab Rules) that fits the tablet without scrolling. Required fields are marked, and email and phone are explained as "at least one". After 30 s without input it asks "Are you still there?" and returns to the terminal if nobody answers. The screen after submitting explains the paper Lab Rules step and returns to the terminal automatically. The Lab Rules PDF opens inside the wizard instead of a new tab (the Android terminal could not show it otherwise).
+- **Completing visitor enrollment checks the visitor in.** With Lab Rules mode `blocking` they wait as "Awaiting sign-off" and are checked in automatically when a supervisor confirms their signed Lab Rules; otherwise they are checked in right away. Before, they had to check in again afterwards.
+- **Held check-ins appear in the "Currently here" lists** of the attendance page and the terminal as "Awaiting sign-off" instead of in a separate list on the terminal.
+- **The attendance page updates every 5 s** (the terminal's presence list every 10 s).
+- **Branding on the terminal:** logo, display name and brand stripe in the terminal header and the enrollment wizard; the start screen welcomes with the makerspace's display name.
 - **Terminal:** "New here? Register as a visitor" moved from the start screen into the check-in screen. The enrollment and the staff sign-in (when opened from the terminal) have a back button to the terminal. The PIN shows one bullet per digit with a counter instead of six fixed dots, and the email/password fields use the full width.
 
 ### Fixed

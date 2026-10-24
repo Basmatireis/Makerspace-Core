@@ -27,7 +27,7 @@ export function useInactivityPrompt({
     const onActivity = () => {
       setElapsed((current) => (current >= idleSeconds ? current : 0));
     };
-    const events = ['pointerdown', 'keydown', 'input'] as const;
+    const events = ['pointerdown', 'keydown', 'input', 'scroll', 'wheel', 'touchmove'] as const;
     events.forEach((name) => window.addEventListener(name, onActivity, true));
     const timer = window.setInterval(() => setElapsed((current) => current + 1), 1000);
     return () => {

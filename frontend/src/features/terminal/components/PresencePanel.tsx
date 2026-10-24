@@ -16,33 +16,6 @@ export function PresencePanel({
 
   return (
     <aside className="tablet-presence">
-      {waiting.length > 0 && (
-        <ContainedList
-          kind="on-page"
-          size="xl"
-          className="tablet-presence__pending"
-          label={
-            <span className="tablet-presence__label">
-              Waiting for Lab Rules
-              <Tag type="red" size="sm">
-                {waiting.length}
-              </Tag>
-            </span>
-          }
-        >
-          {waiting.map((item) => (
-            <ContainedListItem key={item.holdId} className="tablet-person">
-              <span className="tablet-person__row">
-                <span className="tablet-person__avatar tablet-person__avatar--hold" aria-hidden="true">
-                  {initials(item.displayName)}
-                </span>
-                <span className="tablet-person__name">{item.displayName}</span>
-                <span className="tablet-person__since">not checked in</span>
-              </span>
-            </ContainedListItem>
-          ))}
-        </ContainedList>
-      )}
       <ContainedList
         kind="on-page"
         size="xl"
@@ -55,7 +28,20 @@ export function PresencePanel({
           </span>
         }
       >
-        {sorted.length === 0 && <ContainedListItem>Nobody is checked in.</ContainedListItem>}
+        {sorted.length === 0 && waiting.length === 0 && <ContainedListItem>Nobody is checked in.</ContainedListItem>}
+        {waiting.map((item) => (
+          <ContainedListItem key={item.holdId} className="tablet-person">
+            <span className="tablet-person__row">
+              <span className="tablet-person__avatar tablet-person__avatar--hold" aria-hidden="true">
+                {initials(item.displayName)}
+              </span>
+              <span className="tablet-person__name">{item.displayName}</span>
+              <Tag type="red" size="sm">
+                Awaiting sign-off
+              </Tag>
+            </span>
+          </ContainedListItem>
+        ))}
         {sorted.map((visit) => (
           <ContainedListItem
             key={visit.visitId}

@@ -1,7 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+// A real one-page PDF (pdf.js tolerates the missing xref, so offsets need not be exact).
+const labRulesPdf = Buffer.from(
+  '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]/Contents 4 0 R>>endobj\n' +
+    '4 0 obj<</Length 36>>stream\n0 0 0 rg 20 20 160 160 re f\nendstream\nendobj\n' +
+    'trailer<</Root 1 0 R/Size 5>>\n%%EOF\n',
+);
+
 test('clears a completed terminal enrollment before the next visitor', async ({ page }, testInfo) => {
+  // Carbon button transitions would let the accessibility scan measure half-faded colours.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: Error[] = [];
   page.on('pageerror', (error) => errors.push(error));
   let contexts = 0;
@@ -22,6 +32,8 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
           expiresAt: '2030-01-01T00:00:00Z',
         },
       });
+    } else if (path.endsWith('/visitor-enrollment/lab-rules.pdf')) {
+      await route.fulfill({ contentType: 'application/pdf', body: labRulesPdf });
     } else if (path.endsWith('/visitor-enrollment/submissions')) {
       await route.fulfill({
         status: 201,
@@ -32,6 +44,7 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
           invitationDelivery: null,
           labRulesRequestId: null,
           admission: 'admitted',
+          attendance: 'checked_in',
         },
       });
     } else {
@@ -47,6 +60,8 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
     .getByLabel('or upload a profile photo', { exact: true })
     .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
   await expect(page.getByAltText('Selected profile')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
+  await page.mouse.move(0, 0);
   // The whole step fits the viewport: the page itself never scrolls.
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
@@ -58,6 +73,12 @@ test('clears a completed terminal enrollment before the next visitor', async ({ 
   await page.screenshot({ path: testInfo.outputPath('visitor-step-2.png') });
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeFocused();
+  await page.getByRole('button', { name: 'View current Lab Rules PDF' }).click();
+  const rules = page.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' });
+  await expect(rules.getByRole('img', { name: 'Page 1 of 1' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('visitor-lab-rules-pdf.png') });
+  await page.keyboard.press('Escape');
+  await expect(rules).toBeHidden();
   await page.getByText(/I am ready to sign the physical Lab Rules document/).click();
   await page.screenshot({ path: testInfo.outputPath('visitor-step-3.png') });
   await page.getByRole('button', { name: 'Submit enrollment' }).click();

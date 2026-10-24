@@ -1,6 +1,7 @@
 import { ComposedModal } from '@carbon/react';
 import { useState } from 'react';
 import type { AttendanceHold } from '../../../api/generated/models';
+import { type ConfirmSubject, subjectFromHold } from '../presentation';
 import { AssistedCheckInStep } from './AssistedCheckInStep';
 import { ConfirmLabRulesForm } from './ConfirmLabRulesForm';
 
@@ -9,6 +10,7 @@ import { ConfirmLabRulesForm } from './ConfirmLabRulesForm';
 export function CheckInDialog({
   open,
   hold: initialHold,
+  subject: initialSubject,
   canConfirm,
   excludedPersonIds,
   onClose,
@@ -16,6 +18,8 @@ export function CheckInDialog({
 }: {
   open: boolean;
   hold: AttendanceHold | null;
+  /** Confirm a queue request directly (no held check-in involved). */
+  subject?: ConfirmSubject | null;
   canConfirm: boolean;
   excludedPersonIds: ReadonlySet<string>;
   onClose: () => void;
@@ -23,6 +27,7 @@ export function CheckInDialog({
 }) {
   const [heldAfterPick, setHeldAfterPick] = useState<AttendanceHold | null>(null);
   const hold = initialHold ?? heldAfterPick;
+  const subject = initialSubject ?? (hold ? subjectFromHold(hold) : null);
 
   function close() {
     setHeldAfterPick(null);
@@ -32,8 +37,8 @@ export function CheckInDialog({
   return (
     <ComposedModal open={open} size="md" preventCloseOnClickOutside onClose={close}>
       {open &&
-        (hold ? (
-          <ConfirmLabRulesForm key={hold.id} hold={hold} onCancel={close} onDone={close} />
+        (subject ? (
+          <ConfirmLabRulesForm key={subject.key} subject={subject} onCancel={close} onDone={close} />
         ) : (
           <AssistedCheckInStep
             excludedPersonIds={excludedPersonIds}

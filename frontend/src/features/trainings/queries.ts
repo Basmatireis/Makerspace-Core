@@ -41,10 +41,16 @@ export const trainingStatusLabels: Record<TrainingStatus, string> = {
 export function canReadTrainingRecords(currentUser: CurrentUser, personId: string): boolean {
   if (hasAnyPermission(currentUser, [PermissionId.training_recordsreadall, PermissionId.training_recordsupdate]))
     return true;
-  return currentUser.person.id === personId && hasPermission(currentUser, PermissionId.training_recordsreadself);
+  return (
+    currentUser.person.id === personId &&
+    hasAnyPermission(currentUser, [PermissionId.training_recordsreadself, PermissionId.training_recordsupdateself])
+  );
 }
 
-/** Nobody changes their own status, not even the master. */
+/** Others need `training_records.update`, the own person `training_records.update.self`. */
 export function canSetTrainingRecords(currentUser: CurrentUser, personId: string): boolean {
-  return currentUser.person.id !== personId && hasPermission(currentUser, PermissionId.training_recordsupdate);
+  return hasPermission(
+    currentUser,
+    currentUser.person.id === personId ? PermissionId.training_recordsupdateself : PermissionId.training_recordsupdate,
+  );
 }

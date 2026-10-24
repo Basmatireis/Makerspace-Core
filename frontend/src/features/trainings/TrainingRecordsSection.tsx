@@ -27,7 +27,7 @@ const statusTagType: Record<TrainingStatus, 'cool-gray' | 'green' | 'blue'> = {
 
 /**
  * A person's status for every training. Readers see it; people with `training_records.update` change it for
- * everybody except themselves. Self readers get no internal notes from the API.
+ * others, with `training_records.update.self` for themselves. Self readers get no internal notes from the API.
  */
 export function TrainingRecordsSection({ personId, own = false }: { personId: string; own?: boolean }) {
   const currentUser = useCurrentUser();
@@ -40,7 +40,9 @@ export function TrainingRecordsSection({ personId, own = false }: { personId: st
       title="Trainings"
       description={
         own
-          ? 'The trainings you completed. The lab management records them.'
+          ? canEdit
+            ? 'The trainings you completed.'
+            : 'The trainings you completed. The lab management records them.'
           : 'Training status per training. Open days show the competencies of assigned supervisors.'
       }
     >

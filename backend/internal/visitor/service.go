@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -104,6 +105,21 @@ type SubmissionResult struct {
 	InvitationDelivery *auth.DeliveryStatus
 	LabRulesRequestID  *uuid.UUID
 	Admission          Admission
+	// Attendance reports the check-in that completing enrollment implies.
+	Attendance Attendance
+}
+
+// Attendance is the outcome of the check-in that completes enrollment.
+type Attendance string
+
+const (
+	AttendanceCheckedIn       Attendance = "checked_in"
+	AttendanceAwaitingSignOff Attendance = "awaiting_sign_off"
+)
+
+// EnrollmentAttendance counts a finished enrollment as arriving, inside the enrollment transaction.
+type EnrollmentAttendance interface {
+	CheckInAtEnrollment(context.Context, pgx.Tx, attendance.EnrollmentCheckIn) (bool, error)
 }
 
 type AdmissionResult struct {
@@ -113,12 +129,16 @@ type AdmissionResult struct {
 }
 
 type Service struct {
-	pool     *pgxpool.Pool
-	config   config.Config
-	files    *files.Service
-	labRules *laborordnung.Service
-	notifier InvitationNotifier
+	pool       *pgxpool.Pool
+	config     config.Config
+	files      *files.Service
+	labRules   *laborordnung.Service
+	notifier   InvitationNotifier
+	attendance EnrollmentAttendance
 }
+
+// SetAttendance wires the attendance module, which itself depends on services built after this one.
+func (s *Service) SetAttendance(a EnrollmentAttendance) { s.attendance = a }
 
 func NewService(
 	pool *pgxpool.Pool,
@@ -536,6 +556,27 @@ func (s *Service) Submit(
 			result.Admission = AdmissionBlocked
 		} else {
 			result.Admission = AdmissionWarning
+		}
+	}
+	if s.attendance != nil {
+		var versionID *uuid.UUID
+		if result.LabRulesRequestID != nil {
+			if current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID); err == nil {
+				versionID = &current.ID
+			}
+		}
+		checkedIn, err := s.attendance.CheckInAtEnrollment(ctx, tx, attendance.EnrollmentCheckIn{
+			PersonID: personID, AccountID: accountID, DeviceID: enrollment.ManagedDeviceID,
+			Blocking:       result.Admission == AdmissionBlocked,
+			ActionRequired: result.Admission == AdmissionWarning,
+			VersionID:      versionID, RequestID: requestID,
+		})
+		if err != nil {
+			return SubmissionResult{}, err
+		}
+		result.Attendance = AttendanceAwaitingSignOff
+		if checkedIn {
+			result.Attendance = AttendanceCheckedIn
 		}
 	}
 	if affected, err := queries.ConsumeEnrollmentContext(ctx, enrollment.ID); err != nil || affected != 1 {

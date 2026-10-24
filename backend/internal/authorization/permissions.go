@@ -101,6 +101,7 @@ const (
 	TrainingRecordsReadSelf            Permission = Permission(openapi.TrainingRecordsReadSelf)
 	TrainingRecordsReadAll             Permission = Permission(openapi.TrainingRecordsReadAll)
 	TrainingRecordsUpdate              Permission = Permission(openapi.TrainingRecordsUpdate)
+	TrainingRecordsUpdateSelf          Permission = Permission(openapi.TrainingRecordsUpdateSelf)
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
@@ -170,6 +171,7 @@ var registry = []Permission{
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
 	MachinesRead, MachinesManage,
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
+	TrainingRecordsUpdateSelf,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
@@ -273,7 +275,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	TrainingsManage:                    "Create, update and deactivate trainings and the competency categories they feed.",
 	TrainingRecordsReadSelf:            "Read the training records of the person linked to the current account.",
 	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
-	TrainingRecordsUpdate:              "Set another person's training status and read every person's records; nobody can change their own.",
+	TrainingRecordsUpdate:              "Set another person's training status and read every person's records.",
+	TrainingRecordsUpdateSelf:          "Set the own training status and read the own records including internal notes.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",

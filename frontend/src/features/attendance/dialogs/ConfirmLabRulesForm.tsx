@@ -13,20 +13,19 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { confirmLaborordnungRequest } from '../../../api/generated/laborordnung/laborordnung';
-import type { AttendanceHold } from '../../../api/generated/models';
 import { DateInput } from '../../../app/DateInput';
 import { attendanceKeys, laborordnungKeys } from '../queries';
-import { labRulesProblem } from '../presentation';
+import type { ConfirmSubject } from '../presentation';
 
 type FormValues = { reference: string; signedDate: string; archiveNote: string; seen: boolean };
 
 // Header, body and footer of the Lab Rules confirmation step. Confirming also completes the held check-in server-side.
 export function ConfirmLabRulesForm({
-  hold,
+  subject,
   onCancel,
   onDone,
 }: {
-  hold: AttendanceHold;
+  subject: ConfirmSubject;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -35,10 +34,10 @@ export function ConfirmLabRulesForm({
     defaultValues: { reference: '', signedDate: '', archiveNote: '', seen: false },
   });
   const ready = watch('reference').trim() !== '' && watch('seen');
-  const revision = hold.requiredRevision ?? 'current';
+  const revision = subject.requiredRevision ?? 'current';
   const confirm = useMutation({
     mutationFn: (values: FormValues) =>
-      confirmLaborordnungRequest(hold.laborordnungRequestId!, {
+      confirmLaborordnungRequest(subject.requestId, {
         physicalDocumentReference: values.reference.trim(),
         signedDate: values.signedDate || null,
         archiveNote: values.archiveNote.trim() || null,
@@ -54,7 +53,7 @@ export function ConfirmLabRulesForm({
 
   return (
     <>
-      <ModalHeader label="Held check-in" title={`Confirm Lab Rules for ${hold.displayName}`} />
+      <ModalHeader label="Lab Rules" title={`Confirm Lab Rules for ${subject.displayName}`} />
       <ModalBody>
         <Form id="confirm-lab-rules-form" onSubmit={handleSubmit((values) => confirm.mutate(values))}>
           <Stack gap={5}>
@@ -63,7 +62,7 @@ export function ConfirmLabRulesForm({
               lowContrast
               hideCloseButton
               title="Lab Rules not signed"
-              subtitle={`${labRulesProblem(hold)}. ${hold.displayName} can only be checked in after you confirm the signed paper copy of revision ${revision}.`}
+              subtitle={`${subject.problem}. ${subject.displayName} can only be checked in after you confirm the signed paper copy of revision ${revision}.`}
             />
             <TextInput
               id="lab-rules-reference"
@@ -97,7 +96,7 @@ export function ConfirmLabRulesForm({
               render={({ field }) => (
                 <Checkbox
                   id="lab-rules-seen"
-                  labelText={`I have seen ${hold.displayName}'s signature on revision ${revision}.`}
+                  labelText={`I have seen ${subject.displayName}'s signature on revision ${revision}.`}
                   checked={field.value}
                   onChange={(_, { checked }) => field.onChange(checked)}
                 />

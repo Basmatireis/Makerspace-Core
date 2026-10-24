@@ -197,3 +197,53 @@ func holdFromView(row attendancedb.ListActiveHoldsRow) Hold {
 		PreviousRevision:      row.PreviousRevision,
 	}
 }
+
+// EnrollmentCheckIn describes a visitor who just completed terminal enrollment.
+type EnrollmentCheckIn struct {
+	PersonID, AccountID uuid.UUID
+	DeviceID            uuid.UUID
+	// Blocking holds the check-in until the Lab Rules are confirmed; otherwise a visit starts right away.
+	Blocking bool
+	// ActionRequired makes a direct visit a warning admission.
+	ActionRequired bool
+	VersionID      *uuid.UUID
+	RequestID      *uuid.UUID
+}
+
+// CheckInAtEnrollment counts a completed enrollment as arriving. It runs inside the enrollment transaction, so the
+// account, the hold or visit, and their audit events commit together. It returns true when a visit started and false
+// when the person is awaiting sign-off.
+func (s *Service) CheckInAtEnrollment(ctx context.Context, tx pgx.Tx, input EnrollmentCheckIn) (bool, error) {
+	accountID := input.AccountID
+	if input.Blocking {
+		_, err := s.createHold(ctx, tx, holdInput{
+			PersonID:  input.PersonID,
+			DeviceID:  &input.DeviceID,
+			Method:    "enrollment",
+			Assurance: string(authorization.AssuranceLow),
+			ByAccount: &accountID,
+			ActorID:   &accountID,
+			RequestID: input.RequestID,
+		})
+		return false, err
+	}
+	decision := AdmissionAdmitted
+	if input.ActionRequired {
+		decision = AdmissionWarning
+	}
+	row, err := attendancedb.New(tx).CreateVisit(ctx, attendancedb.CreateVisitParams{
+		ID: ids.New(), PersonID: input.PersonID, CheckInDeviceID: &input.DeviceID,
+		CheckInMethod: "enrollment", CheckInAssurance: string(authorization.AssuranceLow),
+		AdmissionDecision: string(decision), LaborordnungVersionID: input.VersionID, CheckedInByAccountID: &accountID,
+	})
+	if err != nil {
+		return false, databaseError(err)
+	}
+	return true, audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &accountID,
+		Action:         "visit.checked_in",
+		ResourceType:   "visit",
+		ResourceID:     &row.ID,
+		RequestID:      input.RequestID,
+	})
+}

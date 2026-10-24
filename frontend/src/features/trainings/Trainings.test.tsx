@@ -111,11 +111,30 @@ describe('training records on the person page', () => {
     expect(screen.queryByRole('tab', { name: 'Trainings' })).not.toBeInTheDocument();
   });
 
-  it('never offers to change the own status, even with the update permission', async () => {
+  it('does not offer to change the own status with only the update permission', async () => {
     serveRecords(fixturePersonId, [PermissionId.training_recordsupdate]);
     renderRoute(<App />, '/profile');
     const section = await screen.findByRole('table', { name: 'Trainings' });
     expect(within(section).getByText('Can train others')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Change status/ })).not.toBeInTheDocument();
+  });
+
+  it('offers to change the own status with the self permission', async () => {
+    serveRecords(fixturePersonId, [PermissionId.training_recordsupdateself]);
+    renderRoute(<App />, '/profile');
+    const section = await screen.findByRole('table', { name: 'Trainings' });
+    expect(within(section).getByText('Can train others')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Change status/ }).length).toBeGreaterThan(0);
+  });
+
+  it('does not offer to change others with only the self permission', async () => {
+    serveRecords(otherPersonId, [
+      PermissionId.peoplereadall,
+      PermissionId.training_recordsreadall,
+      PermissionId.training_recordsupdateself,
+    ]);
+    renderRoute(<App />, `/people/${otherPersonId}?tab=trainings`);
+    expect(await screen.findByRole('table', { name: 'Trainings' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Change status/ })).not.toBeInTheDocument();
   });
 });

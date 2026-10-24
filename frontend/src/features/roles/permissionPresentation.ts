@@ -90,6 +90,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'training_records.read.self': { group: 'Trainings', label: 'View own training records' },
   'training_records.read.all': { group: 'Trainings', label: 'View all training records' },
   'training_records.update': { group: 'Trainings', label: 'Set training status of others' },
+  'training_records.update.self': { group: 'Trainings', label: 'Set own training status' },
   'machine_jobs.read': { group: 'Machines', label: 'View machine jobs' },
   'machine_jobs.create': { group: 'Machines', label: 'Create jobs' },
   'machine_jobs.edit': { group: 'Machines', label: 'Edit jobs and billing' },

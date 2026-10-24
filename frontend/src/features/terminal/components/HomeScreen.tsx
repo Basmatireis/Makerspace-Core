@@ -1,6 +1,7 @@
 import { Button } from '@carbon/react';
 import { Login, Logout, UserAdmin } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
+import { useBranding } from '../../branding/branding';
 import { TerminalHardwareStatus } from '../DeviceBridgePanel';
 
 export function HomeScreen({
@@ -12,10 +13,12 @@ export function HomeScreen({
   onCheckIn: () => void;
   onCheckOut: () => void;
 }) {
+  const branding = useBranding();
   return (
     <div className="tablet-home">
       <div>
-        <h1 className="tablet-home__title">Welcome to the Makerspace</h1>
+        <h1 className="tablet-home__title">Welcome to the {branding.identity.displayName}</h1>
+        {branding.identity.tagline && <p className="tablet-home__tagline">{branding.identity.tagline}</p>}
         <p className="tablet-home__lead">Check in when you arrive and check out before you leave.</p>
       </div>
 

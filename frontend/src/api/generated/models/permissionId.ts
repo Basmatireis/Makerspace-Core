@@ -97,6 +97,7 @@ export const PermissionId = {
   training_recordsreadself: 'training_records.read.self',
   training_recordsreadall: 'training_records.read.all',
   training_recordsupdate: 'training_records.update',
+  training_recordsupdateself: 'training_records.update.self',
   machine_jobsread: 'machine_jobs.read',
   machine_jobscreate: 'machine_jobs.create',
   machine_jobsedit: 'machine_jobs.edit',

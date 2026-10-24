@@ -21,6 +21,7 @@
 import type { UUIDv7 } from './uUIDv7';
 import type { VisitorEnrollmentResultAccountStatus } from './visitorEnrollmentResultAccountStatus';
 import type { VisitorEnrollmentResultAdmission } from './visitorEnrollmentResultAdmission';
+import type { VisitorEnrollmentResultAttendance } from './visitorEnrollmentResultAttendance';
 import type { VisitorEnrollmentResultInvitationDelivery } from './visitorEnrollmentResultInvitationDelivery';
 
 export interface VisitorEnrollmentResult {
@@ -31,4 +32,6 @@ export interface VisitorEnrollmentResult {
   invitationDelivery: VisitorEnrollmentResultInvitationDelivery;
   labRulesRequestId: UUIDv7 | null;
   admission: VisitorEnrollmentResultAdmission;
+  /** Completing enrollment counts as arriving; blocked roles wait for a supervisor to confirm the Lab Rules. */
+  attendance: VisitorEnrollmentResultAttendance;
 }

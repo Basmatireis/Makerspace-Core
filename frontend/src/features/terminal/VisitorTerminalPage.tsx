@@ -6,7 +6,9 @@ import {
   terminalPublicCheckOut,
 } from '../../api/generated/attendance/attendance';
 import type { AttendanceHold, Visit } from '../../api/generated/models';
+import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { useBranding } from '../branding/branding';
 import { CheckOutScreen } from './components/CheckOutScreen';
 import { CredentialsScreen } from './components/CredentialsScreen';
 import { HoldScreen } from './components/HoldScreen';
@@ -33,10 +35,11 @@ export function VisitorTerminalPage() {
   const presence = useQuery({
     queryKey: presenceKey,
     queryFn: ({ signal }) => listTerminalPresence({ signal }),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
     enabled: terminal.isSuccess,
   });
   const queryClient = useQueryClient();
+  const branding = useBranding();
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const now = useClock();
   const publicCheckout = useMutation({
@@ -88,15 +91,21 @@ export function VisitorTerminalPage() {
   return (
     <main className="tablet">
       <header className="tablet-header">
-        <div>
-          <p className="tablet-header__device">{context.deviceName}</p>
+        <div className="tablet-header__brand">
+          <BrandMark kind="logo" className="tablet-header__logo" />
+          <div>
+            <p className="tablet-header__name">{branding.identity.displayName}</p>
+            <p className="tablet-header__device">{context.deviceName}</p>
+          </div>
+        </div>
+        <div className="tablet-header__time">
           <p className="tablet-header__date">
             {now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
+          <p className="tablet-header__clock" aria-label="Current time">
+            {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
-        <p className="tablet-header__clock" aria-label="Current time">
-          {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </p>
       </header>
 
       <section className="tablet-main" aria-live="polite">

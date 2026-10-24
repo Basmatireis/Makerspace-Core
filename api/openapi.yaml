@@ -5511,8 +5511,8 @@ paths:
       operationId: listPersonTrainingRecords
       summary: List a person's training status
       description: >-
-        Requires `training_records.read.all` or `training_records.update`, or `training_records.read.self` for the
-        caller's own person. Lists every active training and every inactive one the person holds a record of; a
+        Requires `training_records.read.all` or `training_records.update`, or `training_records.read.self` or
+        `training_records.update.self` for the caller's own person (the latter also sees internal notes). Lists every active training and every inactive one the person holds a record of; a
         training without a record is `not_trained`. Internal notes are omitted for self readers.
       security: [{sessionCookie: []}]
       responses:
@@ -5531,7 +5531,8 @@ paths:
       operationId: setPersonTrainingRecord
       summary: Set a person's training status
       description: >-
-        Requires `training_records.update`. Nobody changes their own status (403 training_record_self). `not_trained`
+        Requires `training_records.update` for another person and `training_records.update.self` for the caller's own person
+        (403 training_record_self without it). `not_trained`
         deletes the record. Send the record's version as `expectedVersion`, or omit it when the person had no record.
         An inactive training takes no new status (409 training_inactive) but can be removed or corrected.
       security: [{sessionCookie: [], csrfHeader: []}]
@@ -9291,6 +9292,7 @@ components:
         - training_records.read.self
         - training_records.read.all
         - training_records.update
+        - training_records.update.self
         - machine_jobs.read
         - machine_jobs.create
         - machine_jobs.edit
@@ -12554,7 +12556,7 @@ components:
     VisitorEnrollmentResult:
       type: object
       additionalProperties: false
-      required: [personId, accountId, accountStatus, invitationDelivery, labRulesRequestId, admission]
+      required: [personId, accountId, accountStatus, invitationDelivery, labRulesRequestId, admission, attendance]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         accountId: {$ref: "#/components/schemas/UUIDv7"}
@@ -12562,6 +12564,10 @@ components:
         invitationDelivery: {type: string, enum: [sent, failed], nullable: true}
         labRulesRequestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         admission: {type: string, enum: [admitted, warning, blocked]}
+        attendance:
+          type: string
+          enum: [checked_in, awaiting_sign_off]
+          description: Completing enrollment counts as arriving; blocked roles wait for a supervisor to confirm the Lab Rules.
 
     VisitorAdmissionResult:
       type: object

@@ -14,17 +14,18 @@ Schema: migration 00071.
 
 - **Deactivating** a training or competency keeps its records and links, but it no longer counts for open days. An inactive training takes no new status: its records can only be removed or have their date and notes corrected (409 `training_inactive`). Reactivating restores everything.
 - **Deleting** is only possible while nothing uses the entry: a training nobody holds a record of (else 409 `training_in_use`), a competency no training feeds (else 409 `competency_category_in_use`).
-- **Nobody changes their own status**, not even the master (403 `training_record_self`). Trainers get no automatic right to record trainings; that needs `training_records.update`.
+- **Changing the own status needs `training_records.update.self`** (403 `training_record_self` without it, even with `training_records.update` and for the master only if the role lacks it; the master holds every permission). Changing another person's status needs `training_records.update`; `.update.self` alone does not allow that. Trainers get no automatic right to record trainings.
 - Every status change writes an audit event in the same transaction: `training_record.trained`, `.trainer`, `.updated` (only date or notes changed) or `.removed`, with resource type `training_record`, the person as resource and `personId`/`trainingId` as metadata. Notes and dates are never copied into the audit.
 
 ## Permissions
 
-| Permission                   | Allows                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------- |
-| `trainings.manage`           | Create, edit, deactivate and delete trainings and competencies.                             |
-| `training_records.read.self` | Read the own training status, without internal notes. Also reads the training catalogue.    |
-| `training_records.read.all`  | Read everybody's training status with internal notes. Also reads the training catalogue.    |
-| `training_records.update`    | Set another person's status; also reads everybody's records, because the editor needs them. |
+| Permission                     | Allows                                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `trainings.manage`             | Create, edit, deactivate and delete trainings and competencies.                                    |
+| `training_records.read.self`   | Read the own training status, without internal notes. Also reads the training catalogue.           |
+| `training_records.read.all`    | Read everybody's training status with internal notes. Also reads the training catalogue.           |
+| `training_records.update`      | Set another person's status; also reads everybody's records, because the editor needs them.        |
+| `training_records.update.self` | Set the own status; also reads the own records with internal notes, because the editor needs them. |
 
 The derived open-day competencies need no extra permission: they are visible wherever the open day is.
 
@@ -53,8 +54,8 @@ Public output never contains people, training names or IDs, notes, or whether so
 
 ## User interface
 
-- **People › person › Trainings**: status per training. With `training_records.update` an edit button opens a dialog with the three-state choice (Not trained / Trained / Can train others), completion date and internal notes. The button never appears on the own person.
-- **Profile**: the own trainings, read-only, with `training_records.read.self`.
+- **People › person › Trainings**: status per training. With `training_records.update` an edit button opens a dialog with the three-state choice (Not trained / Trained / Can train others), completion date and internal notes. On the own person the button needs `training_records.update.self` instead.
+- **Profile**: the own trainings, read-only with `training_records.read.self`, editable with `training_records.update.self`.
 - **Settings › Lab operations › Trainings & competencies** (`trainings.manage`): the trainings with their competencies and machine types, and the competencies with public label, sort order and active flag.
 
 ## Configuration transfer

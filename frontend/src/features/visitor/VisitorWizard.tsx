@@ -20,8 +20,10 @@ import {
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
 import { useSecretMutation } from '../../api/use-secret-mutation';
+import { BrandMark } from '../../app/BrandMark';
 import { usePageTitle, useBranding } from '../branding/branding';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
+import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
 import { useInactivityPrompt } from './useInactivityPrompt';
 import './visitor.scss';
@@ -37,12 +39,22 @@ type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
 
 // Three steps that fit one tablet screen. All entries live only in this component: leaving the page (back, Done or
 // inactivity) unmounts it, which releases the camera and discards everything.
-export function VisitorWizard({ state }: { state: EnrollmentState }) {
+function BrandLockup() {
   const branding = useBranding();
+  return (
+    <p className="visitor-flow__brand">
+      <BrandMark kind="logo" className="visitor-flow__logo" />
+      <span>{branding.identity.displayName}</span>
+    </p>
+  );
+}
+
+export function VisitorWizard({ state }: { state: EnrollmentState }) {
   usePageTitle('Visitor enrollment');
   const navigate = useNavigate();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -108,6 +120,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       setOutcome({
         firstName: firstName.trim(),
         admission: result.admission,
+        attendance: result.attendance,
         invitationDelivery: result.invitationDelivery,
         method,
         email: email.trim(),
@@ -123,6 +136,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   if (outcome)
     return (
       <main className="visitor-flow">
+        <header className="visitor-flow__header visitor-flow__header--done">
+          <BrandLockup />
+        </header>
         <EnrollmentDone outcome={outcome} onDone={toTerminal} />
       </main>
     );
@@ -134,7 +150,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
           <Button as={Link} to="/terminal" kind="ghost" size="lg" renderIcon={ArrowLeft}>
             Back to check-in
           </Button>
-          <p className="visitor-flow__brand">{branding.identity.displayName}</p>
+          <BrandLockup />
         </header>
 
         <ProgressIndicator currentIndex={step} spaceEqually aria-label="Enrollment progress">
@@ -293,9 +309,14 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   supervisor has you sign the paper version before you may use machines.
                 </p>
                 <div>
-                  <Button as="a" href="/api/v1/visitor-enrollment/lab-rules.pdf" target="_blank" kind="secondary">
+                  <Button type="button" kind="secondary" onClick={() => setRulesOpen(true)}>
                     View current Lab Rules PDF
                   </Button>
+                  <LabRulesModal
+                    open={rulesOpen}
+                    revision={state.currentLabRules.humanRevision}
+                    onClose={() => setRulesOpen(false)}
+                  />
                 </div>
                 <Checkbox
                   id="visitor-ready"

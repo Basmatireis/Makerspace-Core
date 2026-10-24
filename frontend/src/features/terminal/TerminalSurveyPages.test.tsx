@@ -111,9 +111,12 @@ describe('public terminal and survey pages', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/terminal');
 
-    expect(await screen.findByText('Waiting for Lab Rules')).toBeInTheDocument();
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    expect(screen.getByText('not checked in')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting sign-off')).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for Lab Rules')).not.toBeInTheDocument();
+    // Awaiting people have no visit, so tapping the name must not offer a checkout.
+    await user.click(screen.getByText('Grace Hopper'));
+    expect(screen.queryByRole('button', { name: /Check out Grace/ })).not.toBeInTheDocument();
 
     await enterPin(user);
     await user.click(screen.getAllByRole('button', { name: 'Check in' }).at(-1) as HTMLElement);

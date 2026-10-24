@@ -16,7 +16,8 @@ function saveError(error: unknown): string {
     if (error.data?.code === 'stale_write') return 'Someone else changed this status. Close the dialog and try again.';
     if (error.data?.code === 'training_inactive')
       return 'This training is inactive: you can remove the status or correct its date and notes, but not change it.';
-    if (error.data?.code === 'training_record_self') return 'Nobody can change their own training status.';
+    if (error.data?.code === 'training_record_self')
+      return 'Changing the own training status needs its own permission.';
     if (error.status === 422) return 'Check the date: it cannot lie in the future.';
   }
   return 'Check your connection and try again.';

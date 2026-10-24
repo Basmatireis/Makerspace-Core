@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type AttendanceHold,
   type ConfirmLaborordnungRequest,
+  type LaborordnungRequest,
   PermissionId,
   type Visit,
   type VoidVisitRequest,
@@ -165,12 +166,18 @@ describe('Lab Rules hold', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/attendance');
 
-    expect(await screen.findByText('Waiting for Lab Rules confirmation')).toBeInTheDocument();
-    expect(screen.getByText('Katherine Johnson')).toBeInTheDocument();
-    expect(screen.getByText(/Has never signed the Lab Rules/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel check-in' })).toBeInTheDocument();
+    expect((await screen.findAllByText('Katherine Johnson')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Awaiting sign-off', { selector: '.cds--tag *' })).toBeInTheDocument();
+    expect(screen.getByText('Waiting since', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('0 checked in · 1 awaiting sign-off')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Waiting for Lab Rules confirmation' })).toBeInTheDocument();
+    expect(screen.getByText(/at the entrance since/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Confirm Lab Rules' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Katherine Johnson' }));
+    expect(await screen.findAllByText('Cancel check-in')).not.toHaveLength(0);
+    await user.click(
+      (await screen.findAllByText('Confirm Lab Rules')).find((el) => el.closest('.cds--overflow-menu-options'))!,
+    );
     const dialog = screen.getByRole('dialog');
     const confirm = within(dialog).getByRole('button', { name: 'Confirm and check in' });
     expect(confirm).toBeDisabled();
@@ -187,7 +194,7 @@ describe('Lab Rules hold', () => {
         archiveNote: null,
       }),
     );
-    await waitFor(() => expect(screen.queryByText('Waiting for Lab Rules confirmation')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Katherine Johnson')).not.toBeInTheDocument());
   });
 
   it('continues an assisted check-in that comes back held in the confirmation step', async () => {
@@ -237,8 +244,137 @@ describe('Lab Rules hold', () => {
     );
     renderRoute(<App />, '/attendance');
 
+    const user = userEvent.setup();
+    expect((await screen.findAllByText('Katherine Johnson')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Actions for Katherine Johnson' }));
+    expect(await screen.findAllByText('Cancel check-in')).not.toHaveLength(0);
+    expect(screen.queryByText('Confirm Lab Rules')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Confirm Lab Rules for/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Lab Rules confirmation notice', () => {
+  const request: LaborordnungRequest = {
+    id: hold.laborordnungRequestId!,
+    personId: hold.personId,
+    personName: 'Katherine Johnson',
+    requiredVersion: { humanRevision: 'R2' } as LaborordnungRequest['requiredVersion'],
+    previousVersion: null,
+    status: 'pending',
+    requestedAt: '2026-10-11T08:30:00Z',
+    completedAt: null,
+    physicalDocumentReference: null,
+    signedDate: null,
+    archiveNote: null,
+  };
+  const other: LaborordnungRequest = {
+    ...request,
+    id: '01995ea6-6d00-7000-8000-000000000401',
+    personId: '01995ea6-6d00-7000-8000-000000000402',
+    personName: 'Mary Jackson',
+  };
+
+  it('lists people at the entrance first, then other open requests, and confirms from the notice', async () => {
+    let requests = [request, other];
+    let confirmedId: string | undefined;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.attendanceread,
+            PermissionId.laborordnungrequestsread,
+            PermissionId.laborordnungconfirm,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/visits', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/attendance/holds', () => HttpResponse.json({ items: [hold] })),
+      http.get('*/api/v1/laborordnung/requests', () => HttpResponse.json({ items: requests })),
+      http.post('*/api/v1/laborordnung/requests/:requestId/confirm', ({ params }) => {
+        confirmedId = params.requestId as string;
+        requests = requests.filter((item) => item.id !== confirmedId);
+        return HttpResponse.json({});
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/attendance');
+
+    expect(await screen.findByRole('heading', { name: 'Waiting for Lab Rules confirmation' })).toBeInTheDocument();
+    expect(await screen.findByText('Mary Jackson')).toBeInTheDocument();
+    // The person at the entrance appears once in the notice (plus once in the table), never as a second request.
+    expect(screen.getAllByRole('button', { name: 'Confirm Lab Rules for Katherine Johnson' })).toHaveLength(1);
+    expect(screen.getByText(/Lab Rules revision R2 · requested/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm Lab Rules for Mary Jackson' }));
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Physical document reference'), 'Folder 1');
+    await user.click(within(dialog).getByRole('checkbox', { name: /I have seen Mary Jackson's signature/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm and check in' }));
+
+    await waitFor(() => expect(confirmedId).toBe(other.id));
+    await waitFor(() => expect(screen.queryByText('Mary Jackson')).not.toBeInTheDocument());
+  });
+
+  it('shows a calm notice when only requests are open and nothing when none are', async () => {
+    let requests = [other];
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.attendanceread,
+            PermissionId.laborordnungrequestsread,
+            PermissionId.laborordnungconfirm,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/visits', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/attendance/holds', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/laborordnung/requests', () => HttpResponse.json({ items: requests })),
+    );
+    const { unmount } = renderRoute(<App />, '/attendance');
+    expect(await screen.findByRole('heading', { name: 'Lab Rules to confirm' })).toBeInTheDocument();
+    expect(screen.getByText('Mary Jackson')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Waiting for Lab Rules confirmation' })).not.toBeInTheDocument();
+    unmount();
+
+    requests = [];
+    renderRoute(<App />, '/attendance');
+    await screen.findByRole('heading', { name: 'Attendance' });
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Lab Rules to confirm' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('does not fetch requests without laborordnung.requests.read', async () => {
+    let queueRequested = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.attendanceread]))),
+      http.get('*/api/v1/visits', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/attendance/holds', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/laborordnung/requests', () => {
+        queueRequested = true;
+        return HttpResponse.json({ items: [request] });
+      }),
+    );
+    renderRoute(<App />, '/attendance');
+    expect(
+      await screen.findByText('Currently here', { selector: 'h4, .cds--data-table-header__title' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Lab Rules to confirm' })).not.toBeInTheDocument();
+    expect(queueRequested).toBe(false);
+  });
+
+  it('shows requests read-only without laborordnung.confirm', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.attendanceread, PermissionId.laborordnungrequestsread])),
+      ),
+      http.get('*/api/v1/visits', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/attendance/holds', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/laborordnung/requests', () => HttpResponse.json({ items: [request] })),
+    );
+    renderRoute(<App />, '/attendance');
     expect(await screen.findByText('Katherine Johnson')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel check-in' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirm Lab Rules' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Confirm Lab Rules for/ })).not.toBeInTheDocument();
   });
 });
