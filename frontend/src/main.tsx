@@ -6,6 +6,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { setReauthenticationHandler } from './api/http-client';
 import { queryClient } from './api/query-client';
 import { App } from './app/App';
+import { RouteErrorPage } from './app/RouteErrorPage';
 import { SessionEventHandler } from './features/auth/auth';
 import { BrandingProvider } from './features/branding/branding';
 import './styles/index.scss';
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
         <App />
       </>
     ),
+    errorElement: <RouteErrorPage />,
   },
 ]);
 

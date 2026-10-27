@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, useParams } from 'react-router-dom';
-import { requestQuery } from '../features/orders/queries';
-import { FullPageLoading } from './PageState';
+import { FullPageLoading } from '../../app/PageState';
+import { requestQuery } from './queries';
 
 /** The former request page: the invoice now lives on its order. */
 export function ExternalInvoiceRedirect() {

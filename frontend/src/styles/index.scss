@@ -2138,6 +2138,22 @@ body.cds--body--with-modal-open .app-main > * {
   padding: $spacing-07;
 }
 
+.route-error-page {
+  max-width: 40rem;
+  padding: $spacing-10 $spacing-07;
+  margin: 0 auto;
+}
+
+.route-error-page__title {
+  @include type-style('heading-05');
+}
+
+.route-error-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-05;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;

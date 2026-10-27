@@ -28,6 +28,11 @@ export const ProfilePage = lazy(() =>
 export const SalesOverviewPage = lazy(() =>
   import('../features/orders/SalesOverviewPage').then(({ SalesOverviewPage }) => ({ default: SalesOverviewPage })),
 );
+export const ExternalInvoiceRedirect = lazy(() =>
+  import('../features/orders/ExternalInvoiceRedirect').then(({ ExternalInvoiceRedirect }) => ({
+    default: ExternalInvoiceRedirect,
+  })),
+);
 export const OrdersPage = lazy(() =>
   import('../features/orders/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })),
 );
@@ -255,8 +260,4 @@ export const OpenDayRequirementsPage = lazy(() =>
   import('../features/opendays/OpenDayRequirementsPage').then(({ OpenDayRequirementsPage }) => ({
     default: OpenDayRequirementsPage,
   })),
-);
-
-export const ExternalInvoiceRedirect = lazy(() =>
-  import('./ExternalInvoiceRedirect').then(({ ExternalInvoiceRedirect }) => ({ default: ExternalInvoiceRedirect })),
 );
