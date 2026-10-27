@@ -462,7 +462,7 @@ describe('plate images', () => {
     const previews = [
       preview('plate-1', 'plate', 1, 512),
       preview('plate-1-small', 'plate', 1, 128),
-      preview('plate-1-no-light', 'plate', 1, 512),
+      preview('plate-1-no-light', 'plate', null, 512),
       preview('pick-1', 'other', 1, 512),
       preview('plate-2-small', 'plate', 2, 128),
       preview('plate-2', 'plate', 2, 512),

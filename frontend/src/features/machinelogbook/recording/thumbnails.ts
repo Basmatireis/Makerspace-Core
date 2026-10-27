@@ -23,9 +23,12 @@ export type Thumbnail = {
  */
 export function plateImages(previews: MachineRunPreview[]): MachineRunPreview[] {
   const hasPlates = previews.some((preview) => preview.role === 'plate');
+  // Unlit renders (plate_no_light_N.png) carry no parsed plate number; numbered plate renders replace them.
+  const hasNumberedPlates = previews.some((preview) => preview.role === 'plate' && preview.plateNumber != null);
   const best = new Map<string, MachineRunPreview>();
   for (const preview of previews) {
     if (hasPlates && preview.role !== 'plate') continue;
+    if (hasNumberedPlates && preview.plateNumber == null) continue;
     const key = String(preview.plateNumber ?? 'none');
     const current = best.get(key);
     if (!current || preview.width * preview.height > current.width * current.height) best.set(key, preview);
