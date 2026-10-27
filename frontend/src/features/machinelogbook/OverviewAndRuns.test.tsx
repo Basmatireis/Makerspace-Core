@@ -357,25 +357,27 @@ describe('Run detail page', () => {
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Successful');
     expect(screen.getByText('Outcome').nextSibling?.nextSibling).toHaveTextContent('From machine');
     expect(screen.getByText('Events from Bambu LAN (2)')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create job' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
     expect(screen.queryByText(/printer/i)).not.toBeInTheDocument();
   });
 
-  it('offers Create job and Attach to job only with their permissions', async () => {
+  it('claims a run straight into a new job with create permission only', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate];
     serveRun(recordedRun());
-    const first = renderRun();
-    expect(await screen.findByRole('button', { name: 'Create job' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Attach to job' })).not.toBeInTheDocument();
-    first.router.dispose();
+    const user = userEvent.setup();
+    renderRun();
+    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
+    expect(screen.getByRole('dialog', { name: 'Job form stub' })).toBeInTheDocument();
   });
 
-  it('offers Attach to job but not Create job with edit permission only', async () => {
+  it('claims a run straight into an existing job with edit permission only', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
     serveRun(recordedRun());
+    const user = userEvent.setup();
     renderRun();
-    expect(await screen.findByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create job' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
+    expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Job form stub' })).not.toBeInTheDocument();
   });
 
   it('offers create and attach while the run is still running', async () => {
@@ -389,8 +391,13 @@ describe('Run detail page', () => {
     expect(screen.getByText('Material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create job' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
+    // With both permissions, Claim run asks whether the run starts a new job or joins an existing one.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Claim run' }));
+    const claim = screen.getByRole('dialog', { name: 'Claim run' });
+    await user.click(within(claim).getByLabelText('Part of an existing job'));
+    await user.click(within(claim).getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
   });
 
   describe('signage visibility', () => {
@@ -614,7 +621,7 @@ describe('Run detail page', () => {
     serveRun(recordedRun({ state: 'failed', outcome: 'failed' }));
     const user = userEvent.setup();
     renderRun();
-    await user.click(await screen.findByRole('button', { name: 'Create job' }));
+    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
     expect(screen.getByRole('dialog', { name: 'Job form stub' })).toHaveAttribute('data-run-id', ids.recordedRun);
   });
 
@@ -634,7 +641,7 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('button', { name: 'Attach to job' }));
+    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Attach run' })).toBeDisabled();
     await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
@@ -669,7 +676,7 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('button', { name: 'Attach to job' }));
+    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/the job keeps running until the run ends/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
@@ -712,8 +719,7 @@ describe('Run detail page', () => {
       'href',
       machineLogbookPaths.job(ids.job),
     );
-    expect(screen.queryByRole('button', { name: 'Create job' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Attach to job' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
     // Carbon's icon-only overflow trigger is named by an aria-hidden tooltip that jsdom does not resolve, so find it by class.
     await waitFor(() => expect(document.querySelector('.cds--overflow-menu')).not.toBeNull());
     await user.click(document.querySelector('.cds--overflow-menu')!);
@@ -775,8 +781,10 @@ describe('Run detail page', () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
     serveRun(recordedRun());
     renderRun();
-    await screen.findByRole('heading', { name: /Gearbox housing v3/ });
-    expect(document.querySelector('.cds--overflow-menu')).toBeNull();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
+    expect(await screen.findByText('Edit material usage')).toBeInTheDocument();
+    expect(screen.queryByText('Delete run')).not.toBeInTheDocument();
   });
 
   it('offers Delete run for a manual run with edit access', async () => {

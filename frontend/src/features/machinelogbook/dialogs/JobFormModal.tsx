@@ -39,6 +39,7 @@ import { useCan } from '../shared/useCan';
 import { processConfig } from '../processConfig';
 import {
   blankUsage,
+  signedInOperator,
   matchesName,
   saveError,
   toUsageInputs,
@@ -70,8 +71,12 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
     enabled: canLookup,
     placeholderData: keepPreviousData,
   });
+  const operator = useWatch({ control, name: 'operator' });
+  // While the field shows the chosen operator (the signed-in person for a new job), every operator is offered, so
+  // switching to someone else needs no clearing first.
+  const showsChosenOperator = !!operator && operatorSearch === operator.displayName;
   const operators = useQuery({
-    ...operatorSearchQuery(operatorSearch),
+    ...operatorSearchQuery(showsChosenOperator ? '' : operatorSearch),
     enabled: canLookup,
     placeholderData: keepPreviousData,
   });
@@ -130,7 +135,9 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
               disabled={!canLookup}
               items={operators.data?.items ?? (current?.operator ? [current.operator] : [])}
               itemToString={(item) => item?.displayName ?? ''}
-              shouldFilterItem={matchesName}
+              shouldFilterItem={(options) =>
+                (!!operator && options.inputValue === operator.displayName) || matchesName(options)
+              }
               selectedItem={field.value}
               onInputChange={setOperatorSearch}
               onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)}
@@ -187,6 +194,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   const client = useQueryClient();
   const notify = useNotify();
   const can = useCan();
+  const currentUser = useCurrentUser();
   const fromRun = mode === 'create' && !!run;
   const source = job
     ? {
@@ -205,7 +213,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
       machineId: source?.machineId ?? run?.machineId ?? '',
       pricingGroupId: '',
       customer: source?.customer ?? null,
-      operator: source?.operator ?? null,
+      operator: source?.operator ?? (mode === 'create' ? signedInOperator(currentUser.person) : null),
       notes: source?.notes ?? '',
       outcomeOverride: job?.outcomeOverridden && job.outcome !== 'unknown' ? (job.outcome as MachineRunOutcome) : '',
       ...runDefaults(),

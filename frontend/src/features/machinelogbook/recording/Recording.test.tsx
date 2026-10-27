@@ -329,7 +329,8 @@ describe('Run detail recording', () => {
     renderRun();
     // One in the consumption notice and one in the empty preview tile; the run is unassigned.
     await waitFor(() => expect(screen.getAllByText('Upload print file (3MF)').length).toBeGreaterThanOrEqual(2));
-    expect(screen.getByRole('button', { name: 'Edit material usage' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('img', { name: 'More run actions' }));
+    expect(await screen.findByText('Edit material usage')).toBeInTheDocument();
   });
 
   it('hides the upload and the material action without machine_jobs.edit', async () => {
@@ -339,7 +340,7 @@ describe('Run detail recording', () => {
     renderRun();
     expect(await screen.findByText('Print file on the printer’s internal storage')).toBeInTheDocument();
     expect(screen.queryByText('Upload print file (3MF)')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit material usage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'More run actions' })).not.toBeInTheDocument();
   });
 
   it('does not offer the upload once a print file exists', async () => {

@@ -28,7 +28,8 @@ import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { BulkError } from './BulkError';
 import { JobPartyFields } from './JobFormModal';
-import type { PartyValues } from './jobFormHelpers';
+import { signedInOperator, type PartyValues } from './jobFormHelpers';
+import { useCurrentUser } from '../../auth/auth';
 
 type Mode = 'separate' | 'combined';
 type Props = { open: boolean; onClose: () => void; runs: WorkItem[]; onDone: () => void };
@@ -51,10 +52,17 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
   const notify = useNotify();
   const navigate = useNavigate();
   const can = useCan();
+  const currentUser = useCurrentUser();
   const canReadPricing = can('pricing.read');
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing });
   const form = useForm<Values>({
-    defaultValues: { title: '', customer: null, operator: null, notes: '', pricingGroupId: '' },
+    defaultValues: {
+      title: '',
+      customer: null,
+      operator: signedInOperator(currentUser.person),
+      notes: '',
+      pricingGroupId: '',
+    },
   });
   const targets = referenceTargets(runs);
   const machineName = runs[0]?.machineName ?? 'the machine';

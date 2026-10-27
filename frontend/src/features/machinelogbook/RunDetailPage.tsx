@@ -12,7 +12,7 @@ import {
   ProgressBar,
   Tile,
 } from '@carbon/react';
-import { Add, Edit, Link as LinkIcon } from '@carbon/icons-react';
+import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
@@ -24,6 +24,7 @@ import { useCurrentUser } from '../auth/auth';
 import { PermissionId } from '../auth/permissions';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
+import { ClaimRunModal } from './dialogs/ClaimRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
@@ -109,7 +110,9 @@ export function RunDetailPage() {
     refetchInterval: (query) => (query.state.data?.commands.some(isCommandOpen) ? COMMAND_REFRESH_MS : false),
   });
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | 'usage' | null>(null);
+  const [dialog, setDialog] = useState<
+    'claim' | 'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | 'usage' | null
+  >(null);
   const [uploaded, setUploaded] = useState<{ result: MachineRunArtifactUploadResult; fileName: string } | null>(null);
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
   const close = () => setDialog(null);
@@ -194,14 +197,22 @@ export function RunDetailPage() {
   const title = run ? runName(run) : 'Run';
   const onlyRun = job !== undefined && job.runs.filter((item) => item.state !== 'replaced').length === 1;
 
+  const canEditUsage = canEdit && run?.state !== 'replaced';
+  const canDetach = !unassigned && canEdit && job !== undefined && run?.source === 'recorded';
+  const canClaim = unassigned && (canAttach || canCreate);
+  // With only one of the two permissions the claim button goes straight to that dialog.
+  const claim = () => setDialog(canAttach && canCreate ? 'claim' : canCreate ? 'create' : 'attach');
+
   const actions = run ? (
     <>
-      {((!unassigned && canEdit && job !== undefined && run.source === 'recorded') || canDelete) && (
+      {(canEditUsage || canDetach || canDelete) && (
         <OverflowMenu aria-label="More run actions" iconDescription="More run actions" flipped>
-          {!unassigned && canEdit && job !== undefined && run.source === 'recorded' && (
+          {canEditUsage && <OverflowMenuItem itemText="Edit material usage" onClick={() => setDialog('usage')} />}
+          {canDetach && (
             <OverflowMenuItem
               itemText="Detach from job"
               isDelete
+              hasDivider={canEditUsage}
               onClick={() => {
                 detach.reset();
                 setDialog('detach');
@@ -213,19 +224,9 @@ export function RunDetailPage() {
           )}
         </OverflowMenu>
       )}
-      {canEdit && run.state !== 'replaced' && (
-        <Button kind="tertiary" renderIcon={Edit} onClick={() => setDialog('usage')}>
-          Edit material usage
-        </Button>
-      )}
-      {unassigned && canAttach && (
-        <Button kind="tertiary" renderIcon={LinkIcon} onClick={() => setDialog('attach')}>
-          Attach to job
-        </Button>
-      )}
-      {unassigned && canCreate && (
-        <Button renderIcon={Add} onClick={() => setDialog('create')}>
-          Create job
+      {canClaim && (
+        <Button renderIcon={Add} onClick={claim}>
+          Claim run
         </Button>
       )}
     </>
@@ -564,6 +565,9 @@ export function RunDetailPage() {
       {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
       {run && canEdit && <UsageFormModal open={dialog === 'usage'} onClose={close} run={run} />}
+      {run && canAttach && canCreate && (
+        <ClaimRunModal open={dialog === 'claim'} onClose={close} onChoose={(choice) => setDialog(choice)} />
+      )}
       {run && canAttach && <AttachToJobModal open={dialog === 'attach'} onClose={close} run={run} />}
       {run &&
         resolutionLine !== null &&

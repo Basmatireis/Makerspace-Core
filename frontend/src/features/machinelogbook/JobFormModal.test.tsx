@@ -10,7 +10,10 @@ import { JobFormModal } from './dialogs/JobFormModal';
 import { ToastProvider } from './shared/toasts';
 
 vi.mock('../auth/auth', () => ({
-  useCurrentUser: () => ({ permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'] }),
+  useCurrentUser: () => ({
+    permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'],
+    person: { id: '0192f6f8-743e-7c77-a349-cd07c3e8ffff', firstName: 'Ada', lastName: 'Lovelace' },
+  }),
 }));
 
 const lookups = [
@@ -55,6 +58,8 @@ describe('JobFormModal', () => {
     expect(within(dialog).getByDisplayValue('RN-2026-000007 · gearbox_housing_v3.gcode')).toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Material usage')).not.toBeInTheDocument();
+    // A new job starts with the signed-in person as operator; another operator can still be chosen.
+    expect(within(dialog).getByPlaceholderText('Search operators')).toHaveValue('Ada Lovelace');
     await user.click(within(dialog).getByPlaceholderText('Search people or organizations'));
     await user.click(await screen.findByText('TU Berlin'));
     await user.click(within(dialog).getByPlaceholderText('Search operators'));

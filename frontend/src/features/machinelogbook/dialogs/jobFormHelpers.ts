@@ -123,3 +123,9 @@ export const jobOrderQuery = (jobId: string) =>
     queryKey: [...machineLogbookKeys.all, 'job-order', jobId],
     queryFn: ({ signal }) => getJobOrderAssociation(jobId, { signal }),
   });
+
+/** The signed-in person as the operator a new job starts with; staff can still choose someone else. */
+export const signedInOperator = (person: { id: string; firstName: string; lastName: string }): Operator => ({
+  personId: person.id,
+  displayName: `${person.firstName} ${person.lastName}`.trim(),
+});
