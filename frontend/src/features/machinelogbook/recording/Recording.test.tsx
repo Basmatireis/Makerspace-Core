@@ -27,6 +27,7 @@ import {
   previewLabel,
   timelapseMessage,
 } from './recordingText';
+import { plateImages } from './thumbnails';
 import { ApiError } from '../../../api/http-client';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
@@ -428,8 +429,14 @@ describe('Job detail recordings', () => {
       `/api/v1/machine-runs/${runId}/previews/${previewId}/content`,
     );
     expect(screen.getAllByText('RN-2026-000007').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Plate 1 (RN-2026-000008)' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /RN-2026-000008 · housing.3mf/ })).toHaveAttribute(
+    // The download offers the print file of the shown preview; there is no separate file list.
+    expect(screen.getByRole('link', { name: /Download housing.3mf/ })).toHaveAttribute(
+      'href',
+      `/api/v1/machine-runs/${runId}/artifact/content`,
+    );
+    expect(screen.queryByText('Print files')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Plate 1 (RN-2026-000008)' }));
+    expect(screen.getByRole('link', { name: /Download housing.3mf/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${ids.manualRun}/artifact/content`,
     );
@@ -437,5 +444,33 @@ describe('Job detail recordings', () => {
       'href',
       `/api/v1/machine-runs/${runId}/timelapse/content`,
     );
+  });
+});
+
+describe('plate images', () => {
+  const preview = (id: string, role: 'plate' | 'model' | 'other', plateNumber: number | null, size: number) => ({
+    id,
+    role,
+    plateNumber,
+    width: size,
+    height: size,
+    mimeType: 'image/png' as const,
+    primary: false,
+  });
+
+  it('keeps the largest plate render per plate and drops helper images', () => {
+    const previews = [
+      preview('plate-1', 'plate', 1, 512),
+      preview('plate-1-small', 'plate', 1, 128),
+      preview('plate-1-no-light', 'plate', 1, 512),
+      preview('pick-1', 'other', 1, 512),
+      preview('plate-2-small', 'plate', 2, 128),
+      preview('plate-2', 'plate', 2, 512),
+    ];
+    expect(plateImages(previews).map((p) => p.id)).toEqual(['plate-1', 'plate-2']);
+  });
+
+  it('keeps other images when a file has no plate render', () => {
+    expect(plateImages([preview('model', 'model', null, 256)]).map((p) => p.id)).toEqual(['model']);
   });
 });

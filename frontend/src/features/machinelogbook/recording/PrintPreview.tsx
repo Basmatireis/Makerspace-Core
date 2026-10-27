@@ -6,7 +6,7 @@ import './recording.scss';
 
 /**
  * Large preview of the print file's embedded images. With several images a strip of small previews sits below it;
- * arrow keys and the chevrons step through them. The tile also offers the print file of the shown image.
+ * arrow keys and the chevrons step through them. A button over the image offers the print file of the shown image.
  */
 export function PrintPreview({
   thumbnails,
@@ -27,18 +27,8 @@ export function PrintPreview({
         <div className="print-preview__stage print-preview__stage--empty">
           <NoImage size={48} aria-hidden />
           <p>{emptyText}</p>
+          {emptyDownload && <DownloadButton href={emptyDownload.href} fileName={emptyDownload.fileName} />}
         </div>
-        {emptyDownload && (
-          <Button
-            className="print-preview__download"
-            kind="tertiary"
-            size="sm"
-            renderIcon={Download}
-            href={emptyDownload.href}
-          >
-            Download {emptyDownload.fileName}
-          </Button>
-        )}
       </div>
     );
   }
@@ -69,6 +59,7 @@ export function PrintPreview({
             </span>
           </>
         )}
+        {current.downloadHref && <DownloadButton href={current.downloadHref} fileName={current.fileName} />}
       </div>
       <div className="print-preview__caption">
         <span>
@@ -100,17 +91,15 @@ export function PrintPreview({
           ))}
         </div>
       )}
-      {current.downloadHref && (
-        <Button
-          className="print-preview__download"
-          kind="tertiary"
-          size="sm"
-          renderIcon={Download}
-          href={current.downloadHref}
-        >
-          Download {current.fileName}
-        </Button>
-      )}
     </div>
+  );
+}
+
+/** The print file of the shown preview, laid over the bottom edge of the image. */
+function DownloadButton({ href, fileName }: { href: string; fileName: string }) {
+  return (
+    <Button className="print-preview__download" kind="primary" size="sm" renderIcon={Download} href={href}>
+      Download {fileName}
+    </Button>
   );
 }

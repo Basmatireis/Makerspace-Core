@@ -111,7 +111,7 @@ export function RunTimelapseTile({ recording }: { recording: MachineRunRecording
   );
 }
 
-/** Previews of all runs of a job in one viewer, labelled with the run, plus the print file of each run. */
+/** Previews of all runs of a job in one viewer, labelled with the run; the download offers the shown preview's print file. */
 export function JobPreviewTile({ recordings }: { recordings: MachineRunRecording[] }) {
   const thumbnails = thumbnailsOf(recordings, true);
   const files = recordings.filter((recording) => recording.artifact);
@@ -134,24 +134,6 @@ export function JobPreviewTile({ recordings }: { recordings: MachineRunRecording
             : undefined
         }
       />
-      {files.length > 1 && (
-        <div className="mj-stack">
-          <h4 className="mj-section-title">Print files</h4>
-          <div className="recording-actions">
-            {files.map((recording) => (
-              <Button
-                key={recording.runId}
-                kind="ghost"
-                size="sm"
-                renderIcon={Download}
-                href={getDownloadMachineRunArtifactUrl(recording.runId)}
-              >
-                {recording.runDisplayId} · {recording.artifact?.originalFilename}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
     </Tile>
   );
 }

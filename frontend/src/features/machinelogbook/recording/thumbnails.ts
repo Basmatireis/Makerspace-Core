@@ -2,7 +2,7 @@ import {
   getDownloadMachineRunArtifactUrl,
   getGetMachineRunPreviewUrl,
 } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineRunRecording } from '../../../api/generated/models';
+import type { MachineRunPreview, MachineRunRecording } from '../../../api/generated/models';
 import { previewLabel } from './recordingText';
 
 export type Thumbnail = {
@@ -16,10 +16,27 @@ export type Thumbnail = {
   downloadHref?: string;
 };
 
-/** The previews of recorded runs, in run order (plates first within a run). Runs without a 3MF contribute none. */
+/**
+ * One image per plate of a print file. Slicers embed several renders of each plate (full size, a small copy and
+ * helper images such as the object pick map); plate renders win over other images, then the largest, then the
+ * first in archive order. Other images are kept only for a file without any plate render.
+ */
+export function plateImages(previews: MachineRunPreview[]): MachineRunPreview[] {
+  const hasPlates = previews.some((preview) => preview.role === 'plate');
+  const best = new Map<string, MachineRunPreview>();
+  for (const preview of previews) {
+    if (hasPlates && preview.role !== 'plate') continue;
+    const key = String(preview.plateNumber ?? 'none');
+    const current = best.get(key);
+    if (!current || preview.width * preview.height > current.width * current.height) best.set(key, preview);
+  }
+  return previews.filter((preview) => best.get(String(preview.plateNumber ?? 'none')) === preview);
+}
+
+/** The previews of recorded runs, in run order, one per plate. Runs without a 3MF contribute none. */
 export function thumbnailsOf(recordings: MachineRunRecording[], labelWithRun: boolean): Thumbnail[] {
   return recordings.flatMap((recording) =>
-    recording.previews.map((preview) => ({
+    plateImages(recording.previews).map((preview) => ({
       id: preview.id,
       src: getGetMachineRunPreviewUrl(recording.runId, preview.id),
       label: previewLabel(preview),
