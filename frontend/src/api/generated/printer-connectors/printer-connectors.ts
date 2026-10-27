@@ -29,6 +29,8 @@ import type {
   PrinterConnectorActivityPage,
   PrinterConnectorAssignment,
   PrinterConnectorAssignmentList,
+  PrinterConnectorCommandList,
+  PrinterConnectorCommandStatus,
   PrinterConnectorConfiguration,
   PrinterConnectorEnrollmentIssue,
   PrinterConnectorEnrollmentResult,
@@ -37,6 +39,8 @@ import type {
   PrinterConnectorEventList,
   PrinterConnectorHeartbeat,
   PrinterConnectorList,
+  PrinterConnectorRunReport,
+  PrinterConnectorTimelapseUploadResult,
   PrinterLiveStatusReport,
   PrinterObservedRunList,
   RequestLocalServiceUpdateRequest,
@@ -767,6 +771,176 @@ return apiFetch<PrinterConnectorEnrollmentResult>(getRotatePrinterConnectorCrede
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(rotatePrinterConnectorCredentialRequest)
+  }
+);}
+
+
+export const getReportPrinterConnectorRunUrl = (assignmentId: UUIDv7,
+    runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/assignments/${assignmentId}/runs/${runId}/report`
+}
+
+/**
+ * Telemetry like live status: Core keeps the newest observation per section (consumption, timelapse) of the run and never audits it. An older observation than the stored one is ignored. Accepted for runs of the connector's own assignments, also after the assignment configuration changed or the assignment ended. A connector sends it only when the configuration advertises `recordings`.
+ * @summary Report why a recorded run has (no) consumption and how its timelapse retrieval went
+ */
+export const reportPrinterConnectorRun = async (assignmentId: UUIDv7,
+    runId: UUIDv7,
+    printerConnectorRunReport: PrinterConnectorRunReport, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getReportPrinterConnectorRunUrl(assignmentId,runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(printerConnectorRunReport)
+  }
+);}
+
+
+export const getUploadPrinterConnectorRunTimelapseUrl = (assignmentId: UUIDv7,
+    runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/assignments/${assignmentId}/runs/${runId}/timelapse`
+}
+
+/**
+ * The body is streamed into private file storage and verified against Content-Length and X-Timelapse-SHA256; it is never held in memory. Content-Length above the configured limit (`recordings.timelapseMaxBytes` in the configuration) answers 413 `timelapse_too_large`. A run has at most one timelapse: the same bytes again answer 200 `deduplicated`, different bytes 409 `run_timelapse_exists`. While timelapses are disabled in the recording settings the upload answers 409 `timelapse_disabled`. Accepted while the assignment is active, for any of its configuration versions.
+ * @summary Stream the printer's timelapse video of a recorded run
+ */
+export const uploadPrinterConnectorRunTimelapse = async (assignmentId: UUIDv7,
+    runId: UUIDv7,
+    uploadPrinterConnectorRunTimelapseBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterConnectorTimelapseUploadResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PrinterConnectorTimelapseUploadResult>(getUploadPrinterConnectorRunTimelapseUrl(assignmentId,runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream', ...getHeaders(options?.headers) },
+    body: uploadPrinterConnectorRunTimelapseBody
+  }
+);}
+
+
+export const getDownloadPrinterConnectorRunArtifactUrl = (assignmentId: UUIDv7,
+    runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/assignments/${assignmentId}/runs/${runId}/artifact/content`
+}
+
+/**
+ * @summary Download the stored 3MF of one of the connector's runs (for recomputing consumption)
+ */
+export const downloadPrinterConnectorRunArtifact = async (assignmentId: UUIDv7,
+    runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadPrinterConnectorRunArtifactUrl(assignmentId,runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListPrinterConnectorCommandsUrl = () => {
+
+
+
+
+  return `/api/v1/printer-connector/self/commands`
+}
+
+/**
+ * Polled with the heartbeat by connectors whose configuration advertises `recordings`. Returns requested and running commands, oldest first. Polling marks the connector as able to execute commands; Core refuses new commands (409 `connector_commands_unavailable`) for a connector that has not polled within five minutes.
+ * @summary Commands staff requested for runs of this connector that are not finished yet
+ */
+export const listPrinterConnectorCommands = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterConnectorCommandList> => {
+
+  return apiFetch<PrinterConnectorCommandList>(getListPrinterConnectorCommandsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getReportPrinterConnectorCommandStatusUrl = (commandId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/commands/${commandId}/status`
+}
+
+/**
+ * Allowed transitions are requested to running, succeeded or failed and running to succeeded or failed. Repeating the current state is idempotent (204). Any other transition, for example after Core expired the command, answers 409 `command_finished`.
+ * @summary Report that a command started, succeeded or failed
+ */
+export const reportPrinterConnectorCommandStatus = async (commandId: UUIDv7,
+    printerConnectorCommandStatus: PrinterConnectorCommandStatus, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getReportPrinterConnectorCommandStatusUrl(commandId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(printerConnectorCommandStatus)
   }
 );}
 

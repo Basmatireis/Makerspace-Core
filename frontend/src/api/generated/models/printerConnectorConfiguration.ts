@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LocalServiceUpdateOffer } from './localServiceUpdateOffer';
+import type { PrinterConnectorRecordingFeatures } from './printerConnectorRecordingFeatures';
 import type { PrinterConnectorRuntimeAssignment } from './printerConnectorRuntimeAssignment';
 
 export interface PrinterConnectorConfiguration {
@@ -29,4 +30,6 @@ export interface PrinterConnectorConfiguration {
   assignments: PrinterConnectorRuntimeAssignment[];
   /** The open update request for the connector's updater. The field's presence tells a connector that Core accepts the updater field in heartbeats. */
   update: LocalServiceUpdateOffer | null;
+  /** Present when Core accepts run reports, run commands and timelapse uploads (connectors use these endpoints only when it is present). */
+  recordings?: PrinterConnectorRecordingFeatures | null;
 }

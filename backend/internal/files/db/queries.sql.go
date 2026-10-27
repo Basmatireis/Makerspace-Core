@@ -73,6 +73,15 @@ func (q *Queries) DeleteFile(ctx context.Context, id uuid.UUID) (File, error) {
 	return i, err
 }
 
+const deleteQueuedBlobDeletion = `-- name: DeleteQueuedBlobDeletion :exec
+DELETE FROM file_blob_deletions WHERE storage_key = $1
+`
+
+func (q *Queries) DeleteQueuedBlobDeletion(ctx context.Context, storageKey string) error {
+	_, err := q.db.Exec(ctx, deleteQueuedBlobDeletion, storageKey)
+	return err
+}
+
 const getFile = `-- name: GetFile :one
 SELECT id, storage_key, original_filename, content_type, size_bytes, sha256, created_by_account_id, created_at, updated_at FROM files WHERE id = $1
 `
@@ -121,6 +130,30 @@ func (q *Queries) ListFiles(ctx context.Context) ([]File, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQueuedBlobDeletions = `-- name: ListQueuedBlobDeletions :many
+SELECT storage_key FROM file_blob_deletions ORDER BY requested_at, storage_key LIMIT $1
+`
+
+func (q *Queries) ListQueuedBlobDeletions(ctx context.Context, rowLimit int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, listQueuedBlobDeletions, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var storage_key string
+		if err := rows.Scan(&storage_key); err != nil {
+			return nil, err
+		}
+		items = append(items, storage_key)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -144,6 +144,8 @@ type Configuration struct {
 	Assignments     []RuntimeAssignment
 	// Update is the open update request for the connector's updater, if any.
 	Update *localupdater.Request
+	// TimelapseEnabled tells connectors whether to retrieve timelapse videos (recording settings).
+	TimelapseEnabled bool
 }
 
 type AssignmentHealth struct {

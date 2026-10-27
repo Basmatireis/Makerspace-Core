@@ -27,6 +27,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -99,6 +100,7 @@ func NewApplication(
 		return nil, nil, err
 	}
 	run := func(ctx context.Context) {
+		go runrecordings.RunMaintenance(ctx, server.runRecordings, runrecordings.MaintenanceInterval, logger)
 		surveys.RunDelivery(ctx, server.surveys, cfg.SurveyDeliveryInterval, surveys.DeliveryBatchLimit, logger)
 	}
 	return handler, run, nil
@@ -218,7 +220,7 @@ func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
 
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) {
+		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isRunTimelapsePath(r.URL.Path) {
 			// The generated request objects carry neither cookies nor Range headers; these handlers read them from the raw request.
 			r = r.WithContext(context.WithValue(r.Context(), httpRequestContextKey, r))
 		}
@@ -1037,6 +1039,11 @@ func isSignagePairingPath(path string) bool {
 
 func isSCIMPath(path string) bool {
 	return strings.HasPrefix(path, apiBasePath+"/scim/v2/")
+}
+
+// isRunTimelapsePath matches the timelapse download, whose handler reads the Range header.
+func isRunTimelapsePath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/machine-runs/") && strings.HasSuffix(path, "/timelapse/content")
 }
 
 func isPrinterConnectorPath(path string) bool {

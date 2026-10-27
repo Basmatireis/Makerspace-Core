@@ -43,11 +43,16 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 	if err != nil {
 		return Configuration{}, err
 	}
+	timelapseEnabled, err := q.GetTimelapseCollectionEnabled(ctx)
+	if err != nil {
+		return Configuration{}, err
+	}
 	result := Configuration{
-		Revision:        row.ConfigurationRevision,
-		ProtocolVersion: 1,
-		Assignments:     make([]RuntimeAssignment, 0, len(assignments)),
-		Update:          updateOffer(row),
+		Revision:         row.ConfigurationRevision,
+		ProtocolVersion:  1,
+		Assignments:      make([]RuntimeAssignment, 0, len(assignments)),
+		Update:           updateOffer(row),
+		TimelapseEnabled: timelapseEnabled,
 	}
 	for _, a := range assignments {
 		secrets := map[string]string{}

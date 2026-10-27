@@ -439,3 +439,6 @@ UPDATE printer_connectors SET updater_available=sqlc.arg(available) WHERE id=sql
 UPDATE printer_connectors SET update_status=sqlc.arg(status), update_status_reason=sqlc.narg(reason), update_status_at=now()
 WHERE id=sqlc.arg(id) AND update_request_id=sqlc.arg(request_id) AND update_status IN ('requested', 'in_progress')
 RETURNING *;
+
+-- name: GetTimelapseCollectionEnabled :one
+SELECT timelapse_enabled FROM run_recording_settings WHERE singleton;

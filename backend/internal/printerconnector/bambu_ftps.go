@@ -184,8 +184,8 @@ func (c *BambuFTPSClient) command(expect int, format string, args ...any) (int, 
 }
 
 func (c *BambuFTPSClient) List(ctx context.Context, directory string) ([]FTPEntry, error) {
-	if directory != "/" && directory != "/cache" {
-		return nil, errors.New("bambu FTPS listing is restricted to / and /cache")
+	if directory != "/" && directory != "/cache" && directory != bambuTimelapseDirectory {
+		return nil, errors.New("bambu FTPS listing is restricted to /, /cache and /timelapse")
 	}
 	var data []byte
 	err := c.transfer(ctx, "LIST "+directory, func(reader io.Reader) error {
@@ -204,16 +204,23 @@ func (c *BambuFTPSClient) List(ctx context.Context, directory string) ([]FTPEntr
 }
 
 func (c *BambuFTPSClient) Retrieve(ctx context.Context, remotePath string, writer io.Writer) error {
+	return c.RetrieveLimited(ctx, remotePath, writer, maxStagedArtifact+1)
+}
+
+// RetrieveLimited copies at most limit bytes of a file directly below /, /cache
+// or /timelapse into writer.
+func (c *BambuFTPSClient) RetrieveLimited(ctx context.Context, remotePath string, writer io.Writer, limit int64) error {
 	clean := path.Clean("/" + strings.TrimPrefix(remotePath, "/"))
 	directory := path.Dir(clean)
-	if (directory != "/" && directory != "/cache") || path.Base(clean) == "." || path.Base(clean) == "/" {
-		return errors.New("bambu FTPS retrieval is restricted to files directly below / or /cache")
+	if (directory != "/" && directory != "/cache" && directory != bambuTimelapseDirectory) ||
+		path.Base(clean) == "." || path.Base(clean) == "/" {
+		return errors.New("bambu FTPS retrieval is restricted to files directly below /, /cache or /timelapse")
 	}
 	if writer == nil {
 		return errors.New("bambu FTPS retrieval writer is required")
 	}
 	return c.transfer(ctx, "RETR "+clean, func(reader io.Reader) error {
-		_, err := io.Copy(writer, io.LimitReader(reader, maxStagedArtifact+1))
+		_, err := io.Copy(writer, io.LimitReader(reader, limit))
 		return err
 	})
 }

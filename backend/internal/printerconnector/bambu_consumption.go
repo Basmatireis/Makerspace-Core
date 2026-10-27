@@ -133,6 +133,21 @@ func (s *Store) EnqueueArtifactConsumption(
 	if queued >= maxOutboxEvents {
 		return errors.New("connector event queue is full; consumption report remains pending")
 	}
+	revision, err := nextConsumptionRevision(ctx, tx, transfer.AssignmentID, transfer.RunID)
+	if err != nil {
+		return err
+	}
+	if revision > bambuConsumptionRevision {
+		if _, err = tx.ExecContext(
+			ctx,
+			`UPDATE consumption_revisions SET last_revision=? WHERE assignment_id=? AND run_id=?`,
+			revision,
+			transfer.AssignmentID.String(),
+			transfer.RunID.String(),
+		); err != nil {
+			return err
+		}
+	}
 	sequence := int64(1)
 	err = tx.QueryRowContext(
 		ctx,
@@ -173,7 +188,7 @@ func (s *Store) EnqueueArtifactConsumption(
 		transfer.RunID.String(),
 		facts.HistoryComplete,
 		external,
-		bambuConsumptionRevision,
+		revision,
 		[]byte(payload),
 		now,
 		now,
@@ -186,7 +201,7 @@ func (s *Store) EnqueueArtifactConsumption(
 		transfer.AssignmentID.String(),
 		transfer.RunID.String(),
 		transfer.SHA256,
-		bambuConsumptionRevision,
+		revision,
 		now,
 	); err != nil {
 		return err
@@ -235,8 +250,38 @@ func (a *bambuH2DAdapter) processArtifactConsumptions(ctx context.Context) error
 		if err = a.store.EnqueueArtifactConsumption(ctx, transfer, facts, payload); err != nil {
 			return err
 		}
+		state, reason := consumptionReportFor(facts, payload)
+		if err = a.store.SetRunConsumptionReport(ctx, a.assignmentID, transfer.RunID, state, reason, nil); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// consumptionReportFor explains a calculated consumption to Core: reported, with
+// the reason for lines the calculation could not resolve.
+func consumptionReportFor(facts bambuRunFacts, payload json.RawMessage) (string, *string) {
+	var body struct {
+		Items []struct {
+			Quality string `json:"quality"`
+		} `json:"items"`
+	}
+	_ = json.Unmarshal(payload, &body)
+	unresolved := false
+	for _, item := range body.Items {
+		unresolved = unresolved || item.Quality == "unresolved"
+	}
+	if !unresolved {
+		return "reported", nil
+	}
+	reason := string(machineGCodeEstimateUnavailable)
+	switch {
+	case facts.Outcome == OutcomeCompleted:
+		reason = string(machineNoSlicerWeights)
+	case (facts.LastLayer == nil || *facts.LastLayer == 0) && (facts.LastProgress == nil || *facts.LastProgress == 0):
+		reason = string(machineCancelledBeforeLayer)
+	}
+	return "reported", &reason
 }
 
 func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts) (json.RawMessage, error) {

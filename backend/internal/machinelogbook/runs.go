@@ -59,6 +59,8 @@ type MachineRun struct {
 	ReportedUsage           *RunReportedUsage
 	ReportedUsageItems      []RunReportedUsageItem
 	Artifact                *ArtifactReference
+	// ConsumptionStatus explains a recorded run's consumption; nil for manual runs.
+	ConsumptionStatus *ConsumptionStatus
 	// HiddenFromSignage hides the machine from signage displays while the run is running.
 	HiddenFromSignage bool
 	Version           int64
@@ -322,7 +324,58 @@ func (s *Service) queryRuns(
 			runs[i].ReportedUsageItems = list
 		}
 	}
+	if err = s.attachConsumptionStatuses(ctx, q, runs, ids, now); err != nil {
+		return nil, 0, err
+	}
 	return runs, total, nil
+}
+
+// attachConsumptionStatuses derives why each recorded run's consumption is (not) booked.
+func (s *Service) attachConsumptionStatuses(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	runs []MachineRun,
+	ids []uuid.UUID,
+	now time.Time,
+) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := q.ListRunConsumptionFacts(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byRun := make(map[uuid.UUID]machinelogbookdb.ListRunConsumptionFactsRow, len(rows))
+	for _, row := range rows {
+		byRun[row.RunID] = row
+	}
+	for i := range runs {
+		run := &runs[i]
+		row, recorded := byRun[run.ID]
+		if !recorded || run.Source != RunSourceRecorded {
+			continue
+		}
+		facts := ConsumptionFacts{
+			Recorded:          true,
+			State:             run.State,
+			EndedAt:           run.EndedAt,
+			HasArtifact:       run.Artifact != nil,
+			Items:             run.ReportedUsageItems,
+			Legacy:            run.ReportedUsage,
+			ConnectorState:    row.ConsumptionState,
+			ConnectorReason:   row.ConsumptionReason,
+			ConnectorDetail:   row.ConsumptionDetail,
+			TerminalReason:    row.TerminalReason,
+			AssignmentRemoved: row.AssignmentRemoved,
+		}
+		if run.UsagesFromMachine {
+			facts.MachineUsages = len(run.Usages)
+		} else {
+			facts.StaffUsages = len(run.Usages)
+		}
+		run.ConsumptionStatus = DeriveConsumptionStatus(facts, now)
+	}
+	return nil
 }
 
 // runsForJob returns every run of a job, oldest first, replaced ones included.

@@ -13,8 +13,10 @@ import (
 type Querier interface {
 	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
 	DeleteFile(ctx context.Context, id uuid.UUID) (File, error)
+	DeleteQueuedBlobDeletion(ctx context.Context, storageKey string) error
 	GetFile(ctx context.Context, id uuid.UUID) (File, error)
 	ListFiles(ctx context.Context) ([]File, error)
+	ListQueuedBlobDeletions(ctx context.Context, rowLimit int32) ([]string, error)
 }
 
 var _ Querier = (*Queries)(nil)

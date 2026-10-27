@@ -414,6 +414,11 @@ type File struct {
 	UpdatedAt          time.Time
 }
 
+type FileBlobDeletion struct {
+	StorageKey  string
+	RequestedAt time.Time
+}
+
 type InboxNotification struct {
 	ID                 uuid.UUID
 	Kind               string
@@ -616,6 +621,33 @@ type MachineRun struct {
 	HiddenFromSignage     bool
 }
 
+type MachineRunCommand struct {
+	ID           uuid.UUID
+	RunID        uuid.UUID
+	ConnectorID  *uuid.UUID
+	AssignmentID *uuid.UUID
+	Kind         string
+	State        string
+	ReasonCode   *string
+	RequestedAt  time.Time
+	StartedAt    pgtype.Timestamptz
+	FinishedAt   pgtype.Timestamptz
+	UpdatedAt    time.Time
+}
+
+type MachineRunConnectorReport struct {
+	RunID                 uuid.UUID
+	ConsumptionState      *string
+	ConsumptionReason     *string
+	ConsumptionDetail     *string
+	ConsumptionObservedAt pgtype.Timestamptz
+	TimelapseState        *string
+	TimelapseReason       *string
+	TimelapseDetail       *string
+	TimelapseObservedAt   pgtype.Timestamptz
+	UpdatedAt             time.Time
+}
+
 type MachineRunMeasure struct {
 	RunID   uuid.UUID
 	Measure string
@@ -641,6 +673,14 @@ type MachineRunReportedUsageItem struct {
 	CalculationVersion   string
 	Quality              string
 	CreatedAt            time.Time
+}
+
+type MachineRunTimelapse struct {
+	RunID     uuid.UUID
+	FileID    uuid.UUID
+	SizeBytes int64
+	Sha256    []byte
+	CreatedAt time.Time
 }
 
 type MachineRunUsage struct {
@@ -1223,6 +1263,7 @@ type PrinterConnector struct {
 	UpdateStatus                 *string
 	UpdateStatusReason           *string
 	UpdateStatusAt               pgtype.Timestamptz
+	CommandsPolledAt             pgtype.Timestamptz
 }
 
 type PrinterConnectorActivity struct {
@@ -1436,6 +1477,14 @@ type RolePricingGroup struct {
 	Priority           int32
 	UpdatedByAccountID *uuid.UUID
 	UpdatedAt          time.Time
+}
+
+type RunRecordingSetting struct {
+	Singleton              bool
+	TimelapseEnabled       bool
+	TimelapseRetentionDays int32
+	Version                int64
+	UpdatedAt              time.Time
 }
 
 type ScimConnector struct {

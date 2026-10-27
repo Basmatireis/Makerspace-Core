@@ -8,10 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
@@ -33,6 +35,12 @@ type Runtime struct {
 	health     map[uuid.UUID]AssignmentHealth
 	revision   int64
 	live       *liveStatusHub
+	// running holds the adapter kind and configuration version of every started assignment.
+	running map[uuid.UUID]runningAssignment
+	// identity is the current credential, shared with the recordings loop.
+	identity Identity
+	// features is Core's recording support from the latest configuration; nil when absent.
+	features atomic.Pointer[RecordingFeatures]
 
 	now             func() time.Time
 	lastRejectedLog time.Time
@@ -94,6 +102,7 @@ func NewRuntime(
 		exchange:   exchange,
 		logger:     logger,
 		adapters:   map[uuid.UUID]context.CancelFunc{},
+		running:    map[uuid.UUID]runningAssignment{},
 		health:     map[uuid.UUID]AssignmentHealth{},
 		live:       newLiveStatusHub(),
 	}
@@ -121,8 +130,11 @@ func (r *Runtime) Run(ctx context.Context) error {
 		return err
 	}
 	if cached != nil {
+		r.features.Store(cached.Recordings)
 		r.apply(ctx, *cached)
 	}
+	r.setIdentity(identity)
+	go r.runRecordings(ctx)
 	if err = r.writeHealth("healthy"); err != nil {
 		return err
 	}
@@ -149,12 +161,16 @@ func (r *Runtime) Run(ctx context.Context) error {
 			if err = r.deliverArtifacts(ctx, identity); err != nil {
 				r.logFailure("artifact delivery failed", err)
 			}
+			if err = r.deliverRunReports(ctx, identity); err != nil {
+				r.logFailure("run report delivery failed", err)
+			}
 		case <-liveStatus.C:
 			r.deliverLiveStatus(ctx, identity)
 		case <-configuration.C:
 			if identity, err = r.rotateCredentialIfNeeded(ctx, identity); err != nil {
 				r.logFailure("credential rotation failed", err)
 			}
+			r.setIdentity(identity)
 			if err = r.syncConfiguration(ctx, identity); err != nil {
 				r.logFailure("configuration sync failed", err)
 			}
@@ -297,6 +313,8 @@ func (r *Runtime) syncConfiguration(ctx context.Context, identity Identity) erro
 	}
 	r.offerUpdate(value.Update)
 	value.Update = localupdater.Offer{}
+	// Recording features follow every poll; they may change without a new revision.
+	r.features.Store(value.Recordings)
 	r.mu.Lock()
 	unchanged := r.revision == value.Revision
 	r.mu.Unlock()
@@ -381,6 +399,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		ctx, cancel := context.WithCancel(parent)
 		r.mu.Lock()
 		r.adapters[id] = cancel
+		r.running[id] = runningAssignment{kind: adapter.Descriptor().Kind, configurationVersion: raw.ConfigurationVersion}
 		r.health[id] = AssignmentHealth{
 			AssignmentID:                raw.ID,
 			AppliedConfigurationVersion: raw.ConfigurationVersion,
@@ -389,6 +408,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
 			sink := &runtimeSink{
+				runtime:              r,
 				store:                r.store,
 				live:                 r.live,
 				assignmentID:         assignmentID,
@@ -435,10 +455,17 @@ func (r *Runtime) stopAdapters() {
 		cancel()
 		delete(r.adapters, id)
 	}
+	r.running = map[uuid.UUID]runningAssignment{}
 	r.health = map[uuid.UUID]AssignmentHealth{}
 }
 
+type runningAssignment struct {
+	kind                 AdapterKind
+	configurationVersion int64
+}
+
 type runtimeSink struct {
+	runtime              *Runtime
 	store                *Store
 	live                 *liveStatusHub
 	assignmentID         uuid.UUID
@@ -474,6 +501,14 @@ func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error
 		observation.ReportRevision,
 	)
 	return err
+}
+
+// RecordingFeatures passes Core's current recording support to adapters.
+func (s *runtimeSink) RecordingFeatures() *RecordingFeatures {
+	if s.runtime == nil {
+		return nil
+	}
+	return s.runtime.RecordingFeatures()
 }
 
 // ReportLiveStatus keeps only the newest snapshot; delivery is throttled by the runtime.
@@ -617,8 +652,14 @@ func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
 }
 
 func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error {
-	if err := r.store.QuarantineExpiredArtifactTransfers(ctx); err != nil {
+	expired, err := r.store.ExpireArtifactTransfers(ctx)
+	if err != nil {
 		return err
+	}
+	for _, item := range expired {
+		if err = r.reportUploadProblem(ctx, item.AssignmentID, item.RunID, "unavailable", machineArtifactUploadFailed, item.LastReason); err != nil {
+			return err
+		}
 	}
 	transfers, err := r.store.PendingArtifactTransfers(ctx, 2)
 	if err != nil {
@@ -629,19 +670,28 @@ func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error
 			// 404 and 409 do not heal on retry: the assignment ended, the run
 			// is unknown or deleted, or the configuration changed.
 			var coreErr *CoreError
-			if errors.As(uploadErr, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409) {
+			if errors.As(uploadErr, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409 ||
+				coreErr.Status == http.StatusUnprocessableEntity) {
 				r.logFailure("artifact rejected by Core; transfer quarantined", uploadErr)
 				if queueErr := r.store.QuarantineRejectedArtifactTransfer(ctx, transfer.ID); queueErr != nil {
 					return fmt.Errorf("quarantine rejected artifact: %w", queueErr)
 				}
+				if coreErr.Status == http.StatusUnprocessableEntity {
+					// Core refused the archive itself (validation or parser error).
+					if reportErr := r.reportUploadProblem(ctx, transfer.AssignmentID, transfer.RunID, "unavailable",
+						machineArtifactRejected, coreErr.Code); reportErr != nil {
+						return reportErr
+					}
+				}
 				continue
 			}
-			if queueErr := r.store.MarkArtifactTransferFailure(
-				ctx,
-				transfer.ID,
-				classifyAdapterError(uploadErr),
-			); queueErr != nil {
+			diagnostic := classifyAdapterError(uploadErr)
+			if queueErr := r.store.MarkArtifactTransferFailure(ctx, transfer.ID, diagnostic); queueErr != nil {
 				return fmt.Errorf("record artifact delivery failure: %w", queueErr)
+			}
+			if reportErr := r.reportUploadProblem(ctx, transfer.AssignmentID, transfer.RunID, "pending",
+				machineArtifactUploadFailed, diagnostic); reportErr != nil {
+				return reportErr
 			}
 			return uploadErr
 		}
@@ -729,4 +779,20 @@ func CheckHealth(dataDir string) error {
 		return errors.New("connector health is stale")
 	}
 	return nil
+}
+
+// reportUploadProblem records why a staged archive did not reach Core.
+func (r *Runtime) reportUploadProblem(
+	ctx context.Context,
+	assignmentID, runID uuid.UUID,
+	state string,
+	reason consumptionReason,
+	diagnostic string,
+) error {
+	value := string(reason)
+	var detail *string
+	if reasonCodePattern.MatchString(diagnostic) {
+		detail = &diagnostic
+	}
+	return r.store.SetRunConsumptionReport(ctx, assignmentID, runID, state, &value, detail)
 }

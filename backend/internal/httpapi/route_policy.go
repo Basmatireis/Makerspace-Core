@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -34,6 +35,11 @@ var requestBodyLimits = map[string]int64{
 		http.MethodPut,
 		"/printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact",
 	): printartifacts.MaxCompressedSize + 1,
+	// The configured PRINTER_TIMELAPSE_MAX_BYTES is enforced by the service; this is its ceiling.
+	routeKey(
+		http.MethodPut,
+		"/printer-connector/self/assignments/{assignmentId}/runs/{runId}/timelapse",
+	): config.MaxPrinterTimelapseBytes + 1,
 	routeKey(
 		http.MethodPut,
 		"/people/{personId}/profile-image",

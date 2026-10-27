@@ -34,12 +34,15 @@ func auditDeletedRun(
 	tx pgx.Tx,
 	p authorization.Principal,
 	run machinelogbookdb.MachineRun,
-	reversed bool,
+	reversed, timelapseRemoved bool,
 	requestID *uuid.UUID,
 ) error {
 	fields := []string{"deletedAt"}
 	if reversed {
 		fields = append(fields, "usages", "inventory")
+	}
+	if timelapseRemoved {
+		fields = append(fields, "timelapse")
 	}
 	metadata := map[string]any{}
 	if run.JobID != nil {
@@ -262,7 +265,11 @@ func (s *Service) deleteRunRows(
 	); err != nil {
 		return databaseError(err)
 	}
-	if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
+	removed, err := purgeRunTimelapses(ctx, q, []uuid.UUID{run.ID})
+	if err != nil {
+		return err
+	}
+	if err := auditDeletedRun(ctx, tx, p, run, reversed, removed[run.ID], requestID); err != nil {
 		return err
 	}
 	if run.JobID != nil {
@@ -372,6 +379,14 @@ func (s *Service) deleteJobRows(
 		reversed = quantity.IsPositive()
 	}
 	at := pgTime(timePtr(s.now()))
+	deletingIDs := make([]uuid.UUID, 0, len(deleting))
+	for _, run := range deleting {
+		deletingIDs = append(deletingIDs, run.ID)
+	}
+	removed, err := purgeRunTimelapses(ctx, q, deletingIDs)
+	if err != nil {
+		return err
+	}
 	for _, run := range deleting {
 		if err := q.SoftDeleteMachineRun(
 			ctx,
@@ -379,7 +394,7 @@ func (s *Service) deleteJobRows(
 		); err != nil {
 			return databaseError(err)
 		}
-		if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
+		if err := auditDeletedRun(ctx, tx, p, run, reversed, removed[run.ID], requestID); err != nil {
 			return err
 		}
 	}
@@ -416,4 +431,35 @@ func (s *Service) deleteJobRows(
 		}
 	}
 	return writeAudit(ctx, tx, p, "machine_job.deleted", "machine_job", job.ID, requestID, fields)
+}
+
+// purgeRunTimelapses removes the timelapse videos of runs that are being
+// deleted, in the caller's transaction: the timelapse and file rows go now, the
+// storage blobs are queued for the maintenance loop. It reports per run whether
+// a timelapse was removed.
+func purgeRunTimelapses(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	runIDs []uuid.UUID,
+) (map[uuid.UUID]bool, error) {
+	removed := map[uuid.UUID]bool{}
+	if len(runIDs) == 0 {
+		return removed, nil
+	}
+	rows, err := q.DeleteRunTimelapsesForRuns(ctx, runIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return removed, nil
+	}
+	fileIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		fileIDs = append(fileIDs, row.FileID)
+		removed[row.RunID] = true
+	}
+	if err = q.DeleteFilesQueueBlobs(ctx, fileIDs); err != nil {
+		return nil, err
+	}
+	return removed, nil
 }

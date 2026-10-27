@@ -113,6 +113,10 @@ type bambuH2DAdapter struct {
 	secrets              BambuH2DSecrets
 	store                *Store
 	newMQTT              func(BambuH2DSettings, BambuH2DSecrets) (bambuMQTTClient, error)
+	// features is Core's recording support, read from the runtime sink.
+	features recordingFeatureSource
+	// newTimelapseFTPS replaces the FTPS client in tests.
+	newTimelapseFTPS func(context.Context) (timelapseFTPS, error)
 }
 
 func NewBambuH2D(
@@ -245,6 +249,9 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 	disconnectTimer := time.NewTicker(5 * time.Second)
 	defer disconnectTimer.Stop()
 	ready := processor.ready()
+	if source, ok := sink.(recordingFeatureSource); ok {
+		a.features = source
+	}
 	retrievalResults := make(chan error, 1)
 	go a.runArtifactRetrievals(ctx, retrievalResults)
 	for {
@@ -262,6 +269,9 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			observations := processor.expireDisconnectedRun(now.UTC())
 			if len(observations) > 0 {
 				if err = commitBambuProcessorState(ctx, sink, processor, observations); err != nil {
+					return err
+				}
+				if err = a.noteRunsForRecordings(ctx, observations); err != nil {
 					return err
 				}
 			}
@@ -353,7 +363,11 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			if live, ok := sink.(LiveStatusSink); ok && processor.ready() {
 				live.ReportLiveStatus(processor.liveSnapshot(time.Now().UTC()))
 			}
-			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr != nil {
+			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr == nil {
+				if err = a.noteRunsForRecordings(ctx, observations); err != nil {
+					return err
+				}
+			} else {
 				code := classifyAdapterError(scheduleErr)
 				if err = sink.Commit(
 					ctx,

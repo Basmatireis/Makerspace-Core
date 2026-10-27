@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MachineJobUsage } from './machineJobUsage';
+import type { MachineRunConsumptionStatus } from './machineRunConsumptionStatus';
 import type { MachineRunJobReference } from './machineRunJobReference';
 import type { MachineRunOutcome } from './machineRunOutcome';
 import type { MachineRunReportedUsage } from './machineRunReportedUsage';
@@ -72,6 +73,8 @@ export interface MachineRun {
   reportedUsage?: MachineRunReportedUsage | null;
   reportedUsageItems: MachineRunReportedUsageItem[];
   artifact?: PrintArtifactReference | null;
+  /** Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus. */
+  consumptionStatus?: MachineRunConsumptionStatus | null;
   /** While the run is running, its machine (status and camera) is hidden from every signage display. */
   hiddenFromSignage: boolean;
   version: Version;

@@ -389,3 +389,105 @@ func fromRow(row filesdb.File) File {
 		CreatedAt:          row.CreatedAt,
 	}
 }
+
+// StagedBlob is a verified storage blob without a file row yet. Slow uploads are
+// written with PutSystemBlob before any transaction opens; the caller then
+// records the file row with Commit inside its transaction, or calls Discard.
+type StagedBlob struct {
+	service          *Service
+	id               uuid.UUID
+	key              string
+	originalFilename string
+	contentType      string
+	expected         storage.Metadata
+}
+
+// PutSystemBlob streams reader into private storage and verifies its size and
+// SHA-256 against expected while writing, without holding it in memory.
+func (s *Service) PutSystemBlob(
+	ctx context.Context,
+	originalFilename, contentType string,
+	reader io.Reader,
+	expected storage.Metadata,
+) (*StagedBlob, error) {
+	filename := strings.TrimSpace(originalFilename)
+	contentType = strings.TrimSpace(contentType)
+	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 1 {
+		return nil, apperror.New(http.StatusUnprocessableEntity, "file_metadata_invalid", "File name or content type is invalid")
+	}
+	id := ids.New()
+	key := id.String()[:2] + "/" + id.String()
+	hasher := sha256.New()
+	var read int64
+	verified := io.TeeReader(reader, io.MultiWriter(hasher, countWriter{add: func(n int) { read += int64(n) }}))
+	if err := s.store.Put(ctx, key, verified, expected); err != nil {
+		_ = s.store.Delete(context.Background(), key)
+		return nil, err
+	}
+	var actual [sha256.Size]byte
+	copy(actual[:], hasher.Sum(nil))
+	if read != expected.Size || actual != expected.SHA256 {
+		_ = s.store.Delete(context.Background(), key)
+		return nil, apperror.New(
+			http.StatusUnprocessableEntity,
+			"file_integrity_mismatch",
+			"File size or SHA-256 does not match the declared content",
+		)
+	}
+	return &StagedBlob{
+		service:          s,
+		id:               id,
+		key:              key,
+		originalFilename: filename,
+		contentType:      contentType,
+		expected:         expected,
+	}, nil
+}
+
+// Commit inserts the file row and its audit event (system actor) into tx.
+func (b *StagedBlob) Commit(ctx context.Context, tx pgx.Tx, requestID *uuid.UUID) (File, error) {
+	row, err := filesdb.New(tx).CreateFile(ctx, filesdb.CreateFileParams{
+		ID: b.id, StorageKey: b.key, OriginalFilename: b.originalFilename, ContentType: b.contentType,
+		SizeBytes: b.expected.Size, Sha256: b.expected.SHA256[:],
+	})
+	if err != nil {
+		return File{}, err
+	}
+	if err = audit.Write(ctx, tx, audit.Event{
+		ActorType:    "system",
+		Action:       "file.created",
+		ResourceType: "file",
+		ResourceID:   &b.id,
+		RequestID:    requestID,
+	}); err != nil {
+		return File{}, err
+	}
+	return fromRow(row), nil
+}
+
+// Discard deletes the blob when its file row was not committed.
+func (b *StagedBlob) Discard() { _ = b.service.store.Delete(context.Background(), b.key) }
+
+// DeleteQueuedBlobs deletes up to limit storage blobs whose file rows were
+// deleted in another transaction. A blob that is already gone counts as deleted;
+// a failing one stays queued for the next pass.
+func (s *Service) DeleteQueuedBlobs(ctx context.Context, limit int32) (int, error) {
+	q := filesdb.New(s.pool)
+	keys, err := q.ListQueuedBlobDeletions(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	var failures []error
+	for _, key := range keys {
+		if err := s.store.Delete(ctx, key); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			failures = append(failures, err)
+			continue
+		}
+		if err := q.DeleteQueuedBlobDeletion(ctx, key); err != nil {
+			return deleted, err
+		}
+		deleted++
+	}
+	return deleted, errors.Join(failures...)
+}

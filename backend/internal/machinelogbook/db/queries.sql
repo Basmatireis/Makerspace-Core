@@ -1596,3 +1596,28 @@ FROM materials m WHERE m.id = sqlc.arg(id);
 -- name: DeleteMaterial :execrows
 -- material_balances and material_filament_properties go with the row (ON DELETE CASCADE).
 DELETE FROM materials WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
+
+-- name: ListRunConsumptionFacts :many
+-- What Core knows about why a recorded run has (no) consumption: the latest
+-- connector report and the reason of the run's last terminal outcome event.
+SELECT r.id AS run_id, (r.assignment_id IS NULL)::boolean AS assignment_removed,
+       cr.consumption_state, cr.consumption_reason, cr.consumption_detail,
+       COALESCE((SELECT e.payload->>'reason' FROM printer_events e
+                 WHERE e.run_id = r.id AND e.kind = 'terminal_outcome'
+                 ORDER BY e.occurred_at DESC, e.id DESC LIMIT 1), '')::text AS terminal_reason
+FROM machine_runs r
+LEFT JOIN machine_run_connector_reports cr ON cr.run_id = r.id
+WHERE r.id = ANY(sqlc.arg(run_ids)::uuid[]) AND r.source = 'recorded';
+
+-- name: DeleteRunTimelapsesForRuns :many
+-- Removes the timelapse rows of runs being deleted and returns their files; the
+-- caller deletes the file rows and queues the blobs in the same transaction.
+DELETE FROM machine_run_timelapses WHERE run_id = ANY(sqlc.arg(run_ids)::uuid[]) RETURNING run_id, file_id;
+
+-- name: DeleteFilesQueueBlobs :exec
+-- Deletes file rows and queues their storage blobs for the maintenance loop.
+WITH deleted AS (
+    DELETE FROM files WHERE id = ANY(sqlc.arg(file_ids)::uuid[]) RETURNING storage_key
+)
+INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
+ON CONFLICT (storage_key) DO NOTHING;

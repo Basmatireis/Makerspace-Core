@@ -32,6 +32,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
@@ -71,6 +72,7 @@ type Server struct {
 	printArtifacts    *printartifacts.Service
 	printing          *printing.Service
 	printerConnectors *printerconnectors.Service
+	runRecordings     *runrecordings.Service
 	streamingGateways *streaminggateways.Service
 	supervisors       *supervisors.Service
 	staffing          *staffing.Service
@@ -201,6 +203,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook),
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
+		runRecordings:     runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg)),
 		streamingGateways: streamingGatewayService,
 		orders:            ordersService,
 		invoicing:         invoicingService,
@@ -222,4 +225,13 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		attendance:        attendanceService,
 	}, nil
+}
+
+// timelapseMaxBytes falls back to the default when a configuration was built
+// without Load (tests).
+func timelapseMaxBytes(cfg config.Config) int64 {
+	if cfg.PrinterTimelapseMaxBytes > 0 {
+		return cfg.PrinterTimelapseMaxBytes
+	}
+	return config.DefaultPrinterTimelapseMaxBytes
 }

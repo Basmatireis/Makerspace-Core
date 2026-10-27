@@ -36,6 +36,14 @@ type Configuration struct {
 	Assignments     []RuntimeAssignment `json:"assignments"`
 	// Update is handed to the updater and never stored with the configuration.
 	Update localupdater.Offer `json:"update,omitzero"`
+	// Recordings is present when Core accepts run reports, run commands and timelapse uploads.
+	Recordings *RecordingFeatures `json:"recordings,omitempty"`
+}
+
+// RecordingFeatures is what Core announces about recorded-run follow-up.
+type RecordingFeatures struct {
+	TimelapseEnabled  bool  `json:"timelapseEnabled"`
+	TimelapseMaxBytes int64 `json:"timelapseMaxBytes"`
 }
 type AssignmentHealth struct {
 	AssignmentID                string      `json:"assignmentId"`

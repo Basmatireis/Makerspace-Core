@@ -50,6 +50,7 @@ type Querier interface {
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
+	GetTimelapseCollectionEnabled(ctx context.Context) (bool, error)
 	InsertConnectorActivity(ctx context.Context, arg InsertConnectorActivityParams) error
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)

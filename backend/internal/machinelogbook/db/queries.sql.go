@@ -1353,6 +1353,20 @@ func (q *Queries) DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteF
 	return result.RowsAffected(), nil
 }
 
+const deleteFilesQueueBlobs = `-- name: DeleteFilesQueueBlobs :exec
+WITH deleted AS (
+    DELETE FROM files WHERE id = ANY($1::uuid[]) RETURNING storage_key
+)
+INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
+ON CONFLICT (storage_key) DO NOTHING
+`
+
+// Deletes file rows and queues their storage blobs for the maintenance loop.
+func (q *Queries) DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteFilesQueueBlobs, fileIds)
+	return err
+}
+
 const deleteMachine = `-- name: DeleteMachine :execrows
 DELETE FROM machines WHERE id = $1 AND version = $2
 `
@@ -1544,6 +1558,37 @@ DELETE FROM machine_run_measures WHERE run_id = $1
 func (q *Queries) DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteRunMeasures, runID)
 	return err
+}
+
+const deleteRunTimelapsesForRuns = `-- name: DeleteRunTimelapsesForRuns :many
+DELETE FROM machine_run_timelapses WHERE run_id = ANY($1::uuid[]) RETURNING run_id, file_id
+`
+
+type DeleteRunTimelapsesForRunsRow struct {
+	RunID  uuid.UUID
+	FileID uuid.UUID
+}
+
+// Removes the timelapse rows of runs being deleted and returns their files; the
+// caller deletes the file rows and queues the blobs in the same transaction.
+func (q *Queries) DeleteRunTimelapsesForRuns(ctx context.Context, runIds []uuid.UUID) ([]DeleteRunTimelapsesForRunsRow, error) {
+	rows, err := q.db.Query(ctx, deleteRunTimelapsesForRuns, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeleteRunTimelapsesForRunsRow{}
+	for rows.Next() {
+		var i DeleteRunTimelapsesForRunsRow
+		if err := rows.Scan(&i.RunID, &i.FileID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const detachRunFromJob = `-- name: DetachRunFromJob :one
@@ -5466,6 +5511,55 @@ func (q *Queries) ListRolePricingGroups(ctx context.Context) ([]ListRolePricingG
 			&i.PricingGroupID,
 			&i.PricingGroupName,
 			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunConsumptionFacts = `-- name: ListRunConsumptionFacts :many
+SELECT r.id AS run_id, (r.assignment_id IS NULL)::boolean AS assignment_removed,
+       cr.consumption_state, cr.consumption_reason, cr.consumption_detail,
+       COALESCE((SELECT e.payload->>'reason' FROM printer_events e
+                 WHERE e.run_id = r.id AND e.kind = 'terminal_outcome'
+                 ORDER BY e.occurred_at DESC, e.id DESC LIMIT 1), '')::text AS terminal_reason
+FROM machine_runs r
+LEFT JOIN machine_run_connector_reports cr ON cr.run_id = r.id
+WHERE r.id = ANY($1::uuid[]) AND r.source = 'recorded'
+`
+
+type ListRunConsumptionFactsRow struct {
+	RunID             uuid.UUID
+	AssignmentRemoved bool
+	ConsumptionState  *string
+	ConsumptionReason *string
+	ConsumptionDetail *string
+	TerminalReason    string
+}
+
+// What Core knows about why a recorded run has (no) consumption: the latest
+// connector report and the reason of the run's last terminal outcome event.
+func (q *Queries) ListRunConsumptionFacts(ctx context.Context, runIds []uuid.UUID) ([]ListRunConsumptionFactsRow, error) {
+	rows, err := q.db.Query(ctx, listRunConsumptionFacts, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRunConsumptionFactsRow{}
+	for rows.Next() {
+		var i ListRunConsumptionFactsRow
+		if err := rows.Scan(
+			&i.RunID,
+			&i.AssignmentRemoved,
+			&i.ConsumptionState,
+			&i.ConsumptionReason,
+			&i.ConsumptionDetail,
+			&i.TerminalReason,
 		); err != nil {
 			return nil, err
 		}

@@ -5392,6 +5392,119 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connector/self/assignments/{assignmentId}/runs/{runId}/report:
+    parameters:
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printer Connectors]
+      operationId: reportPrinterConnectorRun
+      summary: Report why a recorded run has (no) consumption and how its timelapse retrieval went
+      description: >-
+        Telemetry like live status: Core keeps the newest observation per section (consumption, timelapse) of the run and never audits it. An older
+        observation than the stored one is ignored. Accepted for runs of the connector's own assignments, also after the assignment configuration
+        changed or the assignment ended. A connector sends it only when the configuration advertises `recordings`.
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorRunReport"}}}}
+      responses:
+        "204": {description: Report stored or ignored because a newer one is already stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/assignments/{assignmentId}/runs/{runId}/timelapse:
+    parameters:
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printer Connectors]
+      operationId: uploadPrinterConnectorRunTimelapse
+      summary: Stream the printer's timelapse video of a recorded run
+      description: >-
+        The body is streamed into private file storage and verified against Content-Length and X-Timelapse-SHA256; it is never held in memory.
+        Content-Length above the configured limit (`recordings.timelapseMaxBytes` in the configuration) answers 413 `timelapse_too_large`.
+        A run has at most one timelapse: the same bytes again answer 200 `deduplicated`, different bytes 409 `run_timelapse_exists`. While timelapses
+        are disabled in the recording settings the upload answers 409 `timelapse_disabled`. Accepted while the assignment is active, for any of its
+        configuration versions.
+      security: [{printerConnectorBearer: []}]
+      parameters:
+        - {name: X-Timelapse-Filename, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-Timelapse-SHA256, in: header, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+        - {name: Content-Length, in: header, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 8589934592}}
+      requestBody:
+        required: true
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "200": {description: The run already has these bytes., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorTimelapseUploadResult"}}}}
+        "201": {description: Timelapse stored., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorTimelapseUploadResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact/content:
+    parameters:
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Printer Connectors]
+      operationId: downloadPrinterConnectorRunArtifact
+      summary: Download the stored 3MF of one of the connector's runs (for recomputing consumption)
+      security: [{printerConnectorBearer: []}]
+      responses:
+        "200":
+          description: Original archived printer job bytes.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            X-Artifact-SHA256: {schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/commands:
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterConnectorCommands
+      summary: Commands staff requested for runs of this connector that are not finished yet
+      description: >-
+        Polled with the heartbeat by connectors whose configuration advertises `recordings`. Returns requested and running commands, oldest first.
+        Polling marks the connector as able to execute commands; Core refuses new commands (409 `connector_commands_unavailable`) for a connector
+        that has not polled within five minutes.
+      security: [{printerConnectorBearer: []}]
+      responses:
+        "200": {description: Open commands., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorCommandList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/commands/{commandId}/status:
+    parameters:
+      - {name: commandId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printer Connectors]
+      operationId: reportPrinterConnectorCommandStatus
+      summary: Report that a command started, succeeded or failed
+      description: >-
+        Allowed transitions are requested to running, succeeded or failed and running to succeeded or failed. Repeating the current state is
+        idempotent (204). Any other transition, for example after Core expired the command, answers 409 `command_finished`.
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorCommandStatus"}}}}
+      responses:
+        "204": {description: Status stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /streaming-gateways:
     get:
       tags: [Local Services]
@@ -7630,6 +7743,184 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/recording:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Machine Runs]
+      operationId: getMachineRunRecording
+      summary: Files, consumption status, timelapse and connector commands of a run
+      description: >-
+        Needs machine_jobs.read. Manual runs answer with empty files and a null consumption status. Previews are the validated images embedded in the
+        run's 3MF (plates first); download them with getMachineRunPreview.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Run recording., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunRecording"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/artifact/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Machine Runs]
+      operationId: downloadMachineRunArtifact
+      summary: Download the original 3MF of a run
+      description: Needs machine_jobs.read. 404 when the run has no stored 3MF.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Original archived printer job bytes as an attachment.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/previews/{previewId}/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: previewId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Machine Runs]
+      operationId: getMachineRunPreview
+      summary: Image of a preview embedded in the run's 3MF
+      description: Needs machine_jobs.read. 404 unless the preview belongs to the run's 3MF. Served inline for img elements.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Validated PNG or JPEG bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/timelapse/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Machine Runs]
+      operationId: downloadMachineRunTimelapse
+      summary: Stream or download the run's timelapse video
+      description: >-
+        Needs machine_jobs.read. HTTP Range requests (one range) are answered with 206 when the storage backend can seek (local storage); other
+        backends answer the full body with `Accept-Ranges: none`. Always `Cache-Control: no-store` and `Content-Disposition: attachment` with a
+        safe file name; a video element can still play it. 404 when the run has no timelapse.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Whole video.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Accept-Ranges: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "206":
+          description: Partial content for a Range request.
+          headers: {Content-Range: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: The requested range is not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/artifact-refetch:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: requestMachineRunArtifactRefetch
+      summary: Ask the run's connector to fetch the 3MF from the printer again
+      description: >-
+        Needs machine_jobs.edit. Only for ended recorded runs whose assignment is still active (409 `run_not_recorded`, `run_running`,
+        `run_connector_unavailable`) and whose connector polls commands (409 `connector_commands_unavailable`). Idempotent: while a re-fetch of the
+        run is requested or running, that command is returned with 200. At most five commands per run and hour (429 `run_command_rate_limited`
+        with Retry-After). Audited as `machine_run.artifact_refetch_requested`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: The open command of this kind., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunCommand"}}}}
+        "202": {description: Command requested., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunCommand"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/consumption-recompute:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: requestMachineRunConsumptionRecompute
+      summary: Ask the run's connector to calculate the run's consumption again
+      description: >-
+        Needs machine_jobs.edit. Same rules as requestMachineRunArtifactRefetch, and the run needs a stored 3MF (409 `run_artifact_missing`). The
+        connector downloads the 3MF from Core, recalculates with the run facts it kept and reports a new consumption revision, which replaces the
+        machine's earlier report without double counting; staff-corrected usage stays authoritative. Audited as
+        `machine_run.consumption_recompute_requested`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: The open command of this kind., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunCommand"}}}}
+        "202": {description: Command requested., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunCommand"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/recordings:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Machine Jobs]
+      operationId: listMachineJobRecordings
+      summary: Files, previews, timelapses and commands of every recorded run of a job
+      description: Needs machine_jobs.read. One item per recorded, not deleted run of the job, oldest run first.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Recordings of the job's runs., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunRecordingList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-logbook/recording-settings:
+    get:
+      tags: [Machine Runs]
+      operationId: getRunRecordingSettings
+      summary: Installation settings for printer timelapse videos
+      description: Needs machine_jobs.read or machines.manage.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/RunRecordingSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Machine Runs]
+      operationId: updateRunRecordingSettings
+      summary: Change whether timelapses are collected and how long they are kept
+      description: >-
+        Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted. A shorter retention applies on the next
+        maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as
+        `run_recording_settings.updated`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateRunRecordingSettingsRequest"}}}}
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/RunRecordingSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -14252,6 +14543,7 @@ components:
         protocolVersion: {type: integer, minimum: 1}
         assignments: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorRuntimeAssignment"}}
         update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdateOffer"}], nullable: true, description: "The open update request for the connector's updater. The field's presence tells a connector that Core accepts the updater field in heartbeats."}
+        recordings: {allOf: [{$ref: "#/components/schemas/PrinterConnectorRecordingFeatures"}], nullable: true, description: "Present when Core accepts run reports, run commands and timelapse uploads (connectors use these endpoints only when it is present)."}
 
     PrinterConnectorAssignmentHealth:
       type: object
@@ -16306,6 +16598,7 @@ components:
         reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
         reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
         artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
+        consumptionStatus: {allOf: [{$ref: "#/components/schemas/MachineRunConsumptionStatus"}], nullable: true, description: "Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus."}
         hiddenFromSignage: {type: boolean, description: "While the run is running, its machine (status and camera) is hidden from every signage display."}
         version: {$ref: "#/components/schemas/Version"}
 
@@ -16327,6 +16620,225 @@ components:
         state: {type: string, nullable: true, description: Operational state or terminal outcome reported by the machine.}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Reported grams (consumption reports).}
+
+    MachineRunConsumptionReason:
+      type: string
+      description: >-
+        Why a recorded run's consumption is not (fully) recorded. artifact_not_found_on_printer: the printer reported no 3MF or it was not on
+        its storage; artifact_retrieval_failed: FTPS authentication, listing or transfer failed (detail names the diagnostic);
+        artifact_upload_failed: the connector could not upload the 3MF; artifact_rejected: Core refused the 3MF (parser error, detail is the
+        code); no_slicer_weights_in_artifact: the 3MF has no per-filament weights; gcode_estimate_unavailable: no defensible G-code checkpoint
+        estimate; cancelled_before_first_layer: the print ended before the first layer; outcome_unknown: the run ended without a trustworthy
+        final state and nothing was reported; slot_without_spool_assignment: the printer slot had no mounted spool; no_spool_mapping: a line
+        could not be mapped to a printer slot; connector_offline_during_run: the printer connection or the connector was lost during the run;
+        inventory_not_booked: the lines are resolved but inventory refused the booking (for example no stock); consumption_pending: the
+        connector is still working on it; run_in_progress: the run has not ended; consumption_not_reported: the connector reported nothing
+        and gave no reason (older connector).
+      enum:
+        - artifact_not_found_on_printer
+        - artifact_retrieval_failed
+        - artifact_upload_failed
+        - artifact_rejected
+        - no_slicer_weights_in_artifact
+        - gcode_estimate_unavailable
+        - cancelled_before_first_layer
+        - outcome_unknown
+        - slot_without_spool_assignment
+        - no_spool_mapping
+        - connector_offline_during_run
+        - inventory_not_booked
+        - consumption_pending
+        - run_in_progress
+        - consumption_not_reported
+
+    MachineRunConsumptionStatus:
+      type: object
+      additionalProperties: false
+      description: >-
+        Derived for recorded runs. recorded: every reported line is booked (or staff entered the usage); partial: some lines are booked, others
+        not; missing: nothing is booked; pending: the run runs or the connector is still working. reason explains partial, missing and pending.
+      required: [state, reason, detail]
+      properties:
+        state: {type: string, enum: [recorded, partial, missing, pending]}
+        reason: {allOf: [{$ref: "#/components/schemas/MachineRunConsumptionReason"}], nullable: true}
+        detail: {type: string, maxLength: 80, nullable: true, description: "Machine-readable refinement, for example the FTPS diagnostic (ftps_listing_failed) or Core's rejection code."}
+
+    MachineRunCommand:
+      type: object
+      additionalProperties: false
+      required: [id, runId, kind, state, reasonCode, requestedAt, startedAt, finishedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [refetch_artifact, recompute_consumption]}
+        state: {type: string, enum: [requested, running, succeeded, failed]}
+        reasonCode:
+          type: string
+          maxLength: 80
+          nullable: true
+          description: >-
+            Why a command failed: command_expired (the connector did not pick it up within 15 minutes), command_timed_out (running for more than an
+            hour), or the connector's code (artifact_path_unknown, artifact_not_found_on_printer, artifact_retrieval_failed, run_facts_unavailable,
+            artifact_download_failed, adapter_unsupported, assignment_not_running).
+        requestedAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time, nullable: true}
+        finishedAt: {type: string, format: date-time, nullable: true}
+
+    MachineRunArtifactFile:
+      type: object
+      additionalProperties: false
+      required: [id, originalFilename, sizeBytes, sha256, parserStatus]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        originalFilename: {type: string, maxLength: 255}
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        parserStatus: {$ref: "#/components/schemas/PrintArtifactParserStatus"}
+
+    MachineRunPreview:
+      type: object
+      additionalProperties: false
+      required: [id, role, plateNumber, width, height, mimeType, primary]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        role: {type: string, enum: [plate, model, other], description: "plate previews carry plateNumber (shown as Plate N)."}
+        plateNumber: {type: integer, minimum: 0, nullable: true}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        mimeType: {type: string, enum: [image/png, image/jpeg]}
+        primary: {type: boolean}
+
+    MachineRunTimelapse:
+      type: object
+      additionalProperties: false
+      required: [sizeBytes, contentType, createdAt, expiresAt]
+      properties:
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        contentType: {type: string, enum: [video/mp4]}
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time, nullable: true, description: When the retention setting removes it; null keeps it.}
+
+    MachineRunTimelapseStatus:
+      type: object
+      additionalProperties: false
+      description: >-
+        available: stored (see timelapse); pending: the connector is still looking for or uploading it; not_found: no matching video
+        (timelapse_not_recorded, timelapse_ambiguous, timelapse_baseline_missing); failed: retrieval or upload failed (timelapse_retrieval_failed,
+        timelapse_upload_failed, timelapse_too_large); skipped: collection is disabled or unsupported (timelapse_disabled,
+        timelapse_unsupported_adapter); expired: removed by the retention setting.
+      required: [state, reason, detail]
+      properties:
+        state: {type: string, enum: [available, pending, not_found, failed, skipped, expired]}
+        reason: {type: string, maxLength: 80, nullable: true}
+        detail: {type: string, maxLength: 80, nullable: true}
+
+    MachineRunRecording:
+      type: object
+      additionalProperties: false
+      required: [runId, runDisplayId, source, state, startedAt, consumptionStatus, artifact, previews, timelapse, timelapseStatus, commands]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        runDisplayId: {type: string}
+        source: {$ref: "#/components/schemas/MachineRunSource"}
+        state: {$ref: "#/components/schemas/MachineRunState"}
+        startedAt: {type: string, format: date-time}
+        consumptionStatus: {allOf: [{$ref: "#/components/schemas/MachineRunConsumptionStatus"}], nullable: true}
+        artifact: {allOf: [{$ref: "#/components/schemas/MachineRunArtifactFile"}], nullable: true, description: Download with downloadMachineRunArtifact.}
+        previews: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/MachineRunPreview"}}
+        timelapse: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapse"}], nullable: true, description: Stream with downloadMachineRunTimelapse.}
+        timelapseStatus: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapseStatus"}], nullable: true, description: Null for manual runs and running runs without a report.}
+        commands: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/MachineRunCommand"}, description: The latest command of each kind.}
+
+    MachineRunRecordingList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/MachineRunRecording"}}
+
+    RunRecordingSettings:
+      type: object
+      additionalProperties: false
+      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, version, updatedAt]
+      properties:
+        timelapseEnabled: {type: boolean, description: Connectors retrieve timelapse videos after a print ends.}
+        timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650, description: 0 keeps videos until their run is deleted.}
+        timelapseMaxBytes: {type: integer, format: int64, minimum: 1, readOnly: true, description: Largest accepted video (PRINTER_TIMELAPSE_MAX_BYTES).}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+
+    UpdateRunRecordingSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [timelapseEnabled, timelapseRetentionDays, expectedVersion]
+      properties:
+        timelapseEnabled: {type: boolean}
+        timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PrinterConnectorRecordingFeatures:
+      type: object
+      additionalProperties: false
+      description: Present when Core accepts run reports, commands and timelapse uploads.
+      required: [timelapseEnabled, timelapseMaxBytes]
+      properties:
+        timelapseEnabled: {type: boolean}
+        timelapseMaxBytes: {type: integer, format: int64, minimum: 1}
+
+    PrinterConnectorRunReportSection:
+      type: object
+      additionalProperties: false
+      required: [state, reason, detail]
+      properties:
+        state: {type: string, maxLength: 40, description: "consumption: pending, reported, unavailable. timelapse: pending, uploaded, not_found, failed, skipped."}
+        reason: {type: string, pattern: "^[a-z][a-z0-9_]{0,79}$", nullable: true}
+        detail: {type: string, pattern: "^[a-z][a-z0-9_]{0,79}$", nullable: true}
+
+    PrinterConnectorRunReport:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, observedAt, consumption, timelapse]
+      properties:
+        protocolVersion: {type: integer, minimum: 1}
+        observedAt: {type: string, format: date-time}
+        consumption: {allOf: [{$ref: "#/components/schemas/PrinterConnectorRunReportSection"}], nullable: true}
+        timelapse: {allOf: [{$ref: "#/components/schemas/PrinterConnectorRunReportSection"}], nullable: true}
+
+    PrinterConnectorTimelapseUploadResult:
+      type: object
+      additionalProperties: false
+      required: [runId, disposition, sizeBytes]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        disposition: {type: string, enum: [created, deduplicated]}
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+
+    PrinterConnectorCommand:
+      type: object
+      additionalProperties: false
+      required: [id, assignmentId, runId, kind, state, requestedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [refetch_artifact, recompute_consumption]}
+        state: {type: string, enum: [requested, running]}
+        requestedAt: {type: string, format: date-time}
+
+    PrinterConnectorCommandList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PrinterConnectorCommand"}}
+
+    PrinterConnectorCommandStatus:
+      type: object
+      additionalProperties: false
+      required: [state, reasonCode]
+      properties:
+        state: {type: string, enum: [running, succeeded, failed]}
+        reasonCode: {type: string, pattern: "^[a-z][a-z0-9_]{0,79}$", nullable: true}
 
     MachineRunDetail:
       allOf:

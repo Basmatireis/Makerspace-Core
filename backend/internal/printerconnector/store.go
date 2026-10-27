@@ -170,7 +170,7 @@ func (s *Store) migrate(ctx context.Context) error {
 			return fmt.Errorf("initialize connector state: %w", err)
 		}
 	}
-	return nil
+	return s.migrateRecordings(ctx)
 }
 
 func (s *Store) Close() error {

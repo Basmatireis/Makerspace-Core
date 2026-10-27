@@ -370,6 +370,7 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 		ReportedUsage:      reported,
 		ReportedUsageItems: reportedItems,
 		Artifact:           artifact,
+		ConsumptionStatus:  consumptionStatusDTO(item.ConsumptionStatus),
 		Version:            item.Version,
 	}
 }
@@ -422,6 +423,7 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 		ReportedUsage:      base.ReportedUsage,
 		ReportedUsageItems: base.ReportedUsageItems,
 		Artifact:           base.Artifact,
+		ConsumptionStatus:  base.ConsumptionStatus,
 		Version:            base.Version,
 		Events:             events,
 	}

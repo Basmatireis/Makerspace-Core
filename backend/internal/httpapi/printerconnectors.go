@@ -451,6 +451,11 @@ func (s *Server) GetPrinterConnectorConfiguration(
 			ProtocolVersion: configuration.ProtocolVersion,
 			Assignments:     assignments,
 			Update:          updateOfferDTO(configuration.Update),
+			// Announces run reports, run commands and timelapse uploads to connectors that support them.
+			Recordings: nullable.NewNullableWithValue(openapi.PrinterConnectorRecordingFeatures{
+				TimelapseEnabled:  configuration.TimelapseEnabled,
+				TimelapseMaxBytes: s.runRecordings.TimelapseMaxBytes(),
+			}),
 		},
 		Headers: openapi.GetPrinterConnectorConfiguration200ResponseHeaders{CacheControl: "no-store"},
 	}, nil

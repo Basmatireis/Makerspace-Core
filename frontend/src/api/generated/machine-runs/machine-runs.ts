@@ -31,13 +31,17 @@ import type {
   ListMachineRunsParams,
   MachineJob,
   MachineRun,
+  MachineRunCommand,
   MachineRunDetail,
   MachineRunPage,
+  MachineRunRecording,
   MachineRunUpdateResult,
   ReplaceMachineRunUsagesRequest,
+  RunRecordingSettings,
   SetMachineRunSignageVisibilityRequest,
   UUIDv7,
   UpdateMachineRunRequest,
+  UpdateRunRecordingSettingsRequest,
   VersionRequest
 } from '../models';
 
@@ -485,6 +489,214 @@ return apiFetch<MachineJob>(getDetachMachineRunUrl(runId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(detachMachineRunRequest)
+  }
+);}
+
+
+export const getGetMachineRunRecordingUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/recording`
+}
+
+/**
+ * Needs machine_jobs.read. Manual runs answer with empty files and a null consumption status. Previews are the validated images embedded in the run's 3MF (plates first); download them with getMachineRunPreview.
+ * @summary Files, consumption status, timelapse and connector commands of a run
+ */
+export const getMachineRunRecording = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunRecording> => {
+
+  return apiFetch<MachineRunRecording>(getGetMachineRunRecordingUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getDownloadMachineRunArtifactUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/artifact/content`
+}
+
+/**
+ * Needs machine_jobs.read. 404 when the run has no stored 3MF.
+ * @summary Download the original 3MF of a run
+ */
+export const downloadMachineRunArtifact = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadMachineRunArtifactUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getGetMachineRunPreviewUrl = (runId: UUIDv7,
+    previewId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/previews/${previewId}/content`
+}
+
+/**
+ * Needs machine_jobs.read. 404 unless the preview belongs to the run's 3MF. Served inline for img elements.
+ * @summary Image of a preview embedded in the run's 3MF
+ */
+export const getMachineRunPreview = async (runId: UUIDv7,
+    previewId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetMachineRunPreviewUrl(runId,previewId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getDownloadMachineRunTimelapseUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/timelapse/content`
+}
+
+/**
+ * Needs machine_jobs.read. HTTP Range requests (one range) are answered with 206 when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`. Always `Cache-Control: no-store` and `Content-Disposition: attachment` with a safe file name; a video element can still play it. 404 when the run has no timelapse.
+ * @summary Stream or download the run's timelapse video
+ */
+export const downloadMachineRunTimelapse = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadMachineRunTimelapseUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getRequestMachineRunArtifactRefetchUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/artifact-refetch`
+}
+
+/**
+ * Needs machine_jobs.edit. Only for ended recorded runs whose assignment is still active (409 `run_not_recorded`, `run_running`, `run_connector_unavailable`) and whose connector polls commands (409 `connector_commands_unavailable`). Idempotent: while a re-fetch of the run is requested or running, that command is returned with 200. At most five commands per run and hour (429 `run_command_rate_limited` with Retry-After). Audited as `machine_run.artifact_refetch_requested`.
+ * @summary Ask the run's connector to fetch the 3MF from the printer again
+ */
+export const requestMachineRunArtifactRefetch = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunCommand> => {
+
+  return apiFetch<MachineRunCommand>(getRequestMachineRunArtifactRefetchUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getRequestMachineRunConsumptionRecomputeUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/consumption-recompute`
+}
+
+/**
+ * Needs machine_jobs.edit. Same rules as requestMachineRunArtifactRefetch, and the run needs a stored 3MF (409 `run_artifact_missing`). The connector downloads the 3MF from Core, recalculates with the run facts it kept and reports a new consumption revision, which replaces the machine's earlier report without double counting; staff-corrected usage stays authoritative. Audited as `machine_run.consumption_recompute_requested`.
+ * @summary Ask the run's connector to calculate the run's consumption again
+ */
+export const requestMachineRunConsumptionRecompute = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunCommand> => {
+
+  return apiFetch<MachineRunCommand>(getRequestMachineRunConsumptionRecomputeUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getGetRunRecordingSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/machine-logbook/recording-settings`
+}
+
+/**
+ * Needs machine_jobs.read or machines.manage.
+ * @summary Installation settings for printer timelapse videos
+ */
+export const getRunRecordingSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RunRecordingSettings> => {
+
+  return apiFetch<RunRecordingSettings>(getGetRunRecordingSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateRunRecordingSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/machine-logbook/recording-settings`
+}
+
+/**
+ * Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted. A shorter retention applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as `run_recording_settings.updated`.
+ * @summary Change whether timelapses are collected and how long they are kept
+ */
+export const updateRunRecordingSettings = async (updateRunRecordingSettingsRequest: UpdateRunRecordingSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RunRecordingSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RunRecordingSettings>(getUpdateRunRecordingSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateRunRecordingSettingsRequest)
   }
 );}
 

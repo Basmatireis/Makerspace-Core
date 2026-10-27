@@ -261,6 +261,8 @@ func (a *bambuH2DAdapter) runArtifactRetrievals(ctx context.Context, results cha
 		} else if consumptionErr == nil {
 			consumptionFailed = false
 		}
+		// Timelapse problems are recorded per run and never degrade the assignment.
+		_ = a.processTimelapses(ctx)
 		succeeded, err := a.retrieveOneArtifact(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			retrievalFailed = true
@@ -288,8 +290,14 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 	if err != nil || cleaned {
 		return cleaned, err
 	}
-	if err := a.store.QuarantineExpiredArtifactRetrievals(ctx, a.assignmentID); err != nil {
+	expired, err := a.store.ExpireArtifactRetrievals(ctx, a.assignmentID)
+	if err != nil {
 		return false, err
+	}
+	for _, item := range expired {
+		if err = a.reportArtifactProblem(ctx, item.RunID, "unavailable", item.LastReason); err != nil {
+			return false, err
+		}
 	}
 	retrieval, err := a.store.PendingArtifactRetrieval(ctx, a.assignmentID)
 	if err != nil || retrieval == nil {
@@ -299,7 +307,10 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 		// Older connector builds incorrectly queued H2D's internal
 		// /data/Metadata/plate_N.gcode path. Stop retrying it; it is not the
 		// original archive and cannot pass the 3MF validation anyway.
-		return true, a.store.QuarantineArtifactRetrieval(ctx, *retrieval, "artifact_candidate_not_archive")
+		if err = a.store.QuarantineArtifactRetrieval(ctx, *retrieval, "artifact_candidate_not_archive"); err != nil {
+			return false, err
+		}
+		return true, a.reportArtifactProblem(ctx, retrieval.RunID, "unavailable", "artifact_candidate_not_archive")
 	}
 	listings, listingErr := listBambuArtifactDirectories(ctx, a.listArtifactDirectory)
 	candidate, err := SelectArtifactCandidate(retrieval.ReportedPath, listings)
@@ -373,7 +384,11 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 	if closeErr != nil {
 		return false, a.recordRetrievalFailure(ctx, *retrieval, closeErr)
 	}
-	return true, a.store.MarkArtifactRetrievalStaged(ctx, *retrieval)
+	if err = a.store.MarkArtifactRetrievalStaged(ctx, *retrieval); err != nil {
+		return false, err
+	}
+	pending := string(machineConsumptionPending)
+	return true, a.store.SetRunConsumptionReport(ctx, a.assignmentID, retrieval.RunID, "pending", &pending, nil)
 }
 
 func (a *bambuH2DAdapter) listArtifactDirectory(ctx context.Context, directory string) ([]FTPEntry, error) {
@@ -418,5 +433,44 @@ func (a *bambuH2DAdapter) recordRetrievalFailure(ctx context.Context, retrieval 
 	if queueErr := a.store.MarkArtifactRetrievalFailure(ctx, retrieval, diagnostic); queueErr != nil {
 		return queueErr
 	}
+	if reportErr := a.reportArtifactProblem(ctx, retrieval.RunID, "pending", diagnostic); reportErr != nil {
+		return reportErr
+	}
 	return err
+}
+
+// Consumption reasons the connector reports to Core (machinelogbook.ConsumptionReason).
+type consumptionReason string
+
+const (
+	machineArtifactNotFound         consumptionReason = "artifact_not_found_on_printer"
+	machineArtifactRetrievalFailed  consumptionReason = "artifact_retrieval_failed"
+	machineArtifactUploadFailed     consumptionReason = "artifact_upload_failed"
+	machineArtifactRejected         consumptionReason = "artifact_rejected"
+	machineNoSlicerWeights          consumptionReason = "no_slicer_weights_in_artifact"
+	machineGCodeEstimateUnavailable consumptionReason = "gcode_estimate_unavailable"
+	machineCancelledBeforeLayer     consumptionReason = "cancelled_before_first_layer"
+	machineConsumptionPending       consumptionReason = "consumption_pending"
+)
+
+// artifactProblemReason maps a retrieval diagnostic to the consumption reason
+// Core shows: the archive was not there (or not unambiguous), or the transport failed.
+func artifactProblemReason(diagnostic string) consumptionReason {
+	switch diagnostic {
+	case "", "artifact_not_available", "artifact_ambiguous", "artifact_candidate_not_archive", "artifact_retry_expired",
+		"no_archive_reported":
+		return machineArtifactNotFound
+	}
+	return machineArtifactRetrievalFailed
+}
+
+// reportArtifactProblem records why the run's archive is missing; state is
+// pending while retries continue and unavailable once the connector gave up.
+func (a *bambuH2DAdapter) reportArtifactProblem(ctx context.Context, runID uuid.UUID, state, diagnostic string) error {
+	reason := string(artifactProblemReason(diagnostic))
+	var detail *string
+	if diagnostic != "" && reasonCodePattern.MatchString(diagnostic) {
+		detail = &diagnostic
+	}
+	return a.store.SetRunConsumptionReport(ctx, a.assignmentID, runID, state, &reason, detail)
 }

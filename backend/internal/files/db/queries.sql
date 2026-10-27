@@ -11,3 +11,10 @@ DELETE FROM files WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: ListFiles :many
 SELECT * FROM files ORDER BY id;
+
+-- name: ListQueuedBlobDeletions :many
+SELECT storage_key FROM file_blob_deletions ORDER BY requested_at, storage_key LIMIT sqlc.arg(row_limit);
+
+-- name: DeleteQueuedBlobDeletion :exec
+DELETE FROM file_blob_deletions WHERE storage_key = sqlc.arg(storage_key);
+

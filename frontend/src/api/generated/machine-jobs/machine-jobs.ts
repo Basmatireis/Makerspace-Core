@@ -25,6 +25,7 @@ import type {
   ListMachineJobsParams,
   MachineJob,
   MachineJobPage,
+  MachineRunRecordingList,
   OperatorList,
   SearchMachineJobOperatorsParams,
   SetMachineJobPriceAdjustmentRequest,
@@ -381,6 +382,30 @@ return apiFetch<MachineJob>(getClearMachineJobPriceAdjustmentUrl(machineJobId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getListMachineJobRecordingsUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-jobs/${machineJobId}/recordings`
+}
+
+/**
+ * Needs machine_jobs.read. One item per recorded, not deleted run of the job, oldest run first.
+ * @summary Files, previews, timelapses and commands of every recorded run of a job
+ */
+export const listMachineJobRecordings = async (machineJobId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunRecordingList> => {
+
+  return apiFetch<MachineRunRecordingList>(getListMachineJobRecordingsUrl(machineJobId),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

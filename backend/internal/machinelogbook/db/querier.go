@@ -62,6 +62,8 @@ type Querier interface {
 	DeactivateRunUsage(ctx context.Context, id uuid.UUID) error
 	DeleteFilamentSpool(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
+	// Deletes file rows and queues their storage blobs for the maintenance loop.
+	DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error
 	// The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
 	DeleteMachine(ctx context.Context, arg DeleteMachineParams) (int64, error)
 	DeleteMachineConnectorAssignments(ctx context.Context, machineID uuid.UUID) error
@@ -83,6 +85,9 @@ type Querier interface {
 	DeleteOrganizationPricingAssignment(ctx context.Context, arg DeleteOrganizationPricingAssignmentParams) (uuid.UUID, error)
 	DeleteRolePricingGroups(ctx context.Context) error
 	DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error
+	// Removes the timelapse rows of runs being deleted and returns their files; the
+	// caller deletes the file rows and queues the blobs in the same transaction.
+	DeleteRunTimelapsesForRuns(ctx context.Context, runIds []uuid.UUID) ([]DeleteRunTimelapsesForRunsRow, error)
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
 	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
@@ -188,6 +193,9 @@ type Querier interface {
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
+	// What Core knows about why a recorded run has (no) consumption: the latest
+	// connector report and the reason of the run's last terminal outcome event.
+	ListRunConsumptionFacts(ctx context.Context, runIds []uuid.UUID) ([]ListRunConsumptionFactsRow, error)
 	ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRunEventsRow, error)
 	ListRunMeasuresForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunMeasure, error)
 	ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListRunUsagesForRunsRow, error)

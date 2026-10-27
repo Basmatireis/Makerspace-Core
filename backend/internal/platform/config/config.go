@@ -39,23 +39,25 @@ type Config struct {
 	AuditRetention             time.Duration
 	EventSignupRetention       time.Duration
 	SurveyDeliveryInterval     time.Duration
-	ShutdownTimeout            time.Duration
-	MakerspaceTimeZone         string
-	HolidayCountry             string
-	HolidaySubdivision         string
-	HolidayLanguage            string
-	ChallengeHMACKey           []byte
-	PINPepper                  []byte
-	StorageBackend             string
-	LocalStorageRoot           string
-	S3Endpoint                 string
-	S3Region                   string
-	S3Bucket                   string
-	S3AccessKeyID              string
-	S3SecretAccessKey          string
-	S3UsePathStyle             bool
-	S3DisableTLS               bool
-	EncryptionKeys             [][]byte
+	// PrinterTimelapseMaxBytes is the largest timelapse video a printer connector may upload.
+	PrinterTimelapseMaxBytes int64
+	ShutdownTimeout          time.Duration
+	MakerspaceTimeZone       string
+	HolidayCountry           string
+	HolidaySubdivision       string
+	HolidayLanguage          string
+	ChallengeHMACKey         []byte
+	PINPepper                []byte
+	StorageBackend           string
+	LocalStorageRoot         string
+	S3Endpoint               string
+	S3Region                 string
+	S3Bucket                 string
+	S3AccessKeyID            string
+	S3SecretAccessKey        string
+	S3UsePathStyle           bool
+	S3DisableTLS             bool
+	EncryptionKeys           [][]byte
 }
 
 func Load() (Config, error) {
@@ -109,6 +111,13 @@ func Load() (Config, error) {
 	}
 	if surveyDeliveryInterval < 0 {
 		return Config{}, errors.New("SURVEY_DELIVERY_INTERVAL cannot be negative")
+	}
+	timelapseMaxBytes, err := strconv.ParseInt(envOr("PRINTER_TIMELAPSE_MAX_BYTES", strconv.FormatInt(DefaultPrinterTimelapseMaxBytes, 10)), 10, 64)
+	if err != nil {
+		return Config{}, fmt.Errorf("parse PRINTER_TIMELAPSE_MAX_BYTES: %w", err)
+	}
+	if timelapseMaxBytes < 1<<20 || timelapseMaxBytes > MaxPrinterTimelapseBytes {
+		return Config{}, errors.New("PRINTER_TIMELAPSE_MAX_BYTES must be between 1 MiB and 8 GiB")
 	}
 	absolute, err := durationEnv("SESSION_ABSOLUTE_TTL", 72*time.Hour)
 	if err != nil {
@@ -231,6 +240,7 @@ func Load() (Config, error) {
 		AuditRetention:             auditRetention,
 		EventSignupRetention:       eventSignupRetention,
 		SurveyDeliveryInterval:     surveyDeliveryInterval,
+		PrinterTimelapseMaxBytes:   timelapseMaxBytes,
 		ShutdownTimeout:            10 * time.Second,
 		MakerspaceTimeZone:         timeZone,
 		HolidayCountry:             holidayCountry,
@@ -317,6 +327,13 @@ func (c Config) ValidateDatabase() error {
 	}
 	return nil
 }
+
+const (
+	// DefaultPrinterTimelapseMaxBytes is the default PRINTER_TIMELAPSE_MAX_BYTES (2 GiB).
+	DefaultPrinterTimelapseMaxBytes int64 = 2 << 30
+	// MaxPrinterTimelapseBytes is the largest value PRINTER_TIMELAPSE_MAX_BYTES accepts (8 GiB).
+	MaxPrinterTimelapseBytes int64 = 8 << 30
+)
 
 func envOr(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
