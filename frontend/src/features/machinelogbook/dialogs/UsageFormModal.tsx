@@ -28,6 +28,7 @@ import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import {
   blankUsage,
+  isBlankUsage,
   jobOrderQuery,
   saveError,
   toUsageInputs,
@@ -122,7 +123,7 @@ function UsageRowFields({
           <Controller
             control={control}
             name={`usages.${index}.materialId`}
-            rules={{ required: true }}
+            rules={{ validate: (value, values) => isBlankUsage(values.usages[index]) || Boolean(value) }}
             render={({ field }) => (
               <Select
                 id={`${idPrefix}-material`}
@@ -175,13 +176,19 @@ function UsageRowFields({
         <TextInput
           id={`${idPrefix}-name`}
           labelText="Material name"
-          {...register(`usages.${index}.externalName`, { required: true })}
+          {...register(`usages.${index}.externalName`, {
+            validate: (value, values) => isBlankUsage(values.usages[index]) || Boolean(value.trim()),
+          })}
         />
       )}
       <Controller
         control={control}
         name={`usages.${index}.quantity`}
-        rules={{ validate: decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' }) }}
+        rules={{
+          validate: (value, values) =>
+            isBlankUsage(values.usages[index]) ||
+            decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' })(value),
+        }}
         render={({ field: quantity, fieldState }) => (
           <DecimalField
             id={`${idPrefix}-quantity`}
@@ -235,8 +242,10 @@ export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; proce
         />
       )}
       {process && processConfig[process].inkGroup && <InkFields idPrefix={idPrefix} process={process} />}
-      {fields.length === 0 && (
+      {fields.length === 0 ? (
         <p className="mj-secondary">No material recorded. The run is priced for machine time only.</p>
+      ) : (
+        <p className="mj-secondary">Leave a row empty or remove it to record no material.</p>
       )}
       {fields.map((field, index) => (
         <UsageRowFields

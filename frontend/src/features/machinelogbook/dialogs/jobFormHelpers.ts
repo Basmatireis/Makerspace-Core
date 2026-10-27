@@ -50,15 +50,21 @@ export const usageRowsFromUsages = (usages: MachineJobUsage[]): UsageRow[] =>
   }));
 
 /** The API takes quantities as decimal strings. */
+/** A row with no material and no quantity records nothing: it is neither validated nor submitted. */
+export const isBlankUsage = (row: UsageRow | undefined): boolean =>
+  !row || (!row.materialId && !row.externalName.trim() && !row.quantity.trim());
+
 export const toUsageInputs = (rows: UsageRow[]): MachineJobUsageInput[] =>
-  rows.map((row) => ({
-    ownership: row.ownership,
-    materialId: row.ownership === 'makerspace' ? row.materialId : null,
-    spoolId: row.ownership === 'makerspace' ? row.spoolId || null : null,
-    externalMaterialName: row.ownership === 'external' ? row.externalName.trim() : null,
-    quantity: parseDecimalText(row.quantity) ?? row.quantity,
-    quantityBasis: row.quantityBasis,
-  }));
+  rows
+    .filter((row) => !isBlankUsage(row))
+    .map((row) => ({
+      ownership: row.ownership,
+      materialId: row.ownership === 'makerspace' ? row.materialId : null,
+      spoolId: row.ownership === 'makerspace' ? row.spoolId || null : null,
+      externalMaterialName: row.ownership === 'external' ? row.externalName.trim() : null,
+      quantity: parseDecimalText(row.quantity) ?? row.quantity,
+      quantityBasis: row.quantityBasis,
+    }));
 
 export const matchesName = <T extends { displayName: string }>({
   item,
