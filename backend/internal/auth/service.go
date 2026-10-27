@@ -246,9 +246,19 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 		(row.ManagedDeviceID != nil && currentDevice != nil && *row.ManagedDeviceID != *currentDevice) {
 		return Authenticated{}, apperror.Unauthenticated
 	}
+	// The login-time flag misses sessions created before second factors existed and accounts that gained the master
+	// role or a strong_mfa grant later, so an account that must and cannot yet use a second factor is confined here too.
+	mfaSetupRequired := row.MfaSetupRequired
+	if !mfaSetupRequired && assurance != authorization.AssuranceStrongMFA {
+		state, err := s.SecondFactorState(ctx, row.AccountID)
+		if err != nil {
+			return Authenticated{}, err
+		}
+		mfaSetupRequired = state.Required && !state.Enrolled()
+	}
 	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod,
 		IdleExpiresAt: row.IdleExpiresAt, AbsoluteExpiresAt: row.AbsoluteExpiresAt,
-		PostSessionDestination: row.PostSessionDestination, MFASetupRequired: row.MfaSetupRequired}, nil
+		PostSessionDestination: row.PostSessionDestination, MFASetupRequired: mfaSetupRequired}, nil
 }
 
 func (s *Service) unauthenticatedWithDestination(

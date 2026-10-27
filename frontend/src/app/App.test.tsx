@@ -114,6 +114,17 @@ describe('protected application routing', () => {
     expect(screen.queryByText(/Laborordnung/i)).not.toBeInTheDocument();
   });
 
+  it('offers a second-factor confirmation when a session lacks the assurance some permissions need', async () => {
+    const currentUser = currentUserFixture();
+    currentUser.authentication = { ...currentUser.authentication, mfaRequired: true, mfaEnrolled: true };
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)));
+
+    renderRoute(<App />, '/dashboard');
+
+    expect(await screen.findByText('Some of your permissions need a second factor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm with second factor' })).toBeInTheDocument();
+  });
+
   it('redirects an anonymous visitor to sign in', async () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Makerspace' })).toBeInTheDocument();

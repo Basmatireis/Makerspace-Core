@@ -447,3 +447,26 @@ func TestDelegationKeepsFreshSignInRequirement(t *testing.T) {
 		t.Fatalf("denial = %v %+v", denied, requirement)
 	}
 }
+
+// A session created before second factors existed (or by an identity provider that did not assert multi-factor
+// authentication) carries no setup flag; a master without a second factor must still be sent to set one up.
+func TestMasterSessionWithoutSetupFlagIsConfinedToSetup(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	h := newMFAHarness(t, pool)
+	const email, password = "legacy-master@example.test", "Second factor workshop password 72"
+	accountID := bootstrapMFAMaster(t, pool, email, password)
+
+	client := newCookieClient(t)
+	response := h.do(client, http.MethodPost, "/auth/login", map[string]any{"email": email, "password": password})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	if _, err := pool.Exec(ctx, `UPDATE sessions SET mfa_setup_required=false WHERE account_id=$1`, accountID); err != nil {
+		t.Fatal(err)
+	}
+
+	if current := h.me(client); !current.Authentication.MfaSetupRequired {
+		t.Fatalf("authentication of a legacy master session = %+v", current.Authentication)
+	}
+	h.expectError(h.do(client, http.MethodGet, "/roles", nil), http.StatusForbidden, "mfa_setup_required")
+}

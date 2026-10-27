@@ -40,6 +40,13 @@ export function AppShell() {
   const currentUser = useCurrentUser();
   const branding = useBranding();
   const queryClient = useQueryClient();
+  // The dialog is loaded only when needed; afterwards /auth/me reports the raised assurance and the full permissions.
+  const confirmSecondFactor = async () => {
+    const { promptReauthentication } = await import('../features/auth/mfa/promptReauthentication');
+    if (await promptReauthentication({ requiredAssurance: 'strong_mfa' })) {
+      await queryClient.invalidateQueries({ queryKey: authQueryKey });
+    }
+  };
   const logoutMutation = useLogout();
   const location = useLocation();
   const navigate = useNavigate();
@@ -218,6 +225,24 @@ export function AppShell() {
         tabIndex={-1}
         className={`app-main${sideNavExpanded && !isNarrow ? ' app-main--nav-expanded' : ''}`}
       >
+        {currentUser.authentication.mfaRequired &&
+          currentUser.authentication.mfaEnrolled &&
+          currentUser.authentication.assurance !== 'strong_mfa' && (
+            <section className="lab-rules-warning" aria-label="Second factor confirmation">
+              <InlineNotification
+                kind="info"
+                lowContrast
+                hideCloseButton
+                title="Some of your permissions need a second factor"
+                subtitle="This session was signed in without one, so those permissions are unavailable until you confirm it's you."
+              />
+              <div className="button-cluster">
+                <Button kind="primary" size="sm" onClick={() => void confirmSecondFactor()}>
+                  Confirm with second factor
+                </Button>
+              </div>
+            </section>
+          )}
         {currentUser.laborordnungStatus.actionRequired && currentUser.laborordnungStatus.currentVersion && (
           <section className="lab-rules-warning" aria-label="Lab Rules action required">
             <InlineNotification
