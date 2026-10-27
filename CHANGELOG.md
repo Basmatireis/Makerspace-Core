@@ -16,6 +16,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Prints started from a Bambu printer's internal storage are recognised.** The connector now classifies a print's storage from the `url` reported in the current session (the merged status keeps the previous print's `url`) and no longer waits for a 3MF it cannot read: Core shows the new consumption reason `artifact_on_internal_storage` ("Print file on the printer's internal storage") already while the run is running, in the consumption notice, the Filament estimate section, the preview tile and the run list, instead of "Waiting for the printer's 3MF file…". After the run the connector still looks the file up once on external storage. See [docs/printer-connector.md](docs/printer-connector.md#storage-detection-of-a-bambu-print).
 - The initial JavaScript bundle shrank by about 7 kB gzip: the application entry no longer imports the generated `PermissionId` object (string literals typed by the generated type) and the former request-page redirect loads lazily.
 
 ### Upgrade notes

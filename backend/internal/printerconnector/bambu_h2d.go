@@ -363,6 +363,9 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			if live, ok := sink.(LiveStatusSink); ok && processor.ready() {
 				live.ReportLiveStatus(processor.liveSnapshot(time.Now().UTC()))
 			}
+			if scheduleErr := a.reportInternalStorage(ctx, observations, processor.state.RunFacts); scheduleErr != nil {
+				return scheduleErr
+			}
 			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr == nil {
 				if err = a.noteRunsForRecordings(ctx, observations); err != nil {
 					return err
@@ -381,6 +384,36 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			}
 		}
 	}
+}
+
+// reportInternalStorage tells Core as soon as a running print is classified as
+// coming from internal storage, so the run shows why it will have no 3MF.
+func (a *bambuH2DAdapter) reportInternalStorage(
+	ctx context.Context,
+	observations []Observation,
+	facts map[string]bambuRunFacts,
+) error {
+	for _, observation := range observations {
+		if observation.RunID == nil ||
+			(observation.Kind != ObservationOperationalState && observation.Kind != ObservationProgress) {
+			continue
+		}
+		runFacts := facts[observation.RunID.String()]
+		if runFacts.Source != bambuSourceInternal {
+			continue
+		}
+		reason := string(machineArtifactOnInternal)
+		var detail *string
+		if runFacts.InternalPath != "" {
+			detail = &runFacts.InternalPath
+		}
+		if err := a.store.SetRunConsumptionReport(
+			ctx, a.assignmentID, *observation.RunID, "pending", &reason, detail,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observations []Observation) error {

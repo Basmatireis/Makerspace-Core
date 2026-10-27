@@ -16625,7 +16625,8 @@ components:
       type: string
       description: >-
         Why a recorded run's consumption is not (fully) recorded. artifact_not_found_on_printer: the printer reported no 3MF or it was not on
-        its storage; artifact_retrieval_failed: FTPS authentication, listing or transfer failed (detail names the diagnostic);
+        its storage; artifact_on_internal_storage: the print was started from the printer's internal storage, which the connector cannot read
+        (reported while the run is still running and wins over run_in_progress; detail is the internal path as a snake_case code, for example data_metadata_plate_1_gcode); artifact_retrieval_failed: FTPS authentication, listing or transfer failed (detail names the diagnostic);
         artifact_upload_failed: the connector could not upload the 3MF; artifact_rejected: Core refused the 3MF (parser error, detail is the
         code); no_slicer_weights_in_artifact: the 3MF has no per-filament weights; gcode_estimate_unavailable: no defensible G-code checkpoint
         estimate; cancelled_before_first_layer: the print ended before the first layer; outcome_unknown: the run ended without a trustworthy
@@ -16636,6 +16637,7 @@ components:
         and gave no reason (older connector).
       enum:
         - artifact_not_found_on_printer
+        - artifact_on_internal_storage
         - artifact_retrieval_failed
         - artifact_upload_failed
         - artifact_rejected
@@ -16678,7 +16680,7 @@ components:
           nullable: true
           description: >-
             Why a command failed: command_expired (the connector did not pick it up within 15 minutes), command_timed_out (running for more than an
-            hour), or the connector's code (artifact_path_unknown, artifact_not_found_on_printer, artifact_retrieval_failed, run_facts_unavailable,
+            hour), or the connector's code (artifact_path_unknown, artifact_not_found_on_printer, artifact_on_internal_storage, artifact_retrieval_failed, run_facts_unavailable,
             artifact_download_failed, adapter_unsupported, assignment_not_running).
         requestedAt: {type: string, format: date-time}
         startedAt: {type: string, format: date-time, nullable: true}

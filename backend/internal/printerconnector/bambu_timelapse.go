@@ -159,6 +159,22 @@ func (a *bambuH2DAdapter) noteRunEnded(ctx context.Context, runID uuid.UUID) err
 	if err != nil {
 		return err
 	}
+	if facts, internal, factsErr := a.store.InternalStorageRunFacts(ctx, a.assignmentID, runID, a.kind); factsErr != nil {
+		return factsErr
+	} else if internal && !scheduled && isBambuArchivePath(facts.ArchiveCandidate) {
+		// Conservative fallback: the file might exist on external storage after all.
+		// Looked up once; a successful listing without it settles the report.
+		expiresAt := time.Now().UTC().Add(24 * time.Hour)
+		if err = a.store.ScheduleArtifactRetrieval(
+			ctx, a.assignmentID, runID, a.configurationVersion, facts.ArchiveCandidate, expiresAt,
+		); err != nil {
+			return err
+		}
+		if err = a.store.ExtendArtifactTransferExpiry(ctx, a.assignmentID, runID, expiresAt); err != nil {
+			return err
+		}
+		scheduled = true
+	}
 	if !scheduled {
 		// The printer never named an archive for this print (for example a plain G-code print).
 		if err = a.reportArtifactProblem(ctx, runID, "unavailable", "no_archive_reported"); err != nil {

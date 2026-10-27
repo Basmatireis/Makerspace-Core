@@ -9,10 +9,20 @@ import type {
 import { ApiError } from '../../../api/http-client';
 import { formatQuantity } from '../shared/format';
 
+export const internalStorageTitle = 'Print file on the printer’s internal storage';
+export const internalStorageMessage =
+  'This print was started from the printer’s internal storage. The connector can only read USB or SD storage, so Core cannot get the 3MF: there is no preview, filament estimate or slicer-based consumption. Start prints from a USB stick (or SD card) to have them recorded fully.';
+
+/** True for a run whose 3MF is on the printer's internal storage, where the connector cannot read it. */
+export function isOnInternalStorage(status: MachineRunConsumptionStatus | null | undefined): boolean {
+  return status?.reason === 'artifact_on_internal_storage';
+}
+
 /** One sentence per reason code the backend derives; the codes are a closed set of the API contract. */
 const consumptionReasonText: Record<MachineRunConsumptionReason, string> = {
   artifact_not_found_on_printer:
     'The printer no longer had the print file, so Core could not read the planned filament weights.',
+  artifact_on_internal_storage: internalStorageMessage,
   artifact_retrieval_failed: 'The connector could not fetch the print file from the printer.',
   artifact_upload_failed: 'The connector fetched the print file but could not hand it over to Core.',
   artifact_rejected: 'Core rejected the print file because it is not a valid 3MF.',
@@ -45,9 +55,10 @@ export function consumptionReasonMessage(reason: string | null | undefined): str
 /** Notice for a run whose consumption is not (fully) recorded; null when there is nothing to explain. */
 export function consumptionNotice(status: MachineRunConsumptionStatus | null | undefined) {
   if (!status || status.state === 'recorded') return null;
+  const internal = isOnInternalStorage(status);
   return {
-    kind: status.state === 'pending' ? ('info' as const) : ('warning' as const),
-    title: consumptionTitle[status.state],
+    kind: status.state === 'pending' && !internal ? ('info' as const) : ('warning' as const),
+    title: internal ? internalStorageTitle : consumptionTitle[status.state],
     message: consumptionReasonMessage(status.reason),
     detail: status.detail,
   };

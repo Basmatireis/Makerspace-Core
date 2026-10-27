@@ -216,7 +216,7 @@ In the UI the table's row selection (`DirectoryTable` `selection` option, Carbon
 
 Every recorded run in run lists, run details and job details carries `consumptionStatus` (`null` for manual runs): `state` is `recorded`, `partial`, `missing` or `pending`, `reason` a stable `MachineRunConsumptionReason` and `detail` an optional machine-readable refinement. `machinelogbook.DeriveConsumptionStatus` applies these rules, first match wins:
 
-1. A running run is `pending`/`run_in_progress`.
+1. A running run is `pending`/`run_in_progress`, except that a connector report `pending` with `artifact_on_internal_storage` (the print was started from the printer's internal storage, so no 3MF will be readable; detail = the internal path as a code) wins and is shown while the run is still running. No other connector reason takes precedence over `run_in_progress`.
 2. Usage entered by staff while nothing was booked from the machine is `recorded`.
 3. Reported lines: a line is booked when it has a quantity, a quality other than `unresolved` and a spool. All booked lines with machine usage give `recorded`, none `missing`, some `partial`. The reason is the first unbooked line's: an unresolved slicer line `no_slicer_weights_in_artifact`; an unresolved G-code line the connector's reason (`cancelled_before_first_layer`) or `gcode_estimate_unavailable`; a line without spool `slot_without_spool_assignment` when its slot is known, else `no_spool_mapping`. Bookable lines that inventory did not book (no stock, spool not consumable) are `inventory_not_booked`.
 4. A legacy single-line report is `recorded` when booked, otherwise `missing` with `no_spool_mapping` or `inventory_not_booked`.

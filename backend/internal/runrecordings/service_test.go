@@ -334,6 +334,28 @@ func TestConnectorRunReportsExplainMissingConsumption(t *testing.T) {
 	}
 }
 
+func TestRunningRunShowsTheInternalStorageReasonWithThePrinterPath(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	run := h.recordedRun(t, "running")
+	reason, path := "artifact_on_internal_storage", "data_metadata_plate_1_gcode"
+	if err := h.service.ReportRun(ctx, h.connector, h.assignment, run, RunReport{
+		ProtocolVersion: 1, ObservedAt: time.Now().UTC(),
+		Consumption: &RunReportSection{State: "pending", Reason: &reason, Detail: &path},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	detailRun, err := h.logbook.GetRun(ctx, h.master, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := detailRun.ConsumptionStatus
+	if status == nil || status.State != machinelogbook.ConsumptionPending ||
+		*status.Reason != machinelogbook.ReasonArtifactOnInternalStorage || *status.Detail != path {
+		t.Fatalf("consumption status = %+v", status)
+	}
+}
+
 // principal is an account whose only role grants permissions.
 func (h *harness) principal(t *testing.T, permissions ...authorization.Permission) authorization.Principal {
 	t.Helper()

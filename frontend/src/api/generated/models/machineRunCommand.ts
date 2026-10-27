@@ -28,7 +28,7 @@ export interface MachineRunCommand {
   kind: MachineRunCommandKind;
   state: MachineRunCommandState;
   /**
-     * Why a command failed: command_expired (the connector did not pick it up within 15 minutes), command_timed_out (running for more than an hour), or the connector's code (artifact_path_unknown, artifact_not_found_on_printer, artifact_retrieval_failed, run_facts_unavailable, artifact_download_failed, adapter_unsupported, assignment_not_running).
+     * Why a command failed: command_expired (the connector did not pick it up within 15 minutes), command_timed_out (running for more than an hour), or the connector's code (artifact_path_unknown, artifact_not_found_on_printer, artifact_on_internal_storage, artifact_retrieval_failed, run_facts_unavailable, artifact_download_failed, adapter_unsupported, assignment_not_running).
      * @maxLength 80
      * @nullable
      */

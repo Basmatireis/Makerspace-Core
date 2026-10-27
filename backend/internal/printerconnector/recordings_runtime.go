@@ -164,7 +164,23 @@ func (r *Runtime) startCommand(ctx context.Context, identity Identity, command R
 			time.Now().UTC().Add(refetchRetrievalWindow),
 		)
 		if errors.Is(err, errArtifactPathUnknown) {
-			return r.failCommand(ctx, command, commandReasonPathUnknown)
+			// A print from internal storage has no scheduled retrieval; look it up
+			// by name once more, as after the run.
+			facts, internal, factsErr := r.store.InternalStorageRunFacts(ctx, command.AssignmentID, command.RunID, kind)
+			if factsErr != nil {
+				return factsErr
+			}
+			if !internal || !isBambuArchivePath(facts.ArchiveCandidate) {
+				return r.failCommand(ctx, command, commandReasonPathUnknown)
+			}
+			err = r.store.ScheduleArtifactRetrieval(
+				ctx,
+				command.AssignmentID,
+				command.RunID,
+				configurationVersion,
+				facts.ArchiveCandidate,
+				time.Now().UTC().Add(refetchRetrievalWindow),
+			)
 		}
 		if err != nil {
 			return err
@@ -261,7 +277,13 @@ func (r *Runtime) checkCommand(ctx context.Context, command RunCommand) error {
 			if reason != nil {
 				last = *reason
 			}
-			return r.failCommand(ctx, command, string(artifactProblemReason(last)))
+			failure := artifactProblemReason(last)
+			if _, internal, factsErr := r.store.InternalStorageRunFacts(
+				ctx, command.AssignmentID, command.RunID, r.adapterKindOf(command.AssignmentID),
+			); factsErr == nil && internal && failure == machineArtifactNotFound {
+				failure = machineArtifactOnInternal
+			}
+			return r.failCommand(ctx, command, string(failure))
 		}
 	case "recompute_consumption":
 		done, err := r.store.ConsumptionReportedSince(ctx, command.AssignmentID, command.RunID, command.AcceptedAt)
@@ -375,4 +397,10 @@ func isFinalCoreAnswer(err error, statuses ...int) bool {
 		}
 	}
 	return false
+}
+
+// adapterKindOf is the running adapter kind of an assignment; empty when it is not running.
+func (r *Runtime) adapterKindOf(assignmentID uuid.UUID) AdapterKind {
+	kind, _, _ := r.assignmentAdapter(assignmentID)
+	return kind
 }

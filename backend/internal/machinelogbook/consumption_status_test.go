@@ -38,6 +38,11 @@ func TestDeriveConsumptionStatusExplainsEveryRecordedRun(t *testing.T) {
 		detail string
 	}{
 		{"running", ConsumptionFacts{Recorded: true, State: RunStateRunning}, ConsumptionPending, ReasonRunInProgress, ""},
+		{"running on internal storage", ConsumptionFacts{Recorded: true, State: RunStateRunning, ConnectorState: stringPointer("pending"),
+			ConnectorReason: stringPointer("artifact_on_internal_storage"), ConnectorDetail: stringPointer("/data/Metadata/plate_1.gcode")},
+			ConsumptionPending, ReasonArtifactOnInternalStorage, "/data/Metadata/plate_1.gcode"},
+		{"running with another connector reason", ConsumptionFacts{Recorded: true, State: RunStateRunning, ConnectorState: stringPointer("pending"),
+			ConnectorReason: stringPointer("artifact_retrieval_failed")}, ConsumptionPending, ReasonRunInProgress, ""},
 		{"all lines booked", ended(ConsumptionFacts{Items: []RunReportedUsageItem{booked}, MachineUsages: 1}), ConsumptionRecorded, "", ""},
 		{"staff usage wins", ended(ConsumptionFacts{StaffUsages: 1, Items: []RunReportedUsageItem{noWeights}}), ConsumptionRecorded, "", ""},
 		{"partial", ended(ConsumptionFacts{Items: []RunReportedUsageItem{booked, unmappedSlot}, MachineUsages: 1}),

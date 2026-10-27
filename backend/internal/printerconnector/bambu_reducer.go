@@ -49,6 +49,16 @@ type bambuRunFacts struct {
 	SlotExternalID      string               `json:"slotExternalId,omitempty"`
 	TagUID              string               `json:"tagUid,omitempty"`
 	SpoolEvidence       []bambuSpoolEvidence `json:"spoolEvidence,omitempty"`
+	// ReportedURL is the last `url` a status message carried during this run's
+	// session. The merged document keeps the previous print's url, so it cannot
+	// answer that question.
+	ReportedURL string `json:"reportedUrl,omitempty"`
+	// Source is where the 3MF lives; empty on runs recorded before this was tracked.
+	Source bambuPrintSource `json:"source,omitempty"`
+	// InternalPath is the internal storage path the printer reported for an internal-storage print.
+	InternalPath string `json:"internalPath,omitempty"`
+	// ArchiveCandidate is the archive name derived from the print name, looked up once after the run ends.
+	ArchiveCandidate string `json:"archiveCandidate,omitempty"`
 }
 
 type bambuSpoolEvidence struct {
@@ -280,6 +290,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			value := float64(progress)
 			facts.LastProgress = &value
 		}
+		applyBambuPrintSource(&facts, patch, printState)
 		if unitID, trayID, tagUID, ok := bambuActiveSlotFor(p.adapterKind, printState); ok {
 			facts.InputUnitExternalID = unitID
 			facts.SlotExternalID = trayID
@@ -306,14 +317,14 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 				observations,
 				Observation{
 					Kind:            ObservationOperationalState,
-					Payload:         bambuOperationalState(printState, state, observedAt),
+					Payload:         bambuOperationalState(printState, state, observedAt, facts.Source == bambuSourceInternal),
 					RunID:           runID,
 					HistoryComplete: historyComplete,
 					ExternalPrintID: externalID,
 				},
 			)
 		}
-		progressPayload := bambuProgress(printState, observedAt)
+		progressPayload := bambuProgress(printState, observedAt, facts.Source == bambuSourceInternal)
 		progressKey := digestWithoutObservedAt(progressPayload)
 		if progressKey != p.state.LastProgress {
 			p.state.LastProgress = progressKey
@@ -536,17 +547,58 @@ func bambuArtifactPath(state map[string]any) string {
 	return candidate
 }
 
+// bambuExplicitArchivePath is an archive name the printer reported itself, as
+// opposed to the name derived from subtask_name.
+func bambuExplicitArchivePath(state map[string]any) string {
+	for _, key := range []string{"file", "filename", "gcode_file"} {
+		if value := strings.TrimSpace(scalarString(state[key])); isBambuArchivePath(value) {
+			return value
+		}
+	}
+	return ""
+}
+
+// applyBambuPrintSource records the url of this message, if any, and classifies
+// where the print's archive lives. A print that names its archive explicitly
+// stays external; otherwise the url rule in classifyBambuPrintSource decides.
+func applyBambuPrintSource(facts *bambuRunFacts, patch, printState map[string]any) {
+	patchPrint := objectAt(patch, "print")
+	if patchPrint == nil {
+		patchPrint = patch
+	}
+	if reported := strings.TrimSpace(scalarString(patchPrint["url"])); reported != "" {
+		if len(reported) > 512 {
+			reported = reported[:512]
+		}
+		facts.ReportedURL = reported
+	}
+	if bambuExplicitArchivePath(printState) != "" ||
+		classifyBambuPrintSource(facts.ReportedURL, scalarString(printState["subtask_name"])) == bambuSourceExternal {
+		facts.Source = bambuSourceExternal
+		facts.InternalPath, facts.ArchiveCandidate = "", ""
+		return
+	}
+	facts.Source = bambuSourceInternal
+	facts.InternalPath = bambuInternalPath(printState)
+	facts.ArchiveCandidate = bambuArtifactPath(printState)
+}
+
 func isBambuArchivePath(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return strings.HasSuffix(value, ".3mf")
 }
 
-func bambuOperationalState(state map[string]any, lifecycle PrinterState, observedAt time.Time) json.RawMessage {
+func bambuOperationalState(
+	state map[string]any,
+	lifecycle PrinterState,
+	observedAt time.Time,
+	internalStorage bool,
+) json.RawMessage {
 	result := map[string]any{"state": lifecycle, "observedAt": observedAt}
 	if fileName := bambuFileName(state); fileName != "" {
 		result["fileName"] = fileName
 	}
-	if artifactPath := bambuArtifactPath(state); artifactPath != "" {
+	if artifactPath := bambuArtifactPath(state); artifactPath != "" && !internalStorage {
 		result["artifactPath"] = artifactPath
 	}
 	return mustJSON(result)
@@ -900,12 +952,12 @@ func containsBambuSpoolEvidence(values []bambuSpoolEvidence, candidate bambuSpoo
 	return false
 }
 
-func bambuProgress(state map[string]any, observedAt time.Time) json.RawMessage {
+func bambuProgress(state map[string]any, observedAt time.Time, internalStorage bool) json.RawMessage {
 	result := map[string]any{"state": PrinterPrinting, "observedAt": observedAt}
 	if fileName := bambuFileName(state); fileName != "" {
 		result["fileName"] = fileName
 	}
-	if artifactPath := bambuArtifactPath(state); artifactPath != "" {
+	if artifactPath := bambuArtifactPath(state); artifactPath != "" && !internalStorage {
 		result["artifactPath"] = artifactPath
 	}
 	if percent, ok := boundedInt(state["mc_percent"], 0, 100); ok {

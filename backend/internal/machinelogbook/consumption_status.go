@@ -21,6 +21,7 @@ type ConsumptionReason string
 
 const (
 	ReasonArtifactNotFoundOnPrinter  ConsumptionReason = "artifact_not_found_on_printer"
+	ReasonArtifactOnInternalStorage  ConsumptionReason = "artifact_on_internal_storage"
 	ReasonArtifactRetrievalFailed    ConsumptionReason = "artifact_retrieval_failed"
 	ReasonArtifactUploadFailed       ConsumptionReason = "artifact_upload_failed"
 	ReasonArtifactRejected           ConsumptionReason = "artifact_rejected"
@@ -38,7 +39,7 @@ const (
 )
 
 var consumptionReasons = map[ConsumptionReason]bool{
-	ReasonArtifactNotFoundOnPrinter: true, ReasonArtifactRetrievalFailed: true, ReasonArtifactUploadFailed: true,
+	ReasonArtifactNotFoundOnPrinter: true, ReasonArtifactOnInternalStorage: true, ReasonArtifactRetrievalFailed: true, ReasonArtifactUploadFailed: true,
 	ReasonArtifactRejected: true, ReasonNoSlicerWeightsInArtifact: true, ReasonGCodeEstimateUnavailable: true,
 	ReasonCancelledBeforeFirstLayer: true, ReasonOutcomeUnknown: true, ReasonSlotWithoutSpoolAssignment: true,
 	ReasonNoSpoolMapping: true, ReasonConnectorOfflineDuringRun: true, ReasonInventoryNotBooked: true,
@@ -80,7 +81,8 @@ var reasonCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,79}$`)
 
 // DeriveConsumptionStatus returns nil for manual runs. The rules, first match wins:
 //
-//  1. a running run is pending (run_in_progress);
+//  1. a running run is pending (run_in_progress), except that a connector report of pending with
+//     artifact_on_internal_storage wins: the connector knows already that no 3MF will ever be readable;
 //  2. usage entered by staff with nothing booked from the machine is recorded;
 //  3. reported lines: a line is booked when it has a quantity, a quality other than unresolved and a spool.
 //     All booked is recorded, none booked missing, otherwise partial; the reason is the first unbooked
@@ -97,6 +99,10 @@ func DeriveConsumptionStatus(f ConsumptionFacts, now time.Time) *ConsumptionStat
 		return nil
 	}
 	if f.State == RunStateRunning {
+		if f.ConnectorState != nil && *f.ConnectorState == "pending" && f.ConnectorReason != nil &&
+			ConsumptionReason(*f.ConnectorReason) == ReasonArtifactOnInternalStorage {
+			return consumptionStatus(ConsumptionPending, ReasonArtifactOnInternalStorage, f.ConnectorDetail)
+		}
 		return consumptionStatus(ConsumptionPending, ReasonRunInProgress, nil)
 	}
 	if f.StaffUsages > 0 && f.MachineUsages == 0 {

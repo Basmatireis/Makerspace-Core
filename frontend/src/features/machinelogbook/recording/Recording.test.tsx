@@ -19,6 +19,7 @@ import { JobDetailPage } from '../JobDetailPage';
 import { RunDetailPage } from '../RunDetailPage';
 import { machineLogbookPaths } from '../shared/paths';
 import { ToastProvider } from '../shared/toasts';
+import { ConsumptionHint } from './ConsumptionNotice';
 import { PrintPreview } from './PrintPreview';
 import {
   commandErrorMessage,
@@ -105,7 +106,7 @@ const missing = (reason: MachineRunConsumptionReason | null, detail: string | nu
 describe('recording texts', () => {
   it('explains every consumption reason code with its own sentence', () => {
     const messages = Object.values(MachineRunConsumptionReason).map((reason) => consumptionReasonMessage(reason));
-    expect(messages).toHaveLength(15);
+    expect(messages).toHaveLength(16);
     expect(new Set(messages).size).toBe(messages.length);
     for (const message of messages) expect(message).not.toBe('The reason is not known.');
     expect(consumptionReasonMessage('from_a_newer_backend')).toBe('The reason is not known.');
@@ -117,6 +118,31 @@ describe('recording texts', () => {
     expect(consumptionNotice({ state: 'recorded', reason: null, detail: null })).toBeNull();
     expect(consumptionNotice(missing('no_spool_mapping', 'x'))).toMatchObject({ kind: 'warning', detail: 'x' });
     expect(consumptionNotice({ state: 'pending', reason: 'run_in_progress', detail: null })?.kind).toBe('info');
+  });
+
+  it('explains a print from the printer’s internal storage as a warning, also while it runs', () => {
+    const notice = consumptionNotice({
+      state: 'pending',
+      reason: 'artifact_on_internal_storage',
+      detail: '/data/Metadata/plate_1.gcode',
+    });
+    expect(notice).toMatchObject({
+      kind: 'warning',
+      title: 'Print file on the printer’s internal storage',
+      detail: '/data/Metadata/plate_1.gcode',
+    });
+    expect(notice?.message).toMatch(/Start prints from a USB stick/);
+  });
+
+  it('offers the internal-storage reason in the run list toggletip', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConsumptionHint
+        status={{ state: 'pending', reason: 'artifact_on_internal_storage', detail: '/data/Metadata/plate_1.gcode' }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /Print file on the printer’s internal storage: why\?/ }));
+    expect(await screen.findByText(/Start prints from a USB stick/)).toBeInTheDocument();
   });
 
   it('labels previews and timelapse states', () => {
@@ -266,6 +292,25 @@ describe('Run detail recording', () => {
     expect(await screen.findByRole('button', { name: 'Recalculate consumption' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Fetch print file again' }));
     await waitFor(() => expect(posts).toEqual(['refetch']));
+  });
+
+  it('says why a running internal-storage print has no 3MF, preview or estimate', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.print_artifactsread];
+    const status = {
+      state: 'pending' as const,
+      reason: 'artifact_on_internal_storage' as const,
+      detail: '/data/Metadata/plate_1.gcode',
+    };
+    serveRun(recording({ state: 'running', consumptionStatus: status }), {
+      ...recordedRun({ state: 'running', endedAt: null, estimatedEndAt: '2099-01-01T13:30:00Z', outcome: null }),
+      consumptionStatus: status,
+    });
+    renderRun();
+    expect(await screen.findByText('Print file on the printer’s internal storage')).toBeInTheDocument();
+    // The consumption notice, the Filament estimate section and the preview tile.
+    await waitFor(() => expect(screen.getAllByText(/started from the printer’s internal storage/)).toHaveLength(3));
+    expect(screen.queryByText(/Waiting for the printer’s 3MF file/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Core has no print file for this run/)).not.toBeInTheDocument();
   });
 
   it('hides the commands without machine_jobs.edit but still explains the reason', async () => {

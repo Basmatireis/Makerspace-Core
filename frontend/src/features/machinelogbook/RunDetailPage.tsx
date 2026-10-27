@@ -31,7 +31,7 @@ import { saveError } from './dialogs/jobFormHelpers';
 import { artifactQuery, jobQuery, machineLogbookKeys, recordingQuery, runQuery } from './queries';
 import { ConsumptionNotice } from './recording/ConsumptionNotice';
 import { FactsBar } from './recording/FactsBar';
-import { isCommandOpen } from './recording/recordingText';
+import { internalStorageMessage, isCommandOpen, isOnInternalStorage } from './recording/recordingText';
 import { RunPreviewTile, RunTimelapseTile } from './recording/RecordingTiles';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
@@ -383,7 +383,10 @@ export function RunDetailPage() {
                 {live && run.source === 'recorded' && can(PermissionId.print_artifactsread) && (
                   <Tile>
                     <h2 className="mj-section-title">Filament estimate</h2>
-                    {!run.artifact && (
+                    {!run.artifact && isOnInternalStorage(run.consumptionStatus) && (
+                      <p className="mj-secondary">{internalStorageMessage}</p>
+                    )}
+                    {!run.artifact && !isOnInternalStorage(run.consumptionStatus) && (
                       <p className="mj-secondary">
                         Waiting for the printer’s 3MF file. The estimate appears after the connector retrieves and
                         parses it.

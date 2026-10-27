@@ -320,6 +320,16 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 		// transport failure and retry instead of claiming the file is absent.
 		if listingErr != nil {
 			err = listingErr
+		} else if _, internal, factsErr := a.store.InternalStorageRunFacts(
+			ctx, a.assignmentID, retrieval.RunID, a.kind,
+		); factsErr == nil && internal {
+			// The print came from internal storage and external storage was listed
+			// successfully: the file is not there, so do not keep retrying.
+			diagnostic := classifyAdapterError(err)
+			if err = a.store.QuarantineArtifactRetrieval(ctx, *retrieval, diagnostic); err != nil {
+				return false, err
+			}
+			return true, a.reportArtifactProblem(ctx, retrieval.RunID, "unavailable", diagnostic)
 		}
 		return false, a.recordRetrievalFailure(ctx, *retrieval, err)
 	}
@@ -451,6 +461,7 @@ const (
 	machineGCodeEstimateUnavailable consumptionReason = "gcode_estimate_unavailable"
 	machineCancelledBeforeLayer     consumptionReason = "cancelled_before_first_layer"
 	machineConsumptionPending       consumptionReason = "consumption_pending"
+	machineArtifactOnInternal       consumptionReason = "artifact_on_internal_storage"
 )
 
 // artifactProblemReason maps a retrieval diagnostic to the consumption reason
@@ -471,6 +482,20 @@ func (a *bambuH2DAdapter) reportArtifactProblem(ctx context.Context, runID uuid.
 	var detail *string
 	if diagnostic != "" && reasonCodePattern.MatchString(diagnostic) {
 		detail = &diagnostic
+	}
+	if reason == string(machineArtifactNotFound) {
+		// A print from internal storage has no archive the connector can reach;
+		// say that instead of blaming a missing file, and name the internal path.
+		facts, internal, err := a.store.InternalStorageRunFacts(ctx, a.assignmentID, runID, a.kind)
+		if err != nil {
+			return err
+		}
+		if internal {
+			reason, detail = string(machineArtifactOnInternal), nil
+			if facts.InternalPath != "" {
+				detail = &facts.InternalPath
+			}
+		}
 	}
 	return a.store.SetRunConsumptionReport(ctx, a.assignmentID, runID, state, &reason, detail)
 }
