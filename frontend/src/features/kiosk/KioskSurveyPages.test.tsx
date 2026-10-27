@@ -252,10 +252,10 @@ describe('public kiosk and survey pages', () => {
 
     expect(await screen.findByRole('heading', { name: 'Visit feedback' })).toBeInTheDocument();
     for (const prompt of ['Purpose', 'Areas', 'Comments', 'Rating', 'Return']) {
-      expect(screen.getByText(prompt)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(prompt))).toBeInTheDocument();
     }
     expect(screen.getByText('Your response is stored without a person identifier.')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Your answer'), 'Helpful team');
+    await user.type(screen.getByLabelText(/Comments/), 'Helpful team');
     await user.click(screen.getByLabelText('Yes'));
     await user.click(screen.getByRole('button', { name: 'Submit response' }));
 

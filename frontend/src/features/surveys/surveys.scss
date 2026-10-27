@@ -1,0 +1,202 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/progress-bar';
+
+// Application-specific layout for the survey screens; every control is a Carbon component.
+.survey-disabled-action {
+  display: inline-block;
+}
+
+.survey-question-list {
+  display: grid;
+  gap: $spacing-04;
+  padding: 0;
+  list-style: none;
+}
+
+.survey-question-card__heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  h3 {
+    @include type-style('heading-03');
+  }
+}
+
+.survey-question-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.survey-question-card__options {
+  margin-block-start: $spacing-04;
+  padding-inline-start: $spacing-06;
+  list-style: disc;
+}
+
+.survey-question-card__condition {
+  margin-block-start: $spacing-04;
+  color: theme.$text-secondary;
+}
+
+.survey-editor-question__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.survey-editor-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: $spacing-03;
+  align-items: end;
+}
+
+.survey-editor-rating,
+.survey-condition,
+.survey-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-05;
+  align-items: end;
+}
+
+.survey-condition {
+  padding: $spacing-05;
+  background: theme.$layer-02;
+}
+
+.survey-result-list {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.survey-result-card__mean {
+  margin-block: $spacing-03;
+}
+
+.survey-text-answers {
+  display: grid;
+  gap: $spacing-03;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $spacing-05;
+    justify-content: space-between;
+    padding-block-end: $spacing-03;
+    border-block-end: 1px solid theme.$border-subtle;
+  }
+}
+
+.survey-link-url {
+  display: flex;
+  align-items: center;
+  max-inline-size: 28rem;
+
+  code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// Public fill-out page: single column, large touch targets, submit bar pinned to the bottom of the screen.
+.survey-public {
+  display: grid;
+  gap: $spacing-07;
+  max-inline-size: 40rem;
+  margin-inline: auto;
+  padding: $spacing-05;
+  background: theme.$layer-01;
+
+  h1 {
+    @include type-style('heading-05');
+  }
+}
+
+.survey-public__note {
+  color: theme.$text-secondary;
+}
+
+.survey-public__question {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend,
+  .cds--label {
+    @include type-style('productive-heading-03');
+
+    margin-block-end: $spacing-04;
+    color: theme.$text-primary;
+  }
+
+  .cds--tile-group,
+  .cds--tile {
+    inline-size: 100%;
+  }
+
+  .cds--tile {
+    min-block-size: 3.5rem;
+  }
+}
+
+.survey-public__choices .cds--checkbox-wrapper {
+  padding: $spacing-04 $spacing-05;
+  border: 1px solid theme.$border-strong-01;
+  background: theme.$layer-02;
+
+  .cds--checkbox-label {
+    inline-size: 100%;
+    min-block-size: 2rem;
+    align-items: center;
+  }
+}
+
+.survey-public__choices,
+.survey-public__question .cds--tile-group {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.survey-public__question--rating .cds--tile-group {
+  grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+}
+
+.survey-public__question--rating .cds--tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.survey-public__error {
+  margin-block-start: $spacing-03;
+  color: theme.$text-error;
+}
+
+.survey-public__bar {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  display: grid;
+  gap: $spacing-04;
+  margin-inline: (-$spacing-05);
+  padding: $spacing-04 $spacing-05 calc(#{$spacing-04} + env(safe-area-inset-bottom));
+  background: theme.$layer-01;
+  box-shadow: 0 -1px 0 theme.$border-subtle;
+}
+
+.survey-public__submit {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.survey-public--message {
+  padding: $spacing-07 $spacing-05;
+}

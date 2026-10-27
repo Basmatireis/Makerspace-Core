@@ -110,7 +110,7 @@ export function App() {
           <Route path="/kiosk" element={<VisitorKioskPage />} />
           {/* Devices registered before the rename still open the old path. */}
           <Route path="/terminal" element={<Navigate to="/kiosk" replace />} />
-          <Route path="/survey/:token" element={<PublicSurveyPage />} />
+          <Route path="/survey/*" element={<PublicSurveyPage />} />
           <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
           <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
           <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
@@ -438,7 +438,7 @@ export function App() {
               }
             />
             <Route
-              path="settings/surveys"
+              path="settings/surveys/*"
               element={
                 <PermissionRoute anyOf={[PermissionId.surveysread, PermissionId.surveysmanage]}>
                   <SurveyAdminPage />

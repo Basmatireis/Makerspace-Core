@@ -43,7 +43,8 @@ function surveyFixture(overrides: Partial<Survey> = {}): Survey {
 function mockPage(survey: Survey, permissions = [PermissionId.surveysread, PermissionId.surveysmanage]) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
-    http.get('*/api/v1/surveys', () => HttpResponse.json({ items: [survey] })),
+    http.get('*/api/v1/surveys', () => HttpResponse.json({ items: [survey], total: 1 })),
+    http.get('*/api/v1/surveys/:id', () => HttpResponse.json(survey)),
   );
 }
 
@@ -67,7 +68,7 @@ describe('survey trigger form', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/settings/surveys');
+    renderRoute(<App />, `/settings/surveys/${surveyId}?tab=delivery`);
 
     expect(await screen.findByText('Sent 30 min after check-out · cooldown 30 days')).toBeInTheDocument();
     const delay = await screen.findByLabelText('Delay after check-out (minutes)');
@@ -97,7 +98,7 @@ describe('survey trigger form', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/settings/surveys');
+    renderRoute(<App />, `/settings/surveys/${surveyId}?tab=delivery`);
 
     const delay = await screen.findByLabelText('Delay after check-out (minutes)');
     await user.clear(delay);
@@ -118,7 +119,7 @@ describe('survey trigger form', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/settings/surveys');
+    renderRoute(<App />, `/settings/surveys/${surveyId}?tab=delivery`);
 
     expect(await screen.findByText('Publish the survey to enable the trigger.')).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Send after check-out' })).toBeDisabled();
@@ -133,7 +134,7 @@ describe('survey trigger form', () => {
 
   it('hides the form without the manage permission', async () => {
     mockPage(surveyFixture(), [PermissionId.surveysread]);
-    renderRoute(<App />, '/settings/surveys');
+    renderRoute(<App />, `/settings/surveys/${surveyId}?tab=delivery`);
 
     expect(await screen.findByText('Sent 30 min after check-out · cooldown 30 days')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save trigger' })).not.toBeInTheDocument();
