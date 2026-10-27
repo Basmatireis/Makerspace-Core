@@ -34,6 +34,7 @@ export function getPersonDetailAccess(
   const canDisableAccount = account?.status === 'enabled' && hasPermission(currentUser, PermissionId.accountsdisable);
   const canDeleteAccount = Boolean(account) && hasPermission(currentUser, PermissionId.accountsdelete);
   const canAssignRole = canAssignRoles && canReadRoles;
+  const canResetSecondFactors = Boolean(account) && hasPermission(currentUser, PermissionId.accountsmfareset);
   const passwordIdentity = account?.authIdentities.find((identity) => identity.kind === 'password');
   // Independent of mail delivery. A password needs a login email, so an account without one can only be given a
   // password by someone who may also set that email in the same dialog.
@@ -80,6 +81,7 @@ export function getPersonDetailAccess(
     canEditMatriculation,
     canEditMemberSince,
     canReadAccounts,
+    canResetSecondFactors,
     canReadRoles,
     canReadMakerspaceStatus,
     canUpdateProfileImage,

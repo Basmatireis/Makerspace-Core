@@ -6,6 +6,7 @@ import type { CreateRoleRequest, ReplaceRolePermissionsRequest, UpdateRoleReques
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture, fixtureRoleId, roleFixture } from '../../test/fixtures';
+import { grantCoveredBy } from '../auth/permissions';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -560,5 +561,58 @@ describe('Roles and permissions matrix', () => {
     expect(screen.getByRole('option', { name: 'Everywhere' })).toBeDisabled();
     expect(screen.getByRole('option', { name: 'Normal' })).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Any managed device' })).toBeEnabled();
+  });
+
+  it('sends the fresh sign-in window of a grant with the role permissions', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage, PermissionId.peoplereadall]);
+    const role = roleFixture({
+      permissionGrants: [
+        {
+          permissionId: PermissionId.peoplereadall,
+          scope: 'everywhere',
+          deviceTypeIds: [],
+          minimumAssurance: 'normal',
+        },
+      ],
+    });
+    let submitted: ReplaceRolePermissionsRequest | undefined;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.put('*/api/v1/roles/:roleId/permissions', async ({ request }) => {
+        submitted = (await request.json()) as ReplaceRolePermissionsRequest;
+        return HttpResponse.json({ ...role, version: 2, permissionGrants: submitted.permissionGrants });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/roles');
+
+    await user.click(await screen.findByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
+    await user.click(screen.getByRole('switch', { name: 'Require fresh sign-in' }));
+    const minutes = screen.getByLabelText('Require fresh sign-in within N minutes');
+    await user.clear(minutes);
+    await user.type(minutes, '15');
+    await user.click(screen.getByRole('button', { name: 'Review and save' }));
+    const review = screen.getByRole('dialog', { name: 'Review permission changes for Workshop supervisors' });
+    await user.click(within(review).getByRole('button', { name: 'Save role permissions' }));
+
+    await waitFor(() =>
+      expect(submitted?.permissionGrants).toEqual([
+        expect.objectContaining({ permissionId: PermissionId.peoplereadall, reauthWithinMinutes: 15 }),
+      ]),
+    );
+  }, 30_000);
+
+  it('only lets a delegating administrator keep or shorten the fresh sign-in window of their own grant', () => {
+    const own = {
+      permissionId: PermissionId.peoplereadall,
+      scope: 'everywhere' as const,
+      deviceTypeIds: [],
+      minimumAssurance: 'normal' as const,
+      reauthWithinMinutes: 30,
+    };
+    expect(grantCoveredBy(own, { ...own, reauthWithinMinutes: 10 })).toBe(true);
+    expect(grantCoveredBy(own, { ...own, reauthWithinMinutes: 60 })).toBe(false);
+    expect(grantCoveredBy(own, { ...own, reauthWithinMinutes: null })).toBe(false);
   });
 });

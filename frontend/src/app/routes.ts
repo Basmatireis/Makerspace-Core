@@ -253,3 +253,7 @@ export const OpenDayRequirementsPage = lazy(() =>
     default: OpenDayRequirementsPage,
   })),
 );
+
+export const ExternalInvoiceRedirect = lazy(() =>
+  import('./ExternalInvoiceRedirect').then(({ ExternalInvoiceRedirect }) => ({ default: ExternalInvoiceRedirect })),
+);

@@ -1,4 +1,4 @@
-import { Button, InlineNotification, MultiSelect, Select, SelectItem, Stack } from '@carbon/react';
+import { Button, InlineNotification, MultiSelect, NumberInput, Select, SelectItem, Stack, Toggle } from '@carbon/react';
 import { Add, Close, TrashCan } from '@carbon/icons-react';
 import type {
   AuthenticationAssurance,
@@ -226,6 +226,43 @@ function RuleEditor({
             }
           />
         )}
+        <Toggle
+          id={`reauth-${rule.permissionId}-${index}`}
+          size="sm"
+          labelText="Require fresh sign-in"
+          labelA="Not required"
+          labelB="Required"
+          toggled={rule.reauthWithinMinutes != null}
+          disabled={
+            disabled ||
+            (rule.reauthWithinMinutes != null &&
+              !permissionGrantCoveredBy(envelopes, { ...rule, reauthWithinMinutes: null }))
+          }
+          onToggle={(on) => onChange({ ...rule, reauthWithinMinutes: on ? 10 : null })}
+        />
+        {rule.reauthWithinMinutes != null && (
+          <NumberInput
+            id={`reauth-minutes-${rule.permissionId}-${index}`}
+            label="Require fresh sign-in within N minutes"
+            helperText="Applies while the last sign-in or reauthentication is at most this old (1 to 1440)."
+            min={1}
+            max={1440}
+            step={5}
+            allowEmpty
+            value={rule.reauthWithinMinutes}
+            disabled={disabled}
+            invalid={
+              !Number.isInteger(rule.reauthWithinMinutes) ||
+              rule.reauthWithinMinutes < 1 ||
+              rule.reauthWithinMinutes > 1440
+            }
+            invalidText="Enter a whole number from 1 to 1440."
+            onChange={(_event, state) => {
+              const value = typeof state.value === 'string' ? Number(state.value) : state.value;
+              onChange({ ...rule, reauthWithinMinutes: Number.isFinite(value) ? value : 0 });
+            }}
+          />
+        )}
       </Stack>
     </section>
   );
@@ -240,6 +277,7 @@ function initialGrant(permissionId: Permission['id'], envelope?: PermissionGrant
         ? permissionGrantDeviceTypeIds(envelope).slice(0, 1)
         : [],
     minimumAssurance: envelope?.minimumAssurance ?? 'low',
+    reauthWithinMinutes: envelope?.reauthWithinMinutes ?? null,
   };
 }
 

@@ -63,7 +63,48 @@ async function readResponse(response: Response): Promise<unknown> {
   return response.text();
 }
 
+export type ReauthenticationRequest = { requiredAssurance?: string; withinMinutes?: number };
+type ReauthenticationHandler = (request: ReauthenticationRequest) => Promise<boolean>;
+
+let reauthenticationHandler: ReauthenticationHandler | null = null;
+let reauthenticationInProgress: Promise<boolean> | null = null;
+
+/**
+ * Registers the prompt that runs when an operation needs a fresh sign-in (`403 reauthentication_required`). It
+ * resolves true after a successful reauthentication, and the original request is then repeated once.
+ */
+export function setReauthenticationHandler(handler: ReauthenticationHandler | null): void {
+  reauthenticationHandler = handler;
+}
+
+function reauthenticationRequest(error: unknown): ReauthenticationRequest | null {
+  if (!(error instanceof ApiError) || error.status !== 403) return null;
+  const envelope = error.data as ErrorEnvelope | undefined;
+  if (envelope?.code !== 'reauthentication_required') return null;
+  const details = (envelope.details ?? {}) as ReauthenticationRequest;
+  return { requiredAssurance: details.requiredAssurance, withinMinutes: details.withinMinutes };
+}
+
 export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  try {
+    return await send<T>(url, options);
+  } catch (error) {
+    const request = reauthenticationRequest(error);
+    const handler = reauthenticationHandler;
+    // The reauthentication endpoints themselves never trigger a prompt, and a request is repeated at most once.
+    if (!request || !handler || new URL(url, window.location.origin).pathname.includes('/auth/reauthenticate')) {
+      throw error;
+    }
+    // Concurrent requests that fail together share one prompt.
+    reauthenticationInProgress ??= handler(request).finally(() => {
+      reauthenticationInProgress = null;
+    });
+    if (!(await reauthenticationInProgress)) throw error;
+    return send<T>(url, options);
+  }
+}
+
+async function send<T>(url: string, options: RequestInit): Promise<T> {
   const headers = new Headers(options.headers);
   const method = (options.method ?? 'GET').toUpperCase();
   const csrfToken = CSRF_COOKIE_NAMES.map(readCookie).find(Boolean);
@@ -92,6 +133,9 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
     const pathname = new URL(url, window.location.origin).pathname;
     const isPublicAuthenticationRequest =
       pathname.endsWith('/auth/login') ||
+      pathname.includes('/auth/login/') ||
+      pathname.startsWith('/api/v1/auth/passkey/') ||
+      pathname.includes('/auth/reauthenticate') ||
       pathname.endsWith('/auth/pin/login') ||
       pathname.endsWith('/auth/password-reset/complete') ||
       pathname.includes('/visitor-enrollment/');
@@ -111,6 +155,9 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
       !isCurrentUserProbe
     ) {
       window.dispatchEvent(new CustomEvent('makerspace:session-expired', { detail: data }));
+    }
+    if (response.status === 403 && (data as ErrorEnvelope | undefined)?.code === 'mfa_setup_required') {
+      window.dispatchEvent(new CustomEvent('makerspace:mfa-setup-required'));
     }
     throw new ApiError(response.status, data, response.statusText);
   }

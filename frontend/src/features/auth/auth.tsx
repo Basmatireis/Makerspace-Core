@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- auth context and hooks are a cohesive module */
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser, LoginRequest, PinLoginRequest, PermissionId } from '../../api/generated/models';
@@ -15,6 +15,9 @@ import { clearPrivateQueryData } from '../../api/query-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { hasAnyPermission } from './permissions';
+
+// Forced second-factor enrollment is rare, so its screens stay out of the initial bundle.
+const MfaSetupPage = lazy(() => import('./mfa/MfaSetupPage').then(({ MfaSetupPage }) => ({ default: MfaSetupPage })));
 
 export const authQueryKey = ['auth', 'current-user'] as const;
 
@@ -43,7 +46,9 @@ export function useCurrentUser(): CurrentUser {
 export function useLogin() {
   const queryClient = useQueryClient();
   return useSecretMutation((request: LoginRequest) => login(request), {
-    onSuccess: async () => {
+    // A 202 means the password was right but a second factor is still due: no session exists yet.
+    onSuccess: async (pending) => {
+      if (pending) return;
       await queryClient.fetchQuery(currentUserQueryOptions());
     },
   });
@@ -104,7 +109,13 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={currentUser.data}>
       <SessionActivityHandler currentUser={currentUser.data} />
-      {children}
+      {currentUser.data.authentication.mfaSetupRequired ? (
+        <Suspense fallback={<FullPageLoading label="Loading" />}>
+          <MfaSetupPage />
+        </Suspense>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }
@@ -223,9 +234,14 @@ export function SessionEventHandler() {
       }
     };
 
+    // An operation answered `mfa_setup_required`: the cached user is stale, so reload it and let ProtectedRoute decide.
+    const handleMfaSetupRequired = () => void queryClient.invalidateQueries({ queryKey: authQueryKey });
+
     window.addEventListener('makerspace:session-expired', handleSessionExpired);
+    window.addEventListener('makerspace:mfa-setup-required', handleMfaSetupRequired);
     return () => {
       window.removeEventListener('makerspace:session-expired', handleSessionExpired);
+      window.removeEventListener('makerspace:mfa-setup-required', handleMfaSetupRequired);
     };
   }, [navigate, queryClient]);
 

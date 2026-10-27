@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { PermissionId } from '../api/generated/models';
 import { LoginPage } from '../features/auth/LoginPage';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
@@ -20,6 +19,7 @@ import {
   EventDetailPage,
   EventSignupManagementPage,
   EventsPage,
+  ExternalInvoiceRedirect,
   FilamentSpoolDetailPage,
   GatewayDetailPage,
   InventoryPage,
@@ -81,7 +81,7 @@ import {
   VisitorKioskPage,
   MessagesPage,
 } from './routes';
-import { ExternalInvoiceRedirect, IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
+import { IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
 
 function ProtectedApp() {
   return (
@@ -123,13 +123,7 @@ export function App() {
             <Route
               path="attendance"
               element={
-                <PermissionRoute
-                  anyOf={[
-                    PermissionId.attendanceread,
-                    PermissionId.attendanceassist,
-                    PermissionId.attendancestatisticsread,
-                  ]}
-                >
+                <PermissionRoute anyOf={['attendance.read', 'attendance.assist', 'attendance.statistics.read']}>
                   <AttendancePage />
                 </PermissionRoute>
               }
@@ -137,14 +131,7 @@ export function App() {
             <Route
               path="events"
               element={
-                <PermissionRoute
-                  anyOf={[
-                    PermissionId.eventsread,
-                    PermissionId.eventsmanage,
-                    PermissionId.eventsstaffingmanage,
-                    PermissionId.eventsassign,
-                  ]}
-                >
+                <PermissionRoute anyOf={['events.read', 'events.manage', 'events.staffing.manage', 'events.assign']}>
                   <EventsPage />
                 </PermissionRoute>
               }
@@ -152,7 +139,7 @@ export function App() {
             <Route
               path="events/new"
               element={
-                <PermissionRoute allOf={[PermissionId.eventsmanage]}>
+                <PermissionRoute allOf={['events.manage']}>
                   <EventCreatePage />
                 </PermissionRoute>
               }
@@ -160,14 +147,7 @@ export function App() {
             <Route
               path="events/:eventId"
               element={
-                <PermissionRoute
-                  anyOf={[
-                    PermissionId.eventsread,
-                    PermissionId.eventsmanage,
-                    PermissionId.eventsstaffingmanage,
-                    PermissionId.eventsassign,
-                  ]}
-                >
+                <PermissionRoute anyOf={['events.read', 'events.manage', 'events.staffing.manage', 'events.assign']}>
                   <EventDetailPage />
                 </PermissionRoute>
               }
@@ -176,7 +156,7 @@ export function App() {
               <Route
                 index
                 element={
-                  <PermissionRoute anyOf={[PermissionId.machine_jobsread, PermissionId.statisticsread]}>
+                  <PermissionRoute anyOf={['machine_jobs.read', 'statistics.read']}>
                     <MachineLogbookOverviewPage />
                   </PermissionRoute>
                 }
@@ -184,7 +164,7 @@ export function App() {
               <Route
                 path="jobs"
                 element={
-                  <PermissionRoute allOf={[PermissionId.machine_jobsread]}>
+                  <PermissionRoute allOf={['machine_jobs.read']}>
                     <JobsPage />
                   </PermissionRoute>
                 }
@@ -192,7 +172,7 @@ export function App() {
               <Route
                 path="jobs/runs/:runId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.machine_jobsread]}>
+                  <PermissionRoute allOf={['machine_jobs.read']}>
                     <RunDetailPage />
                   </PermissionRoute>
                 }
@@ -204,7 +184,7 @@ export function App() {
               <Route
                 path="jobs/:jobId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.machine_jobsread]}>
+                  <PermissionRoute allOf={['machine_jobs.read']}>
                     <JobDetailPage />
                   </PermissionRoute>
                 }
@@ -212,7 +192,7 @@ export function App() {
               <Route
                 path="machines"
                 element={
-                  <PermissionRoute allOf={[PermissionId.machinesread]}>
+                  <PermissionRoute allOf={['machines.read']}>
                     <MachinesPage />
                   </PermissionRoute>
                 }
@@ -220,7 +200,7 @@ export function App() {
               <Route
                 path="machines/:machineId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.machinesread]}>
+                  <PermissionRoute allOf={['machines.read']}>
                     <MachineDetailPage />
                   </PermissionRoute>
                 }
@@ -228,7 +208,7 @@ export function App() {
               <Route
                 path="inventory"
                 element={
-                  <PermissionRoute allOf={[PermissionId.inventoryread]}>
+                  <PermissionRoute allOf={['inventory.read']}>
                     <InventoryPage />
                   </PermissionRoute>
                 }
@@ -236,7 +216,7 @@ export function App() {
               <Route
                 path="inventory/materials/:materialId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.inventoryread]}>
+                  <PermissionRoute allOf={['inventory.read']}>
                     <MaterialDetailPage />
                   </PermissionRoute>
                 }
@@ -244,7 +224,7 @@ export function App() {
               <Route
                 path="inventory/spools/:spoolId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.inventoryread]}>
+                  <PermissionRoute allOf={['inventory.read']}>
                     <FilamentSpoolDetailPage />
                   </PermissionRoute>
                 }
@@ -252,7 +232,7 @@ export function App() {
               <Route
                 path="statistics"
                 element={
-                  <PermissionRoute allOf={[PermissionId.statisticsread]}>
+                  <PermissionRoute allOf={['statistics.read']}>
                     <StatisticsPage />
                   </PermissionRoute>
                 }
@@ -285,7 +265,7 @@ export function App() {
             <Route
               path="open-days"
               element={
-                <PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}>
+                <PermissionRoute anyOf={['open_days.read', 'open_days.manage']}>
                   <OpenDaysPage />
                 </PermissionRoute>
               }
@@ -293,7 +273,7 @@ export function App() {
             <Route
               path="open-days/:periodId"
               element={
-                <PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}>
+                <PermissionRoute anyOf={['open_days.read', 'open_days.manage']}>
                   <OpenDayPeriodPage />
                 </PermissionRoute>
               }
@@ -301,7 +281,7 @@ export function App() {
             <Route
               path="open-days/:periodId/days/:openDayId"
               element={
-                <PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}>
+                <PermissionRoute anyOf={['open_days.read', 'open_days.manage']}>
                   <OpenDayDetailPage />
                 </PermissionRoute>
               }
@@ -309,7 +289,7 @@ export function App() {
             <Route
               path="open-days/:periodId/schedule"
               element={
-                <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
+                <PermissionRoute allOf={['open_days.manage']}>
                   <OpenDayScheduleRedirect />
                 </PermissionRoute>
               }
@@ -317,7 +297,7 @@ export function App() {
             <Route
               path="open-days/manage"
               element={
-                <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
+                <PermissionRoute allOf={['open_days.manage']}>
                   <OpenDayManagementPage />
                 </PermissionRoute>
               }
@@ -325,7 +305,7 @@ export function App() {
             <Route
               path="signage"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageDisplaysPage />
                 </PermissionRoute>
               }
@@ -333,7 +313,7 @@ export function App() {
             <Route
               path="signage/displays/:displayId"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageDisplayDetailPage />
                 </PermissionRoute>
               }
@@ -341,7 +321,7 @@ export function App() {
             <Route
               path="signage/announcements"
               element={
-                <PermissionRoute anyOf={[PermissionId.signageread, PermissionId.signageoverride]}>
+                <PermissionRoute anyOf={['signage.read', 'signage.override']}>
                   <SignageAnnouncementsPage />
                 </PermissionRoute>
               }
@@ -349,7 +329,7 @@ export function App() {
             <Route
               path="signage/content"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageContentPage />
                 </PermissionRoute>
               }
@@ -357,7 +337,7 @@ export function App() {
             <Route
               path="signage/scenes/:sceneId"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageSceneEditorPage />
                 </PermissionRoute>
               }
@@ -365,7 +345,7 @@ export function App() {
             <Route
               path="signage/playlists/:playlistId"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignagePlaylistDetailPage />
                 </PermissionRoute>
               }
@@ -373,7 +353,7 @@ export function App() {
             <Route
               path="signage/layouts/new"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread, PermissionId.signagecontentmanage]}>
+                <PermissionRoute allOf={['signage.read', 'signage.content.manage']}>
                   <SignageCustomLayoutEditorPage />
                 </PermissionRoute>
               }
@@ -381,7 +361,7 @@ export function App() {
             <Route
               path="signage/layouts/:layoutId"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageCustomLayoutEditorPage />
                 </PermissionRoute>
               }
@@ -389,7 +369,7 @@ export function App() {
             <Route
               path="signage/media"
               element={
-                <PermissionRoute allOf={[PermissionId.signageread]}>
+                <PermissionRoute allOf={['signage.read']}>
                   <SignageMediaPage />
                 </PermissionRoute>
               }
@@ -398,7 +378,7 @@ export function App() {
             <Route
               path="settings/single-sign-on"
               element={
-                <PermissionRoute anyOf={[PermissionId.oidcmanage, PermissionId.scimmanage]}>
+                <PermissionRoute anyOf={['oidc.manage', 'scim.manage']}>
                   <SingleSignOnPage />
                 </PermissionRoute>
               }
@@ -406,7 +386,7 @@ export function App() {
             <Route
               path="settings/devices-sessions/*"
               element={
-                <PermissionRoute anyOf={[PermissionId.session_policiesmanage, PermissionId.managed_devicesread]}>
+                <PermissionRoute anyOf={['session_policies.manage', 'managed_devices.read']}>
                   <DevicesSessionsPage />
                 </PermissionRoute>
               }
@@ -424,7 +404,7 @@ export function App() {
             <Route
               path="settings/open-days"
               element={
-                <PermissionRoute allOf={[PermissionId.open_daysmanage]}>
+                <PermissionRoute allOf={['open_days.manage']}>
                   <OpenDayRequirementsPage />
                 </PermissionRoute>
               }
@@ -432,7 +412,7 @@ export function App() {
             <Route
               path="settings/trainings"
               element={
-                <PermissionRoute allOf={[PermissionId.trainingsmanage]}>
+                <PermissionRoute allOf={['trainings.manage']}>
                   <TrainingsSettingsPage />
                 </PermissionRoute>
               }
@@ -440,7 +420,7 @@ export function App() {
             <Route
               path="settings/surveys/*"
               element={
-                <PermissionRoute anyOf={[PermissionId.surveysread, PermissionId.surveysmanage]}>
+                <PermissionRoute anyOf={['surveys.read', 'surveys.manage']}>
                   <SurveyAdminPage />
                 </PermissionRoute>
               }
@@ -448,13 +428,7 @@ export function App() {
             <Route
               path="settings/laborordnung"
               element={
-                <PermissionRoute
-                  anyOf={[
-                    PermissionId.laborordnungread,
-                    PermissionId.laborordnungmanage,
-                    PermissionId.laborordnungrequestsread,
-                  ]}
-                >
+                <PermissionRoute anyOf={['laborordnung.read', 'laborordnung.manage', 'laborordnung.requests.read']}>
                   <LaborordnungPage />
                 </PermissionRoute>
               }
@@ -462,7 +436,7 @@ export function App() {
             <Route
               path="settings/configuration-transfer"
               element={
-                <PermissionRoute anyOf={[PermissionId.configurationexport, PermissionId.configurationimport]}>
+                <PermissionRoute anyOf={['configuration.export', 'configuration.import']}>
                   <ConfigurationTransferPage />
                 </PermissionRoute>
               }
@@ -470,7 +444,7 @@ export function App() {
             <Route
               path="settings/local-services"
               element={
-                <PermissionRoute anyOf={[PermissionId.local_servicesmanage, PermissionId.printer_connectorsread]}>
+                <PermissionRoute anyOf={['local_services.manage', 'printer_connectors.read']}>
                   <LocalServicesPage />
                 </PermissionRoute>
               }
@@ -478,7 +452,7 @@ export function App() {
             <Route
               path="settings/local-services/:gatewayId"
               element={
-                <PermissionRoute allOf={[PermissionId.local_servicesmanage]}>
+                <PermissionRoute allOf={['local_services.manage']}>
                   <GatewayDetailPage />
                 </PermissionRoute>
               }
@@ -490,7 +464,7 @@ export function App() {
             <Route
               path="settings/visitor-enrollment"
               element={
-                <PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}>
+                <PermissionRoute allOf={['visitor_enrollment.manage']}>
                   <VisitorEnrollmentSettingsPage />
                 </PermissionRoute>
               }
@@ -498,7 +472,7 @@ export function App() {
             <Route
               path="settings/mail"
               element={
-                <PermissionRoute allOf={[PermissionId.mailmanage]}>
+                <PermissionRoute allOf={['mail.manage']}>
                   <MailSettingsPage />
                 </PermissionRoute>
               }
@@ -506,7 +480,7 @@ export function App() {
             <Route
               path="settings/invoicing"
               element={
-                <PermissionRoute allOf={[PermissionId.invoicingsettingsmanage]}>
+                <PermissionRoute allOf={['invoicing.settings.manage']}>
                   <InvoicingSettingsPage />
                 </PermissionRoute>
               }
@@ -514,7 +488,7 @@ export function App() {
             <Route
               path="settings/branding-legal"
               element={
-                <PermissionRoute allOf={[PermissionId.brandingmanage]}>
+                <PermissionRoute allOf={['branding.manage']}>
                   <BrandingLegalSettingsPage />
                 </PermissionRoute>
               }
@@ -523,7 +497,7 @@ export function App() {
             <Route
               path="people"
               element={
-                <PermissionRoute allOf={[PermissionId.peoplereadall]}>
+                <PermissionRoute allOf={['people.read.all']}>
                   <UsersPage />
                 </PermissionRoute>
               }
@@ -533,7 +507,7 @@ export function App() {
               <Route
                 path="sales"
                 element={
-                  <PermissionRoute anyOf={[PermissionId.ordersread, PermissionId.paymentsread]}>
+                  <PermissionRoute anyOf={['orders.read', 'payments.read']}>
                     <SalesOverviewPage />
                   </PermissionRoute>
                 }
@@ -541,7 +515,7 @@ export function App() {
               <Route
                 path="orders"
                 element={
-                  <PermissionRoute allOf={[PermissionId.ordersread]}>
+                  <PermissionRoute allOf={['orders.read']}>
                     <OrdersPage />
                   </PermissionRoute>
                 }
@@ -549,7 +523,7 @@ export function App() {
               <Route
                 path="orders/:orderId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.ordersread]}>
+                  <PermissionRoute allOf={['orders.read']}>
                     <OrderDetailPage />
                   </PermissionRoute>
                 }
@@ -557,7 +531,7 @@ export function App() {
               <Route
                 path="orders/:orderId/receipt"
                 element={
-                  <PermissionRoute allOf={[PermissionId.ordersread, PermissionId.paymentsread]}>
+                  <PermissionRoute allOf={['orders.read', 'payments.read']}>
                     <ReceiptPage />
                   </PermissionRoute>
                 }
@@ -565,7 +539,7 @@ export function App() {
               <Route
                 path="payments"
                 element={
-                  <PermissionRoute allOf={[PermissionId.paymentsread]}>
+                  <PermissionRoute allOf={['payments.read']}>
                     <PaymentsPage />
                   </PermissionRoute>
                 }
@@ -573,7 +547,7 @@ export function App() {
               <Route
                 path="payments/:paymentId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.paymentsread]}>
+                  <PermissionRoute allOf={['payments.read']}>
                     <PaymentDetailPage />
                   </PermissionRoute>
                 }
@@ -581,7 +555,7 @@ export function App() {
               <Route
                 path="pricing"
                 element={
-                  <PermissionRoute allOf={[PermissionId.pricingread]}>
+                  <PermissionRoute allOf={['pricing.read']}>
                     <PricingPage />
                   </PermissionRoute>
                 }
@@ -589,7 +563,7 @@ export function App() {
               <Route
                 path="organizations"
                 element={
-                  <PermissionRoute allOf={[PermissionId.organizationsread]}>
+                  <PermissionRoute allOf={['organizations.read']}>
                     <OrganizationsPage />
                   </PermissionRoute>
                 }
@@ -597,7 +571,7 @@ export function App() {
               <Route
                 path="organizations/:organizationId"
                 element={
-                  <PermissionRoute allOf={[PermissionId.organizationsread]}>
+                  <PermissionRoute allOf={['organizations.read']}>
                     <OrganizationDetailPage />
                   </PermissionRoute>
                 }
@@ -606,7 +580,7 @@ export function App() {
             <Route
               path="people/staffing"
               element={
-                <PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}>
+                <PermissionRoute allOf={['supervisor_dashboard.read']}>
                   <SupervisorStaffingPage />
                 </PermissionRoute>
               }
@@ -614,7 +588,7 @@ export function App() {
             <Route
               path="notifications/messages"
               element={
-                <PermissionRoute allOf={[PermissionId.notificationssend]}>
+                <PermissionRoute allOf={['notifications.send']}>
                   <MessagesPage />
                 </PermissionRoute>
               }
@@ -622,7 +596,7 @@ export function App() {
             <Route
               path="people/new"
               element={
-                <PermissionRoute allOf={[PermissionId.peoplecreate]}>
+                <PermissionRoute allOf={['people.create']}>
                   <UserCreatePage />
                 </PermissionRoute>
               }
@@ -630,7 +604,7 @@ export function App() {
             <Route
               path="people/:personId"
               element={
-                <PermissionRoute allOf={[PermissionId.peoplereadall]}>
+                <PermissionRoute allOf={['people.read.all']}>
                   <UserDetailPage />
                 </PermissionRoute>
               }
@@ -640,7 +614,7 @@ export function App() {
             <Route
               path="audit-log"
               element={
-                <PermissionRoute allOf={[PermissionId.auditread]}>
+                <PermissionRoute allOf={['audit.read']}>
                   <ActivityPage />
                 </PermissionRoute>
               }
@@ -651,7 +625,7 @@ export function App() {
             <Route
               path="settings/roles"
               element={
-                <PermissionRoute allOf={[PermissionId.rolesread]}>
+                <PermissionRoute allOf={['roles.read']}>
                   <RolesPage />
                 </PermissionRoute>
               }
@@ -659,7 +633,7 @@ export function App() {
             <Route
               path="settings/roles/new"
               element={
-                <PermissionRoute allOf={[PermissionId.rolesread, PermissionId.rolesmanage]}>
+                <PermissionRoute allOf={['roles.read', 'roles.manage']}>
                   <RolesPage />
                 </PermissionRoute>
               }
@@ -667,7 +641,7 @@ export function App() {
             <Route
               path="settings/roles/:roleId"
               element={
-                <PermissionRoute allOf={[PermissionId.rolesread]}>
+                <PermissionRoute allOf={['roles.read']}>
                   <RolesPage />
                 </PermissionRoute>
               }

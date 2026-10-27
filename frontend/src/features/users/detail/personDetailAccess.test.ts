@@ -32,3 +32,17 @@ describe('person detail password and email actions', () => {
     ).toBe(true);
   });
 });
+
+describe('person detail second-factor reset', () => {
+  it('offers the reset only with accounts.mfa.reset and an account', () => {
+    expect(access([PermissionId.accountsmfareset]).canResetSecondFactors).toBe(true);
+    expect(access([PermissionId.accountsread]).canResetSecondFactors).toBe(false);
+    expect(
+      getPersonDetailAccess(
+        currentUserFixture([PermissionId.accountsmfareset]),
+        personFixture({ account: null }),
+        undefined,
+      ).canResetSecondFactors,
+    ).toBe(false);
+  });
+});

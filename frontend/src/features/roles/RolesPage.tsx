@@ -32,6 +32,7 @@ import {
   permissionGrantsValid,
   PermissionId,
 } from '../auth/permissions';
+import { MasterReauthenticationPolicyDialog } from './MasterReauthenticationPolicyDialog';
 import { PermissionEditor } from './PermissionEditor';
 import { PermissionMatrix } from './PermissionMatrix';
 import { permissionGroupOrder, presentPermission } from './permissionPresentation';
@@ -64,6 +65,7 @@ export function RolesPage() {
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const permissions = useMemo(() => permissionQuery.data?.items ?? [], [permissionQuery.data]);
   const deviceTypes = useMemo(() => deviceTypesQuery.data?.items ?? [], [deviceTypesQuery.data]);
+  const [policyOpen, setPolicyOpen] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<string>();
   const [selectedCell, setSelectedCell] = useState<SelectedCell>();
   const [draft, setDraft] = useState<RoleDraft>();
@@ -268,7 +270,10 @@ export function RolesPage() {
     if (state === 'granted') {
       rules = [{ permissionId: permission.id, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' }];
     } else if (state === 'conditional') {
-      const conditional = existing.filter((grant) => grant.scope !== 'everywhere' || grant.minimumAssurance !== 'low');
+      const conditional = existing.filter(
+        (grant) =>
+          grant.scope !== 'everywhere' || grant.minimumAssurance !== 'low' || grant.reauthWithinMinutes != null,
+      );
       if (conditional.length > 0) rules = conditional;
       else {
         const envelope = currentUser.delegablePermissionGrants.find((grant) => grant.permissionId === permission.id);
@@ -282,6 +287,7 @@ export function RolesPage() {
                 envelope.scope === 'everywhere' && envelope.minimumAssurance === 'low'
                   ? 'normal'
                   : envelope.minimumAssurance,
+              reauthWithinMinutes: envelope.reauthWithinMinutes ?? null,
             },
           ];
       }
@@ -373,6 +379,11 @@ export function RolesPage() {
                 Review and save
               </Button>
             </>
+          )}
+          {isMasterActor && (
+            <Button kind="tertiary" size="sm" renderIcon={Locked} onClick={() => setPolicyOpen(true)}>
+              Master sign-in policy
+            </Button>
           )}
           {hasPermission(currentUser, PermissionId.rolesmanage) && (
             <Button
@@ -501,6 +512,7 @@ export function RolesPage() {
           </aside>
         )}
       </div>
+      {isMasterActor && <MasterReauthenticationPolicyDialog open={policyOpen} onClose={() => setPolicyOpen(false)} />}
       <CreateRoleDialog
         open={createOpen}
         roles={copySources}

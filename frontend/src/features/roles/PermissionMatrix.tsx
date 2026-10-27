@@ -212,7 +212,9 @@ function PermissionRow({
 
 function configuredState(grants: readonly PermissionGrant[]): 'denied' | 'granted' | 'conditional' {
   if (grants.length === 0) return 'denied';
-  return grants.some((grant) => grant.scope === 'everywhere' && grant.minimumAssurance === 'low')
+  return grants.some(
+    (grant) => grant.scope === 'everywhere' && grant.minimumAssurance === 'low' && grant.reauthWithinMinutes == null,
+  )
     ? 'granted'
     : 'conditional';
 }
@@ -225,6 +227,7 @@ function configuredSummary(grants: readonly PermissionGrant[], deviceTypes: read
     .map((grant) => {
       const parts: string[] = [];
       if (grant.minimumAssurance !== 'low') parts.push(assuranceLabels[grant.minimumAssurance]);
+      if (grant.reauthWithinMinutes != null) parts.push(`Fresh sign-in within ${grant.reauthWithinMinutes} min`);
       if (grant.scope === 'anyManagedDevice') parts.push('Any managed device');
       if (grant.scope === 'selectedDeviceTypes') {
         const selected = permissionGrantDeviceTypeIds(grant).map((id) => names.get(id) ?? 'Unknown device type');

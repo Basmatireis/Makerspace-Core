@@ -4,6 +4,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- Web interface for second factors: passkey sign-in and a second-factor step on the login page, forced second-factor setup with recovery codes, a "Two-factor authentication" section in the profile, a global "Confirm it's you" step-up dialog that repeats the original request once, a per-rule "Require fresh sign-in" window and the master sign-in policy in the role editor, and second factors with a reset action on the person detail page. See [docs/authentication.md](docs/authentication.md).
+
+### Changed
+
+- The initial JavaScript bundle shrank by about 7 kB gzip: the application entry no longer imports the generated `PermissionId` object (string literals typed by the generated type) and the former request-page redirect loads lazily.
+
 ### Upgrade notes
 
 - **Migration 00076 (second factors, step-up reauthentication).** Adds `mfa_totp_credentials`, `mfa_recovery_codes`, `webauthn_credentials`, `pending_logins`, `webauthn_challenges`, `second_factor_throttles`, `master_reauthentication_permissions` (seeded with `accounts.mfa.reset`, `accounts.password.set`, `branding.manage`, `mail.manage`, `oidc.manage`, `people.roles.assign`, `roles.manage` at 10 minutes), `role_permission_grants.reauth_within_minutes`, and `sessions.authenticated_assurance`, `mfa_setup_required`, `webauthn_credential_id` (passkey sessions have no auth identity; `auth_method` gains `passkey`). Run `goose up` before starting the new API; Down refuses while a grant requires a fresh sign-in and deletes passkey sessions.

@@ -30,6 +30,7 @@ import { canReadTrainingRecords } from '../trainings/queries';
 import { TrainingRecordsSection } from '../trainings/TrainingRecordsSection';
 import { AuthenticationDialogs } from './AuthenticationDialogs';
 import { AuthenticationMethodsSection } from './AuthenticationMethodsSection';
+import { SecondFactorsSection } from './SecondFactorsSection';
 import { useProfileAuthentication } from './useProfileAuthentication';
 
 export function ProfilePage() {
@@ -274,6 +275,7 @@ export function ProfilePage() {
           <Column sm={4} md={5} lg={10} className="person-detail-overview__stack">
             <Stack gap={6}>
               <AuthenticationMethodsSection authentication={authentication} />
+              <SecondFactorsSection />
 
               <DetailSection
                 title="Roles"

@@ -29,6 +29,7 @@ import { PersonSignaturesSection } from '../laborordnung/PersonSignaturesSection
 import { useBranding } from '../branding/branding';
 import { AccountAccessSection } from './detail/AccountAccessSection';
 import { AccountDialogs } from './detail/AccountDialogs';
+import { AccountSecondFactorsSection } from './detail/AccountSecondFactorsSection';
 import { AuthenticationMethodsSection } from './detail/AuthenticationMethodsSection';
 import { MakerspaceStatusSection } from './detail/MakerspaceStatusSection';
 import { getPersonDetailAccess } from './detail/personDetailAccess';
@@ -222,7 +223,10 @@ function UserDetailContent({ person }: { person: Person }) {
     />
   );
   const authenticationMethodsSection = account ? (
-    <AuthenticationMethodsSection account={account} access={access} ctrl={ctrl} />
+    <>
+      <AuthenticationMethodsSection account={account} access={access} ctrl={ctrl} />
+      {canReadAccounts && <AccountSecondFactorsSection account={account} canReset={access.canResetSecondFactors} />}
+    </>
   ) : null;
   const rolesSection = (
     <RolesSection

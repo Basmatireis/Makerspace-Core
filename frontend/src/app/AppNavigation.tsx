@@ -14,13 +14,7 @@ import {
 } from '@carbon/icons-react';
 import type { CurrentUser, PublicLegalLinks } from '../api/generated/models';
 import { Link, useLocation } from 'react-router-dom';
-import {
-  canAccessOpenDays,
-  canAccessSettings,
-  hasAnyPermission,
-  hasPermission,
-  PermissionId,
-} from '../features/auth/permissions';
+import { canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission } from '../features/auth/permissions';
 
 type NavigationGroupId = 'operations' | 'people' | 'machines' | 'sales' | 'signage';
 
@@ -100,46 +94,33 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   if (canAccessOpenDays(currentUser)) {
     operations.push({ label: 'Open Days', to: '/open-days', active: pathname.startsWith('/open-days') });
   }
-  if (
-    hasAnyPermission(currentUser, [
-      PermissionId.eventsread,
-      PermissionId.eventsmanage,
-      PermissionId.eventsstaffingmanage,
-      PermissionId.eventsassign,
-    ])
-  ) {
+  if (hasAnyPermission(currentUser, ['events.read', 'events.manage', 'events.staffing.manage', 'events.assign'])) {
     operations.push({
       label: 'Events',
       to: '/events',
       active: pathname === '/events' || pathname.startsWith('/events/'),
     });
   }
-  if (
-    hasAnyPermission(currentUser, [
-      PermissionId.attendanceread,
-      PermissionId.attendanceassist,
-      PermissionId.attendancestatisticsread,
-    ])
-  ) {
+  if (hasAnyPermission(currentUser, ['attendance.read', 'attendance.assist', 'attendance.statistics.read'])) {
     operations.push({ label: 'Attendance', to: '/attendance', active: pathname.startsWith('/attendance') });
   }
 
   const people: NavigationItem[] = [];
-  if (hasPermission(currentUser, PermissionId.peoplereadall)) {
+  if (hasPermission(currentUser, 'people.read.all')) {
     people.push({
       label: 'People',
       to: '/people',
       active: pathname === '/people' || (pathname.startsWith('/people/') && !pathname.startsWith('/people/staffing')),
     });
   }
-  if (hasPermission(currentUser, PermissionId.organizationsread)) {
+  if (hasPermission(currentUser, 'organizations.read')) {
     people.push({ label: 'Organizations', to: '/organizations', active: pathname.startsWith('/organizations') });
   }
-  if (hasPermission(currentUser, PermissionId.supervisor_dashboardread)) {
+  if (hasPermission(currentUser, 'supervisor_dashboard.read')) {
     people.push({ label: 'Staffing', to: '/people/staffing', active: pathname.startsWith('/people/staffing') });
   }
 
-  if (hasPermission(currentUser, PermissionId.notificationssend)) {
+  if (hasPermission(currentUser, 'notifications.send')) {
     people.push({
       label: 'Messages',
       to: '/notifications/messages',
@@ -148,27 +129,27 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
 
   const machines: NavigationItem[] = [];
-  if (hasAnyPermission(currentUser, [PermissionId.machine_jobsread, PermissionId.statisticsread])) {
+  if (hasAnyPermission(currentUser, ['machine_jobs.read', 'statistics.read'])) {
     machines.push({ label: 'Overview', to: '/machine-logbook', active: pathname === '/machine-logbook' });
   }
-  if (hasPermission(currentUser, PermissionId.machine_jobsread)) {
+  if (hasPermission(currentUser, 'machine_jobs.read')) {
     machines.push({ label: 'Jobs', to: '/machine-logbook/jobs', active: pathname.startsWith('/machine-logbook/jobs') });
   }
-  if (hasPermission(currentUser, PermissionId.machinesread)) {
+  if (hasPermission(currentUser, 'machines.read')) {
     machines.push({
       label: 'Machines',
       to: '/machine-logbook/machines',
       active: pathname.startsWith('/machine-logbook/machines'),
     });
   }
-  if (hasPermission(currentUser, PermissionId.inventoryread)) {
+  if (hasPermission(currentUser, 'inventory.read')) {
     machines.push({
       label: 'Inventory',
       to: '/machine-logbook/inventory',
       active: pathname.startsWith('/machine-logbook/inventory'),
     });
   }
-  if (hasPermission(currentUser, PermissionId.statisticsread)) {
+  if (hasPermission(currentUser, 'statistics.read')) {
     machines.push({
       label: 'Statistics',
       to: '/machine-logbook/statistics',
@@ -177,21 +158,21 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
 
   const sales: NavigationItem[] = [];
-  if (hasAnyPermission(currentUser, [PermissionId.ordersread, PermissionId.paymentsread])) {
+  if (hasAnyPermission(currentUser, ['orders.read', 'payments.read'])) {
     sales.push({ label: 'Overview', to: '/sales', active: pathname === '/sales' });
   }
-  if (hasPermission(currentUser, PermissionId.ordersread)) {
+  if (hasPermission(currentUser, 'orders.read')) {
     sales.push({ label: 'Orders', to: '/orders', active: pathname.startsWith('/orders') });
   }
-  if (hasPermission(currentUser, PermissionId.paymentsread)) {
+  if (hasPermission(currentUser, 'payments.read')) {
     sales.push({ label: 'Payments', to: '/payments', active: pathname.startsWith('/payments') });
   }
-  if (hasPermission(currentUser, PermissionId.pricingread)) {
+  if (hasPermission(currentUser, 'pricing.read')) {
     sales.push({ label: 'Pricing', to: '/pricing', active: pathname.startsWith('/pricing') });
   }
 
   const signage: NavigationItem[] = [];
-  const canReadSignage = hasPermission(currentUser, PermissionId.signageread);
+  const canReadSignage = hasPermission(currentUser, 'signage.read');
   if (canReadSignage) {
     signage.push({
       label: 'Displays',
@@ -199,7 +180,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
       active: pathname === '/signage' || pathname.startsWith('/signage/displays'),
     });
   }
-  if (canReadSignage || hasPermission(currentUser, PermissionId.signageoverride)) {
+  if (canReadSignage || hasPermission(currentUser, 'signage.override')) {
     signage.push({
       label: 'Announcements',
       to: '/signage/announcements',
@@ -219,7 +200,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
   }
 
-  const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
+  const canReadAuditLog = hasPermission(currentUser, 'audit.read');
   const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
 
   const renderGroup = (

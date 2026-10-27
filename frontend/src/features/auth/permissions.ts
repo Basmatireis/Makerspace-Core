@@ -18,6 +18,8 @@ export function normalizePermissionGrants(grants: readonly PermissionGrant[]): P
     scope: grant.scope,
     deviceTypeIds: [...permissionGrantDeviceTypeIds(grant)],
     minimumAssurance: grant.minimumAssurance,
+    // Omitted means no fresh sign-in is required, so grants without a window keep their former request shape.
+    ...(grant.reauthWithinMinutes == null ? {} : { reauthWithinMinutes: grant.reauthWithinMinutes }),
   }));
 }
 
@@ -32,11 +34,7 @@ export function hasAnyPermission(currentUser: CurrentUser, permissions: readonly
 // Both billing-party and machine-job-operator searches use this permission set.
 // Keep aligned with machinelogbook/catalog.go: canLookupParties.
 export function canLookupJobParties(currentUser: CurrentUser): boolean {
-  return hasAnyPermission(currentUser, [
-    PermissionId.ordersread,
-    PermissionId.machine_jobscreate,
-    PermissionId.organizationsread,
-  ]);
+  return hasAnyPermission(currentUser, ['orders.read', 'machine_jobs.create', 'organizations.read']);
 }
 
 export function isOwnPerson(currentUser: CurrentUser, personId: string): boolean {
@@ -45,39 +43,39 @@ export function isOwnPerson(currentUser: CurrentUser, personId: string): boolean
 
 export function canReadPerson(currentUser: CurrentUser, personId: string): boolean {
   return (
-    hasPermission(currentUser, PermissionId.peoplereadall) ||
-    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, PermissionId.peoplereadself))
+    hasPermission(currentUser, 'people.read.all') ||
+    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, 'people.read.self'))
   );
 }
 
 export function canUpdatePerson(currentUser: CurrentUser, personId: string): boolean {
   return (
-    hasPermission(currentUser, PermissionId.peopleupdateall) ||
-    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, PermissionId.peopleupdateself))
+    hasPermission(currentUser, 'people.update.all') ||
+    (isOwnPerson(currentUser, personId) && hasPermission(currentUser, 'people.update.self'))
   );
 }
 
 export const settingsPermissions: readonly PermissionIdType[] = [
-  PermissionId.rolesread,
-  PermissionId.managed_devicesread,
-  PermissionId.session_policiesmanage,
-  PermissionId.surveysread,
-  PermissionId.surveysmanage,
-  PermissionId.laborordnungread,
-  PermissionId.laborordnungmanage,
-  PermissionId.laborordnungrequestsread,
-  PermissionId.visitor_enrollmentmanage,
-  PermissionId.scimmanage,
-  PermissionId.oidcmanage,
-  PermissionId.mailmanage,
-  PermissionId.brandingmanage,
-  PermissionId.invoicingsettingsmanage,
-  PermissionId.configurationexport,
-  PermissionId.configurationimport,
-  PermissionId.local_servicesmanage,
-  PermissionId.printer_connectorsread,
-  PermissionId.open_daysmanage,
-  PermissionId.trainingsmanage,
+  'roles.read',
+  'managed_devices.read',
+  'session_policies.manage',
+  'surveys.read',
+  'surveys.manage',
+  'laborordnung.read',
+  'laborordnung.manage',
+  'laborordnung.requests.read',
+  'visitor_enrollment.manage',
+  'scim.manage',
+  'oidc.manage',
+  'mail.manage',
+  'branding.manage',
+  'invoicing.settings.manage',
+  'configuration.export',
+  'configuration.import',
+  'local_services.manage',
+  'printer_connectors.read',
+  'open_days.manage',
+  'trainings.manage',
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {
@@ -85,14 +83,14 @@ export function canAccessSettings(currentUser: CurrentUser): boolean {
 }
 
 export function canAccessOpenDays(currentUser: CurrentUser): boolean {
-  return hasAnyPermission(currentUser, [PermissionId.open_daysread, PermissionId.open_daysmanage]);
+  return hasAnyPermission(currentUser, ['open_days.read', 'open_days.manage']);
 }
 
 export const machineLogbookPermissions: readonly PermissionIdType[] = [
-  PermissionId.machinesread,
-  PermissionId.machine_jobsread,
-  PermissionId.inventoryread,
-  PermissionId.statisticsread,
+  'machines.read',
+  'machine_jobs.read',
+  'inventory.read',
+  'statistics.read',
 ];
 
 export function canAccessMachineLogbook(currentUser: CurrentUser): boolean {
@@ -103,7 +101,7 @@ export function canManageRoleMembership(
   currentUser: CurrentUser,
   role: Pick<Role, 'permissionGrants' | 'systemKey'>,
 ): boolean {
-  if (!hasPermission(currentUser, PermissionId.peoplerolesassign)) {
+  if (!hasPermission(currentUser, 'people.roles.assign')) {
     return false;
   }
 
@@ -121,6 +119,7 @@ export function canManageRoleMembership(
 export function grantCoveredBy(own: PermissionGrant, requested: PermissionGrant): boolean {
   if (own.permissionId !== requested.permissionId) return false;
   if (assuranceRank(own.minimumAssurance) > assuranceRank(requested.minimumAssurance)) return false;
+  if (!windowCoveredBy(own, requested)) return false;
   if (own.scope === 'everywhere') return true;
   if (requested.scope === 'everywhere') return false;
   if (own.scope === 'anyManagedDevice') return true;
@@ -132,7 +131,8 @@ export function permissionGrantCoveredBy(ownGrants: readonly PermissionGrant[], 
   const candidates = ownGrants.filter(
     (own) =>
       own.permissionId === requested.permissionId &&
-      assuranceRank(own.minimumAssurance) <= assuranceRank(requested.minimumAssurance),
+      assuranceRank(own.minimumAssurance) <= assuranceRank(requested.minimumAssurance) &&
+      windowCoveredBy(own, requested),
   );
   if (requested.scope !== 'selectedDeviceTypes') {
     return candidates.some((own) => grantCoveredBy(own, requested));
@@ -147,6 +147,12 @@ export function permissionGrantCoveredBy(ownGrants: readonly PermissionGrant[], 
   );
 }
 
+/** A fresh sign-in window is part of the delegation envelope: a delegated grant may be stricter, never looser. */
+function windowCoveredBy(own: PermissionGrant, requested: PermissionGrant) {
+  if (own.reauthWithinMinutes == null) return true;
+  return requested.reauthWithinMinutes != null && requested.reauthWithinMinutes <= own.reauthWithinMinutes;
+}
+
 function assuranceRank(value: PermissionGrant['minimumAssurance']) {
   return ['low', 'normal', 'strong', 'strong_mfa'].indexOf(value);
 }
@@ -158,6 +164,10 @@ export function permissionGrantsValid(grants: readonly PermissionGrant[]) {
     grants.every(
       (grant) =>
         permissionGrantDeviceTypeIds(grant).length === new Set(permissionGrantDeviceTypeIds(grant)).size &&
+        (grant.reauthWithinMinutes == null ||
+          (Number.isInteger(grant.reauthWithinMinutes) &&
+            grant.reauthWithinMinutes >= 1 &&
+            grant.reauthWithinMinutes <= 1440)) &&
         (grant.scope === 'selectedDeviceTypes'
           ? permissionGrantDeviceTypeIds(grant).length > 0
           : permissionGrantDeviceTypeIds(grant).length === 0),
