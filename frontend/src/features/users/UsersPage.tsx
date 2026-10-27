@@ -106,7 +106,8 @@ export function UsersPage() {
   const mayDeleteAccounts = showAccounts && hasDeleteAccountsPermission;
   const mayDeletePeople =
     hasPermission(currentUser, PermissionId.peopledelete) && (showAccounts || hasDeleteAccountsPermission);
-  const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople;
+  const mayMerge = hasPermission(currentUser, PermissionId.peoplemerge);
+  const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople || mayMerge;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
   const supervisorRoleIds = new Set(
     (rolesQuery.data ?? []).filter((role) => role.staffingLevel === 'supervisor').map((role) => role.id),
@@ -304,6 +305,7 @@ export function UsersPage() {
                         assignRoles: mayAssignRoles,
                         deleteAccounts: mayDeleteAccounts,
                         deletePeople: mayDeletePeople,
+                        merge: mayMerge,
                       }}
                       canDeleteAccounts={hasDeleteAccountsPermission}
                       hasAssignableRoles={assignableRoles.length > 0}

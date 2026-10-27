@@ -135,3 +135,26 @@ One `person.merged` event (resource: the target Person) records `changedFields` 
 `account`) and counts only: `countMergedPeople` and `count<Category>` for every non-zero moved category (for example
 `countVisits`, `countActorReferences`, `countAuthenticationMethods`, `countAuditEvents`). No names, emails, numbers or
 other values are stored. The audit writer accepts `count…` metadata keys only with decimal values.
+
+## Web interface
+
+Everything below is UX only; the service decides and enforces. The wizard lives at `/people/merge`
+(`frontend/src/features/users/merge/`, a lazy route needing `people.merge` and `people.read.all`).
+
+- **Entry points.** The "Merge people" batch action of the people list (enabled for 2 to 10 selected rows) and "Merge with…"
+  in the actions menu of a person's detail page, both visible only with `people.merge`. They open the wizard with
+  `?person=<id>` (repeated) preselected.
+- **1. Select people.** Add or remove people through a name/email search (at most ten) and choose the person that stays.
+- **2. Compare.** Runs the preview. Every blocking conflict is an error notification with a message per code, and
+  Continue stays disabled while `canMerge` is false. Otherwise one row per field with a radio button per person.
+  The default equals the server default (the target's value, or for optional fields the first non-empty one; the
+  email follows the surviving account, and people without an account cannot be chosen for it). The matriculation row
+  exists only when the preview carries the number. Below the table: the role union, the surviving account, every
+  account's sign-in methods and the history that moves.
+- **3. Confirm.** A warning names the people that are deleted; an explicit checkbox enables the danger button. The
+  request carries `expectedVersions` of the preview and `fieldSources` for the fields whose choice differs from the
+  default only, so a matriculation number is sent only when it was deliberately changed. `409 stale_write` offers to run the
+  preview again; other 409/403/422 answers show the reason. `403 reauthentication_required` is handled by the global
+  "Confirm it's you" dialog, which repeats the merge once.
+- **4. Done.** Links to the merged person. When the caller merged into their own person every session ended, so the
+  page says so and offers "Sign in again" instead of refreshing data.

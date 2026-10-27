@@ -17,7 +17,7 @@ import {
 } from '@carbon/react';
 import { TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { AccountSummary, Person } from '../../api/generated/models';
 import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { formatDateTime } from '../../app/dateTime';
@@ -84,6 +84,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const branding = useBranding();
   const statusLabel = `${branding.identity.displayName} status`;
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const account: AccountSummary | undefined = asAccount(person.account);
   const access = getPersonDetailAccess(currentUser, person, account);
   const ctrl = usePersonDetailActions({ person, account, access });
@@ -108,6 +109,7 @@ function UserDetailContent({ person }: { person: Person }) {
     hasAccountActions,
     hasCredentialActions,
     hasPersonActions,
+    canMerge,
   } = access;
   const {
     editingPerson,
@@ -351,6 +353,15 @@ function UserDetailContent({ person }: { person: Person }) {
                   label={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'}
                   onClick={() => setPINModalOpen(true)}
                 />
+              )}
+              {canMerge && (
+                <>
+                  <MenuItemDivider />
+                  <MenuItem
+                    label="Merge with…"
+                    onClick={() => navigate(`/people/merge?${new URLSearchParams({ person: person.id })}`)}
+                  />
+                </>
               )}
             </MenuButton>
           ) : undefined

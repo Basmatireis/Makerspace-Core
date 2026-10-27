@@ -34,6 +34,7 @@ export function getPersonDetailAccess(
   const canDisableAccount = account?.status === 'enabled' && hasPermission(currentUser, PermissionId.accountsdisable);
   const canDeleteAccount = Boolean(account) && hasPermission(currentUser, PermissionId.accountsdelete);
   const canAssignRole = canAssignRoles && canReadRoles;
+  const canMerge = hasPermission(currentUser, PermissionId.peoplemerge);
   const canResetSecondFactors = Boolean(account) && hasPermission(currentUser, PermissionId.accountsmfareset);
   const passwordIdentity = account?.authIdentities.find((identity) => identity.kind === 'password');
   // Independent of mail delivery. A password needs a login email, so an account without one can only be given a
@@ -74,7 +75,8 @@ export function getPersonDetailAccess(
     canSetPassword ||
     canIssuePasswordReset ||
     canInvite ||
-    canConfigurePIN;
+    canConfigurePIN ||
+    canMerge;
   return {
     canEditPerson,
     canReadMatriculation,
@@ -109,5 +111,6 @@ export function getPersonDetailAccess(
     hasAccountActions,
     hasCredentialActions,
     hasPersonActions,
+    canMerge,
   };
 }

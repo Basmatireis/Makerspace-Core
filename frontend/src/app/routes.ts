@@ -197,6 +197,9 @@ export const SupervisorStaffingPage = lazy(() =>
     default: SupervisorStaffingPage,
   })),
 );
+export const PeopleMergePage = lazy(() =>
+  import('../features/users/merge/PeopleMergePage').then(({ PeopleMergePage }) => ({ default: PeopleMergePage })),
+);
 export const UserCreatePage = lazy(() =>
   import('../features/users/UserCreatePage').then(({ UserCreatePage }) => ({ default: UserCreatePage })),
 );

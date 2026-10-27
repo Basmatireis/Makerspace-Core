@@ -80,6 +80,7 @@ import {
   VisitorEnrollmentSettingsPage,
   VisitorKioskPage,
   MessagesPage,
+  PeopleMergePage,
 } from './routes';
 import { IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
 
@@ -598,6 +599,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={['people.create']}>
                   <UserCreatePage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="people/merge"
+              element={
+                <PermissionRoute allOf={['people.merge', 'people.read.all']}>
+                  <PeopleMergePage />
                 </PermissionRoute>
               }
             />

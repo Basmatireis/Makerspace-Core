@@ -1,0 +1,45 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Application-specific layout for the merge wizard; every control is a Carbon component.
+.people-merge__targets {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.people-merge__person {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  padding: $spacing-02 0;
+}
+
+.people-merge__search {
+  max-width: 28rem;
+}
+
+.people-merge__table-scroll {
+  overflow-x: auto;
+}
+
+.people-merge__option {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.people-merge__empty {
+  color: theme.$text-secondary;
+}
+
+.people-merge__tag {
+  margin-inline-start: $spacing-03;
+}
+
+.people-merge__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
