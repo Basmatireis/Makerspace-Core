@@ -18,7 +18,7 @@ COPY backend/ ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector.Version=${VERSION}" -o /out/printer-connector ./cmd/printer-connector
 
-FROM alpine:3.24.2 AS final
+FROM alpine:3.24.3 AS final
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S connector \
