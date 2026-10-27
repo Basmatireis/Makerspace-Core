@@ -100,14 +100,14 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
       pathname.includes('/public/legal/') ||
       pathname.includes('/public/branding/assets/');
     const isPublicEventRequest = pathname.includes('/public/events/') || pathname.includes('/public/event-signups/');
-    const isPublicTerminalRequest = pathname.includes('/terminal/') || pathname.includes('/public/surveys/');
+    const isPublicKioskRequest = pathname.includes('/terminal/') || pathname.includes('/public/surveys/');
     const isCurrentUserProbe = method === 'GET' && pathname.endsWith('/auth/me');
     if (
       response.status === 401 &&
       !isPublicAuthenticationRequest &&
       !isPublicBrandingRequest &&
       !isPublicEventRequest &&
-      !isPublicTerminalRequest &&
+      !isPublicKioskRequest &&
       !isCurrentUserProbe
     ) {
       window.dispatchEvent(new CustomEvent('makerspace:session-expired', { detail: data }));

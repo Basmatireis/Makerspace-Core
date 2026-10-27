@@ -23,17 +23,19 @@ export function PdfPages({ url }: { url: string }) {
     <div className="visitor-pdf">
       {status === 'loading' && <InlineLoading description="Loading Lab Rules…" />}
       {status === 'failed' && (
-        <InlineNotification
-          kind="error"
-          lowContrast
-          hideCloseButton
-          title="The Lab Rules could not be displayed."
-          subtitle="Try again, or open the document in a separate tab."
-        >
+        <>
+          {/* Carbon's InlineNotification throws on interactive children, so the link sits below it. */}
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="The Lab Rules could not be displayed."
+            subtitle="Try again, or open the document in a separate tab."
+          />
           <Link href={url} target="_blank" rel="noreferrer">
             Open in new tab
           </Link>
-        </InlineNotification>
+        </>
       )}
       <div ref={host} className="visitor-pdf__pages" />
     </div>

@@ -6,7 +6,7 @@
 
 Makerspace Core is a privacy-conscious management application for one makerspace/location. It is a modular monolith: one Go API, one React application, and one PostgreSQL database per deployment.
 
-The implemented modules cover people, optional user accounts, password/PIN/OIDC authentication, standalone email verification, database-administered transactional SMTP, assurance- and device-scoped permission grants, server-side sessions and reusable session policies, managed-device identities and capabilities, visitor terminals and attendance, configurable post-visit surveys, private Local/S3 files, profile images, versioned Lab Rules evidence, SCIM 2.0 provisioning and reconciliation, controlled visitor-terminal enrollment and admission, user administration, Open Days, supervisor reporting, the machine logbook with inventory/pricing/statistics, internal Orders with cash/card Payments and wiRef invoicing requests, and audit logging. Training, rental, and general-purpose document signing remain outside the current scope.
+The implemented modules cover people, optional user accounts, password/PIN/OIDC authentication, standalone email verification, database-administered transactional SMTP, assurance- and device-scoped permission grants, server-side sessions and reusable session policies, managed-device identities and capabilities, visitor kiosks and attendance, configurable post-visit surveys, private Local/S3 files, profile images, versioned Lab Rules evidence, SCIM 2.0 provisioning and reconciliation, controlled visitor-kiosk enrollment and admission, user administration, Open Days, supervisor reporting, the machine logbook with inventory/pricing/statistics, internal Orders with cash/card Payments and wiRef invoicing requests, and audit logging. Training, rental, and general-purpose document signing remain outside the current scope.
 
 ## Running Makerspace Core
 
@@ -122,10 +122,10 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 - [Architecture and domain model](docs/architecture.md)
 - [Orders, payments, and external wiRef invoicing](docs/orders.md)
 - [Digital signage](docs/signage.md), [signage player kiosk setup](docs/signage-player.md), and [streaming gateway](docs/streaming-gateway.md)
-- [Terminal, attendance, session policies, and surveys](docs/terminal-attendance-surveys.md)
+- [Kiosk, attendance, session policies, and surveys](docs/kiosk-attendance-surveys.md)
 - [Device Bridge architecture](docs/device-bridge.md)
-- [Desktop terminal](docs/desktop-device-bridge.md)
-- [Android terminal](docs/android-terminal.md)
+- [Desktop kiosk](docs/desktop-device-bridge.md)
+- [Android kiosk](docs/android-kiosk.md)
 - [Authentication and sessions](docs/authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](docs/operations.md)
 - [Authorization and registered permissions](docs/authorization.md)

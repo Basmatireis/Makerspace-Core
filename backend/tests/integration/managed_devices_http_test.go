@@ -223,7 +223,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		deviceType.ID,
 		nil,
 		manageddevices.DeviceSettings{
-			SessionPolicyID: &policyID, TerminalEnabled: true, AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
+			SessionPolicyID: &policyID, KioskEnabled: true, AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
 			CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified", Capabilities: []string{"nfc"},
 		},
 		nil,
@@ -261,7 +261,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		`UPDATE managed_devices SET terminal_enabled=true, allowed_app_modes=ARRAY['staff_ui']::text[] WHERE id=$1`,
 		staff.Device.ID,
 	); err == nil {
-		t.Fatal("database accepted a terminal without visitor_terminal mode")
+		t.Fatal("database accepted a kiosk without visitor_terminal mode")
 	}
 	origin := "http://makerspace.example.test"
 	server := newManagedDeviceHTTPServer(t, pool, origin)

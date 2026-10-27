@@ -16,7 +16,7 @@ Disabling an OIDC provider prevents new logins, linking, and reauthentication, i
 
 `identities.oidc.link.all` is retained for contract compatibility but reserved and unimplemented. There is no administrative endpoint to assign a subject or attach an external principal to another Account.
 
-Assurance and managed-device scope are independent grant requirements. A terminal does not raise the user's authentication assurance. See [authorization](authorization.md) and [managed devices](managed-devices.md).
+Assurance and managed-device scope are independent grant requirements. A kiosk does not raise the user's authentication assurance. See [authorization](authorization.md) and [managed devices](managed-devices.md).
 
 ## Server-side sessions and browser protection
 
@@ -24,7 +24,7 @@ Successful password, PIN, and OIDC login generates random session and CSRF token
 
 Password/PIN login and security-sensitive Account mutations lock the Account. Password challenge completion also locks the Account before the challenge and revalidates its identity after waiting. OIDC session creation rechecks Account status and identity ownership/disablement under that same lock. Administrative password changes, login-email changes, and recovery invalidate password reset/invitation/verification challenges and revoke sessions. An already-issued self-service recovery challenge intentionally remains redeemable after a self password change, matching the existing concurrency test.
 
-Development cookies are `makerspace_session` (HttpOnly) and `makerspace_csrf` (readable by the frontend), both SameSite=Lax and Path=/. Production requires HTTPS and secure cookies with corresponding `__Host-` names, Path=/ and no Domain. OIDC flows and visitor contexts use separate cookies. A managed-device header or HttpOnly device cookie identifies a terminal, not a user; invalid/expired/revoked device credentials are treated as absent.
+Development cookies are `makerspace_session` (HttpOnly) and `makerspace_csrf` (readable by the frontend), both SameSite=Lax and Path=/. Production requires HTTPS and secure cookies with corresponding `__Host-` names, Path=/ and no Domain. OIDC flows and visitor contexts use separate cookies. A managed-device header or HttpOnly device cookie identifies a kiosk, not a user; invalid/expired/revoked device credentials are treated as absent.
 
 Unsafe browser requests require an Origin matching `PUBLIC_BASE_URL`. Unsafe session-authenticated requests additionally mirror the CSRF cookie in `X-CSRF-Token`; the server compares cookie/header in constant time and checks the stored digest. Visitor enrollment has its own CSRF cookie/header and device-bound context. SCIM uses connector bearer authentication instead of browser cookies/CSRF. Browser access is same-origin, without permissive CORS.
 

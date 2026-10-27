@@ -273,7 +273,7 @@ function DevicePolicyFields({
         id={`${id}-session-policy`}
         labelText="Session policy"
         invalid={value.terminalEnabled && !value.sessionPolicyId}
-        invalidText="Public terminals require an explicit session policy."
+        invalidText="Public kiosks require an explicit session policy."
         value={value.sessionPolicyId ?? ''}
         onChange={(event) => onChange({ ...value, sessionPolicyId: event.target.value || null })}
       >
@@ -289,7 +289,7 @@ function DevicePolicyFields({
             <Checkbox
               key={mode}
               id={`${id}-mode-${mode}`}
-              labelText={mode === 'visitor_terminal' ? 'Visitor terminal' : 'Staff UI'}
+              labelText={mode === 'visitor_terminal' ? 'Visitor kiosk' : 'Staff UI'}
               checked={value.allowedApplicationModes.includes(mode)}
               onChange={(_, data) =>
                 onChange({
@@ -304,8 +304,8 @@ function DevicePolicyFields({
         </Stack>
       </fieldset>
       <Checkbox
-        id={`${id}-terminal-enabled`}
-        labelText="Enable public visitor terminal"
+        id={`${id}-kiosk-enabled`}
+        labelText="Enable public visitor kiosk"
         checked={value.terminalEnabled}
         onChange={(_, data) =>
           onChange({

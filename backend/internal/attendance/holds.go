@@ -27,7 +27,7 @@ type Hold struct {
 	PreviousRevision      *string
 }
 
-// PublicWaiting is the privacy-minimized terminal view of a held check-in.
+// PublicWaiting is the privacy-minimized kiosk view of a held check-in.
 type PublicWaiting struct {
 	HoldID      uuid.UUID
 	DisplayName string
@@ -198,7 +198,7 @@ func holdFromView(row attendancedb.ListActiveHoldsRow) Hold {
 	}
 }
 
-// EnrollmentCheckIn describes a visitor who just completed terminal enrollment.
+// EnrollmentCheckIn describes a visitor who just completed kiosk enrollment.
 type EnrollmentCheckIn struct {
 	PersonID, AccountID uuid.UUID
 	DeviceID            uuid.UUID

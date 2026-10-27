@@ -12,7 +12,7 @@ const ManagedDevicesPanel = lazy(() =>
   import('../devices/ManagedDevicesPage').then(({ ManagedDevicesPanel }) => ({ default: ManagedDevicesPanel })),
 );
 
-/** Session limits and trusted terminals; shows only the tabs the person may use. */
+/** Session limits and trusted kiosks; shows only the tabs the person may use. */
 export function DevicesSessionsPage() {
   const currentUser = useCurrentUser();
   const tabs: SettingsTab[] = [

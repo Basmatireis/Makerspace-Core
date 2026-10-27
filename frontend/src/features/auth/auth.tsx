@@ -110,7 +110,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function sessionDestination(currentUser: CurrentUser | undefined, errorData?: unknown): string {
-  if (currentUser?.session.postSessionDestination === 'visitor_terminal') return '/terminal';
+  if (currentUser?.session.postSessionDestination === 'visitor_terminal') return '/kiosk';
   if (typeof errorData === 'object' && errorData !== null && 'details' in errorData) {
     const details = errorData.details;
     if (
@@ -119,7 +119,7 @@ function sessionDestination(currentUser: CurrentUser | undefined, errorData?: un
       'postSessionDestination' in details &&
       details.postSessionDestination === 'visitor_terminal'
     ) {
-      return '/terminal';
+      return '/kiosk';
     }
   }
   return '/login';
@@ -208,6 +208,7 @@ export function SessionEventHandler() {
           '/complete-pin-setup',
           '/verify-email',
           '/visitor-enrollment',
+          '/kiosk',
           '/terminal',
           '/events/signup/manage',
         ].includes(location.pathname) ||

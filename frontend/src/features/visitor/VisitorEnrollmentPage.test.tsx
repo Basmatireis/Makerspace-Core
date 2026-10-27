@@ -65,7 +65,7 @@ describe('controlled visitor enrollment', () => {
       }),
     );
     const user = userEvent.setup();
-    const { queryClient } = renderTerminalAware();
+    const { queryClient } = renderKioskAware();
 
     // Step 1: required fields and the contact rule are visible, Next stays disabled until the step is valid.
     expect(await screen.findByRole('heading', { name: 'About you' })).toHaveFocus();
@@ -141,10 +141,10 @@ describe('controlled visitor enrollment', () => {
     ).toBe(true);
 
     await user.click(screen.getByRole('button', { name: /^Done/ }));
-    expect(await screen.findByText('Terminal screen')).toBeInTheDocument();
+    expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
-  it('offers the email invitation only with an email address and goes back to the terminal', async () => {
+  it('offers the email invitation only with an email address and goes back to the kiosk', async () => {
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
       http.get('*/api/v1/visitor-enrollment/state', () =>
@@ -156,7 +156,7 @@ describe('controlled visitor enrollment', () => {
       ),
     );
     const user = userEvent.setup();
-    renderTerminalAware();
+    renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Pia');
     await user.type(screen.getByLabelText('Last name'), 'Phone');
     await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
@@ -170,7 +170,7 @@ describe('controlled visitor enrollment', () => {
     expect(screen.getByText(/you did not enter an email address/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     await user.click(screen.getByRole('link', { name: 'Back to check-in' }));
-    expect(await screen.findByText('Terminal screen')).toBeInTheDocument();
+    expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
   describe('inactivity', () => {
@@ -188,7 +188,7 @@ describe('controlled visitor enrollment', () => {
         ),
       );
       vi.useFakeTimers({ shouldAdvanceTime: true });
-      renderTerminalAware();
+      renderKioskAware();
       expect(await screen.findByLabelText('First name')).toBeInTheDocument();
       act(() => void vi.advanceTimersByTime(30_000));
       expect(screen.getByText(/Returning to check-in in (29|30) s/)).toBeInTheDocument();
@@ -199,16 +199,16 @@ describe('controlled visitor enrollment', () => {
       act(() => void vi.advanceTimersByTime(29_000));
       expect(screen.queryByText(/Returning to check-in/)).not.toBeInTheDocument();
       act(() => void vi.advanceTimersByTime(61_000));
-      expect(screen.getByText('Terminal screen')).toBeInTheDocument();
+      expect(screen.getByText('Kiosk screen')).toBeInTheDocument();
     });
   });
 });
 
-function renderTerminalAware() {
+function renderKioskAware() {
   return renderRoute(
     <Routes>
       <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
-      <Route path="/terminal" element={<p>Terminal screen</p>} />
+      <Route path="/kiosk" element={<p>Kiosk screen</p>} />
     </Routes>,
     '/visitor-enrollment',
   );

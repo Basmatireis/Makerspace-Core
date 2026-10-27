@@ -1,6 +1,6 @@
-# Desktop terminal
+# Desktop kiosk
 
-Makerspace Core Desktop is a Tauri application that loads the existing Core web application in the operating system WebView and adds local hardware support. It follows the same model as the Android terminal: Core remains the source of UI and business rules, while the native shell owns the managed-device credential, navigation boundary, and hardware adapter.
+Makerspace Core Desktop is a Tauri application that loads the existing Core web application in the operating system WebView and adds local hardware support. It follows the same model as the Android kiosk: Core remains the source of UI and business rules, while the native shell owns the managed-device credential, navigation boundary, and hardware adapter.
 
 The desktop app bundles the Go Device Bridge as a private sidecar. The shell starts it on `127.0.0.1:17321`, creates the pairing key, restricts it to the configured Core origin, and injects the loopback connection into the web application. Operators do not copy a pairing key or run a second process. Ordinary browsers continue to use the browser fallback and do not become Managed Devices automatically.
 
@@ -8,12 +8,12 @@ The desktop app bundles the Go Device Bridge as a private sidecar. The shell sta
 
 1. In **Settings → Access & identity → Devices & sessions** (tab **Managed devices**), create or edit a device with the required application modes and capabilities. Select native-token delivery.
 2. Start Makerspace Core Desktop and enter the exact Core origin plus the one-time managed-device token.
-3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/terminal`; other permitted devices open `/login`.
+3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/kiosk`; other permitted devices open `/login`.
 
 Production registrations require HTTPS, including bundles created by `make build-desktop` or `pnpm build`. For local development against an HTTP Core origin such as `http://localhost:5173`, launch a debug build instead:
 
 ```sh
-cd desktop-terminal
+cd desktop-kiosk
 pnpm dev
 ```
 

@@ -22,7 +22,7 @@ import { useCurrentUserQuery, useLogin, usePINLogin } from './auth';
 import { useBranding, usePageTitle } from '../branding/branding';
 import { LegalLinks } from '../branding/LegalLinks';
 
-// `origin: 'terminal'` is set by the entrance terminal's staff link so this page can offer the way back.
+// `origin: 'kiosk'` is set by the entrance kiosk's staff link so this page can offer the way back.
 type LocationState = { from?: string; origin?: string } | null;
 
 function safeReturnPath(state: LocationState): string {
@@ -42,7 +42,7 @@ export function LoginPage() {
     queryKey: ['oidc', 'login-providers'],
     queryFn: ({ signal }) => listOIDCLoginProviders({ signal }),
   });
-  const fromTerminal = (location.state as LocationState)?.origin === 'terminal';
+  const fromKiosk = (location.state as LocationState)?.origin === 'kiosk';
   const [method, setMethod] = useState<'password' | 'pin'>('password');
   const {
     register,
@@ -92,10 +92,10 @@ export function LoginPage() {
     <main className="auth-page auth-page--login">
       <section className="auth-card" aria-labelledby="login-title">
         <Stack gap={6}>
-          {fromTerminal && (
+          {fromKiosk && (
             <div>
-              <Button as={Link} to="/terminal" kind="ghost" size="md" renderIcon={ArrowLeft}>
-                Back to terminal
+              <Button as={Link} to="/kiosk" kind="ghost" size="md" renderIcon={ArrowLeft}>
+                Back to kiosk
               </Button>
             </div>
           )}

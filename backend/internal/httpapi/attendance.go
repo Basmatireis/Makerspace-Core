@@ -10,7 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 )
 
-func terminalDevice(ctx context.Context) (manageddevices.DeviceContext, error) {
+func kioskDevice(ctx context.Context) (manageddevices.DeviceContext, error) {
 	device, ok := ctx.Value(visitorDeviceContextKey).(manageddevices.DeviceContext)
 	if !ok {
 		return manageddevices.DeviceContext{}, apperror.NotFound
@@ -22,11 +22,11 @@ func (s *Server) GetTerminalContext(
 	ctx context.Context,
 	_ openapi.GetTerminalContextRequestObject,
 ) (openapi.GetTerminalContextResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
-	value, err := s.attendance.TerminalContext(ctx, device)
+	value, err := s.attendance.KioskContext(ctx, device)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ListTerminalPresence(
 	ctx context.Context,
 	_ openapi.ListTerminalPresenceRequestObject,
 ) (openapi.ListTerminalPresenceResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (s *Server) TerminalPasswordCheckIn(
 	ctx context.Context,
 	request openapi.TerminalPasswordCheckInRequestObject,
 ) (openapi.TerminalPasswordCheckInResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (s *Server) TerminalPinCheckIn(
 	ctx context.Context,
 	request openapi.TerminalPinCheckInRequestObject,
 ) (openapi.TerminalPinCheckInResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (s *Server) TerminalPasswordCheckOut(
 	ctx context.Context,
 	request openapi.TerminalPasswordCheckOutRequestObject,
 ) (openapi.TerminalPasswordCheckOutResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func (s *Server) TerminalPinCheckOut(
 	ctx context.Context,
 	request openapi.TerminalPinCheckOutRequestObject,
 ) (openapi.TerminalPinCheckOutResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (s *Server) TerminalPublicCheckOut(
 	ctx context.Context,
 	request openapi.TerminalPublicCheckOutRequestObject,
 ) (openapi.TerminalPublicCheckOutResponseObject, error) {
-	device, err := terminalDevice(ctx)
+	device, err := kioskDevice(ctx)
 	if err != nil {
 		return nil, err
 	}

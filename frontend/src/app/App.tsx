@@ -9,7 +9,7 @@ import { NotFoundPage } from './NotFoundPage';
 import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
 import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
-import { DeviceBridgeProvider } from '../features/terminal/DeviceBridgeProvider';
+import { DeviceBridgeProvider } from '../features/kiosk/DeviceBridgeProvider';
 import {
   ActivityPage,
   AttendancePage,
@@ -78,7 +78,7 @@ import {
   UsersPage,
   VisitorEnrollmentPage,
   VisitorEnrollmentSettingsPage,
-  VisitorTerminalPage,
+  VisitorKioskPage,
   MessagesPage,
 } from './routes';
 import { ExternalInvoiceRedirect, IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
@@ -107,7 +107,9 @@ export function App() {
           <Route path="/complete-pin-setup" element={<PINEnrollmentPage />} />
           <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
-          <Route path="/terminal" element={<VisitorTerminalPage />} />
+          <Route path="/kiosk" element={<VisitorKioskPage />} />
+          {/* Devices registered before the rename still open the old path. */}
+          <Route path="/terminal" element={<Navigate to="/kiosk" replace />} />
           <Route path="/survey/:token" element={<PublicSurveyPage />} />
           <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
           <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />

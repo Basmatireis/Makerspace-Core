@@ -187,7 +187,7 @@ export function AppShell() {
                 {logoutMutation.isPending
                   ? 'Ending staff session…'
                   : currentUser.session.postSessionDestination === 'visitor_terminal'
-                    ? 'Return to public terminal'
+                    ? 'Return to public kiosk'
                     : 'Sign out'}
               </Button>
               {logoutMutation.isError && (
@@ -274,7 +274,7 @@ export function AppShell() {
                 lowContrast
                 hideCloseButton
                 title="Admission not evaluated"
-                subtitle="This action requires an approved visitor terminal."
+                subtitle="This action requires an approved visitor kiosk."
               />
             )}
           </section>

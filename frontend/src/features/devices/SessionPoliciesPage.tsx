@@ -50,7 +50,7 @@ export function SessionPoliciesPanel() {
                 <h2>{policy.name}</h2>
                 <p>
                   Idle {duration(policy.idleTimeoutSeconds)} · absolute {duration(policy.absoluteLifetimeSeconds)} ·
-                  after expiry: {policy.postSessionDestination === 'visitor_terminal' ? 'Public terminal' : 'Sign in'}
+                  after expiry: {policy.postSessionDestination === 'visitor_terminal' ? 'Public kiosk' : 'Sign in'}
                 </p>
                 {policy.isDefault && <strong>Default for private devices</strong>}
               </div>
@@ -147,7 +147,7 @@ function PolicyForm({
             onChange={(event) => setDestination(event.target.value as PostSessionDestination)}
           >
             <SelectItem value="login" text="Sign in" />
-            <SelectItem value="visitor_terminal" text="Public visitor terminal" />
+            <SelectItem value="visitor_terminal" text="Public visitor kiosk" />
           </Select>
           <Checkbox
             id="policy-default"

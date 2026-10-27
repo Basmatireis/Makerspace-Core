@@ -186,7 +186,7 @@ func (s *Server) CreateManagedDevice(
 		r.Body.DeviceTypeId,
 		nullableTime(r.Body.ExpiresAt),
 		manageddevices.DeviceSettings{
-			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
+			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), KioskEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
 			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
@@ -228,7 +228,7 @@ func (s *Server) UpdateManagedDevice(
 		r.Body.DeviceTypeId,
 		nullableTime(r.Body.ExpiresAt),
 		manageddevices.DeviceSettings{
-			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), TerminalEnabled: r.Body.TerminalEnabled,
+			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), KioskEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
 			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
@@ -411,7 +411,7 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 			v.SessionPolicyID,
 			func(x uuid.UUID) openapi.UUIDv7 { return x },
 		),
-		TerminalEnabled:         v.TerminalEnabled,
+		TerminalEnabled:         v.KioskEnabled,
 		AllowedApplicationModes: applicationModes(v.AllowedApplicationModes),
 		CheckInAssurance:        openapi.AuthenticationAssurance(v.CheckInAssurance),
 		CheckOutAssurance:       openapi.AuthenticationAssurance(v.CheckOutAssurance),
@@ -451,7 +451,7 @@ func deviceCapabilities(values []string) []openapi.DeviceCapability {
 
 func hardwareContextDTO(value manageddevices.HardwareContext) openapi.DeviceHardwareContext {
 	return openapi.DeviceHardwareContext{
-		DeviceId: value.DeviceID, DeviceName: value.DeviceName, TerminalEnabled: value.TerminalEnabled,
+		DeviceId: value.DeviceID, DeviceName: value.DeviceName, TerminalEnabled: value.KioskEnabled,
 		AllowedApplicationModes: applicationModes(value.AllowedApplicationModes),
 		SessionPolicyId: nullablePointer[uuid.UUID](
 			value.SessionPolicyID,

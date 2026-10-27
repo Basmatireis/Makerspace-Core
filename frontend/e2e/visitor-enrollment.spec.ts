@@ -9,7 +9,7 @@ const labRulesPdf = Buffer.from(
     'trailer<</Root 1 0 R/Size 5>>\n%%EOF\n',
 );
 
-test('clears a completed terminal enrollment before the next visitor', async ({ page }, testInfo) => {
+test('clears a completed kiosk enrollment before the next visitor', async ({ page }, testInfo) => {
   // Carbon button transitions would let the accessibility scan measure half-faded colours.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: Error[] = [];

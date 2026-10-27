@@ -1,6 +1,6 @@
 import { Button, InlineNotification, ProgressIndicator, ProgressStep } from '@carbon/react';
 import { CheckmarkFilled } from '@carbon/icons-react';
-import { useReturnCountdown } from '../../terminal/components/useIdleCountdown';
+import { useReturnCountdown } from '../../kiosk/components/useIdleCountdown';
 
 const returnAfterSeconds = 30;
 
@@ -14,7 +14,7 @@ export type EnrollmentOutcome = {
   loginName: string;
 };
 
-// Shown after the submission, in the style of the terminal's hold screen; returns to the terminal on its own.
+// Shown after the submission, in the style of the kiosk's hold screen; returns to the kiosk on its own.
 export function EnrollmentDone({ outcome, onDone }: { outcome: EnrollmentOutcome; onDone: () => void }) {
   const left = useReturnCountdown(returnAfterSeconds, onDone);
   const blocked = outcome.admission === 'blocked';
@@ -42,7 +42,7 @@ export function EnrollmentDone({ outcome, onDone }: { outcome: EnrollmentOutcome
           </p>
           {blocked && (
             <ProgressIndicator vertical currentIndex={1} className="visitor-done__steps">
-              <ProgressStep label="Account created" secondaryLabel="You can sign in on this terminal." />
+              <ProgressStep label="Account created" secondaryLabel="You can sign in on this kiosk." />
               <ProgressStep label="Sign the Lab Rules" secondaryLabel="Together with a supervisor, on paper." />
               <ProgressStep label="Supervisor confirms" secondaryLabel="They record your signature." />
               <ProgressStep label="Checked in" secondaryLabel="Happens automatically." />

@@ -35,7 +35,7 @@ type Device struct {
 	DeviceTypeName                   string
 	ExpiresAt, RevokedAt, LastSeenAt *time.Time
 	SessionPolicyID                  *uuid.UUID
-	TerminalEnabled                  bool
+	KioskEnabled                     bool
 	AllowedApplicationModes          []ApplicationMode
 	CheckInAssurance                 authorization.Assurance
 	CheckOutAssurance                authorization.Assurance
@@ -70,7 +70,7 @@ type DeviceContext struct {
 	DeviceTypeName                      string
 	ExpiresAt                           *time.Time
 	SessionPolicyID                     *uuid.UUID
-	TerminalEnabled                     bool
+	KioskEnabled                        bool
 	AllowedApplicationModes             []ApplicationMode
 	CheckInAssurance, CheckOutAssurance authorization.Assurance
 	CheckoutMode                        CheckoutMode
@@ -78,7 +78,7 @@ type DeviceContext struct {
 
 type DeviceSettings struct {
 	SessionPolicyID         *uuid.UUID
-	TerminalEnabled         bool
+	KioskEnabled            bool
 	AllowedApplicationModes []ApplicationMode
 	CheckInAssurance        authorization.Assurance
 	CheckOutAssurance       authorization.Assurance
@@ -122,7 +122,7 @@ type HardwareReport struct {
 type HardwareContext struct {
 	DeviceID                                    uuid.UUID
 	DeviceName                                  string
-	TerminalEnabled                             bool
+	KioskEnabled                                bool
 	AllowedApplicationModes                     []ApplicationMode
 	ConfiguredCapabilities                      []string
 	ReportedCapabilities, EffectiveCapabilities []string
@@ -158,7 +158,7 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 			row.ExpiresAt,
 		),
 		SessionPolicyID:         row.SessionPolicyID,
-		TerminalEnabled:         row.TerminalEnabled,
+		KioskEnabled:            row.TerminalEnabled,
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
 		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
 		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance),
@@ -177,7 +177,7 @@ func (s *Service) GetHardwareContext(ctx context.Context, device DeviceContext) 
 		return HardwareContext{}, err
 	}
 	result := HardwareContext{
-		DeviceID: device.ID, DeviceName: device.Name, TerminalEnabled: device.TerminalEnabled,
+		DeviceID: device.ID, DeviceName: device.Name, KioskEnabled: device.KioskEnabled,
 		AllowedApplicationModes: append([]ApplicationMode(nil), device.AllowedApplicationModes...),
 		SessionPolicyID:         device.SessionPolicyID, ConfiguredCapabilities: configured,
 		ReportedCapabilities: reported, EffectiveCapabilities: intersectCapabilities(configured, reported),
@@ -306,7 +306,7 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 		if mode == ModeSignagePlayer {
 			return settings, apperror.InvalidField("signage player devices are created by pairing a signage display")
 		}
-		if (mode != ModeVisitorTerminal && mode != ModeStaffUI) || seenModes[mode] {
+		if (mode != ModeVisitorKiosk && mode != ModeStaffUI) || seenModes[mode] {
 			return settings, apperror.InvalidField("allowedApplicationModes must contain unique supported values")
 		}
 		seenModes[mode] = true
@@ -333,11 +333,11 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if err := validateCapabilities(settings.Capabilities); err != nil {
 		return settings, err
 	}
-	if settings.TerminalEnabled && settings.SessionPolicyID == nil {
-		return settings, apperror.InvalidField("terminal-enabled devices require a session policy")
+	if settings.KioskEnabled && settings.SessionPolicyID == nil {
+		return settings, apperror.InvalidField("kiosk-enabled devices require a session policy")
 	}
-	if settings.TerminalEnabled && !seenModes[ModeVisitorTerminal] {
-		return settings, apperror.InvalidField("terminal-enabled devices must allow visitor_terminal mode")
+	if settings.KioskEnabled && !seenModes[ModeVisitorKiosk] {
+		return settings, apperror.InvalidField("kiosk-enabled devices must allow visitor_terminal mode")
 	}
 	return settings, nil
 }

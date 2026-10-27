@@ -4,7 +4,7 @@ package people
 type ProfileImageSource string
 
 const (
-	ImageTerminalCapture ProfileImageSource = "terminal_capture"
-	ImageSelfUpload      ProfileImageSource = "self_upload"
-	ImageAdminUpload     ProfileImageSource = "admin_upload"
+	ImageKioskCapture ProfileImageSource = "terminal_capture"
+	ImageSelfUpload   ProfileImageSource = "self_upload"
+	ImageAdminUpload  ProfileImageSource = "admin_upload"
 )

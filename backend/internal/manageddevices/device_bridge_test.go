@@ -14,18 +14,18 @@ func TestValidateDeviceSettingsRequiresExplicitUniqueModes(t *testing.T) {
 	}{
 		{name: "private default", settings: DeviceSettings{}, wantErr: false},
 		{
-			name: "terminal modes",
+			name: "kiosk modes",
 			settings: DeviceSettings{
-				TerminalEnabled:         true,
+				KioskEnabled:            true,
 				SessionPolicyID:         uuidPointer(),
 				AllowedApplicationModes: []ApplicationMode{"visitor_terminal", "staff_ui"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "terminal lacks visitor mode",
+			name: "kiosk lacks visitor mode",
 			settings: DeviceSettings{
-				TerminalEnabled:         true,
+				KioskEnabled:            true,
 				SessionPolicyID:         uuidPointer(),
 				AllowedApplicationModes: []ApplicationMode{"staff_ui"},
 			},

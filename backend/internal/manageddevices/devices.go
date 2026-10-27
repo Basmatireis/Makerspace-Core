@@ -113,7 +113,7 @@ func (s *Service) Update(
 		return Device{}, err
 	}
 	return s.UpdateConfigured(ctx, principal, id, name, typeID, expiresAt, DeviceSettings{
-		SessionPolicyID: current.SessionPolicyID, TerminalEnabled: current.TerminalEnabled,
+		SessionPolicyID: current.SessionPolicyID, KioskEnabled: current.TerminalEnabled,
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](current.AllowedAppModes),
 		CheckInAssurance:        authorization.Assurance(current.CheckInAssurance),
 		CheckOutAssurance:       authorization.Assurance(current.CheckOutAssurance),
@@ -194,7 +194,7 @@ func (s *Service) UpdateConfigured(
 		manageddevicesdb.UpdateManagedDeviceParams{ID: id, Name: name, DeviceTypeID: typeID,
 			ExpiresAt: timestamp(
 				expiresAt,
-			), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.TerminalEnabled,
+			), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.KioskEnabled,
 			AllowedAppModes:  optional.ConvertSlice[string](settings.AllowedApplicationModes),
 			CheckInAssurance: string(settings.CheckInAssurance), CheckOutAssurance: string(settings.CheckOutAssurance),
 			CheckoutMode: string(settings.CheckoutMode), ExpectedVersion: version},
@@ -217,7 +217,7 @@ func (s *Service) UpdateConfigured(
 		}
 	}
 	if !sameUUIDPointer(current.SessionPolicyID, settings.SessionPolicyID) ||
-		current.TerminalEnabled != settings.TerminalEnabled ||
+		current.TerminalEnabled != settings.KioskEnabled ||
 		!sameStringSet(optional.ConvertSlice[ApplicationMode](current.AllowedAppModes), settings.AllowedApplicationModes) {
 		if err = q.RevokeSessionsForManagedDevice(ctx, &id); err != nil {
 			return Device{}, err
@@ -383,7 +383,7 @@ func (s *Service) CreateConfigured(
 			TokenDigest:     digest,
 			ExpiresAt:       timestamp(expiresAt),
 			SessionPolicyID: settings.SessionPolicyID,
-			TerminalEnabled: settings.TerminalEnabled, CheckInAssurance: string(settings.CheckInAssurance),
+			TerminalEnabled: settings.KioskEnabled, CheckInAssurance: string(settings.CheckInAssurance),
 			AllowedAppModes:   optional.ConvertSlice[string](settings.AllowedApplicationModes),
 			CheckOutAssurance: string(settings.CheckOutAssurance), CheckoutMode: string(settings.CheckoutMode)},
 	)
@@ -603,7 +603,7 @@ func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 			row.ExpiresAt,
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
-		TerminalEnabled:         row.TerminalEnabled,
+		KioskEnabled:            row.TerminalEnabled,
 		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
 		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), CheckoutMode: CheckoutMode(row.CheckoutMode),
@@ -615,7 +615,7 @@ func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
 			row.ExpiresAt,
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
-		TerminalEnabled:         row.TerminalEnabled,
+		KioskEnabled:            row.TerminalEnabled,
 		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
 		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), CheckoutMode: CheckoutMode(row.CheckoutMode),

@@ -35,7 +35,7 @@ export function VisitorEnrollmentPage() {
     return (
       <main className="public-page">
         <Stack gap={6}>
-          <InlineLoadingState label="Verifying this visitor terminal" />
+          <InlineLoadingState label="Verifying this visitor kiosk" />
           <LegalLinks />
         </Stack>
       </main>
@@ -46,7 +46,7 @@ export function VisitorEnrollmentPage() {
         <Stack gap={6}>
           <PageHeader
             title="Visitor enrollment unavailable"
-            description="This browser is not an enabled visitor terminal. Ask a staff member to verify its ManagedDevice configuration."
+            description="This browser is not an enabled visitor kiosk. Ask a staff member to verify its ManagedDevice configuration."
           />
           <LegalLinks />
         </Stack>

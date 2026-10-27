@@ -149,11 +149,11 @@ An administrator with `scim.manage` creates a connector under **Settings → Acc
 
 SCIM supports discovery plus User create, get, list/filter, replace, patch, and delete. Groups, Roles, entitlements, Makerspace profile images, matriculation numbers, local Roles, device constraints, and Lab Rules evidence are outside the SCIM contract. Binding a connector to an OIDC provider makes its scoped `externalId` that provider's subject; no email/name/phone correlation occurs. If SCIM provisioned a duplicate Person before an established local record was identified, run the UI preflight and resolve every reported preservation conflict before executing its atomic reconciliation.
 
-## Controlled visitor terminals
+## Controlled visitor kiosks
 
 An administrator with `visitor_enrollment.manage` selects the approved managed-device types, one delegable initial Role, and allowed password/PIN methods under **Settings → Lab operations → Visitor enrollment**. The public `/visitor-enrollment` page remains unavailable until the backend validates the native managed-device header or HttpOnly browser device cookie. The frontend never submits a Role ID.
 
-Each terminal enrollment context is short-lived, device-bound, CSRF-protected, and one-use. Final submission requires a real profile image, at least one configured authentication method, and an explicit request to enter the physical Lab Rules confirmation workflow. Visitor Accounts are active immediately; password-only visitors still cannot sign in until they complete their invitation, while a configured PIN is usable immediately. Authentication does not admit a visitor: the managed-device-only admission action returns admitted, warning, or blocked and reuses any pending confirmation request. A blocking Role remains blocked until a supervisor records physical-document verification.
+Each kiosk enrollment context is short-lived, device-bound, CSRF-protected, and one-use. Final submission requires a real profile image, at least one configured authentication method, and an explicit request to enter the physical Lab Rules confirmation workflow. Visitor Accounts are active immediately; password-only visitors still cannot sign in until they complete their invitation, while a configured PIN is usable immediately. Authentication does not admit a visitor: the managed-device-only admission action returns admitted, warning, or blocked and reuses any pending confirmation request. A blocking Role remains blocked until a supervisor records physical-document verification.
 
 ## Email delivery
 
@@ -217,6 +217,6 @@ Migration 00024 moves the only Role-membership source from Accounts to People an
 
 ## Identity and visitor semantic migrations
 
-Migration 00016 adds the pinned Lab Rules version to enrollment contexts. Existing unfinished contexts cannot prove the displayed version and are invalidated; terminals must start a new enrollment. Migration 00017 binds sensitive OIDC flows to a session and adds reauthentication flows. Pending old linking flows are discarded. Existing OIDC sessions retain login validity, but their previous callback timestamp no longer serves as recent-authentication proof: reauthenticate before linking or other freshness-gated operations. Session cookies, credentials, Roles, and existing confirmation evidence are preserved.
+Migration 00016 adds the pinned Lab Rules version to enrollment contexts. Existing unfinished contexts cannot prove the displayed version and are invalidated; kiosks must start a new enrollment. Migration 00017 binds sensitive OIDC flows to a session and adds reauthentication flows. Pending old linking flows are discarded. Existing OIDC sessions retain login validity, but their previous callback timestamp no longer serves as recent-authentication proof: reauthenticate before linking or other freshness-gated operations. Session cookies, credentials, Roles, and existing confirmation evidence are preserved.
 
 Both Down paths invalidate incompatible transient flows before removing their new fields. Production still applies migrations through the existing entrypoint; no database reset or automatic provider-wide session revocation is introduced.

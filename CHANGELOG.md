@@ -4,6 +4,16 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- The entrance terminal is now called the kiosk everywhere in the UI, docs and code. The frontend route is `/kiosk`; `/terminal` redirects there, so deployed devices keep working. API paths, database values and the Android package ID are unchanged. The `android-terminal/` and `desktop-terminal/` folders are now `android-kiosk/` and `desktop-kiosk/`.
+
+### Fixed
+
+- The kiosk no longer crashes with "component should have no interactive child nodes" when the Lab Rules PDF cannot be shown inline.
+- The Lab Rules PDF now renders on iPad Safari (pdf.js legacy build).
+- The "How can we reach you?" label in visitor enrollment no longer wraps into a narrow column on iPad Safari.
+
 ## [0.9.1] - 2026-10-24
 
 ### Upgrade notes

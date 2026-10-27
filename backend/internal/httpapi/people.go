@@ -326,7 +326,7 @@ func (s *Server) PutPersonProfileImage(
 	if request.Params.XProfileImageSource != nil {
 		source = people.ProfileImageSource(*request.Params.XProfileImageSource)
 	}
-	if source == people.ImageTerminalCapture {
+	if source == people.ImageKioskCapture {
 		return nil, invalidRequest("terminal_capture is reserved for visitor enrollment")
 	}
 	person, err := s.people.PutProfileImage(

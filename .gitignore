@@ -28,17 +28,17 @@ frontend/coverage/
 .pnpm-store/
 
 # Android build output and local SDK configuration
-android-terminal/.gradle/
-android-terminal/build/
-android-terminal/app/build/
-android-terminal/local.properties
+android-kiosk/.gradle/
+android-kiosk/build/
+android-kiosk/app/build/
+android-kiosk/local.properties
 
-# Desktop terminal build output
-desktop-terminal/node_modules/
-desktop-terminal/dist/
-desktop-terminal/src-tauri/target/
-desktop-terminal/src-tauri/binaries/
-desktop-terminal/src-tauri/gen/
+# Desktop kiosk build output
+desktop-kiosk/node_modules/
+desktop-kiosk/dist/
+desktop-kiosk/src-tauri/target/
+desktop-kiosk/src-tauri/binaries/
+desktop-kiosk/src-tauri/gen/
 
 # Local PostgreSQL data when a bind mount is used for troubleshooting
 .postgres-data/

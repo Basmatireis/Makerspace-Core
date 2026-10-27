@@ -1,6 +1,6 @@
 # Device Bridge architecture
 
-Makerspace Core keeps one React application and one server-side business model across ordinary browsers, desktop hardware, and Android terminals. `frontend/src/features/terminal/device-bridge.ts` is the application-facing boundary. It exposes device information, capability discovery, one-shot NFC scans, event subscriptions, and explicit disconnection. The browser, desktop, and Android adapters implement that contract; unsupported browser operations return typed errors and do not prevent use of the rest of Core.
+Makerspace Core keeps one React application and one server-side business model across ordinary browsers, desktop hardware, and Android kiosks. `frontend/src/features/kiosk/device-bridge.ts` is the application-facing boundary. It exposes device information, capability discovery, one-shot NFC scans, event subscriptions, and explicit disconnection. The browser, desktop, and Android adapters implement that contract; unsupported browser operations return typed errors and do not prevent use of the rest of Core.
 
 ```text
 React feature
@@ -39,4 +39,4 @@ Desktop uses a Tauri system WebView around the same deployed React application. 
 - Pairing keys and tokens are never intentionally written to application logs, audit details, frontend storage, URLs, or event payloads.
 - Session idle/absolute expiry and post-session destination stay server controlled. Reloads, reconnects, or native app restarts cannot make an expired staff session valid.
 
-Known limits are described in the platform guides: [Desktop Device Bridge](desktop-device-bridge.md) and [Android terminal](android-terminal.md).
+Known limits are described in the platform guides: [Desktop Device Bridge](desktop-device-bridge.md) and [Android kiosk](android-kiosk.md).

@@ -92,7 +92,7 @@ export const sectionDefinitions: SectionDefinition[] = [
   {
     key: 'visitorEnrollment',
     label: 'Visitor enrollment',
-    description: 'Initial role, terminals and authentication methods.',
+    description: 'Initial role, kiosks and authentication methods.',
     read: [PermissionId.visitor_enrollmentmanage],
     manage: [PermissionId.visitor_enrollmentmanage],
   },

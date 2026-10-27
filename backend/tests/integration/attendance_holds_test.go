@@ -122,7 +122,7 @@ func newHoldFixture(t *testing.T, mode string) holdFixture {
 	}
 }
 
-func TestBlockingLabRulesHoldTerminalCheckInUntilConfirmed(t *testing.T) {
+func TestBlockingLabRulesHoldKioskCheckInUntilConfirmed(t *testing.T) {
 	f := newHoldFixture(t, "blocking")
 	ctx := testContext(t)
 

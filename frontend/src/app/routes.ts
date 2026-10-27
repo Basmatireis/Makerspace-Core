@@ -226,9 +226,9 @@ export const EventSignupManagementPage = lazy(() =>
     default: EventSignupManagementPage,
   })),
 );
-export const VisitorTerminalPage = lazy(() =>
-  import('../features/terminal/VisitorTerminalPage').then(({ VisitorTerminalPage }) => ({
-    default: VisitorTerminalPage,
+export const VisitorKioskPage = lazy(() =>
+  import('../features/kiosk/VisitorKioskPage').then(({ VisitorKioskPage }) => ({
+    default: VisitorKioskPage,
   })),
 );
 export const PublicSurveyPage = lazy(() =>

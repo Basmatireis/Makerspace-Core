@@ -60,11 +60,11 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	insertPublishedLabRulesVersion(t, pool, masterAccountID, "2026-visitor")
 
 	deviceService := manageddevices.NewService(pool)
-	terminalType, err := deviceService.CreateType(ctx, master, "Visitor terminal", nil, nil)
+	kioskType, err := deviceService.CreateType(ctx, master, "Visitor terminal", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	terminal, err := deviceService.Create(ctx, master, "Front desk", terminalType.ID, nil, nil)
+	kiosk, err := deviceService.Create(ctx, master, "Front desk", kioskType.ID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatalf("permission-less configuration read error=%v", err)
 	}
 	configuration, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{terminalType.ID},
+		Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{kioskType.ID},
 		AllowedMethods: []visitor.AuthMethod{"pin", "password", "pin"}, ExpectedVersion: 1,
 	}, nil)
 	if err != nil {
@@ -101,8 +101,8 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 
 	approvedContext := manageddevices.DeviceContext{
-		ID: terminal.Device.ID, Name: terminal.Device.Name, DeviceTypeID: terminal.Device.DeviceTypeID,
-		DeviceTypeName: terminal.Device.DeviceTypeName,
+		ID: kiosk.Device.ID, Name: kiosk.Device.Name, DeviceTypeID: kiosk.Device.DeviceTypeID,
+		DeviceTypeName: kiosk.Device.DeviceTypeName,
 	}
 	unapprovedContext := manageddevices.DeviceContext{
 		ID: otherDevice.Device.ID, Name: otherDevice.Device.Name, DeviceTypeID: otherDevice.Device.DeviceTypeID,
@@ -227,8 +227,8 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 
 	admissionPrincipal := authenticated.Principal
 	admissionPrincipal.Device = &authorization.ManagedDevice{
-		ID: terminal.Device.ID, Name: terminal.Device.Name, DeviceTypeID: terminal.Device.DeviceTypeID,
-		DeviceTypeName: terminal.Device.DeviceTypeName,
+		ID: kiosk.Device.ID, Name: kiosk.Device.Name, DeviceTypeID: kiosk.Device.DeviceTypeID,
+		DeviceTypeName: kiosk.Device.DeviceTypeName,
 	}
 	firstAdmission, err := service.Admission(ctx, admissionPrincipal, nil)
 	if err != nil || firstAdmission.Decision != "blocked" || firstAdmission.RequestID == nil ||

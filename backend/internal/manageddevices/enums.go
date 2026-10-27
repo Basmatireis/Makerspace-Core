@@ -4,14 +4,14 @@ package manageddevices
 type ApplicationMode string
 
 const (
-	ModeStaffUI         ApplicationMode = "staff_ui"
-	ModeVisitorTerminal ApplicationMode = "visitor_terminal"
+	ModeStaffUI      ApplicationMode = "staff_ui"
+	ModeVisitorKiosk ApplicationMode = "visitor_terminal"
 	// ModeSignagePlayer is the only application mode of a digital-signage player device. Such devices
 	// are created by pairing a signage display, never through the generic managed-device endpoints.
 	ModeSignagePlayer ApplicationMode = "signage_player"
 )
 
-// CheckoutMode is how a visitor terminal checks visitors out.
+// CheckoutMode is how a visitor kiosk checks visitors out.
 type CheckoutMode string
 
 const (
@@ -23,8 +23,8 @@ const (
 type Destination string
 
 const (
-	DestinationLogin           Destination = "login"
-	DestinationVisitorTerminal Destination = "visitor_terminal"
+	DestinationLogin        Destination = "login"
+	DestinationVisitorKiosk Destination = "visitor_terminal"
 )
 
 // Platform is the platform a device bridge runs on.

@@ -138,7 +138,7 @@ func TestBrowserManagedDeviceProvisioningNeverExposesTokenToJavaScript(t *testin
 	server := &Server{config: cfg}
 	expiresAt := time.Now().UTC().Add(24 * time.Hour)
 	provisioned := manageddevices.ProvisionedDevice{
-		Device: manageddevices.Device{ID: ids.New(), Name: "Visitor terminal", ExpiresAt: &expiresAt},
+		Device: manageddevices.Device{ID: ids.New(), Name: "Visitor kiosk", ExpiresAt: &expiresAt},
 		Token:  "one-time-device-token",
 	}
 
@@ -747,7 +747,7 @@ func TestManagedDeviceApplicationModeBoundaries(t *testing.T) {
 		}
 	}
 	if isStaffSessionEntryPath(apiBasePath + "/terminal/context") {
-		t.Fatal("public terminal context was classified as a staff session entry")
+		t.Fatal("public kiosk context was classified as a staff session entry")
 	}
 }
 

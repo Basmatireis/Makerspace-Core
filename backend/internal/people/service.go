@@ -551,7 +551,7 @@ func (s *Service) PutProfileImage(
 			source = ImageAdminUpload
 		}
 	}
-	if source != ImageTerminalCapture && source != ImageSelfUpload && source != ImageAdminUpload {
+	if source != ImageKioskCapture && source != ImageSelfUpload && source != ImageAdminUpload {
 		return Person{}, apperror.InvalidField("profile image source is invalid")
 	}
 	if source == ImageSelfUpload && principal.PersonID != id {

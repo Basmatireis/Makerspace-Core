@@ -1,15 +1,16 @@
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 // A Vite worker entry: it is emitted as a hashed .js file on our own origin (nginx serves .mjs as octet-stream).
-GlobalWorkerOptions.workerPort = new Worker(new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url), {
+GlobalWorkerOptions.workerPort = new Worker(new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url), {
   type: 'module',
 });
 
 /**
- * Renders every page of a same-origin PDF into canvases appended to `container` with pdf.js. The Android terminal
+ * Renders every page of a same-origin PDF into canvases appended to `container` with pdf.js. The Android kiosk
  * WebView cannot show PDFs natively and the CSP forbids object/embed, so this is the only inline path. This module
- * and the worker it points at are loaded lazily, only when the Lab Rules modal opens. pdf.js 6 never evaluates
- * code, so no CSP exception is needed. Resolves after the last page; `onFirstPage` fires as soon as page 1 is drawn.
+ * and the worker it points at are loaded lazily, only when the Lab Rules modal opens. The legacy build polyfills the
+ * newest JS APIs pdf.js 6 relies on, which tablet Safari lacks. pdf.js never evaluates code, so no CSP exception is
+ * needed. Resolves after the last page; `onFirstPage` fires as soon as page 1 is drawn.
  */
 export async function renderPdf(url: string, container: HTMLElement, signal: AbortSignal, onFirstPage: () => void) {
   const response = await fetch(url, { credentials: 'same-origin', signal });

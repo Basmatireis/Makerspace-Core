@@ -2,6 +2,7 @@ import {
   Button,
   Checkbox,
   Form,
+  FormGroup,
   InlineNotification,
   Modal,
   PasswordInput,
@@ -67,12 +68,12 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [outcome, setOutcome] = useState<EnrollmentOutcome>();
   const mutation = useSecretMutation(submitVisitorEnrollment, { gcTime: 0 });
 
-  const toTerminal = () => void navigate('/terminal', { replace: true });
+  const toKiosk = () => void navigate('/kiosk', { replace: true });
   const inactivity = useInactivityPrompt({
     idleSeconds,
     graceSeconds,
     enabled: !outcome,
-    onTimeout: toTerminal,
+    onTimeout: toKiosk,
   });
 
   useEffect(() => {
@@ -139,7 +140,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         <header className="visitor-flow__header visitor-flow__header--done">
           <BrandLockup />
         </header>
-        <EnrollmentDone outcome={outcome} onDone={toTerminal} />
+        <EnrollmentDone outcome={outcome} onDone={toKiosk} />
       </main>
     );
 
@@ -147,7 +148,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
     <main className="visitor-flow">
       <Form className="visitor-flow__form" onSubmit={submit}>
         <header className="visitor-flow__header">
-          <Button as={Link} to="/terminal" kind="ghost" size="lg" renderIcon={ArrowLeft}>
+          <Button as={Link} to="/kiosk" kind="ghost" size="lg" renderIcon={ArrowLeft}>
             Back to check-in
           </Button>
           <BrandLockup />
@@ -203,28 +204,29 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                     />
                   </div>
                 </div>
-                <fieldset className="visitor-flow__contact">
-                  <legend className="cds--label">How can we reach you? Email or phone, at least one *</legend>
-                  <TextInput
-                    id="visitor-email"
-                    type="email"
-                    labelText="Email"
-                    helperText="Needed for an email invitation."
-                    autoComplete="off"
-                    invalid={hasEmail && !emailPattern.test(email.trim())}
-                    invalidText="Enter a valid email address."
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                  <TextInput
-                    id="visitor-phone"
-                    type="tel"
-                    labelText="Phone"
-                    autoComplete="off"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                  />
-                </fieldset>
+                <FormGroup legendText="How can we reach you? Email or phone, at least one *">
+                  <div className="visitor-flow__contact">
+                    <TextInput
+                      id="visitor-email"
+                      type="email"
+                      labelText="Email"
+                      helperText="Needed for an email invitation."
+                      autoComplete="off"
+                      invalid={hasEmail && !emailPattern.test(email.trim())}
+                      invalidText="Enter a valid email address."
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                    <TextInput
+                      id="visitor-phone"
+                      type="tel"
+                      labelText="Phone"
+                      autoComplete="off"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                    />
+                  </div>
+                </FormGroup>
               </div>
               <ProfilePhotoPicker image={image} onChange={setImage} />
             </div>
@@ -363,7 +365,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         secondaryButtonText="Leave"
         onRequestSubmit={inactivity.confirm}
         onRequestClose={inactivity.confirm}
-        onSecondarySubmit={toTerminal}
+        onSecondarySubmit={toKiosk}
       >
         {inactivity.prompting && (
           <p role="timer">

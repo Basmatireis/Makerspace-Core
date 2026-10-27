@@ -171,8 +171,8 @@ func (e *env) seed() {
 	t, ctx, p := e.t, e.ctx, e.master
 	kiosk := must(e.s.ManagedDevices.CreateType(ctx, p, "Kiosk", ptr("Front desk tablet"), nil))
 	must(e.s.ManagedDevices.CreateSessionPolicy(ctx, p, manageddevices.SessionPolicyInput{
-		Name: "Terminal", IdleTimeoutSeconds: 600, AbsoluteLifetimeSeconds: 3600,
-		PostSessionDestination: manageddevices.DestinationVisitorTerminal, IsDefault: true,
+		Name: "Kiosk", IdleTimeoutSeconds: 600, AbsoluteLifetimeSeconds: 3600,
+		PostSessionDestination: manageddevices.DestinationVisitorKiosk, IsDefault: true,
 	}, nil))
 	supervisor := must(e.s.Roles.CreateWithBehaviors(ctx, p, "Supervisor", ptr("Runs open days"),
 		[]authorization.PermissionGrant{

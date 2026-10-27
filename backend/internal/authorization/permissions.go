@@ -259,7 +259,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	LaborordnungManage:                 "Upload and publish immutable Lab Rules versions.",
 	LaborordnungRequestsRead:           "Read the physical-document confirmation queue.",
 	LaborordnungConfirm:                "Confirm physical Lab Rules evidence.",
-	VisitorEnrollmentManage:            "Configure controlled visitor-terminal enrollment.",
+	VisitorEnrollmentManage:            "Configure controlled visitor-kiosk enrollment.",
 	SupervisorDashboardRead:            "Read the privacy-minimized supervisor dashboard.",
 	OIDCLinkSelf:                       "Link an OIDC identity to the current Account after recent password or OIDC reauthentication.",
 	OIDCLinkAll:                        "Reserved for a future administrative ownership-proof flow; no operation currently supports this permission.",

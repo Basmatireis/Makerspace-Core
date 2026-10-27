@@ -87,19 +87,19 @@ export function VisitorEnrollmentSettingsPage() {
                 lowContrast
                 hideCloseButton
                 title="Configuration saved"
-                subtitle="Only newly started terminal enrollments use these settings."
+                subtitle="Only newly started kiosk enrollments use these settings."
               />
             )}
             <Checkbox
               id="visitor-enabled"
-              labelText="Enable visitor-terminal enrollment"
+              labelText="Enable visitor-kiosk enrollment"
               checked={enabled}
               onChange={(_, data) => setEnabled(data.checked)}
             />
             <Select
               id="visitor-role"
               labelText="Initial visitor Role"
-              helperText="The terminal never chooses or submits a Role."
+              helperText="The kiosk never chooses or submits a Role."
               value={roleId}
               onChange={(event) => setRoleId(event.target.value)}
             >

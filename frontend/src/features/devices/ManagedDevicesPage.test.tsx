@@ -14,7 +14,7 @@ const deviceId = '0192f6f8-743e-7c77-a349-cd07c3e8a921';
 const deviceType = {
   id: typeId,
   name: 'Reception',
-  description: 'Front desk terminals',
+  description: 'Front desk kiosks',
   version: 1,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -91,7 +91,7 @@ describe('Managed devices administration', () => {
       http.post('*/api/v1/managed-devices', async ({ request }) => {
         submitted = (await request.json()) as CreateManagedDeviceRequest;
         return HttpResponse.json(
-          { device: { ...device, name: 'Lobby terminal' }, token: 'a'.repeat(43) },
+          { device: { ...device, name: 'Lobby kiosk' }, token: 'a'.repeat(43) },
           { status: 201 },
         );
       }),
@@ -104,12 +104,12 @@ describe('Managed devices administration', () => {
     expect(await screen.findByText('Never')).toBeInTheDocument();
     expect(screen.getAllByText('No expiration')).not.toHaveLength(0);
 
-    await user.type(screen.getByLabelText('Device name'), 'Lobby terminal');
+    await user.type(screen.getByLabelText('Device name'), 'Lobby kiosk');
     await user.selectOptions(screen.getByLabelText('Device type'), typeId);
     await user.click(screen.getByRole('button', { name: 'Create device' }));
     await waitFor(() =>
       expect(submitted).toEqual({
-        name: 'Lobby terminal',
+        name: 'Lobby kiosk',
         deviceTypeId: typeId,
         expiresAt: null,
         credentialDelivery: 'nativeToken',

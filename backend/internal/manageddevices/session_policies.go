@@ -47,7 +47,7 @@ func validateSessionPolicy(input SessionPolicyInput) (SessionPolicyInput, error)
 		input.IdleTimeoutSeconds > input.AbsoluteLifetimeSeconds {
 		return input, apperror.InvalidField("session lifetimes are invalid")
 	}
-	if input.PostSessionDestination != DestinationLogin && input.PostSessionDestination != DestinationVisitorTerminal {
+	if input.PostSessionDestination != DestinationLogin && input.PostSessionDestination != DestinationVisitorKiosk {
 		return input, apperror.InvalidField("postSessionDestination is invalid")
 	}
 	return input, nil

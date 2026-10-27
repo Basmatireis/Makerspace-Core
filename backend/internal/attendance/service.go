@@ -57,7 +57,7 @@ func NewService(
 	return &Service{pool: pool, auth: verifier, labRules: labRules, surveys: surveys, location: location}
 }
 
-type TerminalContext struct {
+type KioskContext struct {
 	DeviceID                            uuid.UUID
 	DeviceName                          string
 	CheckoutMode                        manageddevices.CheckoutMode
@@ -116,7 +116,7 @@ func requireAssurance(actual authorization.Assurance, required authorization.Ass
 	return nil
 }
 
-func (s *Service) terminal(
+func (s *Service) kiosk(
 	ctx context.Context,
 	device manageddevices.DeviceContext,
 ) (attendancedb.GetTerminalDeviceRow, error) {
@@ -127,17 +127,17 @@ func (s *Service) terminal(
 	return row, err
 }
 
-func (s *Service) TerminalContext(ctx context.Context, device manageddevices.DeviceContext) (TerminalContext, error) {
-	row, err := s.terminal(ctx, device)
+func (s *Service) KioskContext(ctx context.Context, device manageddevices.DeviceContext) (KioskContext, error) {
+	row, err := s.kiosk(ctx, device)
 	if err != nil {
-		return TerminalContext{}, err
+		return KioskContext{}, err
 	}
 	capabilities, err := attendancedb.New(s.pool).ListTerminalCapabilities(ctx, device.ID)
 	if err != nil {
-		return TerminalContext{}, err
+		return KioskContext{}, err
 	}
 	methods := []string{"password", "pin"}
-	return TerminalContext{DeviceID: row.ID, DeviceName: row.Name, CheckoutMode: manageddevices.CheckoutMode(row.CheckoutMode),
+	return KioskContext{DeviceID: row.ID, DeviceName: row.Name, CheckoutMode: manageddevices.CheckoutMode(row.CheckoutMode),
 		CheckInAssurance: authorization.Assurance(row.CheckInAssurance), CheckOutAssurance: authorization.Assurance(row.CheckOutAssurance),
 		AuthenticationMethods: methods, Capabilities: capabilities}, nil
 }
@@ -147,7 +147,7 @@ func (s *Service) PublicPresence(
 	ctx context.Context,
 	device manageddevices.DeviceContext,
 ) ([]PublicPresence, []PublicWaiting, error) {
-	if _, err := s.terminal(ctx, device); err != nil {
+	if _, err := s.kiosk(ctx, device); err != nil {
 		return nil, nil, err
 	}
 	q := attendancedb.New(s.pool)
@@ -225,11 +225,11 @@ func (s *Service) checkIn(
 	verified auth.VerifiedIdentity,
 	requestID *uuid.UUID,
 ) (CheckInResult, error) {
-	terminal, err := s.terminal(ctx, device)
+	kiosk, err := s.kiosk(ctx, device)
 	if err != nil {
 		return CheckInResult{}, err
 	}
-	if err = requireAssurance(verified.Assurance, authorization.Assurance(terminal.CheckInAssurance)); err != nil {
+	if err = requireAssurance(verified.Assurance, authorization.Assurance(kiosk.CheckInAssurance)); err != nil {
 		return CheckInResult{}, err
 	}
 	status, err := s.labRules.Evaluate(ctx, verified.PersonID)
@@ -370,11 +370,11 @@ func (s *Service) verifiedCheckOut(
 	verified auth.VerifiedIdentity,
 	requestID *uuid.UUID,
 ) (Visit, error) {
-	terminal, err := s.terminal(ctx, device)
+	kiosk, err := s.kiosk(ctx, device)
 	if err != nil {
 		return Visit{}, err
 	}
-	if err = requireAssurance(verified.Assurance, authorization.Assurance(terminal.CheckOutAssurance)); err != nil {
+	if err = requireAssurance(verified.Assurance, authorization.Assurance(kiosk.CheckOutAssurance)); err != nil {
 		return Visit{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -426,11 +426,11 @@ func (s *Service) PublicCheckOut(
 	visitID uuid.UUID,
 	requestID *uuid.UUID,
 ) (Visit, error) {
-	terminal, err := s.terminal(ctx, device)
+	kiosk, err := s.kiosk(ctx, device)
 	if err != nil {
 		return Visit{}, err
 	}
-	if manageddevices.CheckoutMode(terminal.CheckoutMode) != manageddevices.CheckoutPublicTap {
+	if manageddevices.CheckoutMode(kiosk.CheckoutMode) != manageddevices.CheckoutPublicTap {
 		return Visit{}, apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)

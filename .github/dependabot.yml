@@ -15,7 +15,7 @@ updates:
       frontend-dependencies:
         patterns: ["*"]
   - package-ecosystem: npm
-    directory: /desktop-terminal
+    directory: /desktop-kiosk
     schedule:
       interval: weekly
   - package-ecosystem: github-actions

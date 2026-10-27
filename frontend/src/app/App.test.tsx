@@ -123,7 +123,7 @@ describe('protected application routing', () => {
     expect(screen.getByRole('link', { name: 'Reset password' })).toHaveAttribute('href', '/reset-password');
   });
 
-  it('returns an expired entrance-terminal staff session to the public terminal', async () => {
+  it('returns an expired entrance-kiosk staff session to the public kiosk', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -152,7 +152,19 @@ describe('protected application routing', () => {
     const { router } = renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Welcome to the Makerspace' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/terminal');
+    expect(router.state.location.pathname).toBe('/kiosk');
+  });
+
+  it('redirects the former /terminal path of registered devices to the kiosk', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json({ code: 'unauthenticated', message: 'Authentication is required' }, { status: 401 }),
+      ),
+      http.get('*/api/v1/terminal/context', () => HttpResponse.json({ message: 'not found' }, { status: 404 })),
+    );
+    const { router } = renderRoute(<App />, '/terminal');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/kiosk'));
   });
 
   it('redirects an authenticated user away from settings they cannot access', async () => {

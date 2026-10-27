@@ -20,7 +20,7 @@ Some administrative and visitor orchestration reads other features' persistence,
 
 ## External interoperability
 
-OIDC and SCIM are covered by local handshake and provisioning tests, not by every real upstream provider lifecycle (concurrent linking and unlinking, key rotation during provider edits). Shared-terminal behaviour beyond the tested flows (long camera sessions, abandoned forms, configuration changes during enrollment) is not certified on kiosk hardware.
+OIDC and SCIM are covered by local handshake and provisioning tests, not by every real upstream provider lifecycle (concurrent linking and unlinking, key rotation during provider edits). Shared-kiosk behaviour beyond the tested flows (long camera sessions, abandoned forms, configuration changes during enrollment) is not certified on kiosk hardware.
 
 ## CI and release policy
 

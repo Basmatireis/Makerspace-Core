@@ -97,12 +97,12 @@ test-streaming-compose: ## Package and validate the standalone streaming-gateway
 test-local-services-compose: ## Package and validate the local-services Compose bundle (connector + gateway).
 	./scripts/test-local-services-compose.sh
 
-test-android: ## Build and unit-test the Android terminal in a pinned SDK container.
-	./scripts/test-android-terminal.sh
+test-android: ## Build and unit-test the Android kiosk in a pinned SDK container.
+	./scripts/test-android-kiosk.sh
 
 test-desktop: ## Build the PC/SC sidecar and run Rust formatting, lint, and unit checks.
-	cd desktop-terminal && pnpm install --frozen-lockfile
-	cd desktop-terminal && pnpm check
+	cd desktop-kiosk && pnpm install --frozen-lockfile
+	cd desktop-kiosk && pnpm check
 
 test-db: db-up ## Create the dedicated integration-test database if missing and apply all migrations to it.
 	docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname = '\''$(TEST_POSTGRES_DB)'\''" | grep -q 1 || createdb -U "$$POSTGRES_USER" "$(TEST_POSTGRES_DB)"'
@@ -146,8 +146,8 @@ build: ## Build the backend, frontend, printer connector, streaming gateway and 
 	docker build --target final -f local-updater/Dockerfile .
 
 build-desktop: ## Build the native desktop application and platform installer.
-	cd desktop-terminal && pnpm install --frozen-lockfile
-	cd desktop-terminal && pnpm build
+	cd desktop-kiosk && pnpm install --frozen-lockfile
+	cd desktop-kiosk && pnpm build
 
 admin: db-up ## Run the administrative CLI; pass non-secret arguments with ARGS='...'.
 	docker compose --profile tools run --rm --build admin $(ARGS)
