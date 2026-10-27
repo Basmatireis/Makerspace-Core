@@ -19,6 +19,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Set password and change email on the person page.** With `accounts.password.set` an administrator can set a person's password directly (Actions menu and the Local password row), independent of mail delivery; it signs the person out everywhere and invalidates pending reset links. An account without a login email gets one in the same dialog, which needs `accounts.login_email.update` too (without it the action is hidden). Only a master may set the password or login email of a master account (403 otherwise); setting a password on an account without a login email now answers 422 instead of 500.
 - Settings, Devices & sessions: managed devices and session policies are tables like the other lists (search, status filter, sorting, paging); creating a device and editing a policy happen in modals; device types are their own tab.
 - All tiles on the settings overview have the same size.
 - The kiosk photo hint only says that a photo is required when the device actually requires one.

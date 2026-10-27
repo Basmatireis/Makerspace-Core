@@ -86,7 +86,9 @@ export function usePersonDetailActions({
   const accountEmailForm = useForm<AccountEmailForm>({
     defaultValues: { loginEmail: passwordIdentity?.displayIdentifier ?? person.email ?? '' },
   });
-  const accountPasswordForm = useForm<AccountPasswordForm>({ defaultValues: { newPassword: '', confirmPassword: '' } });
+  const accountPasswordForm = useForm<AccountPasswordForm>({
+    defaultValues: { loginEmail: person.email ?? '', newPassword: '', confirmPassword: '' },
+  });
   const accountPINForm = useForm<AccountPINForm>({
     defaultValues: { loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' },
   });
@@ -156,11 +158,19 @@ export function usePersonDetailActions({
     },
   );
   const passwordMutation = useSecretMutation(
-    ({ newPassword }: AccountPasswordForm) =>
-      setAccountPassword(account!.id, { newPassword, expectedVersion: account!.version }),
+    async ({ loginEmail, newPassword }: AccountPasswordForm) => {
+      let version = account!.version;
+      if (!passwordIdentity) {
+        // A password identity needs a login email: set it first, then continue with the new account version.
+        version = (
+          await updateAccountLoginEmail(account!.id, { loginEmail: loginEmail.trim(), expectedVersion: version })
+        ).version;
+      }
+      return setAccountPassword(account!.id, { newPassword, expectedVersion: version });
+    },
     {
       onSuccess: async () => {
-        accountPasswordForm.reset();
+        accountPasswordForm.reset({ loginEmail: person.email ?? '', newPassword: '', confirmPassword: '' });
         clearResetIssue();
         setPasswordModalOpen(false);
         await refresh();

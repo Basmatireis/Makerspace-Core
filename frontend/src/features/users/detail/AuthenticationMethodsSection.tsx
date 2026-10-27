@@ -19,6 +19,7 @@ export function AuthenticationMethodsSection({
     pinIdentity,
     oidcIdentities,
     canEditLoginEmail,
+    canSetPassword,
     canIssuePasswordReset,
     canInvite,
     canRemovePasswordIdentity,
@@ -49,13 +50,16 @@ export function AuthenticationMethodsSection({
           active={passwordIdentity?.usable ?? false}
           warning={account.passwordStatus === 'reset_required'}
           action={
-            canEditLoginEmail || canIssuePasswordReset || canInvite || canRemovePasswordIdentity ? (
+            canEditLoginEmail || canSetPassword || canIssuePasswordReset || canInvite || canRemovePasswordIdentity ? (
               <OverflowMenu iconDescription="Actions for Local password" size="sm" flipped>
                 {canEditLoginEmail && (
                   <OverflowMenuItem
                     itemText={passwordIdentity ? 'Change email' : 'Set login email'}
                     onClick={() => ctrl.setLoginEmailModalOpen(true)}
                   />
+                )}
+                {canSetPassword && (
+                  <OverflowMenuItem itemText="Set password" onClick={() => ctrl.setPasswordModalOpen(true)} />
                 )}
                 {canIssuePasswordReset && (
                   <OverflowMenuItem itemText="Send reset code" onClick={() => ctrl.setConfirmKind('reset-password')} />
@@ -66,7 +70,7 @@ export function AuthenticationMethodsSection({
                 {canRemovePasswordIdentity && (
                   <OverflowMenuItem
                     isDelete
-                    hasDivider={canEditLoginEmail || canIssuePasswordReset || canInvite}
+                    hasDivider={canEditLoginEmail || canSetPassword || canIssuePasswordReset || canInvite}
                     itemText="Remove password method"
                     onClick={() => {
                       ctrl.setAuthIdentityToRemove(passwordIdentity ?? null);

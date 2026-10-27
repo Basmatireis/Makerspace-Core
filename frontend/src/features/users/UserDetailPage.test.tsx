@@ -750,4 +750,72 @@ describe('User detail page', () => {
     expect(screen.getByRole('button', { name: 'Actions for Username and PIN' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Actions for Grace Hopper · TU Graz' })).toBeInTheDocument();
   });
+
+  it('sets a password directly and asks for a login email first when the account has none', async () => {
+    const account = accountFixture({ loginEmail: null, passwordStatus: 'not_set', authIdentities: [] });
+    const requests: string[] = [];
+    let passwordRequest: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountspasswordset,
+            PermissionId.accountslogin_emailupdate,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+      http.put('*/api/v1/accounts/:accountId/login-email', () => {
+        requests.push('email');
+        return HttpResponse.json(accountFixture({ version: 2 }));
+      }),
+      http.put('*/api/v1/accounts/:accountId/password', async ({ request }) => {
+        requests.push('password');
+        passwordRequest = await request.json();
+        return HttpResponse.json(accountFixture({ version: 3 }));
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions for Local password' }));
+    const items = await screen.findAllByText('Set password');
+    await user.click(items.at(-1)!);
+    const dialog = await screen.findByRole('dialog');
+    const loginEmail = within(dialog).getByLabelText('Login email');
+    await user.clear(loginEmail);
+    await user.type(loginEmail, 'new.login@example.test');
+    await user.type(within(dialog).getByLabelText('New password'), 'Workbench aurora circuit 58');
+    await user.type(within(dialog).getByLabelText('Confirm password'), 'Workbench aurora circuit 58');
+    await user.click(within(dialog).getByRole('button', { name: 'Set password' }));
+    console.log(
+      'DBG',
+      requests,
+      Array.from(document.querySelectorAll('input')).map((i) => i.id + '=' + i.value),
+      document.querySelectorAll('[role=alert],.cds--form-requirement,.cds--inline-notification').length,
+      document.body.textContent?.match(/Password not set.{0,100}/),
+    );
+
+    await waitFor(() =>
+      expect(passwordRequest).toEqual({ newPassword: 'Workbench aurora circuit 58', expectedVersion: 2 }),
+    );
+    expect(requests).toEqual(['email', 'password']);
+  });
+
+  it('hides password setting without accounts.password.set', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread])),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture({ account: accountFixture() })),
+      ),
+    );
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+    await screen.findByText('Authentication methods');
+    expect(screen.queryByRole('button', { name: 'Actions for Local password' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Set password' })).not.toBeInTheDocument();
+  });
 });

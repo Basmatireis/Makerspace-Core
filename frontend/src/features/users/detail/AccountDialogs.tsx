@@ -10,9 +10,18 @@ import {
   Stack,
   TextInput,
 } from '@carbon/react';
+import { ApiError } from '../../../api/http-client';
 import type { AuthIdentitySummary, Person } from '../../../api/generated/models';
 import { validatePasswordLength } from '../../auth/password-validation';
 import type { PersonDetailActions } from './usePersonDetailActions';
+
+/** Server rejections of a password (policy, common password, stale account) are shown as the server words them. */
+function passwordErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && [400, 403, 409, 422].includes(error.status) && error.message) {
+    return error.message;
+  }
+  return 'Review the password and try again.';
+}
 
 /** Dialogs that create an account or set its login email, PIN login or password. */
 export function AccountDialogs({
@@ -239,7 +248,10 @@ export function AccountDialogs({
           setPasswordModalOpen(false);
         }}
       >
-        <ModalHeader title="Set account password" label={passwordIdentity?.displayIdentifier ?? undefined} />
+        <ModalHeader
+          title="Set password"
+          label={passwordIdentity?.displayIdentifier ?? `${person.firstName} ${person.lastName}`}
+        />
         <ModalBody>
           <Form id="set-account-password-form" onSubmit={submitPassword}>
             <Stack gap={5}>
@@ -249,7 +261,18 @@ export function AccountDialogs({
                   lowContrast
                   hideCloseButton
                   title="Password not set"
-                  subtitle="Review the password and try again."
+                  subtitle={passwordErrorMessage(passwordMutation.error)}
+                />
+              )}
+              {!passwordIdentity && (
+                <TextInput
+                  id="admin-password-login-email"
+                  type="email"
+                  labelText="Login email"
+                  helperText="This account has no login email yet. A password needs one; it becomes the person's email."
+                  invalid={Boolean(accountPasswordForm.formState.errors.loginEmail)}
+                  invalidText={accountPasswordForm.formState.errors.loginEmail?.message}
+                  {...accountPasswordForm.register('loginEmail', { required: 'Enter an email address.' })}
                 />
               )}
               <PasswordInput
@@ -275,7 +298,10 @@ export function AccountDialogs({
                     value === accountPasswordForm.watch('newPassword') || 'The passwords do not match.',
                 })}
               />
-              <p className="section-description">Setting a password revokes existing sessions and reset links.</p>
+              <p className="section-description">
+                The person is signed out everywhere and pending reset links stop working. Nothing is emailed, so share
+                the password through a safe channel.
+              </p>
             </Stack>
           </Form>
         </ModalBody>

@@ -8,7 +8,7 @@ export type ConfirmKind =
   | 'remove-auth-method'
   | null;
 export type AccountEmailForm = { loginEmail: string };
-export type AccountPasswordForm = { newPassword: string; confirmPassword: string };
+export type AccountPasswordForm = { loginEmail: string; newPassword: string; confirmPassword: string };
 export type AccountPINForm = { loginName: string; pin: string; confirmPIN: string };
 export type PersonDetailTab =
   'overview' | 'personal-information' | 'account-access' | 'roles-permissions' | 'makerspace-status' | 'trainings';

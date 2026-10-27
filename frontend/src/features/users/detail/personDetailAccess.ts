@@ -34,10 +34,13 @@ export function getPersonDetailAccess(
   const canDisableAccount = account?.status === 'enabled' && hasPermission(currentUser, PermissionId.accountsdisable);
   const canDeleteAccount = Boolean(account) && hasPermission(currentUser, PermissionId.accountsdelete);
   const canAssignRole = canAssignRoles && canReadRoles;
-  // Emergency administrator password setting remains an API-only compatibility
-  // operation; routine UI workflows use recipient-owned invitations and resets.
-  const canSetPassword = false;
   const passwordIdentity = account?.authIdentities.find((identity) => identity.kind === 'password');
+  // Independent of mail delivery. A password needs a login email, so an account without one can only be given a
+  // password by someone who may also set that email in the same dialog.
+  const canSetPassword =
+    Boolean(account) &&
+    hasPermission(currentUser, PermissionId.accountspasswordset) &&
+    (Boolean(passwordIdentity) || canEditLoginEmail);
   const pinIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin');
   const oidcIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc') ?? [];
   const hasUsableAuthenticationMethod = account?.authIdentities.some((identity) => identity.usable) ?? false;

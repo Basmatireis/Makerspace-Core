@@ -53,6 +53,9 @@ func (s *Service) UpdateLoginEmail(
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
+	if err := requireMasterForMasterAccount(ctx, queries, principal, id); err != nil {
+		return Account{}, err
+	}
 	if _, err := queries.GetPasswordIdentityForAccountForUpdate(ctx, id); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, err
 	}
@@ -112,6 +115,29 @@ func (s *Service) UpdateLoginEmail(
 	return result, nil
 }
 
+// requireMasterForMasterAccount keeps credential takeover of a master account
+// limited to masters: a delegated administrator must not be able to replace the
+// password or login email of an account that holds more privileges than a
+// registered permission could ever grant.
+func requireMasterForMasterAccount(
+	ctx context.Context,
+	queries *accountsdb.Queries,
+	principal authorization.Principal,
+	accountID uuid.UUID,
+) error {
+	if principal.Master {
+		return nil
+	}
+	isMaster, err := queries.IsAccountMaster(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if isMaster {
+		return apperror.PermissionDenied
+	}
+	return nil
+}
+
 func (s *Service) SetPassword(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -143,8 +169,14 @@ func (s *Service) SetPassword(
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
+	if err := requireMasterForMasterAccount(ctx, queries, principal, id); err != nil {
+		return Account{}, err
+	}
 	identity, err := queries.GetIdentityByAccount(ctx, id)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		// A password needs a login email; the administrator sets one first (accounts.login_email.update).
+		return Account{}, apperror.InvalidField("the account has no login email; set one before setting a password")
+	} else if err != nil {
 		return Account{}, err
 	}
 	if err := queries.UpsertPasswordCredential(
