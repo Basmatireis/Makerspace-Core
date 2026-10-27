@@ -395,8 +395,8 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Claim run' }));
     const claim = screen.getByRole('dialog', { name: 'Claim run' });
-    await user.click(within(claim).getByLabelText('Part of an existing job'));
-    await user.click(within(claim).getByRole('button', { name: 'Continue' }));
+    expect(within(claim).getByRole('button', { name: 'New job' })).toBeInTheDocument();
+    await user.click(within(claim).getByRole('button', { name: 'Existing job' }));
     expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
   });
 

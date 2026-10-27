@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Modal, RadioButton, RadioButtonGroup } from '@carbon/react';
+import { Modal } from '@carbon/react';
 
 export type ClaimChoice = 'create' | 'attach';
 
@@ -13,27 +12,18 @@ export function ClaimRunModal({
   onChoose: (choice: ClaimChoice) => void;
   onClose: () => void;
 }) {
-  const [choice, setChoice] = useState<ClaimChoice>('create');
   return (
     <Modal
       open={open}
-      size="sm"
+      size="xs"
       modalHeading="Claim run"
-      primaryButtonText="Continue"
-      secondaryButtonText="Cancel"
+      primaryButtonText="New job"
+      secondaryButtonText="Existing job"
       onRequestClose={onClose}
-      onRequestSubmit={() => onChoose(choice)}
+      onRequestSubmit={() => onChoose('create')}
+      onSecondarySubmit={() => onChoose('attach')}
     >
-      <RadioButtonGroup
-        name="claim-run"
-        legendText="Record this run as"
-        valueSelected={choice}
-        orientation="vertical"
-        onChange={(value) => setChoice(value as ClaimChoice)}
-      >
-        <RadioButton id="claim-run-create" labelText="A new job" value="create" />
-        <RadioButton id="claim-run-attach" labelText="Part of an existing job" value="attach" />
-      </RadioButtonGroup>
+      <p>Record this run as a new job, or add it to an existing job on the same machine.</p>
     </Modal>
   );
 }
