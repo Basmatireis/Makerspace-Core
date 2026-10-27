@@ -235,7 +235,7 @@ func (s *Service) RequestRecomputeAfterArtifact(
 		return RecomputeNotNeeded, nil
 	}
 	if commandAllowed(target, CommandRecomputeConsumption) != nil {
-		return RecomputeUnavailable, nil
+		return RecomputeUnavailable, nil //nolint:nilerr // a run that takes no commands is an outcome, not a failure
 	}
 	if _, err = q.GetOpenRunCommand(ctx, db.GetOpenRunCommandParams{
 		RunID: runID,

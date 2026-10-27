@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -39,9 +40,11 @@ const (
 )
 
 // newWebAuthn derives the relying party from PUBLIC_BASE_URL: its host is the RP ID and its origin the only
-// accepted origin. Without a base URL passkeys are unavailable.
+// accepted origin. Without a base URL, or with an IP address as host (WebAuthn needs a domain, as in a local
+// http://127.0.0.1 stack), passkeys are unavailable and everything else keeps working.
 func newWebAuthn(cfg config.Config) (*webauthn.WebAuthn, error) {
-	if cfg.PublicBaseURL == nil || cfg.PublicBaseURL.Hostname() == "" {
+	if cfg.PublicBaseURL == nil || cfg.PublicBaseURL.Hostname() == "" ||
+		net.ParseIP(cfg.PublicBaseURL.Hostname()) != nil {
 		return nil, nil
 	}
 	origin := cfg.PublicBaseURL.Scheme + "://" + cfg.PublicBaseURL.Host
@@ -122,7 +125,7 @@ func passkeyFromRow(row authdb.WebauthnCredential) Passkey {
 
 func (s *Service) requireWebAuthn() error {
 	if s.webAuthn == nil {
-		return apperror.Conflicting("passkeys_unavailable", "Passkeys need a public base URL")
+		return apperror.Conflicting("passkeys_unavailable", "Passkeys need a public base URL with a domain name")
 	}
 	return nil
 }
