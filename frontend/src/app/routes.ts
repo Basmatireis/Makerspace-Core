@@ -28,6 +28,11 @@ export const ProfilePage = lazy(() =>
 export const SalesOverviewPage = lazy(() =>
   import('../features/orders/SalesOverviewPage').then(({ SalesOverviewPage }) => ({ default: SalesOverviewPage })),
 );
+export const ExternalInvoiceRedirect = lazy(() =>
+  import('../features/orders/ExternalInvoiceRedirect').then(({ ExternalInvoiceRedirect }) => ({
+    default: ExternalInvoiceRedirect,
+  })),
+);
 export const OrdersPage = lazy(() =>
   import('../features/orders/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })),
 );

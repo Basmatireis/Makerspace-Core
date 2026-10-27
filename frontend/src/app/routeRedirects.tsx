@@ -1,22 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
-import { requestQuery } from '../features/orders/queries';
-import { FullPageLoading } from './PageState';
 
 export function LegacyRedirect({ from, to }: { from: string; to: string }) {
   const location = useLocation();
   const suffix = location.pathname.slice(from.length);
 
   return <Navigate to={{ pathname: `${to}${suffix}`, search: location.search, hash: location.hash }} replace />;
-}
-
-/** The former request page: the invoice now lives on its order. */
-export function ExternalInvoiceRedirect() {
-  const { requestId = '' } = useParams();
-  const request = useQuery({ ...requestQuery(requestId), enabled: !!requestId });
-  if (request.isError || (request.data && !request.data.orderId)) return <Navigate to="/orders" replace />;
-  if (!request.data) return <FullPageLoading label="Loading page" />;
-  return <Navigate to={`/orders/${request.data.orderId}`} replace />;
 }
 
 export function OpenDayScheduleRedirect() {

@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { queryClient } from './api/query-client';
 import { App } from './app/App';
+import { RouteErrorPage } from './app/RouteErrorPage';
 import { SessionEventHandler } from './features/auth/auth';
 import { BrandingProvider } from './features/branding/branding';
 import './styles/index.scss';
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
         <App />
       </>
     ),
+    errorElement: <RouteErrorPage />,
   },
 ]);
 

@@ -20,6 +20,7 @@ import {
   EventDetailPage,
   EventSignupManagementPage,
   EventsPage,
+  ExternalInvoiceRedirect,
   FilamentSpoolDetailPage,
   GatewayDetailPage,
   InventoryPage,
@@ -81,7 +82,7 @@ import {
   VisitorKioskPage,
   MessagesPage,
 } from './routes';
-import { ExternalInvoiceRedirect, IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
+import { IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedirects';
 
 function ProtectedApp() {
   return (
