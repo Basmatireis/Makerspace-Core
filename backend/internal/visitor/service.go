@@ -80,19 +80,22 @@ type LabRulesVersion struct {
 }
 
 type EnrollmentState struct {
-	AllowedMethods  []AuthMethod
+	AllowedMethods []AuthMethod
+	// Capabilities are the effective capabilities of the enrolling device.
+	Capabilities    []string
 	CurrentLabRules *LabRulesVersion
 	ExpiresAt       time.Time
 }
 
 type SubmissionInput struct {
-	FirstName            string
-	LastName             string
-	Email                *string
-	Phone                *string
-	AuthMethods          []AuthMethod
-	PINLoginName         *string
-	PIN                  *string
+	FirstName    string
+	LastName     string
+	Email        *string
+	Phone        *string
+	AuthMethods  []AuthMethod
+	PINLoginName *string
+	PIN          *string
+	// ProfileImage is required when the device can take or upload a photo and ignored otherwise.
 	ProfileImage         []byte
 	ProfileImageFilename string
 	RequestConfirmation  bool
@@ -348,8 +351,13 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 	if err != nil {
 		return EnrollmentState{}, err
 	}
+	capabilities, err := manageddevices.NewService(s.pool).EffectiveCapabilities(ctx, enrollment.ManagedDeviceID)
+	if err != nil {
+		return EnrollmentState{}, err
+	}
 	return EnrollmentState{
 		AllowedMethods:  configuration.AllowedMethods,
+		Capabilities:    capabilities,
 		CurrentLabRules: version,
 		ExpiresAt:       enrollment.ExpiresAt,
 	}, nil
@@ -372,26 +380,37 @@ func (s *Service) Submit(
 	input SubmissionInput,
 	requestID *uuid.UUID,
 ) (SubmissionResult, error) {
-	clean, pinDisplay, pinNormalized, pinHash, imageBytes, err := s.validateSubmission(input)
+	capabilities, err := manageddevices.NewService(s.pool).EffectiveCapabilities(ctx, enrollment.ManagedDeviceID)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
-	normalizedImage, err := people.NormalizeProfileImage(bytes.NewReader(imageBytes))
+	clean, pinDisplay, pinNormalized, pinHash, imageBytes, err := s.validateSubmission(
+		input,
+		PhotoRequired(capabilities),
+	)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
-	filename := strings.TrimSpace(input.ProfileImageFilename)
-	if filename == "" {
-		filename = "visitor-profile.jpg"
-	}
-	stored, err := s.files.StoreSystemBytes(ctx, filename, "image/jpeg", normalizedImage, requestID)
-	if err != nil {
-		return SubmissionResult{}, err
+	var storedImageID *uuid.UUID
+	if len(imageBytes) > 0 {
+		normalizedImage, err := people.NormalizeProfileImage(bytes.NewReader(imageBytes))
+		if err != nil {
+			return SubmissionResult{}, err
+		}
+		filename := strings.TrimSpace(input.ProfileImageFilename)
+		if filename == "" {
+			filename = "visitor-profile.jpg"
+		}
+		stored, err := s.files.StoreSystemBytes(ctx, filename, "image/jpeg", normalizedImage, requestID)
+		if err != nil {
+			return SubmissionResult{}, err
+		}
+		storedImageID = &stored.ID
 	}
 	linked := false
 	defer func() {
-		if !linked {
-			_ = s.files.DeleteSystem(context.Background(), stored.ID, requestID)
+		if !linked && storedImageID != nil {
+			_ = s.files.DeleteSystem(context.Background(), *storedImageID, requestID)
 		}
 	}()
 	var invitationCode string
@@ -443,7 +462,7 @@ func (s *Service) Submit(
 			LastName:           clean.LastName,
 			Email:              clean.Email,
 			Phone:              clean.Phone,
-			ProfileImageFileID: &stored.ID,
+			ProfileImageFileID: storedImageID,
 			MemberSince:        dates.TodayUTC(),
 		},
 	); err != nil {
@@ -670,7 +689,14 @@ func (s *Service) Admission(
 	return AdmissionResult{Decision: decision, Status: status, RequestID: requestIDValue}, nil
 }
 
-func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, string, string, string, []byte, error) {
+// PhotoRequired reports whether enrollment on a device with these effective capabilities must include a profile photo.
+// A device that can neither take nor upload one (no camera, no file_upload) enrolls without it.
+func PhotoRequired(capabilities []string) bool {
+	return slices.Contains(capabilities, manageddevices.CapabilityCamera) ||
+		slices.Contains(capabilities, manageddevices.CapabilityFileUpload)
+}
+
+func (s *Service) validateSubmission(input SubmissionInput, photoRequired bool) (SubmissionInput, string, string, string, []byte, error) {
 	input.FirstName, input.LastName = strings.TrimSpace(input.FirstName), strings.TrimSpace(input.LastName)
 	if input.FirstName == "" || input.LastName == "" || len([]rune(input.FirstName)) > 100 ||
 		len([]rune(input.LastName)) > 100 {
@@ -721,7 +747,7 @@ func (s *Service) validateSubmission(input SubmissionInput) (SubmissionInput, st
 		)
 	}
 	imageBytes := input.ProfileImage
-	if len(imageBytes) == 0 {
+	if len(imageBytes) == 0 && photoRequired {
 		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("profile image is invalid")
 	}
 	return input, pinDisplay, pinNormalized, pinHash, imageBytes, nil

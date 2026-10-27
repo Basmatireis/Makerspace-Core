@@ -260,18 +260,49 @@ func (s *Service) ReportHardware(
 	return s.GetHardwareContext(ctx, device)
 }
 
+// Capability values that other features depend on.
+const (
+	CapabilityCamera = "camera"
+	// CapabilityFileUpload needs no hardware: it is the browser's file picker, so no native client can report it and
+	// it is effective whenever an administrator configured it.
+	CapabilityFileUpload = "file_upload"
+)
+
 func intersectCapabilities(configured, reported []string) []string {
 	allowed := make(map[string]struct{}, len(configured))
 	for _, capability := range configured {
 		allowed[capability] = struct{}{}
 	}
-	result := make([]string, 0, len(reported))
+	result := make([]string, 0, len(reported)+1)
 	for _, capability := range reported {
-		if _, ok := allowed[capability]; ok {
+		if _, ok := allowed[capability]; ok && capability != CapabilityFileUpload {
 			result = append(result, capability)
 		}
 	}
+	if _, ok := allowed[CapabilityFileUpload]; ok {
+		result = append(result, CapabilityFileUpload)
+	}
 	return result
+}
+
+// EffectiveCapabilities are the configured capabilities of a device narrowed by what its native client reported.
+// A device that never reported (a plain browser) is trusted to match its configuration.
+func (s *Service) EffectiveCapabilities(ctx context.Context, deviceID uuid.UUID) ([]string, error) {
+	q := manageddevicesdb.New(s.pool)
+	configured, err := q.ListDeviceCapabilities(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := q.GetManagedDeviceHardwareReport(ctx, deviceID); errors.Is(err, pgx.ErrNoRows) {
+		return configured, nil
+	} else if err != nil {
+		return nil, err
+	}
+	reported, err := q.ListReportedDeviceCapabilities(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	return intersectCapabilities(configured, reported), nil
 }
 
 func sameUUIDPointer(left, right *uuid.UUID) bool {
@@ -344,12 +375,13 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 
 func validateCapabilities(capabilities []string) error {
 	allowed := map[string]bool{
-		"nfc":           true,
-		"camera":        true,
-		"qr":            true,
-		"barcode":       true,
-		"scale":         true,
-		"label_printer": true,
+		"nfc":                true,
+		"camera":             true,
+		"qr":                 true,
+		"barcode":            true,
+		"scale":              true,
+		"label_printer":      true,
+		CapabilityFileUpload: true,
 	}
 	seen := map[string]bool{}
 	for _, value := range capabilities {

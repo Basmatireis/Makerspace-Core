@@ -13,6 +13,10 @@ Each device has one or both application modes:
 
 The API enforces these modes. A visitor-only device cannot enter or retain a staff session. Changing modes revokes the device's existing user sessions. This is the boundary that prevents a public kiosk from inheriting staff privileges; hiding staff controls in React is only an additional UX measure.
 
+Capabilities are `nfc`, `camera`, `qr`, `barcode`, `scale`, `label_printer` and `file_upload`. `file_upload` means the kiosk's browser may offer a file picker (profile photo upload during visitor enrollment). It needs no hardware, so native clients never report it: it is effective whenever an administrator configured it. The effective set of every other capability is the intersection of configured and reported capabilities when the device has ever reported hardware; a device that never reported (a plain browser kiosk) is trusted to match its configuration. `GET /api/v1/terminal/context` and the visitor enrollment state return this effective set.
+
+Visitor enrollment uses it for the profile photo: the picker offers "Start camera" only with `camera` and the upload only with `file_upload`. A profile photo is required exactly when the device has at least one of the two; a device with neither hides the picker and enrolls without a photo. The backend applies the same rule from the enrolling device's effective capabilities, not from what the client sends.
+
 Configured capabilities describe what administrators permit. A native client reports what is currently present through `PUT /api/v1/managed-devices/self/hardware`; the effective set is their intersection. The device identity comes only from its credential, never from a request-body ID. Reports replace the previous reported set transactionally and write an audit event without storing the token or hardware identifiers.
 
 Role grants can apply everywhere, to any valid managed device, or to selected administrator-maintained device types. Revocation and expiry are checked against PostgreSQL on every request, so device-scoped privileges disappear immediately. The protected `master` role remains unrestricted everywhere.

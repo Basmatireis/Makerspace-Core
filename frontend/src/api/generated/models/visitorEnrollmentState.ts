@@ -18,11 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { DeviceCapability } from './deviceCapability';
 import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 import type { VisitorLabRulesVersion } from './visitorLabRulesVersion';
 
 export interface VisitorEnrollmentState {
   allowedMethods: VisitorAuthenticationMethod[];
+  /** Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload. */
+  capabilities: DeviceCapability[];
   currentLabRules: VisitorLabRulesVersion | null;
   expiresAt: string;
 }

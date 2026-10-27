@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VisitorEnrollmentSubmission } from '../../api/generated/models';
@@ -13,6 +13,12 @@ vi.mock('./components/renderPdf', () => ({
     container.textContent = `Mock PDF viewer ${url}`;
     onFirstPage();
   },
+}));
+
+// jsdom has no canvas; the crop geometry is tested on its own.
+vi.mock('../users/profilePhotoCrop', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../users/profilePhotoCrop')>()),
+  renderCrop: async () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: 'image/jpeg' }),
 }));
 
 const versionId = '0192f6f8-743e-7c77-a349-cd07c3e8ab01';
@@ -40,6 +46,7 @@ describe('controlled visitor enrollment', () => {
       http.get('*/api/v1/visitor-enrollment/state', () =>
         HttpResponse.json({
           allowedMethods: ['pin'],
+          capabilities: ['camera', 'file_upload'],
           currentLabRules: {
             id: versionId,
             humanRevision: '2026-09',
@@ -76,10 +83,7 @@ describe('controlled visitor enrollment', () => {
     await user.type(screen.getByLabelText('Last name'), 'Visitor');
     await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
     expect(next).toBeDisabled();
-    await user.upload(
-      screen.getByLabelText('or upload a profile photo'),
-      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
-    );
+    await choosePhoto(user);
     expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
     await waitFor(() => expect(next).toBeEnabled());
     await user.click(next);
@@ -128,7 +132,7 @@ describe('controlled visitor enrollment', () => {
       authMethods: ['pin'],
       pinLoginName: 'Visitor.One',
       pin: '654321',
-      profileImageFilename: 'visitor.jpg',
+      profileImageFilename: 'profile-photo.jpg',
       requestConfirmation: true,
     });
     expect(submission?.profileImageBase64).toBe('/9j/2Q==');
@@ -150,6 +154,7 @@ describe('controlled visitor enrollment', () => {
       http.get('*/api/v1/visitor-enrollment/state', () =>
         HttpResponse.json({
           allowedMethods: ['password', 'pin'],
+          capabilities: ['camera', 'file_upload'],
           currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
           expiresAt: '2026-09-20T12:15:00Z',
         }),
@@ -160,10 +165,7 @@ describe('controlled visitor enrollment', () => {
     await user.type(await screen.findByLabelText('First name'), 'Pia');
     await user.type(screen.getByLabelText('Last name'), 'Phone');
     await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
-    await user.upload(
-      screen.getByLabelText('or upload a profile photo'),
-      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
-    );
+    await choosePhoto(user);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByLabelText(/Email invitation/)).toBeDisabled();
@@ -171,6 +173,52 @@ describe('controlled visitor enrollment', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     await user.click(screen.getByRole('link', { name: 'Back to check-in' }));
     expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
+  });
+
+  it('skips the photo and does not require it on a kiosk that can neither take nor upload one', async () => {
+    let submission: VisitorEnrollmentSubmission | undefined;
+    server.use(
+      http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/api/v1/visitor-enrollment/state', () =>
+        HttpResponse.json({
+          allowedMethods: ['pin'],
+          capabilities: ['nfc'],
+          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
+          expiresAt: '2026-09-20T12:15:00Z',
+        }),
+      ),
+      http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
+        submission = (await request.json()) as VisitorEnrollmentSubmission;
+        return HttpResponse.json(
+          {
+            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+            accountStatus: 'enabled',
+            invitationDelivery: null,
+            labRulesRequestId: null,
+            admission: 'admitted',
+            attendance: 'checked_in',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderKioskAware();
+    await user.type(await screen.findByLabelText('First name'), 'Nora');
+    await user.type(screen.getByLabelText('Last name'), 'Nophoto');
+    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
+    expect(screen.queryByText('Profile photo')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start camera' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(await screen.findByLabelText('PIN login username'), 'Nora.No');
+    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByLabelText(/I am ready to sign the physical Lab Rules document/));
+    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    await waitFor(() => expect(submission).toBeDefined());
+    expect(submission?.profileImageBase64).toBeNull();
+    expect(submission?.profileImageFilename).toBeNull();
   });
 
   describe('inactivity', () => {
@@ -182,6 +230,7 @@ describe('controlled visitor enrollment', () => {
         http.get('*/api/v1/visitor-enrollment/state', () =>
           HttpResponse.json({
             allowedMethods: ['pin'],
+            capabilities: ['camera', 'file_upload'],
             currentLabRules: null,
             expiresAt: '2026-09-20T12:15:00Z',
           }),
@@ -203,6 +252,19 @@ describe('controlled visitor enrollment', () => {
     });
   });
 });
+
+// Choosing a file opens the round-mask cropper; the photo only counts once it is confirmed.
+async function choosePhoto(user: ReturnType<typeof userEvent.setup>) {
+  await user.upload(
+    screen.getByLabelText('or upload a profile photo'),
+    new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
+  );
+  const image = (await screen.findByRole('group', { name: 'Photo position' })).querySelector('img')!;
+  Object.defineProperty(image, 'naturalWidth', { value: 800 });
+  Object.defineProperty(image, 'naturalHeight', { value: 600 });
+  fireEvent.load(image);
+  await user.click(screen.getByRole('button', { name: 'Use photo' }));
+}
 
 function renderKioskAware() {
   return renderRoute(

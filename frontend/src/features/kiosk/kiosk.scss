@@ -20,7 +20,8 @@ body:has(.tablet) {
   grid-template-areas:
     'header header'
     'main presence';
-  block-size: 100dvh;
+  // While the on-screen keyboard is open useKeyboardAvoidance sets the visible height.
+  block-size: var(--visual-viewport-height, 100dvh);
   background: $background;
 }
 
@@ -411,5 +412,30 @@ body:has(.tablet) {
 
   .tablet-keypad {
     max-inline-size: 22rem;
+  }
+}
+
+// With the on-screen keyboard open only the entry screen is shown, so its fields and submit button fit above it.
+:root[data-keyboard-open] {
+  // iOS pans the visual viewport; follow it (a transform would otherwise trap fixed modals).
+  .tablet {
+    translate: 0 var(--visual-viewport-top, 0);
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'main';
+  }
+
+  .tablet-header,
+  .tablet-presence,
+  .tablet-identify__idle {
+    display: none;
+  }
+
+  .tablet-main {
+    padding-block: $spacing-05;
+  }
+
+  .tablet-identify {
+    gap: $spacing-05;
   }
 }

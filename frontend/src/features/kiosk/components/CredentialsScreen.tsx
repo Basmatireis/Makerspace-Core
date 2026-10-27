@@ -22,6 +22,7 @@ import { ApiError } from '../../../api/http-client';
 import { useSecretMutation } from '../../../api/use-secret-mutation';
 import { PinKeypad } from './PinKeypad';
 import { useIdleCountdown } from './useIdleCountdown';
+import { useKeyboardAvoidance } from '../useKeyboardAvoidance';
 
 export type KioskAuthMethod = 'pin' | 'password';
 
@@ -45,6 +46,7 @@ export function CredentialsScreen({
   const [method, setMethod] = useState<KioskAuthMethod>(available[0] ?? 'pin');
   const [identifier, setIdentifier] = useState('');
   const [secret, setSecret] = useState('');
+  useKeyboardAvoidance();
   const idleLeft = useIdleCountdown(onCancel);
   const activeMethod = available.includes(method) ? method : (available[0] ?? 'pin');
   const ready = identifier.trim() !== '' && (activeMethod === 'pin' ? secret.length >= pinLength.min : secret !== '');

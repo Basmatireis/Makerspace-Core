@@ -132,7 +132,7 @@ func (s *Service) KioskContext(ctx context.Context, device manageddevices.Device
 	if err != nil {
 		return KioskContext{}, err
 	}
-	capabilities, err := attendancedb.New(s.pool).ListTerminalCapabilities(ctx, device.ID)
+	capabilities, err := manageddevices.NewService(s.pool).EffectiveCapabilities(ctx, device.ID)
 	if err != nil {
 		return KioskContext{}, err
 	}

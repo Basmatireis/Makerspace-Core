@@ -77,7 +77,7 @@ WHERE ec.id=sqlc.arg(context_id);
 
 -- name: CreateVisitorPerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source, member_since)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.arg(profile_image_file_id), 'terminal_capture', sqlc.arg(member_since))
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.narg(profile_image_file_id), CASE WHEN sqlc.narg(profile_image_file_id)::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateVisitorAccount :one

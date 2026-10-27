@@ -265,7 +265,15 @@ function DevicePolicyFields({
   value: DeviceConfiguration;
   onChange: (value: DeviceConfiguration) => void;
 }) {
-  const capabilityOptions: DeviceCapability[] = ['nfc', 'camera', 'qr', 'barcode', 'scale', 'label_printer'];
+  const capabilityOptions: DeviceCapability[] = [
+    'nfc',
+    'camera',
+    'qr',
+    'barcode',
+    'scale',
+    'label_printer',
+    'file_upload',
+  ];
   const applicationModes: DeviceApplicationMode[] = ['visitor_terminal', 'staff_ui'];
   return (
     <Stack gap={4}>

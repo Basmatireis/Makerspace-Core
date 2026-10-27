@@ -1,0 +1,67 @@
+// Round-mask photo cropper shared by the visitor kiosk and the staff profile picture editor. It is imported by the
+// component, so its CSS (and the Carbon slider's) only loads with the lazily loaded pages that use it.
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/slider';
+
+.photo-cropper {
+  display: grid;
+  gap: $spacing-05;
+  justify-items: center;
+  inline-size: min(100%, 20rem);
+}
+
+.photo-cropper__mask {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: $layer-02;
+  cursor: grab;
+  // The pointer drags the photo instead of scrolling the page.
+  touch-action: none;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
+  }
+
+  // Everything outside the circle is dimmed; what stays bright is what gets uploaded.
+  &::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 100vmax $overlay;
+    content: '';
+    pointer-events: none;
+  }
+}
+
+.photo-cropper__image {
+  position: absolute;
+  max-inline-size: none;
+  pointer-events: none;
+}
+
+.photo-cropper__help {
+  @include type-style('helper-text-01');
+  color: $text-secondary;
+  justify-self: start;
+}
+
+.photo-cropper .cds--slider-container {
+  inline-size: 100%;
+}
+
+.photo-cropper__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  justify-self: start;
+}

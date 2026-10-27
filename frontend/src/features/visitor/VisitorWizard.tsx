@@ -26,6 +26,7 @@ import { usePageTitle, useBranding } from '../branding/branding';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
+import { useKeyboardAvoidance } from '../kiosk/useKeyboardAvoidance';
 import { useInactivityPrompt } from './useInactivityPrompt';
 import './visitor.scss';
 
@@ -52,6 +53,7 @@ function BrandLockup() {
 
 export function VisitorWizard({ state }: { state: EnrollmentState }) {
   usePageTitle('Visitor enrollment');
+  useKeyboardAvoidance();
   const navigate = useNavigate();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
@@ -80,6 +82,10 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
     heading.current?.focus();
   }, [step]);
 
+  // The kiosk device decides how a photo can be provided; one that can neither take nor upload one skips the step.
+  // The backend applies the same rule from the device's capabilities.
+  const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
+  const photoRequired = sources.camera || sources.upload;
   const hasEmail = email.trim() !== '';
   const options = (['password', 'pin'] as const).filter((method) => state.allowedMethods.includes(method));
   const selectable = options.filter((method) => method !== 'password' || hasEmail);
@@ -92,7 +98,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       lastName.trim() !== '' &&
       (hasEmail || phone.trim() !== '') &&
       (!hasEmail || emailPattern.test(email.trim())) &&
-      Boolean(image),
+      (!photoRequired || Boolean(image)),
     method === 'password' || (method === 'pin' && loginNamePattern.test(loginName.trim()) && pinPattern.test(pin)),
     ready && Boolean(state.currentLabRules),
   ];
@@ -104,7 +110,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       setStep(step + 1);
       return;
     }
-    if (!image || !method) return;
+    if (!method) return;
     try {
       const result = await mutation.mutateAsync({
         firstName: firstName.trim(),
@@ -114,8 +120,8 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         authMethods: [method],
         pinLoginName: method === 'pin' ? loginName.trim() : null,
         pin: method === 'pin' ? pin : null,
-        profileImageBase64: image.base64,
-        profileImageFilename: image.filename,
+        profileImageBase64: image?.base64 ?? null,
+        profileImageFilename: image?.filename ?? null,
         requestConfirmation: ready,
       });
       setOutcome({
@@ -228,7 +234,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   </div>
                 </FormGroup>
               </div>
-              <ProfilePhotoPicker image={image} onChange={setImage} />
+              <ProfilePhotoPicker image={image} sources={sources} onChange={setImage} />
             </div>
           )}
 

@@ -53,15 +53,18 @@ export interface VisitorEnrollmentSubmission {
      */
   pin: string | null;
   /**
+     * Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.
      * @minLength 4
      * @maxLength 12000000
+     * @nullable
      */
-  profileImageBase64: string;
+  profileImageBase64: string | null;
   /**
      * @minLength 1
      * @maxLength 255
+     * @nullable
      */
-  profileImageFilename: string;
+  profileImageFilename: string | null;
   /** Must be true as the visitor's explicit request to enter the physical-signature workflow. */
   requestConfirmation: boolean;
 }

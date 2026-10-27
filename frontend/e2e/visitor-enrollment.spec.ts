@@ -24,6 +24,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
       await route.fulfill({
         json: {
           allowedMethods: ['pin'],
+          capabilities: ['camera', 'file_upload'],
           currentLabRules: {
             id: '0192f6f8-743e-7c77-a349-cd07c3e8ab01',
             humanRevision: '2026-09',

@@ -91,7 +91,15 @@ func (s *Server) GetVisitorEnrollmentState(
 	for index, method := range state.AllowedMethods {
 		methods[index] = openapi.VisitorAuthenticationMethod(method)
 	}
-	result := openapi.VisitorEnrollmentState{AllowedMethods: methods, ExpiresAt: state.ExpiresAt}
+	capabilities := make([]openapi.DeviceCapability, len(state.Capabilities))
+	for index, capability := range state.Capabilities {
+		capabilities[index] = openapi.DeviceCapability(capability)
+	}
+	result := openapi.VisitorEnrollmentState{
+		AllowedMethods: methods,
+		Capabilities:   capabilities,
+		ExpiresAt:      state.ExpiresAt,
+	}
 	if state.CurrentLabRules == nil {
 		result.CurrentLabRules = nullable.NewNullNullable[openapi.VisitorLabRulesVersion]()
 	} else {
@@ -127,8 +135,13 @@ func (s *Server) SubmitVisitorEnrollment(
 	if !ok {
 		return nil, invalidRequest("enrollment context is required")
 	}
-	if request.Body == nil || request.Body.ProfileImageBase64 == nil {
-		return nil, invalidRequest("request body and profile image are required")
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	// The service decides whether a photo is required for this device; an absent or null image is simply empty.
+	var profileImage []byte
+	if request.Body.ProfileImageBase64.IsSpecified() && !request.Body.ProfileImageBase64.IsNull() {
+		profileImage = request.Body.ProfileImageBase64.GetOrEmpty()
 	}
 	methods := make([]visitor.AuthMethod, len(request.Body.AuthMethods))
 	for index, method := range request.Body.AuthMethods {
@@ -140,7 +153,7 @@ func (s *Server) SubmitVisitorEnrollment(
 		AuthMethods:  methods,
 		PINLoginName: nullableStringPointer(request.Body.PinLoginName),
 		PIN:          nullableStringPointer(request.Body.Pin),
-		ProfileImage: *request.Body.ProfileImageBase64, ProfileImageFilename: request.Body.ProfileImageFilename,
+		ProfileImage: profileImage, ProfileImageFilename: request.Body.ProfileImageFilename.GetOrEmpty(),
 		RequestConfirmation: request.Body.RequestConfirmation,
 	}, requestIDPointer(ctx))
 	if err != nil {

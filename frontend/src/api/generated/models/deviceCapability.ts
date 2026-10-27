@@ -29,4 +29,5 @@ export const DeviceCapability = {
   barcode: 'barcode',
   scale: 'scale',
   label_printer: 'label_printer',
+  file_upload: 'file_upload',
 } as const;

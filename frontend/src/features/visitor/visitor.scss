@@ -11,7 +11,8 @@ body:has(.visitor-flow) {
 
 .visitor-flow {
   display: block;
-  block-size: 100dvh;
+  // While the on-screen keyboard is open useKeyboardAvoidance sets the visible height, so the footer stays above it.
+  block-size: var(--visual-viewport-height, 100dvh);
   overflow-y: auto;
   // The brand stripe of the sign-in card, at the top of the flow.
   background:
@@ -172,6 +173,12 @@ body:has(.visitor-flow) {
   background: $layer-02;
 }
 
+.visitor-photo__frame--round {
+  inline-size: 12rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
 .visitor-photo__media {
   inline-size: 100%;
   block-size: 100%;
@@ -272,7 +279,62 @@ body:has(.visitor-flow) {
   }
 }
 
-// Lab Rules PDF rendered by pdf.js into canvases inside a Carbon modal.
+// With the on-screen keyboard open only the fields and the primary action matter: drop the progress header, the
+// photo column and secondary text so every field stays visible.
+:root[data-keyboard-open] {
+  // iOS pans the visual viewport; follow it (a transform would otherwise trap fixed modals).
+  .visitor-flow {
+    translate: 0 var(--visual-viewport-top, 0);
+  }
+
+  .visitor-flow__form {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .visitor-flow__header,
+  .visitor-flow__form .cds--progress,
+  .visitor-flow__eyebrow,
+  .visitor-flow__note,
+  .visitor-photo {
+    display: none;
+  }
+
+  .visitor-flow__body {
+    padding-block: $spacing-04;
+  }
+
+  .visitor-flow__title {
+    margin-block-start: 0;
+  }
+
+  .visitor-flow__about {
+    grid-template-columns: 1fr;
+    gap: $spacing-04;
+  }
+
+  .visitor-flow__footer {
+    padding-block: $spacing-03;
+  }
+}
+
+// Lab Rules PDF rendered by pdf.js into canvases inside a Carbon modal. The container is fitted to the visible
+// viewport (dvh follows the browser toolbars on iPad Safari); header and close button stay put, the pages scroll.
+.visitor-pdf-modal.cds--modal {
+  block-size: 100dvh;
+}
+
+.visitor-pdf-modal .cds--modal-container {
+  block-size: calc(100dvh - #{$spacing-06});
+  max-block-size: calc(100dvh - #{$spacing-06});
+}
+
+.visitor-pdf-modal .cds--modal-content {
+  min-block-size: 0;
+  margin-block-end: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .visitor-pdf__pages {
   display: flex;
   flex-direction: column;

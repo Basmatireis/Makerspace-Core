@@ -4,12 +4,24 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Migration 00074 allows the new device capability `file_upload` (configured and reported capabilities). API: `DeviceCapability` gains `file_upload`; `VisitorEnrollmentState` carries `capabilities` (the enrolling device's effective capabilities); in `VisitorEnrollmentSubmission` `profileImageBase64` and `profileImageFilename` are now nullable.
+- **Existing kiosks lose nothing but should be reviewed:** a profile photo is required only when the device's capabilities include `camera` or `file_upload`. A kiosk with neither now enrolls visitors without a photo. Tick `camera` and/or `file upload` on kiosks that should keep requiring one (Settings, Devices).
+
+### Added
+
+- **Photo source by device capability.** New device capability `file upload`. In kiosk enrollment, "Start camera" appears only on devices with `camera`, the upload only on devices with `file upload`; a device with neither hides the photo picker and enrolls without a photo (enforced by the backend).
+- **Movable round photo mask.** After taking or choosing a photo, drag it (touch, mouse or arrow keys) under a round mask and zoom 1x to 3x; the visible square is uploaded as a 512x512 JPEG. The same cropper is used when staff change a profile picture.
+
 ### Changed
 
 - The entrance terminal is now called the kiosk everywhere in the UI, docs and code. The frontend route is `/kiosk`; `/terminal` redirects there, so deployed devices keep working. API paths, database values and the Android package ID are unchanged. The `android-terminal/` and `desktop-terminal/` folders are now `android-kiosk/` and `desktop-kiosk/`.
 
 ### Fixed
 
+- The Lab Rules PDF modal now fits the screen height on iPad (landscape and portrait): header and close button stay visible and the pages scroll inside the modal.
+- On the kiosk's on-screen keyboard (enrollment, check-in/out sign-in, staff login) the focused field and the Next or submit button stay visible above the keyboard; while it is open the "About you" step switches to one column and hides the photo column and progress header.
 - The kiosk no longer crashes with "component should have no interactive child nodes" when the Lab Rules PDF cannot be shown inline.
 - The Lab Rules PDF now renders on iPad Safari (pdf.js legacy build).
 - The "How can we reach you?" label in visitor enrollment no longer wraps into a narrow column on iPad Safari.

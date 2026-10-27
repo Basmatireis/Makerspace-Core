@@ -12531,9 +12531,10 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, currentLabRules, expiresAt]
+      required: [allowedMethods, capabilities, currentLabRules, expiresAt]
       properties:
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
         expiresAt: {type: string, format: date-time}
 
@@ -12549,8 +12550,8 @@ components:
         authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
         pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
-        profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true}
-        profileImageFilename: {type: string, minLength: 1, maxLength: 255}
+        profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
+        profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
         requestConfirmation: {type: boolean, description: Must be true as the visitor's explicit request to enter the physical-signature workflow.}
 
     VisitorEnrollmentResult:
@@ -16712,7 +16713,7 @@ components:
       enum: [verified, public_tap]
     DeviceCapability:
       type: string
-      enum: [nfc, camera, qr, barcode, scale, label_printer]
+      enum: [nfc, camera, qr, barcode, scale, label_printer, file_upload]
     SessionPolicy:
       type: object
       additionalProperties: false

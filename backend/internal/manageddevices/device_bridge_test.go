@@ -59,3 +59,16 @@ func TestIntersectCapabilitiesHonorsServerConfiguration(t *testing.T) {
 		t.Fatalf("intersection = %v", actual)
 	}
 }
+
+func TestFileUploadIsEffectiveWithoutAHardwareReport(t *testing.T) {
+	if err := validateCapabilities([]string{"camera", CapabilityFileUpload}); err != nil {
+		t.Fatalf("file_upload must be a valid configured capability: %v", err)
+	}
+	actual := intersectCapabilities([]string{"camera", CapabilityFileUpload}, []string{"nfc"})
+	if len(actual) != 1 || actual[0] != CapabilityFileUpload {
+		t.Fatalf("effective capabilities=%v, want only file_upload", actual)
+	}
+	if actual := intersectCapabilities([]string{"camera"}, []string{CapabilityFileUpload}); len(actual) != 0 {
+		t.Fatalf("a reported file_upload must not enable an unconfigured one: %v", actual)
+	}
+}
