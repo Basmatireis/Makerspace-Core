@@ -370,14 +370,15 @@ describe('Run detail page', () => {
     expect(screen.getByRole('dialog', { name: 'Job form stub' })).toBeInTheDocument();
   });
 
-  it('claims a run straight into an existing job with edit permission only', async () => {
+  it('links a run to an existing job from the menu with edit permission only', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
     serveRun(recordedRun());
     const user = userEvent.setup();
     renderRun();
-    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
+    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
+    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
+    await user.click(await screen.findByText('Link to existing job'));
     expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: 'Job form stub' })).not.toBeInTheDocument();
   });
 
   it('offers create and attach while the run is still running', async () => {
@@ -391,13 +392,11 @@ describe('Run detail page', () => {
     expect(screen.getByText('Material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
-    // With both permissions, Claim run asks whether the run starts a new job or joins an existing one.
+    // Claim run creates a job; linking to an existing job is in the menu next to it.
+    expect(screen.getByRole('button', { name: 'Claim run' })).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Claim run' }));
-    const claim = screen.getByRole('dialog', { name: 'Claim run' });
-    expect(within(claim).getByRole('button', { name: 'New job' })).toBeInTheDocument();
-    await user.click(within(claim).getByRole('button', { name: 'Existing job' }));
-    expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
+    await user.click(screen.getByRole('img', { name: 'More run actions' }));
+    expect(await screen.findByText('Link to existing job')).toBeInTheDocument();
   });
 
   describe('signage visibility', () => {
@@ -641,7 +640,8 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
+    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
+    await user.click(await screen.findByText('Link to existing job'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Attach run' })).toBeDisabled();
     await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
@@ -676,7 +676,8 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
+    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
+    await user.click(await screen.findByText('Link to existing job'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/the job keeps running until the run ends/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
