@@ -1,144 +1,107 @@
-import { Button, Stack } from '@carbon/react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  deleteManagedDevice,
-  deleteManagedDeviceType,
-  listManagedDevices,
-  listManagedDeviceTypes,
-  revokeManagedDevice,
-  rotateManagedDeviceToken,
-  updateManagedDevice,
-  updateManagedDeviceType,
-  listSessionPolicies,
-} from '../../api/generated/managed-devices/managed-devices';
-import type {
-  ManagedDevice,
-  ManagedDeviceCredentialDelivery,
-  ManagedDeviceProvisioning,
-  ManagedDeviceType,
-} from '../../api/generated/models';
+import { Button, Link as CarbonLink, Tag } from '@carbon/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import { listManagedDeviceTypes, listSessionPolicies } from '../../api/generated/managed-devices/managed-devices';
+import type { ManagedDevice, ManagedDeviceProvisioning, ManagedDeviceStatus } from '../../api/generated/models';
 import { ErrorState } from '../../app/PageState';
-import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
+import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { keys, DeviceConfiguration, Confirmation } from './components/deviceShared';
-import { DeviceTable } from './components/DeviceTable';
-import { CreateDeviceForm, DeviceFormModal, OneTimeToken } from './components/DeviceFormModal';
-import { ExpirationModal } from './components/ExpirationModal';
-import { DeviceTypesPanel, DeviceTypeModal } from './components/DeviceTypesPanel';
-import { ConfirmationModal } from './components/ConfirmationModal';
+import { DirectoryTable, useUrlState, type Column } from '../machinelogbook/shared/DirectoryTable';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
+import { CreateDeviceModal, OneTimeToken } from './components/DeviceFormModal';
+import { DeviceStatusTag } from './components/DeviceStatusTag';
+import { devicePaths, keys, modeLabels } from './components/deviceShared';
+import { useAllManagedDevices } from './queries';
+
+const statuses: ManagedDeviceStatus[] = ['active', 'expired', 'revoked'];
+const statusOptions = statuses.map((status) => ({ id: status, label: status[0].toUpperCase() + status.slice(1) }));
+
+const columns: Column<ManagedDevice>[] = [
+  {
+    key: 'name',
+    header: 'Device',
+    sortValue: (device) => device.name.toLowerCase(),
+    render: (device) => (
+      <div className="mj-cell-stack">
+        <CarbonLink as={Link} to={devicePaths.detail(device.id)}>
+          {device.name}
+        </CarbonLink>
+        <span className="mj-secondary mj-show-narrow">{device.deviceTypeName}</span>
+      </div>
+    ),
+  },
+  {
+    key: 'type',
+    header: 'Type',
+    narrow: true,
+    sortValue: (device) => device.deviceTypeName.toLowerCase(),
+    render: (device) => device.deviceTypeName,
+  },
+  {
+    key: 'modes',
+    header: 'Application modes',
+    narrow: true,
+    render: (device) => device.allowedApplicationModes.map((mode) => modeLabels[mode]).join(', '),
+  },
+  {
+    key: 'kiosk',
+    header: 'Kiosk',
+    narrow: true,
+    sortValue: (device) => Number(device.terminalEnabled),
+    render: (device) =>
+      device.terminalEnabled ? (
+        <Tag size="sm" type="blue">
+          Enabled
+        </Tag>
+      ) : (
+        <span className="mj-secondary">Off</span>
+      ),
+  },
+  {
+    key: 'lastSeen',
+    header: 'Last seen',
+    narrow: true,
+    firstDirection: 'DESC',
+    sortValue: (device) => device.lastSeenAt ?? '',
+    render: (device) => (device.lastSeenAt ? formatDateTime(device.lastSeenAt) : 'Never'),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    sortValue: (device) => device.status,
+    render: (device) => <DeviceStatusTag status={device.status} />,
+  },
+];
 
 export function ManagedDevicesPanel() {
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const canManage = hasPermission(currentUser, PermissionId.managed_devicesmanage);
-  const devicesQuery = useInfiniteQuery({
-    queryKey: keys.devices,
-    queryFn: ({ signal, pageParam }) => listManagedDevices({ limit: 50, cursor: pageParam }, { signal }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-  });
+  const url = useUrlState('dev-');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [secret, setSecret] = useState<ManagedDeviceProvisioning | null>(null);
+  const { query: devicesQuery, devices } = useAllManagedDevices();
   const typesQuery = useQuery({
     queryKey: keys.types,
     queryFn: ({ signal }) => listManagedDeviceTypes({ signal }),
+    enabled: canManage,
   });
-  const policiesQuery = useQuery({ queryKey: keys.policies, queryFn: ({ signal }) => listSessionPolicies({ signal }) });
-  const [secret, setSecret] = useState<ManagedDeviceProvisioning | null>(null);
-  const [editingDevice, setEditingDevice] = useState<ManagedDevice | null>(null);
-  const [rotatingDevice, setRotatingDevice] = useState<ManagedDevice | null>(null);
-  const [editingType, setEditingType] = useState<ManagedDeviceType | null>(null);
-  const [confirmation, setConfirmation] = useState<Confirmation>(null);
-  const [rotatePending, setRotatePending] = useState(false);
-  const [rotateError, setRotateError] = useState<Error | null>(null);
+  const policiesQuery = useQuery({
+    queryKey: keys.policies,
+    queryFn: ({ signal }) => listSessionPolicies({ signal }),
+    enabled: canManage,
+  });
+  const all = devices ?? [];
+  const selectedStatuses = url.list('status');
+  const rows = selectedStatuses.length ? all.filter((device) => selectedStatuses.includes(device.status)) : all;
 
-  const refresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: keys.devices }),
-      queryClient.invalidateQueries({ queryKey: keys.types }),
-    ]);
-  };
-
-  const editDeviceMutation = useMutation({
-    mutationFn: ({
-      device,
-      name,
-      deviceTypeId,
-      expiresAt,
-      ...configuration
-    }: {
-      device: ManagedDevice;
-      name: string;
-      deviceTypeId: string;
-      expiresAt: string | null;
-    } & DeviceConfiguration) =>
-      updateManagedDevice(device.id, {
-        name,
-        deviceTypeId,
-        expiresAt,
-        expectedVersion: device.version,
-        ...configuration,
-      }),
-    onSuccess: async () => {
-      setEditingDevice(null);
-      await refresh();
-    },
-  });
-  const rotate = async (
-    device: ManagedDevice,
-    expiresAt: string | null,
-    credentialDelivery: ManagedDeviceCredentialDelivery,
-  ) => {
-    setRotatePending(true);
-    setRotateError(null);
-    try {
-      const provisioning = await rotateManagedDeviceToken(device.id, {
-        expiresAt,
-        expectedVersion: device.version,
-        credentialDelivery,
-      });
-      setRotatingDevice(null);
-      setSecret(provisioning);
-      await refresh();
-    } catch (error) {
-      setRotateError(error instanceof Error ? error : new Error('Token rotation failed'));
-    } finally {
-      setRotatePending(false);
-    }
-  };
-  const lifecycleMutation = useMutation({
-    mutationFn: async (value: NonNullable<Confirmation>) => {
-      if (value.kind === 'delete-type') {
-        await deleteManagedDeviceType(value.type.id, { expectedVersion: value.type.version });
-        return;
-      }
-      if (value.kind === 'revoke') {
-        await revokeManagedDevice(value.device.id, { expectedVersion: value.device.version });
-      } else {
-        await deleteManagedDevice(value.device.id, { expectedVersion: value.device.version });
-      }
-    },
-    onSuccess: async () => {
-      setConfirmation(null);
-      await refresh();
-    },
-  });
-  const editTypeMutation = useMutation({
-    mutationFn: ({ type, name, description }: { type: ManagedDeviceType; name: string; description: string | null }) =>
-      updateManagedDeviceType(type.id, {
-        name,
-        description,
-        expectedVersion: type.version,
-      }),
-    onSuccess: async () => {
-      setEditingType(null);
-      await refresh();
-    },
-  });
   return (
     <SettingsSection
       title="Managed devices"
-      description="Register trusted local computers and control device-scoped access."
+      description="Trusted computers and tablets, the application modes they may run and their kiosk settings."
     >
       {secret && <OneTimeToken provisioning={secret} onDismiss={() => setSecret(null)} />}
       {devicesQuery.isPending && <SettingsLoading label="Loading managed devices" />}
@@ -150,85 +113,42 @@ export function ManagedDevicesPanel() {
         />
       )}
       {devicesQuery.data && (
-        <Stack gap={4}>
-          <DeviceTable
-            devices={devicesQuery.data.pages.flatMap((page) => page.items)}
-            canManage={canManage}
-            onEdit={setEditingDevice}
-            onRotate={setRotatingDevice}
-            onConfirm={(kind, device) => setConfirmation({ kind, device })}
-          />
-          {devicesQuery.hasNextPage && (
-            <Button
-              kind="tertiary"
-              disabled={devicesQuery.isFetchingNextPage}
-              onClick={() => void devicesQuery.fetchNextPage()}
-            >
-              Load more devices
-            </Button>
-          )}
-        </Stack>
+        <DirectoryTable<ManagedDevice>
+          id="devices"
+          urlPrefix="dev-"
+          label="Managed devices"
+          columns={columns}
+          rows={rows}
+          totalCount={all.length}
+          searchText={(device) => `${device.name} ${device.deviceTypeName}`}
+          defaultSort={{ key: 'name', direction: 'ASC' }}
+          filterCategories={[{ key: 'status', label: 'Status', options: statusOptions }]}
+          onRowClick={(device) => navigate(devicePaths.detail(device.id))}
+          toolbarAction={
+            canManage ? (
+              <Button kind="primary" size="lg" disabled={!typesQuery.data} onClick={() => setCreateOpen(true)}>
+                New device
+              </Button>
+            ) : undefined
+          }
+          empty={{
+            title: 'No managed devices yet',
+            description: 'Register a device to give a kiosk or workstation its own credential.',
+          }}
+        />
       )}
-      {canManage && typesQuery.data && (
-        <CreateDeviceForm
+      {createOpen && typesQuery.data && (
+        <CreateDeviceModal
           types={typesQuery.data.items}
           policies={policiesQuery.data?.items ?? []}
+          onClose={() => setCreateOpen(false)}
           onCreated={async (value) => {
+            setCreateOpen(false);
             setSecret(value);
-            await refresh();
+            await queryClient.invalidateQueries({ queryKey: keys.devices });
           }}
         />
       )}
-      <DeviceTypesPanel
-        types={typesQuery.data?.items ?? []}
-        loading={typesQuery.isPending}
-        canManage={canManage}
-        onEdit={setEditingType}
-        onDelete={(type) => setConfirmation({ kind: 'delete-type', type })}
-        onCreated={refresh}
-      />
-      {editingDevice && typesQuery.data && (
-        <DeviceFormModal
-          device={editingDevice}
-          types={typesQuery.data.items}
-          policies={policiesQuery.data?.items ?? []}
-          pending={editDeviceMutation.isPending}
-          error={editDeviceMutation.error}
-          onClose={() => setEditingDevice(null)}
-          onSubmit={(values) => editDeviceMutation.mutate({ device: editingDevice, ...values })}
-        />
-      )}
-      {rotatingDevice && (
-        <ExpirationModal
-          device={rotatingDevice}
-          pending={rotatePending}
-          error={rotateError}
-          onClose={() => {
-            setRotatingDevice(null);
-            setRotateError(null);
-          }}
-          onSubmit={(expiresAt, credentialDelivery) => void rotate(rotatingDevice, expiresAt, credentialDelivery)}
-        />
-      )}
-      {editingType && (
-        <DeviceTypeModal
-          type={editingType}
-          pending={editTypeMutation.isPending}
-          error={editTypeMutation.error}
-          onClose={() => setEditingType(null)}
-          onSubmit={(values) => editTypeMutation.mutate({ type: editingType, ...values })}
-        />
-      )}
-      <ConfirmationModal
-        value={confirmation}
-        pending={lifecycleMutation.isPending}
-        error={lifecycleMutation.error}
-        onClose={() => {
-          setConfirmation(null);
-          lifecycleMutation.reset();
-        }}
-        onConfirm={() => confirmation && lifecycleMutation.mutate(confirmation)}
-      />
     </SettingsSection>
   );
 }

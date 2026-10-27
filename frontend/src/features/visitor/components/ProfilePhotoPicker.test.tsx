@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ProfilePhotoPicker, type PhotoSources } from './ProfilePhotoPicker';
 
 function renderPicker(sources: PhotoSources) {
-  return render(<ProfilePhotoPicker image={undefined} sources={sources} onChange={() => undefined} />);
+  return render(<ProfilePhotoPicker image={undefined} sources={sources} required onChange={() => undefined} />);
 }
 
 describe('profile photo sources follow the kiosk capabilities', () => {

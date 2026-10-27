@@ -38,8 +38,11 @@ import { DateInput } from '../../app/DateInput';
 import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { SettingsTabs, type SettingsTab } from '../settings/SettingsTabs';
+import { laborordnungKeys } from './queries';
+import { SignaturesPanel } from './SignaturesPanel';
 
-const keys = { versions: ['laborordnung', 'versions'] as const, requests: ['laborordnung', 'requests'] as const };
+const keys = laborordnungKeys;
 
 export function LaborordnungPage() {
   const currentUser = useCurrentUser();
@@ -97,11 +100,8 @@ export function LaborordnungPage() {
     },
   });
 
-  return (
-    <SettingsPageLayout
-      page="laborordnung"
-      description="Published documents are immutable. Confirmation records physical evidence only."
-    >
+  const documents = (
+    <div className="settings-section">
       {canManage && (
         <Tile>
           <Stack gap={5}>
@@ -280,6 +280,21 @@ export function LaborordnungPage() {
           </Stack>
         </Tile>
       )}
+    </div>
+  );
+  const tabs: SettingsTab[] = [
+    { key: 'documents', label: 'Documents', panel: documents },
+    ...(canReadQueue
+      ? [{ key: 'signatures', label: 'Signatures', panel: <SignaturesPanel versions={versions.data?.items ?? []} /> }]
+      : []),
+  ];
+
+  return (
+    <SettingsPageLayout
+      page="laborordnung"
+      description="Published documents are immutable. Confirmation records physical evidence only."
+    >
+      {tabs.length > 1 ? <SettingsTabs label="Lab Rules sections" tabs={tabs} /> : documents}
       <ComposedModal open={Boolean(selected)} onClose={() => setSelected(undefined)}>
         <ModalHeader title="Confirm physical document" />
         <ModalBody>

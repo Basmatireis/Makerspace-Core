@@ -91,6 +91,32 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	return item, nil
 }
 
+// GetHardware reports what an administrator configured, what the device's native client reported and the effective
+// intersection, for the settings screen. It needs managed_devices.read like the device itself.
+func (s *Service) GetHardware(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+) (HardwareContext, error) {
+	device, err := s.Get(ctx, principal, id)
+	if err != nil {
+		return HardwareContext{}, err
+	}
+	return s.GetHardwareContext(ctx, DeviceContext{
+		ID:                      device.ID,
+		Name:                    device.Name,
+		DeviceTypeID:            device.DeviceTypeID,
+		DeviceTypeName:          device.DeviceTypeName,
+		ExpiresAt:               device.ExpiresAt,
+		SessionPolicyID:         device.SessionPolicyID,
+		KioskEnabled:            device.KioskEnabled,
+		AllowedApplicationModes: device.AllowedApplicationModes,
+		CheckInAssurance:        device.CheckInAssurance,
+		CheckOutAssurance:       device.CheckOutAssurance,
+		CheckoutMode:            device.CheckoutMode,
+	})
+}
+
 func (s *Service) Update(
 	ctx context.Context,
 	principal authorization.Principal,

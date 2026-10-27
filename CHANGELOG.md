@@ -6,16 +6,22 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Upgrade notes
 
+- API additions, no migration: `GET /api/v1/laborordnung/signatures` (confirmed Lab Rules signatures, paged, searchable and sortable; `laborordnung.requests.read`) and `GET /api/v1/managed-devices/{managedDeviceId}/hardware` (configured, reported and effective capabilities of a device; `managed_devices.read`).
 - Migration 00074 allows the new device capability `file_upload` (configured and reported capabilities). API: `DeviceCapability` gains `file_upload`; `VisitorEnrollmentState` carries `capabilities` (the enrolling device's effective capabilities); in `VisitorEnrollmentSubmission` `profileImageBase64` and `profileImageFilename` are now nullable.
 - **Existing kiosks lose nothing but should be reviewed:** a profile photo is required only when the device's capabilities include `camera` or `file_upload`. A kiosk with neither now enrolls visitors without a photo. Tick `camera` and/or `file upload` on kiosks that should keep requiring one (Settings, Devices).
 
 ### Added
 
+- **Lab Rules signatures.** A Signatures tab on the Lab Rules settings page lists every confirmed signature (person, revision, signed date, physical document reference, confirmed by and at) with search, a revision filter, sortable columns and server-side paging. A person's page shows their latest signatures. Both need `laborordnung.requests.read`.
+- **Managed device page.** Each managed device has its own page with general data, application modes and kiosk settings, and its configured, reported and effective capabilities, plus the token actions.
 - **Photo source by device capability.** New device capability `file upload`. In kiosk enrollment, "Start camera" appears only on devices with `camera`, the upload only on devices with `file upload`; a device with neither hides the photo picker and enrolls without a photo (enforced by the backend).
 - **Movable round photo mask.** After taking or choosing a photo, drag it (touch, mouse or arrow keys) under a round mask and zoom 1x to 3x; the visible square is uploaded as a 512x512 JPEG. The same cropper is used when staff change a profile picture.
 
 ### Changed
 
+- Settings, Devices & sessions: managed devices and session policies are tables like the other lists (search, status filter, sorting, paging); creating a device and editing a policy happen in modals; device types are their own tab.
+- All tiles on the settings overview have the same size.
+- The kiosk photo hint only says that a photo is required when the device actually requires one.
 - The entrance terminal is now called the kiosk everywhere in the UI, docs and code. The frontend route is `/kiosk`; `/terminal` redirects there, so deployed devices keep working. API paths, database values and the Android package ID are unchanged. The `android-terminal/` and `desktop-terminal/` folders are now `android-kiosk/` and `desktop-kiosk/`.
 
 ### Fixed

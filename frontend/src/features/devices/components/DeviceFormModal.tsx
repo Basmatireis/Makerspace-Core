@@ -32,13 +32,15 @@ import { DeviceConfiguration } from './deviceShared';
 import { ExpirationFields } from './ExpirationModal';
 import { MutationError } from './ConfirmationModal';
 
-export function CreateDeviceForm({
+export function CreateDeviceModal({
   types,
   policies,
+  onClose,
   onCreated,
 }: {
   types: ManagedDeviceType[];
   policies: SessionPolicy[];
+  onClose: () => void;
   onCreated: (value: ManagedDeviceProvisioning) => Promise<void>;
 }) {
   const [name, setName] = useState('');
@@ -79,71 +81,74 @@ export function CreateDeviceForm({
       setPending(false);
     }
   };
+  const invalid =
+    !name.trim() ||
+    !deviceTypeId ||
+    configuration.allowedApplicationModes.length === 0 ||
+    (configuration.terminalEnabled &&
+      (!configuration.sessionPolicyId || !configuration.allowedApplicationModes.includes('visitor_terminal'))) ||
+    (!noExpiration && !isZonedDateTimeValue(expiration)) ||
+    pending;
   return (
-    <Tile className="form-tile">
+    <ComposedModal open onClose={onClose}>
+      <ModalHeader title="Create device" />
       <Form
         onSubmit={(event) => {
           event.preventDefault();
-          void submit();
+          if (!invalid) void submit();
         }}
       >
-        <Stack gap={5}>
-          <h2>Create device</h2>
-          {error && <MutationError title="Device not created" error={error} />}
-          <TextInput
-            id="new-device-name"
-            labelText="Device name"
-            required
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <Select
-            id="new-device-type"
-            labelText="Device type"
-            required
-            value={deviceTypeId}
-            onChange={(event) => setDeviceTypeId(event.target.value)}
-          >
-            <SelectItem value="" text="Choose a type" />
-            {types.map((type) => (
-              <SelectItem key={type.id} value={type.id} text={type.name} />
-            ))}
-          </Select>
-          <ExpirationFields
-            noExpiration={noExpiration}
-            expiration={expiration}
-            setNoExpiration={setNoExpiration}
-            setExpiration={setExpiration}
-            id="create"
-          />
-          <DevicePolicyFields id="create" policies={policies} value={configuration} onChange={setConfiguration} />
-          <Select
-            id="new-device-delivery"
-            labelText="Credential delivery"
-            value={credentialDelivery}
-            onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}
-          >
-            <SelectItem value="nativeToken" text="Native token (show once)" />
-            <SelectItem value="bindBrowser" text="Bind this browser securely" />
-          </Select>
-          <Button
-            type="submit"
-            disabled={
-              !name.trim() ||
-              !deviceTypeId ||
-              configuration.allowedApplicationModes.length === 0 ||
-              (configuration.terminalEnabled &&
-                (!configuration.sessionPolicyId ||
-                  !configuration.allowedApplicationModes.includes('visitor_terminal'))) ||
-              (!noExpiration && !isZonedDateTimeValue(expiration)) ||
-              pending
-            }
-          >
+        <ModalBody hasForm>
+          <Stack gap={5}>
+            {error && <MutationError title="Device not created" error={error} />}
+            <TextInput
+              id="new-device-name"
+              labelText="Device name"
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <Select
+              id="new-device-type"
+              labelText="Device type"
+              required
+              value={deviceTypeId}
+              onChange={(event) => setDeviceTypeId(event.target.value)}
+            >
+              <SelectItem value="" text="Choose a type" />
+              {types.map((type) => (
+                <SelectItem key={type.id} value={type.id} text={type.name} />
+              ))}
+            </Select>
+            <ExpirationFields
+              noExpiration={noExpiration}
+              expiration={expiration}
+              setNoExpiration={setNoExpiration}
+              setExpiration={setExpiration}
+              id="create"
+            />
+            <DevicePolicyFields id="create" policies={policies} value={configuration} onChange={setConfiguration} />
+            <Select
+              id="new-device-delivery"
+              labelText="Credential delivery"
+              value={credentialDelivery}
+              onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}
+            >
+              <SelectItem value="nativeToken" text="Native token (show once)" />
+              <SelectItem value="bindBrowser" text="Bind this browser securely" />
+            </Select>
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={invalid}>
             Create device
           </Button>
-        </Stack>
+        </ModalFooter>
       </Form>
-    </Tile>
+    </ComposedModal>
   );
 }
 

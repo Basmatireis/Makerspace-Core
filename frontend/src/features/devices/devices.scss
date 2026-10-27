@@ -1,0 +1,13 @@
+@use '@carbon/styles/scss/spacing' as *;
+
+// Application-specific layout for the managed-device detail page; every control is a Carbon component.
+.device-detail {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.device-capabilities {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}

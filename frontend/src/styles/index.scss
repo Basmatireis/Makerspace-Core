@@ -618,13 +618,20 @@ body.cds--body--with-modal-open .app-main > * {
   scroll-margin-block-start: $spacing-09;
 }
 
+// Equal tiles: every track has the same width and, via `1fr` rows, the same height as the tallest tile.
 .settings-grid {
-  row-gap: $spacing-03;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: $spacing-03;
 }
 
 .settings-tile {
   display: flex;
-  min-height: 10rem;
+  box-sizing: border-box;
+  block-size: 100%;
+  min-block-size: 10rem;
   flex-direction: column;
   gap: $spacing-03;
 }

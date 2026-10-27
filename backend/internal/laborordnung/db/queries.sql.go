@@ -57,6 +57,31 @@ func (q *Queries) ConfirmRequest(ctx context.Context, arg ConfirmRequestParams) 
 	return i, err
 }
 
+const countSignatures = `-- name: CountSignatures :one
+SELECT count(*)
+FROM laborordnung_requests r
+JOIN people p ON p.id = r.person_id
+WHERE r.status = 'completed'
+  AND ($1::uuid IS NULL OR r.person_id = $1::uuid)
+  AND ($2::uuid IS NULL OR r.required_version_id = $2::uuid)
+  AND ($3::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($3::text) || '%'
+       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower($3::text) || '%')
+`
+
+type CountSignaturesParams struct {
+	PersonID  *uuid.UUID
+	VersionID *uuid.UUID
+	Search    string
+}
+
+func (q *Queries) CountSignatures(ctx context.Context, arg CountSignaturesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSignatures, arg.PersonID, arg.VersionID, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createRequest = `-- name: CreateRequest :one
 INSERT INTO laborordnung_requests (id, person_id, required_version_id, previous_version_id)
 VALUES ($1, $2, $3, $4)
@@ -349,6 +374,98 @@ func (q *Queries) ListRequests(ctx context.Context) ([]LaborordnungRequest, erro
 			&i.ArchiveNote,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignatures = `-- name: ListSignatures :many
+SELECT r.id, r.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
+       r.required_version_id AS version_id, v.human_revision, r.signed_date, r.physical_document_reference,
+       r.completed_at, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
+FROM laborordnung_requests r
+JOIN people p ON p.id = r.person_id
+JOIN laborordnung_versions v ON v.id = r.required_version_id
+LEFT JOIN accounts ca ON ca.id = r.confirmed_by_account_id
+LEFT JOIN people cp ON cp.id = ca.person_id
+WHERE r.status = 'completed'
+  AND ($1::uuid IS NULL OR r.person_id = $1::uuid)
+  AND ($2::uuid IS NULL OR r.required_version_id = $2::uuid)
+  AND ($3::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($3::text) || '%'
+       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower($3::text) || '%')
+ORDER BY
+  CASE WHEN $4::text = 'person' AND $5::boolean = false THEN lower(p.last_name || ' ' || p.first_name) END ASC,
+  CASE WHEN $4::text = 'person' AND $5::boolean THEN lower(p.last_name || ' ' || p.first_name) END DESC,
+  CASE WHEN $4::text = 'version' AND $5::boolean = false THEN lower(v.human_revision) END ASC,
+  CASE WHEN $4::text = 'version' AND $5::boolean THEN lower(v.human_revision) END DESC,
+  CASE WHEN $4::text = 'signedDate' AND $5::boolean = false THEN r.signed_date END ASC,
+  CASE WHEN $4::text = 'signedDate' AND $5::boolean THEN r.signed_date END DESC,
+  CASE WHEN $4::text = 'reference' AND $5::boolean = false THEN lower(r.physical_document_reference) END ASC,
+  CASE WHEN $4::text = 'reference' AND $5::boolean THEN lower(r.physical_document_reference) END DESC,
+  CASE WHEN $4::text = 'confirmedBy' AND $5::boolean = false THEN lower(cp.last_name || ' ' || cp.first_name) END ASC,
+  CASE WHEN $4::text = 'confirmedBy' AND $5::boolean THEN lower(cp.last_name || ' ' || cp.first_name) END DESC,
+  CASE WHEN $4::text = 'confirmedAt' AND $5::boolean = false THEN r.completed_at END ASC,
+  CASE WHEN $4::text = 'confirmedAt' AND $5::boolean THEN r.completed_at END DESC,
+  r.completed_at DESC, r.id
+LIMIT $7 OFFSET $6
+`
+
+type ListSignaturesParams struct {
+	PersonID   *uuid.UUID
+	VersionID  *uuid.UUID
+	Search     string
+	Sort       string
+	Descending bool
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListSignaturesRow struct {
+	ID                        uuid.UUID
+	PersonID                  uuid.UUID
+	PersonName                string
+	VersionID                 uuid.UUID
+	HumanRevision             string
+	SignedDate                pgtype.Date
+	PhysicalDocumentReference *string
+	CompletedAt               pgtype.Timestamptz
+	ConfirmedByName           string
+}
+
+func (q *Queries) ListSignatures(ctx context.Context, arg ListSignaturesParams) ([]ListSignaturesRow, error) {
+	rows, err := q.db.Query(ctx, listSignatures,
+		arg.PersonID,
+		arg.VersionID,
+		arg.Search,
+		arg.Sort,
+		arg.Descending,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignaturesRow{}
+	for rows.Next() {
+		var i ListSignaturesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.PersonName,
+			&i.VersionID,
+			&i.HumanRevision,
+			&i.SignedDate,
+			&i.PhysicalDocumentReference,
+			&i.CompletedAt,
+			&i.ConfirmedByName,
 		); err != nil {
 			return nil, err
 		}

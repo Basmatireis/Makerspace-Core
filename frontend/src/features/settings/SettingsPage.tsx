@@ -1,4 +1,4 @@
-import { Column, ClickableTile as CarbonClickableTile, Grid, Search } from '@carbon/react';
+import { ClickableTile as CarbonClickableTile, Search } from '@carbon/react';
 import { useEffect, useState, type ComponentProps, type ComponentType } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
@@ -55,17 +55,15 @@ export function SettingsPage() {
               <h2 id={`settings-group-${group.id}`}>{group.title}</h2>
               <p className="settings-section__description">{group.description}</p>
             </div>
-            <Grid condensed className="settings-grid">
+            <div className="settings-grid">
               {groupItems.map((item) => (
-                <Column key={item.id} sm={4} md={4} lg={4} xlg={4}>
-                  <ClickableTile as={Link} to={item.path} className="settings-tile">
-                    <item.icon size={32} />
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
-                  </ClickableTile>
-                </Column>
+                <ClickableTile key={item.id} as={Link} to={item.path} className="settings-tile">
+                  <item.icon size={32} />
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </ClickableTile>
               ))}
-            </Grid>
+            </div>
           </section>
         );
       })}

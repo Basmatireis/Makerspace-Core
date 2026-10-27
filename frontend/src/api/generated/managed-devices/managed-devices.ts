@@ -428,6 +428,31 @@ return apiFetch<void>(getDeleteManagedDeviceUrl(managedDeviceId),
 );}
 
 
+export const getGetManagedDeviceHardwareUrl = (managedDeviceId: string,) => {
+
+
+
+
+  return `/api/v1/managed-devices/${managedDeviceId}/hardware`
+}
+
+/**
+ * Requires `managed_devices.read`. Same shape as `GET /managed-devices/self/hardware`; `platform`, `bridgeVersion`
+ * and `reportedAt` are null while the device has never reported hardware.
+ * @summary Get what a managed device is configured with, has reported and effectively offers
+ */
+export const getManagedDeviceHardware = async (managedDeviceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DeviceHardwareContext> => {
+
+  return apiFetch<DeviceHardwareContext>(getGetManagedDeviceHardwareUrl(managedDeviceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getRevokeManagedDeviceUrl = (managedDeviceId: string,) => {
 
 

@@ -164,6 +164,21 @@ func (s *Server) GetManagedDevice(
 	return openapi.GetManagedDevice200JSONResponse(managedDeviceDTO(item)), nil
 }
 
+func (s *Server) GetManagedDeviceHardware(
+	ctx context.Context,
+	request openapi.GetManagedDeviceHardwareRequestObject,
+) (openapi.GetManagedDeviceHardwareResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	value, e := s.managedDevices.GetHardware(ctx, p, request.ManagedDeviceId)
+	if e != nil {
+		return nil, e
+	}
+	return openapi.GetManagedDeviceHardware200JSONResponse(hardwareContextDTO(value)), nil
+}
+
 func (s *Server) CreateManagedDevice(
 	ctx context.Context,
 	r openapi.CreateManagedDeviceRequestObject,

@@ -108,7 +108,7 @@ describe('merged settings pages', () => {
       within(tablist)
         .getAllByRole('tab')
         .map((tab) => tab.textContent),
-    ).toEqual(['Managed devices']);
+    ).toEqual(['Managed devices', 'Device types']);
   });
 
   it('denies the merged pages without any of their permissions', async () => {

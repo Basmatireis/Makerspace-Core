@@ -45,7 +45,6 @@ export function DeviceTypesPanel({
   return (
     <Tile>
       <Stack gap={5}>
-        <h2>Device types</h2>
         {loading && <InlineLoadingState label="Loading device types" />}
         {types.map((type) => (
           <div className="section-heading" key={type.id}>

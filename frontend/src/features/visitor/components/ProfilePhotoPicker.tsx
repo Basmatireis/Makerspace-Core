@@ -15,10 +15,13 @@ export type PhotoSources = { camera: boolean; upload: boolean };
 export function ProfilePhotoPicker({
   image,
   sources,
+  required,
   onChange,
 }: {
   image: ProfileImage | undefined;
   sources: PhotoSources;
+  /** Whether the visit cannot continue without a photo; decides how the hint is worded. */
+  required: boolean;
   onChange: (image: ProfileImage | undefined) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -164,7 +167,9 @@ export function ProfilePhotoPicker({
         </>
       )}
       <p className="visitor-photo__hint">
-        A real photo is required for identification. Metadata is removed by the server.
+        {required
+          ? 'A real photo is required for identification. Metadata is removed by the server.'
+          : 'A photo is optional. Metadata is removed by the server.'}
       </p>
       {error && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Photo unavailable" subtitle={error} />

@@ -234,7 +234,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   </div>
                 </FormGroup>
               </div>
-              <ProfilePhotoPicker image={image} sources={sources} onChange={setImage} />
+              <ProfilePhotoPicker image={image} sources={sources} required={photoRequired} onChange={setImage} />
             </div>
           )}
 

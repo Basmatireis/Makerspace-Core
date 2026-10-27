@@ -150,6 +150,57 @@ func (s *Server) ListLaborordnungRequests(
 	return openapi.ListLaborordnungRequests200JSONResponse{Items: items}, nil
 }
 
+func (s *Server) ListLaborordnungSignatures(
+	ctx context.Context,
+	request openapi.ListLaborordnungSignaturesRequestObject,
+) (openapi.ListLaborordnungSignaturesResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := request.Params
+	sort := laborordnung.SignatureSortConfirmedAt
+	if params.Sort != nil {
+		sort = laborordnung.SignatureSort(*params.Sort)
+	}
+	page, pageSize := defaultInt(params.Page, 1), defaultInt(params.PageSize, 25)
+	items, total, err := s.laborordnung.ListSignatures(ctx, principal, laborordnung.SignatureFilters{
+		Search:     defaultString(params.Search),
+		VersionID:  params.VersionId,
+		PersonID:   params.PersonId,
+		Sort:       sort,
+		Descending: params.Direction == nil || *params.Direction == openapi.ListLaborordnungSignaturesParamsDirectionDesc,
+		Page:       page,
+		PageSize:   pageSize,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]openapi.LaborordnungSignature, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.LaborordnungSignature{
+			Id:            item.ID,
+			PersonId:      item.PersonID,
+			PersonName:    item.PersonName,
+			VersionId:     item.VersionID,
+			HumanRevision: item.HumanRevision,
+			SignedDate: nullablePointer[time.Time](
+				item.SignedDate,
+				func(value time.Time) openapi_types.Date { return openapi_types.Date{Time: value} },
+			),
+			PhysicalDocumentReference: nullablePointer[string](
+				item.PhysicalDocumentReference,
+				func(value string) string { return value },
+			),
+			ConfirmedByName: nullablePointer[string](item.ConfirmedByName, func(value string) string { return value }),
+			ConfirmedAt:     item.ConfirmedAt,
+		})
+	}
+	return openapi.ListLaborordnungSignatures200JSONResponse{
+		Items: result, Page: page, PageSize: pageSize, Total: total,
+	}, nil
+}
+
 func (s *Server) ConfirmLaborordnungRequest(
 	ctx context.Context,
 	request openapi.ConfirmLaborordnungRequestRequestObject,

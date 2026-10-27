@@ -1557,6 +1557,23 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /managed-devices/{managedDeviceId}/hardware:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    get:
+      tags: [Managed Devices]
+      operationId: getManagedDeviceHardware
+      summary: Get what a managed device is configured with, has reported and effectively offers
+      description: |
+        Requires `managed_devices.read`. Same shape as `GET /managed-devices/self/hardware`; `platform`, `bridgeVersion`
+        and `reportedAt` are null while the device has never reported hardware.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Hardware context of the device., content: {application/json: {schema: {$ref: "#/components/schemas/DeviceHardwareContext"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /managed-devices/{managedDeviceId}/revoke:
     parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
     post:
@@ -3086,6 +3103,30 @@ paths:
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Pending and completed requests., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequestList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/signatures:
+    get:
+      tags: [Laborordnung]
+      operationId: listLaborordnungSignatures
+      summary: List confirmed physical Lab Rules signatures
+      description: |
+        Requires `laborordnung.requests.read`. Only completed requests appear: one entry per confirmed signature
+        with its physical document reference. `search` matches the person name and the document reference.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: versionId, in: query, description: Only signatures of this Lab Rules version., schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: personId, in: query, description: Only signatures of this person., schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: sort, in: query, schema: {type: string, enum: [person, version, signedDate, reference, confirmedBy, confirmedAt], default: confirmedAt}}
+        - {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+      responses:
+        "200": {description: Signatures., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungSignaturePage"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -9884,6 +9925,29 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/LaborordnungRequest"}}}
+    LaborordnungSignature:
+      type: object
+      additionalProperties: false
+      required: [id, personId, personName, versionId, humanRevision, signedDate, physicalDocumentReference, confirmedByName, confirmedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        personName: {type: string, minLength: 1, maxLength: 201}
+        versionId: {$ref: "#/components/schemas/UUIDv7"}
+        humanRevision: {type: string}
+        signedDate: {type: string, format: date, nullable: true}
+        physicalDocumentReference: {type: string, maxLength: 255, nullable: true}
+        confirmedByName: {type: string, nullable: true, description: Name of the confirming person; null once that account is gone.}
+        confirmedAt: {type: string, format: date-time}
+    LaborordnungSignaturePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/LaborordnungSignature"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+        total: {type: integer, format: int64, minimum: 0}
     ConfirmLaborordnungRequest:
       type: object
       additionalProperties: false

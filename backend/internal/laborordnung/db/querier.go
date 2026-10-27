@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	ConfirmRequest(ctx context.Context, arg ConfirmRequestParams) (LaborordnungRequest, error)
+	CountSignatures(ctx context.Context, arg CountSignaturesParams) (int64, error)
 	CreateRequest(ctx context.Context, arg CreateRequestParams) (LaborordnungRequest, error)
 	CreateVersion(ctx context.Context, arg CreateVersionParams) (LaborordnungVersion, error)
 	GetCurrentVersion(ctx context.Context) (LaborordnungVersion, error)
@@ -23,6 +24,7 @@ type Querier interface {
 	GetRequestForUpdate(ctx context.Context, id uuid.UUID) (LaborordnungRequest, error)
 	GetVersion(ctx context.Context, id uuid.UUID) (LaborordnungVersion, error)
 	ListRequests(ctx context.Context) ([]LaborordnungRequest, error)
+	ListSignatures(ctx context.Context, arg ListSignaturesParams) ([]ListSignaturesRow, error)
 	ListVersions(ctx context.Context) ([]LaborordnungVersion, error)
 	LockPerson(ctx context.Context, id uuid.UUID) error
 	PublishVersion(ctx context.Context, arg PublishVersionParams) (LaborordnungVersion, error)

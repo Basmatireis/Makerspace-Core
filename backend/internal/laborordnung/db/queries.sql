@@ -70,3 +70,45 @@ RETURNING *;
 
 -- name: GetPersonName :one
 SELECT first_name, last_name FROM people WHERE id = sqlc.arg(id);
+
+-- name: ListSignatures :many
+SELECT r.id, r.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
+       r.required_version_id AS version_id, v.human_revision, r.signed_date, r.physical_document_reference,
+       r.completed_at, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
+FROM laborordnung_requests r
+JOIN people p ON p.id = r.person_id
+JOIN laborordnung_versions v ON v.id = r.required_version_id
+LEFT JOIN accounts ca ON ca.id = r.confirmed_by_account_id
+LEFT JOIN people cp ON cp.id = ca.person_id
+WHERE r.status = 'completed'
+  AND (sqlc.narg(person_id)::uuid IS NULL OR r.person_id = sqlc.narg(person_id)::uuid)
+  AND (sqlc.narg(version_id)::uuid IS NULL OR r.required_version_id = sqlc.narg(version_id)::uuid)
+  AND (sqlc.arg(search)::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+ORDER BY
+  CASE WHEN sqlc.arg(sort)::text = 'person' AND sqlc.arg(descending)::boolean = false THEN lower(p.last_name || ' ' || p.first_name) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'person' AND sqlc.arg(descending)::boolean THEN lower(p.last_name || ' ' || p.first_name) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'version' AND sqlc.arg(descending)::boolean = false THEN lower(v.human_revision) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'version' AND sqlc.arg(descending)::boolean THEN lower(v.human_revision) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'signedDate' AND sqlc.arg(descending)::boolean = false THEN r.signed_date END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'signedDate' AND sqlc.arg(descending)::boolean THEN r.signed_date END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'reference' AND sqlc.arg(descending)::boolean = false THEN lower(r.physical_document_reference) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'reference' AND sqlc.arg(descending)::boolean THEN lower(r.physical_document_reference) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedBy' AND sqlc.arg(descending)::boolean = false THEN lower(cp.last_name || ' ' || cp.first_name) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedBy' AND sqlc.arg(descending)::boolean THEN lower(cp.last_name || ' ' || cp.first_name) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean = false THEN r.completed_at END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean THEN r.completed_at END DESC,
+  r.completed_at DESC, r.id
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountSignatures :one
+SELECT count(*)
+FROM laborordnung_requests r
+JOIN people p ON p.id = r.person_id
+WHERE r.status = 'completed'
+  AND (sqlc.narg(person_id)::uuid IS NULL OR r.person_id = sqlc.narg(person_id)::uuid)
+  AND (sqlc.narg(version_id)::uuid IS NULL OR r.required_version_id = sqlc.narg(version_id)::uuid)
+  AND (sqlc.arg(search)::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%');

@@ -24,6 +24,8 @@ import { formatDateTime } from '../../app/dateTime';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
+import { PersonSignaturesSection } from '../laborordnung/PersonSignaturesSection';
 import { useBranding } from '../branding/branding';
 import { AccountAccessSection } from './detail/AccountAccessSection';
 import { AccountDialogs } from './detail/AccountDialogs';
@@ -236,6 +238,8 @@ function UserDetailContent({ person }: { person: Person }) {
     />
   );
   const makerspaceStatusSection = <MakerspaceStatusSection statusLabel={statusLabel} query={makerspaceStatusQuery} />;
+  const canReadSignatures = hasPermission(currentUser, PermissionId.laborordnungrequestsread);
+  const signaturesSection = canReadSignatures ? <PersonSignaturesSection personId={person.id} /> : null;
 
   const renderTabContent = (tab: PersonDetailTab) => {
     if (tab === 'personal-information') {
@@ -259,7 +263,14 @@ function UserDetailContent({ person }: { person: Person }) {
       );
     }
     if (tab === 'roles-permissions') return rolesSection;
-    if (tab === 'makerspace-status') return makerspaceStatusSection;
+    if (tab === 'makerspace-status') {
+      return (
+        <Stack gap={6}>
+          {makerspaceStatusSection}
+          {signaturesSection}
+        </Stack>
+      );
+    }
     if (tab === 'trainings') return <TrainingRecordsSection personId={person.id} />;
 
     return (
@@ -279,9 +290,12 @@ function UserDetailContent({ person }: { person: Person }) {
             {rolesSection}
           </Stack>
         </Column>
-        {canReadMakerspaceStatus && (
+        {(canReadMakerspaceStatus || canReadSignatures) && (
           <Column sm={4} md={8} lg={16}>
-            {makerspaceStatusSection}
+            <Stack gap={6}>
+              {canReadMakerspaceStatus && makerspaceStatusSection}
+              {signaturesSection}
+            </Stack>
           </Column>
         )}
       </Grid>

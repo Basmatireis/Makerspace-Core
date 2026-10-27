@@ -1,6 +1,12 @@
 # Managed devices
 
-In the UI, devices and device types are under **Settings → Access & identity → Devices & sessions** (`/settings/devices-sessions?tab=managed-devices`, permission `managed_devices.read`); the neighbouring tab **Session policies** (`?tab=session-policies`, `session_policies.manage`) holds the idle and absolute session limits. The former `/settings/managed-devices` and `/settings/session-policies` routes redirect there.
+In the UI, devices, device types and session policies are under **Settings → Access & identity → Devices & sessions** (`/settings/devices-sessions`, tabs selected by `?tab=`):
+
+- **Managed devices** (`?tab=managed-devices`, `managed_devices.read`): a table with search, a status filter (active, expired, revoked), and columns for name, type, application modes, kiosk, last seen and status. A row opens the device page at `/settings/devices-sessions/devices/:deviceId` with the sections General, Application modes and kiosk (session policy, check-in and check-out assurance, checkout mode), Capabilities (configured, reported and effective, from `GET /api/v1/managed-devices/{id}/hardware`) and Credential (rotate token, revoke, delete once revoked). With `managed_devices.manage` the page also offers Edit, and the table a **New device** button; the one-time token is shown once after creating or rotating.
+- **Session policies** (`?tab=session-policies`, `session_policies.manage`): a table of the idle and absolute limits, the destination after expiry, the default flag and how many devices use each policy (shown with `managed_devices.read`). Create and edit open in a modal.
+- **Device types** (`?tab=device-types`, `managed_devices.read`; changes need `managed_devices.manage`).
+
+The former `/settings/managed-devices` and `/settings/session-policies` routes redirect to their tabs.
 
 A managed device is a trusted kiosk identity, separate from a user identity. It has a random bearer token whose SHA-256 digest is stored in PostgreSQL. The plaintext token is returned only at creation and rotation and must be kept by native software in protected storage. It must never be put in local storage, IndexedDB, a URL, a log, or an audit event.
 

@@ -404,7 +404,7 @@ export function App() {
               }
             />
             <Route
-              path="settings/devices-sessions"
+              path="settings/devices-sessions/*"
               element={
                 <PermissionRoute anyOf={[PermissionId.session_policiesmanage, PermissionId.managed_devicesread]}>
                   <DevicesSessionsPage />

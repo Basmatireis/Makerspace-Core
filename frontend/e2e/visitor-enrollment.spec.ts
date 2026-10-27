@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { deflateSync } from 'node:zlib';
 
 // A real one-page PDF (pdf.js tolerates the missing xref, so offsets need not be exact).
 const labRulesPdf = Buffer.from(
@@ -8,6 +9,43 @@ const labRulesPdf = Buffer.from(
     '4 0 obj<</Length 36>>stream\n0 0 0 rg 20 20 160 160 re f\nendstream\nendobj\n' +
     'trailer<</Root 1 0 R/Size 5>>\n%%EOF\n',
 );
+
+// A decodable 64x64 PNG: the photo goes through the cropper, which needs a real image to position under the mask.
+function photoPng(): Buffer {
+  const size = 64;
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (bytes: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const head = Buffer.alloc(4);
+    head.writeUInt32BE(data.length);
+    const tail = Buffer.alloc(4);
+    tail.writeUInt32BE(crc(body));
+    return Buffer.concat([head, body, tail]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8-bit RGB
+  const rows = Buffer.alloc((size * 3 + 1) * size);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) rows.set([x * 4, y * 4, 160], y * (size * 3 + 1) + 1 + x * 3);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 test('clears a completed kiosk enrollment before the next visitor', async ({ page }, testInfo) => {
   // Carbon button transitions would let the accessibility scan measure half-faded colours.
@@ -59,7 +97,8 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page.getByLabel('Email', { exact: true }).fill('local@example.test');
   await page
     .getByLabel('or upload a profile photo', { exact: true })
-    .setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
+    .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });
+  await page.getByRole('button', { name: 'Use photo' }).click();
   await expect(page.getByAltText('Selected profile')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
   await page.mouse.move(0, 0);

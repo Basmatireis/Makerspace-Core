@@ -22,9 +22,11 @@ import type {
   ConfirmLaborordnungRequest,
   LaborordnungRequest,
   LaborordnungRequestList,
+  LaborordnungSignaturePage,
   LaborordnungStatus,
   LaborordnungVersion,
   LaborordnungVersionList,
+  ListLaborordnungSignaturesParams,
   PublishLaborordnungRequest
 } from '../models';
 
@@ -211,6 +213,38 @@ export const getListLaborordnungRequestsUrl = () => {
 export const listLaborordnungRequests = async ( options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungRequestList> => {
 
   return apiFetch<LaborordnungRequestList>(getListLaborordnungRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListLaborordnungSignaturesUrl = (params?: ListLaborordnungSignaturesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/laborordnung/signatures?${stringifiedParams}` : `/api/v1/laborordnung/signatures`
+}
+
+/**
+ * Requires `laborordnung.requests.read`. Only completed requests appear: one entry per confirmed signature
+ * with its physical document reference. `search` matches the person name and the document reference.
+ * @summary List confirmed physical Lab Rules signatures
+ */
+export const listLaborordnungSignatures = async (params?: ListLaborordnungSignaturesParams, options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungSignaturePage> => {
+
+  return apiFetch<LaborordnungSignaturePage>(getListLaborordnungSignaturesUrl(params),
   {
     ...options,
     method: 'GET'
