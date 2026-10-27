@@ -47,16 +47,6 @@ export function nameFromFile(fileName: string) {
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : fileName;
 }
 
-/**
- * A job name suggestion from the model names in a print file's metadata ("T-Abstandhalter_Dielen.stl" → "T
- * Abstandhalter Dielen"), or null without any. Printers shorten the print name they report, the 3MF does not.
- */
-export function nameFromModels(metadata: Record<string, unknown> | undefined): string | null {
-  const models = Array.isArray(metadata?.modelNames) ? metadata.modelNames : [];
-  const names = models.filter((name): name is string => typeof name === 'string' && name.trim() !== '');
-  return names.length > 0 ? names.map(nameFromFile).join(' + ') : null;
-}
-
 /** Title → readable file name → display ID. Works for anything that carries these three values. */
 export const displayName = (item: { title?: string | null; fileName?: string | null; displayId: string }) =>
   item.title || (item.fileName ? nameFromFile(item.fileName) : item.displayId);

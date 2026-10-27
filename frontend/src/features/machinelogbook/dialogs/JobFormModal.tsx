@@ -25,7 +25,6 @@ import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { useCurrentUser } from '../../auth/auth';
 import { canLookupJobParties } from '../../auth/permissions';
 import {
-  artifactQuery,
   billingPartySearchQuery,
   machineLogbookKeys,
   machinesQuery,
@@ -34,7 +33,7 @@ import {
 } from '../queries';
 import { formatDateTime, formatDuration } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
-import { nameFromFile, nameFromModels } from '../shared/status';
+import { nameFromFile } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { processConfig } from '../processConfig';
@@ -187,12 +186,10 @@ type JobFormProps = {
   job?: MachineJob;
   initialValues?: JobInitialValues;
   run?: MachineRun;
-  /** Job name suggested by the run's print file, when Core holds one. */
-  modelName?: string | null;
   onSaved?: (job: MachineJob) => void;
 };
 
-function JobForm({ onClose, mode, job, initialValues, run, modelName, onSaved }: JobFormProps) {
+function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormProps) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const notify = useNotify();
@@ -212,7 +209,7 @@ function JobForm({ onClose, mode, job, initialValues, run, modelName, onSaved }:
   const hasRecordedRun = !!job?.runs.some((item) => item.source === 'recorded' && item.state !== 'replaced');
   const form = useForm<Values>({
     defaultValues: {
-      title: source?.title ?? modelName ?? runName ?? '',
+      title: source?.title ?? runName ?? '',
       machineId: source?.machineId ?? run?.machineId ?? '',
       pricingGroupId: '',
       customer: source?.customer ?? null,
@@ -376,11 +373,9 @@ function JobForm({ onClose, mode, job, initialValues, run, modelName, onSaved }:
                 placeholder="e.g. Gearbox housing for Jonas"
                 maxLength={120}
                 helperText={
-                  modelName && runName
-                    ? `Prefilled from the print file’s models. Leave empty to show “${runName}”.`
-                    : runName
-                      ? `Prefilled from the machine’s file name. Leave empty to show “${runName}”.`
-                      : 'Leave empty to show the file name of the latest recorded run, or the job number.'
+                  runName
+                    ? `Prefilled from the machine’s file name. Leave empty to show “${runName}”.`
+                    : 'Leave empty to show the file name of the latest recorded run, or the job number.'
                 }
                 {...form.register('title')}
               />
@@ -536,24 +531,7 @@ export function JobFormModal({
   run?: MachineRun;
   onSaved?: (job: MachineJob) => void;
 }) {
-  const can = useCan();
-  const artifactId = mode === 'create' ? run?.artifact?.id : undefined;
-  const artifact = useQuery({
-    ...artifactQuery(artifactId ?? ''),
-    enabled: open && !!artifactId && can('print_artifacts.read'),
-  });
-  if (!open) return null;
-  // The form is built once the print file is known, so its model names can prefill the job name.
-  if (artifact.isLoading) return null;
-  return (
-    <JobForm
-      onClose={onClose}
-      mode={mode}
-      job={job}
-      initialValues={initialValues}
-      run={run}
-      modelName={nameFromModels(artifact.data?.metadata)}
-      onSaved={onSaved}
-    />
-  );
+  return open ? (
+    <JobForm onClose={onClose} mode={mode} job={job} initialValues={initialValues} run={run} onSaved={onSaved} />
+  ) : null;
 }
