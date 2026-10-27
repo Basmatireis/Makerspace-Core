@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { signInWithPassword } from './totp';
 
 const masterLogin = 'e2e-master@example.test';
 const masterPassword = 'E2E master workshop passphrase 42';
@@ -17,11 +18,7 @@ test.skip(
 test.describe.configure({ mode: 'serial' });
 
 async function signIn(page: import('@playwright/test').Page, email: string, password: string) {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await signInWithPassword(page, email, password);
 }
 
 async function signOut(page: import('@playwright/test').Page) {

@@ -1,4 +1,5 @@
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
+import { signInWithPassword } from './totp';
 
 const masterLogin = 'e2e-master@example.test';
 const masterPassword = 'E2E master workshop passphrase 42';
@@ -28,11 +29,7 @@ type MachineJob = Identified & {
 type WorkItemPage = { items: { kind: string; id: string; status: string; source: string }[]; total: number };
 
 async function signIn(page: Page) {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(masterLogin);
-  await page.getByLabel('Password', { exact: true }).fill(masterPassword);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await signInWithPassword(page, masterLogin, masterPassword);
 }
 
 async function parse<T>(response: APIResponse, label: string): Promise<T> {

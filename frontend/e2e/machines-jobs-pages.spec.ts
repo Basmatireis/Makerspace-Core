@@ -36,7 +36,7 @@ const targets: Target[] = [
   {
     name: 'Run detail (unassigned)',
     path: `${base}/jobs/runs/${ids.runUnassigned}`,
-    ready: (page) => page.getByRole('button', { name: 'Create job' }),
+    ready: (page) => page.getByRole('button', { name: 'Claim run' }),
   },
   { name: 'Run detail (running)', path: `${base}/jobs/runs/${ids.runRunning}`, ready: text('Run in progress') },
   {
@@ -159,7 +159,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('new job from a run', async ({ page }) => {
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
-    await page.getByRole('button', { name: 'Create job' }).click();
+    await page.getByRole('button', { name: 'Claim run' }).click();
     await checkDialog(page, page.getByRole('dialog', { name: 'New job' }));
   });
 
@@ -188,7 +188,8 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('attach run to job (from a run, with the comparison)', async ({ page }) => {
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
-    await page.getByRole('button', { name: 'Attach to job' }).click();
+    await page.getByRole('button', { name: 'More run actions' }).click();
+    await page.getByRole('menuitem', { name: 'Link to existing job' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('combobox', { name: /Job/ }).click();
     await page.getByRole('option', { name: /J-2026-000003/ }).click();
@@ -348,8 +349,8 @@ test.describe('read-only role', () => {
 
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
     await expect(page.getByRole('heading', { name: 'Bracket v2' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create job' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Attach to job' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Claim run' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'More run actions' })).toHaveCount(0);
     expect(world.requests).toEqual([]);
   });
 

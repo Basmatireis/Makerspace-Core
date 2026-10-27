@@ -183,7 +183,7 @@ test.describe('runs', () => {
     await page.getByRole('link', { name: 'bracket_v2.gcode' }).click();
     await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runUnassigned}`);
     await expect(page.getByRole('heading', { name: 'Bracket v2' })).toBeVisible();
-    await page.getByRole('button', { name: 'Create job' }).click();
+    await page.getByRole('button', { name: 'Claim run' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'New job' });
     await expect(dialog.getByLabel('Name (optional)')).toHaveValue('Bracket v2');
@@ -201,12 +201,13 @@ test.describe('runs', () => {
     // The page stays open and now shows the job the run belongs to.
     await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runUnassigned}`);
     await expect(page.getByRole('link', { name: /J-2026-000011/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create job' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Claim run' })).toHaveCount(0);
   });
 
   test('attaches an unassigned run to a manual job and replaces the manual run', async ({ page, world }) => {
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
-    await page.getByRole('button', { name: 'Attach to job' }).click();
+    await page.getByRole('button', { name: 'More run actions' }).click();
+    await page.getByRole('menuitem', { name: 'Link to existing job' }).click();
     const dialog = page.getByRole('dialog');
     const attach = dialog.getByRole('button', { name: /^Attach (run|and replace)$/ });
     await expect(attach).toBeDisabled();
@@ -225,7 +226,8 @@ test.describe('runs', () => {
       expectedJobVersion: 3,
     });
     await expect(page.getByRole('link', { name: /J-2026-000003/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Attach to job' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'More run actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Link to existing job' })).toHaveCount(0);
   });
 
   test('attaches a running recorded run from the job and detaches it again', async ({ page, world }) => {

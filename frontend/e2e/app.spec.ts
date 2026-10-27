@@ -408,6 +408,23 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/laborordnung/signatures' && request.method() === 'GET') {
+      await json(route, { items: [], page: 1, pageSize: 25, total: 0 });
+      return;
+    }
+
+    const emptySecondFactors = { enrolled: false, totp: null, passkeys: [], recoveryCodesRemaining: 0 };
+    if (path === '/api/v1/auth/second-factors' && request.method() === 'GET') {
+      await json(route, emptySecondFactors);
+      return;
+    }
+
+    // The person page loads the account for its second factors.
+    if (state.person?.account && path === `/api/v1/accounts/${state.person.account.id}` && request.method() === 'GET') {
+      await json(route, { ...state.person.account, secondFactors: emptySecondFactors });
+      return;
+    }
+
     if (path === '/api/v1/managed-device-types' && request.method() === 'GET') {
       await json(route, { items: [] });
       return;
@@ -512,7 +529,7 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
 
   await page.getByLabel('Email').fill('ada.login@example.test');
   await page.getByLabel('Password', { exact: true }).fill('correct horse battery staple');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: /^(Still up|Good (morning|afternoon|evening)), Ada$/ })).toBeVisible();
@@ -896,7 +913,7 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   await page.keyboard.press('Escape');
 
   await page.getByRole('tab', { name: 'Makerspace status' }).click();
-  await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lab Rules', exact: true })).toBeVisible();
   await expect(page.getByText('Autumn Open Days')).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
   await expectNoSeriousAccessibilityViolations(page);
@@ -1304,7 +1321,7 @@ test('redirects to sign in when an authenticated request reports session expiry'
   await passwordModal.getByRole('button', { name: 'Change password' }).click();
 
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 });
 
 test('groups the settings overview, redirects merged screens and fits a 375 px viewport', async ({ page }) => {

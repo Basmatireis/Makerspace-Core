@@ -11,6 +11,8 @@ const useExternalServer = process.env.PLAYWRIGHT_EXTERNAL_SERVER === 'true';
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // Defaults to half the cores; lower it on a busy machine (the dev server compiles routes on demand).
+  workers: process.env.PLAYWRIGHT_WORKERS ? Number(process.env.PLAYWRIGHT_WORKERS) : undefined,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',

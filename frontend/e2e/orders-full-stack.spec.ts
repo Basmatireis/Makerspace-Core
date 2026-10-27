@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { operationKey } from '../src/features/orders/operations';
+import { signInWithPassword } from './totp';
 import type { Order } from '../src/api/generated/models';
 
 test.skip(process.env.PLAYWRIGHT_FULL_STACK !== 'true', 'Requires the isolated live Go/PostgreSQL stack.');
@@ -46,11 +47,7 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   page.on('console', (m) => {
     if (m.type() === 'error') browserErrors.push(m.text());
   });
-  await page.goto('/login');
-  await page.getByLabel('Email').fill('e2e-master@example.test');
-  await page.getByLabel('Password', { exact: true }).fill('E2E master workshop passphrase 42');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await signInWithPassword(page, 'e2e-master@example.test', 'E2E master workshop passphrase 42');
   browserErrors.length = 0;
   const origin = new URL(page.url()).origin;
   const csrf = (await page.context().cookies()).find((c) => c.name.includes('csrf'))!;

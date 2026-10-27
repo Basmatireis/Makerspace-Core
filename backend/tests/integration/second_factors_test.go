@@ -14,6 +14,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -469,4 +470,45 @@ func TestMasterSessionWithoutSetupFlagIsConfinedToSetup(t *testing.T) {
 		t.Fatalf("authentication of a legacy master session = %+v", current.Authentication)
 	}
 	h.expectError(h.do(client, http.MethodGet, "/roles", nil), http.StatusForbidden, "mfa_setup_required")
+}
+
+func TestFixtureTOTPEnrollmentForBrowserSuite(t *testing.T) {
+	pool := migratedPool(t)
+	h := newMFAHarness(t, pool)
+	const email, password = "fixture-master@example.test", "Fixture workshop password 73"
+	accountID := bootstrapMFAMaster(t, pool, email, password)
+	secret := []byte("12345678901234567890")
+
+	productionCfg := h.cfg
+	productionCfg.Environment = "production"
+	productionService, err := auth.NewService(pool, productionCfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := productionService.EnrollFixtureTOTP(testContext(t), accountID, secret); err == nil {
+		t.Fatal("fixture enrollment must be refused outside APP_ENV=test")
+	}
+
+	testCfg := h.cfg
+	testCfg.Environment = "test"
+	service, err := auth.NewService(pool, testCfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.EnrollFixtureTOTP(testContext(t), accountID, secret); err != nil {
+		t.Fatal(err)
+	}
+	client := newCookieClient(t)
+	response := h.do(client, http.MethodPost, "/auth/login", map[string]any{"email": email, "password": password})
+	assertStatus(t, response, http.StatusAccepted)
+	response.Body.Close()
+	response = h.do(client, http.MethodPost, "/auth/login/second-factor", map[string]any{
+		"method": "totp", "code": totpCode(t, base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret), 0),
+	})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	if h.me(client).AuthenticationAssurance != openapi.AuthenticationAssuranceStrongMfa {
+		t.Fatal("fixture second-factor login is not strong_mfa")
+	}
+	assertCount(t, pool, `SELECT count(*) FROM mfa_recovery_codes WHERE account_id=$1`, 10, accountID)
 }
