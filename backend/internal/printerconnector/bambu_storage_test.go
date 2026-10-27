@@ -29,6 +29,9 @@ func TestClassifyBambuPrintSource(t *testing.T) {
 		{"internal path url", "file:///data/Metadata/a.gcode.3mf", "a", bambuSourceInternal},
 		{"unknown scheme", "http://media/usb0/a.3mf", "a", bambuSourceInternal},
 		{"no subtask name trusts media url", stale, "", bambuSourceExternal},
+		// Observed on an X1C: a print sent to its SD card over FTP reports only the file name.
+		{"x1c ftp file name", "ftp://T-Abstandhalter_Dielen.stl + T-Abstandh....gcode.3mf", "T-Abstandhalter_Dielen.stl + T-Abstandh...", bambuSourceExternal},
+		{"ftp file name of another print", "ftp://Other.gcode.3mf", internalName, bambuSourceInternal},
 	}
 	for _, tc := range cases {
 		if got := classifyBambuPrintSource(tc.url, tc.subtask); got != tc.want {
@@ -153,5 +156,37 @@ func TestFreshUSBURLKeepsTheArchivePath(t *testing.T) {
 	}
 	if facts := processor.state.RunFacts[observations[0].RunID.String()]; facts.Source != bambuSourceExternal {
 		t.Fatalf("source = %q", facts.Source)
+	}
+}
+
+// A connector started during an X1C print sent to the SD card over FTP missed the message carrying the url; the
+// merged document's url names this print, so the print stays external.
+func TestPrintStaysExternalWhenTheConnectorMissedTheURL(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := openTestStore(t)
+	processor, err := newBambuProcessor(ctx, ids.New(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	start := `{"print":{"gcode_state":"RUNNING","task_id":"7001","subtask_name":"T-Abstandhalter_Dielen.stl",` +
+		`"gcode_file":"/data/Metadata/plate_1.gcode","print_type":"local","mc_percent":1,` +
+		`"url":"ftp://T-Abstandhalter_Dielen.stl.gcode.3mf"}}`
+	observations, _, err := processor.apply(ctx, []byte(start), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := *observations[0].RunID
+	// Run facts written before the url was tracked per run.
+	facts := processor.state.RunFacts[runID.String()]
+	facts.ReportedURL, facts.Source = "", ""
+	processor.state.RunFacts[runID.String()] = facts
+
+	if _, _, err = processor.apply(ctx, []byte(`{"print":{"mc_percent":22}}`), at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if got := processor.state.RunFacts[runID.String()].Source; got != bambuSourceExternal {
+		t.Fatalf("source = %q, want external", got)
 	}
 }

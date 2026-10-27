@@ -32,6 +32,10 @@ var externalMediaPrefixes = []string{"/media/usb", "/mnt/sdcard", "/sdcard"}
 // Without a url, or with a stale or mismatching one, the print is taken to
 // come from internal storage. A print without a subtask_name cannot be matched,
 // so a url on external media is trusted.
+//
+// An ftp(s) url means the slicer uploaded the archive to the printer's FTP
+// storage, which is the SD card or USB stick: the X1C reports such prints as
+// ftp://<file name> without host or directory.
 func classifyBambuPrintSource(sessionURL, subtaskName string) bambuPrintSource {
 	mediaPath, ok := externalMediaPath(sessionURL)
 	if !ok {
@@ -64,16 +68,26 @@ func externalMediaPath(raw string) (string, bool) {
 	default:
 		return "", false
 	}
+	ftp := !strings.HasPrefix(lower, "file://")
 	if !strings.HasPrefix(rest, "/") {
-		// ftp://host/path: drop the host.
 		slash := strings.Index(rest, "/")
-		if slash < 0 {
+		switch {
+		case slash >= 0:
+			// ftp://host/path: drop the host.
+			rest = rest[slash:]
+		case ftp:
+			// ftp://<file name>: the archive in the root of the printer's FTP storage.
+			rest = "/" + rest
+		default:
 			return "", false
 		}
-		rest = rest[slash:]
 	}
 	if decoded, err := url.PathUnescape(rest); err == nil {
 		rest = decoded
+	}
+	if ftp {
+		// Everything the printer serves over FTP is external storage.
+		return rest, true
 	}
 	path := strings.ToLower(rest)
 	for _, prefix := range externalMediaPrefixes {

@@ -560,7 +560,8 @@ func bambuExplicitArchivePath(state map[string]any) string {
 
 // applyBambuPrintSource records the url of this message, if any, and classifies
 // where the print's archive lives. A print that names its archive explicitly
-// stays external; otherwise the url rule in classifyBambuPrintSource decides.
+// stays external; otherwise the url rule in classifyBambuPrintSource decides,
+// falling back to the merged document's url when this run saw none.
 func applyBambuPrintSource(facts *bambuRunFacts, patch, printState map[string]any) {
 	patchPrint := objectAt(patch, "print")
 	if patchPrint == nil {
@@ -572,8 +573,15 @@ func applyBambuPrintSource(facts *bambuRunFacts, patch, printState map[string]an
 		}
 		facts.ReportedURL = reported
 	}
+	subtaskName := scalarString(printState["subtask_name"])
+	sessionURL := facts.ReportedURL
+	if sessionURL == "" && strings.TrimSpace(subtaskName) != "" {
+		// A connector (re)started during the print missed the message with the url; the merged document's url
+		// still counts when its file name matches this print, which a previous print's url does not.
+		sessionURL = strings.TrimSpace(scalarString(printState["url"]))
+	}
 	if bambuExplicitArchivePath(printState) != "" ||
-		classifyBambuPrintSource(facts.ReportedURL, scalarString(printState["subtask_name"])) == bambuSourceExternal {
+		classifyBambuPrintSource(sessionURL, subtaskName) == bambuSourceExternal {
 		facts.Source = bambuSourceExternal
 		facts.InternalPath, facts.ArchiveCandidate = "", ""
 		return

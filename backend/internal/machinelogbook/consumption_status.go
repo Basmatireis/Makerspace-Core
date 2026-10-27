@@ -98,6 +98,11 @@ func DeriveConsumptionStatus(f ConsumptionFacts, now time.Time) *ConsumptionStat
 	if !f.Recorded {
 		return nil
 	}
+	// Core holding the run's 3MF disproves a connector's internal-storage classification (for example one made
+	// without the print's url after a connector restart), so that report is ignored.
+	if f.HasArtifact && f.ConnectorReason != nil && ConsumptionReason(*f.ConnectorReason) == ReasonArtifactOnInternalStorage {
+		f.ConnectorState, f.ConnectorReason, f.ConnectorDetail = nil, nil, nil
+	}
 	if f.State == RunStateRunning {
 		if f.ConnectorState != nil && *f.ConnectorState == "pending" && f.ConnectorReason != nil &&
 			ConsumptionReason(*f.ConnectorReason) == ReasonArtifactOnInternalStorage {
