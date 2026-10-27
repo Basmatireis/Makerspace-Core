@@ -9,9 +9,11 @@ import { server } from '../../test/server';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { ToastProvider } from './shared/toasts';
 
+const auth = vi.hoisted(() => ({ permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'] }));
+
 vi.mock('../auth/auth', () => ({
   useCurrentUser: () => ({
-    permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'],
+    permissions: auth.permissions,
     person: { id: '0192f6f8-743e-7c77-a349-cd07c3e8ffff', firstName: 'Ada', lastName: 'Lovelace' },
   }),
 }));
@@ -73,6 +75,48 @@ describe('JobFormModal', () => {
       notes: null,
     });
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  });
+
+  it('names the job after the models of the run’s print file, which printers do not shorten', async () => {
+    const artifactId = '0192f6f8-743e-7c77-a349-cd07c3e8a777';
+    auth.permissions = [...auth.permissions, 'print_artifacts.read'];
+    server.use(
+      ...lookups,
+      http.get(`*/api/v1/print-artifacts/${artifactId}`, () =>
+        HttpResponse.json({
+          id: artifactId,
+          originalFilename: 'Spacer.stl + Spacer.stl + Spa....gcode.3mf',
+          sizeBytes: 1,
+          sha256: 'a'.repeat(64),
+          parserStatus: 'complete',
+          parserVersion: 'bambu-3mf-v1',
+          metadata: { modelNames: ['T-Abstandhalter_Dielen.stl'] },
+          filaments: [],
+          createdAt: '2026-10-27T12:00:00Z',
+          updatedAt: '2026-10-27T12:00:00Z',
+        }),
+      ),
+    );
+    try {
+      renderRoute(
+        <ToastProvider>
+          <JobFormModal
+            open
+            mode="create"
+            onClose={() => undefined}
+            run={recordedRun({
+              fileName: 'Spacer.stl + Spacer.stl + Spa...',
+              artifact: { id: artifactId, sha256: 'a'.repeat(64), parserStatus: 'complete' },
+            })}
+          />
+        </ToastProvider>,
+      );
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByDisplayValue('T Abstandhalter Dielen')).toBeInTheDocument();
+      expect(within(dialog).getByText(/Prefilled from the print file’s models/)).toBeInTheDocument();
+    } finally {
+      auth.permissions = auth.permissions.filter((permission) => permission !== 'print_artifacts.read');
+    }
   });
 
   it('suggests the single organization of the chosen person and switches only on request', async () => {
