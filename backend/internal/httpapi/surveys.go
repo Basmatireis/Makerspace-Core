@@ -2,21 +2,54 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/oapi-codegen/nullable"
 )
 
+// Anonymous share-link endpoints are limited per client address (a limiter bounded in memory, see ratelimit) on top of
+// the per-link limit inside the surveys service.
+const (
+	surveyLinkViewsPerWindow   = 120
+	surveyLinkSubmitsPerWindow = 20
+	surveyLinkWindow           = time.Minute
+)
+
+func (s *Server) takeSurveyLinkRequest(ctx context.Context, limiter *ratelimit.Limiter) error {
+	if limiter.Take(ratelimit.KeyForIP(sourceAddress(ctx)), time.Now().UTC()) {
+		return nil
+	}
+	return apperror.RateLimited("rate_limited", "Too many survey requests, try again shortly", surveyLinkWindow)
+}
+
 func (s *Server) ListSurveys(
 	ctx context.Context,
-	_ openapi.ListSurveysRequestObject,
+	request openapi.ListSurveysRequestObject,
 ) (openapi.ListSurveysResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.surveys.List(ctx, p)
+	params := surveys.ListParams{Search: request.Params.Search}
+	if request.Params.Status != nil {
+		status := surveys.Status(*request.Params.Status)
+		params.Status = &status
+	}
+	if request.Params.Sort != nil {
+		params.Sort = string(*request.Params.Sort)
+	}
+	params.Descending = request.Params.Order == nil || *request.Params.Order == openapi.Desc
+	if request.Params.Limit != nil {
+		params.Limit = int32(*request.Params.Limit)
+	}
+	if request.Params.Offset != nil {
+		params.Skip = int32(*request.Params.Offset)
+	}
+	items, total, err := s.surveys.List(ctx, p, params)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +57,7 @@ func (s *Server) ListSurveys(
 	for i, item := range items {
 		result[i] = surveyDTO(item)
 	}
-	return openapi.ListSurveys200JSONResponse{Items: result}, nil
+	return openapi.ListSurveys200JSONResponse{Items: result, Total: total}, nil
 }
 
 func (s *Server) CreateSurvey(
@@ -129,6 +162,38 @@ func (s *Server) CloseSurvey(
 	return openapi.CloseSurvey200JSONResponse(surveyDTO(value)), nil
 }
 
+func (s *Server) ReopenSurvey(
+	ctx context.Context,
+	request openapi.ReopenSurveyRequestObject,
+) (openapi.ReopenSurveyResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	value, err := s.surveys.Reopen(ctx, p, request.SurveyId, request.Body.ExpectedVersion, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ReopenSurvey200JSONResponse(surveyDTO(value)), nil
+}
+
+func (s *Server) DeleteSurvey(
+	ctx context.Context,
+	request openapi.DeleteSurveyRequestObject,
+) (openapi.DeleteSurveyResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.surveys.Delete(ctx, p, request.SurveyId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteSurvey204Response{}, nil
+}
+
 func (s *Server) UpdateSurveyTrigger(
 	ctx context.Context,
 	request openapi.UpdateSurveyTriggerRequestObject,
@@ -174,22 +239,54 @@ func (s *Server) SubmitPublicSurvey(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	answers := make([]surveys.AnswerInput, len(request.Body.Answers))
-	for i, answer := range request.Body.Answers {
+	if err := s.surveys.Submit(ctx, request.Token, surveyAnswers(*request.Body)); err != nil {
+		return nil, err
+	}
+	return openapi.SubmitPublicSurvey204Response{}, nil
+}
+
+func (s *Server) GetPublicSurveyByLink(
+	ctx context.Context,
+	request openapi.GetPublicSurveyByLinkRequestObject,
+) (openapi.GetPublicSurveyByLinkResponseObject, error) {
+	if err := s.takeSurveyLinkRequest(ctx, s.surveyLinkViews); err != nil {
+		return nil, err
+	}
+	value, err := s.surveys.PublicByLink(ctx, request.Token)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetPublicSurveyByLink200JSONResponse(publicSurveyDTO(value)), nil
+}
+
+func (s *Server) SubmitPublicSurveyByLink(
+	ctx context.Context,
+	request openapi.SubmitPublicSurveyByLinkRequestObject,
+) (openapi.SubmitPublicSurveyByLinkResponseObject, error) {
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.takeSurveyLinkRequest(ctx, s.surveyLinkSubmits); err != nil {
+		return nil, err
+	}
+	if err := s.surveys.SubmitByLink(ctx, request.Token, surveyAnswers(*request.Body)); err != nil {
+		return nil, err
+	}
+	return openapi.SubmitPublicSurveyByLink204Response{}, nil
+}
+
+func surveyAnswers(body openapi.SubmitSurveyResponse) []surveys.AnswerInput {
+	answers := make([]surveys.AnswerInput, len(body.Answers))
+	for i, answer := range body.Answers {
 		answers[i] = surveys.AnswerInput{
-			QuestionID: answer.QuestionId,
-			OptionIDs:  append([]openapi.UUIDv7(nil), answer.OptionIds...),
-			TextValue: nullableStringPointer(
-				answer.TextValue,
-			),
+			QuestionID:   answer.QuestionId,
+			OptionIDs:    append([]openapi.UUIDv7(nil), answer.OptionIds...),
+			TextValue:    nullableStringPointer(answer.TextValue),
 			NumericValue: nullableInt32Pointer(answer.NumericValue),
 			BooleanValue: nullableBoolPointer(answer.BooleanValue),
 		}
 	}
-	if err := s.surveys.Submit(ctx, request.Token, answers); err != nil {
-		return nil, err
-	}
-	return openapi.SubmitPublicSurvey204Response{}, nil
+	return answers
 }
 
 func surveyInput(
@@ -212,6 +309,18 @@ func surveyInput(
 			Options:   options,
 			RatingMin: nullableInt32Pointer(question.RatingMin),
 			RatingMax: nullableInt32Pointer(question.RatingMax),
+		}
+		if question.Condition.IsSpecified() && !question.Condition.IsNull() {
+			condition := question.Condition.GetOrEmpty()
+			converted[i].Condition = &surveys.ConditionInput{
+				QuestionPosition: condition.QuestionPosition,
+				Operator:         surveys.ConditionOperator(condition.Operator),
+				Number:           nullableInt32Pointer(condition.NumericValue),
+				Boolean:          nullableBoolPointer(condition.BooleanValue),
+			}
+			if condition.OptionPositions != nil {
+				converted[i].Condition.OptionPositions = *condition.OptionPositions
+			}
 		}
 	}
 	return surveys.Input{Name: name, Title: title, Anonymous: anonymous, Description: nullableStringLike(description),
@@ -256,12 +365,14 @@ func surveyDTO(value surveys.Survey) openapi.Survey {
 			value.Introduction,
 			func(v string) string { return v },
 		),
-		Revision:  int(value.Revision),
-		Questions: questions,
-		Trigger:   trigger,
-		Version:   value.Version,
-		CreatedAt: value.CreatedAt,
-		UpdatedAt: value.UpdatedAt,
+		Revision:      int(value.Revision),
+		Questions:     questions,
+		Trigger:       trigger,
+		ResponseCount: value.ResponseCount,
+		LinkCount:     value.LinkCount,
+		Version:       value.Version,
+		CreatedAt:     value.CreatedAt,
+		UpdatedAt:     value.UpdatedAt,
 	}
 }
 
@@ -283,6 +394,7 @@ func surveyQuestionsDTO(values []surveys.Question) []openapi.SurveyQuestion {
 			Options:   options,
 			RatingMin: nullablePointer[int32](value.RatingMin, func(v int32) int { return int(v) }),
 			RatingMax: nullablePointer[int32](value.RatingMax, func(v int32) int { return int(v) }),
+			Condition: nullablePointer[surveys.Condition](value.Condition, surveyConditionDTO),
 		}
 	}
 	return result
@@ -299,6 +411,24 @@ func publicSurveyDTO(value surveys.PublicSurvey) openapi.PublicSurvey {
 		Introduction: nullablePointer[string](value.Introduction, func(v string) string { return v }),
 		Anonymous:    value.Anonymous,
 		Questions:    surveyQuestionsDTO(value.Questions),
-		ExpiresAt:    value.ExpiresAt,
+		ExpiresAt:    nullablePointer[time.Time](value.ExpiresAt, func(v time.Time) time.Time { return v }),
 	}
+}
+
+func surveyConditionDTO(value surveys.Condition) openapi.SurveyCondition {
+	optionIDs := make([]openapi.UUIDv7, len(value.OptionIDs))
+	copy(optionIDs, value.OptionIDs)
+	result := openapi.SurveyCondition{
+		QuestionId:       value.QuestionID,
+		QuestionPosition: int(value.QuestionPosition),
+		Operator:         openapi.SurveyConditionOperator(value.Operator),
+		OptionIds:        optionIDs,
+	}
+	if value.Number != nil {
+		result.NumericValue = nullable.NewNullableWithValue(int(*value.Number))
+	}
+	if value.Boolean != nil {
+		result.BooleanValue = nullable.NewNullableWithValue(*value.Boolean)
+	}
+	return result
 }

@@ -1782,14 +1782,19 @@ type SurveyInvitation struct {
 }
 
 type SurveyQuestion struct {
-	ID              uuid.UUID
-	SurveyVersionID uuid.UUID
-	Kind            string
-	Prompt          string
-	Required        bool
-	Position        int32
-	RatingMin       *int32
-	RatingMax       *int32
+	ID                  uuid.UUID
+	SurveyVersionID     uuid.UUID
+	Kind                string
+	Prompt              string
+	Required            bool
+	Position            int32
+	RatingMin           *int32
+	RatingMax           *int32
+	ConditionQuestionID *uuid.UUID
+	ConditionOperator   *string
+	ConditionOptionIds  []uuid.UUID
+	ConditionNumber     *int32
+	ConditionBoolean    *bool
 }
 
 type SurveyQuestionOption struct {
@@ -1804,6 +1809,21 @@ type SurveyResponse struct {
 	SurveyVersionID    uuid.UUID
 	SubmittedOn        pgtype.Date
 	IdentifiedPersonID *uuid.UUID
+	Source             string
+	ShareLinkID        *uuid.UUID
+}
+
+type SurveyShareLink struct {
+	ID           uuid.UUID
+	SurveyID     uuid.UUID
+	Label        *string
+	TokenDigest  []byte
+	Active       bool
+	ExpiresAt    pgtype.Timestamptz
+	MaxResponses *int32
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type SurveyTrigger struct {

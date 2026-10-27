@@ -22,4 +22,6 @@ import type { Survey } from './survey';
 
 export interface SurveyList {
   items: Survey[];
+  /** @minimum 0 */
+  total: number;
 }

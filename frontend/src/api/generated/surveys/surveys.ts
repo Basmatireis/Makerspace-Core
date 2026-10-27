@@ -20,30 +20,52 @@
  */
 import type {
   CreateSurveyRequest,
+  ExportSurveyResultsCSVParams,
+  GetSurveyQuestionResultsParams,
+  ListSurveysParams,
   PublicSurvey,
   SubmitSurveyResponse,
   Survey,
   SurveyList,
+  SurveyQuestionResultList,
+  SurveyResultsOverview,
+  SurveyShareLink,
+  SurveyShareLinkInput,
+  SurveyShareLinkList,
   SurveyTrigger,
   SurveyTriggerInput,
   UUIDv7,
   UpdateSurveyRequest,
+  UpdateSurveyShareLinkRequest,
   VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
 
-export const getListSurveysUrl = () => {
+export const getListSurveysUrl = (params?: ListSurveysParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/surveys`
+  return stringifiedParams.length > 0 ? `/api/v1/surveys?${stringifiedParams}` : `/api/v1/surveys`
 }
 
-export const listSurveys = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SurveyList> => {
+/**
+ * Items carry the current definition plus `responseCount`, `linkCount`, `revision` and the trigger, so one
+ * request feeds a table. `search` is a case-insensitive substring match on the survey name.
+ * `total` counts all matches regardless of paging.
+ * @summary List surveys for a table (requires surveys.read or surveys.manage)
+ */
+export const listSurveys = async (params?: ListSurveysParams, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyList> => {
 
-  return apiFetch<SurveyList>(getListSurveysUrl(),
+  return apiFetch<SurveyList>(getListSurveysUrl(params),
   {
     ...options,
     method: 'GET'
@@ -115,6 +137,12 @@ export const getUpdateSurveyUrl = (surveyId: UUIDv7,) => {
   return `/api/v1/surveys/${surveyId}`
 }
 
+/**
+ * A draft is always editable. A published or closed survey is edited in place (same version row and `revision`,
+ * new question and option ids) but only while it has no responses; otherwise the call fails with 409
+ * `survey_has_responses`. Question conditions are given by position and are part of the definition.
+ * @summary Replace the definition of a survey (requires surveys.manage)
+ */
 export const updateSurvey = async (surveyId: UUIDv7,
     updateSurveyRequest: UpdateSurveyRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Survey> => {
 
@@ -138,6 +166,31 @@ return apiFetch<Survey>(getUpdateSurveyUrl(surveyId),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(updateSurveyRequest)
+  }
+);}
+
+
+export const getDeleteSurveyUrl = (surveyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}`
+}
+
+/**
+ * Hard-deletes the survey with its versions, questions, trigger, share links and invitations (including cancelled
+ * and pending ones). Fails with 409 `survey_has_responses` once any response exists.
+ * @summary Permanently delete a survey without responses (requires surveys.manage)
+ */
+export const deleteSurvey = async (surveyId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteSurveyUrl(surveyId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 
@@ -247,6 +300,271 @@ return apiFetch<SurveyTrigger>(getUpdateSurveyTriggerUrl(surveyId),
 );}
 
 
+export const getReopenSurveyUrl = (surveyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/reopen`
+}
+
+/**
+ * The survey accepts answers again. Its trigger stays disabled until re-enabled and invitations cancelled by closing stay cancelled.
+ * @summary Publish a closed survey again (requires surveys.manage)
+ */
+export const reopenSurvey = async (surveyId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Survey> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Survey>(getReopenSurveyUrl(surveyId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getListSurveyShareLinksUrl = (surveyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/links`
+}
+
+/**
+ * Links carry their token, because it is HMAC-derived and can be shown again. Reading them therefore needs surveys.manage.
+ * @summary List the share links of a survey (requires surveys.manage)
+ */
+export const listSurveyShareLinks = async (surveyId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyShareLinkList> => {
+
+  return apiFetch<SurveyShareLinkList>(getListSurveyShareLinksUrl(surveyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSurveyShareLinkUrl = (surveyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/links`
+}
+
+/**
+ * @summary Create an anonymous share link (requires surveys.manage)
+ */
+export const createSurveyShareLink = async (surveyId: UUIDv7,
+    surveyShareLinkInput: SurveyShareLinkInput, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyShareLink> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SurveyShareLink>(getCreateSurveyShareLinkUrl(surveyId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(surveyShareLinkInput)
+  }
+);}
+
+
+export const getUpdateSurveyShareLinkUrl = (surveyId: UUIDv7,
+    linkId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/links/${linkId}`
+}
+
+/**
+ * Setting `active` to false deactivates the link, true reactivates it. The token never changes.
+ * @summary Replace label, expiry, response limit and active flag of a share link (requires surveys.manage)
+ */
+export const updateSurveyShareLink = async (surveyId: UUIDv7,
+    linkId: UUIDv7,
+    updateSurveyShareLinkRequest: UpdateSurveyShareLinkRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyShareLink> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SurveyShareLink>(getUpdateSurveyShareLinkUrl(surveyId,linkId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSurveyShareLinkRequest)
+  }
+);}
+
+
+export const getDeleteSurveyShareLinkUrl = (surveyId: UUIDv7,
+    linkId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/links/${linkId}`
+}
+
+/**
+ * Responses already submitted through the link are kept, with source `link` and no link id.
+ * @summary Delete a share link (requires surveys.manage)
+ */
+export const deleteSurveyShareLink = async (surveyId: UUIDv7,
+    linkId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteSurveyShareLinkUrl(surveyId,linkId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getGetSurveyResultsOverviewUrl = (surveyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/surveys/${surveyId}/results/overview`
+}
+
+/**
+ * @summary Response totals of a survey (requires surveys.read)
+ */
+export const getSurveyResultsOverview = async (surveyId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyResultsOverview> => {
+
+  return apiFetch<SurveyResultsOverview>(getGetSurveyResultsOverviewUrl(surveyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getGetSurveyQuestionResultsUrl = (surveyId: UUIDv7,
+    params?: GetSurveyQuestionResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/surveys/${surveyId}/results/questions?${stringifiedParams}` : `/api/v1/surveys/${surveyId}/results/questions`
+}
+
+/**
+ * Aggregates cover every version of the survey, joined by question id (the current model keeps one version per
+ * survey, because a survey with responses can no longer be edited). Counts only include answers to questions
+ * that were visible when answered. `from`/`to` are inclusive submission dates (Europe/Vienna calendar days;
+ * responses store the day, not the time). `textLimit`/`textOffset` page the free-text answers of each
+ * free-text question.
+ * @summary Per-question aggregates (requires surveys.read)
+ */
+export const getSurveyQuestionResults = async (surveyId: UUIDv7,
+    params?: GetSurveyQuestionResultsParams, options?: Parameters<typeof apiFetch>[1]): Promise<SurveyQuestionResultList> => {
+
+  return apiFetch<SurveyQuestionResultList>(getGetSurveyQuestionResultsUrl(surveyId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getExportSurveyResultsCSVUrl = (surveyId: UUIDv7,
+    params?: ExportSurveyResultsCSVParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/surveys/${surveyId}/results/export.csv?${stringifiedParams}` : `/api/v1/surveys/${surveyId}/results/export.csv`
+}
+
+/**
+ * One row per response (ordered by submission date), columns `Submitted on`, `Source`, then one per question of
+ * the latest version; multiple-choice answers are joined with `; `. A `Person` column exists only for surveys that
+ * are not anonymous and holds the display name of identified invitation responses (empty for link responses and
+ * deleted people). Cells starting with `=`, `+`, `-`, `@`, tab or carriage return are prefixed with a single quote
+ * against spreadsheet formula injection.
+ * @summary Download responses as CSV (requires surveys.read)
+ */
+export const exportSurveyResultsCSV = async (surveyId: UUIDv7,
+    params?: ExportSurveyResultsCSVParams, options?: Parameters<typeof apiFetch>[1]): Promise<string> => {
+
+  return apiFetch<string>(getExportSurveyResultsCSVUrl(surveyId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getGetPublicSurveyUrl = (token: string,) => {
 
 
@@ -293,6 +611,69 @@ export const submitPublicSurvey = async (token: string,
     return headers;
   };
 return apiFetch<void>(getSubmitPublicSurveyUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(submitSurveyResponse)
+  }
+);}
+
+
+export const getGetPublicSurveyByLinkUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/public/survey-links/${token}`
+}
+
+/**
+ * Rate limited per source address; 410 when the link is inactive, expired, full or the survey is not published.
+ * @summary Read a published survey through a share link
+ */
+export const getPublicSurveyByLink = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<PublicSurvey> => {
+
+  return apiFetch<PublicSurvey>(getGetPublicSurveyByLinkUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSubmitPublicSurveyByLinkUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/public/survey-links/${token}`
+}
+
+/**
+ * The response never carries a person identity and records the link as its source. Rate limited per source address and per link.
+ * @summary Submit an anonymous response through a share link
+ */
+export const submitPublicSurveyByLink = async (token: string,
+    submitSurveyResponse: SubmitSurveyResponse, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getSubmitPublicSurveyByLinkUrl(token),
   {
     ...options,
     method: 'POST',

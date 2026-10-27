@@ -26,5 +26,9 @@ export interface PublicSurvey {
   introduction: string | null;
   anonymous: boolean;
   questions: SurveyQuestion[];
-  expiresAt: string;
+  /**
+     * Invitation expiry; null for share links without expiry. Link surveys are always anonymous.
+     * @nullable
+     */
+  expiresAt: string | null;
 }

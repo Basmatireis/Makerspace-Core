@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SurveyConditionInput } from './surveyConditionInput';
 import type { SurveyOptionInput } from './surveyOptionInput';
 import type { SurveyQuestionKind } from './surveyQuestionKind';
 
@@ -43,4 +44,5 @@ export interface SurveyQuestionInput {
      * @nullable
      */
   ratingMax?: number | null;
+  condition?: SurveyConditionInput | null;
 }

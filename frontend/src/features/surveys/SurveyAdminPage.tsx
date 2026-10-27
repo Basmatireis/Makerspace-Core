@@ -60,7 +60,7 @@ export function SurveyAdminPage() {
   const canManage = hasPermission(currentUser, PermissionId.surveysmanage);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Survey | undefined>();
-  const query = useQuery({ queryKey: surveyKey, queryFn: ({ signal }) => listSurveys({ signal }) });
+  const query = useQuery({ queryKey: surveyKey, queryFn: ({ signal }) => listSurveys({ limit: 200 }, { signal }) });
   const refresh = () => queryClient.invalidateQueries({ queryKey: surveyKey });
   return (
     <SettingsPageLayout page="surveys" description="Build reusable surveys and send them after visits.">

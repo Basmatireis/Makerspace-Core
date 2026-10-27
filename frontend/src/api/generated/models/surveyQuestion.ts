@@ -18,13 +18,34 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SurveyCondition } from './surveyCondition';
 import type { SurveyOption } from './surveyOption';
-import type { SurveyQuestionInput } from './surveyQuestionInput';
+import type { SurveyQuestionKind } from './surveyQuestionKind';
 import type { UUIDv7 } from './uUIDv7';
 
-export type SurveyQuestion = SurveyQuestionInput & {
+export interface SurveyQuestion {
   id: UUIDv7;
   /** @minimum 1 */
   position: number;
-  options?: SurveyOption[];
-};
+  kind: SurveyQuestionKind;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  prompt: string;
+  required: boolean;
+  options: SurveyOption[];
+  /**
+     * @minimum 0
+     * @maximum 9
+     * @nullable
+     */
+  ratingMin?: number | null;
+  /**
+     * @minimum 1
+     * @maximum 10
+     * @nullable
+     */
+  ratingMax?: number | null;
+  condition: SurveyCondition | null;
+}

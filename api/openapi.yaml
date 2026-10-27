@@ -8791,9 +8791,22 @@ paths:
     get:
       tags: [Surveys]
       operationId: listSurveys
+      summary: List surveys for a table (requires surveys.read or surveys.manage)
+      description: |
+        Items carry the current definition plus `responseCount`, `linkCount`, `revision` and the trigger, so one
+        request feeds a table. `search` is a case-insensitive substring match on the survey name.
+        `total` counts all matches regardless of paging.
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: search, in: query, schema: {type: string, maxLength: 160}}
+        - {name: status, in: query, schema: {type: string, enum: [draft, published, closed]}}
+        - {name: sort, in: query, schema: {type: string, enum: [name, status, updatedAt, responseCount], default: updatedAt}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
       responses:
         "200": {description: Surveys., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyList"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -8823,15 +8836,35 @@ paths:
     put:
       tags: [Surveys]
       operationId: updateSurvey
+      summary: Replace the definition of a survey (requires surveys.manage)
+      description: |
+        A draft is always editable. A published or closed survey is edited in place (same version row and `revision`,
+        new question and option ids) but only while it has no responses; otherwise the call fails with 409
+        `survey_has_responses`. Question conditions are given by position and are part of the definition.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSurveyRequest"}}}}
       responses:
-        "200": {description: Survey draft updated., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "200": {description: Survey updated., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Surveys]
+      operationId: deleteSurvey
+      summary: Permanently delete a survey without responses (requires surveys.manage)
+      description: |
+        Hard-deletes the survey with its versions, questions, trigger, share links and invitations (including cancelled
+        and pending ones). Fails with 409 `survey_has_responses` once any response exists.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Survey deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /surveys/{surveyId}/publish:
     parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
@@ -8878,11 +8911,158 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/reopen:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Surveys]
+      operationId: reopenSurvey
+      summary: Publish a closed survey again (requires surveys.manage)
+      description: The survey accepts answers again. Its trigger stays disabled until re-enabled and invitations cancelled by closing stay cancelled.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Survey published again., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/links:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Surveys]
+      operationId: listSurveyShareLinks
+      summary: List the share links of a survey (requires surveys.manage)
+      description: Links carry their token, because it is HMAC-derived and can be shown again. Reading them therefore needs surveys.manage.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Share links., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyShareLinkList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Surveys]
+      operationId: createSurveyShareLink
+      summary: Create an anonymous share link (requires surveys.manage)
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SurveyShareLinkInput"}}}}
+      responses:
+        "201": {description: Share link created., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyShareLink"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/links/{linkId}:
+    parameters:
+      - {name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: linkId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Surveys]
+      operationId: updateSurveyShareLink
+      summary: Replace label, expiry, response limit and active flag of a share link (requires surveys.manage)
+      description: Setting `active` to false deactivates the link, true reactivates it. The token never changes.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSurveyShareLinkRequest"}}}}
+      responses:
+        "200": {description: Share link updated., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyShareLink"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Surveys]
+      operationId: deleteSurveyShareLink
+      summary: Delete a share link (requires surveys.manage)
+      description: Responses already submitted through the link are kept, with source `link` and no link id.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Share link deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/results/overview:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Surveys]
+      operationId: getSurveyResultsOverview
+      summary: Response totals of a survey (requires surveys.read)
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Overview., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyResultsOverview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/results/questions:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Surveys]
+      operationId: getSurveyQuestionResults
+      summary: Per-question aggregates (requires surveys.read)
+      description: |
+        Aggregates cover every version of the survey, joined by question id (the current model keeps one version per
+        survey, because a survey with responses can no longer be edited). Counts only include answers to questions
+        that were visible when answered. `from`/`to` are inclusive submission dates (Europe/Vienna calendar days;
+        responses store the day, not the time). `textLimit`/`textOffset` page the free-text answers of each
+        free-text question.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: source, in: query, schema: {$ref: "#/components/schemas/SurveyResponseSource"}}
+        - {name: linkId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: textLimit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+        - {name: textOffset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+      responses:
+        "200": {description: Aggregates., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyQuestionResultList"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/results/export.csv:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Surveys]
+      operationId: exportSurveyResultsCSV
+      summary: Download responses as CSV (requires surveys.read)
+      description: |
+        One row per response (ordered by submission date), columns `Submitted on`, `Source`, then one per question of
+        the latest version; multiple-choice answers are joined with `; `. A `Person` column exists only for surveys that
+        are not anonymous and holds the display name of identified invitation responses (empty for link responses and
+        deleted people). Cells starting with `=`, `+`, `-`, `@`, tab or carriage return are prefixed with a single quote
+        against spreadsheet formula injection.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: source, in: query, schema: {$ref: "#/components/schemas/SurveyResponseSource"}}
+        - {name: linkId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200":
+          description: CSV file.
+          headers:
+            Content-Disposition: {schema: {type: string}}
+          content: {text/csv: {schema: {type: string}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /public/surveys/{token}:
     parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
     get:
       tags: [Surveys]
       operationId: getPublicSurvey
+      security: []
       responses:
         "200": {description: Survey invitation., content: {application/json: {schema: {$ref: "#/components/schemas/PublicSurvey"}}}}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -8891,6 +9071,7 @@ paths:
     post:
       tags: [Surveys]
       operationId: submitPublicSurvey
+      security: []
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
       responses:
         "204": {description: Anonymous response stored and invitation consumed.}
@@ -8898,6 +9079,35 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "410": {description: Invitation expired., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/survey-links/{token}:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    get:
+      tags: [Surveys]
+      operationId: getPublicSurveyByLink
+      summary: Read a published survey through a share link
+      description: Rate limited per source address; 410 when the link is inactive, expired, full or the survey is not published.
+      security: []
+      responses:
+        "200": {description: Survey., content: {application/json: {schema: {$ref: "#/components/schemas/PublicSurvey"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "410": {description: "Link unavailable (`survey_link_inactive`, `survey_link_expired`, `survey_link_full`, `survey_unavailable`).", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Surveys]
+      operationId: submitPublicSurveyByLink
+      summary: Submit an anonymous response through a share link
+      description: The response never carries a person identity and records the link as its source. Rate limited per source address and per link.
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
+      responses:
+        "204": {description: Anonymous response stored.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "410": {description: "Link unavailable (`survey_link_inactive`, `survey_link_expired`, `survey_link_full`, `survey_unavailable`).", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
 components:
@@ -16972,6 +17182,9 @@ components:
         options: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/SurveyOptionInput"}}
         ratingMin: {type: integer, minimum: 0, maximum: 9, nullable: true}
         ratingMax: {type: integer, minimum: 1, maximum: 10, nullable: true}
+        condition:
+          allOf: [{$ref: "#/components/schemas/SurveyConditionInput"}]
+          nullable: true
     SurveyOption:
       allOf:
         - {$ref: "#/components/schemas/SurveyOptionInput"}
@@ -16981,16 +17194,51 @@ components:
           properties:
             id: {$ref: "#/components/schemas/UUIDv7"}
             position: {type: integer, minimum: 1}
+    SurveyConditionOperator:
+      type: string
+      description: |
+        `one_of` (single choice: the answer is one of `optionPositions`), `includes_any` (multiple choice: at least one
+        selected option is in `optionPositions`), `lte`/`gte`/`eq` (rating compared with `numericValue`), `eq` with
+        `booleanValue` (yes/no). Free-text questions cannot be a condition source.
+      enum: [one_of, includes_any, lte, gte, eq]
+    SurveyConditionInput:
+      type: object
+      description: Show the question only when the answer to an EARLIER question of the same survey matches. Hidden questions are never required, and their answers are rejected on submit.
+      additionalProperties: false
+      required: [questionPosition, operator]
+      properties:
+        questionPosition: {type: integer, minimum: 1, maximum: 100, description: "1-based position of the source question in the submitted `questions` array; must be smaller than the position of the question that carries the condition."}
+        operator: {$ref: "#/components/schemas/SurveyConditionOperator"}
+        optionPositions: {type: array, maxItems: 50, uniqueItems: true, items: {type: integer, minimum: 1}, description: "1-based positions of options of the source question (choice operators)."}
+        numericValue: {type: integer, minimum: 0, maximum: 10, nullable: true}
+        booleanValue: {type: boolean, nullable: true}
+    SurveyCondition:
+      type: object
+      additionalProperties: false
+      required: [questionId, questionPosition, operator, optionIds]
+      properties:
+        questionId: {$ref: "#/components/schemas/UUIDv7"}
+        questionPosition: {type: integer, minimum: 1}
+        operator: {$ref: "#/components/schemas/SurveyConditionOperator"}
+        optionIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        numericValue: {type: integer, nullable: true}
+        booleanValue: {type: boolean, nullable: true}
     SurveyQuestion:
-      allOf:
-        - {$ref: "#/components/schemas/SurveyQuestionInput"}
-        - type: object
-          additionalProperties: false
-          required: [id, position]
-          properties:
-            id: {$ref: "#/components/schemas/UUIDv7"}
-            position: {type: integer, minimum: 1}
-            options: {type: array, items: {$ref: "#/components/schemas/SurveyOption"}}
+      type: object
+      additionalProperties: false
+      required: [id, position, kind, prompt, required, options, condition]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        position: {type: integer, minimum: 1}
+        kind: {$ref: "#/components/schemas/SurveyQuestionKind"}
+        prompt: {type: string, minLength: 1, maxLength: 1000}
+        required: {type: boolean}
+        options: {type: array, items: {$ref: "#/components/schemas/SurveyOption"}}
+        ratingMin: {type: integer, minimum: 0, maximum: 9, nullable: true}
+        ratingMax: {type: integer, minimum: 1, maximum: 10, nullable: true}
+        condition:
+          allOf: [{$ref: "#/components/schemas/SurveyCondition"}]
+          nullable: true
     CreateSurveyRequest:
       type: object
       additionalProperties: false
@@ -17037,7 +17285,7 @@ components:
     Survey:
       type: object
       additionalProperties: false
-      required: [id, name, description, status, anonymous, title, introduction, revision, questions, trigger, version, createdAt, updatedAt]
+      required: [id, name, description, status, anonymous, title, introduction, revision, questions, trigger, responseCount, linkCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -17051,15 +17299,18 @@ components:
         trigger:
           allOf: [{$ref: "#/components/schemas/SurveyTrigger"}]
           nullable: true
+        responseCount: {type: integer, format: int64, minimum: 0, description: "Responses over all versions; the survey can be edited or deleted only while this is 0."}
+        linkCount: {type: integer, format: int64, minimum: 0}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
     SurveyList:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [items, total]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/Survey"}}
+        total: {type: integer, format: int64, minimum: 0}
     PublicSurvey:
       type: object
       additionalProperties: false
@@ -17069,7 +17320,7 @@ components:
         introduction: {type: string, nullable: true}
         anonymous: {type: boolean}
         questions: {type: array, items: {$ref: "#/components/schemas/SurveyQuestion"}}
-        expiresAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time, nullable: true, description: "Invitation expiry; null for share links without expiry. Link surveys are always anonymous."}
     SurveyAnswerInput:
       type: object
       additionalProperties: false
@@ -17086,6 +17337,146 @@ components:
       required: [answers]
       properties:
         answers: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SurveyAnswerInput"}}
+    SurveyResponseSource:
+      type: string
+      enum: [invitation, link]
+    SurveyShareLinkInput:
+      type: object
+      additionalProperties: false
+      required: [label, expiresAt, maxResponses]
+      properties:
+        label: {type: string, minLength: 1, maxLength: 120, nullable: true}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        maxResponses: {type: integer, minimum: 1, maximum: 1000000, nullable: true}
+    UpdateSurveyShareLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [label, expiresAt, maxResponses, active, expectedVersion]
+      properties:
+        label: {type: string, minLength: 1, maxLength: 120, nullable: true}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        maxResponses: {type: integer, minimum: 1, maximum: 1000000, nullable: true}
+        active: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    SurveyShareLink:
+      type: object
+      additionalProperties: false
+      required: [id, surveyId, label, token, active, state, expiresAt, maxResponses, responseCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        surveyId: {$ref: "#/components/schemas/UUIDv7"}
+        label: {type: string, nullable: true}
+        token: {type: string, minLength: 43, maxLength: 43, description: "HMAC-derived from the link id, so it can be shown again. Public URL: the public link endpoints take it as `{token}`; the frontend route for it is chosen by the frontend."}
+        active: {type: boolean}
+        state: {type: string, enum: [open, inactive, expired, full], description: "Derived: `inactive` (deactivated), `expired`, `full` (maxResponses reached) or `open`. A link of a survey that is not published is unavailable regardless."}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        maxResponses: {type: integer, nullable: true}
+        responseCount: {type: integer, format: int64, minimum: 0}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SurveyShareLinkList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SurveyShareLink"}}
+    SurveyLinkResponseCount:
+      type: object
+      additionalProperties: false
+      required: [linkId, label, responses]
+      properties:
+        linkId: {$ref: "#/components/schemas/UUIDv7"}
+        label: {type: string, nullable: true}
+        responses: {type: integer, format: int64, minimum: 0}
+    SurveyResultsOverview:
+      type: object
+      additionalProperties: false
+      required: [surveyId, invitationsSent, responses, responsesByInvitation, responsesByLink, responseRate, firstResponseOn, lastResponseOn, links]
+      properties:
+        surveyId: {$ref: "#/components/schemas/UUIDv7"}
+        invitationsSent: {type: integer, format: int64, minimum: 0, description: "Invitations that were delivered or already answered."}
+        responses: {type: integer, format: int64, minimum: 0}
+        responsesByInvitation: {type: integer, format: int64, minimum: 0}
+        responsesByLink: {type: integer, format: int64, minimum: 0}
+        responseRate: {type: number, format: double, nullable: true, description: "responsesByInvitation / invitationsSent between 0 and 1; null when no invitation was sent. Link responses are not part of the rate."}
+        firstResponseOn: {type: string, format: date, nullable: true}
+        lastResponseOn: {type: string, format: date, nullable: true}
+        links: {type: array, items: {$ref: "#/components/schemas/SurveyLinkResponseCount"}}
+    SurveyOptionResult:
+      type: object
+      additionalProperties: false
+      required: [optionId, label, position, count]
+      properties:
+        optionId: {$ref: "#/components/schemas/UUIDv7"}
+        label: {type: string}
+        position: {type: integer, minimum: 1}
+        count: {type: integer, format: int64, minimum: 0}
+    SurveyRatingBucket:
+      type: object
+      additionalProperties: false
+      required: [value, count]
+      properties:
+        value: {type: integer}
+        count: {type: integer, format: int64, minimum: 0}
+    SurveyRatingResult:
+      type: object
+      additionalProperties: false
+      required: [min, max, distribution, mean]
+      properties:
+        min: {type: integer}
+        max: {type: integer}
+        distribution: {type: array, description: "One bucket for every value from min to max, zero counts included.", items: {$ref: "#/components/schemas/SurveyRatingBucket"}}
+        mean: {type: number, format: double, nullable: true}
+    SurveyYesNoResult:
+      type: object
+      additionalProperties: false
+      required: [yes, no]
+      properties:
+        yes: {type: integer, format: int64, minimum: 0}
+        no: {type: integer, format: int64, minimum: 0}
+    SurveyTextAnswer:
+      type: object
+      additionalProperties: false
+      required: [text, submittedOn]
+      properties:
+        text: {type: string}
+        submittedOn: {type: string, format: date}
+    SurveyTextResult:
+      type: object
+      additionalProperties: false
+      required: [total, items]
+      properties:
+        total: {type: integer, format: int64, minimum: 0}
+        items: {type: array, description: "Newest first; never carries a person.", items: {$ref: "#/components/schemas/SurveyTextAnswer"}}
+    SurveyQuestionResult:
+      type: object
+      additionalProperties: false
+      required: [questionId, position, kind, prompt, respondents, options, rating, yesNo, text]
+      properties:
+        questionId: {$ref: "#/components/schemas/UUIDv7"}
+        position: {type: integer, minimum: 1}
+        kind: {$ref: "#/components/schemas/SurveyQuestionKind"}
+        prompt: {type: string}
+        respondents: {type: integer, format: int64, minimum: 0, description: "Responses that answered this question."}
+        options: {type: array, description: "Choice questions only (empty otherwise).", items: {$ref: "#/components/schemas/SurveyOptionResult"}}
+        rating:
+          allOf: [{$ref: "#/components/schemas/SurveyRatingResult"}]
+          nullable: true
+        yesNo:
+          allOf: [{$ref: "#/components/schemas/SurveyYesNoResult"}]
+          nullable: true
+        text:
+          allOf: [{$ref: "#/components/schemas/SurveyTextResult"}]
+          nullable: true
+    SurveyQuestionResultList:
+      type: object
+      additionalProperties: false
+      required: [surveyId, totalResponses, questions]
+      properties:
+        surveyId: {$ref: "#/components/schemas/UUIDv7"}
+        totalResponses: {type: integer, format: int64, minimum: 0, description: "Responses matching the filters."}
+        questions: {type: array, items: {$ref: "#/components/schemas/SurveyQuestionResult"}}
     SignageLayoutId:
       type: string
       description: Fixed, code-defined layouts shared by backend validation and frontend rendering, or `custom` (then `customLayoutId` names the custom layout).

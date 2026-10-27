@@ -42,7 +42,7 @@ type Querier interface {
 	ListRoles(ctx context.Context) ([]ListRolesRow, error)
 	ListSessionPolicies(ctx context.Context) ([]ListSessionPoliciesRow, error)
 	ListSurveyOptions(ctx context.Context, versionIds []uuid.UUID) ([]ListSurveyOptionsRow, error)
-	ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]SurveyQuestion, error)
+	ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]ListSurveyQuestionsRow, error)
 	ListSurveyTriggers(ctx context.Context) ([]ListSurveyTriggersRow, error)
 	ListSurveys(ctx context.Context) ([]ListSurveysRow, error)
 	// Trainings with their competency and machine type names, the natural keys the file uses.

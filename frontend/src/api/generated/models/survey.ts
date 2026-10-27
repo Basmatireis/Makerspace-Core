@@ -38,6 +38,13 @@ export interface Survey {
   revision: number;
   questions: SurveyQuestion[];
   trigger: SurveyTrigger | null;
+  /**
+     * Responses over all versions; the survey can be edited or deleted only while this is 0.
+     * @minimum 0
+     */
+  responseCount: number;
+  /** @minimum 0 */
+  linkCount: number;
   version: Version;
   createdAt: string;
   updatedAt: string;

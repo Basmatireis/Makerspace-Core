@@ -31,6 +31,8 @@ function surveyFixture(overrides: Partial<Survey> = {}): Survey {
       cooldownDays: 30,
       version: 3,
     },
+    responseCount: 0,
+    linkCount: 0,
     version: 2,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

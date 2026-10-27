@@ -88,6 +88,9 @@ type Server struct {
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
+	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
+	surveyLinkViews   *ratelimit.Limiter
+	surveyLinkSubmits *ratelimit.Limiter
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -215,6 +218,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		trainings:         trainingsService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
+		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
+		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		attendance:        attendanceService,
 	}, nil
 }

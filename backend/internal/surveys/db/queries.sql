@@ -1,13 +1,41 @@
 -- name: ListSurveys :many
-SELECT s.*, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction
+-- Search is a case-insensitive substring match; position() avoids LIKE wildcard escaping.
+SELECT s.*, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+    WHERE v.survey_id = s.id) AS response_count,
+  (SELECT count(*) FROM survey_share_links l WHERE l.survey_id = s.id) AS link_count
 FROM surveys s
 JOIN LATERAL (
   SELECT * FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
 ) sv ON true
-ORDER BY s.updated_at DESC, s.id;
+WHERE (sqlc.narg(status)::text IS NULL OR s.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0)
+ORDER BY
+  CASE WHEN sqlc.arg(sort)::text = 'name' AND NOT sqlc.arg(descending)::boolean THEN lower(s.name) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'name' AND sqlc.arg(descending)::boolean THEN lower(s.name) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'status' AND NOT sqlc.arg(descending)::boolean THEN s.status END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'status' AND sqlc.arg(descending)::boolean THEN s.status END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'updatedAt' AND NOT sqlc.arg(descending)::boolean THEN s.updated_at END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'updatedAt' AND sqlc.arg(descending)::boolean THEN s.updated_at END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'responseCount' AND NOT sqlc.arg(descending)::boolean THEN
+    (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+      WHERE v.survey_id = s.id) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'responseCount' AND sqlc.arg(descending)::boolean THEN
+    (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+      WHERE v.survey_id = s.id) END DESC,
+  s.updated_at DESC, s.id
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountSurveys :one
+SELECT count(*) FROM surveys s
+WHERE (sqlc.narg(status)::text IS NULL OR s.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0);
 
 -- name: GetSurvey :one
-SELECT s.*, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction
+SELECT s.*, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+    WHERE v.survey_id = s.id) AS response_count,
+  (SELECT count(*) FROM survey_share_links l WHERE l.survey_id = s.id) AS link_count
 FROM surveys s
 JOIN LATERAL (
   SELECT * FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
@@ -38,22 +66,40 @@ INSERT INTO survey_versions (id, survey_id, revision, title, introduction)
 VALUES (sqlc.arg(id), sqlc.arg(survey_id), sqlc.arg(revision), sqlc.arg(title), sqlc.narg(introduction)) RETURNING *;
 
 -- name: CreateSurveyQuestion :one
-INSERT INTO survey_questions (id, survey_version_id, kind, prompt, required, position, rating_min, rating_max)
+INSERT INTO survey_questions (id, survey_version_id, kind, prompt, required, position, rating_min, rating_max,
+  condition_question_id, condition_operator, condition_option_ids, condition_number, condition_boolean)
 VALUES (sqlc.arg(id), sqlc.arg(survey_version_id), sqlc.arg(kind), sqlc.arg(prompt), sqlc.arg(required),
-  sqlc.arg(position), sqlc.narg(rating_min), sqlc.narg(rating_max)) RETURNING *;
+  sqlc.arg(position), sqlc.narg(rating_min), sqlc.narg(rating_max),
+  sqlc.narg(condition_question_id), sqlc.narg(condition_operator), sqlc.arg(condition_option_ids)::text[]::uuid[],
+  sqlc.narg(condition_number), sqlc.narg(condition_boolean)) RETURNING *;
 
 -- name: CreateSurveyOption :one
 INSERT INTO survey_question_options (id, question_id, label, position)
 VALUES (sqlc.arg(id), sqlc.arg(question_id), sqlc.arg(label), sqlc.arg(position)) RETURNING *;
 
--- name: UpdateSurveyDraft :one
+-- name: UpdateSurveyDefinition :one
+-- Whether the survey may still be edited (draft, or no responses yet) is decided by the service under the row lock.
 UPDATE surveys SET name = sqlc.arg(name), description = sqlc.narg(description), anonymous = sqlc.arg(anonymous),
   version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status = 'draft' RETURNING *;
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
 
--- name: UpdateSurveyVersionDraft :exec
+-- name: UpdateSurveyVersionDefinition :exec
 UPDATE survey_versions SET title = sqlc.arg(title), introduction = sqlc.narg(introduction)
-WHERE id = sqlc.arg(id) AND published_at IS NULL;
+WHERE id = sqlc.arg(id);
+
+-- name: SurveyHasResponses :one
+SELECT survey_has_responses(sqlc.arg(survey_id)) AS has_responses;
+
+-- name: LockSurveyShared :one
+-- Submissions take this share lock before reading the questions so an edit or delete (FOR UPDATE) never interleaves.
+SELECT id FROM surveys WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: DeleteSurvey :execrows
+DELETE FROM surveys WHERE id = sqlc.arg(id);
+
+-- name: ReopenSurvey :one
+UPDATE surveys SET status = 'published', version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status = 'closed' RETURNING *;
 
 -- name: DeleteSurveyQuestions :exec
 DELETE FROM survey_questions WHERE survey_version_id = sqlc.arg(survey_version_id);
@@ -148,7 +194,7 @@ UPDATE survey_invitations SET status = 'failed', delivery_claimed_at = NULL,
 
 -- name: GetPublicSurveyInvitation :one
 SELECT si.id AS invitation_id, si.expires_at, si.status, si.person_id,
-  s.anonymous, sv.id AS survey_version_id, sv.title, sv.introduction
+  s.id AS survey_id, s.anonymous, sv.id AS survey_version_id, sv.title, sv.introduction
 FROM survey_invitations si
 JOIN survey_versions sv ON sv.id = si.survey_version_id
 JOIN surveys s ON s.id = sv.survey_id
@@ -156,7 +202,7 @@ WHERE si.token_digest = sqlc.arg(token_digest);
 
 -- name: GetPublicSurveyInvitationForUpdate :one
 SELECT si.id AS invitation_id, si.expires_at, si.status, si.person_id,
-  s.anonymous, sv.id AS survey_version_id
+  s.id AS survey_id, s.anonymous, sv.id AS survey_version_id
 FROM survey_invitations si
 JOIN survey_versions sv ON sv.id = si.survey_version_id
 JOIN surveys s ON s.id = sv.survey_id
@@ -174,8 +220,9 @@ UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id =
 WHERE visit_id = sqlc.arg(visit_id) AND status IN ('pending', 'delivering', 'sent', 'failed');
 
 -- name: CreateSurveyResponse :one
-INSERT INTO survey_responses (id, survey_version_id, submitted_on, identified_person_id)
-VALUES (sqlc.arg(id), sqlc.arg(survey_version_id), sqlc.arg(submitted_on), sqlc.narg(identified_person_id)) RETURNING *;
+INSERT INTO survey_responses (id, survey_version_id, submitted_on, identified_person_id, source, share_link_id)
+VALUES (sqlc.arg(id), sqlc.arg(survey_version_id), sqlc.arg(submitted_on), sqlc.narg(identified_person_id),
+  sqlc.arg(source), sqlc.narg(share_link_id)) RETURNING *;
 
 -- name: CreateSurveyAnswer :exec
 INSERT INTO survey_answers (id, response_id, question_id, option_id, text_value, numeric_value, boolean_value, position)
@@ -194,3 +241,137 @@ UPDATE survey_invitations SET
   delivery_claimed_at = NULL
 WHERE (expires_at < sqlc.arg(before_time) OR redeemed_at < sqlc.arg(before_time))
   AND (person_id IS NOT NULL OR visit_id IS NOT NULL OR recipient_email IS NOT NULL);
+
+-- name: CreateSurveyShareLink :one
+INSERT INTO survey_share_links (id, survey_id, label, token_digest, active, expires_at, max_responses)
+VALUES (sqlc.arg(id), sqlc.arg(survey_id), sqlc.narg(label), sqlc.arg(token_digest), true,
+  sqlc.narg(expires_at), sqlc.narg(max_responses)) RETURNING *;
+
+-- name: ListSurveyShareLinks :many
+SELECT l.*, (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l WHERE l.survey_id = sqlc.arg(survey_id) ORDER BY l.created_at, l.id;
+
+-- name: GetSurveyShareLink :one
+SELECT l.*, (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l WHERE l.id = sqlc.arg(id) AND l.survey_id = sqlc.arg(survey_id);
+
+-- name: UpdateSurveyShareLink :one
+UPDATE survey_share_links SET label = sqlc.narg(label), expires_at = sqlc.narg(expires_at),
+  max_responses = sqlc.narg(max_responses), active = sqlc.arg(active), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND survey_id = sqlc.arg(survey_id) AND version = sqlc.arg(expected_version) RETURNING *;
+
+-- name: DeleteSurveyShareLink :execrows
+DELETE FROM survey_share_links WHERE id = sqlc.arg(id) AND survey_id = sqlc.arg(survey_id);
+
+-- name: GetSurveyShareLinkByDigest :one
+SELECT l.id AS link_id, l.survey_id, l.active, l.expires_at, l.max_responses,
+  s.status AS survey_status, sv.id AS survey_version_id, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l
+JOIN surveys s ON s.id = l.survey_id
+JOIN LATERAL (
+  SELECT * FROM survey_versions WHERE survey_id = s.id AND published_at IS NOT NULL ORDER BY revision DESC LIMIT 1
+) sv ON true
+WHERE l.token_digest = sqlc.arg(token_digest);
+
+-- name: LockSurveyShareLink :one
+SELECT id FROM survey_share_links WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: CountSurveyShareLinkResponses :one
+SELECT count(*) FROM survey_responses WHERE share_link_id = sqlc.arg(share_link_id);
+
+-- name: GetSurveyInvitationCounts :one
+SELECT count(*) FILTER (WHERE si.sent_at IS NOT NULL OR si.status = 'redeemed') AS sent,
+  count(*) FILTER (WHERE si.status = 'redeemed') AS redeemed,
+  count(*) AS created
+FROM survey_invitations si JOIN survey_versions v ON v.id = si.survey_version_id
+WHERE v.survey_id = sqlc.arg(survey_id);
+
+-- name: GetSurveyResponseOverview :one
+SELECT count(*) AS total,
+  count(*) FILTER (WHERE r.source = 'invitation') AS by_invitation,
+  count(*) FILTER (WHERE r.source = 'link') AS by_link,
+  min(r.submitted_on)::date AS first_on, max(r.submitted_on)::date AS last_on
+FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = sqlc.arg(survey_id);
+
+-- name: CountFilteredSurveyResponses :one
+SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = sqlc.arg(survey_id)
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid);
+
+-- name: ListSurveyAnswerAggregates :many
+-- Choice, rating and yes/no answers grouped by value; free text is listed separately and paged.
+SELECT a.question_id, a.option_id, a.numeric_value, a.boolean_value, count(*) AS answer_count
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = sqlc.arg(survey_id) AND a.text_value IS NULL
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
+GROUP BY a.question_id, a.option_id, a.numeric_value, a.boolean_value;
+
+-- name: ListSurveyQuestionRespondents :many
+SELECT a.question_id, count(DISTINCT a.response_id) AS respondents
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = sqlc.arg(survey_id)
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
+GROUP BY a.question_id;
+
+-- name: ListSurveyTextAnswers :many
+SELECT a.text_value, r.submitted_on
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+WHERE a.question_id = sqlc.arg(question_id) AND a.text_value IS NOT NULL
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
+ORDER BY r.submitted_on DESC, r.id
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountSurveyTextAnswers :one
+SELECT count(*)
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+WHERE a.question_id = sqlc.arg(question_id) AND a.text_value IS NOT NULL
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid);
+
+-- name: ListSurveyResponsesForExport :many
+-- The person columns are NULL unless the response is identified; the service only exposes them for identified surveys.
+SELECT r.id, r.submitted_on, r.source, r.share_link_id, p.first_name, p.last_name
+FROM survey_responses r
+JOIN survey_versions v ON v.id = r.survey_version_id
+LEFT JOIN people p ON p.id = r.identified_person_id
+WHERE v.survey_id = sqlc.arg(survey_id)
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
+ORDER BY r.submitted_on, r.id;
+
+-- name: ListSurveyAnswersForExport :many
+SELECT a.response_id, a.question_id, a.text_value, a.numeric_value, a.boolean_value, o.label AS option_label
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+LEFT JOIN survey_question_options o ON o.id = a.option_id
+WHERE v.survey_id = sqlc.arg(survey_id)
+  AND (sqlc.narg(from_date)::date IS NULL OR r.submitted_on >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR r.submitted_on <= sqlc.narg(to_date)::date)
+  AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
+  AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
+ORDER BY a.response_id, a.question_id, a.position;

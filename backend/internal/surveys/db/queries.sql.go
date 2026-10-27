@@ -160,6 +160,97 @@ func (q *Queries) ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (in
 	return result.RowsAffected(), nil
 }
 
+const countFilteredSurveyResponses = `-- name: CountFilteredSurveyResponses :one
+SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = $1
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+`
+
+type CountFilteredSurveyResponsesParams struct {
+	SurveyID uuid.UUID
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+	Source   *string
+	LinkID   *uuid.UUID
+}
+
+func (q *Queries) CountFilteredSurveyResponses(ctx context.Context, arg CountFilteredSurveyResponsesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countFilteredSurveyResponses,
+		arg.SurveyID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSurveyShareLinkResponses = `-- name: CountSurveyShareLinkResponses :one
+SELECT count(*) FROM survey_responses WHERE share_link_id = $1
+`
+
+func (q *Queries) CountSurveyShareLinkResponses(ctx context.Context, shareLinkID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSurveyShareLinkResponses, shareLinkID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSurveyTextAnswers = `-- name: CountSurveyTextAnswers :one
+SELECT count(*)
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+WHERE a.question_id = $1 AND a.text_value IS NOT NULL
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+`
+
+type CountSurveyTextAnswersParams struct {
+	QuestionID uuid.UUID
+	FromDate   pgtype.Date
+	ToDate     pgtype.Date
+	Source     *string
+	LinkID     *uuid.UUID
+}
+
+func (q *Queries) CountSurveyTextAnswers(ctx context.Context, arg CountSurveyTextAnswersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSurveyTextAnswers,
+		arg.QuestionID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSurveys = `-- name: CountSurveys :one
+SELECT count(*) FROM surveys s
+WHERE ($1::text IS NULL OR s.status = $1::text)
+  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0)
+`
+
+type CountSurveysParams struct {
+	Status *string
+	Search *string
+}
+
+func (q *Queries) CountSurveys(ctx context.Context, arg CountSurveysParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSurveys, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSurvey = `-- name: CreateSurvey :one
 INSERT INTO surveys (id, name, description, anonymous)
 VALUES ($1, $2, $3, $4) RETURNING id, name, description, status, anonymous, version, created_at, updated_at
@@ -305,20 +396,28 @@ func (q *Queries) CreateSurveyOption(ctx context.Context, arg CreateSurveyOption
 }
 
 const createSurveyQuestion = `-- name: CreateSurveyQuestion :one
-INSERT INTO survey_questions (id, survey_version_id, kind, prompt, required, position, rating_min, rating_max)
+INSERT INTO survey_questions (id, survey_version_id, kind, prompt, required, position, rating_min, rating_max,
+  condition_question_id, condition_operator, condition_option_ids, condition_number, condition_boolean)
 VALUES ($1, $2, $3, $4, $5,
-  $6, $7, $8) RETURNING id, survey_version_id, kind, prompt, required, position, rating_min, rating_max
+  $6, $7, $8,
+  $9, $10, $11::text[]::uuid[],
+  $12, $13) RETURNING id, survey_version_id, kind, prompt, required, position, rating_min, rating_max, condition_question_id, condition_operator, condition_option_ids, condition_number, condition_boolean
 `
 
 type CreateSurveyQuestionParams struct {
-	ID              uuid.UUID
-	SurveyVersionID uuid.UUID
-	Kind            string
-	Prompt          string
-	Required        bool
-	Position        int32
-	RatingMin       *int32
-	RatingMax       *int32
+	ID                  uuid.UUID
+	SurveyVersionID     uuid.UUID
+	Kind                string
+	Prompt              string
+	Required            bool
+	Position            int32
+	RatingMin           *int32
+	RatingMax           *int32
+	ConditionQuestionID *uuid.UUID
+	ConditionOperator   *string
+	ConditionOptionIds  []string
+	ConditionNumber     *int32
+	ConditionBoolean    *bool
 }
 
 func (q *Queries) CreateSurveyQuestion(ctx context.Context, arg CreateSurveyQuestionParams) (SurveyQuestion, error) {
@@ -331,6 +430,11 @@ func (q *Queries) CreateSurveyQuestion(ctx context.Context, arg CreateSurveyQues
 		arg.Position,
 		arg.RatingMin,
 		arg.RatingMax,
+		arg.ConditionQuestionID,
+		arg.ConditionOperator,
+		arg.ConditionOptionIds,
+		arg.ConditionNumber,
+		arg.ConditionBoolean,
 	)
 	var i SurveyQuestion
 	err := row.Scan(
@@ -342,13 +446,19 @@ func (q *Queries) CreateSurveyQuestion(ctx context.Context, arg CreateSurveyQues
 		&i.Position,
 		&i.RatingMin,
 		&i.RatingMax,
+		&i.ConditionQuestionID,
+		&i.ConditionOperator,
+		&i.ConditionOptionIds,
+		&i.ConditionNumber,
+		&i.ConditionBoolean,
 	)
 	return i, err
 }
 
 const createSurveyResponse = `-- name: CreateSurveyResponse :one
-INSERT INTO survey_responses (id, survey_version_id, submitted_on, identified_person_id)
-VALUES ($1, $2, $3, $4) RETURNING id, survey_version_id, submitted_on, identified_person_id
+INSERT INTO survey_responses (id, survey_version_id, submitted_on, identified_person_id, source, share_link_id)
+VALUES ($1, $2, $3, $4,
+  $5, $6) RETURNING id, survey_version_id, submitted_on, identified_person_id, source, share_link_id
 `
 
 type CreateSurveyResponseParams struct {
@@ -356,6 +466,8 @@ type CreateSurveyResponseParams struct {
 	SurveyVersionID    uuid.UUID
 	SubmittedOn        pgtype.Date
 	IdentifiedPersonID *uuid.UUID
+	Source             string
+	ShareLinkID        *uuid.UUID
 }
 
 func (q *Queries) CreateSurveyResponse(ctx context.Context, arg CreateSurveyResponseParams) (SurveyResponse, error) {
@@ -364,6 +476,8 @@ func (q *Queries) CreateSurveyResponse(ctx context.Context, arg CreateSurveyResp
 		arg.SurveyVersionID,
 		arg.SubmittedOn,
 		arg.IdentifiedPersonID,
+		arg.Source,
+		arg.ShareLinkID,
 	)
 	var i SurveyResponse
 	err := row.Scan(
@@ -371,6 +485,48 @@ func (q *Queries) CreateSurveyResponse(ctx context.Context, arg CreateSurveyResp
 		&i.SurveyVersionID,
 		&i.SubmittedOn,
 		&i.IdentifiedPersonID,
+		&i.Source,
+		&i.ShareLinkID,
+	)
+	return i, err
+}
+
+const createSurveyShareLink = `-- name: CreateSurveyShareLink :one
+INSERT INTO survey_share_links (id, survey_id, label, token_digest, active, expires_at, max_responses)
+VALUES ($1, $2, $3, $4, true,
+  $5, $6) RETURNING id, survey_id, label, token_digest, active, expires_at, max_responses, version, created_at, updated_at
+`
+
+type CreateSurveyShareLinkParams struct {
+	ID           uuid.UUID
+	SurveyID     uuid.UUID
+	Label        *string
+	TokenDigest  []byte
+	ExpiresAt    pgtype.Timestamptz
+	MaxResponses *int32
+}
+
+func (q *Queries) CreateSurveyShareLink(ctx context.Context, arg CreateSurveyShareLinkParams) (SurveyShareLink, error) {
+	row := q.db.QueryRow(ctx, createSurveyShareLink,
+		arg.ID,
+		arg.SurveyID,
+		arg.Label,
+		arg.TokenDigest,
+		arg.ExpiresAt,
+		arg.MaxResponses,
+	)
+	var i SurveyShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.SurveyID,
+		&i.Label,
+		&i.TokenDigest,
+		&i.Active,
+		&i.ExpiresAt,
+		&i.MaxResponses,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -468,6 +624,18 @@ func (q *Queries) DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTi
 	return result.RowsAffected(), nil
 }
 
+const deleteSurvey = `-- name: DeleteSurvey :execrows
+DELETE FROM surveys WHERE id = $1
+`
+
+func (q *Queries) DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSurvey, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteSurveyQuestions = `-- name: DeleteSurveyQuestions :exec
 DELETE FROM survey_questions WHERE survey_version_id = $1
 `
@@ -475,6 +643,23 @@ DELETE FROM survey_questions WHERE survey_version_id = $1
 func (q *Queries) DeleteSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSurveyQuestions, surveyVersionID)
 	return err
+}
+
+const deleteSurveyShareLink = `-- name: DeleteSurveyShareLink :execrows
+DELETE FROM survey_share_links WHERE id = $1 AND survey_id = $2
+`
+
+type DeleteSurveyShareLinkParams struct {
+	ID       uuid.UUID
+	SurveyID uuid.UUID
+}
+
+func (q *Queries) DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveyShareLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSurveyShareLink, arg.ID, arg.SurveyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const disableSurveyTriggers = `-- name: DisableSurveyTriggers :exec
@@ -509,7 +694,7 @@ func (q *Queries) GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID 
 
 const getPublicSurveyInvitation = `-- name: GetPublicSurveyInvitation :one
 SELECT si.id AS invitation_id, si.expires_at, si.status, si.person_id,
-  s.anonymous, sv.id AS survey_version_id, sv.title, sv.introduction
+  s.id AS survey_id, s.anonymous, sv.id AS survey_version_id, sv.title, sv.introduction
 FROM survey_invitations si
 JOIN survey_versions sv ON sv.id = si.survey_version_id
 JOIN surveys s ON s.id = sv.survey_id
@@ -521,6 +706,7 @@ type GetPublicSurveyInvitationRow struct {
 	ExpiresAt       time.Time
 	Status          string
 	PersonID        *uuid.UUID
+	SurveyID        uuid.UUID
 	Anonymous       bool
 	SurveyVersionID uuid.UUID
 	Title           string
@@ -535,6 +721,7 @@ func (q *Queries) GetPublicSurveyInvitation(ctx context.Context, tokenDigest []b
 		&i.ExpiresAt,
 		&i.Status,
 		&i.PersonID,
+		&i.SurveyID,
 		&i.Anonymous,
 		&i.SurveyVersionID,
 		&i.Title,
@@ -545,7 +732,7 @@ func (q *Queries) GetPublicSurveyInvitation(ctx context.Context, tokenDigest []b
 
 const getPublicSurveyInvitationForUpdate = `-- name: GetPublicSurveyInvitationForUpdate :one
 SELECT si.id AS invitation_id, si.expires_at, si.status, si.person_id,
-  s.anonymous, sv.id AS survey_version_id
+  s.id AS survey_id, s.anonymous, sv.id AS survey_version_id
 FROM survey_invitations si
 JOIN survey_versions sv ON sv.id = si.survey_version_id
 JOIN surveys s ON s.id = sv.survey_id
@@ -558,6 +745,7 @@ type GetPublicSurveyInvitationForUpdateRow struct {
 	ExpiresAt       time.Time
 	Status          string
 	PersonID        *uuid.UUID
+	SurveyID        uuid.UUID
 	Anonymous       bool
 	SurveyVersionID uuid.UUID
 }
@@ -570,6 +758,7 @@ func (q *Queries) GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenD
 		&i.ExpiresAt,
 		&i.Status,
 		&i.PersonID,
+		&i.SurveyID,
 		&i.Anonymous,
 		&i.SurveyVersionID,
 	)
@@ -577,7 +766,10 @@ func (q *Queries) GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenD
 }
 
 const getSurvey = `-- name: GetSurvey :one
-SELECT s.id, s.name, s.description, s.status, s.anonymous, s.version, s.created_at, s.updated_at, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction
+SELECT s.id, s.name, s.description, s.status, s.anonymous, s.version, s.created_at, s.updated_at, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+    WHERE v.survey_id = s.id) AS response_count,
+  (SELECT count(*) FROM survey_share_links l WHERE l.survey_id = s.id) AS link_count
 FROM surveys s
 JOIN LATERAL (
   SELECT id, survey_id, revision, title, introduction, published_at, created_at FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
@@ -598,6 +790,8 @@ type GetSurveyRow struct {
 	Revision        int32
 	Title           string
 	Introduction    *string
+	ResponseCount   int64
+	LinkCount       int64
 }
 
 func (q *Queries) GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error) {
@@ -616,6 +810,8 @@ func (q *Queries) GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, er
 		&i.Revision,
 		&i.Title,
 		&i.Introduction,
+		&i.ResponseCount,
+		&i.LinkCount,
 	)
 	return i, err
 }
@@ -636,6 +832,143 @@ func (q *Queries) GetSurveyForUpdate(ctx context.Context, id uuid.UUID) (Survey,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSurveyInvitationCounts = `-- name: GetSurveyInvitationCounts :one
+SELECT count(*) FILTER (WHERE si.sent_at IS NOT NULL OR si.status = 'redeemed') AS sent,
+  count(*) FILTER (WHERE si.status = 'redeemed') AS redeemed,
+  count(*) AS created
+FROM survey_invitations si JOIN survey_versions v ON v.id = si.survey_version_id
+WHERE v.survey_id = $1
+`
+
+type GetSurveyInvitationCountsRow struct {
+	Sent     int64
+	Redeemed int64
+	Created  int64
+}
+
+func (q *Queries) GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.UUID) (GetSurveyInvitationCountsRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyInvitationCounts, surveyID)
+	var i GetSurveyInvitationCountsRow
+	err := row.Scan(&i.Sent, &i.Redeemed, &i.Created)
+	return i, err
+}
+
+const getSurveyResponseOverview = `-- name: GetSurveyResponseOverview :one
+SELECT count(*) AS total,
+  count(*) FILTER (WHERE r.source = 'invitation') AS by_invitation,
+  count(*) FILTER (WHERE r.source = 'link') AS by_link,
+  min(r.submitted_on)::date AS first_on, max(r.submitted_on)::date AS last_on
+FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = $1
+`
+
+type GetSurveyResponseOverviewRow struct {
+	Total        int64
+	ByInvitation int64
+	ByLink       int64
+	FirstOn      pgtype.Date
+	LastOn       pgtype.Date
+}
+
+func (q *Queries) GetSurveyResponseOverview(ctx context.Context, surveyID uuid.UUID) (GetSurveyResponseOverviewRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyResponseOverview, surveyID)
+	var i GetSurveyResponseOverviewRow
+	err := row.Scan(
+		&i.Total,
+		&i.ByInvitation,
+		&i.ByLink,
+		&i.FirstOn,
+		&i.LastOn,
+	)
+	return i, err
+}
+
+const getSurveyShareLink = `-- name: GetSurveyShareLink :one
+SELECT l.id, l.survey_id, l.label, l.token_digest, l.active, l.expires_at, l.max_responses, l.version, l.created_at, l.updated_at, (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l WHERE l.id = $1 AND l.survey_id = $2
+`
+
+type GetSurveyShareLinkParams struct {
+	ID       uuid.UUID
+	SurveyID uuid.UUID
+}
+
+type GetSurveyShareLinkRow struct {
+	ID            uuid.UUID
+	SurveyID      uuid.UUID
+	Label         *string
+	TokenDigest   []byte
+	Active        bool
+	ExpiresAt     pgtype.Timestamptz
+	MaxResponses  *int32
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ResponseCount int64
+}
+
+func (q *Queries) GetSurveyShareLink(ctx context.Context, arg GetSurveyShareLinkParams) (GetSurveyShareLinkRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyShareLink, arg.ID, arg.SurveyID)
+	var i GetSurveyShareLinkRow
+	err := row.Scan(
+		&i.ID,
+		&i.SurveyID,
+		&i.Label,
+		&i.TokenDigest,
+		&i.Active,
+		&i.ExpiresAt,
+		&i.MaxResponses,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResponseCount,
+	)
+	return i, err
+}
+
+const getSurveyShareLinkByDigest = `-- name: GetSurveyShareLinkByDigest :one
+SELECT l.id AS link_id, l.survey_id, l.active, l.expires_at, l.max_responses,
+  s.status AS survey_status, sv.id AS survey_version_id, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l
+JOIN surveys s ON s.id = l.survey_id
+JOIN LATERAL (
+  SELECT id, survey_id, revision, title, introduction, published_at, created_at FROM survey_versions WHERE survey_id = s.id AND published_at IS NOT NULL ORDER BY revision DESC LIMIT 1
+) sv ON true
+WHERE l.token_digest = $1
+`
+
+type GetSurveyShareLinkByDigestRow struct {
+	LinkID          uuid.UUID
+	SurveyID        uuid.UUID
+	Active          bool
+	ExpiresAt       pgtype.Timestamptz
+	MaxResponses    *int32
+	SurveyStatus    string
+	SurveyVersionID uuid.UUID
+	Title           string
+	Introduction    *string
+	ResponseCount   int64
+}
+
+func (q *Queries) GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []byte) (GetSurveyShareLinkByDigestRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyShareLinkByDigest, tokenDigest)
+	var i GetSurveyShareLinkByDigestRow
+	err := row.Scan(
+		&i.LinkID,
+		&i.SurveyID,
+		&i.Active,
+		&i.ExpiresAt,
+		&i.MaxResponses,
+		&i.SurveyStatus,
+		&i.SurveyVersionID,
+		&i.Title,
+		&i.Introduction,
+		&i.ResponseCount,
 	)
 	return i, err
 }
@@ -712,6 +1045,132 @@ func (q *Queries) ListEligiblePostVisitTriggers(ctx context.Context, personID uu
 	return items, nil
 }
 
+const listSurveyAnswerAggregates = `-- name: ListSurveyAnswerAggregates :many
+SELECT a.question_id, a.option_id, a.numeric_value, a.boolean_value, count(*) AS answer_count
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = $1 AND a.text_value IS NULL
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+GROUP BY a.question_id, a.option_id, a.numeric_value, a.boolean_value
+`
+
+type ListSurveyAnswerAggregatesParams struct {
+	SurveyID uuid.UUID
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+	Source   *string
+	LinkID   *uuid.UUID
+}
+
+type ListSurveyAnswerAggregatesRow struct {
+	QuestionID   uuid.UUID
+	OptionID     *uuid.UUID
+	NumericValue *int32
+	BooleanValue *bool
+	AnswerCount  int64
+}
+
+// Choice, rating and yes/no answers grouped by value; free text is listed separately and paged.
+func (q *Queries) ListSurveyAnswerAggregates(ctx context.Context, arg ListSurveyAnswerAggregatesParams) ([]ListSurveyAnswerAggregatesRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyAnswerAggregates,
+		arg.SurveyID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyAnswerAggregatesRow{}
+	for rows.Next() {
+		var i ListSurveyAnswerAggregatesRow
+		if err := rows.Scan(
+			&i.QuestionID,
+			&i.OptionID,
+			&i.NumericValue,
+			&i.BooleanValue,
+			&i.AnswerCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSurveyAnswersForExport = `-- name: ListSurveyAnswersForExport :many
+SELECT a.response_id, a.question_id, a.text_value, a.numeric_value, a.boolean_value, o.label AS option_label
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+LEFT JOIN survey_question_options o ON o.id = a.option_id
+WHERE v.survey_id = $1
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+ORDER BY a.response_id, a.question_id, a.position
+`
+
+type ListSurveyAnswersForExportParams struct {
+	SurveyID uuid.UUID
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+	Source   *string
+	LinkID   *uuid.UUID
+}
+
+type ListSurveyAnswersForExportRow struct {
+	ResponseID   uuid.UUID
+	QuestionID   uuid.UUID
+	TextValue    *string
+	NumericValue *int32
+	BooleanValue *bool
+	OptionLabel  *string
+}
+
+func (q *Queries) ListSurveyAnswersForExport(ctx context.Context, arg ListSurveyAnswersForExportParams) ([]ListSurveyAnswersForExportRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyAnswersForExport,
+		arg.SurveyID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyAnswersForExportRow{}
+	for rows.Next() {
+		var i ListSurveyAnswersForExportRow
+		if err := rows.Scan(
+			&i.ResponseID,
+			&i.QuestionID,
+			&i.TextValue,
+			&i.NumericValue,
+			&i.BooleanValue,
+			&i.OptionLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSurveyOptions = `-- name: ListSurveyOptions :many
 SELECT id, question_id, label, position FROM survey_question_options WHERE question_id = $1
 ORDER BY position, id
@@ -742,8 +1201,60 @@ func (q *Queries) ListSurveyOptions(ctx context.Context, questionID uuid.UUID) (
 	return items, nil
 }
 
+const listSurveyQuestionRespondents = `-- name: ListSurveyQuestionRespondents :many
+SELECT a.question_id, count(DISTINCT a.response_id) AS respondents
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+JOIN survey_versions v ON v.id = r.survey_version_id
+WHERE v.survey_id = $1
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+GROUP BY a.question_id
+`
+
+type ListSurveyQuestionRespondentsParams struct {
+	SurveyID uuid.UUID
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+	Source   *string
+	LinkID   *uuid.UUID
+}
+
+type ListSurveyQuestionRespondentsRow struct {
+	QuestionID  uuid.UUID
+	Respondents int64
+}
+
+func (q *Queries) ListSurveyQuestionRespondents(ctx context.Context, arg ListSurveyQuestionRespondentsParams) ([]ListSurveyQuestionRespondentsRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyQuestionRespondents,
+		arg.SurveyID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyQuestionRespondentsRow{}
+	for rows.Next() {
+		var i ListSurveyQuestionRespondentsRow
+		if err := rows.Scan(&i.QuestionID, &i.Respondents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSurveyQuestions = `-- name: ListSurveyQuestions :many
-SELECT id, survey_version_id, kind, prompt, required, position, rating_min, rating_max FROM survey_questions WHERE survey_version_id = $1
+SELECT id, survey_version_id, kind, prompt, required, position, rating_min, rating_max, condition_question_id, condition_operator, condition_option_ids, condition_number, condition_boolean FROM survey_questions WHERE survey_version_id = $1
 ORDER BY position, id
 `
 
@@ -765,6 +1276,11 @@ func (q *Queries) ListSurveyQuestions(ctx context.Context, surveyVersionID uuid.
 			&i.Position,
 			&i.RatingMin,
 			&i.RatingMax,
+			&i.ConditionQuestionID,
+			&i.ConditionOperator,
+			&i.ConditionOptionIds,
+			&i.ConditionNumber,
+			&i.ConditionBoolean,
 		); err != nil {
 			return nil, err
 		}
@@ -776,14 +1292,213 @@ func (q *Queries) ListSurveyQuestions(ctx context.Context, surveyVersionID uuid.
 	return items, nil
 }
 
+const listSurveyResponsesForExport = `-- name: ListSurveyResponsesForExport :many
+SELECT r.id, r.submitted_on, r.source, r.share_link_id, p.first_name, p.last_name
+FROM survey_responses r
+JOIN survey_versions v ON v.id = r.survey_version_id
+LEFT JOIN people p ON p.id = r.identified_person_id
+WHERE v.survey_id = $1
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+ORDER BY r.submitted_on, r.id
+`
+
+type ListSurveyResponsesForExportParams struct {
+	SurveyID uuid.UUID
+	FromDate pgtype.Date
+	ToDate   pgtype.Date
+	Source   *string
+	LinkID   *uuid.UUID
+}
+
+type ListSurveyResponsesForExportRow struct {
+	ID          uuid.UUID
+	SubmittedOn pgtype.Date
+	Source      string
+	ShareLinkID *uuid.UUID
+	FirstName   *string
+	LastName    *string
+}
+
+// The person columns are NULL unless the response is identified; the service only exposes them for identified surveys.
+func (q *Queries) ListSurveyResponsesForExport(ctx context.Context, arg ListSurveyResponsesForExportParams) ([]ListSurveyResponsesForExportRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyResponsesForExport,
+		arg.SurveyID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyResponsesForExportRow{}
+	for rows.Next() {
+		var i ListSurveyResponsesForExportRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubmittedOn,
+			&i.Source,
+			&i.ShareLinkID,
+			&i.FirstName,
+			&i.LastName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSurveyShareLinks = `-- name: ListSurveyShareLinks :many
+SELECT l.id, l.survey_id, l.label, l.token_digest, l.active, l.expires_at, l.max_responses, l.version, l.created_at, l.updated_at, (SELECT count(*) FROM survey_responses r WHERE r.share_link_id = l.id) AS response_count
+FROM survey_share_links l WHERE l.survey_id = $1 ORDER BY l.created_at, l.id
+`
+
+type ListSurveyShareLinksRow struct {
+	ID            uuid.UUID
+	SurveyID      uuid.UUID
+	Label         *string
+	TokenDigest   []byte
+	Active        bool
+	ExpiresAt     pgtype.Timestamptz
+	MaxResponses  *int32
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ResponseCount int64
+}
+
+func (q *Queries) ListSurveyShareLinks(ctx context.Context, surveyID uuid.UUID) ([]ListSurveyShareLinksRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyShareLinks, surveyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyShareLinksRow{}
+	for rows.Next() {
+		var i ListSurveyShareLinksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SurveyID,
+			&i.Label,
+			&i.TokenDigest,
+			&i.Active,
+			&i.ExpiresAt,
+			&i.MaxResponses,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ResponseCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSurveyTextAnswers = `-- name: ListSurveyTextAnswers :many
+SELECT a.text_value, r.submitted_on
+FROM survey_answers a
+JOIN survey_responses r ON r.id = a.response_id
+WHERE a.question_id = $1 AND a.text_value IS NOT NULL
+  AND ($2::date IS NULL OR r.submitted_on >= $2::date)
+  AND ($3::date IS NULL OR r.submitted_on <= $3::date)
+  AND ($4::text IS NULL OR r.source = $4::text)
+  AND ($5::uuid IS NULL OR r.share_link_id = $5::uuid)
+ORDER BY r.submitted_on DESC, r.id
+LIMIT $7 OFFSET $6
+`
+
+type ListSurveyTextAnswersParams struct {
+	QuestionID uuid.UUID
+	FromDate   pgtype.Date
+	ToDate     pgtype.Date
+	Source     *string
+	LinkID     *uuid.UUID
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListSurveyTextAnswersRow struct {
+	TextValue   *string
+	SubmittedOn pgtype.Date
+}
+
+func (q *Queries) ListSurveyTextAnswers(ctx context.Context, arg ListSurveyTextAnswersParams) ([]ListSurveyTextAnswersRow, error) {
+	rows, err := q.db.Query(ctx, listSurveyTextAnswers,
+		arg.QuestionID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Source,
+		arg.LinkID,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSurveyTextAnswersRow{}
+	for rows.Next() {
+		var i ListSurveyTextAnswersRow
+		if err := rows.Scan(&i.TextValue, &i.SubmittedOn); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSurveys = `-- name: ListSurveys :many
-SELECT s.id, s.name, s.description, s.status, s.anonymous, s.version, s.created_at, s.updated_at, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction
+SELECT s.id, s.name, s.description, s.status, s.anonymous, s.version, s.created_at, s.updated_at, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction,
+  (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+    WHERE v.survey_id = s.id) AS response_count,
+  (SELECT count(*) FROM survey_share_links l WHERE l.survey_id = s.id) AS link_count
 FROM surveys s
 JOIN LATERAL (
   SELECT id, survey_id, revision, title, introduction, published_at, created_at FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
 ) sv ON true
-ORDER BY s.updated_at DESC, s.id
+WHERE ($1::text IS NULL OR s.status = $1::text)
+  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0)
+ORDER BY
+  CASE WHEN $3::text = 'name' AND NOT $4::boolean THEN lower(s.name) END ASC,
+  CASE WHEN $3::text = 'name' AND $4::boolean THEN lower(s.name) END DESC,
+  CASE WHEN $3::text = 'status' AND NOT $4::boolean THEN s.status END ASC,
+  CASE WHEN $3::text = 'status' AND $4::boolean THEN s.status END DESC,
+  CASE WHEN $3::text = 'updatedAt' AND NOT $4::boolean THEN s.updated_at END ASC,
+  CASE WHEN $3::text = 'updatedAt' AND $4::boolean THEN s.updated_at END DESC,
+  CASE WHEN $3::text = 'responseCount' AND NOT $4::boolean THEN
+    (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+      WHERE v.survey_id = s.id) END ASC,
+  CASE WHEN $3::text = 'responseCount' AND $4::boolean THEN
+    (SELECT count(*) FROM survey_responses r JOIN survey_versions v ON v.id = r.survey_version_id
+      WHERE v.survey_id = s.id) END DESC,
+  s.updated_at DESC, s.id
+LIMIT $6 OFFSET $5
 `
+
+type ListSurveysParams struct {
+	Status     *string
+	Search     *string
+	Sort       string
+	Descending bool
+	PageOffset int32
+	PageLimit  int32
+}
 
 type ListSurveysRow struct {
 	ID              uuid.UUID
@@ -798,10 +1513,20 @@ type ListSurveysRow struct {
 	Revision        int32
 	Title           string
 	Introduction    *string
+	ResponseCount   int64
+	LinkCount       int64
 }
 
-func (q *Queries) ListSurveys(ctx context.Context) ([]ListSurveysRow, error) {
-	rows, err := q.db.Query(ctx, listSurveys)
+// Search is a case-insensitive substring match; position() avoids LIKE wildcard escaping.
+func (q *Queries) ListSurveys(ctx context.Context, arg ListSurveysParams) ([]ListSurveysRow, error) {
+	rows, err := q.db.Query(ctx, listSurveys,
+		arg.Status,
+		arg.Search,
+		arg.Sort,
+		arg.Descending,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -822,6 +1547,8 @@ func (q *Queries) ListSurveys(ctx context.Context) ([]ListSurveysRow, error) {
 			&i.Revision,
 			&i.Title,
 			&i.Introduction,
+			&i.ResponseCount,
+			&i.LinkCount,
 		); err != nil {
 			return nil, err
 		}
@@ -831,6 +1558,29 @@ func (q *Queries) ListSurveys(ctx context.Context) ([]ListSurveysRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSurveyShareLink = `-- name: LockSurveyShareLink :one
+SELECT id FROM survey_share_links WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockSurveyShareLink(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockSurveyShareLink, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockSurveyShared = `-- name: LockSurveyShared :one
+SELECT id FROM surveys WHERE id = $1 FOR SHARE
+`
+
+// Submissions take this share lock before reading the questions so an edit or delete (FOR UPDATE) never interleaves.
+func (q *Queries) LockSurveyShared(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockSurveyShared, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const markSurveyInvitationFailed = `-- name: MarkSurveyInvitationFailed :exec
@@ -896,13 +1646,50 @@ func (q *Queries) PublishSurvey(ctx context.Context, arg PublishSurveyParams) (S
 	return i, err
 }
 
-const updateSurveyDraft = `-- name: UpdateSurveyDraft :one
-UPDATE surveys SET name = $1, description = $2, anonymous = $3,
-  version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5 AND status = 'draft' RETURNING id, name, description, status, anonymous, version, created_at, updated_at
+const reopenSurvey = `-- name: ReopenSurvey :one
+UPDATE surveys SET status = 'published', version = version + 1, updated_at = now()
+WHERE id = $1 AND version = $2 AND status = 'closed' RETURNING id, name, description, status, anonymous, version, created_at, updated_at
 `
 
-type UpdateSurveyDraftParams struct {
+type ReopenSurveyParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) ReopenSurvey(ctx context.Context, arg ReopenSurveyParams) (Survey, error) {
+	row := q.db.QueryRow(ctx, reopenSurvey, arg.ID, arg.ExpectedVersion)
+	var i Survey
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.Anonymous,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const surveyHasResponses = `-- name: SurveyHasResponses :one
+SELECT survey_has_responses($1) AS has_responses
+`
+
+func (q *Queries) SurveyHasResponses(ctx context.Context, surveyID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, surveyHasResponses, surveyID)
+	var has_responses bool
+	err := row.Scan(&has_responses)
+	return has_responses, err
+}
+
+const updateSurveyDefinition = `-- name: UpdateSurveyDefinition :one
+UPDATE surveys SET name = $1, description = $2, anonymous = $3,
+  version = version + 1, updated_at = now()
+WHERE id = $4 AND version = $5 RETURNING id, name, description, status, anonymous, version, created_at, updated_at
+`
+
+type UpdateSurveyDefinitionParams struct {
 	Name            string
 	Description     *string
 	Anonymous       bool
@@ -910,8 +1697,9 @@ type UpdateSurveyDraftParams struct {
 	ExpectedVersion int64
 }
 
-func (q *Queries) UpdateSurveyDraft(ctx context.Context, arg UpdateSurveyDraftParams) (Survey, error) {
-	row := q.db.QueryRow(ctx, updateSurveyDraft,
+// Whether the survey may still be edited (draft, or no responses yet) is decided by the service under the row lock.
+func (q *Queries) UpdateSurveyDefinition(ctx context.Context, arg UpdateSurveyDefinitionParams) (Survey, error) {
+	row := q.db.QueryRow(ctx, updateSurveyDefinition,
 		arg.Name,
 		arg.Description,
 		arg.Anonymous,
@@ -925,6 +1713,48 @@ func (q *Queries) UpdateSurveyDraft(ctx context.Context, arg UpdateSurveyDraftPa
 		&i.Description,
 		&i.Status,
 		&i.Anonymous,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateSurveyShareLink = `-- name: UpdateSurveyShareLink :one
+UPDATE survey_share_links SET label = $1, expires_at = $2,
+  max_responses = $3, active = $4, version = version + 1, updated_at = now()
+WHERE id = $5 AND survey_id = $6 AND version = $7 RETURNING id, survey_id, label, token_digest, active, expires_at, max_responses, version, created_at, updated_at
+`
+
+type UpdateSurveyShareLinkParams struct {
+	Label           *string
+	ExpiresAt       pgtype.Timestamptz
+	MaxResponses    *int32
+	Active          bool
+	ID              uuid.UUID
+	SurveyID        uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) UpdateSurveyShareLink(ctx context.Context, arg UpdateSurveyShareLinkParams) (SurveyShareLink, error) {
+	row := q.db.QueryRow(ctx, updateSurveyShareLink,
+		arg.Label,
+		arg.ExpiresAt,
+		arg.MaxResponses,
+		arg.Active,
+		arg.ID,
+		arg.SurveyID,
+		arg.ExpectedVersion,
+	)
+	var i SurveyShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.SurveyID,
+		&i.Label,
+		&i.TokenDigest,
+		&i.Active,
+		&i.ExpiresAt,
+		&i.MaxResponses,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -970,18 +1800,18 @@ func (q *Queries) UpdateSurveyTrigger(ctx context.Context, arg UpdateSurveyTrigg
 	return i, err
 }
 
-const updateSurveyVersionDraft = `-- name: UpdateSurveyVersionDraft :exec
+const updateSurveyVersionDefinition = `-- name: UpdateSurveyVersionDefinition :exec
 UPDATE survey_versions SET title = $1, introduction = $2
-WHERE id = $3 AND published_at IS NULL
+WHERE id = $3
 `
 
-type UpdateSurveyVersionDraftParams struct {
+type UpdateSurveyVersionDefinitionParams struct {
 	Title        string
 	Introduction *string
 	ID           uuid.UUID
 }
 
-func (q *Queries) UpdateSurveyVersionDraft(ctx context.Context, arg UpdateSurveyVersionDraftParams) error {
-	_, err := q.db.Exec(ctx, updateSurveyVersionDraft, arg.Title, arg.Introduction, arg.ID)
+func (q *Queries) UpdateSurveyVersionDefinition(ctx context.Context, arg UpdateSurveyVersionDefinitionParams) error {
+	_, err := q.db.Exec(ctx, updateSurveyVersionDefinition, arg.Title, arg.Introduction, arg.ID)
 	return err
 }

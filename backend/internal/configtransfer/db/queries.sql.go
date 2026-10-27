@@ -1021,15 +1021,26 @@ WHERE survey_version_id = ANY($1::uuid[])
 ORDER BY survey_version_id, position
 `
 
-func (q *Queries) ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]SurveyQuestion, error) {
+type ListSurveyQuestionsRow struct {
+	ID              uuid.UUID
+	SurveyVersionID uuid.UUID
+	Kind            string
+	Prompt          string
+	Required        bool
+	Position        int32
+	RatingMin       *int32
+	RatingMax       *int32
+}
+
+func (q *Queries) ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]ListSurveyQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, listSurveyQuestions, versionIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SurveyQuestion{}
+	items := []ListSurveyQuestionsRow{}
 	for rows.Next() {
-		var i SurveyQuestion
+		var i ListSurveyQuestionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SurveyVersionID,

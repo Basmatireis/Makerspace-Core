@@ -17,36 +17,63 @@ type Querier interface {
 	ClaimDueSurveyInvitations(ctx context.Context, pageLimit int32) ([]ClaimDueSurveyInvitationsRow, error)
 	CloseSurvey(ctx context.Context, arg CloseSurveyParams) (Survey, error)
 	ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	CountFilteredSurveyResponses(ctx context.Context, arg CountFilteredSurveyResponsesParams) (int64, error)
+	CountSurveyShareLinkResponses(ctx context.Context, shareLinkID *uuid.UUID) (int64, error)
+	CountSurveyTextAnswers(ctx context.Context, arg CountSurveyTextAnswersParams) (int64, error)
+	CountSurveys(ctx context.Context, arg CountSurveysParams) (int64, error)
 	CreateSurvey(ctx context.Context, arg CreateSurveyParams) (Survey, error)
 	CreateSurveyAnswer(ctx context.Context, arg CreateSurveyAnswerParams) error
 	CreateSurveyInvitation(ctx context.Context, arg CreateSurveyInvitationParams) (SurveyInvitation, error)
 	CreateSurveyOption(ctx context.Context, arg CreateSurveyOptionParams) (SurveyQuestionOption, error)
 	CreateSurveyQuestion(ctx context.Context, arg CreateSurveyQuestionParams) (SurveyQuestion, error)
 	CreateSurveyResponse(ctx context.Context, arg CreateSurveyResponseParams) (SurveyResponse, error)
+	CreateSurveyShareLink(ctx context.Context, arg CreateSurveyShareLinkParams) (SurveyShareLink, error)
 	CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTriggerParams) (SurveyTrigger, error)
 	CreateSurveyVersion(ctx context.Context, arg CreateSurveyVersionParams) (SurveyVersion, error)
 	DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) error
+	DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveyShareLinkParams) (int64, error)
 	DisableSurveyTriggers(ctx context.Context, surveyID uuid.UUID) error
 	GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID uuid.UUID) (SurveyVersion, error)
 	GetPublicSurveyInvitation(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationRow, error)
 	GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationForUpdateRow, error)
 	GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error)
 	GetSurveyForUpdate(ctx context.Context, id uuid.UUID) (Survey, error)
+	GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.UUID) (GetSurveyInvitationCountsRow, error)
+	GetSurveyResponseOverview(ctx context.Context, surveyID uuid.UUID) (GetSurveyResponseOverviewRow, error)
+	GetSurveyShareLink(ctx context.Context, arg GetSurveyShareLinkParams) (GetSurveyShareLinkRow, error)
+	GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []byte) (GetSurveyShareLinkByDigestRow, error)
 	GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (SurveyTrigger, error)
 	ListEligiblePostVisitTriggers(ctx context.Context, personID uuid.UUID) ([]ListEligiblePostVisitTriggersRow, error)
+	// Choice, rating and yes/no answers grouped by value; free text is listed separately and paged.
+	ListSurveyAnswerAggregates(ctx context.Context, arg ListSurveyAnswerAggregatesParams) ([]ListSurveyAnswerAggregatesRow, error)
+	ListSurveyAnswersForExport(ctx context.Context, arg ListSurveyAnswersForExportParams) ([]ListSurveyAnswersForExportRow, error)
 	ListSurveyOptions(ctx context.Context, questionID uuid.UUID) ([]SurveyQuestionOption, error)
+	ListSurveyQuestionRespondents(ctx context.Context, arg ListSurveyQuestionRespondentsParams) ([]ListSurveyQuestionRespondentsRow, error)
 	ListSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) ([]SurveyQuestion, error)
-	ListSurveys(ctx context.Context) ([]ListSurveysRow, error)
+	// The person columns are NULL unless the response is identified; the service only exposes them for identified surveys.
+	ListSurveyResponsesForExport(ctx context.Context, arg ListSurveyResponsesForExportParams) ([]ListSurveyResponsesForExportRow, error)
+	ListSurveyShareLinks(ctx context.Context, surveyID uuid.UUID) ([]ListSurveyShareLinksRow, error)
+	ListSurveyTextAnswers(ctx context.Context, arg ListSurveyTextAnswersParams) ([]ListSurveyTextAnswersRow, error)
+	// Search is a case-insensitive substring match; position() avoids LIKE wildcard escaping.
+	ListSurveys(ctx context.Context, arg ListSurveysParams) ([]ListSurveysRow, error)
+	LockSurveyShareLink(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Submissions take this share lock before reading the questions so an edit or delete (FOR UPDATE) never interleaves.
+	LockSurveyShared(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// The next attempt waits 5, 10, 20 and then 40 minutes, so a short mail outage does not use up every attempt while
 	// the delivery loop runs each minute.
 	MarkSurveyInvitationFailed(ctx context.Context, arg MarkSurveyInvitationFailedParams) error
 	MarkSurveyInvitationSent(ctx context.Context, id uuid.UUID) error
 	MarkSurveyVersionPublished(ctx context.Context, id uuid.UUID) error
 	PublishSurvey(ctx context.Context, arg PublishSurveyParams) (Survey, error)
-	UpdateSurveyDraft(ctx context.Context, arg UpdateSurveyDraftParams) (Survey, error)
+	ReopenSurvey(ctx context.Context, arg ReopenSurveyParams) (Survey, error)
+	SurveyHasResponses(ctx context.Context, surveyID uuid.UUID) (bool, error)
+	// Whether the survey may still be edited (draft, or no responses yet) is decided by the service under the row lock.
+	UpdateSurveyDefinition(ctx context.Context, arg UpdateSurveyDefinitionParams) (Survey, error)
+	UpdateSurveyShareLink(ctx context.Context, arg UpdateSurveyShareLinkParams) (SurveyShareLink, error)
 	UpdateSurveyTrigger(ctx context.Context, arg UpdateSurveyTriggerParams) (SurveyTrigger, error)
-	UpdateSurveyVersionDraft(ctx context.Context, arg UpdateSurveyVersionDraftParams) error
+	UpdateSurveyVersionDefinition(ctx context.Context, arg UpdateSurveyVersionDefinitionParams) error
 }
 
 var _ Querier = (*Queries)(nil)
