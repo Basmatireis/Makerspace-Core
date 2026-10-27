@@ -1266,6 +1266,36 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
         items = items.filter((run) => Boolean(run.job) === (params.get('assigned') === 'true'));
       return ok(route, paginate(items, params));
     }
+    // Print files, previews, timelapse and consumption of recorded runs: none in the mock.
+    if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/recording$/)) && method === 'GET') {
+      const run = allRuns(world).find((item) => item.id === match![1]);
+      if (!run) return notFound(route);
+      return ok(route, {
+        runId: run.id,
+        runDisplayId: run.displayId,
+        source: run.source,
+        state: run.state,
+        startedAt: run.startedAt,
+        consumptionStatus: null,
+        artifact: null,
+        previews: [],
+        timelapse: null,
+        timelapseStatus: null,
+        commands: [],
+      });
+    }
+    if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)\/recordings$/)) && method === 'GET') {
+      return ok(route, { items: [] });
+    }
+    if (path === '/api/v1/machine-logbook/recording-settings' && method === 'GET') {
+      return ok(route, {
+        timelapseEnabled: true,
+        timelapseRetentionDays: 90,
+        timelapseMaxBytes: 209715200,
+        version: 1,
+        updatedAt: '2026-09-01T00:00:00Z',
+      });
+    }
     if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/signage-visibility$/)) && method === 'PUT') {
       const run = world.runs.find((item) => item.id === match![1]);
       if (!run) return notFound(route);

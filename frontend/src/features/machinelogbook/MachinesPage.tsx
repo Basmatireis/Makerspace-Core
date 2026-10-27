@@ -6,6 +6,7 @@ import type { Machine, MachineAvailability, MachineCurrentItem } from '../../api
 import { PageShell } from '../../app/PageShell';
 import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { MachineTypesTab } from './components/MachineTypesTab';
+import { RecordingSettingsTab } from './recording/RecordingSettingsTab';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { machineActivityQuery, machinesQuery } from './queries';
 import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
@@ -42,8 +43,8 @@ const connectorOptions: Option[] = [
   { id: 'issue', label: 'Issue' },
   { id: 'none', label: 'None' },
 ];
-type TabKey = 'machines' | 'types';
-const tabLabels: Record<TabKey, string> = { machines: 'Machines', types: 'Machine types' };
+type TabKey = 'machines' | 'types' | 'recording';
+const tabLabels: Record<TabKey, string> = { machines: 'Machines', types: 'Machine types', recording: 'Recording' };
 
 function ActivityText({ row }: { row: Row }) {
   if (row.current) {
@@ -122,7 +123,8 @@ export function MachinesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const url = useUrlState('');
   const [params, setParams] = useSearchParams();
-  const tabs: TabKey[] = ['machines', 'types'];
+  // Recording settings are installation-wide and only meaningful to people who manage machines.
+  const tabs: TabKey[] = canManage ? ['machines', 'types', 'recording'] : ['machines', 'types'];
   const requestedTab = params.get('tab') as TabKey | null;
   const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
   const selectTab = (id: string) =>
@@ -251,6 +253,12 @@ export function MachinesPage() {
         </QueryBoundary>
       )}
       {tab === 'types' && <MachineTypesTab switcher={switcher} />}
+      {tab === 'recording' && (
+        <div className="mj-stack">
+          {switcher}
+          <RecordingSettingsTab />
+        </div>
+      )}
       {canManage && formOpen && <MachineSetupWizard open onClose={() => setFormOpen(false)} />}
     </PageShell>
   );

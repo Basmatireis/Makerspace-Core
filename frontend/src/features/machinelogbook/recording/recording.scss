@@ -1,0 +1,211 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Preview ----------------------------------------------------------------------
+
+.print-preview {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.print-preview__stage {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  justify-self: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: theme.$layer-accent-01;
+}
+
+.print-preview__stage img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.print-preview__stage--empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: $spacing-04;
+  padding: $spacing-07;
+  color: theme.$text-secondary;
+  text-align: center;
+  @include type-style('body-compact-01');
+}
+
+.print-preview__nav {
+  position: absolute;
+  inset-block-start: 50%;
+  translate: 0 -50%;
+}
+
+.print-preview__nav .cds--btn {
+  background: rgb(22 22 22 / 55%);
+}
+
+.print-preview__nav .cds--btn svg {
+  fill: theme.$icon-on-color;
+}
+
+.print-preview__nav--prev {
+  inset-inline-start: $spacing-03;
+}
+
+.print-preview__nav--next {
+  inset-inline-end: $spacing-03;
+}
+
+.print-preview__caption,
+.print-preview__strip,
+.print-preview__download {
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  justify-self: center;
+}
+
+.print-preview__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.print-preview__strip {
+  display: flex;
+  justify-content: center;
+  gap: $spacing-03;
+  overflow-x: auto;
+  padding-block-end: $spacing-02;
+}
+
+.print-preview__thumb {
+  flex: 0 0 auto;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  background: theme.$layer-accent-01;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.print-preview__thumb img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.print-preview__thumb:hover {
+  opacity: 1;
+}
+
+.print-preview__thumb[aria-pressed='true'] {
+  border-color: theme.$border-interactive;
+  opacity: 1;
+}
+
+.print-preview__thumb:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 1px;
+}
+
+.print-preview__caption .cds--tag {
+  flex-shrink: 0;
+}
+
+.recording-tile__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.print-preview__download.cds--btn {
+  max-inline-size: 20rem;
+}
+
+// Facts bar --------------------------------------------------------------------
+
+.facts-bar.cds--tile {
+  padding: 0;
+}
+
+.facts-bar__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0;
+}
+
+.facts-bar__metric {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+  padding: $spacing-05;
+  border-inline-start: 1px solid theme.$border-subtle-01;
+  min-inline-size: 0;
+}
+
+.facts-bar__metric:first-child {
+  border-inline-start: 0;
+}
+
+.facts-bar__metric dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.facts-bar__metric dd {
+  margin: 0;
+  @include type-style('body-compact-01');
+}
+
+.facts-bar__metric .facts-bar__value {
+  @include type-style('productive-heading-03');
+  overflow-wrap: anywhere;
+}
+
+.facts-bar__details {
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.facts-bar__details .cds--accordion__item {
+  border-block-start: 0;
+}
+
+.facts-bar__details .mj-facts {
+  padding-block-end: $spacing-03;
+}
+
+// Timelapse and consumption -------------------------------------------------------
+
+.recording-video {
+  inline-size: 100%;
+  max-block-size: 24rem;
+  background: theme.$background-inverse;
+}
+
+.recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.recording-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+.recording-hint svg {
+  fill: theme.$support-warning;
+}
+
+.recording-settings {
+  max-inline-size: 32rem;
+}

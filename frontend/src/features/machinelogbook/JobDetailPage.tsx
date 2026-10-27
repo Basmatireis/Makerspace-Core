@@ -36,7 +36,9 @@ import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
 import { RepriceJobModal } from './dialogs/RepriceJobModal';
 import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
-import { jobQuery, machineLogbookKeys, runsQuery } from './queries';
+import { jobQuery, jobRecordingsQuery, machineLogbookKeys, runsQuery } from './queries';
+import { FactsBar } from './recording/FactsBar';
+import { JobPreviewTile, JobTimelapseTile } from './recording/RecordingTiles';
 import { jobConsumption } from './processConfig';
 import { formatDateTime, formatDuration, formatMoney, formatQuantity } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
@@ -86,6 +88,14 @@ function JobDetail({ job }: { job: MachineJob }) {
   const canAttach = (unassigned.data?.items.length ?? 0) > 0;
   const association = useQuery({ ...jobOrderQuery(job.id), enabled: canReadOrders });
 
+  // Previews and files of the job's recorded runs; the job page works without them if this fails.
+  const recordings = useQuery(jobRecordingsQuery(job.id));
+  const gramsOnly = consumption === null;
+  const materialText = gramsOnly
+    ? runs.some((run) => run.usages.length > 0)
+      ? `${formatQuantity(runs.flatMap((run) => run.usages).reduce((sum, usage) => sum + Number(usage.quantity), 0))} g`
+      : 'None recorded'
+    : consumption;
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
   const close = () => {
     setDialog(null);
@@ -245,97 +255,66 @@ function JobDetail({ job }: { job: MachineJob }) {
             onActionButtonClick={() => open('reprice')}
           />
         )}
-        <Tile>
-          <dl className="mj-facts">
-            <div>
-              <dt>Customer</dt>
-              <dd>
-                {job.customer ? (
-                  <>
-                    {job.customer.displayName}
-                    {job.customer.pricingGroup && (
-                      <>
-                        <br />
-                        <span className="mj-secondary">{job.customer.pricingGroup.name}</span>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  '—'
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Operator</dt>
-              <dd>{job.operator?.displayName ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Start</dt>
-              <dd>{job.startedAt ? formatDateTime(job.startedAt) : '—'}</dd>
-            </div>
-            <div>
-              <dt>Runtime</dt>
-              <dd className="mj-cell-stack">
-                <span>{formatDuration(job.durationSeconds)}</span>
-                {runs.length > 1 && <span className="mj-secondary">All runs together</span>}
-              </dd>
-            </div>
-            <div>
-              <dt>{running && !job.endedAt ? 'Expected end' : 'End'}</dt>
-              <dd>
-                {job.endedAt
-                  ? formatDateTime(job.endedAt)
-                  : job.expectedEndAt
-                    ? formatDateTime(job.expectedEndAt)
-                    : '—'}
-              </dd>
-            </div>
-            {consumption && (
-              <div>
-                <dt>Consumption</dt>
-                <dd>{consumption}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Runs</dt>
-              <dd className="mj-cell-stack">
-                <span>{runs.length}</span>
-                {replacedCount > 0 && <span className="mj-secondary">{replacedCount} replaced</span>}
-              </dd>
-            </div>
-            <div>
-              <dt>Outcome</dt>
-              <dd className="mj-cell-stack">
-                {status === 'planned' ? (
-                  <span className="mj-secondary">No run yet</span>
-                ) : status === 'running' || status === 'needs_outcome' ? (
-                  <span className="mj-secondary">Not recorded yet</span>
-                ) : (
-                  <span>
-                    <OutcomeTag outcome={job.outcome} size="sm" />
-                  </span>
-                )}
-                {job.outcomeOverridden ? (
-                  <span className="mj-secondary">Set by staff</span>
-                ) : !['planned', 'running', 'needs_outcome'].includes(status) ? (
-                  <span className="mj-secondary">Derived from the runs</span>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
-        </Tile>
-        <JobRunsTable
-          job={job}
-          now={now}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          canAttach={canAttach}
-          onAction={openRun}
-          onAdd={() => open('add-run')}
-          onAttach={() => open('attach')}
-        />
         <div className="mj-detail-layout">
           <div className="mj-stack">
+            <FactsBar
+              metrics={[
+                {
+                  label: 'Runtime',
+                  value: formatDuration(job.durationSeconds),
+                  note: runs.length > 1 ? 'All runs together' : undefined,
+                },
+                { label: 'Material', value: materialText },
+                {
+                  label: 'Outcome',
+                  value:
+                    status === 'planned' ? (
+                      <span className="mj-secondary">No run yet</span>
+                    ) : status === 'running' || status === 'needs_outcome' ? (
+                      <span className="mj-secondary">Not recorded yet</span>
+                    ) : (
+                      <OutcomeTag outcome={job.outcome} size="sm" />
+                    ),
+                  note: job.outcomeOverridden
+                    ? 'Set by staff'
+                    : !['planned', 'running', 'needs_outcome'].includes(status)
+                      ? 'Derived from the runs'
+                      : undefined,
+                },
+                {
+                  label: 'Customer',
+                  value: job.customer?.displayName ?? '—',
+                  note: job.customer?.pricingGroup?.name,
+                },
+              ]}
+              details={[
+                { label: 'Operator', value: job.operator?.displayName ?? '—' },
+                { label: 'Start', value: job.startedAt ? formatDateTime(job.startedAt) : '—' },
+                {
+                  label: running && !job.endedAt ? 'Expected end' : 'End',
+                  value: job.endedAt
+                    ? formatDateTime(job.endedAt)
+                    : job.expectedEndAt
+                      ? formatDateTime(job.expectedEndAt)
+                      : '—',
+                },
+                {
+                  label: 'Runs',
+                  value: runs.length,
+                  note: replacedCount > 0 ? `${replacedCount} replaced` : undefined,
+                },
+              ]}
+            />
+            <JobRunsTable
+              job={job}
+              now={now}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              canAttach={canAttach}
+              onAction={openRun}
+              onAdd={() => open('add-run')}
+              onAttach={() => open('attach')}
+            />
             <DataTable rows={usageRows} headers={usageHeaders} size="md">
               {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                 <TableContainer title="Material usage" description="Everything consumed by the runs of this job.">
@@ -403,15 +382,23 @@ function JobDetail({ job }: { job: MachineJob }) {
               <p className="mj-notes">{job.notes ? job.notes : <span className="mj-secondary">No notes.</span>}</p>
             </Tile>
           </div>
-          <PriceBillingTile
-            job={job}
-            price={price}
-            calculated={calculated}
-            adjustmentDifference={adjustmentDifference}
-            association={association}
-            canReadOrders={canReadOrders}
-            onReprice={canEdit ? () => open('reprice') : undefined}
-          />
+          <div className="mj-stack">
+            {recordings.data && recordings.data.items.length > 0 && (
+              <>
+                <JobPreviewTile recordings={recordings.data.items} />
+                <JobTimelapseTile recordings={recordings.data.items} />
+              </>
+            )}
+            <PriceBillingTile
+              job={job}
+              price={price}
+              calculated={calculated}
+              adjustmentDifference={adjustmentDifference}
+              association={association}
+              canReadOrders={canReadOrders}
+              onReprice={canEdit ? () => open('reprice') : undefined}
+            />
+          </div>
         </div>
       </div>
       <JobFormModal open={dialog === 'edit'} onClose={close} mode="edit" job={job} />

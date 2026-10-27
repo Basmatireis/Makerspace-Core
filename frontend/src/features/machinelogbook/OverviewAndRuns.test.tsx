@@ -4,7 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { Machine, MachineActivity, MachineLogbookOverview, WorkItem } from '../../api/generated/models';
+import type {
+  Machine,
+  MachineActivity,
+  MachineRunRecording,
+  MachineLogbookOverview,
+  WorkItem,
+} from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
@@ -285,6 +291,7 @@ function serveRun(run: ReturnType<typeof recordedRun>, jobs: ReturnType<typeof j
   workItemRequests.length = 0;
   server.use(
     http.get(`*/api/v1/machine-runs/${run.id}`, () => HttpResponse.json(run)),
+    http.get(`*/api/v1/machine-runs/${run.id}/recording`, () => HttpResponse.json(recordingOf(run.id))),
     // The server applies machineId; the fixture mimics that and returns the jobs newest first.
     http.get('*/api/v1/machine-logbook/work-items', ({ request }) => {
       const url = new URL(request.url);
@@ -307,6 +314,20 @@ function serveRun(run: ReturnType<typeof recordedRun>, jobs: ReturnType<typeof j
     ...jobs.map((job) => http.get(`*/api/v1/machine-jobs/${job.id}`, () => HttpResponse.json(job))),
   );
 }
+
+const recordingOf = (runId: string): MachineRunRecording => ({
+  runId,
+  runDisplayId: 'RN-2026-000007',
+  source: 'recorded',
+  state: 'finished',
+  startedAt: '2026-09-15T08:00:00Z',
+  consumptionStatus: null,
+  artifact: null,
+  previews: [],
+  timelapse: null,
+  timelapseStatus: null,
+  commands: [],
+});
 
 const renderRun = (id = ids.recordedRun) =>
   renderPage(<RunDetailPage />, machineLogbookPaths.run(id), '/machine-logbook/jobs/runs/:runId');
@@ -333,7 +354,8 @@ describe('Run detail page', () => {
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('42 g PLA Black');
     expect(screen.getByText('Runtime').nextSibling).toHaveTextContent('1 h 0 min');
     // The machine reported the outcome, so the label says so.
-    expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('SuccessfulFrom machine');
+    expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Successful');
+    expect(screen.getByText('Outcome').nextSibling?.nextSibling).toHaveTextContent('From machine');
     expect(screen.getByText('Events from Bambu LAN (2)')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create job' })).not.toBeInTheDocument();
     expect(screen.queryByText(/printer/i)).not.toBeInTheDocument();
@@ -364,7 +386,7 @@ describe('Run detail page', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45');
     expect(screen.getByText(/45 % · ends ~/)).toBeInTheDocument();
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Not recorded yet');
-    expect(screen.getByText('Consumed material').nextSibling).toHaveTextContent('Pending final report');
+    expect(screen.getByText('Material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create job' })).toBeInTheDocument();

@@ -7,6 +7,7 @@ import {
 } from '../../api/generated/machine-logbook/machine-logbook';
 import {
   getMachineJob,
+  listMachineJobRecordings,
   listMachineJobs,
   searchMachineJobOperators,
 } from '../../api/generated/machine-jobs/machine-jobs';
@@ -19,7 +20,12 @@ import {
   listFilamentSpoolTransactions,
   listFilamentSpools,
 } from '../../api/generated/filament-spools/filament-spools';
-import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
+import {
+  getMachineRun,
+  getMachineRunRecording,
+  getRunRecordingSettings,
+  listMachineRuns,
+} from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile, listDetectedSpoolTags } from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
 import type {
@@ -52,6 +58,9 @@ export const machineLogbookKeys = {
   machineActivity: () => [...machineLogbookKeys.all, 'machine-activity'] as const,
   runs: (params: ListMachineRunsParams) => [...machineLogbookKeys.all, 'runs', params] as const,
   run: (id: string) => [...machineLogbookKeys.all, 'run', id] as const,
+  recording: (runId: string) => [...machineLogbookKeys.all, 'recording', runId] as const,
+  jobRecordings: (jobId: string) => [...machineLogbookKeys.all, 'job-recordings', jobId] as const,
+  recordingSettings: () => [...machineLogbookKeys.all, 'recording-settings'] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
@@ -111,6 +120,22 @@ export const runsQuery = (params: ListMachineRunsParams) =>
   });
 export const runQuery = (id: string) =>
   queryOptions({ queryKey: machineLogbookKeys.run(id), queryFn: ({ signal }) => getMachineRun(id, { signal }) });
+/** Files, previews, timelapse and connector commands of a recorded run. */
+export const recordingQuery = (runId: string) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.recording(runId),
+    queryFn: ({ signal }) => getMachineRunRecording(runId, { signal }),
+  });
+export const jobRecordingsQuery = (jobId: string) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.jobRecordings(jobId),
+    queryFn: ({ signal }) => listMachineJobRecordings(jobId, { signal }),
+  });
+export const recordingSettingsQuery = () =>
+  queryOptions({
+    queryKey: machineLogbookKeys.recordingSettings(),
+    queryFn: ({ signal }) => getRunRecordingSettings({ signal }),
+  });
 export const artifactQuery = (id: string) =>
   queryOptions({
     queryKey: machineLogbookKeys.artifact(id),

@@ -152,7 +152,7 @@ test.describe('runs', () => {
   test('adds a run (a reprint) to a job and sums the runtime', async ({ page, world }) => {
     await page.goto(`${base}/jobs/${ids.jobSuccess}`);
     await expect(page.getByRole('heading', { name: 'Gearbox housing' })).toBeVisible();
-    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd')).toContainText(
+    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd[1]')).toContainText(
       '1 h 30 min',
     );
     await page.getByRole('button', { name: 'Add run' }).click();
@@ -173,7 +173,7 @@ test.describe('runs', () => {
     const runs = page.getByRole('table', { name: 'Runs' });
     await expect(runs.getByRole('link', { name: 'RN-2026-000020' })).toBeVisible();
     await expect(runs.getByRole('link', { name: 'RN-2026-000001' })).toBeVisible();
-    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd')).toContainText(
+    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd[1]')).toContainText(
       '2 h 30 min',
     );
   });

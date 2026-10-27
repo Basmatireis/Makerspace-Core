@@ -31,6 +31,7 @@ import {
   runConsumptionText,
   runStateNow,
 } from '../shared/status';
+import { ConsumptionHint } from '../recording/ConsumptionNotice';
 import '../styles/jobs.scss';
 
 export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
@@ -223,7 +224,10 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                       </TableCell>
                       <TableCell>
                         <div className="mj-cell-stack">
-                          <span>{runConsumptionText(run)}</span>
+                          <span className="mj-inline">
+                            {runConsumptionText(run)}
+                            <ConsumptionHint status={run.consumptionStatus} />
+                          </span>
                           {run.usagesFromMachine && (
                             <span>
                               <FromMachineTag />

@@ -28,7 +28,11 @@ import { JobFormModal } from './dialogs/JobFormModal';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { ApiError } from '../../api/http-client';
 import { saveError } from './dialogs/jobFormHelpers';
-import { artifactQuery, jobQuery, machineLogbookKeys, runQuery } from './queries';
+import { artifactQuery, jobQuery, machineLogbookKeys, recordingQuery, runQuery } from './queries';
+import { ConsumptionNotice } from './recording/ConsumptionNotice';
+import { FactsBar } from './recording/FactsBar';
+import { isCommandOpen } from './recording/recordingText';
+import { RunPreviewTile, RunTimelapseTile } from './recording/RecordingTiles';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -53,6 +57,7 @@ import './styles/runs.scss';
 
 const words = (value: string) => value.replace(/_/g, ' ');
 const RUN_REFRESH_MS = 5000;
+const COMMAND_REFRESH_MS = 3000;
 
 /** One readable line per machine event (never the raw payload). */
 function eventSummary(event: MachineRunEvent) {
@@ -94,6 +99,12 @@ export function RunDetailPage() {
   const artifact = useQuery({
     ...artifactQuery(run?.artifact?.id ?? ''),
     enabled: Boolean(run?.artifact?.id) && can(PermissionId.print_artifactsread),
+  });
+  // Files and commands of a recorded run; poll while a connector command is still open.
+  const recording = useQuery({
+    ...recordingQuery(runId),
+    enabled: run?.source === 'recorded',
+    refetchInterval: (query) => (query.state.data?.commands.some(isCommandOpen) ? COMMAND_REFRESH_MS : false),
   });
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | null>(null);
@@ -287,188 +298,188 @@ export function RunDetailPage() {
                 />
               </Tile>
             )}
-            {live && run.source === 'recorded' && can(PermissionId.print_artifactsread) && (
-              <Tile>
-                <h2 className="mj-section-title">Filament estimate</h2>
-                {!run.artifact && (
+            <div className="mj-detail-layout">
+              <div className="mj-stack">
+                <FactsBar
+                  metrics={[
+                    {
+                      label: 'Runtime',
+                      value: live
+                        ? `${formatDuration(run.durationSeconds)} so far`
+                        : formatDuration(run.durationSeconds),
+                    },
+                    {
+                      label: 'Material',
+                      value: consumedMaterial,
+                      note: run.usagesFromMachine ? <FromMachineTag /> : undefined,
+                    },
+                    {
+                      label: 'Outcome',
+                      value: live ? (
+                        <span className="mj-secondary">Not recorded yet</span>
+                      ) : (
+                        <RunOutcomeTag outcome={run.outcome} size="sm" />
+                      ),
+                      note: run.outcomeFromMachine ? <FromMachineTag /> : undefined,
+                    },
+                    {
+                      label: 'Machine',
+                      value: can(PermissionId.machinesread) ? (
+                        <CarbonLink as={Link} to={machineLogbookPaths.machine(run.machineId)}>
+                          {run.machineName}
+                        </CarbonLink>
+                      ) : (
+                        run.machineName
+                      ),
+                      note: run.connectorName ? `via ${run.connectorName}` : 'Manual run',
+                    },
+                  ]}
+                  details={[
+                    { label: 'Source', value: run.source === 'recorded' ? 'Recorded' : 'Manual' },
+                    { label: 'Started', value: formatDateTime(run.startedAt) },
+                    { label: run.endedAt ? 'Ended' : 'Estimated end', value: end ? formatDateTime(end) : '—' },
+                    ...(run.source === 'recorded'
+                      ? [
+                          {
+                            label: 'Reported material',
+                            value: reportedMaterial,
+                            note:
+                              !live && canEdit && can(PermissionId.inventoryread)
+                                ? unresolvedMaterials.map((item) => (
+                                    <Button
+                                      key={`${item.reportRevision}-${item.lineNumber}`}
+                                      kind="ghost"
+                                      size="sm"
+                                      onClick={() => setResolutionLine(item.lineNumber)}
+                                    >
+                                      Map{' '}
+                                      {item.slicerFilamentId
+                                        ? `filament ${item.slicerFilamentId}`
+                                        : `line ${item.lineNumber + 1}`}{' '}
+                                      to a spool
+                                    </Button>
+                                  ))
+                                : undefined,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+                {live && run.source === 'recorded' && run.usages.length === 0 && (
                   <p className="mj-secondary">
-                    Waiting for the printer’s 3MF file. The estimate appears after the connector retrieves and parses
-                    it.
+                    Mounted spools describe the printer setup, not which spool this run consumed. Core records run
+                    consumption after the printer identifies the active source and the final report is accepted.
                   </p>
                 )}
-                {run.artifact && artifact.isPending && <p className="mj-secondary">Reading the filament plan…</p>}
-                {artifact.isError && (
-                  <InlineNotification
-                    kind="warning"
-                    lowContrast
-                    hideCloseButton
-                    title="Filament plan unavailable"
-                    subtitle="The run continues normally. Check the connector’s FTPS diagnostics."
+                {run.source === 'recorded' && (
+                  <ConsumptionNotice
+                    runId={run.id}
+                    status={run.consumptionStatus}
+                    recording={recording.data}
+                    canEdit={canEdit}
+                    ended={!live}
                   />
                 )}
-                {artifact.isSuccess && plannedGrams <= 0 && (
-                  <p className="mj-secondary">The 3MF does not contain a defensible planned filament weight.</p>
+                {live && run.source === 'recorded' && can(PermissionId.print_artifactsread) && (
+                  <Tile>
+                    <h2 className="mj-section-title">Filament estimate</h2>
+                    {!run.artifact && (
+                      <p className="mj-secondary">
+                        Waiting for the printer’s 3MF file. The estimate appears after the connector retrieves and
+                        parses it.
+                      </p>
+                    )}
+                    {run.artifact && artifact.isPending && <p className="mj-secondary">Reading the filament plan…</p>}
+                    {artifact.isError && (
+                      <InlineNotification
+                        kind="warning"
+                        lowContrast
+                        hideCloseButton
+                        title="Filament plan unavailable"
+                        subtitle="The run continues normally. Check the connector’s FTPS diagnostics."
+                      />
+                    )}
+                    {artifact.isSuccess && plannedGrams <= 0 && (
+                      <p className="mj-secondary">The 3MF does not contain a defensible planned filament weight.</p>
+                    )}
+                    {artifact.isSuccess && plannedGrams > 0 && (
+                      <>
+                        <ProgressBar
+                          label="Approximate filament used"
+                          value={approximateUsedGrams}
+                          max={plannedGrams}
+                          helperText={`~${formatQuantity(approximateUsedGrams)} g / ${formatQuantity(plannedGrams)} g planned · based on ${progress} % print progress`}
+                        />
+                        {plannedFilaments.length > 1 && (
+                          <ul>
+                            {plannedFilaments.map((filament) => (
+                              <li key={filament.filamentKey}>
+                                {[filament.filamentType, filament.color && `${filament.color} (detected in file)`]
+                                  .filter(Boolean)
+                                  .join(' · ') || `Filament ${filament.filamentKey}`}
+                                : {formatQuantity(filament.plannedWeightGrams!)} g planned
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <p className="mj-secondary">
+                          This is a display-only approximation. Inventory is updated only after the run ends and the
+                          final report is accepted.
+                        </p>
+                      </>
+                    )}
+                  </Tile>
                 )}
-                {artifact.isSuccess && plannedGrams > 0 && (
-                  <>
-                    <ProgressBar
-                      label="Approximate filament used"
-                      value={approximateUsedGrams}
-                      max={plannedGrams}
-                      helperText={`~${formatQuantity(approximateUsedGrams)} g / ${formatQuantity(plannedGrams)} g planned · based on ${progress} % print progress`}
-                    />
-                    {plannedFilaments.length > 1 && (
-                      <ul>
-                        {plannedFilaments.map((filament) => (
-                          <li key={filament.filamentKey}>
-                            {[filament.filamentType, filament.color && `${filament.color} (detected in file)`]
-                              .filter(Boolean)
-                              .join(' · ') || `Filament ${filament.filamentKey}`}
-                            : {formatQuantity(filament.plannedWeightGrams!)} g planned
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <p className="mj-secondary">
-                      This is a display-only approximation. Inventory is updated only after the run ends and the final
-                      report is accepted.
-                    </p>
-                  </>
-                )}
-              </Tile>
-            )}
-            {jobRef && (
-              <Tile>
-                <h2 className="mj-section-title">Job</h2>
-                <p>
-                  Part of{' '}
-                  <RefLink kind="job" reference={jobRef.displayId} id={jobRef.id}>
-                    {jobRef.displayId}
-                    {jobRef.title ? ` ${jobRef.title}` : ''}
-                  </RefLink>
-                  <span className="mj-secondary">
-                    {job ? ` · ${job.customer?.displayName ?? 'No customer'}.` : '.'} Material and outcome from this run
-                    count towards the job.
-                  </span>
-                </p>
-              </Tile>
-            )}
-            <Tile>
-              <dl className="mj-facts">
-                <div>
-                  <dt>Machine</dt>
-                  <dd>
-                    {can(PermissionId.machinesread) ? (
-                      <CarbonLink as={Link} to={machineLogbookPaths.machine(run.machineId)}>
-                        {run.machineName}
-                      </CarbonLink>
-                    ) : (
-                      run.machineName
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Source</dt>
-                  <dd className="mj-cell-stack">
-                    <span>{run.source === 'recorded' ? 'Recorded' : 'Manual'}</span>
-                    {run.connectorName && <span className="mj-secondary">via {run.connectorName}</span>}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Started</dt>
-                  <dd>{formatDateTime(run.startedAt)}</dd>
-                </div>
-                <div>
-                  <dt>{run.endedAt ? 'Ended' : 'Estimated end'}</dt>
-                  <dd>{end ? formatDateTime(end) : '—'}</dd>
-                </div>
-                <div>
-                  <dt>Runtime</dt>
-                  <dd>
-                    {live ? `${formatDuration(run.durationSeconds)} so far` : formatDuration(run.durationSeconds)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Outcome</dt>
-                  <dd className="mj-cell-stack">
-                    {live ? (
-                      <span className="mj-secondary">Not recorded yet</span>
-                    ) : (
-                      <span>
-                        <RunOutcomeTag outcome={run.outcome} size="sm" />
-                      </span>
-                    )}
-                    {run.outcomeFromMachine && (
-                      <span>
-                        <FromMachineTag />
-                      </span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Consumed material</dt>
-                  <dd className="mj-cell-stack">
-                    <span>{consumedMaterial}</span>
-                    {run.usagesFromMachine && (
-                      <span>
-                        <FromMachineTag />
-                      </span>
-                    )}
-                  </dd>
-                </div>
                 {run.source === 'recorded' && (
-                  <div>
-                    <dt>Reported material</dt>
-                    <dd className="mj-cell-stack">
-                      <span>{reportedMaterial}</span>
-                      {!live &&
-                        canEdit &&
-                        can(PermissionId.inventoryread) &&
-                        unresolvedMaterials.map((item) => (
-                          <span key={`${item.reportRevision}-${item.lineNumber}`}>
-                            <Button kind="ghost" size="sm" onClick={() => setResolutionLine(item.lineNumber)}>
-                              Map{' '}
-                              {item.slicerFilamentId
-                                ? `filament ${item.slicerFilamentId}`
-                                : `line ${item.lineNumber + 1}`}{' '}
-                              to a spool
-                            </Button>
-                          </span>
-                        ))}
-                    </dd>
-                  </div>
+                  <Tile>
+                    <h2 className="mj-section-title">Machine events</h2>
+                    <Accordion>
+                      <AccordionItem title={`Events from ${run.connectorName ?? 'the machine'} (${run.events.length})`}>
+                        {run.events.length === 0 ? (
+                          <p className="mj-secondary">No events received from the machine.</p>
+                        ) : (
+                          <ul className="mj-runs__events">
+                            {run.events.map((event) => (
+                              <li key={event.id} className="mj-runs__event">
+                                <span className="mj-cell-stack">
+                                  <span>{eventSummary(event)}</span>
+                                  <span className="mj-secondary">{formatDateTime(event.occurredAt)}</span>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </AccordionItem>
+                    </Accordion>
+                  </Tile>
                 )}
-              </dl>
-              {live && run.source === 'recorded' && run.usages.length === 0 && (
-                <p className="mj-secondary">
-                  Mounted spools describe the printer setup, not which spool this run consumed. Core records run
-                  consumption after the printer identifies the active source and the final report is accepted.
-                </p>
-              )}
-            </Tile>
-            {run.source === 'recorded' && (
-              <Tile>
-                <h2 className="mj-section-title">Machine events</h2>
-                <Accordion>
-                  <AccordionItem title={`Events from ${run.connectorName ?? 'the machine'} (${run.events.length})`}>
-                    {run.events.length === 0 ? (
-                      <p className="mj-secondary">No events received from the machine.</p>
-                    ) : (
-                      <ul className="mj-runs__events">
-                        {run.events.map((event) => (
-                          <li key={event.id} className="mj-runs__event">
-                            <span className="mj-cell-stack">
-                              <span>{eventSummary(event)}</span>
-                              <span className="mj-secondary">{formatDateTime(event.occurredAt)}</span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </AccordionItem>
-                </Accordion>
-              </Tile>
-            )}
+              </div>
+              <div className="mj-stack">
+                <RunPreviewTile
+                  recording={recording.data}
+                  recorded={run.source === 'recorded'}
+                  loading={run.source === 'recorded' && recording.isPending}
+                  failed={recording.isError}
+                />
+                {recording.data && run.source === 'recorded' && <RunTimelapseTile recording={recording.data} />}
+                {jobRef && (
+                  <Tile>
+                    <h2 className="mj-section-title">Job</h2>
+                    <p>
+                      Part of{' '}
+                      <RefLink kind="job" reference={jobRef.displayId} id={jobRef.id}>
+                        {jobRef.displayId}
+                        {jobRef.title ? ` ${jobRef.title}` : ''}
+                      </RefLink>
+                      <span className="mj-secondary">
+                        {job ? ` · ${job.customer?.displayName ?? 'No customer'}.` : '.'} Material and outcome from this
+                        run count towards the job.
+                      </span>
+                    </p>
+                  </Tile>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </QueryBoundary>
