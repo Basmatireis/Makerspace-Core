@@ -34,6 +34,7 @@ const (
 	PeopleUpdateSelf                   Permission = Permission(openapi.PeopleUpdateSelf)
 	PeopleUpdateAll                    Permission = Permission(openapi.PeopleUpdateAll)
 	PeopleDelete                       Permission = Permission(openapi.PeopleDelete)
+	PeopleMerge                        Permission = Permission(openapi.PeopleMerge)
 	PeopleReadMatriculation            Permission = Permission(openapi.PeopleReadMatriculation)
 	PeopleUpdateMatriculation          Permission = Permission(openapi.PeopleUpdateMatriculation)
 	PeopleProfileImageUpdateSelf       Permission = Permission(openapi.PeopleProfileImageUpdateSelf)
@@ -152,7 +153,7 @@ var registry = []Permission{
 	CashMovementsRead,
 	CashMovementsRecord,
 	PeopleReadSelf, PeopleReadAll, PeopleCreate, PeopleUpdateSelf, PeopleUpdateAll,
-	PeopleDelete, PeopleReadMatriculation, PeopleUpdateMatriculation,
+	PeopleDelete, PeopleMerge, PeopleReadMatriculation, PeopleUpdateMatriculation,
 	PeopleProfileImageUpdateSelf,
 	PeopleProfileImageUpdateAll,
 	PeopleProfileImageRemoveSelf,
@@ -211,6 +212,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	PeopleUpdateSelf:                   "Update the person record linked to the current account.",
 	PeopleUpdateAll:                    "Update every person record.",
 	PeopleDelete:                       "Permanently delete person records.",
+	PeopleMerge:                        "Merge duplicate people into one, permanently deleting the duplicates.",
 	PeopleReadMatriculation:            "Read matriculation numbers on otherwise-readable people.",
 	PeopleUpdateMatriculation:          "Set or clear matriculation numbers on otherwise-writable people.",
 	PeopleProfileImageUpdateSelf:       "Upload or replace the current Person's profile image.",

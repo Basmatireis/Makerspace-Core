@@ -991,6 +991,99 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /people/merge/preview:
+    post:
+      tags: [People]
+      operationId: previewPeopleMerge
+      summary: Analyze merging duplicate people into one target person
+      description: |
+        Requires `people.merge` and `people.read.all` (a grant may also require a fresh sign-in, and the default
+        master reauthentication policy lists `people.merge`; `403 reauthentication_required` then names the proof).
+        Read-only. Returns every person's mergeable field values (`matriculationNumber` is omitted without
+        `people.read.matriculation`), roles, account and authentication methods, the role union the target would
+        hold, the history of the source people that would move per category, the resulting surviving account, and
+        every blocking conflict. `canMerge` is false while `conflicts` is not empty. See docs/people-merge.md.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeopleMergeSelection"
+      responses:
+        "200":
+          description: Merge analysis; nothing was changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleMergePreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /people/merge:
+    post:
+      tags: [People]
+      operationId: mergePeople
+      summary: Merge duplicate people into one target person
+      description: |
+        Requires `people.merge` and `people.read.all`; setting a matriculation number from another person also needs
+        `people.read.matriculation` and `people.update.matriculation`. When the target ends up with any role the
+        caller must be allowed to assign every one of them (`people.roles.assign` and the usual privilege-subset
+        rules); a person holding the master role can only be merged by a master. In one transaction the chosen field
+        values are applied to the target, roles are united, authentication methods move to the surviving account,
+        every record of the source people and accounts is re-pointed to the target, all sessions of every involved
+        account are revoked (including the caller's own when the caller is the target) and the source people and
+        accounts are permanently deleted. One `person.merged` audit event records the target, the number of merged
+        people and the moved counts.
+
+        `409 stale_write` when a person or account version differs from `expectedVersions` (or an account appeared
+        or disappeared); `409 people_merge_blocked` (or the single conflict's own code) with `details.reasons` when
+        the preview reports conflicts; `409 last_master_required` when no enabled master would remain;
+        `422 merge_email_requires_account` when the merged person keeps an account but `email` names a person
+        without one.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeopleMergeRequest"
+      responses:
+        "200":
+          description: The merged target person and what moved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleMergeResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /people/{personId}:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -9964,6 +10057,7 @@ components:
         - people.update.self
         - people.update.all
         - people.delete
+        - people.merge
         - people.read.matriculation
         - people.update.matriculation
         - people.profile_image.update.self
@@ -10745,6 +10839,230 @@ components:
         fileId: {$ref: "#/components/schemas/UUIDv7"}
         source: {type: string, enum: [terminal_capture, self_upload, admin_upload]}
         downloadUrl: {type: string, pattern: "^/api/v1/people/"}
+
+    PeopleMergeSelection:
+      type: object
+      additionalProperties: false
+      required: [targetPersonId, sourcePersonIds]
+      properties:
+        targetPersonId:
+          $ref: "#/components/schemas/UUIDv7"
+        sourcePersonIds:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          description: The duplicates merged into the target and then deleted; must not contain the target.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+
+    PeopleMergeField:
+      type: string
+      enum: [firstName, lastName, email, phone, matriculationNumber, photoReference, profileImage, memberSince]
+
+    PeopleMergeFieldSources:
+      type: object
+      additionalProperties: false
+      description: |
+        Which person's value the merged person keeps, per field. An omitted field keeps the target's value, except
+        that `email` defaults to the email of the surviving account's person and the optional fields
+        (`phone`, `matriculationNumber`, `photoReference`, `profileImage`) take the first non-empty value in the order
+        target, then `sourcePersonIds`, when the target has none. Choosing a person whose value is empty clears it.
+        `email` decides which login email (password identity, including its password) survives: when the merged
+        person keeps an account it must name a person with an account. `matriculationNumber` may only be chosen with
+        `people.read.matriculation` and `people.update.matriculation`.
+      properties:
+        firstName: {$ref: "#/components/schemas/UUIDv7"}
+        lastName: {$ref: "#/components/schemas/UUIDv7"}
+        email: {$ref: "#/components/schemas/UUIDv7"}
+        phone: {$ref: "#/components/schemas/UUIDv7"}
+        matriculationNumber: {$ref: "#/components/schemas/UUIDv7"}
+        photoReference: {$ref: "#/components/schemas/UUIDv7"}
+        profileImage: {$ref: "#/components/schemas/UUIDv7"}
+        memberSince: {$ref: "#/components/schemas/UUIDv7"}
+
+    PeopleMergeExpectedVersion:
+      type: object
+      additionalProperties: false
+      required: [personId, version, accountVersion]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        version: {$ref: "#/components/schemas/Version"}
+        accountVersion:
+          allOf: [{$ref: "#/components/schemas/Version"}]
+          nullable: true
+          description: The person's account version from the preview; null when the person has no account.
+
+    PeopleMergeRequest:
+      type: object
+      additionalProperties: false
+      required: [targetPersonId, sourcePersonIds, expectedVersions, fieldSources]
+      properties:
+        targetPersonId:
+          $ref: "#/components/schemas/UUIDv7"
+        sourcePersonIds:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersions:
+          type: array
+          minItems: 2
+          maxItems: 10
+          description: One entry for the target and each source person.
+          items: {$ref: "#/components/schemas/PeopleMergeExpectedVersion"}
+        fieldSources:
+          $ref: "#/components/schemas/PeopleMergeFieldSources"
+
+    PeopleMergeCandidateAccount:
+      type: object
+      additionalProperties: false
+      required: [id, version, status, provisioningSource, loginEmail, passwordSet, pinEnrolled, oidcIdentityCount, totpEnrolled, passkeyCount]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {$ref: "#/components/schemas/Version"}
+        status: {$ref: "#/components/schemas/AccountStatus"}
+        provisioningSource:
+          type: string
+          enum: [local, invitation, oidc_jit, scim, visitor]
+        loginEmail:
+          allOf: [{$ref: "#/components/schemas/Email"}]
+          nullable: true
+          description: The password identity's login email; null without one.
+        passwordSet: {type: boolean}
+        pinEnrolled: {type: boolean}
+        oidcIdentityCount: {type: integer, format: int64, minimum: 0}
+        totpEnrolled: {type: boolean, description: A confirmed authenticator app.}
+        passkeyCount: {type: integer, format: int64, minimum: 0}
+
+    PeopleMergeCandidate:
+      type: object
+      additionalProperties: false
+      required: [id, version, firstName, lastName, email, phone, photoReference, profileImage, memberSince, createdAt, roles, account, scimManaged]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {$ref: "#/components/schemas/Version"}
+        firstName: {type: string, minLength: 1, maxLength: 100}
+        lastName: {type: string, minLength: 1, maxLength: 100}
+        email:
+          allOf: [{$ref: "#/components/schemas/Email"}]
+          nullable: true
+        phone: {type: string, maxLength: 64, nullable: true}
+        matriculationNumber:
+          type: string
+          maxLength: 64
+          nullable: true
+          description: Omitted unless the caller has `people.read.matriculation`; null means no value.
+        photoReference: {type: string, maxLength: 500, nullable: true}
+        profileImage:
+          allOf: [{$ref: "#/components/schemas/ProfileImage"}]
+          nullable: true
+        memberSince: {type: string, format: date}
+        createdAt: {type: string, format: date-time}
+        roles:
+          type: array
+          items: {$ref: "#/components/schemas/RoleSummary"}
+        account:
+          allOf: [{$ref: "#/components/schemas/PeopleMergeCandidateAccount"}]
+          nullable: true
+        scimManaged: {type: boolean, description: True when an identity provider provisions this person through SCIM.}
+
+    PeopleMergeConflict:
+      type: object
+      additionalProperties: false
+      required: [code, message, personIds]
+      properties:
+        code:
+          type: string
+          enum:
+            - source_scim_managed
+            - actor_is_source
+            - open_visit_conflict
+            - attendance_hold_conflict
+            - lab_rules_request_conflict
+            - open_day_assignment_conflict
+            - pin_conflict
+            - totp_conflict
+            - master_merge_forbidden
+            - role_assignment_forbidden
+            - last_master_required
+        message: {type: string, maxLength: 500}
+        personIds:
+          type: array
+          description: The people involved in the conflict, when it concerns specific people.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+
+    PeopleMergeCategory:
+      type: string
+      enum:
+        - visits
+        - attendance_holds
+        - training_records
+        - lab_rules_requests
+        - open_day_assignments
+        - event_shift_assignments
+        - event_planning
+        - orders
+        - machine_jobs
+        - invoice_requests
+        - cash_movements
+        - survey_invitations
+        - survey_responses
+        - organization_memberships
+        - notifications
+        - actor_references
+        - authentication_methods
+        - audit_events
+
+    PeopleMergeCount:
+      type: object
+      additionalProperties: false
+      required: [category, count]
+      properties:
+        category: {$ref: "#/components/schemas/PeopleMergeCategory"}
+        count: {type: integer, format: int64, minimum: 0}
+
+    PeopleMergePreview:
+      type: object
+      additionalProperties: false
+      required: [targetPersonId, people, resultingRoles, survivingAccountId, history, conflicts, canMerge]
+      properties:
+        targetPersonId: {$ref: "#/components/schemas/UUIDv7"}
+        people:
+          type: array
+          description: The target first, then the sources in request order.
+          items: {$ref: "#/components/schemas/PeopleMergeCandidate"}
+        resultingRoles:
+          type: array
+          description: The union of every person's roles that the target would hold.
+          items: {$ref: "#/components/schemas/RoleSummary"}
+        survivingAccountId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+          description: The target's account, otherwise the first source account in request order; null when nobody has an account.
+        history:
+          type: array
+          description: Records of the source people that move to the target (only non-zero categories).
+          items: {$ref: "#/components/schemas/PeopleMergeCount"}
+        conflicts:
+          type: array
+          items: {$ref: "#/components/schemas/PeopleMergeConflict"}
+        canMerge: {type: boolean}
+
+    PeopleMergeResult:
+      type: object
+      additionalProperties: false
+      required: [person, mergedPersonIds, moved]
+      properties:
+        person: {$ref: "#/components/schemas/Person"}
+        mergedPersonIds:
+          type: array
+          description: The source people, now deleted.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        moved:
+          type: array
+          description: Records re-pointed to the target per category (only non-zero categories).
+          items: {$ref: "#/components/schemas/PeopleMergeCount"}
 
     PersonMakerspaceStatus:
       type: object

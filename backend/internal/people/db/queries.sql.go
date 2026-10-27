@@ -22,6 +22,89 @@ func (q *Queries) AcquireMasterInvariantLock(ctx context.Context) error {
 	return err
 }
 
+const addMergedPersonRoles = `-- name: AddMergedPersonRoles :execrows
+INSERT INTO person_roles (person_id, role_id, assigned_by_account_id)
+SELECT $1, source.role_id, $2
+FROM person_roles source WHERE source.person_id = $3
+ON CONFLICT (person_id, role_id) DO NOTHING
+`
+
+type AddMergedPersonRolesParams struct {
+	TargetPersonID      uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	SourcePersonID      uuid.UUID
+}
+
+func (q *Queries) AddMergedPersonRoles(ctx context.Context, arg AddMergedPersonRolesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addMergedPersonRoles, arg.TargetPersonID, arg.AssignedByAccountID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const applyMergedPerson = `-- name: ApplyMergedPerson :one
+UPDATE people SET
+    first_name = $1,
+    last_name = $2,
+    email = $3,
+    phone = $4,
+    matriculation_number = $5,
+    photo_reference = $6,
+    profile_image_file_id = $7,
+    profile_image_source = $8,
+    member_since = $9,
+    version = version + 1,
+    updated_at = now()
+WHERE id = $10
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
+`
+
+type ApplyMergedPersonParams struct {
+	FirstName           string
+	LastName            string
+	Email               *string
+	Phone               *string
+	MatriculationNumber *string
+	PhotoReference      *string
+	ProfileImageFileID  *uuid.UUID
+	ProfileImageSource  *string
+	MemberSince         pgtype.Date
+	ID                  uuid.UUID
+}
+
+func (q *Queries) ApplyMergedPerson(ctx context.Context, arg ApplyMergedPersonParams) (Person, error) {
+	row := q.db.QueryRow(ctx, applyMergedPerson,
+		arg.FirstName,
+		arg.LastName,
+		arg.Email,
+		arg.Phone,
+		arg.MatriculationNumber,
+		arg.PhotoReference,
+		arg.ProfileImageFileID,
+		arg.ProfileImageSource,
+		arg.MemberSince,
+		arg.ID,
+	)
+	var i Person
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.MatriculationNumber,
+		&i.PhotoReference,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
+		&i.MemberSince,
+	)
+	return i, err
+}
+
 const assignPersonRole = `-- name: AssignPersonRole :execrows
 INSERT INTO person_roles (person_id, role_id, assigned_by_account_id)
 VALUES ($1, $2, $3)
@@ -40,6 +123,31 @@ func (q *Queries) AssignPersonRole(ctx context.Context, arg AssignPersonRolePara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const attachMergeAccount = `-- name: AttachMergeAccount :exec
+UPDATE accounts SET person_id = $1, version = version + 1, updated_at = now()
+WHERE id = $2
+`
+
+type AttachMergeAccountParams struct {
+	TargetPersonID uuid.UUID
+	ID             uuid.UUID
+}
+
+// The source Account becomes the target's Account when the target had none.
+func (q *Queries) AttachMergeAccount(ctx context.Context, arg AttachMergeAccountParams) error {
+	_, err := q.db.Exec(ctx, attachMergeAccount, arg.TargetPersonID, arg.ID)
+	return err
+}
+
+const bumpMergeAccountVersion = `-- name: BumpMergeAccountVersion :exec
+UPDATE accounts SET version = version + 1, updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) BumpMergeAccountVersion(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpMergeAccountVersion, id)
+	return err
 }
 
 const bumpPersonVersion = `-- name: BumpPersonVersion :one
@@ -88,6 +196,21 @@ func (q *Queries) CountEnabledMasters(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countEnabledMastersOutsideMerge = `-- name: CountEnabledMastersOutsideMerge :one
+SELECT count(*) FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.status = 'enabled' AND r.system_key = 'master'
+  AND NOT (a.person_id = ANY(($1::text[])::uuid[]))
+`
+
+func (q *Queries) CountEnabledMastersOutsideMerge(ctx context.Context, ids []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnabledMastersOutsideMerge, ids)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMasterAssignments = `-- name: CountMasterAssignments :one
 SELECT count(*) FROM person_roles pr
 JOIN roles r ON r.id = pr.role_id
@@ -96,6 +219,89 @@ WHERE r.system_key = 'master'
 
 func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countMasterAssignments)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countMergeHistory = `-- name: CountMergeHistory :one
+SELECT
+    (SELECT count(*) FROM visits WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS visits,
+    (SELECT count(*) FROM attendance_holds WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS attendance_holds,
+    (SELECT count(*) FROM training_records WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS training_records,
+    (SELECT count(*) FROM laborordnung_requests WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS lab_rules_requests,
+    (SELECT count(*) FROM open_day_assignments WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS open_day_assignments,
+    (SELECT count(*) FROM event_shift_assignments WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS event_shift_assignments,
+    ((SELECT count(*) FROM events WHERE owner_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM event_tasks WHERE assignee_person_id = ANY(($1::text[])::uuid[])))::bigint AS event_planning,
+    (SELECT count(*) FROM orders WHERE customer_person_id = ANY(($1::text[])::uuid[]))::bigint AS orders,
+    (SELECT count(*) FROM machine_jobs
+        WHERE customer_person_id = ANY(($1::text[])::uuid[])
+           OR operator_person_id = ANY(($1::text[])::uuid[]))::bigint AS machine_jobs,
+    (SELECT count(*) FROM external_invoice_request_details
+        WHERE recipient_person_id = ANY(($1::text[])::uuid[])
+           OR contact_person_id = ANY(($1::text[])::uuid[]))::bigint AS invoice_requests,
+    (SELECT count(*) FROM cash_movements WHERE recorded_by_person_id = ANY(($1::text[])::uuid[]))::bigint AS cash_movements,
+    (SELECT count(*) FROM survey_invitations WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_invitations,
+    (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_responses,
+    (SELECT count(*) FROM organization_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS organization_memberships,
+    (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications
+`
+
+type CountMergeHistoryParams struct {
+	Ids        []string
+	AccountIds []string
+}
+
+type CountMergeHistoryRow struct {
+	Visits                  int64
+	AttendanceHolds         int64
+	TrainingRecords         int64
+	LabRulesRequests        int64
+	OpenDayAssignments      int64
+	EventShiftAssignments   int64
+	EventPlanning           int64
+	Orders                  int64
+	MachineJobs             int64
+	InvoiceRequests         int64
+	CashMovements           int64
+	SurveyInvitations       int64
+	SurveyResponses         int64
+	OrganizationMemberships int64
+	Notifications           int64
+}
+
+// History of the source People that a merge moves to the target, per category.
+func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryParams) (CountMergeHistoryRow, error) {
+	row := q.db.QueryRow(ctx, countMergeHistory, arg.Ids, arg.AccountIds)
+	var i CountMergeHistoryRow
+	err := row.Scan(
+		&i.Visits,
+		&i.AttendanceHolds,
+		&i.TrainingRecords,
+		&i.LabRulesRequests,
+		&i.OpenDayAssignments,
+		&i.EventShiftAssignments,
+		&i.EventPlanning,
+		&i.Orders,
+		&i.MachineJobs,
+		&i.InvoiceRequests,
+		&i.CashMovements,
+		&i.SurveyInvitations,
+		&i.SurveyResponses,
+		&i.OrganizationMemberships,
+		&i.Notifications,
+	)
+	return i, err
+}
+
+const countMergePendingLabRulesVersions = `-- name: CountMergePendingLabRulesVersions :one
+SELECT count(DISTINCT required_version_id) FROM laborordnung_requests
+WHERE person_id = ANY(($1::text[])::uuid[]) AND status = 'pending'
+`
+
+func (q *Queries) CountMergePendingLabRulesVersions(ctx context.Context, ids []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countMergePendingLabRulesVersions, ids)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -233,6 +439,200 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 	return i, err
 }
 
+const deleteDuplicateMergeInboxRecipients = `-- name: DeleteDuplicateMergeInboxRecipients :execrows
+DELETE FROM inbox_recipients source
+USING inbox_recipients target
+WHERE source.account_id = $1 AND target.account_id = $2
+  AND source.notification_id = target.notification_id
+`
+
+type DeleteDuplicateMergeInboxRecipientsParams struct {
+	SourceAccountID uuid.UUID
+	TargetAccountID uuid.UUID
+}
+
+func (q *Queries) DeleteDuplicateMergeInboxRecipients(ctx context.Context, arg DeleteDuplicateMergeInboxRecipientsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeInboxRecipients, arg.SourceAccountID, arg.TargetAccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeLabRulesRequests = `-- name: DeleteDuplicateMergeLabRulesRequests :execrows
+DELETE FROM laborordnung_requests source
+USING laborordnung_requests target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.status = 'pending' AND target.status = 'pending'
+`
+
+type DeleteDuplicateMergeLabRulesRequestsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// One pending request per Person: the target's pending request for the same version wins.
+func (q *Queries) DeleteDuplicateMergeLabRulesRequests(ctx context.Context, arg DeleteDuplicateMergeLabRulesRequestsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeLabRulesRequests, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeOpenDayAssignments = `-- name: DeleteDuplicateMergeOpenDayAssignments :execrows
+DELETE FROM open_day_assignments source
+USING open_day_assignments target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.open_day_id = target.open_day_id AND source.requirement_id = target.requirement_id
+`
+
+type DeleteDuplicateMergeOpenDayAssignmentsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+func (q *Queries) DeleteDuplicateMergeOpenDayAssignments(ctx context.Context, arg DeleteDuplicateMergeOpenDayAssignmentsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeOpenDayAssignments, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeOrganizationMembers = `-- name: DeleteDuplicateMergeOrganizationMembers :execrows
+DELETE FROM organization_members source
+USING organization_members target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.organization_id = target.organization_id
+`
+
+type DeleteDuplicateMergeOrganizationMembersParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+func (q *Queries) DeleteDuplicateMergeOrganizationMembers(ctx context.Context, arg DeleteDuplicateMergeOrganizationMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeOrganizationMembers, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeRecoveryCodes = `-- name: DeleteDuplicateMergeRecoveryCodes :execrows
+DELETE FROM mfa_recovery_codes source
+USING mfa_recovery_codes target
+WHERE source.account_id = $1 AND target.account_id = $2
+  AND source.code_digest = target.code_digest
+`
+
+type DeleteDuplicateMergeRecoveryCodesParams struct {
+	SourceAccountID uuid.UUID
+	TargetAccountID uuid.UUID
+}
+
+func (q *Queries) DeleteDuplicateMergeRecoveryCodes(ctx context.Context, arg DeleteDuplicateMergeRecoveryCodesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeRecoveryCodes, arg.SourceAccountID, arg.TargetAccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeShiftAssignments = `-- name: DeleteDuplicateMergeShiftAssignments :execrows
+DELETE FROM event_shift_assignments source
+USING event_shift_assignments target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.shift_id = target.shift_id AND source.status = 'active' AND target.status = 'active'
+`
+
+type DeleteDuplicateMergeShiftAssignmentsParams struct {
+	SourcePersonID *uuid.UUID
+	TargetPersonID *uuid.UUID
+}
+
+// One active assignment per shift and Person: the target's assignment wins.
+func (q *Queries) DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeShiftAssignments, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMergePasswordIdentities = `-- name: DeleteMergePasswordIdentities :execrows
+DELETE FROM auth_identities
+WHERE account_id = ANY(($1::text[])::uuid[]) AND kind = 'password'
+  AND id IS DISTINCT FROM $2
+`
+
+type DeleteMergePasswordIdentitiesParams struct {
+	AccountIds     []string
+	KeepIdentityID *uuid.UUID
+}
+
+// Drops every password identity of the merged Accounts except the one kept for the login email.
+func (q *Queries) DeleteMergePasswordIdentities(ctx context.Context, arg DeleteMergePasswordIdentitiesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMergePasswordIdentities, arg.AccountIds, arg.KeepIdentityID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMergeTransientAccountState = `-- name: DeleteMergeTransientAccountState :exec
+WITH pending AS (
+    DELETE FROM pending_logins WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), ceremonies AS (
+    DELETE FROM webauthn_challenges WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), flows AS (
+    DELETE FROM oidc_flows WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), throttles AS (
+    DELETE FROM second_factor_throttles WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), resets AS (
+    DELETE FROM password_reset_tokens WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), challenges AS (
+    DELETE FROM auth_challenges WHERE account_id = ANY(($1::text[])::uuid[]) RETURNING 1
+), totp AS (
+    DELETE FROM mfa_totp_credentials
+    WHERE account_id = ANY(($1::text[])::uuid[]) AND confirmed_at IS NULL RETURNING 1
+)
+SELECT (SELECT count(*) FROM pending) + (SELECT count(*) FROM ceremonies) + (SELECT count(*) FROM flows)
+    + (SELECT count(*) FROM throttles) + (SELECT count(*) FROM resets) + (SELECT count(*) FROM challenges)
+    + (SELECT count(*) FROM totp)
+`
+
+// Outstanding one-time challenges, pending logins, ceremonies and throttles of every merged Account end with the merge.
+func (q *Queries) DeleteMergeTransientAccountState(ctx context.Context, accountIds []string) error {
+	_, err := q.db.Exec(ctx, deleteMergeTransientAccountState, accountIds)
+	return err
+}
+
+const deleteMergedAccount = `-- name: DeleteMergedAccount :execrows
+DELETE FROM accounts WHERE id = $1
+`
+
+func (q *Queries) DeleteMergedAccount(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMergedAccount, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMergedPerson = `-- name: DeleteMergedPerson :execrows
+DELETE FROM people WHERE id = $1
+`
+
+func (q *Queries) DeleteMergedPerson(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMergedPerson, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deletePerson = `-- name: DeletePerson :one
 DELETE FROM people WHERE id = $1 AND version = $2
 RETURNING id
@@ -248,6 +648,43 @@ func (q *Queries) DeletePerson(ctx context.Context, arg DeletePersonParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteSupersededMergeTrainingRecords = `-- name: DeleteSupersededMergeTrainingRecords :execrows
+DELETE FROM training_records loser
+USING training_records winner
+WHERE loser.training_id = winner.training_id
+  AND loser.person_id IN ($1, $2)
+  AND winner.person_id IN ($1, $2)
+  AND loser.person_id <> winner.person_id
+  AND (
+      (CASE winner.status WHEN 'trainer' THEN 2 ELSE 1 END, winner.updated_at, winner.person_id = $2)
+      > (CASE loser.status WHEN 'trainer' THEN 2 ELSE 1 END, loser.updated_at, loser.person_id = $2)
+  )
+`
+
+type DeleteSupersededMergeTrainingRecordsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Keeps one record per training: the higher status (trainer over trained), then the most recently updated one.
+func (q *Queries) DeleteSupersededMergeTrainingRecords(ctx context.Context, arg DeleteSupersededMergeTrainingRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSupersededMergeTrainingRecords, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const enablePeopleMergeMode = `-- name: EnablePeopleMergeMode :exec
+SELECT set_config('makerspace.people_merge', 'on', true)
+`
+
+// Transaction-local: lets the history guards accept re-pointed person/account references (migration 00077).
+func (q *Queries) EnablePeopleMergeMode(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, enablePeopleMergeMode)
+	return err
 }
 
 const getAccountByPersonForMutation = `-- name: GetAccountByPersonForMutation :one
@@ -485,6 +922,168 @@ func (q *Queries) IsPersonRoleAssigned(ctx context.Context, arg IsPersonRoleAssi
 	return exists, err
 }
 
+const listAccountsForMerge = `-- name: ListAccountsForMerge :many
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = ANY(($1::text[])::uuid[]) ORDER BY id
+`
+
+func (q *Queries) ListAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error) {
+	rows, err := q.db.Query(ctx, listAccountsForMerge, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Account{}
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.Status,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProvisioningSource,
+			&i.FirstAuthenticatedAt,
+			&i.AdministrativelyDisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMergeAccountMethods = `-- name: ListMergeAccountMethods :many
+SELECT a.id AS account_id,
+    pw.id AS password_identity_id,
+    pw.identifier_display AS login_email,
+    EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = pw.id) AS password_set,
+    EXISTS (SELECT 1 FROM auth_identities pin WHERE pin.account_id = a.id AND pin.kind = 'pin') AS has_pin,
+    (SELECT count(*) FROM auth_identities o WHERE o.account_id = a.id AND o.kind = 'oidc') AS oidc_identities,
+    EXISTS (
+        SELECT 1 FROM mfa_totp_credentials t WHERE t.account_id = a.id AND t.confirmed_at IS NOT NULL
+    ) AS totp_enrolled,
+    (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = a.id) AS passkeys
+FROM accounts a
+LEFT JOIN auth_identities pw ON pw.account_id = a.id AND pw.kind = 'password'
+WHERE a.id = ANY(($1::text[])::uuid[])
+ORDER BY a.id
+`
+
+type ListMergeAccountMethodsRow struct {
+	AccountID          uuid.UUID
+	PasswordIdentityID *uuid.UUID
+	LoginEmail         *string
+	PasswordSet        bool
+	HasPin             bool
+	OidcIdentities     int64
+	TotpEnrolled       bool
+	Passkeys           int64
+}
+
+func (q *Queries) ListMergeAccountMethods(ctx context.Context, accountIds []string) ([]ListMergeAccountMethodsRow, error) {
+	rows, err := q.db.Query(ctx, listMergeAccountMethods, accountIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMergeAccountMethodsRow{}
+	for rows.Next() {
+		var i ListMergeAccountMethodsRow
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.PasswordIdentityID,
+			&i.LoginEmail,
+			&i.PasswordSet,
+			&i.HasPin,
+			&i.OidcIdentities,
+			&i.TotpEnrolled,
+			&i.Passkeys,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMergeOpenDayConflicts = `-- name: ListMergeOpenDayConflicts :many
+SELECT open_day_id FROM open_day_assignments
+WHERE person_id = ANY(($1::text[])::uuid[])
+GROUP BY open_day_id
+HAVING count(DISTINCT requirement_id) > 1
+ORDER BY open_day_id
+`
+
+// Open Days on which the merged People hold different positions; one Person can hold only one.
+func (q *Queries) ListMergeOpenDayConflicts(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listMergeOpenDayConflicts, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var open_day_id uuid.UUID
+		if err := rows.Scan(&open_day_id); err != nil {
+			return nil, err
+		}
+		items = append(items, open_day_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMergePersonFacts = `-- name: ListMergePersonFacts :many
+SELECT p.id AS person_id,
+    EXISTS (SELECT 1 FROM scim_users su WHERE su.person_id = p.id) AS scim_managed,
+    EXISTS (SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in') AS open_visit,
+    EXISTS (SELECT 1 FROM attendance_holds h WHERE h.person_id = p.id) AS attendance_hold
+FROM people p
+WHERE p.id = ANY(($1::text[])::uuid[])
+ORDER BY p.id
+`
+
+type ListMergePersonFactsRow struct {
+	PersonID       uuid.UUID
+	ScimManaged    bool
+	OpenVisit      bool
+	AttendanceHold bool
+}
+
+func (q *Queries) ListMergePersonFacts(ctx context.Context, ids []string) ([]ListMergePersonFactsRow, error) {
+	rows, err := q.db.Query(ctx, listMergePersonFacts, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMergePersonFactsRow{}
+	for rows.Next() {
+		var i ListMergePersonFactsRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.ScimManaged,
+			&i.OpenVisit,
+			&i.AttendanceHold,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPeople = `-- name: ListPeople :many
 WITH current_laborordnung_version AS (
     SELECT id
@@ -571,6 +1170,44 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 		arg.PageOffset,
 		arg.PageLimit,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Person{}
+	for rows.Next() {
+		var i Person
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.Email,
+			&i.Phone,
+			&i.MatriculationNumber,
+			&i.PhotoReference,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProfileImageFileID,
+			&i.ProfileImageSource,
+			&i.MemberSince,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleForMerge = `-- name: ListPeopleForMerge :many
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since FROM people WHERE id = ANY(($1::text[])::uuid[]) ORDER BY id
+`
+
+func (q *Queries) ListPeopleForMerge(ctx context.Context, ids []string) ([]Person, error) {
+	rows, err := q.db.Query(ctx, listPeopleForMerge, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -764,6 +1401,230 @@ func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []
 	return items, nil
 }
 
+const lockAccountsForMerge = `-- name: LockAccountsForMerge :many
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = ANY(($1::text[])::uuid[]) ORDER BY id FOR UPDATE
+`
+
+// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
+func (q *Queries) LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error) {
+	rows, err := q.db.Query(ctx, lockAccountsForMerge, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Account{}
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.Status,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProvisioningSource,
+			&i.FirstAuthenticatedAt,
+			&i.AdministrativelyDisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockPeopleForMerge = `-- name: LockPeopleForMerge :many
+
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since FROM people WHERE id = ANY(($1::text[])::uuid[]) ORDER BY id FOR UPDATE
+`
+
+// People merge (people.merge). Every query below is part of PreviewMerge or Merge; see docs/people-merge.md.
+// Locks every Person of a merge in id order. People are locked before the master invariant lock and accounts.
+func (q *Queries) LockPeopleForMerge(ctx context.Context, ids []string) ([]Person, error) {
+	rows, err := q.db.Query(ctx, lockPeopleForMerge, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Person{}
+	for rows.Next() {
+		var i Person
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.Email,
+			&i.Phone,
+			&i.MatriculationNumber,
+			&i.PhotoReference,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProfileImageFileID,
+			&i.ProfileImageSource,
+			&i.MemberSince,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const moveMergeAuthIdentities = `-- name: MoveMergeAuthIdentities :execrows
+UPDATE auth_identities SET account_id = $1, updated_at = now()
+WHERE account_id = $2
+`
+
+type MoveMergeAuthIdentitiesParams struct {
+	TargetAccountID uuid.UUID
+	SourceAccountID uuid.UUID
+}
+
+func (q *Queries) MoveMergeAuthIdentities(ctx context.Context, arg MoveMergeAuthIdentitiesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeAuthIdentities, arg.TargetAccountID, arg.SourceAccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeInboxRecipients = `-- name: MoveMergeInboxRecipients :execrows
+UPDATE inbox_recipients SET account_id = $1 WHERE account_id = $2
+`
+
+type MoveMergeInboxRecipientsParams struct {
+	TargetAccountID uuid.UUID
+	SourceAccountID uuid.UUID
+}
+
+func (q *Queries) MoveMergeInboxRecipients(ctx context.Context, arg MoveMergeInboxRecipientsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeInboxRecipients, arg.TargetAccountID, arg.SourceAccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeLabRulesRequests = `-- name: MoveMergeLabRulesRequests :execrows
+UPDATE laborordnung_requests SET person_id = $1, updated_at = now()
+WHERE person_id = $2
+`
+
+type MoveMergeLabRulesRequestsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeLabRulesRequests(ctx context.Context, arg MoveMergeLabRulesRequestsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeLabRulesRequests, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeOpenDayAssignments = `-- name: MoveMergeOpenDayAssignments :execrows
+UPDATE open_day_assignments SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeOpenDayAssignmentsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeOpenDayAssignments(ctx context.Context, arg MoveMergeOpenDayAssignmentsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeOpenDayAssignments, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeOrganizationMembers = `-- name: MoveMergeOrganizationMembers :execrows
+UPDATE organization_members SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeOrganizationMembersParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeOrganizationMembers(ctx context.Context, arg MoveMergeOrganizationMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeOrganizationMembers, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeSecondFactors = `-- name: MoveMergeSecondFactors :one
+WITH totp AS (
+    UPDATE mfa_totp_credentials SET account_id = $1::uuid
+    WHERE account_id = $2::uuid RETURNING 1
+), passkeys AS (
+    UPDATE webauthn_credentials SET account_id = $1::uuid
+    WHERE account_id = $2::uuid RETURNING 1
+), codes AS (
+    UPDATE mfa_recovery_codes SET account_id = $1::uuid
+    WHERE account_id = $2::uuid RETURNING 1
+)
+SELECT ((SELECT count(*) FROM totp) + (SELECT count(*) FROM passkeys) + (SELECT count(*) FROM codes))::bigint AS moved
+`
+
+type MoveMergeSecondFactorsParams struct {
+	TargetAccountID uuid.UUID
+	SourceAccountID uuid.UUID
+}
+
+func (q *Queries) MoveMergeSecondFactors(ctx context.Context, arg MoveMergeSecondFactorsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, moveMergeSecondFactors, arg.TargetAccountID, arg.SourceAccountID)
+	var moved int64
+	err := row.Scan(&moved)
+	return moved, err
+}
+
+const moveMergeShiftAssignments = `-- name: MoveMergeShiftAssignments :execrows
+UPDATE event_shift_assignments SET person_id = $1, updated_at = now()
+WHERE person_id = $2
+`
+
+type MoveMergeShiftAssignmentsParams struct {
+	TargetPersonID *uuid.UUID
+	SourcePersonID *uuid.UUID
+}
+
+func (q *Queries) MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeShiftAssignments, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeTrainingRecords = `-- name: MoveMergeTrainingRecords :execrows
+UPDATE training_records SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeTrainingRecordsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeTrainingRecords, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const personHasAccount = `-- name: PersonHasAccount :one
 SELECT EXISTS (SELECT 1 FROM accounts WHERE person_id = $1)
 `
@@ -812,6 +1673,319 @@ type RemovePersonRoleParams struct {
 
 func (q *Queries) RemovePersonRole(ctx context.Context, arg RemovePersonRoleParams) (int64, error) {
 	result, err := q.db.Exec(ctx, removePersonRole, arg.PersonID, arg.RoleID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const repointMergeAccountReferences = `-- name: RepointMergeAccountReferences :one
+WITH c01 AS (
+    UPDATE password_reset_tokens SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c02 AS (
+    UPDATE open_day_assignments SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c03 AS (
+    UPDATE auth_challenges SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c04 AS (
+    UPDATE files SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c05 AS (
+    UPDATE laborordnung_versions SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c06 AS (
+    UPDATE laborordnung_requests SET confirmed_by_account_id = $1::uuid
+    WHERE confirmed_by_account_id = $2::uuid RETURNING 1
+), c07 AS (
+    UPDATE scim_connector_tokens SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c08 AS (
+    UPDATE visitor_enrollment_configuration SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c09 AS (
+    UPDATE mail_configuration SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c10 AS (
+    UPDATE organization_pricing_group_assignments SET assigned_by_account_id = $1::uuid
+    WHERE assigned_by_account_id = $2::uuid RETURNING 1
+), c11 AS (
+    UPDATE machine_jobs SET
+        deleted_by = CASE WHEN deleted_by = $2::uuid THEN $1::uuid ELSE deleted_by END,
+        price_adjusted_by_account_id = CASE WHEN price_adjusted_by_account_id = $2::uuid
+            THEN $1::uuid ELSE price_adjusted_by_account_id END
+    WHERE deleted_by = $2::uuid OR price_adjusted_by_account_id = $2::uuid RETURNING 1
+), c12 AS (
+    UPDATE machine_job_pricing_snapshots SET captured_by_account_id = $1::uuid
+    WHERE captured_by_account_id = $2::uuid RETURNING 1
+), c13 AS (
+    UPDATE inventory_transactions SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c14 AS (
+    UPDATE branding_configuration SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c15 AS (
+    UPDATE branding_asset_overrides SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c16 AS (
+    UPDATE person_roles SET assigned_by_account_id = $1::uuid
+    WHERE assigned_by_account_id = $2::uuid RETURNING 1
+), c17 AS (
+    UPDATE events SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c18 AS (
+    UPDATE event_tasks SET
+        completed_by_account_id = CASE WHEN completed_by_account_id = $2::uuid
+            THEN $1::uuid ELSE completed_by_account_id END,
+        created_by_account_id = CASE WHEN created_by_account_id = $2::uuid
+            THEN $1::uuid ELSE created_by_account_id END
+    WHERE completed_by_account_id = $2::uuid OR created_by_account_id = $2::uuid RETURNING 1
+), c19 AS (
+    UPDATE event_shift_assignments SET
+        cancelled_by_account_id = CASE WHEN cancelled_by_account_id = $2::uuid
+            THEN $1::uuid ELSE cancelled_by_account_id END,
+        conflict_overridden_by_account_id = CASE WHEN conflict_overridden_by_account_id = $2::uuid
+            THEN $1::uuid ELSE conflict_overridden_by_account_id END,
+        created_by_account_id = CASE WHEN created_by_account_id = $2::uuid
+            THEN $1::uuid ELSE created_by_account_id END
+    WHERE cancelled_by_account_id = $2::uuid
+       OR conflict_overridden_by_account_id = $2::uuid
+       OR created_by_account_id = $2::uuid RETURNING 1
+), c20 AS (
+    UPDATE orders SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c21 AS (
+    UPDATE order_items SET
+        created_by_account_id = CASE WHEN created_by_account_id = $2::uuid
+            THEN $1::uuid ELSE created_by_account_id END,
+        removed_by_account_id = CASE WHEN removed_by_account_id = $2::uuid
+            THEN $1::uuid ELSE removed_by_account_id END
+    WHERE created_by_account_id = $2::uuid OR removed_by_account_id = $2::uuid RETURNING 1
+), c22 AS (
+    UPDATE order_adjustments SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c23 AS (
+    UPDATE organization_invoicing_requirements SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c24 AS (
+    UPDATE external_invoice_request_events SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c25 AS (
+    UPDATE payments SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c26 AS (
+    UPDATE payment_allocations SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c27 AS (
+    UPDATE order_operations SET actor_account_id = $1::uuid
+    WHERE actor_account_id = $2::uuid RETURNING 1
+), c28 AS (
+    UPDATE visits SET
+        checked_in_by_account_id = CASE WHEN checked_in_by_account_id = $2::uuid
+            THEN $1::uuid ELSE checked_in_by_account_id END,
+        checked_out_by_account_id = CASE WHEN checked_out_by_account_id = $2::uuid
+            THEN $1::uuid ELSE checked_out_by_account_id END
+    WHERE checked_in_by_account_id = $2::uuid OR checked_out_by_account_id = $2::uuid RETURNING 1
+), c29 AS (
+    UPDATE printer_spool_assignments SET
+        mounted_by_account_id = CASE WHEN mounted_by_account_id = $2::uuid
+            THEN $1::uuid ELSE mounted_by_account_id END,
+        unmounted_by_account_id = CASE WHEN unmounted_by_account_id = $2::uuid
+            THEN $1::uuid ELSE unmounted_by_account_id END
+    WHERE mounted_by_account_id = $2::uuid OR unmounted_by_account_id = $2::uuid RETURNING 1
+), c30 AS (
+    UPDATE printer_connectors SET events_cleared_by = $1::uuid
+    WHERE events_cleared_by = $2::uuid RETURNING 1
+), c31 AS (
+    UPDATE printer_connector_enrollments SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c32 AS (
+    UPDATE machine_runs SET deleted_by = $1::uuid
+    WHERE deleted_by = $2::uuid RETURNING 1
+), c33 AS (
+    UPDATE printer_discovery_requests SET requested_by_account_id = $1::uuid
+    WHERE requested_by_account_id = $2::uuid RETURNING 1
+), c34 AS (
+    UPDATE role_pricing_groups SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c35 AS (
+    UPDATE signage_assets SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c36 AS (
+    UPDATE signage_announcements SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c37 AS (
+    UPDATE signage_publications SET published_by_account_id = $1::uuid
+    WHERE published_by_account_id = $2::uuid RETURNING 1
+), c38 AS (
+    UPDATE streaming_gateway_enrollments SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c39 AS (
+    UPDATE open_day_requirements SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c40 AS (
+    UPDATE wiref_delivery_settings SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
+), c41 AS (
+    UPDATE inbox_notifications SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
+), c42 AS (
+    UPDATE attendance_holds SET checked_in_by_account_id = $1::uuid
+    WHERE checked_in_by_account_id = $2::uuid RETURNING 1
+), c43 AS (
+    UPDATE training_records SET recorded_by_account_id = $1::uuid
+    WHERE recorded_by_account_id = $2::uuid RETURNING 1
+)
+SELECT (
+    (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
+    + (SELECT count(*) FROM c05) + (SELECT count(*) FROM c06) + (SELECT count(*) FROM c07) + (SELECT count(*) FROM c08)
+    + (SELECT count(*) FROM c09) + (SELECT count(*) FROM c10) + (SELECT count(*) FROM c11) + (SELECT count(*) FROM c12)
+    + (SELECT count(*) FROM c13) + (SELECT count(*) FROM c14) + (SELECT count(*) FROM c15) + (SELECT count(*) FROM c16)
+    + (SELECT count(*) FROM c17) + (SELECT count(*) FROM c18) + (SELECT count(*) FROM c19) + (SELECT count(*) FROM c20)
+    + (SELECT count(*) FROM c21) + (SELECT count(*) FROM c22) + (SELECT count(*) FROM c23) + (SELECT count(*) FROM c24)
+    + (SELECT count(*) FROM c25) + (SELECT count(*) FROM c26) + (SELECT count(*) FROM c27) + (SELECT count(*) FROM c28)
+    + (SELECT count(*) FROM c29) + (SELECT count(*) FROM c30) + (SELECT count(*) FROM c31) + (SELECT count(*) FROM c32)
+    + (SELECT count(*) FROM c33) + (SELECT count(*) FROM c34) + (SELECT count(*) FROM c35) + (SELECT count(*) FROM c36)
+    + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c38) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
+    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43)
+)::bigint AS moved
+`
+
+type RepointMergeAccountReferencesParams struct {
+	TargetAccountID uuid.UUID
+	SourceAccountID uuid.UUID
+}
+
+// Re-points every "who did it" reference of a merged Account to the surviving Account.
+func (q *Queries) RepointMergeAccountReferences(ctx context.Context, arg RepointMergeAccountReferencesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, repointMergeAccountReferences, arg.TargetAccountID, arg.SourceAccountID)
+	var moved int64
+	err := row.Scan(&moved)
+	return moved, err
+}
+
+const repointMergeAuditEvents = `-- name: RepointMergeAuditEvents :execrows
+UPDATE audit_events SET
+    actor_account_id = CASE WHEN actor_account_id = $1
+        THEN $2::uuid ELSE actor_account_id END,
+    resource_id = CASE
+        WHEN resource_type = 'person' AND resource_id = $3 THEN $4::uuid
+        WHEN resource_type = 'account' AND resource_id = $1 THEN $2::uuid
+        ELSE resource_id END
+WHERE actor_account_id = $1
+   OR (resource_type = 'person' AND resource_id = $3)
+   OR (resource_type = 'account' AND resource_id = $1)
+`
+
+type RepointMergeAuditEventsParams struct {
+	SourceAccountID *uuid.UUID
+	TargetAccountID *uuid.UUID
+	SourcePersonID  *uuid.UUID
+	TargetPersonID  uuid.UUID
+}
+
+// Keeps the activity history of a merged Person and Account (actor and resource) on the surviving records.
+func (q *Queries) RepointMergeAuditEvents(ctx context.Context, arg RepointMergeAuditEventsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, repointMergeAuditEvents,
+		arg.SourceAccountID,
+		arg.TargetAccountID,
+		arg.SourcePersonID,
+		arg.TargetPersonID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const repointMergePersonReferences = `-- name: RepointMergePersonReferences :one
+WITH visits_moved AS (
+    UPDATE visits SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
+), holds_moved AS (
+    UPDATE attendance_holds SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
+), invitations_moved AS (
+    UPDATE survey_invitations SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
+), responses_moved AS (
+    UPDATE survey_responses SET identified_person_id = $1::uuid
+    WHERE identified_person_id = $2::uuid RETURNING 1
+), events_moved AS (
+    UPDATE events SET owner_person_id = $1::uuid WHERE owner_person_id = $2::uuid RETURNING 1
+), tasks_moved AS (
+    UPDATE event_tasks SET assignee_person_id = $1::uuid
+    WHERE assignee_person_id = $2::uuid RETURNING 1
+), orders_moved AS (
+    UPDATE orders SET customer_person_id = $1::uuid
+    WHERE customer_person_id = $2::uuid RETURNING 1
+), jobs_moved AS (
+    UPDATE machine_jobs SET
+        customer_person_id = CASE WHEN customer_person_id = $2::uuid THEN $1::uuid ELSE customer_person_id END,
+        operator_person_id = CASE WHEN operator_person_id = $2::uuid THEN $1::uuid ELSE operator_person_id END
+    WHERE customer_person_id = $2::uuid OR operator_person_id = $2::uuid RETURNING 1
+), invoice_details_moved AS (
+    UPDATE external_invoice_request_details SET
+        recipient_person_id = CASE WHEN recipient_person_id = $2::uuid THEN $1::uuid ELSE recipient_person_id END,
+        contact_person_id = CASE WHEN contact_person_id = $2::uuid THEN $1::uuid ELSE contact_person_id END
+    WHERE recipient_person_id = $2::uuid OR contact_person_id = $2::uuid RETURNING 1
+), cash_moved AS (
+    UPDATE cash_movements SET recorded_by_person_id = $1::uuid
+    WHERE recorded_by_person_id = $2::uuid RETURNING 1
+)
+SELECT
+    (SELECT count(*) FROM visits_moved)::bigint AS visits,
+    (SELECT count(*) FROM holds_moved)::bigint AS attendance_holds,
+    (SELECT count(*) FROM invitations_moved)::bigint AS survey_invitations,
+    (SELECT count(*) FROM responses_moved)::bigint AS survey_responses,
+    ((SELECT count(*) FROM events_moved) + (SELECT count(*) FROM tasks_moved))::bigint AS event_planning,
+    (SELECT count(*) FROM orders_moved)::bigint AS orders,
+    (SELECT count(*) FROM jobs_moved)::bigint AS machine_jobs,
+    (SELECT count(*) FROM invoice_details_moved)::bigint AS invoice_requests,
+    (SELECT count(*) FROM cash_moved)::bigint AS cash_movements
+`
+
+type RepointMergePersonReferencesParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+type RepointMergePersonReferencesRow struct {
+	Visits            int64
+	AttendanceHolds   int64
+	SurveyInvitations int64
+	SurveyResponses   int64
+	EventPlanning     int64
+	Orders            int64
+	MachineJobs       int64
+	InvoiceRequests   int64
+	CashMovements     int64
+}
+
+// Re-points the person references that carry no uniqueness rule. Conflicting open visits and attendance holds are
+// rejected before this runs.
+func (q *Queries) RepointMergePersonReferences(ctx context.Context, arg RepointMergePersonReferencesParams) (RepointMergePersonReferencesRow, error) {
+	row := q.db.QueryRow(ctx, repointMergePersonReferences, arg.TargetPersonID, arg.SourcePersonID)
+	var i RepointMergePersonReferencesRow
+	err := row.Scan(
+		&i.Visits,
+		&i.AttendanceHolds,
+		&i.SurveyInvitations,
+		&i.SurveyResponses,
+		&i.EventPlanning,
+		&i.Orders,
+		&i.MachineJobs,
+		&i.InvoiceRequests,
+		&i.CashMovements,
+	)
+	return i, err
+}
+
+const revokeMergeSessions = `-- name: RevokeMergeSessions :execrows
+UPDATE sessions SET revoked_at = now(), revocation_reason = 'people_merged'
+WHERE account_id = ANY(($1::text[])::uuid[]) AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeMergeSessions(ctx context.Context, accountIds []string) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeMergeSessions, accountIds)
 	if err != nil {
 		return 0, err
 	}

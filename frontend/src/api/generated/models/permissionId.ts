@@ -29,6 +29,7 @@ export const PermissionId = {
   peopleupdateself: 'people.update.self',
   peopleupdateall: 'people.update.all',
   peopledelete: 'people.delete',
+  peoplemerge: 'people.merge',
   peoplereadmatriculation: 'people.read.matriculation',
   peopleupdatematriculation: 'people.update.matriculation',
   peopleprofile_imageupdateself: 'people.profile_image.update.self',

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -85,6 +86,17 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		metadata = map[string]any{}
 	}
 	for key, value := range metadata {
+		if countMetadataKey(key) {
+			// Counts (for example how many records a merge moved) are aggregate numbers, never personal data.
+			text, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("invalid audit metadata value for %q", key)
+			}
+			if _, err := strconv.ParseUint(text, 10, 32); err != nil {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if key != "orderId" && key != "paymentId" && key != "replacementOrderId" && key != "externalInvoiceRequestId" &&
 			key != "roleId" &&
 			key != "personId" &&
@@ -124,4 +136,18 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		Source:         string(event.Source),
 	})
 	return err
+}
+
+// countMetadataKey reports whether key names an aggregate count ("count" followed by an upper-case name, such as
+// countMergedPeople). Its value is a decimal string.
+func countMetadataKey(key string) bool {
+	if len(key) < 6 || len(key) > 64 || !strings.HasPrefix(key, "count") || key[5] < 'A' || key[5] > 'Z' {
+		return false
+	}
+	for _, character := range key[5:] {
+		if (character < 'A' || character > 'Z') && (character < 'a' || character > 'z') {
+			return false
+		}
+	}
+	return true
 }

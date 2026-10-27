@@ -30,6 +30,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'people.update.self': { group: 'People', label: 'Edit own profile' },
   'people.update.all': { group: 'People', label: 'Edit all people' },
   'people.delete': { group: 'People', label: 'Delete people' },
+  'people.merge': { group: 'People', label: 'Merge duplicate people' },
   'people.read.matriculation': { group: 'People', label: 'View matriculation numbers' },
   'people.update.matriculation': { group: 'People', label: 'Edit matriculation numbers' },
   'people.profile_image.update.self': { group: 'People', label: 'Update own profile image' },

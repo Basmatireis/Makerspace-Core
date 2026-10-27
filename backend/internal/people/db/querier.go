@@ -12,13 +12,40 @@ import (
 
 type Querier interface {
 	AcquireMasterInvariantLock(ctx context.Context) error
+	AddMergedPersonRoles(ctx context.Context, arg AddMergedPersonRolesParams) (int64, error)
+	ApplyMergedPerson(ctx context.Context, arg ApplyMergedPersonParams) (Person, error)
 	AssignPersonRole(ctx context.Context, arg AssignPersonRoleParams) (int64, error)
+	// The source Account becomes the target's Account when the target had none.
+	AttachMergeAccount(ctx context.Context, arg AttachMergeAccountParams) error
+	BumpMergeAccountVersion(ctx context.Context, id uuid.UUID) error
 	BumpPersonVersion(ctx context.Context, arg BumpPersonVersionParams) (Person, error)
 	CountEnabledMasters(ctx context.Context) (int64, error)
+	CountEnabledMastersOutsideMerge(ctx context.Context, ids []string) (int64, error)
 	CountMasterAssignments(ctx context.Context) (int64, error)
+	// History of the source People that a merge moves to the target, per category.
+	CountMergeHistory(ctx context.Context, arg CountMergeHistoryParams) (CountMergeHistoryRow, error)
+	CountMergePendingLabRulesVersions(ctx context.Context, ids []string) (int64, error)
 	CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
+	DeleteDuplicateMergeInboxRecipients(ctx context.Context, arg DeleteDuplicateMergeInboxRecipientsParams) (int64, error)
+	// One pending request per Person: the target's pending request for the same version wins.
+	DeleteDuplicateMergeLabRulesRequests(ctx context.Context, arg DeleteDuplicateMergeLabRulesRequestsParams) (int64, error)
+	DeleteDuplicateMergeOpenDayAssignments(ctx context.Context, arg DeleteDuplicateMergeOpenDayAssignmentsParams) (int64, error)
+	DeleteDuplicateMergeOrganizationMembers(ctx context.Context, arg DeleteDuplicateMergeOrganizationMembersParams) (int64, error)
+	DeleteDuplicateMergeRecoveryCodes(ctx context.Context, arg DeleteDuplicateMergeRecoveryCodesParams) (int64, error)
+	// One active assignment per shift and Person: the target's assignment wins.
+	DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error)
+	// Drops every password identity of the merged Accounts except the one kept for the login email.
+	DeleteMergePasswordIdentities(ctx context.Context, arg DeleteMergePasswordIdentitiesParams) (int64, error)
+	// Outstanding one-time challenges, pending logins, ceremonies and throttles of every merged Account end with the merge.
+	DeleteMergeTransientAccountState(ctx context.Context, accountIds []string) error
+	DeleteMergedAccount(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteMergedPerson(ctx context.Context, id uuid.UUID) (int64, error)
 	DeletePerson(ctx context.Context, arg DeletePersonParams) (uuid.UUID, error)
+	// Keeps one record per training: the higher status (trainer over trained), then the most recently updated one.
+	DeleteSupersededMergeTrainingRecords(ctx context.Context, arg DeleteSupersededMergeTrainingRecordsParams) (int64, error)
+	// Transaction-local: lets the history guards accept re-pointed person/account references (migration 00077).
+	EnablePeopleMergeMode(ctx context.Context) error
 	GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetMasterRole(ctx context.Context) (Role, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (Person, error)
@@ -30,15 +57,42 @@ type Querier interface {
 	GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error)
 	IsPersonRoleAssigned(ctx context.Context, arg IsPersonRoleAssignedParams) (bool, error)
+	ListAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
+	ListMergeAccountMethods(ctx context.Context, accountIds []string) ([]ListMergeAccountMethodsRow, error)
+	// Open Days on which the merged People hold different positions; one Person can hold only one.
+	ListMergeOpenDayConflicts(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	ListMergePersonFacts(ctx context.Context, ids []string) ([]ListMergePersonFactsRow, error)
 	ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error)
+	ListPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
 	ListPersonStaffingRoles(ctx context.Context, personID uuid.UUID) ([]ListPersonStaffingRolesRow, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
+	// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
+	LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
+	// People merge (people.merge). Every query below is part of PreviewMerge or Merge; see docs/people-merge.md.
+	// Locks every Person of a merge in id order. People are locked before the master invariant lock and accounts.
+	LockPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
+	MoveMergeAuthIdentities(ctx context.Context, arg MoveMergeAuthIdentitiesParams) (int64, error)
+	MoveMergeInboxRecipients(ctx context.Context, arg MoveMergeInboxRecipientsParams) (int64, error)
+	MoveMergeLabRulesRequests(ctx context.Context, arg MoveMergeLabRulesRequestsParams) (int64, error)
+	MoveMergeOpenDayAssignments(ctx context.Context, arg MoveMergeOpenDayAssignmentsParams) (int64, error)
+	MoveMergeOrganizationMembers(ctx context.Context, arg MoveMergeOrganizationMembersParams) (int64, error)
+	MoveMergeSecondFactors(ctx context.Context, arg MoveMergeSecondFactorsParams) (int64, error)
+	MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error)
+	MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error)
 	PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonHasSCIMProvisioning(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error)
 	RemovePersonRole(ctx context.Context, arg RemovePersonRoleParams) (int64, error)
+	// Re-points every "who did it" reference of a merged Account to the surviving Account.
+	RepointMergeAccountReferences(ctx context.Context, arg RepointMergeAccountReferencesParams) (int64, error)
+	// Keeps the activity history of a merged Person and Account (actor and resource) on the surviving records.
+	RepointMergeAuditEvents(ctx context.Context, arg RepointMergeAuditEventsParams) (int64, error)
+	// Re-points the person references that carry no uniqueness rule. Conflicting open visits and attendance holds are
+	// rejected before this runs.
+	RepointMergePersonReferences(ctx context.Context, arg RepointMergePersonReferencesParams) (RepointMergePersonReferencesRow, error)
+	RevokeMergeSessions(ctx context.Context, accountIds []string) (int64, error)
 	SetProfileImage(ctx context.Context, arg SetProfileImageParams) (Person, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 }

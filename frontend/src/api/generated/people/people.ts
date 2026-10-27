@@ -21,6 +21,10 @@
 import type {
   CreatePersonRequest,
   ListPeopleParams,
+  PeopleMergePreview,
+  PeopleMergeRequest,
+  PeopleMergeResult,
+  PeopleMergeSelection,
   Person,
   PersonMakerspaceStatus,
   PersonPage,
@@ -105,6 +109,101 @@ return apiFetch<Person>(getCreatePersonUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createPersonRequest)
+  }
+);}
+
+
+export const getPreviewPeopleMergeUrl = () => {
+
+
+
+
+  return `/api/v1/people/merge/preview`
+}
+
+/**
+ * Requires `people.merge` and `people.read.all` (a grant may also require a fresh sign-in, and the default
+ * master reauthentication policy lists `people.merge`; `403 reauthentication_required` then names the proof).
+ * Read-only. Returns every person's mergeable field values (`matriculationNumber` is omitted without
+ * `people.read.matriculation`), roles, account and authentication methods, the role union the target would
+ * hold, the history of the source people that would move per category, the resulting surviving account, and
+ * every blocking conflict. `canMerge` is false while `conflicts` is not empty. See docs/people-merge.md.
+ * @summary Analyze merging duplicate people into one target person
+ */
+export const previewPeopleMerge = async (peopleMergeSelection: PeopleMergeSelection, options?: Parameters<typeof apiFetch>[1]): Promise<PeopleMergePreview> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PeopleMergePreview>(getPreviewPeopleMergeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(peopleMergeSelection)
+  }
+);}
+
+
+export const getMergePeopleUrl = () => {
+
+
+
+
+  return `/api/v1/people/merge`
+}
+
+/**
+ * Requires `people.merge` and `people.read.all`; setting a matriculation number from another person also needs
+ * `people.read.matriculation` and `people.update.matriculation`. When the target ends up with any role the
+ * caller must be allowed to assign every one of them (`people.roles.assign` and the usual privilege-subset
+ * rules); a person holding the master role can only be merged by a master. In one transaction the chosen field
+ * values are applied to the target, roles are united, authentication methods move to the surviving account,
+ * every record of the source people and accounts is re-pointed to the target, all sessions of every involved
+ * account are revoked (including the caller's own when the caller is the target) and the source people and
+ * accounts are permanently deleted. One `person.merged` audit event records the target, the number of merged
+ * people and the moved counts.
+ *
+ * `409 stale_write` when a person or account version differs from `expectedVersions` (or an account appeared
+ * or disappeared); `409 people_merge_blocked` (or the single conflict's own code) with `details.reasons` when
+ * the preview reports conflicts; `409 last_master_required` when no enabled master would remain;
+ * `422 merge_email_requires_account` when the merged person keeps an account but `email` names a person
+ * without one.
+ * @summary Merge duplicate people into one target person
+ */
+export const mergePeople = async (peopleMergeRequest: PeopleMergeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PeopleMergeResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PeopleMergeResult>(getMergePeopleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(peopleMergeRequest)
   }
 );}
 
