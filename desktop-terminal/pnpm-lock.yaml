@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@carbon/react':
-        specifier: 1.118.0
-        version: 1.118.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.105.2)
+        specifier: 1.119.0
+        version: 1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.105.2)
       '@carbon/styles':
         specifier: 1.115.0
         version: 1.115.0(sass@1.105.2)
@@ -55,39 +55,57 @@ packages:
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@8.0.7':
-    resolution: {integrity: sha512-k0hagDDq/6w4v+0Sp4wFvIz/yswH5O7Va6aRTnD7N62Tnborp4X+YB+H3XUcWVSR4aE47WPEXiIIZchBs0GmYg==}
+  '@babel/runtime@8.0.8':
+    resolution: {integrity: sha512-dEu8nGlRqjsJsvviUUoSMfcRHpwomCiRlXsc2mPfJ79+ffTpDm+JtfUtTMzUrqCApHQnCsVPD3gT1ZT8RgBRCQ==}
 
   '@carbon/colors@11.60.0':
     resolution: {integrity: sha512-hJ5fPDfT9EfjkLm3I6a7dhpIE6TmeTt39qEnlrDGRIUo00fiOh6ZwkZ/I7r9nZNjW9dQZUZfO+dTPcGAC1hpOQ==}
 
+  '@carbon/colors@11.61.0':
+    resolution: {integrity: sha512-pEDtZ0jPGyjbxcnzBxFCIB05oIJSbfT2E+z9TY+txqRfHmXe+QCEDD4fQPaFkxq60ToJ7KWfCb/SjnhF5/aq8A==}
+
   '@carbon/feature-flags@1.10.0':
     resolution: {integrity: sha512-dRqo+H1wy2Zzghj813qLTaROXPKISp1IpxOgdSqsd0NqB9is1Hlv5fr6Asygzo5LTLXNvGyRmsHbFCyfDxmZxQ==}
+
+  '@carbon/feature-flags@1.11.0':
+    resolution: {integrity: sha512-HN8bzIwPubG53xSlOZGFcCghL3zspj/LzA+LOfkoLwpagYIpZsOddpvqmCpOh3JOumNb5Cxq9qmjJL9yEiVYNA==}
 
   '@carbon/grid@11.64.0':
     resolution: {integrity: sha512-nzMje7whWZAoQmNKpPeVOK8T1jnxa7pHDCPbF9ykNUpxBi/Xm0NX/zMVjzIz1K75dY6MKmrzR4Bf+4MJH48pfg==}
 
+  '@carbon/grid@11.65.0':
+    resolution: {integrity: sha512-zuHs9oDYd/gMZQPKV0a/PNJXK/iaYmnMFqcwgbm4zYJ3MnD3kWgJKoqFSSPGuks8xKrg722exFYW4yDdwImIDQ==}
+
   '@carbon/icon-helpers@10.84.0':
     resolution: {integrity: sha512-G+LVR42568CbluBzu7uV+ZMmI5tT2ojnWCmRgDB8Z3xKls1D5DU6fQHyiAg10JjLo+zBGUih6eEVSCqq9oXkEw==}
 
-  '@carbon/icons-react@11.90.0':
-    resolution: {integrity: sha512-WcYBnIJNEuLXpNxibe1ltVe1HAsTDuGanRVdzRYK/gN+adayDmHplMnXXDNjNlwB4PjSKesqhvt7UAZlLs7uYg==}
+  '@carbon/icons-react@11.91.0':
+    resolution: {integrity: sha512-kaYUe1rQCmYJswXBniXDJpnCo7t7IF0ucKd0Bml4O3oyOdzKmNHYCaAbaYlq+3/VzUMstc7llfEbPyPsAKntVg==}
     peerDependencies:
       react: '>=16'
 
   '@carbon/layout@11.61.0':
     resolution: {integrity: sha512-+j3wKiGe4XaJyub31TUhDXDL8py2cCg/ZqQ1y0BWp3/yi5IvlbH5lXhBjV/iJwpMgtbiGJuKkKBCKMgqDlf8tQ==}
 
+  '@carbon/layout@11.62.0':
+    resolution: {integrity: sha512-MBXjxBkY9DNbdDmSPhPF5t+rBUJffxk/hlLlTawX901X84BFBKVtbCYy/UfFl5IytCN8mXXuCdOJ3rPOEwEX1Q==}
+
   '@carbon/motion@11.54.0':
     resolution: {integrity: sha512-gBixqCLn5DvH7DfY7CqvzDphWuU+/zgsEi5RtVzHSxgfx7dQ8Y/XwdAJvlCSh5kgxlVfXpnFc5UtyNVCuy+ZLg==}
 
-  '@carbon/react@1.118.0':
-    resolution: {integrity: sha512-YmwU2HdxfixQkbj/eC6BTk6bM2BCSlV4MyeTAks0q4/GvL63KBH4Nu0ikyRYaCct/sddXR2wuAJXKDnxPTCeew==}
+  '@carbon/motion@11.55.0':
+    resolution: {integrity: sha512-jBjLagm+DvFPcVpZUYuS+lY3FkZWolA69apKe+Oh8Ezulm3Q1DQMkG9Ky+VOa0rptgFTnafP6L6y8vmZ3LJa5g==}
+
+  '@carbon/react@1.119.0':
+    resolution: {integrity: sha512-nEkv9O1Kff1lioe2yPwMCpHnl+7M/8jNTntEfw3alYXcEKOuGR7At8BV7d7q6FsoB/lJh0UE/krdqNLUNvvQOw==}
     peerDependencies:
       react: ^16.8.6 || ^17.0.1 || ^18.2.0 || ^19.0.0
       react-dom: ^16.8.6 || ^17.0.1 || ^18.2.0 || ^19.0.0
       react-is: ^16.13.1 || ^17.0.2 || ^18.3.1 || ^19.0.0
       sass: ^1.33.0
+    peerDependenciesMeta:
+      sass:
+        optional: true
 
   '@carbon/styles@1.115.0':
     resolution: {integrity: sha512-0PDvpGARBwcWO8YD1lOjlViYby0jnSdgRlRBBptp8seFJ0iNqzGz6+to5AkQW845zT6tC1ftsiO2pf66fs1Ogg==}
@@ -97,8 +115,8 @@ packages:
       sass:
         optional: true
 
-  '@carbon/styles@1.117.0':
-    resolution: {integrity: sha512-1m/UH8aeSbDQ4PVIZ8no4QxvGhCswVV0tzMxdAaIrnRRtea6aMj6xQ3bKc1SR+F2SvpF2LJyut0Yd7hVQ4uoyQ==}
+  '@carbon/styles@1.118.0':
+    resolution: {integrity: sha512-/a5FktRWkAtrWmWMPO9tpc+GKX91dctdKXFL/pk02BJg47NZxhGCwFBJTDGeLvuEZnlkYaN5nUJXBi6vj4oKjQ==}
     peerDependencies:
       sass: ^1.33.0
     peerDependenciesMeta:
@@ -109,11 +127,18 @@ packages:
     resolution: {integrity: sha512-YxfO7BsoPCT+tJbJq/JiOZaYE+OE1ZSGMK93yC5pws/X5l25qUpKxWOb85OQBkOnYrwKGUsPEbAKm2wXvbFb5w==}
     engines: {node: '>=22'}
 
+  '@carbon/themes@11.84.0':
+    resolution: {integrity: sha512-SQI2Zq7bRC9+VOI6wPpoIt+k2nuzq47or76749h8xZTkjIYVMPKUh4OtUYI0+VZK3K4abeHCuUexQSqoAb54Gg==}
+    engines: {node: '>=22'}
+
   '@carbon/type@11.69.0':
     resolution: {integrity: sha512-8gmk6VrFV8+R7786YfLk+x1eS6EIGaCz7JLX/UEKlnVSck/7qnZdRjAkFceO3J6NL6hifP2X3wDO1qW9BMmESA==}
 
-  '@carbon/utilities@0.27.0':
-    resolution: {integrity: sha512-wjQ33XDkuvrQxaSf1v72JYIEieYZjLz3jfNs/hFzEIaK8xlo56ie/VU48oJhpjfjcBlU6TtLbLrOO64pzQ2q5Q==}
+  '@carbon/type@11.70.0':
+    resolution: {integrity: sha512-cmxwwhlVD/8L/J6k1N4/U6AhNldrpLynCQ4+Z7wSeGO6Ki0wE1Iczza8PAPa2eMoIw7frzk1q8jrwnI0zHBftw==}
+
+  '@carbon/utilities@0.28.0':
+    resolution: {integrity: sha512-I24KN06PLNAR1kGaixwVq3eJ0BkgC+KGV4wT1oNNAkP5197aIjPlUZrYLvhLOEXLBH0BLx7cUgFr8pRawkXYcw==}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -619,8 +644,8 @@ packages:
     peerDependencies:
       react: '>=16.12.0'
 
-  es-toolkit@1.52.0:
-    resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
+  es-toolkit@1.53.0:
+    resolution: {integrity: sha512-3+AYXp9fmJ/UhHBMYj2/U+RaUouMD90SzoItyDOB2Za7W6dB7fQApFGnZPl2MF6K8/Tv1koh1JyirSx/kju6Pw==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -836,8 +861,8 @@ packages:
   tabbable@6.5.0:
     resolution: {integrity: sha512-wieBHXygIm7OyQOu5hQlkk62/WyCFYGlWg7L6/ZCUZwx0o398Zkn4pVmMyfYhfMG8kGrj/Krt8eIk6UKC6VzwA==}
 
-  temporal-polyfill@1.0.5:
-    resolution: {integrity: sha512-+H/mmY74i6wXCMcjIhGuSnODcyZnc4eois2myhOyX0UqRAKNXQY5m9iB1en5jQ/n4SXtjLXo1ElBI5bmn8tZwQ==}
+  temporal-polyfill@1.0.6:
+    resolution: {integrity: sha512-tYyEry1HLGUDbm2356W3iYD0OZdo7rlP7h98Zr/EnjqLZQwTAfcBDUvJnJbfA15v/vQad57hJZScG5O0W2oKEA==}
 
   temporal-spec@1.0.1:
     resolution: {integrity: sha512-wxVoanmDeavXie1vu2JaQ3WIc3JZnWAOYFBsJyATaVsXsycKYUflGsyBmrRSnoCpZJpwPyr38VpgSUlQ8CbFxg==}
@@ -907,13 +932,21 @@ snapshots:
 
   '@babel/runtime@7.29.10': {}
 
-  '@babel/runtime@8.0.7': {}
+  '@babel/runtime@8.0.8': {}
 
   '@carbon/colors@11.60.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
+  '@carbon/colors@11.61.0':
+    dependencies:
+      '@ibm/telemetry-js': 1.12.0
+
   '@carbon/feature-flags@1.10.0':
+    dependencies:
+      '@ibm/telemetry-js': 1.12.0
+
+  '@carbon/feature-flags@1.11.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
@@ -922,11 +955,16 @@ snapshots:
       '@carbon/layout': 11.61.0
       '@ibm/telemetry-js': 1.12.0
 
+  '@carbon/grid@11.65.0':
+    dependencies:
+      '@carbon/layout': 11.62.0
+      '@ibm/telemetry-js': 1.12.0
+
   '@carbon/icon-helpers@10.84.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/icons-react@11.90.0(react@19.3.1)':
+  '@carbon/icons-react@11.91.0(react@19.3.1)':
     dependencies:
       '@carbon/icon-helpers': 10.84.0
       '@ibm/telemetry-js': 1.12.0
@@ -937,25 +975,33 @@ snapshots:
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
+  '@carbon/layout@11.62.0':
+    dependencies:
+      '@ibm/telemetry-js': 1.12.0
+
   '@carbon/motion@11.54.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/react@1.118.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.105.2)':
+  '@carbon/motion@11.55.0':
     dependencies:
-      '@babel/runtime': 8.0.7
-      '@carbon/feature-flags': 1.10.0
-      '@carbon/icons-react': 11.90.0(react@19.3.1)
-      '@carbon/layout': 11.61.0
-      '@carbon/motion': 11.54.0
-      '@carbon/styles': 1.117.0(sass@1.105.2)
-      '@carbon/utilities': 0.27.0
+      '@ibm/telemetry-js': 1.12.0
+
+  '@carbon/react@1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.105.2)':
+    dependencies:
+      '@babel/runtime': 8.0.8
+      '@carbon/feature-flags': 1.11.0
+      '@carbon/icons-react': 11.91.0(react@19.3.1)
+      '@carbon/layout': 11.62.0
+      '@carbon/motion': 11.55.0
+      '@carbon/styles': 1.118.0(sass@1.105.2)
+      '@carbon/utilities': 0.28.0
       '@floating-ui/react': 0.27.20(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@ibm/telemetry-js': 1.12.0
       classnames: 2.5.1
       copy-to-clipboard: 4.0.2
       downshift: 9.4.0(react@19.3.1)
-      es-toolkit: 1.52.0
+      es-toolkit: 1.53.0
       flatpickr: 4.6.13
       invariant: 2.2.4
       motion: 13.5.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -964,8 +1010,9 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
       react-fast-compare: 3.2.2
       react-is: 18.3.1
-      sass: 1.105.2
       tabbable: 6.5.0
+    optionalDependencies:
+      sass: 1.105.2
 
   '@carbon/styles@1.115.0(sass@1.105.2)':
     dependencies:
@@ -989,15 +1036,15 @@ snapshots:
     optionalDependencies:
       sass: 1.105.2
 
-  '@carbon/styles@1.117.0(sass@1.105.2)':
+  '@carbon/styles@1.118.0(sass@1.105.2)':
     dependencies:
-      '@carbon/colors': 11.60.0
-      '@carbon/feature-flags': 1.10.0
-      '@carbon/grid': 11.64.0
-      '@carbon/layout': 11.61.0
-      '@carbon/motion': 11.54.0
-      '@carbon/themes': 11.83.0
-      '@carbon/type': 11.69.0
+      '@carbon/colors': 11.61.0
+      '@carbon/feature-flags': 1.11.0
+      '@carbon/grid': 11.65.0
+      '@carbon/layout': 11.62.0
+      '@carbon/motion': 11.55.0
+      '@carbon/themes': 11.84.0
+      '@carbon/type': 11.70.0
       '@ibm/plex': 6.4.1
       '@ibm/plex-mono': 2.5.0
       '@ibm/plex-sans': 1.1.0
@@ -1019,17 +1066,31 @@ snapshots:
       '@ibm/telemetry-js': 1.12.0
       color: 4.2.3
 
+  '@carbon/themes@11.84.0':
+    dependencies:
+      '@carbon/colors': 11.61.0
+      '@carbon/layout': 11.62.0
+      '@carbon/type': 11.70.0
+      '@ibm/telemetry-js': 1.12.0
+      color: 4.2.3
+
   '@carbon/type@11.69.0':
     dependencies:
       '@carbon/grid': 11.64.0
       '@carbon/layout': 11.61.0
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/utilities@0.27.0':
+  '@carbon/type@11.70.0':
+    dependencies:
+      '@carbon/grid': 11.65.0
+      '@carbon/layout': 11.62.0
+      '@ibm/telemetry-js': 1.12.0
+
+  '@carbon/utilities@0.28.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
       '@internationalized/number': 3.6.9
-      temporal-polyfill: 1.0.5
+      temporal-polyfill: 1.0.6
 
   '@floating-ui/core@1.8.0':
     dependencies:
@@ -1371,7 +1432,7 @@ snapshots:
       react-is: 18.3.1
       tslib: 2.8.1
 
-  es-toolkit@1.52.0: {}
+  es-toolkit@1.53.0: {}
 
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
@@ -1553,7 +1614,7 @@ snapshots:
 
   tabbable@6.5.0: {}
 
-  temporal-polyfill@1.0.5:
+  temporal-polyfill@1.0.6:
     dependencies:
       temporal-spec: 1.0.1
       temporal-utils: 1.0.3
