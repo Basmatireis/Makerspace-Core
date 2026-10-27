@@ -136,6 +136,15 @@
   flex-shrink: 0;
 }
 
+// Long print file names end in an ellipsis instead of wrapping; the full name is in the title attribute.
+.print-preview__download-label,
+.print-preview__caption-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 // Facts bar --------------------------------------------------------------------
 
 .facts-bar.cds--tile {

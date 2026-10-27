@@ -40,7 +40,9 @@ export function PageHeader({ title, titleAdornment, description, breadcrumbs = [
         <div className="page-header__row">
           <div className="page-header__title">
             <div className="page-header__heading">
-              <Heading id={titleId}>{title}</Heading>
+              <Heading id={titleId} title={title}>
+                {title}
+              </Heading>
               {titleAdornment}
             </div>
             {description && <p className="page-header__description">{description}</p>}

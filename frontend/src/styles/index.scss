@@ -502,8 +502,13 @@ body.cds--body--with-modal-open .app-main > * {
   gap: $spacing-04;
 }
 
+// Long titles (such as print file names) stay on one line and end in an ellipsis; the full title is its tooltip.
 .page-header__title h1 {
-  overflow-wrap: anywhere;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .page-header__description {

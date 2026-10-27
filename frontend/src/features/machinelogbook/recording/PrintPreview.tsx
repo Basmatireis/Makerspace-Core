@@ -62,7 +62,7 @@ export function PrintPreview({
         {current.downloadHref && <DownloadButton href={current.downloadHref} fileName={current.fileName} />}
       </div>
       <div className="print-preview__caption">
-        <span>
+        <span className="print-preview__caption-text" title={`${current.label} · ${current.fileName}`}>
           <strong>{current.label}</strong>
           <span className="mj-secondary">
             {' · '}
@@ -98,8 +98,15 @@ export function PrintPreview({
 /** The print file of the shown preview, laid over the bottom edge of the image. */
 function DownloadButton({ href, fileName }: { href: string; fileName: string }) {
   return (
-    <Button className="print-preview__download" kind="primary" size="sm" renderIcon={Download} href={href}>
-      Download {fileName}
+    <Button
+      className="print-preview__download"
+      kind="primary"
+      size="sm"
+      renderIcon={Download}
+      href={href}
+      title={`Download ${fileName}`}
+    >
+      <span className="print-preview__download-label">Download {fileName}</span>
     </Button>
   );
 }
